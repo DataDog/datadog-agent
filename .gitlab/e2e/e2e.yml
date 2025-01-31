@@ -324,23 +324,6 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
 
-new-e2e-aml:
-  extends: .new_e2e_template
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - deploy_deb_testing-a7_x64
-    - deploy_windows_testing-a7
-    - qa_agent
-    - qa_agent_jmx
-    - qa_agent_fips_jmx
-    - qa_dca
-  rules:
-    - !reference [.on_aml_or_e2e_changes]
-    - !reference [.manual]
-  variables:
-    TARGETS: ./tests/agent-metrics-logs
-    TEAM: agent-metrics-logs
-
 new-e2e-amp:
   extends: .new_e2e_template
   needs:
@@ -357,6 +340,23 @@ new-e2e-amp:
   variables:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-metric-pipelines
+
+new-e2e-alp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
+    - qa_agent_jmx
+    - qa_agent_fips_jmx
+    - qa_dca
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
 
 new-e2e-cws:
   extends: .new_e2e_template

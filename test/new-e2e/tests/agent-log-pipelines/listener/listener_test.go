@@ -8,13 +8,12 @@ package listener
 import (
 	_ "embed"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -79,10 +78,10 @@ func TestUDPListener(t *testing.T) {
 func assertLogsReceived(
 	t *testing.T,
 	eventuallyWithT func(
-		condition func(collect *assert.CollectT),
-		waitFor time.Duration,
-		tick time.Duration,
-		msgAndArgs ...interface{}) bool,
+	condition func(collect *assert.CollectT),
+	waitFor time.Duration,
+	tick time.Duration,
+	msgAndArgs ...interface{}) bool,
 	agent *components.DockerAgent,
 	docker *components.RemoteHostDocker,
 	fakeIntake *components.FakeIntake) {
