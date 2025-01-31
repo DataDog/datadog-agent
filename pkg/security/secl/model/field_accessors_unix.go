@@ -26,14 +26,6 @@ func (ev *Event) GetChdirFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File)
 }
 
-// GetChdirFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetChdirFilePathLength() int {
-	if ev.GetEventType().String() != "chdir" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File))
-}
-
 // GetChmodFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetChmodFilePath() string {
 	if ev.GetEventType().String() != "chmod" {
@@ -42,28 +34,12 @@ func (ev *Event) GetChmodFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Chmod.File)
 }
 
-// GetChmodFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetChmodFilePathLength() int {
-	if ev.GetEventType().String() != "chmod" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Chmod.File))
-}
-
 // GetChownFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetChownFilePath() string {
 	if ev.GetEventType().String() != "chown" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Chown.File)
-}
-
-// GetChownFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetChownFilePathLength() int {
-	if ev.GetEventType().String() != "chown" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Chown.File))
 }
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
@@ -145,17 +121,6 @@ func (ev *Event) GetExecFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 }
 
-// GetExecFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetExecFilePathLength() int {
-	if ev.GetEventType().String() != "exec" {
-		return 0
-	}
-	if ev.Exec.Process == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent))
-}
-
 // GetExecForkTime returns the value of the field, resolving if necessary
 func (ev *Event) GetExecForkTime() time.Time {
 	if ev.GetEventType().String() != "exec" {
@@ -201,17 +166,6 @@ func (ev *Event) GetExecInterpreterFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
-}
-
-// GetExecInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetExecInterpreterFilePathLength() int {
-	if ev.GetEventType().String() != "exec" {
-		return 0
-	}
-	if ev.Exec.Process == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.LinuxBinprm.FileEvent))
 }
 
 // GetExecPid returns the value of the field, resolving if necessary
@@ -324,17 +278,6 @@ func (ev *Event) GetExitFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
 }
 
-// GetExitFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetExitFilePathLength() int {
-	if ev.GetEventType().String() != "exit" {
-		return 0
-	}
-	if ev.Exit.Process == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent))
-}
-
 // GetExitForkTime returns the value of the field, resolving if necessary
 func (ev *Event) GetExitForkTime() time.Time {
 	if ev.GetEventType().String() != "exit" {
@@ -380,17 +323,6 @@ func (ev *Event) GetExitInterpreterFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
-}
-
-// GetExitInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetExitInterpreterFilePathLength() int {
-	if ev.GetEventType().String() != "exit" {
-		return 0
-	}
-	if ev.Exit.Process == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.LinuxBinprm.FileEvent))
 }
 
 // GetExitPid returns the value of the field, resolving if necessary
@@ -445,28 +377,12 @@ func (ev *Event) GetLinkFileDestinationPath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Link.Target)
 }
 
-// GetLinkFileDestinationPathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetLinkFileDestinationPathLength() int {
-	if ev.GetEventType().String() != "link" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Link.Target))
-}
-
 // GetLinkFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetLinkFilePath() string {
 	if ev.GetEventType().String() != "link" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Link.Source)
-}
-
-// GetLinkFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetLinkFilePathLength() int {
-	if ev.GetEventType().String() != "link" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Link.Source))
 }
 
 // GetLoadModuleFilePath returns the value of the field, resolving if necessary
@@ -477,14 +393,6 @@ func (ev *Event) GetLoadModuleFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.LoadModule.File)
 }
 
-// GetLoadModuleFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetLoadModuleFilePathLength() int {
-	if ev.GetEventType().String() != "load_module" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.LoadModule.File))
-}
-
 // GetMkdirFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetMkdirFilePath() string {
 	if ev.GetEventType().String() != "mkdir" {
@@ -493,28 +401,12 @@ func (ev *Event) GetMkdirFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Mkdir.File)
 }
 
-// GetMkdirFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetMkdirFilePathLength() int {
-	if ev.GetEventType().String() != "mkdir" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Mkdir.File))
-}
-
 // GetMmapFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetMmapFilePath() string {
 	if ev.GetEventType().String() != "mmap" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.MMap.File)
-}
-
-// GetMmapFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetMmapFilePathLength() int {
-	if ev.GetEventType().String() != "mmap" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.MMap.File))
 }
 
 // GetMountMountpointPath returns the value of the field, resolving if necessary
@@ -539,14 +431,6 @@ func (ev *Event) GetOpenFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File)
-}
-
-// GetOpenFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetOpenFilePathLength() int {
-	if ev.GetEventType().String() != "open" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File))
 }
 
 // GetProcessAncestorsCmdargv returns the value of the field, resolving if necessary
@@ -612,27 +496,6 @@ func (ev *Event) GetProcessAncestorsFilePath() []string {
 	return values
 }
 
-// GetProcessAncestorsFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsFilePathLength() []int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return []int{}
-	}
-	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return []int{}
-	}
-	var values []int
-	ctx := eval.NewContext(ev)
-	iterator := &ProcessAncestorsIterator{}
-	ptr := iterator.Front(ctx)
-	for ptr != nil {
-		element := (*ProcessCacheEntry)(ptr)
-		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
-		values = append(values, result)
-		ptr = iterator.Next(ctx)
-	}
-	return values
-}
-
 // GetProcessAncestorsGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsGid() []uint32 {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -690,27 +553,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePath() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
-		values = append(values, result)
-		ptr = iterator.Next(ctx)
-	}
-	return values
-}
-
-// GetProcessAncestorsInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsInterpreterFilePathLength() []int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return []int{}
-	}
-	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return []int{}
-	}
-	var values []int
-	ctx := eval.NewContext(ev)
-	iterator := &ProcessAncestorsIterator{}
-	ptr := iterator.Front(ctx)
-	for ptr != nil {
-		element := (*ProcessCacheEntry)(ptr)
-		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
 		values = append(values, result)
 		ptr = iterator.Next(ctx)
 	}
@@ -844,14 +686,6 @@ func (ev *Event) GetProcessFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
-// GetProcessFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessFilePathLength() int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
-}
-
 // GetProcessForkTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessForkTime() time.Time {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -885,14 +719,6 @@ func (ev *Event) GetProcessInterpreterFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
-}
-
-// GetProcessInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessInterpreterFilePathLength() int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent))
 }
 
 // GetProcessParentCmdargv returns the value of the field, resolving if necessary
@@ -940,17 +766,6 @@ func (ev *Event) GetProcessParentFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
-// GetProcessParentFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentFilePathLength() int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return 0
-	}
-	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
-}
-
 // GetProcessParentGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentGid() uint32 {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -994,17 +809,6 @@ func (ev *Event) GetProcessParentInterpreterFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
-}
-
-// GetProcessParentInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentInterpreterFilePathLength() int {
-	if ev.BaseEvent.ProcessContext == nil {
-		return 0
-	}
-	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent))
 }
 
 // GetProcessParentPid returns the value of the field, resolving if necessary
@@ -1167,30 +971,6 @@ func (ev *Event) GetPtraceTraceeAncestorsFilePath() []string {
 	return values
 }
 
-// GetPtraceTraceeAncestorsFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeAncestorsFilePathLength() []int {
-	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
-	}
-	if ev.PTrace.Tracee == nil {
-		return []int{}
-	}
-	if ev.PTrace.Tracee.Ancestor == nil {
-		return []int{}
-	}
-	var values []int
-	ctx := eval.NewContext(ev)
-	iterator := &ProcessAncestorsIterator{}
-	ptr := iterator.Front(ctx)
-	for ptr != nil {
-		element := (*ProcessCacheEntry)(ptr)
-		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
-		values = append(values, result)
-		ptr = iterator.Next(ctx)
-	}
-	return values
-}
-
 // GetPtraceTraceeAncestorsGid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsGid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
@@ -1257,30 +1037,6 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFilePath() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
-		values = append(values, result)
-		ptr = iterator.Next(ctx)
-	}
-	return values
-}
-
-// GetPtraceTraceeAncestorsInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeAncestorsInterpreterFilePathLength() []int {
-	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
-	}
-	if ev.PTrace.Tracee == nil {
-		return []int{}
-	}
-	if ev.PTrace.Tracee.Ancestor == nil {
-		return []int{}
-	}
-	var values []int
-	ctx := eval.NewContext(ev)
-	iterator := &ProcessAncestorsIterator{}
-	ptr := iterator.Front(ctx)
-	for ptr != nil {
-		element := (*ProcessCacheEntry)(ptr)
-		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
 		values = append(values, result)
 		ptr = iterator.Next(ctx)
 	}
@@ -1441,17 +1197,6 @@ func (ev *Event) GetPtraceTraceeFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Process.FileEvent)
 }
 
-// GetPtraceTraceeFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeFilePathLength() int {
-	if ev.GetEventType().String() != "ptrace" {
-		return 0
-	}
-	if ev.PTrace.Tracee == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Process.FileEvent))
-}
-
 // GetPtraceTraceeForkTime returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeForkTime() time.Time {
 	if ev.GetEventType().String() != "ptrace" {
@@ -1497,17 +1242,6 @@ func (ev *Event) GetPtraceTraceeInterpreterFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
-}
-
-// GetPtraceTraceeInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeInterpreterFilePathLength() int {
-	if ev.GetEventType().String() != "ptrace" {
-		return 0
-	}
-	if ev.PTrace.Tracee == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent))
 }
 
 // GetPtraceTraceeParentCmdargv returns the value of the field, resolving if necessary
@@ -1564,20 +1298,6 @@ func (ev *Event) GetPtraceTraceeParentFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 }
 
-// GetPtraceTraceeParentFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeParentFilePathLength() int {
-	if ev.GetEventType().String() != "ptrace" {
-		return 0
-	}
-	if ev.PTrace.Tracee == nil {
-		return 0
-	}
-	if ev.PTrace.Tracee.Parent == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Parent.FileEvent))
-}
-
 // GetPtraceTraceeParentGid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentGid() uint32 {
 	if ev.GetEventType().String() != "ptrace" {
@@ -1630,20 +1350,6 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
-}
-
-// GetPtraceTraceeParentInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeParentInterpreterFilePathLength() int {
-	if ev.GetEventType().String() != "ptrace" {
-		return 0
-	}
-	if ev.PTrace.Tracee == nil {
-		return 0
-	}
-	if ev.PTrace.Tracee.Parent == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent))
 }
 
 // GetPtraceTraceeParentPid returns the value of the field, resolving if necessary
@@ -1766,28 +1472,12 @@ func (ev *Event) GetRemovexattrFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.RemoveXAttr.File)
 }
 
-// GetRemovexattrFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetRemovexattrFilePathLength() int {
-	if ev.GetEventType().String() != "removexattr" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.RemoveXAttr.File))
-}
-
 // GetRenameFileDestinationPath returns the value of the field, resolving if necessary
 func (ev *Event) GetRenameFileDestinationPath() string {
 	if ev.GetEventType().String() != "rename" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Rename.New)
-}
-
-// GetRenameFileDestinationPathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetRenameFileDestinationPathLength() int {
-	if ev.GetEventType().String() != "rename" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Rename.New))
 }
 
 // GetRenameFilePath returns the value of the field, resolving if necessary
@@ -1798,14 +1488,6 @@ func (ev *Event) GetRenameFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Rename.Old)
 }
 
-// GetRenameFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetRenameFilePathLength() int {
-	if ev.GetEventType().String() != "rename" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Rename.Old))
-}
-
 // GetRmdirFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetRmdirFilePath() string {
 	if ev.GetEventType().String() != "rmdir" {
@@ -1814,28 +1496,12 @@ func (ev *Event) GetRmdirFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Rmdir.File)
 }
 
-// GetRmdirFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetRmdirFilePathLength() int {
-	if ev.GetEventType().String() != "rmdir" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Rmdir.File))
-}
-
 // GetSetxattrFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetSetxattrFilePath() string {
 	if ev.GetEventType().String() != "setxattr" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.SetXAttr.File)
-}
-
-// GetSetxattrFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetSetxattrFilePathLength() int {
-	if ev.GetEventType().String() != "setxattr" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.SetXAttr.File))
 }
 
 // GetSignalTargetAncestorsCmdargv returns the value of the field, resolving if necessary
@@ -1910,30 +1576,6 @@ func (ev *Event) GetSignalTargetAncestorsFilePath() []string {
 	return values
 }
 
-// GetSignalTargetAncestorsFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetAncestorsFilePathLength() []int {
-	if ev.GetEventType().String() != "signal" {
-		return []int{}
-	}
-	if ev.Signal.Target == nil {
-		return []int{}
-	}
-	if ev.Signal.Target.Ancestor == nil {
-		return []int{}
-	}
-	var values []int
-	ctx := eval.NewContext(ev)
-	iterator := &ProcessAncestorsIterator{}
-	ptr := iterator.Front(ctx)
-	for ptr != nil {
-		element := (*ProcessCacheEntry)(ptr)
-		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
-		values = append(values, result)
-		ptr = iterator.Next(ctx)
-	}
-	return values
-}
-
 // GetSignalTargetAncestorsGid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsGid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
@@ -2000,30 +1642,6 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFilePath() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
-		values = append(values, result)
-		ptr = iterator.Next(ctx)
-	}
-	return values
-}
-
-// GetSignalTargetAncestorsInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetAncestorsInterpreterFilePathLength() []int {
-	if ev.GetEventType().String() != "signal" {
-		return []int{}
-	}
-	if ev.Signal.Target == nil {
-		return []int{}
-	}
-	if ev.Signal.Target.Ancestor == nil {
-		return []int{}
-	}
-	var values []int
-	ctx := eval.NewContext(ev)
-	iterator := &ProcessAncestorsIterator{}
-	ptr := iterator.Front(ctx)
-	for ptr != nil {
-		element := (*ProcessCacheEntry)(ptr)
-		result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
 		values = append(values, result)
 		ptr = iterator.Next(ctx)
 	}
@@ -2184,17 +1802,6 @@ func (ev *Event) GetSignalTargetFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Process.FileEvent)
 }
 
-// GetSignalTargetFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetFilePathLength() int {
-	if ev.GetEventType().String() != "signal" {
-		return 0
-	}
-	if ev.Signal.Target == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Process.FileEvent))
-}
-
 // GetSignalTargetForkTime returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetForkTime() time.Time {
 	if ev.GetEventType().String() != "signal" {
@@ -2240,17 +1847,6 @@ func (ev *Event) GetSignalTargetInterpreterFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
-}
-
-// GetSignalTargetInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetInterpreterFilePathLength() int {
-	if ev.GetEventType().String() != "signal" {
-		return 0
-	}
-	if ev.Signal.Target == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent))
 }
 
 // GetSignalTargetParentCmdargv returns the value of the field, resolving if necessary
@@ -2307,20 +1903,6 @@ func (ev *Event) GetSignalTargetParentFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Parent.FileEvent)
 }
 
-// GetSignalTargetParentFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetParentFilePathLength() int {
-	if ev.GetEventType().String() != "signal" {
-		return 0
-	}
-	if ev.Signal.Target == nil {
-		return 0
-	}
-	if ev.Signal.Target.Parent == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Parent.FileEvent))
-}
-
 // GetSignalTargetParentGid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentGid() uint32 {
 	if ev.GetEventType().String() != "signal" {
@@ -2373,20 +1955,6 @@ func (ev *Event) GetSignalTargetParentInterpreterFilePath() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
-}
-
-// GetSignalTargetParentInterpreterFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetParentInterpreterFilePathLength() int {
-	if ev.GetEventType().String() != "signal" {
-		return 0
-	}
-	if ev.Signal.Target == nil {
-		return 0
-	}
-	if ev.Signal.Target.Parent == nil {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent))
 }
 
 // GetSignalTargetParentPid returns the value of the field, resolving if necessary
@@ -2509,14 +2077,6 @@ func (ev *Event) GetSpliceFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Splice.File)
 }
 
-// GetSpliceFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetSpliceFilePathLength() int {
-	if ev.GetEventType().String() != "splice" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Splice.File))
-}
-
 // GetTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetTimestamp() time.Time {
 	return ev.FieldHandlers.ResolveEventTime(ev, &ev.BaseEvent)
@@ -2530,26 +2090,10 @@ func (ev *Event) GetUnlinkFilePath() string {
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Unlink.File)
 }
 
-// GetUnlinkFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetUnlinkFilePathLength() int {
-	if ev.GetEventType().String() != "unlink" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Unlink.File))
-}
-
 // GetUtimesFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetUtimesFilePath() string {
 	if ev.GetEventType().String() != "utimes" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Utimes.File)
-}
-
-// GetUtimesFilePathLength returns the value of the field, resolving if necessary
-func (ev *Event) GetUtimesFilePathLength() int {
-	if ev.GetEventType().String() != "utimes" {
-		return 0
-	}
-	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Utimes.File))
 }

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
@@ -29,7 +29,7 @@ func (b batch) getOrAddPodInfo(pod *workloadmeta.KubernetesPod) *podInfo {
 	containers := getContainersFromPod(pod)
 	b[pod.Name] = &podInfo{
 		namespace:     pod.Namespace,
-		containerInfo: make(langUtil.ContainersLanguages),
+		containerInfo: make(languagemodels.ContainersLanguages),
 		ownerRef:      &pod.Owners[0],
 		containers:    containers,
 	}
@@ -38,10 +38,10 @@ func (b batch) getOrAddPodInfo(pod *workloadmeta.KubernetesPod) *podInfo {
 
 type podInfo struct {
 	namespace     string
-	containerInfo langUtil.ContainersLanguages
+	containerInfo languagemodels.ContainersLanguages
 	ownerRef      *workloadmeta.KubernetesPodOwner
 	// Record all of the containers in the pod
-	containers map[langUtil.Container]struct{}
+	containers map[languagemodels.Container]struct{}
 }
 
 func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
@@ -59,10 +59,10 @@ func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 	}
 }
 
-func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) langUtil.LanguageSet {
+func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) languagemodels.LanguageSet {
 	cInfo := p.containerInfo
 
-	container := langUtil.Container{
+	container := languagemodels.Container{
 		Name: containerName,
 		Init: isInitContainer,
 	}
@@ -70,7 +70,7 @@ func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bo
 		return languageSet
 	}
 
-	cInfo[container] = make(langUtil.LanguageSet)
+	cInfo[container] = make(languagemodels.LanguageSet)
 	return cInfo[container]
 }
 
@@ -129,10 +129,10 @@ func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
 }
 
 // getContainersFromPod returns the containers from a pod
-func getContainersFromPod(pod *workloadmeta.KubernetesPod) (containers map[langUtil.Container]struct{}) {
-	containers = make(map[langUtil.Container]struct{})
+func getContainersFromPod(pod *workloadmeta.KubernetesPod) (containers map[languagemodels.Container]struct{}) {
+	containers = make(map[languagemodels.Container]struct{})
 	for _, container := range pod.Containers {
-		c := *langUtil.NewContainer(container.Name)
+		c := *languagemodels.NewContainer(container.Name)
 		containers[c] = struct{}{}
 	}
 	return
