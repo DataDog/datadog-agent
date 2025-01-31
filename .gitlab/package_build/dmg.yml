@@ -151,11 +151,12 @@ new-agent_dmg-x64-a7:
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   script:
-    - swift --version
-    - xcrun --version
-    - 'echo "$(xcrun --find swift-stdlib-tool)" "$(xcrun --find bitcode_strip)"'
     - set -e
     - !reference [.vault_login]
+    # Setup builder
+    - brew remove --force --ignore-dependencies $(brew list --formula)
+    - rm -rf /usr/local/lib/ruby
+    - rm -rf /Library/Frameworks/Python.framework/Versions/*
     # Setup
     - |
       export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
