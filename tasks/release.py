@@ -686,8 +686,7 @@ def create_and_update_release_branch(
     # Perform branch out in all required repositories
     print(color_message(f"Working repository: {repo}", "bold"))
     if repo == 'datadog-agent':
-        with agent_context(ctx, base_branch or get_default_branch(major=get_version_major(release_branch))):
-            _main()
+        _main()
     else:
         with ctx.cd(f"{base_directory}/{repo}"):
             # Step 1 - Create a local branch out from the default branch
@@ -734,7 +733,7 @@ def create_release_branches(
     # Strings with proper branch/tag names
     release_branch = current.branch()
 
-    with agent_context(ctx, get_default_branch(major=get_version_major(release_branch)), commit=commit):
+    with agent_context(ctx, commit=commit):
         # Step 0: checks
         ctx.run("git fetch")
 
