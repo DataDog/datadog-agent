@@ -38,41 +38,41 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.62.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.62.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.62.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.62.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.62.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/tagset v0.62.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.62.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/buf v0.62.1-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.62.1-rc.1
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.62.1
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.62.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.62.1
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.62.1
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.62.1
+	github.com/DataDog/datadog-agent/pkg/tagset v0.62.1
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.62.1
+	github.com/DataDog/datadog-agent/pkg/util/buf v0.62.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.62.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.22.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.62.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.62.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.62.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.62.1 // indirect
 	github.com/DataDog/sketches-go v1.4.6 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
