@@ -275,9 +275,6 @@ func (c *Check) configureExcludeFileSystem(instanceConfig map[interface{}]interf
 			}
 		}
 	}
-	// Force exclusion of CDROM (iso9660) from disk check
-	regexp, _ := regexp.Compile("iso9660")
-	c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *regexp)
 	return nil
 }
 
