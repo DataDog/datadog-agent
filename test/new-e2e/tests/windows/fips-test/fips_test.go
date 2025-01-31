@@ -80,7 +80,7 @@ func (s *fipsAgentSuite) TestWithSystemFIPSDisabled() {
 		s.Run("gofips disabled", func() {
 			status, err := s.execAgentCommand("status")
 			require.NoError(s.T(), err)
-			assert.Contains(s.T(), status, "FIPS compliant: false")
+			assert.Contains(s.T(), status, "FIPS Mode: disabled")
 		})
 	})
 }
@@ -105,13 +105,13 @@ func (s *fipsAgentSuite) TestWithSystemFIPSEnabled() {
 		s.Run("gofips enabled", func() {
 			status, err := s.execAgentCommand("status")
 			require.NoError(s.T(), err)
-			assert.Contains(s.T(), status, "FIPS compliant: true")
+			assert.Contains(s.T(), status, "FIPS Mode: enabled")
 		})
 
 		s.Run("gofips disabled", func() {
 			status, err := s.execAgentCommand("status")
 			require.NoError(s.T(), err)
-			assert.Contains(s.T(), status, "FIPS compliant: true")
+			assert.Contains(s.T(), status, "FIPS Mode: enabled")
 		})
 	})
 }
