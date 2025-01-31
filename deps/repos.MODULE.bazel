@@ -124,24 +124,29 @@ http_archive(
     url = "http://download.savannah.nongnu.org/releases/acl/acl-{0}.tar.xz".format(LIBACL_VERSION),
 )
 
-LIBGPG_ERROR_VERSION = "1.47"
+LIBGPG_ERROR_VERSION = "1.51"
 
 http_archive(
     name = "libgpg-error",
     build_file_content = all_content,
-    sha256 = "9e3c670966b96ecc746c28c2c419541e3bcb787d1a73930f5e5f5e1bcbbb9bdb",
+    sha256 = "be0f1b2db6b93eed55369cdf79f19f72750c8c7c39fc20b577e724545427e6b2",
     strip_prefix = "libgpg-error-{0}".format(LIBGPG_ERROR_VERSION),
     url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-{0}.tar.bz2".format(LIBGPG_ERROR_VERSION),
 )
 
-LIBGCRYPT_VERSION = "1.10.2"
+LIBGCRYPT_VERSION = "1.11.0"
 
 http_archive(
     name = "libgcrypt",
     build_file_content = all_content,
-    sha256 = "3b9c02a004b68c256add99701de00b383accccf37177e0d6c58289664cce0c03",
+    sha256 = "09120c9867ce7f2081d6aaa1775386b98c2f2f246135761aae47d81f58685b9c",
     strip_prefix = "libgcrypt-{0}".format(LIBGCRYPT_VERSION),
     url = "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-{0}.tar.bz2".format(LIBGCRYPT_VERSION),
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/libgcrypt:patches/0001-disable-tests-build.patch",
+    ],
 )
 
 # Defines a pcre2 target for the lib

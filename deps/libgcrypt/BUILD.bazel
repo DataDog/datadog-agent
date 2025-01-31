@@ -15,4 +15,11 @@ configure_make(
     deps = [
         "//deps/libgpg-error",
     ],
+    autoreconf = True,
+    configure_in_place = True,
+    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
+    env = {
+        "LD": "",
+        "PATH": "$$EXT_BUILD_DEPS/libgpg-error/bin:$$PATH",
+    },
 )
