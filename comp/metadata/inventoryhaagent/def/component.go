@@ -9,9 +9,4 @@ package inventoryhaagent
 // team: ndm-core
 
 // Component is the component type.
-type Component interface {
-	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
-	GetAsJSON() ([]byte, error)
-	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
-	Get() map[string]interface{}
-}
+type Component interface{}
