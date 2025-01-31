@@ -234,6 +234,8 @@ modules:
     used_by_otel: true
   pkg/util/common:
     used_by_otel: true
+  pkg/util/option:
+    used_by_otel: true
   pkg/util/compression:
     used_by_otel: true
   pkg/util/containers/image:
