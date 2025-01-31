@@ -233,7 +233,11 @@ func handleEmbedded(module *common.Module, name, prefix, event string, restricte
 }
 
 // handleNonEmbedded adds non-embedded fields to list of all possible (but not necessarily exposed) SECL fields of the module
-func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName, event string, restrictedTo []string, fieldType string, isPointer, isArray bool) {
+func handleNonEmbedded(module *common.Module, field seclField, aliasPrefix, alias, prefixedFieldName, event string, restrictedTo []string, fieldType string, isPointer, isArray bool) {
+	if aliasPrefix != "" {
+		alias = aliasPrefix + "." + alias
+	}
+
 	module.AllFields[prefixedFieldName] = &common.StructField{
 		Name:          prefixedFieldName,
 		Event:         event,
@@ -242,6 +246,9 @@ func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName
 		IsArray:       isArray,
 		Check:         field.check,
 		RestrictedTo:  restrictedTo,
+		SetHandler:    field.setHandler,
+		AliasPrefix:   aliasPrefix,
+		Alias:         alias,
 	}
 }
 
@@ -283,8 +290,10 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		Helper:           field.helper,
 		SkipADResolution: field.skipADResolution,
 		Check:            field.check,
+		SetHandler:       field.setHandler,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
+		ReadOnly:         field.readOnly,
 	}
 
 	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
@@ -324,12 +333,14 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		SkipADResolution: field.skipADResolution,
 		IsOrigTypePtr:    isPointer,
 		Check:            field.check,
+		SetHandler:       field.setHandler,
 		Alias:            alias,
 		AliasPrefix:      aliasPrefix,
 		GettersOnly:      field.gettersOnly,
 		GenGetters:       field.genGetters,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
+		ReadOnly:         field.readOnly,
 	}
 	module.Fields[alias] = newStructField
 
@@ -379,11 +390,13 @@ type seclField struct {
 	lengthField            bool
 	weight                 int64
 	check                  string
+	setHandler             string
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 	containerStructName    string
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
 	genGetters             bool
 	ref                    string
+	readOnly               bool
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -418,6 +431,8 @@ func parseFieldDef(def string) (seclField, error) {
 				field.iterator = value
 			case "check":
 				field.check = value
+			case "set_handler":
+				field.setHandler = value
 			case "opts":
 				for _, opt := range strings.Split(value, "|") {
 					switch opt {
@@ -434,6 +449,8 @@ func parseFieldDef(def string) (seclField, error) {
 						field.exposedAtEventRootOnly = true
 					case "gen_getters":
 						field.genGetters = true
+					case "readonly":
+						field.readOnly = true
 					}
 				}
 			}
@@ -542,7 +559,9 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			}
 
 			for _, seclField := range fields {
-				handleNonEmbedded(module, seclField, prefixedFieldName, fieldEvent, restrictedTo, fieldType, isPointer, isArray)
+				alias := seclField.name
+
+				handleNonEmbedded(module, seclField, aliasPrefix, alias, prefixedFieldName, fieldEvent, restrictedTo, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
 					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
@@ -565,7 +584,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 					continue
 				}
 
-				alias := seclField.name
 				if isBasicType(fieldType) {
 					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, fieldEvent, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
 				} else {
@@ -592,7 +610,9 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				}
 			}
 			for _, seclField := range gettersOnlyFields {
-				handleNonEmbedded(module, seclField, prefixedFieldName, fieldEvent, restrictedTo, fieldType, isPointer, isArray)
+				alias := seclField.name
+
+				handleNonEmbedded(module, seclField, aliasPrefix, alias, prefixedFieldName, fieldEvent, restrictedTo, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
 					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
@@ -615,7 +635,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 					continue
 				}
 
-				alias := seclField.name
 				if isBasicTypeForGettersOnly(fieldType) {
 					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, fieldEvent, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
 				} else {
@@ -955,6 +974,36 @@ func getChecks(allFields map[string]*common.StructField, field *common.StructFie
 	return checks
 }
 
+func getSetHandler(allFields map[string]*common.StructField, field *common.StructField) string {
+	var handler string
+
+	fqn := field.Alias
+
+	name := field.Name
+	for name != "" {
+		field := allFields[name]
+		if field == nil {
+			break
+		}
+
+		if field.SetHandler != "" {
+			ptr := ""
+			if !field.IsOrigTypePtr {
+				ptr = "&"
+			}
+			return fmt.Sprintf(`%s(%sev.%s, "%s", value)`, field.SetHandler, ptr, field.Name, strings.Replace(fqn, field.Alias+".", "", -1))
+		}
+
+		idx := strings.LastIndex(name, ".")
+		if idx == -1 {
+			break
+		}
+		name = name[:idx]
+	}
+
+	return handler
+}
+
 func getHandlers(allFields map[string]*common.StructField) map[string]string {
 	handlers := make(map[string]string)
 
@@ -1022,6 +1071,10 @@ func getFieldReflectType(field *common.StructField) string {
 	return ""
 }
 
+func isReadOnly(field *common.StructField) bool {
+	return field.IsLength || field.Helper || field.ReadOnly
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix":               strings.TrimPrefix,
 	"TrimSuffix":               strings.TrimSuffix,
@@ -1039,6 +1092,8 @@ var funcMap = map[string]interface{}{
 	"AddSuffixToFuncPrototype": addSuffixToFuncPrototype,
 	"GetFieldRestrictions":     getFieldRestrictions,
 	"GetFieldReflectType":      getFieldReflectType,
+	"GetSetHandler":            getSetHandler,
+	"IsReadOnly":               isReadOnly,
 }
 
 //go:embed accessors.tmpl

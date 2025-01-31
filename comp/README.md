@@ -6,7 +6,7 @@ Click the links for more documentation.
 
 ## [comp/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-runtimes
 
 Package agent implements the "agent" bundle,
 
@@ -46,13 +46,13 @@ Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump AP
 
 ### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-configuration
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
 ## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-runtimes
 
 Package api implements the "api" bundle,
 
@@ -102,7 +102,7 @@ Package collector defines the collector component.
 
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-runtimes
 
 Package core implements the "core" bundle, providing services common to all
 agent flavors and binaries.
@@ -119,18 +119,26 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
+*Datadog Team*: agent-configuration
+
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
 
 ### [comp/core/configsync](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configsync)
 
+*Datadog Team*: agent-configuration
+
 Package configsync implements synchronizing the configuration using the core agent config API
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
+*Datadog Team*: agent-configuration
+
 Package flare implements a component to generate flares from the agent.
 
 ### [comp/core/gui](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/gui)
+
+*Datadog Team*: agent-configuration
 
 Package gui provides the GUI server component for the Datadog Agent.
 
@@ -166,13 +174,19 @@ status and emit flare data
 
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
+*Datadog Team*: agent-configuration
+
 Package secrets decodes secret values by invoking the configured executable command
 
 ### [comp/core/settings](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/settings)
 
+*Datadog Team*: agent-configuration
+
 Package settings defines the interface for the component that manage settings that can be changed at runtime
 
 ### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
+
+*Datadog Team*: agent-configuration
 
 Package status displays information about the agent.
 
@@ -282,7 +296,7 @@ send logs.
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-configuration
 
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
@@ -371,7 +385,7 @@ Package npcollector used to manage network paths
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
-*Datadog Team*: opentelemetry
+*Datadog Team*: opentelemetry opentelemetry-agent
 
 Package otelcol contains the OTLP ingest bundle pipeline to be included
 into the agent components.

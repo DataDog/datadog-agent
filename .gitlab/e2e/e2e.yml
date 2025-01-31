@@ -166,14 +166,23 @@ new-e2e-remote-config:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
 
-new-e2e-agent-shared-components:
+new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
   rules:
-    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.on_acfg_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-shared-components
-    TEAM: agent-shared-components
+    TARGETS: ./tests/agent-configuration
+    TEAM: agent-configuration
+
+new-e2e-agent-runtimes:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes
+    TEAM: agent-runtimes
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -182,7 +191,7 @@ new-e2e-agent-subcommands:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
-    TEAM: agent-shared-components
+    TEAM: agent-configuration
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
@@ -203,11 +212,11 @@ new-e2e-fips-compliance-test:
     - qa_agent_fips
     - deploy_deb_testing-a7_x64
   rules:
-    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/fips-compliance
-    TEAM: agent-shared-components
+    TEAM: agent-runtimes
 
 new-e2e-windows-fips-compliance-test:
   extends: .new_e2e_template
