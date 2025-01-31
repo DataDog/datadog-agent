@@ -89,7 +89,7 @@ func TestShowMetadataInventoryOtelCommand(t *testing.T) {
 func TestShowMetadataInventoryHaAgentCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"diagnose", "show-metadata", "inventory-ha-agent"},
+		[]string{"diagnose", "show-metadata", "ha-agent"},
 		printPayload,
 		func(_ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)

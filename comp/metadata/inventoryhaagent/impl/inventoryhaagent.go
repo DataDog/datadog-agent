@@ -62,6 +62,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Provider:             i.MetadataProvider(),
 		FlareProvider:        i.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(i),
-		Endpoint:             api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-ha-agent", "GET"),
+		Endpoint:             api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/ha-agent", "GET"),
 	}, nil
 }

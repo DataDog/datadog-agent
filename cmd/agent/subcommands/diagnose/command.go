@@ -223,7 +223,7 @@ This command print the inventory-otel metadata payload. This payload is used by 
 This command print the ha-agent metadata payload. This payload is used by the 'HA Agent' feature.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
-				fx.Supply(payloadName("inventory-ha-agent")),
+				fx.Supply(payloadName("ha-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 			)
