@@ -33,6 +33,7 @@
 '@datadog/windows-agent': '#windows-agent-reviews'
 '@datadog/windows-kernel-integrations': '#windows-kernel-integrations-reviews'
 '@datadog/opentelemetry': '#opentelemetry'
+'@datadog/opentelemetry-agent': '#opentelemetry-agent'
 '@datadog/agent-e2e-testing': '#agent-e2e-framework-help'
 '@datadog/software-integrity-and-trust': '#sit'
 '@datadog/single-machine-performance': '#single-machine-performance'
