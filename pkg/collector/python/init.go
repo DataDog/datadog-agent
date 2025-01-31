@@ -257,7 +257,7 @@ func init() {
 
 	resolvePythonHome()
 	if fipsEnabled {
-		err := initFIPS()
+		err := initFIPS(PythonHome)
 		if err != nil {
 			log.Warnf("Error initializing FIPS mode: %v", err)
 		}
