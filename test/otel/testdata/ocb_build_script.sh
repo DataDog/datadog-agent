@@ -39,6 +39,5 @@ grep -q 'ddflare/dd-autoconfigured' flare-info.log || (echo "ddflare extension s
 grep -q 'health_check/dd-autoconfigured' flare-info.log || (echo "health_check extension should be enabled" && exit 1)
 grep -q 'pprof/dd-autoconfigured' flare-info.log || (echo "pprof extension should be enabled" && exit 1)
 grep -q 'zpages/dd-autoconfigured' flare-info.log || (echo "zpages extension should be enabled" && exit 1)
-exit 1 # remove this line after checking that artifgacts still upload
 
-# echo "OCB build script completed successfully"
+echo "OCB build script completed successfully"
