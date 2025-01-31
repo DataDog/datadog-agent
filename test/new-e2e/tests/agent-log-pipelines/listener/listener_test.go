@@ -78,10 +78,10 @@ func TestUDPListener(t *testing.T) {
 func assertLogsReceived(
 	t *testing.T,
 	eventuallyWithT func(
-	condition func(collect *assert.CollectT),
-	waitFor time.Duration,
-	tick time.Duration,
-	msgAndArgs ...interface{}) bool,
+		condition func(collect *assert.CollectT),
+		waitFor time.Duration,
+		tick time.Duration,
+		msgAndArgs ...interface{}) bool,
 	agent *components.DockerAgent,
 	docker *components.RemoteHostDocker,
 	fakeIntake *components.FakeIntake) {
