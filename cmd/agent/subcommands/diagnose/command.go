@@ -217,10 +217,10 @@ This command print the inventory-otel metadata payload. This payload is used by 
 	}
 
 	payloadInventoriesHaAgentCmd := &cobra.Command{
-		Use:   "inventory-ha-agent",
-		Short: "Print the Inventory HA Agent metadata payload.",
+		Use:   "ha-agent",
+		Short: "Print the HA Agent metadata payload.",
 		Long: `
-This command print the inventory-ha-agent metadata payload. This payload is used by the 'HA Agent' feature.`,
+This command print the ha-agent metadata payload. This payload is used by the 'HA Agent' feature.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-ha-agent")),
