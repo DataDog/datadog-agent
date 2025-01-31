@@ -190,7 +190,7 @@ build do
   #   end
 
   #   move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
-  # end
+  end
 
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
