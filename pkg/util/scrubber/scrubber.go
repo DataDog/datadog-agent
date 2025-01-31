@@ -204,9 +204,11 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 			continue
 		}
 
+		lowerdata := bytes.ToLower(data)
+
 		containsHint := false
 		for _, hint := range repl.Hints {
-			if bytes.Contains(data, []byte(hint)) {
+			if bytes.Contains(lowerdata, bytes.ToLower([]byte(hint))) {
 				containsHint = true
 				break
 			}

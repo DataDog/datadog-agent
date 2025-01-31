@@ -47,7 +47,7 @@ func init() {
 func AddDefaultReplacers(scrubber *Scrubber) {
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
-		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(?i)(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
 		Hints: []string{"api_key", "apikey"},
 		Repl:  []byte(`$1***************************$2`),
 
@@ -55,7 +55,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 	hintedAPPKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 40-char hexadecimal string
-		Regex: regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(?i)(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
 		Hints: []string{"app_key", "appkey", "application_key"},
 		Repl:  []byte(`$1***********************************$2`),
 
@@ -65,8 +65,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
 	// the token has a different size we scrub it entirely.
 	hintedBearerReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bBearer [a-fA-F0-9]{59}([a-fA-F0-9]{5})\b`),
-		Hints: []string{"Bearer"},
+		Regex: regexp.MustCompile(`(?i)\bBearer [a-fA-F0-9]{59}([a-fA-F0-9]{5})\b`),
+		Hints: []string{"bearer"},
 		Repl:  []byte(`Bearer ***********************************************************$1`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12338
@@ -74,8 +74,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 	// For this one we match any characters
 	hintedBearerInvalidReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bBearer\s+[^*]+\b`),
-		Hints: []string{"Bearer"},
+		Regex: regexp.MustCompile(`(?i)\bBearer\s+[^*]+\b`),
+		Hints: []string{"bearer"},
 		Repl:  []byte("Bearer " + defaultReplacement),
 
 		// https://github.com/DataDog/datadog-agent/pull/23448
@@ -83,33 +83,33 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 
 	apiKeyReplacerYAML := Replacer{
-		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(?i)(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`$1$2"***************************$3"`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12605
 		LastUpdated: parseVersion("7.39.0"),
 	}
 	apiKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(?i)\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
 
 		LastUpdated: defaultVersion,
 	}
 	appKeyReplacerYAML := Replacer{
-		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(?i)(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`$1$2"***********************************$3"`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12605
 		LastUpdated: parseVersion("7.39.0"),
 	}
 	appKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(?i)\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***********************************$1`),
 
 		LastUpdated: defaultVersion,
 	}
 	rcAppKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`),
+		Regex: regexp.MustCompile(`(?i)\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`),
 		Repl:  []byte(`***********************************$1`),
 
 		// https://github.com/DataDog/datadog-agent/pull/14681
@@ -152,7 +152,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	tokenReplacer.LastUpdated = defaultVersion
 	snmpReplacer := matchYAMLKey(
 		`(community_string|authKey|privKey|community|authentication_key|privacy_key|Authorization|authorization)`,
-		[]string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
+		[]string{"community_string", "authkey", "privkey", "community", "authentication_key", "privacy_key", "authorization"},
 		[]byte(`$1 "********"`),
 	)
 	snmpReplacer.LastUpdated = parseVersion("7.53.0") // https://github.com/DataDog/datadog-agent/pull/23515
@@ -168,8 +168,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		   Backreferences are not available in go, so we cannot verify
 		   here that the BEGIN label is the same as the END label.
 		*/
-		Regex: regexp.MustCompile(`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`),
-		Hints: []string{"BEGIN"},
+		Regex: regexp.MustCompile(`(?i)-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`),
+		Hints: []string{"begin"},
 		Repl:  []byte(`********`),
 
 		LastUpdated: defaultVersion,
@@ -244,8 +244,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s(\w|_)*\s*:).+`, part)),
-		YAMLKeyRegex: regexp.MustCompile(part),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(?i)(\s*(\w|_)*%s(\w|_)*\s*:).+`, part)),
+		YAMLKeyRegex: regexp.MustCompile("(?i)" + part),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -253,8 +253,8 @@ func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key)),
-		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s$`, key)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(?i)(\s*%s\s*:).+`, key)),
+		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`(?i)^%s$`, key)),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -262,8 +262,8 @@ func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_)*%s\s*:).+`, ending)),
-		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^.*%s$`, ending)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(?i)(^\s*(\w|_)*%s\s*:).+`, ending)),
+		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`(?i)^.*%s$`, ending)),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -272,7 +272,7 @@ func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 // This only works on a YAML object not on serialized YAML data
 func matchYAMLOnly(key string, cb func(interface{}) interface{}) Replacer {
 	return Replacer{
-		YAMLKeyRegex: regexp.MustCompile(key),
+		YAMLKeyRegex: regexp.MustCompile("(?i)" + key),
 		ProcessValue: cb,
 	}
 }
@@ -307,7 +307,7 @@ func matchYAMLKeyWithListValue(key string, hints string, repl []byte) Replacer {
 		  'pass2']
 	*/
 	return Replacer{
-		Regex: regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*?)*?\])`, key)),
+		Regex: regexp.MustCompile(fmt.Sprintf(`(?i)(\s*%s\s*:)\s*(?:\n(?:\s+-\s+.*)*|\[(?:\n?.*?)*?\])`, key)),
 		/*                                     -----------      ---------------  -------------
 		                                       match key(s)     |                |
 		                                                        match multiple   match anything
