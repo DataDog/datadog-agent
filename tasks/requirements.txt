@@ -9,5 +9,5 @@
 
 python-gitlab==4.4.0
 debugpy==1.8.2
-pyright==1.1.391
+pyright==1.1.393
 watchdog==6.0.0
