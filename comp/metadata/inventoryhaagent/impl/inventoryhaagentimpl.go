@@ -79,7 +79,7 @@ func (i *inventoryhaagentimpl) getPayload() marshaler.JSONMarshaler {
 	return &Payload{
 		Hostname:  i.hostname,
 		Timestamp: time.Now().UnixNano(),
-		Metadata:  i.Get(),
+		Metadata:  i.getDataCopy(),
 		UUID:      uuid.GetUUID(),
 	}
 }
@@ -98,7 +98,10 @@ func (i *inventoryhaagentimpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 func (i *inventoryhaagentimpl) Get() haAgentMetadata {
 	i.m.Lock()
 	defer i.m.Unlock()
+	return i.getDataCopy()
+}
 
+func (i *inventoryhaagentimpl) getDataCopy() haAgentMetadata {
 	data := haAgentMetadata{}
 	maps.Copy(data, i.data)
 	return data
