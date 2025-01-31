@@ -58,6 +58,10 @@ func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTar
 		return nil, fmt.Errorf("invalid resource name: %s", target.Name)
 	}
 
+	if err := validateUtilizationValue(target.Value); err != nil {
+		return nil, fmt.Errorf("invalid utilization value: %s", err)
+	}
+
 	recSettings := &resourceRecommenderSettings{
 		metricName:    metric,
 		lowWatermark:  float64((*target.Value.Utilization - watermarkTolerance)) / 100.0,
@@ -79,6 +83,10 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 		return nil, fmt.Errorf("invalid resource name: %s", target.Name)
 	}
 
+	if err := validateUtilizationValue(target.Value); err != nil {
+		return nil, fmt.Errorf("invalid utilization value: %s", err)
+	}
+
 	recSettings := &resourceRecommenderSettings{
 		metricName:    metric,
 		lowWatermark:  float64((*target.Value.Utilization - watermarkTolerance)) / 100.0,
@@ -86,4 +94,14 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 		containerName: target.Container,
 	}
 	return recSettings, nil
+}
+
+func validateUtilizationValue(value datadoghq.DatadogPodAutoscalerTargetValue) error {
+	if value.Utilization == nil {
+		return fmt.Errorf("missing utilization value")
+	}
+	if *value.Utilization < 1 || *value.Utilization > 100 {
+		return fmt.Errorf("utilization value must be between 1 and 100")
+	}
+	return nil
 }

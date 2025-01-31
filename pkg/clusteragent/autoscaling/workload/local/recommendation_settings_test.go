@@ -111,6 +111,35 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 			err:  fmt.Errorf("invalid resource name: some-resource"),
 		},
 		{
+			name: "Pod resource - nil utilization",
+			target: datadoghq.DatadogPodAutoscalerTarget{
+				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
+				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+					Name: "cpu",
+					Value: datadoghq.DatadogPodAutoscalerTargetValue{
+						Type: datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					},
+				},
+			},
+			want: nil,
+			err:  fmt.Errorf("invalid utilization value: missing utilization value"),
+		},
+		{
+			name: "Pod resource - out of bounds utilization value",
+			target: datadoghq.DatadogPodAutoscalerTarget{
+				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
+				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+					Name: "cpu",
+					Value: datadoghq.DatadogPodAutoscalerTargetValue{
+						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+						Utilization: pointer.Ptr(int32(0)),
+					},
+				},
+			},
+			want: nil,
+			err:  fmt.Errorf("invalid utilization value: utilization value must be between 1 and 100"),
+		},
+		{
 			name: "Container resource - CPU target utilization",
 			target: datadoghq.DatadogPodAutoscalerTarget{
 				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
@@ -190,6 +219,37 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 			},
 			want: nil,
 			err:  fmt.Errorf("invalid resource name: some-resource"),
+		},
+		{
+			name: "Container resource - nil utilization",
+			target: datadoghq.DatadogPodAutoscalerTarget{
+				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
+				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+					Name: "cpu",
+					Value: datadoghq.DatadogPodAutoscalerTargetValue{
+						Type: datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					},
+					Container: "container-foo",
+				},
+			},
+			want: nil,
+			err:  fmt.Errorf("invalid utilization value: missing utilization value"),
+		},
+		{
+			name: "Container resource - out of bounds utilization value",
+			target: datadoghq.DatadogPodAutoscalerTarget{
+				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
+				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+					Name: "cpu",
+					Value: datadoghq.DatadogPodAutoscalerTargetValue{
+						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+						Utilization: pointer.Ptr(int32(0)),
+					},
+					Container: "container-foo",
+				},
+			},
+			want: nil,
+			err:  fmt.Errorf("invalid utilization value: utilization value must be between 1 and 100"),
 		},
 	}
 
