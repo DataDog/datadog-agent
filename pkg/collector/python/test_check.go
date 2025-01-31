@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -212,7 +213,13 @@ func testRunCheck(t *testing.T) {
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
-	warn := []*C.char{C.CString("warn1"), C.CString("warn2"), nil}
+
+	type warnTy *[3]*C.char
+	var warn warnTy
+	warn = warnTy(C.malloc(C.size_t(unsafe.Sizeof(*warn))))
+	warn[0] = C.CString("warn1")
+	warn[1] = C.CString("warn2")
+	warn[2] = nil
 	C.get_checks_warnings_return = &warn[0]
 
 	err = check.runCheck(false)

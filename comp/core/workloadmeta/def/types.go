@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
@@ -880,11 +879,11 @@ type KubernetesDeployment struct {
 
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
-	InjectableLanguages langUtil.ContainersLanguages
+	InjectableLanguages languagemodels.ContainersLanguages
 
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
-	DetectedLanguages langUtil.ContainersLanguages
+	DetectedLanguages languagemodels.ContainersLanguages
 }
 
 // GetID implements Entity#GetID.
@@ -920,7 +919,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
 
-	langPrinter := func(containersLanguages langUtil.ContainersLanguages) {
+	langPrinter := func(containersLanguages languagemodels.ContainersLanguages) {
 		initContainersInfo := make([]string, 0, len(containersLanguages))
 		containersInfo := make([]string, 0, len(containersLanguages))
 
@@ -1380,6 +1379,30 @@ type GPU struct {
 
 	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
 	SMCount int
+
+	// MigEnabled is true if the GPU supports MIG (Multi-Instance GPU) and it is enabled.
+	MigEnabled bool
+	// MigDevices is a list of MIG devices that are part of the GPU.
+	MigDevices []*MigDevice
+}
+
+// MigDevice contains information about a MIG device, including the GPU instance ID, device info, attributes, and profile. Nvidia MIG allows a single physical GPU to be partitioned into multiple isolated GPU instances so that multiple workloads can run on the same GPU.
+type MigDevice struct {
+	// GPUInstanceID is the ID of the GPU instance. This is a unique identifier inside the parent GPU device.
+	GPUInstanceID int
+	// UUID is the device id retrieved from nvml in the format "MIG-XXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXX"
+	UUID string
+	Name string
+	// GPUInstanceSliceCount and MemorySizeInGb are retrieved from the profile
+	// mig 1g.10gb profile will have GPUInstanceSliceCount = 1 and MemorySizeMB = 10000
+	GPUInstanceSliceCount uint32
+	MemorySizeMB          uint64
+	// ResourceName is the resource of the profile used, e.g. "1g.10gb", "2g.20gb", etc.
+	ResourceName string
+}
+
+func (m *MigDevice) String() string {
+	return fmt.Sprintf("GPU Instance ID: %d, UUID: %s, Resource: %s", m.GPUInstanceID, m.UUID, m.ResourceName)
 }
 
 var _ Entity = &GPU{}
@@ -1427,6 +1450,13 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
 	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
 	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
+	if g.MigEnabled {
+		_, _ = fmt.Fprintln(&sb, "----------- MIG Device -----------")
+		_, _ = fmt.Fprintln(&sb, "MIG Enabled: true")
+		for _, migDevice := range g.MigDevices {
+			_, _ = fmt.Fprintln(&sb, migDevice.String())
+		}
+	}
 
 	return sb.String()
 }
