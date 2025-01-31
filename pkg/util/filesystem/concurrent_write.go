@@ -17,6 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const lockSuffix = ".lock"
+const retryDelay = 500 * time.Millisecond
+
 // ArtifactBuilder is a generic interface for building, serializing, and deserializing artifacts.
 // The type parameter T represents the in-memory type of the artifact.
 type ArtifactBuilder[T any] interface {
@@ -52,7 +55,7 @@ func FetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, error
 // The function will repeatedly try to acquire the lock until the context is canceled or the lock is acquired.
 //
 // This function is thread-safe and non-blocking.
-func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (T, error) {
+func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (artifact T, err error) {
 	var zero T
 
 	res, err := FetchArtifact(location, factory)
@@ -60,15 +63,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 		return res, nil
 	}
 
-	// Happy path is to be able to generate and store artifact
-	// We prefer generating a temporary artifact and moving it to its final location
-	// to avoid having a half written artifact in case of a failure
-	createdArtifact, tmpLocation, err := generateTmpArtifact(location, factory)
-	if err != nil {
-		return zero, fmt.Errorf("unable to generate temporary artifact: %v", err.Error())
-	}
-
-	fileLock := flock.New(location + ".lock")
+	fileLock := flock.New(location + lockSuffix)
 	defer func() {
 		log.Debugf("releasing lock for file %v", location)
 		err := fileLock.Unlock()
@@ -79,16 +74,22 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	}()
 
 	// trying to lock artifact file
-	locked, err := fileLock.TryLockContext(ctx, 100*time.Millisecond)
+	locked, err := fileLock.TryLockContext(ctx, retryDelay)
 
-	if err != nil || !locked {
-		if err == nil {
-			err = fmt.Errorf("unknown error")
+	if err != nil {
+		if locked {
+			// We acquired the lock, but an error occurred
+			// We should release the lock before returning
+			if err := fileLock.Unlock(); err != nil {
+				log.Warnf("unable to release lock: %v", err)
+			}
 		}
-		if !locked {
-			err = fmt.Errorf("unable to acquire lock %v, if the error persists, consider removing it manually (err: %v)", location, err.Error())
-		}
+
 		return zero, fmt.Errorf("an error happen when trying to acquire lock: %v", err)
+	}
+
+	if !locked {
+		return zero, fmt.Errorf("unable to acquire lock %v, if the error persists, consider removing it manually", location+lockSuffix)
 	}
 
 	// Here we acquired the lock
@@ -97,17 +98,23 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	// First check if another process were able to create and save artifact during lock
 	res, err = FetchArtifact(location, factory)
 	if err == nil {
-		// Cleanup the tmp file
-		if err := os.Remove(tmpLocation); err != nil {
-			log.Warnf("unable to remove temporary artifact: %v", err)
-		}
-
 		return res, nil
 	}
 
-	// otherwise, we can safely move the temporary artifact to its final location
+	createdArtifact, tmpLocation, err := generateTmpArtifact(location, factory)
+	if err != nil {
+		return zero, fmt.Errorf("unable to generate temporary artifact: %v", err.Error())
+	}
+
+	// Move the temporary artifact to its final location, this is an atomic operation
+	// and guarantees that the artifact is either fully written or not at all.
 	err = os.Rename(tmpLocation, location)
 	if err != nil {
+		removeErr := os.Remove(tmpLocation)
+		if removeErr != nil {
+			log.Warnf("unable to remove temporary artifact: %v", removeErr.Error())
+		}
+
 		return zero, fmt.Errorf("unable to move temporary artifact to its final location: %v", err.Error())
 	}
 
