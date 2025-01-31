@@ -343,8 +343,8 @@ func (ss *senderSession) flush() Payload {
 	if len(ss.metricPayloads) == 1 {
 		// Single payload will be sent directly using the request type of the payload
 		mp := ss.metricPayloads[0]
-		payload.RequestType = "agent-metric-pipelines"
-		payload.Payload = payloadInfo{"agent-metric-pipelines", mp}.payload
+		payload.RequestType = "agent-metrics"
+		payload.Payload = payloadInfo{"agent-metrics", mp}.payload
 		return payload
 	}
 
@@ -353,8 +353,8 @@ func (ss *senderSession) flush() Payload {
 	for _, mp := range ss.metricPayloads {
 		batch = append(batch,
 			BatchPayloadWrapper{
-				RequestType: "agent-metric-pipelines",
-				Payload:     payloadInfo{"agent-metric-pipelines", mp}.payload,
+				RequestType: "agent-metrics",
+				Payload:     payloadInfo{"agent-metrics", mp}.payload,
 			})
 	}
 	payload.RequestType = "message-batch"
