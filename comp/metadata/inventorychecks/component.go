@@ -6,7 +6,7 @@
 // Package inventorychecks implements a component to generate the 'check_metadata' metadata payload for inventory.
 package inventorychecks
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 //
