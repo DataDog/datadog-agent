@@ -84,7 +84,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		// Get disk metrics here to be able to exclude on total usage
 		usage, err := diskUsage(partition.Mountpoint)
 		if err != nil {
-			log.Warnf("Unable to get disk metrics of %s mount point: %s", partition.Mountpoint, err)
+			log.Warnf("Unable to get disk metrics for %s: %s. You can exclude this mountpoint in the settings if it is invalid.", partition.Mountpoint, err)
 			continue
 		}
 		log.Debugf("usage %s", usage)
