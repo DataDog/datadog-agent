@@ -57,7 +57,7 @@ type Webhook struct {
 
 // NewWebhook returns a new Webhook
 func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) *Webhook {
-	enabled := datadogConfig.GetBool("admission_controller.inject_tags.enabled.enabled")
+	enabled := datadogConfig.GetBool("admission_controller.inject_tags.enabled")
 	enabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_tags.enabled_namespaces")
 	disabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_tags.disabled_namespaces")
 	injectionFilter, _ := mutatecommon.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
