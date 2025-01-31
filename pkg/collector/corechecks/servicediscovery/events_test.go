@@ -71,6 +71,10 @@ func Test_telemetrySender(t *testing.T) {
 		CPUCores:                   1.5,
 		ContainerID:                "abcd",
 		LastHeartbeat:              now.Unix(),
+		RxBytes:                    1000,
+		TxBytes:                    2000,
+		RxBps:                      10.5,
+		TxBps:                      20.3,
 	}
 
 	ts.sendStartServiceEvent(service)
@@ -104,6 +108,10 @@ func Test_telemetrySender(t *testing.T) {
 				RSSMemory:                  500 * 1024 * 1024,
 				CPUCores:                   1.5,
 				ContainerID:                "abcd",
+				RxBytes:                    1000,
+				TxBytes:                    2000,
+				RxBps:                      10.5,
+				TxBps:                      20.3,
 			},
 		},
 		{
@@ -132,6 +140,10 @@ func Test_telemetrySender(t *testing.T) {
 				RSSMemory:                  500 * 1024 * 1024,
 				CPUCores:                   1.5,
 				ContainerID:                "abcd",
+				RxBytes:                    1000,
+				TxBytes:                    2000,
+				RxBps:                      10.5,
+				TxBps:                      20.3,
 			},
 		},
 		{
@@ -160,6 +172,10 @@ func Test_telemetrySender(t *testing.T) {
 				RSSMemory:                  500 * 1024 * 1024,
 				CPUCores:                   1.5,
 				ContainerID:                "abcd",
+				RxBytes:                    1000,
+				TxBytes:                    2000,
+				RxBps:                      10.5,
+				TxBps:                      20.3,
 			},
 		},
 	}
