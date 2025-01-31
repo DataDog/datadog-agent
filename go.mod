@@ -177,7 +177,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.7.7
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.9
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.24.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.25.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.24.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.24.0
 	github.com/DataDog/sketches-go v1.4.6
@@ -536,15 +536,15 @@ require (
 	go.opentelemetry.io/collector/semconv v0.118.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.58.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.31.0 // indirect
-	go.opentelemetry.io/otel v1.33.0
+	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.33.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.33.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.33.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.55.0 // indirect
-	go.opentelemetry.io/otel/metric v1.33.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.33.0
-	go.opentelemetry.io/otel/sdk/metric v1.33.0 // indirect
-	go.opentelemetry.io/otel/trace v1.33.0
+	go.opentelemetry.io/otel/metric v1.34.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.34.0
+	go.opentelemetry.io/otel/sdk/metric v1.34.0 // indirect
+	go.opentelemetry.io/otel/trace v1.34.0
 	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/mod v0.22.0
