@@ -27,11 +27,21 @@ type fipsAgentSuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 
 	installPath string
+	configRoot  string
 }
 
 func TestFIPSAgent(t *testing.T) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 	s := &fipsAgentSuite{}
+	e2e.Run(t, s, opts...)
+}
+
+func TestFIPSAgentAltDir(t *testing.T) {
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
+	s := &fipsAgentSuite{
+		installPath: "C:\\altdir",
+		configRoot:  "C:\\altconfroot",
+	}
 	e2e.Run(t, s, opts...)
 }
 
@@ -50,11 +60,26 @@ func (s *fipsAgentSuite) SetupSuite() {
 	require.NoError(s.T(), err)
 
 	// Install Agent (With FIPS mode enabled)
-	_, err = s.InstallAgent(host, windowsAgent.WithPackage(s.AgentPackage))
+	opts := []windowsAgent.InstallAgentOption{
+		windowsAgent.WithPackage(s.AgentPackage),
+	}
+	if s.installPath != "" {
+		opts = append(opts, windowsAgent.WithProjectLocation(s.installPath))
+	}
+	if s.configRoot != "" {
+		opts = append(opts, windowsAgent.WithApplicationDataDirectory(s.configRoot))
+	}
+	_, err = s.InstallAgent(host, opts...)
 	require.NoError(s.T(), err)
 
-	s.installPath, err = windowsAgent.GetInstallPathFromRegistry(host)
-	require.NoError(s.T(), err)
+	if s.installPath == "" {
+		s.installPath, err = windowsAgent.GetInstallPathFromRegistry(host)
+		require.NoError(s.T(), err)
+	}
+	if s.configRoot == "" {
+		s.configRoot, err = windowsAgent.GetConfigRootFromRegistry(host)
+		require.NoError(s.T(), err)
+	}
 }
 
 func (s *fipsAgentSuite) TestFIPSProviderPresent() {
