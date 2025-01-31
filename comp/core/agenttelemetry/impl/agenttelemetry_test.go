@@ -205,7 +205,7 @@ func getCommonOverrideConfig(enabled bool, site string) map[string]any {
 func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error {
 	var ok bool
 
-	p.RequestType = "agent-metrics"
+	p.RequestType = "agent-metric-pipelines"
 	p.APIVersion = itfPayload["request_type"].(string)
 
 	var metricsItfPayload map[string]interface{}
@@ -257,7 +257,7 @@ func (p *Payload) UnmarshalMessageBatch(itfPayload map[string]interface{}) error
 		return fmt.Errorf("payload not found")
 	}
 
-	// ensure all payloads which should be agent-metrics
+	// ensure all payloads which should be agent-metric-pipelines
 	var payloads []Payload
 	for _, payloadRaw := range payloadsRaw {
 		itfChildPayload, ok := payloadRaw.(map[string]interface{})
@@ -274,8 +274,8 @@ func (p *Payload) UnmarshalMessageBatch(itfPayload map[string]interface{}) error
 			return fmt.Errorf("request_type type is invalid")
 		}
 
-		if requestType != "agent-metrics" {
-			return fmt.Errorf("request_type should be agent-metrics")
+		if requestType != "agent-metric-pipelines" {
+			return fmt.Errorf("request_type should be agent-metric-pipelines")
 		}
 
 		var payload Payload
@@ -307,7 +307,7 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 		return fmt.Errorf("request_type type is invalid")
 	}
 
-	if requestType == "agent-metrics" {
+	if requestType == "agent-metric-pipelines" {
 		return p.UnmarshalAgentMetrics(itfPayload)
 	}
 
@@ -315,7 +315,7 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 		return p.UnmarshalMessageBatch(itfPayload)
 	}
 
-	return fmt.Errorf("request_type should be either agent-metrics or message-batch")
+	return fmt.Errorf("request_type should be either agent-metric-pipelines or message-batch")
 }
 
 func getPayload(a *atel) (*Payload, error) {
@@ -501,7 +501,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -541,7 +541,7 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -581,7 +581,7 @@ func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
   `
 
@@ -620,7 +620,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -662,7 +662,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags:
                   - tag1
@@ -711,7 +711,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_total: true
                 aggregate_tags:
@@ -855,7 +855,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	require.True(t, ok)
 	requestType1, ok := payload1["request_type"]
 	require.True(t, ok)
-	assert.Equal(t, "agent-metrics", requestType1)
+	assert.Equal(t, "agent-metric-pipelines", requestType1)
 	metricsPayload1, ok := payload1["payload"].(map[string]interface{})
 	require.True(t, ok)
 	metrics1, ok := metricsPayload1["metrics"].(map[string]interface{})
@@ -869,7 +869,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	require.True(t, ok)
 	requestType2, ok := payload2["request_type"]
 	require.True(t, ok)
-	assert.Equal(t, "agent-metrics", requestType2)
+	assert.Equal(t, "agent-metric-pipelines", requestType2)
 	metricsPayload2, ok := payload2["payload"].(map[string]interface{})
 	require.True(t, ok)
 	metrics2, ok := metricsPayload2["metrics"].(map[string]interface{})

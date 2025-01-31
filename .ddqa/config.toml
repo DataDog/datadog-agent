@@ -22,8 +22,8 @@ exclude_members = [""]
 jira_project = "AGTMETRICS"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-metrics"
-github_labels = ["team/agent-metrics"]
+github_team = "agent-metric-pipelines"
+github_labels = ["team/agent-metric-pipelines"]
 exclude_members = [""]
 
 [teams."Agent Processing and Routing"]
