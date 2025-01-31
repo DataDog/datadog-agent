@@ -719,6 +719,9 @@ def print_overall_pipeline_stats(ctx, n_days=90):
         if len(recent_prs) != len(prs_page):
             break
 
+    print('Sleeping 1m to avoid rate limits')
+    time.sleep(60)
+
     merged_prs: list[github.PullRequest.PullRequest] = [pr for pr in all_prs if pr.merged and pr.merged_at >= min_date]
     print(f'Found {len(merged_prs)} merged PRs for the last {n_days} days')
 
@@ -729,9 +732,9 @@ def print_overall_pipeline_stats(ctx, n_days=90):
         # import pdb; pdb.set_trace()
         # print(pr.state)
 
-        last_commit: github.Commit.Commit = gh.repo.get_commit(pr.head.sha)
         for _ in range(100):
             try:
+                last_commit: github.Commit.Commit = gh.repo.get_commit(pr.head.sha)
                 statuses = list(last_commit.get_statuses())
                 break
             except Exception:
@@ -751,6 +754,10 @@ def print_overall_pipeline_stats(ctx, n_days=90):
         if failing_status:
             broken_prs.append(pr)
             print(f'PR {pr.number} is broken with failing status: {", ".join(failing_status)}')
+
+        if (i + 1) % 10 == 0:
+            print('Sleeping to avoid rate limits')
+            time.sleep(30)
 
     print()
     print(
