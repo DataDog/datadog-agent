@@ -49,7 +49,8 @@ type Installer interface {
 	ConfigState(pkg string) (repository.State, error)
 	ConfigStates() (map[string]repository.State, error)
 
-	Install(ctx context.Context, url string, args []string, force bool) error
+	Install(ctx context.Context, url string, args []string) error
+	ForceInstall(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
 

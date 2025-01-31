@@ -45,7 +45,7 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	}
 
 	// true = force install, even if the version appears to be already installed.
-	return cmd.Install(ctx, url, nil, true)
+	return cmd.ForceInstall(ctx, url, nil)
 }
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.

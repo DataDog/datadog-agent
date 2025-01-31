@@ -297,11 +297,14 @@ func installCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
-			return i.Install(i.ctx, args[0], installArgs, forceInstall)
+			if forceInstall {
+				return i.ForceInstall(i.ctx, args[0], installArgs)
+			}
+			return i.Install(i.ctx, args[0], installArgs)
 		},
 	}
 	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
-	cmd.Flags().BoolVar(&forceInstall, "force", false, "Whether to ignore the version check when installing")
+	cmd.Flags().BoolVar(&forceInstall, "force", false, "Install packages, even if they are already up-to-date.")
 	return cmd
 }
 
