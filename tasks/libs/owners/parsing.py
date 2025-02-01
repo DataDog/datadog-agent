@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any
+
+from codeowners import CodeOwners
 
 
-def read_owners(owners_file: str, remove_default_pattern=False) -> Any:
+def read_owners(owners_file: str, remove_default_pattern=False) -> CodeOwners:
     """
     - remove_default_pattern: If True, will remove the '*' entry
     """
