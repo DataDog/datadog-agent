@@ -9,7 +9,7 @@
 package constantfetch
 
 import (
-	_ "embed"
+	_ "embed" // for go:embed
 	"encoding/json"
 	"fmt"
 	"runtime"
@@ -17,9 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
-
-//go:embed btfhub/constants.json
-var btfhubConstants []byte
 
 // BTFHubConstantFetcher is a constant fetcher based on BTFHub constants
 type BTFHubConstantFetcher struct {

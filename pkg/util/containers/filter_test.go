@@ -489,8 +489,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache.*"})
 	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd-.*"})
 
-	f, err := NewAutodiscoveryFilter(GlobalFilter)
-	require.NoError(t, err)
+	f := NewAutodiscoveryFilter(GlobalFilter)
+	assert.Emptyf(t, f.Errors, "Expected no errors.")
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
@@ -505,8 +505,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("ac_include", []string{"image:apache/legacy.*"})
 	pkgconfigsetup.Datadog().SetDefault("ac_exclude", []string{"name:dd/legacy-.*"})
 
-	f, err = NewAutodiscoveryFilter(GlobalFilter)
-	require.NoError(t, err)
+	f = NewAutodiscoveryFilter(GlobalFilter)
+	assert.Emptyf(t, f.Errors, "Expected no errors.")
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd/legacy-152462", "dummy:latest", ""))
@@ -520,8 +520,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("container_include_metrics", []string{"image:apache.*"})
 	pkgconfigsetup.Datadog().SetDefault("container_exclude_metrics", []string{"name:dd-.*"})
 
-	f, err = NewAutodiscoveryFilter(MetricsFilter)
-	require.NoError(t, err)
+	f = NewAutodiscoveryFilter(MetricsFilter)
+	assert.Emptyf(t, f.Errors, "Expected no errors.")
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
@@ -534,8 +534,8 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("container_include_logs", []string{"image:apache.*"})
 	pkgconfigsetup.Datadog().SetDefault("container_exclude_logs", []string{"name:dd-.*"})
 
-	f, err = NewAutodiscoveryFilter(LogsFilter)
-	require.NoError(t, err)
+	f = NewAutodiscoveryFilter(LogsFilter)
+	assert.Emptyf(t, f.Errors, "Expected no errors.")
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
@@ -548,8 +548,7 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*", "invalid"})
 	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
 
-	f, err = NewAutodiscoveryFilter(GlobalFilter)
-	require.NoError(t, err)
+	f = NewAutodiscoveryFilter(GlobalFilter)
 
 	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
 	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
@@ -567,8 +566,10 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	pkgconfigsetup.Datadog().SetDefault("container_include", []string{"image:apache.*", "kube_namespace:?"})
 	pkgconfigsetup.Datadog().SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
 
-	f, err = NewAutodiscoveryFilter(GlobalFilter)
-	assert.Error(t, err, errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"))
+	f = NewAutodiscoveryFilter(GlobalFilter)
+	_, errFound := f.Errors["invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"]
+	assert.Truef(t, errFound, "Expected to find error: invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`")
+
 	assert.NotNil(t, f)
 	fe = map[string]struct{}{
 		"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`":                                {},
@@ -638,7 +639,6 @@ func TestParseFilters(t *testing.T) {
 		imageFilters     []*regexp.Regexp
 		nameFilters      []*regexp.Regexp
 		namespaceFilters []*regexp.Regexp
-		expectedErrMsg   error
 		filterErrors     []string
 	}{
 		{
@@ -647,7 +647,6 @@ func TestParseFilters(t *testing.T) {
 			imageFilters:     []*regexp.Regexp{regexp.MustCompile("nginx.*")},
 			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
 			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
-			expectedErrMsg:   nil,
 			filterErrors:     nil,
 		},
 		{
@@ -656,16 +655,14 @@ func TestParseFilters(t *testing.T) {
 			imageFilters:     []*regexp.Regexp{regexp.MustCompile("^nginx(@sha256)?:.*")},
 			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
 			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
-			expectedErrMsg:   nil,
 			filterErrors:     nil,
 		},
 		{
 			desc:             "invalid regex",
 			filters:          []string{"image:apache.*", "name:a(?=b)", "kube_namespace:sandbox.*", "name:abc"},
-			imageFilters:     nil,
-			nameFilters:      nil,
-			namespaceFilters: nil,
-			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("apache.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("abc")},
+			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
 			filterErrors:     []string{"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"},
 		},
 		{
@@ -674,7 +671,6 @@ func TestParseFilters(t *testing.T) {
 			imageFilters:     []*regexp.Regexp{regexp.MustCompile("redis.*")},
 			nameFilters:      []*regexp.Regexp{regexp.MustCompile("dd-.*"), regexp.MustCompile("abc")},
 			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("dev-.*")},
-			expectedErrMsg:   nil,
 			filterErrors: []string{
 				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
@@ -683,25 +679,23 @@ func TestParseFilters(t *testing.T) {
 		{
 			desc:             "invalid regex and invalid filter prefix",
 			filters:          []string{"invalid", "name:a(?=b)", "image:apache.*", "kube_namespace:?", "also invalid", "name:abc"},
-			imageFilters:     nil,
-			nameFilters:      nil,
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("apache.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("abc")},
 			namespaceFilters: nil,
-			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
 			filterErrors: []string{
+				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 				"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`",
 				"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`",
-				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
 			},
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
-			imageFilters, nameFilters, namespaceFilters, filterErrors, err := parseFilters(tc.filters)
+			imageFilters, nameFilters, namespaceFilters, filterErrors := parseFilters(tc.filters)
 			assert.Equal(t, tc.imageFilters, imageFilters)
 			assert.Equal(t, tc.nameFilters, nameFilters)
 			assert.Equal(t, tc.namespaceFilters, namespaceFilters)
 			assert.Equal(t, tc.filterErrors, filterErrors)
-			assert.Equal(t, tc.expectedErrMsg, err)
 		})
 	}
 }
