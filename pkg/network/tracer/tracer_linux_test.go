@@ -41,7 +41,6 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -2341,10 +2340,14 @@ func TestConntrackerFallback(t *testing.T) {
 
 func testConfig() *config.Config {
 	cfg := config.New()
-	if env.IsECSFargate() || cfg.EnableEbpfless {
+	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		cfg.ProtocolClassificationEnabled = false
+	}
+
 	// prebuilt on 5.18+ does not support UDPv6
 	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
