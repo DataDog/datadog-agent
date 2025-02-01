@@ -88,7 +88,7 @@ After downloading the archive corresponding to your platform and architecture, e
 deva is available on PyPI and can be installed with [pip](https://github.com/pypa/pip).
 
 ```
-pip install deva
+pip install datadog-agent-dev
 ```
 
 !!! warning
