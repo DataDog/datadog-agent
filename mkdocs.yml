@@ -76,6 +76,7 @@ nav:
     - Internals: architecture/dogstatsd/internals.md
 
 hooks:
+- docs/public/.hooks/plugin_register.py
 - docs/public/.hooks/title_from_content.py
 
 plugins:
