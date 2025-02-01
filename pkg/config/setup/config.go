@@ -546,6 +546,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
+	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
+	config.SetKnown("entity_id")
 
 	// Metadata endpoints
 
@@ -572,7 +574,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ecs_agent_container_name", "ecs-agent")
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
 	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
-	config.BindEnvAndSetDefault("ecs_metadata_timeout", 500) // value in milliseconds
+	config.BindEnvAndSetDefault("ecs_metadata_timeout", 1000) // value in milliseconds
 	config.BindEnvAndSetDefault("ecs_metadata_retry_initial_interval", 100*time.Millisecond)
 	config.BindEnvAndSetDefault("ecs_metadata_retry_max_elapsed_time", 3000*time.Millisecond)
 	config.BindEnvAndSetDefault("ecs_metadata_retry_timeout_factor", 3)
@@ -1136,7 +1138,7 @@ func fleet(config pkgconfigmodel.Setup) {
 	// Directory to store fleet policies
 	config.BindEnv("fleet_policies_dir")
 	config.SetDefault("fleet_layers", []string{})
-	config.BindEnvAndSetDefault("config_id", "default")
+	config.BindEnvAndSetDefault("config_id", "")
 }
 
 func autoscaling(config pkgconfigmodel.Setup) {

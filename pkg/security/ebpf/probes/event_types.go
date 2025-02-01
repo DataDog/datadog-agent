@@ -48,6 +48,9 @@ func NetworkSelectors() []manager.ProbesSelector {
 			kprobeOrFentry("inet_release"),
 			kprobeOrFentry("inet_shutdown"),
 			kprobeOrFentry("inet_bind"),
+			kretprobeOrFexit("inet_bind"),
+			kprobeOrFentry("inet6_bind"),
+			kretprobeOrFexit("inet6_bind"),
 			kprobeOrFentry("sk_common_release"),
 			kprobeOrFentry("path_get"),
 			kprobeOrFentry("proc_fd_link"),
@@ -77,13 +80,15 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 }
 
 // SnapshotSelectors selectors required during the snapshot
-func SnapshotSelectors() []manager.ProbesSelector {
+func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
 	procsOpen := kprobeOrFentry("cgroup_procs_open")
 	tasksOpen := kprobeOrFentry("cgroup_tasks_open")
 	return []manager.ProbesSelector{
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
+
 		// required to stat /proc/.../exe
 		kprobeOrFentry("security_inode_getattr"),
-		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
+		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "newfstatat", fentry, EntryAndExit)},
 	}
 }
 

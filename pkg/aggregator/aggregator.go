@@ -308,11 +308,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	// configID can only change on agent restart, and will only change if the configuration applied by Fleet Automation changes
 	configID := pkgconfigsetup.Datadog().GetString("config_id")
-	if configID == "" {
-		// Ensure we never report an empty config ID
-		configID = "default"
-	}
 
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
@@ -889,6 +886,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if agg.configID != "" {
 			tags = append(tags, "config_id:"+agg.configID)
 		}
+	}
+	if agg.haAgent.Enabled() {
+		tags = append(tags, "ha_agent_enabled:true")
 	}
 	// nil to empty string
 	// This is expected by other components/tests

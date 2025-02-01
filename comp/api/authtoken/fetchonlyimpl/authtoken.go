@@ -76,7 +76,6 @@ func (at *authToken) Get() string {
 func (at *authToken) GetTLSClientConfig() *tls.Config {
 	if err := at.setToken(); err != nil {
 		at.log.Debugf("%s", err.Error())
-		return nil
 	}
 
 	return util.GetTLSClientConfig()
@@ -86,7 +85,6 @@ func (at *authToken) GetTLSClientConfig() *tls.Config {
 func (at *authToken) GetTLSServerConfig() *tls.Config {
 	if err := at.setToken(); err != nil {
 		at.log.Debugf("%s", err.Error())
-		return nil
 	}
 
 	return util.GetTLSServerConfig()
