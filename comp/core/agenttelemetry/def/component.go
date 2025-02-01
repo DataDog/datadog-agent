@@ -6,7 +6,7 @@
 // Package agenttelemetry implements a component to generate Agent telemetry
 package agenttelemetry
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type
 type Component interface {

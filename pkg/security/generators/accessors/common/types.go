@@ -65,6 +65,7 @@ type StructField struct {
 	CommentText      string
 	OpOverrides      string
 	Check            string
+	SetHandler       string
 	Alias            string
 	AliasPrefix      string
 	GettersOnly      bool
@@ -72,6 +73,7 @@ type StructField struct {
 	Ref              string
 	RestrictedTo     []string
 	IsIterator       bool
+	ReadOnly         bool
 }
 
 // GetEvaluatorType returns the evaluator type name

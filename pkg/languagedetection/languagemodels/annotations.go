@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package util provides util type definitions and helper methods for the language detection client and handler
-package util
+package languagemodels
 
 import (
 	"regexp"
