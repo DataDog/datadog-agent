@@ -12,5 +12,5 @@ fixes:
     even when an OTLP span was sampled by the Error Sampler.
     To enable the Error Sampler for OTLP spans, you need to set
     ``DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE``
-    to 99 or lower, or enabled ``DD_APM_PROBABILISTIC_SAMPLER_ENABLED``
+    to 99 or lower, or enable ``DD_APM_PROBABILISTIC_SAMPLER_ENABLED``
     and set ``DD_APM_PROBABILISTIC_SAMPLER_PERCENTAGE`` to 99 or lower.

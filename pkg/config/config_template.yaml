@@ -4464,6 +4464,8 @@ api_key:
     # probabilistic_sampler:
       ## @param sampling_percentage - number - optional - default: 100
       ## @env DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - number - optional - default: 100
+      ## If `apm_config.probabilistic_sampler.enabled` is enabled, this config is ignored, `apm_config.probabilistic_sampler.enabled.sampling_percentage`
+      ## is used instead.
       ## Percentage of traces to ingest (0 100]. Invalid values (<= 0 || > 100) are disconsidered and the default is used.
       ## If incoming spans have a sampling.priority set by the user, it will be followed and the sampling percentage will
       ## be overridden.
