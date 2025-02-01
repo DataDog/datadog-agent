@@ -413,7 +413,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		return nil
 	}
 
-	s.logComp.Infof("Flushing Agent Telemetery session with %d payloads", len(ss.metricPayloads))
+	s.logComp.Debugf("Flushing Agent Telemetery session with %d payloads", ss.payloadCount())
 
 	payloads := ss.flush()
 	payloadJSON, err := json.Marshal(payloads)
@@ -465,9 +465,9 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 
 		// Log return status (and URL if unsuccessful)
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			s.logComp.Debugf("Telemetery enpoint response status: %s, status code: %d", resp.Status, resp.StatusCode)
+			s.logComp.Debugf("Telemetery enpoint response status:%s, request type:%s, status code:%d", resp.Status, reqType, resp.StatusCode)
 		} else {
-			s.logComp.Debugf("Telemetery enpoint response status: %s, status code: %d, url: %s", resp.Status, resp.StatusCode, url)
+			s.logComp.Debugf("Telemetery enpoint response status:%s, request type:%s, status code:%d, url:%s", resp.Status, reqType, resp.StatusCode, url)
 		}
 	}
 
