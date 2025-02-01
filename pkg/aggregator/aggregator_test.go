@@ -580,6 +580,7 @@ func TestTags(t *testing.T) {
 		globalTags              func(types.TagCardinality) ([]string, error)
 		withVersion             bool
 		haAgentEnabled          bool
+		configID                string
 		want                    []string
 	}{
 		{
@@ -655,11 +656,22 @@ func TestTags(t *testing.T) {
 			haAgentEnabled:          true,
 			want:                    []string{"ha_agent_enabled:true"},
 		},
+		{
+			name:                    "tags enabled, with version, with config id",
+			hostname:                "hostname",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			withVersion:             true,
+			configID:                "config123",
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo", "config_id:config123"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			mockConfig.SetWithoutSource("config_id", tt.configID)
 
 			taggerComponent := taggerMock.SetupFakeTagger(t)
 

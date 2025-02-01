@@ -253,6 +253,7 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
+	configID               string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -307,6 +308,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	// configID can only change on agent restart, and will only change if the configuration applied by Fleet Automation changes
+	configID := pkgconfigsetup.Datadog().GetString("config_id")
+
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -328,6 +332,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
+		configID:                    configID,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -874,6 +879,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		tags = append(tags, "version:"+version.AgentVersion)
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
+		}
+		if agg.configID != "" {
+			tags = append(tags, "config_id:"+agg.configID)
 		}
 	}
 	if agg.haAgent.Enabled() {
