@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
+	netutil "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 var (
@@ -67,7 +67,7 @@ func getMeta(ctx context.Context, conf model.Reader) *Meta {
 	m := &Meta{
 		SocketHostname:            osHostname,
 		Timezones:                 []string{tzname},
-		SocketFqdn:                util.Fqdn(osHostname),
+		SocketFqdn:                netutil.Fqdn(osHostname),
 		EC2Hostname:               ec2Hostname,
 		HostAliases:               cloudproviders.GetHostAliases(ctx),
 		InstanceID:                instanceID,

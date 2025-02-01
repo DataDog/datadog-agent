@@ -213,7 +213,7 @@ func (s *testNPMInstallSuite) testNPMFunctional() {
 func (s *testNPMInstallSuite) upgradeAgent(host *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) {
 	installOpts := []windowsAgent.InstallAgentOption{
 		windowsAgent.WithPackage(agentPackage),
-		windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 	}
 	installOpts = append(installOpts, options...)
 	if !s.Run(fmt.Sprintf("upgrade to %s", agentPackage.AgentVersion()), func() {

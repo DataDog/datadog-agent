@@ -11,6 +11,7 @@ package activitytree
 import (
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 
@@ -18,7 +19,6 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/exp/slices"
 )
 
 // ProcessNodeParent is an interface used to identify the parent of a process node

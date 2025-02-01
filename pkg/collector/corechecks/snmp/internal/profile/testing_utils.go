@@ -64,6 +64,7 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 	return ProfileConfigMap{
 		"f5-big-ip": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
+				Name:         "f5-big-ip",
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 				Device:       profiledefinition.DeviceMeta{Vendor: "f5"},
@@ -183,6 +184,7 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 		},
 		"another_profile": ProfileConfig{
 			Definition: profiledefinition.ProfileDefinition{
+				Name:         "another_profile",
 				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},

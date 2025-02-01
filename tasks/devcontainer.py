@@ -77,6 +77,8 @@ def setup(
         "--cap-add=SYS_PTRACE",
         "--security-opt",
         "seccomp=unconfined",
+        "-w",
+        "/workspaces/datadog-agent",
         "--name",
         "datadog_agent_devcontainer",
     ]

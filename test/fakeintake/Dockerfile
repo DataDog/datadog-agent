@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 
 ## Build
-FROM golang:1.23.3-alpine3.20 AS build
+FROM golang:1.23.4-alpine3.20 AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
@@ -25,7 +25,7 @@ ENV CGO_ENABLED=1
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM alpine:3.18
+FROM alpine:3.21
 
 RUN apk add curl
 

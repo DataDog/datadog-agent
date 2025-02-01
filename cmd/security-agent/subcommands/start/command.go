@@ -173,7 +173,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				statusimpl.Module(),
 				fetchonlyimpl.Module(),
-				configsyncimpl.Module(),
+				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 				// Force the instantiation of the component
 				fx.Invoke(func(_ configsync.Component) {}),
 				autoexitimpl.Module(),

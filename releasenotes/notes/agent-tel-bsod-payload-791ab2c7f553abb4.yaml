@@ -9,6 +9,6 @@
 enhancements:
   - |
     In rare cases, when the Agent's Network Performance Monitor is enabled and
-    the Agent is identified as contributing to a `Blue Screen of Death` (BSOD) event,
+    the Agent is identified as contributing to a "Blue Screen of Death" (BSOD) event,
     Agent telemetry is used to generate a payload that includes Agent's driver code
     offset for further analysis.

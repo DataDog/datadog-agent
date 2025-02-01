@@ -239,7 +239,7 @@ modules:
     used_by_otel: true
   pkg/util/log/setup:
     used_by_otel: true
-  pkg/util/optional:
+  pkg/util/option:
     used_by_otel: true
   pkg/util/pointer:
     used_by_otel: true

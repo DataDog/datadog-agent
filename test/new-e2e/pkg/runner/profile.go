@@ -62,9 +62,9 @@ type Profile interface {
 	AllowDevMode() bool
 	// GetOutputDir returns the root output directory for tests to store output files and artifacts.
 	// e.g. /tmp/e2e-output/ or ~/e2e-output/
-	//
-	// It is recommended to use GetTestOutputDir to create a subdirectory for a specific test.
 	GetOutputDir() (string, error)
+	// CreateOutputSubDir creates an output directory inside the runner root directory for tests to store output files and artifacts.
+	CreateOutputSubDir(subdirectory string) (string, error)
 }
 
 // Shared implementations for common profiles methods
@@ -162,7 +162,7 @@ func (p baseProfile) GetOutputDir() (string, error) {
 	return filepath.Join(os.TempDir(), "e2e-output"), nil
 }
 
-// GetWorkspacePath returns the directory for CI Pulumi workspace.
+// GetWorkspacePath returns the directory for Pulumi workspace.
 // Since one Workspace supports one single program and we have one program per stack,
 // the path should be unique for each stack.
 func (p baseProfile) GetWorkspacePath(stackName string) string {
@@ -173,6 +173,29 @@ func hashString(s string) string {
 	hasher := fnv.New64a()
 	_, _ = io.WriteString(hasher, s)
 	return fmt.Sprintf("%016x", hasher.Sum64())
+}
+
+// CreateOutputSubDir creates an output directory inside the runner root directory for tests to store output files and artifacts.
+func (p baseProfile) CreateOutputSubDir(subdirectory string) (string, error) {
+	rootOutputDir, err := p.GetOutputDir()
+	if err != nil {
+		return "", err
+	}
+	fullPath := filepath.Join(rootOutputDir, subdirectory)
+	// create all directories in the path, excluding the last one
+	parentDir := filepath.Dir(fullPath)
+	finalDir := filepath.Base(fullPath)
+	err = os.MkdirAll(parentDir, 0755)
+	if err != nil {
+		return "", err
+	}
+	// Create final output directory
+	// Use MkdirTemp to avoid name collisions between parallel runs
+	outputDir, err := os.MkdirTemp(parentDir, fmt.Sprintf("%s_*", finalDir))
+	if err != nil {
+		return "", err
+	}
+	return outputDir, nil
 }
 
 // GetProfile return a profile initialising it at first call

@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -199,7 +199,7 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance := &agentCrashComponent{}
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			core.RegisterCheck(CheckName, optional.NewOption(func() check.Check {
+			core.RegisterCheck(CheckName, option.New(func() check.Check {
 				checkInstance := &AgentCrashDetect{
 					CheckBase:   core.NewCheckBase(CheckName),
 					instance:    &WinCrashConfig{},

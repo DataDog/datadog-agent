@@ -12,7 +12,7 @@ package events
 */
 import "C"
 
-type batch C.batch_data_t
+type Batch C.batch_data_t
 type batchKey C.batch_key_t
 
 const (

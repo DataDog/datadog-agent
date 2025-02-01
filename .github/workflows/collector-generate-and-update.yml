@@ -14,22 +14,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
 
-      - name: Read tool versions
-        id: tool-versions
-        run: |
-          echo "PYTHON_VERSION=$(cat .python-version)" >> $GITHUB_ENV
-          echo "GO_VERSION=$(cat .go-version)" >> $GITHUB_ENV
-
       - name: Set up Python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version-file: .python-version
           cache: 'pip'
 
       - name: Set up Go
         uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: .go-version
 
       - name: Install Dependencies
         run: |

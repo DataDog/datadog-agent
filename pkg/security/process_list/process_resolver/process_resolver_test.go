@@ -9,6 +9,7 @@
 package processresolver
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 )
 
 func newFakeExecEvent(ppid, pid int, pathname string) *model.Event {

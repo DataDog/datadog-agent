@@ -160,10 +160,9 @@ func (p *perfUsageCollector) registerRingBuffer(rb *manager.RingBuffer) {
 
 // UnregisterTelemetry unregisters the PerfMap and RingBuffers from telemetry
 func UnregisterTelemetry(m *manager.Manager) {
-	if perfCollector == nil {
-		return
+	if perfCollector != nil {
+		perfCollector.unregisterTelemetry(m)
 	}
-	perfCollector.unregisterTelemetry(m)
 }
 
 func (p *perfUsageCollector) unregisterTelemetry(m *manager.Manager) {

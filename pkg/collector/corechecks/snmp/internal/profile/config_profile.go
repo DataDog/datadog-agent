@@ -7,6 +7,7 @@ package profile
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"time"
 )
 
 // Provider is an interface that provides profiles by name
@@ -15,13 +16,18 @@ type Provider interface {
 	HasProfile(profileName string) bool
 	// GetProfile returns the profile with this name, or nil if there isn't one.
 	GetProfile(profileName string) *ProfileConfig
-	// GetProfileNameForSysObjectID returns the best matching profile for this sysObjectID, or nil if there isn't one.
+	// GetProfileNameForSysObjectID returns the name of the best matching profile for this sysObjectID, or "" if there isn't one.
 	GetProfileNameForSysObjectID(sysObjectID string) (string, error)
+	// GetProfileForSysObjectID returns the best matching profile for this sysObjectID, or nil if there isn't one.
+	GetProfileForSysObjectID(sysObjectID string) (*ProfileConfig, error)
+	// LastUpdated returns when this Provider last changed
+	LastUpdated() time.Time
 }
 
 // staticProvider is a static implementation of Provider
 type staticProvider struct {
-	configMap ProfileConfigMap
+	configMap   ProfileConfigMap
+	lastUpdated time.Time
 }
 
 func (s *staticProvider) GetProfile(name string) *ProfileConfig {
@@ -40,10 +46,23 @@ func (s *staticProvider) GetProfileNameForSysObjectID(sysObjectID string) (strin
 	return getProfileForSysObjectID(s.configMap, sysObjectID)
 }
 
+func (s *staticProvider) GetProfileForSysObjectID(sysObjectID string) (*ProfileConfig, error) {
+	name, err := getProfileForSysObjectID(s.configMap, sysObjectID)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetProfile(name), nil
+}
+
+func (s *staticProvider) LastUpdated() time.Time {
+	return s.lastUpdated
+}
+
 // StaticProvider makes a provider that serves the static data from this config map.
 func StaticProvider(profiles ProfileConfigMap) Provider {
 	return &staticProvider{
-		configMap: profiles,
+		configMap:   profiles,
+		lastUpdated: time.Now(),
 	}
 }
 

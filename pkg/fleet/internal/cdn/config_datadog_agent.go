@@ -35,6 +35,7 @@ type agentConfig struct {
 	datadog       []byte
 	securityAgent []byte
 	systemProbe   []byte
+	integrations  []integration
 }
 
 // agentConfigLayer is a config layer that can be merged with other layers into a config.
@@ -43,6 +44,14 @@ type agentConfigLayer struct {
 	AgentConfig         map[string]interface{} `json:"config"`
 	SecurityAgentConfig map[string]interface{} `json:"security_agent"`
 	SystemProbeConfig   map[string]interface{} `json:"system_probe"`
+	IntegrationsConfig  []integration          `json:"integrations,omitempty"`
+}
+
+type integration struct {
+	Type     string                   `json:"type"`
+	Instance map[string]interface{}   `json:"instance"`
+	Init     map[string]interface{}   `json:"init_config"`
+	Logs     []map[string]interface{} `json:"logs"`
 }
 
 // State returns the agent policies state
@@ -60,15 +69,18 @@ func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 		AgentConfig:         map[string]interface{}{},
 		SecurityAgentConfig: map[string]interface{}{},
 		SystemProbeConfig:   map[string]interface{}{},
+		IntegrationsConfig:  []integration{},
 	}
+
 	for _, rawLayer := range orderedLayers {
 		layer := &agentConfigLayer{}
 		if err := json.Unmarshal(rawLayer, layer); err != nil {
 			log.Warnf("Failed to unmarshal layer: %v", err)
 			continue
 		}
-		if layer.AgentConfig == nil && layer.SecurityAgentConfig == nil && layer.SystemProbeConfig == nil {
+		if layer.AgentConfig == nil && layer.SecurityAgentConfig == nil && layer.SystemProbeConfig == nil && len(layer.IntegrationsConfig) == 0 {
 			// Only add layers that have at least one config that matches the agent
+
 			continue
 		}
 
@@ -96,6 +108,10 @@ func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 				return nil, err
 			}
 			compiledLayer.SystemProbeConfig = systemProbeAgentConfig.(map[string]interface{})
+		}
+
+		if len(layer.IntegrationsConfig) > 0 {
+			compiledLayer.IntegrationsConfig = append(compiledLayer.IntegrationsConfig, layer.IntegrationsConfig...)
 		}
 	}
 
@@ -130,6 +146,7 @@ func newAgentConfig(orderedLayers ...[]byte) (*agentConfig, error) {
 		datadog:       config,
 		securityAgent: securityAgentConfig,
 		systemProbe:   systemProbeConfig,
+		integrations:  compiledLayer.IntegrationsConfig,
 	}, nil
 }
 
@@ -176,7 +193,70 @@ func (a *agentConfig) Write(dir string) error {
 			}
 		}
 	}
+	if len(a.integrations) > 0 {
+		for _, integration := range a.integrations {
+			err = a.writeIntegration(dir, integration, ddAgentUID, ddAgentGID)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return writePolicyMetadata(a, dir)
+}
+
+func (a *agentConfig) writeIntegration(dir string, i integration, ddAgentUID, ddAgentGID int) error {
+	// Create the integration directory if it doesn't exist
+	integrationDir := filepath.Join(dir, "conf.d", fmt.Sprintf("%s.d", i.Type))
+	if _, err := os.Stat(integrationDir); os.IsNotExist(err) {
+		err = os.MkdirAll(integrationDir, 0755)
+		if err != nil {
+			return fmt.Errorf("could not create integration directory %s: %w", integrationDir, err)
+		}
+		// Chown the directory to the dd-agent user
+		if runtime.GOOS != "windows" {
+			err = os.Chown(integrationDir, ddAgentUID, ddAgentGID)
+			if err != nil {
+				return fmt.Errorf("could not chown %s: %w", integrationDir, err)
+			}
+		}
+	} else if err != nil {
+		return fmt.Errorf("could not stat integration directory %s: %w", integrationDir, err)
+	}
+
+	// Hash the integration instance and init_config to create a unique filename
+	hash := sha256.New()
+	json, err := json.Marshal(i)
+	if err != nil {
+		return fmt.Errorf("could not marshal integration: %w", err)
+	}
+	hash.Write(json)
+	integrationPath := filepath.Join(integrationDir, fmt.Sprintf("%x.yaml", hash.Sum(nil)))
+
+	content := map[string]interface{}{}
+	if i.Instance != nil {
+		content["instances"] = []interface{}{i.Instance}
+	}
+	if i.Init != nil {
+		content["init_config"] = i.Init
+	}
+	if i.Logs != nil {
+		content["logs"] = i.Logs
+	}
+	yamlContent, err := marshalYAMLConfig(content)
+	if err != nil {
+		return fmt.Errorf("could not marshal integration content: %w", err)
+	}
+	err = os.WriteFile(integrationPath, yamlContent, 0640)
+	if err != nil {
+		return fmt.Errorf("could not write integration %s: %w", integrationPath, err)
+	}
+	if runtime.GOOS != "windows" {
+		err = os.Chown(integrationPath, ddAgentUID, ddAgentGID)
+		if err != nil {
+			return fmt.Errorf("could not chown %s: %w", integrationPath, err)
+		}
+	}
+	return nil
 }
 
 // getAgentIDs returns the UID and GID of the dd-agent user and group.

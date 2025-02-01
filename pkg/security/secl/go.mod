@@ -13,8 +13,8 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jellydator/ttlcache/v3 v3.3.0
-	github.com/skydive-project/go-debouncer v1.0.0
-	github.com/spf13/cast v1.7.0
+	github.com/skydive-project/go-debouncer v1.0.1
+	github.com/spf13/cast v1.7.1
 	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	golang.org/x/sys v0.28.0

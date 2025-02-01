@@ -297,7 +297,7 @@ func (s *testRepairSuite) TestRepair() {
 
 	// Run Repair through the MSI
 	if !s.Run("repair install", func() {
-		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(s.OutputDir, "repair.log"))
+		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(s.SessionOutputDir(), "repair.log"))
 		s.Require().NoError(err)
 	}) {
 		s.T().FailNow()
@@ -334,7 +334,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 	installOpts := []windowsAgent.InstallAgentOption{
 		windowsAgent.WithAPIKey("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 		windowsAgent.WithPackage(s.AgentPackage),
-		windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "install.log")),
+		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 		windowsAgent.WithTags("k1:v1,k2:v2"),
 		windowsAgent.WithHostname("win-installopts"),
 		windowsAgent.WithCmdPort(fmt.Sprintf("%d", cmdPort)),
@@ -458,7 +458,7 @@ func (s *testInstallFailSuite) TestInstallFail() {
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithValidAPIKey(),
 			windowsAgent.WithWixFailWhenDeferred(),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "install.log")),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
