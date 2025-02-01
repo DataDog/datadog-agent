@@ -31,6 +31,7 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	// checks implemented as components
 
 	"github.com/DataDog/datadog-agent/comp/agent"
@@ -89,7 +90,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
