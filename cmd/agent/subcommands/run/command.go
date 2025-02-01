@@ -89,6 +89,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
@@ -96,7 +97,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
-	haagent "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
+	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -238,7 +239,7 @@ func run(log log.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ inventoryotel.Component,
-	_ haagent.Component,
+	_ haagentmetadata.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
@@ -472,6 +473,7 @@ func getSharedFxOption() fx.Option {
 		agenttelemetryfx.Module(),
 		networkpath.Bundle(),
 		remoteagentregistryfx.Module(),
+		haagentfx.Module(),
 		metricscompressorfx.Module(),
 	)
 }
