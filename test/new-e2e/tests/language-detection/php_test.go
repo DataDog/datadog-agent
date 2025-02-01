@@ -16,7 +16,7 @@ import (
 
 func (s *languageDetectionSuite) installPHP() {
 	s.Env().RemoteHost.MustExecute("sudo apt-get -y install php")
-	phpVersion := s.Env().RemoteHost.MustExecute("php --version")
+	phpVersion := s.Env().RemoteHost.MustExecute("php -v")
 	require.True(s.T(), strings.HasPrefix(phpVersion, "PHP"))
 }
 
