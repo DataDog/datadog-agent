@@ -6,7 +6,7 @@
 // Package logscompression provides the component for logs compression
 package logscompression
 
-// team: agent-processing-and-routing
+// team: agent-logs
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"

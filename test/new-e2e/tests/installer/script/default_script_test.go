@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
@@ -26,7 +27,7 @@ func testDefaultScript(os e2eos.Descriptor, arch e2eos.Architecture) installerSc
 	s := &installScriptDefaultSuite{
 		installerScriptBaseSuite: newInstallerScriptSuite("installer-default", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
 	}
-	s.url = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/install.sh", s.commitHash)
+	s.url = s.scriptURLPrefix + "install.sh"
 
 	return s
 }
@@ -84,6 +85,8 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		s.T().Skip("Skipping test due to missing E2E_PIPELINE_ID variable")
 	}
+
+	flake.Mark(s.T()) // TODO: Fixme once installer 0.10.0 is released
 
 	defer s.Purge()
 

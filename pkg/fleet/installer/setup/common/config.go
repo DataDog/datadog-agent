@@ -162,7 +162,7 @@ type DatadogConfigInstallerRegistry struct {
 
 // IntegrationConfig represents the configuration for an integration under conf.d/
 type IntegrationConfig struct {
-	InitConfig []any                   `yaml:"init_config"`
+	InitConfig any                     `yaml:"init_config"`
 	Instances  []any                   `yaml:"instances,omitempty"`
 	Logs       []IntegrationConfigLogs `yaml:"logs,omitempty"`
 }
@@ -173,6 +173,7 @@ type IntegrationConfigLogs struct {
 	Path    string `yaml:"path,omitempty"`
 	Service string `yaml:"service,omitempty"`
 	Source  string `yaml:"source,omitempty"`
+	Tags    string `yaml:"tags,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration

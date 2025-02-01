@@ -33,6 +33,9 @@ import (
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
 func runAgentSidekicks(ag component) error {
+	// Configure the Trace Agent Debug server to use the IPC certificate
+	ag.Agent.DebugServer.SetTLSConfig(ag.at.GetTLSServerConfig())
+
 	tracecfg := ag.config.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
@@ -97,9 +100,6 @@ func runAgentSidekicks(ag component) error {
 			w.Write([]byte(res))
 		}))
 	}
-
-	// Configure the Trace Agent Debug server to use the IPC certificate
-	ag.Agent.DebugServer.SetTLSConfig(ag.at.GetTLSServerConfig())
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {

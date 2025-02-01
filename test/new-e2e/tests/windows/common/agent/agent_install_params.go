@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
 
 	"github.com/cenkalti/backoff/v4"
 )
@@ -31,6 +32,7 @@ type InstallAgentParams struct {
 	ProjectLocation          string `installer_arg:"PROJECTLOCATION"`
 	ApplicationDataDirectory string `installer_arg:"APPLICATIONDATADIRECTORY"`
 	AddLocal                 string `installer_arg:"ADDLOCAL"`
+	IntegrationsPersistence  string `installer_arg:"INSTALL_PYTHON_THIRD_PARTY_DEPS"`
 	// Installer parameters for agent config
 	APIKey                  string `installer_arg:"APIKEY"`
 	Tags                    string `installer_arg:"TAGS"`
@@ -306,6 +308,14 @@ func WithProjectLocation(projectLocation string) InstallAgentOption {
 func WithAddLocal(addLocal string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.AddLocal = addLocal
+		return nil
+	}
+}
+
+// WithIntegrationsPersistence specifies the INSTALL_PYTHON_THIRD_PARTY_DEPS parameter.
+func WithIntegrationsPersistence(IntegrationsPersistence string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.IntegrationsPersistence = IntegrationsPersistence
 		return nil
 	}
 }

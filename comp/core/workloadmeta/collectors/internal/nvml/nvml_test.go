@@ -11,6 +11,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -40,9 +41,30 @@ func TestPull(t *testing.T) {
 		require.Equal(t, nvidiaVendor, gpu.Vendor)
 		require.Equal(t, testutil.DefaultGPUName, gpu.Name)
 		require.Equal(t, testutil.DefaultGPUName, gpu.Device)
+		require.Equal(t, "hopper", gpu.Architecture)
+		require.Equal(t, testutil.DefaultGPUComputeCapMajor, gpu.ComputeCapability.Major)
+		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
+		require.Equal(t, int(testutil.DefaultGPUAttributes.MultiprocessorCount), gpu.SMCount)
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {
 		require.True(t, foundIDs[uuid], "GPU with UUID %s not found", uuid)
+	}
+}
+
+func TestGpuArchToString(t *testing.T) {
+	tests := []struct {
+		arch     nvml.DeviceArchitecture
+		expected string
+	}{
+		{nvml.DEVICE_ARCH_KEPLER, "kepler"},
+		{nvml.DEVICE_ARCH_UNKNOWN, "unknown"},
+		{nvml.DeviceArchitecture(3751), "invalid"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			require.Equal(t, tt.expected, gpuArchToString(tt.arch))
+		})
 	}
 }

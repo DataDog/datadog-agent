@@ -56,8 +56,6 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         return 0;
     }
 
-    bpf_get_current_comm(&value.comm, sizeof(value.comm));
-
     // add netns information
     key.netns = get_netns_from_sock(sk);
 
@@ -322,9 +320,7 @@ int hook_inet_release(ctx_t *ctx) {
     return handle_sk_release(sk);
 }
 
-HOOK_ENTRY("inet_bind")
-int hook_inet_bind(ctx_t *ctx) {
-    struct socket *sock = (struct socket *)CTX_PARM1(ctx);
+__attribute__((always_inline)) int handle_inet_bind(struct socket *sock) {
     struct inet_bind_args_t args = {};
     args.sock = sock;
     u64 pid = bpf_get_current_pid_tgid();
@@ -332,20 +328,33 @@ int hook_inet_bind(ctx_t *ctx) {
     return 0;
 }
 
-HOOK_EXIT("inet_bind")
-int rethook_inet_bind(ctx_t *ctx) {
-    int ret = CTX_PARMRET(ctx);
-    if (ret < 0) {
-        // we only care about successful bind operations
-        return 0;
-    }
+HOOK_ENTRY("inet_bind")
+int hook_inet_bind(ctx_t *ctx) {
+    struct socket *sock = (struct socket *)CTX_PARM1(ctx);
+    return handle_inet_bind(sock);
+}
 
+HOOK_ENTRY("inet6_bind")
+int hook_inet6_bind(ctx_t *ctx) {
+    struct socket *sock = (struct socket *)CTX_PARM1(ctx);
+    return handle_inet_bind(sock);
+}
+
+__attribute__((always_inline)) int handle_inet_bind_ret(int ret) {
     // fetch inet_bind arguments
     u64 id = bpf_get_current_pid_tgid();
     u32 tid = (u32)id;
     struct inet_bind_args_t *args = bpf_map_lookup_elem(&inet_bind_args, &id);
     if (args == NULL) {
         // should never happen, ignore
+        return 0;
+    }
+
+    // delete the entry in inet_bind_args to make sure we always cleanup inet_bind_args and we don't leak entries
+    bpf_map_delete_elem(&inet_bind_args, &id);
+
+    if (ret < 0) {
+        // we only care about successful bind operations
         return 0;
     }
 
@@ -391,6 +400,18 @@ int rethook_inet_bind(ctx_t *ctx) {
         bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
     }
     return 0;
+}
+
+HOOK_EXIT("inet_bind")
+int rethook_inet_bind(ctx_t *ctx) {
+    int ret = CTX_PARMRET(ctx);
+    return handle_inet_bind_ret(ret);
+}
+
+HOOK_EXIT("inet6_bind")
+int rethook_inet6_bind(ctx_t *ctx) {
+    int ret = CTX_PARMRET(ctx);
+    return handle_inet_bind_ret(ret);
 }
 
 #endif

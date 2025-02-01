@@ -10,7 +10,6 @@ package tests
 
 import (
 	"reflect"
-	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
@@ -111,56 +110,5 @@ func withForceReload() optFunc {
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
-	return to.disableApprovers == opts.disableApprovers &&
-		to.disableEnvVarsResolution == opts.disableEnvVarsResolution &&
-		to.enableActivityDump == opts.enableActivityDump &&
-		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
-		to.activityDumpTagRules == opts.activityDumpTagRules &&
-		to.activityDumpDuration == opts.activityDumpDuration &&
-		to.activityDumpLoadControllerPeriod == opts.activityDumpLoadControllerPeriod &&
-		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
-		to.activityDumpCgroupDifferentiateArgs == opts.activityDumpCgroupDifferentiateArgs &&
-		to.activityDumpAutoSuppressionEnabled == opts.activityDumpAutoSuppressionEnabled &&
-		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
-		to.activityDumpSyscallMonitorPeriod == opts.activityDumpSyscallMonitorPeriod &&
-		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
-		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
-		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
-		reflect.DeepEqual(to.activityDumpLocalStorageFormats, opts.activityDumpLocalStorageFormats) &&
-		to.enableSecurityProfile == opts.enableSecurityProfile &&
-		to.securityProfileMaxImageTags == opts.securityProfileMaxImageTags &&
-		to.securityProfileDir == opts.securityProfileDir &&
-		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
-		to.enableAutoSuppression == opts.enableAutoSuppression &&
-		slices.Equal(to.autoSuppressionEventTypes, opts.autoSuppressionEventTypes) &&
-		to.enableAnomalyDetection == opts.enableAnomalyDetection &&
-		slices.Equal(to.anomalyDetectionEventTypes, opts.anomalyDetectionEventTypes) &&
-		to.anomalyDetectionDefaultMinimumStablePeriod == opts.anomalyDetectionDefaultMinimumStablePeriod &&
-		to.anomalyDetectionMinimumStablePeriodExec == opts.anomalyDetectionMinimumStablePeriodExec &&
-		to.anomalyDetectionMinimumStablePeriodDNS == opts.anomalyDetectionMinimumStablePeriodDNS &&
-		to.anomalyDetectionWarmupPeriod == opts.anomalyDetectionWarmupPeriod &&
-		to.disableDiscarders == opts.disableDiscarders &&
-		to.disableFilters == opts.disableFilters &&
-		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
-		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
-		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
-		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableSBOM == opts.enableSBOM &&
-		to.enableHostSBOM == opts.enableHostSBOM &&
-		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil &&
-		to.networkIngressEnabled == opts.networkIngressEnabled &&
-		to.networkRawPacketEnabled == opts.networkRawPacketEnabled &&
-		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter &&
-		to.ebpfLessEnabled == opts.ebpfLessEnabled &&
-		to.enforcementExcludeBinary == opts.enforcementExcludeBinary &&
-		to.enforcementDisarmerContainerEnabled == opts.enforcementDisarmerContainerEnabled &&
-		to.enforcementDisarmerContainerMaxAllowed == opts.enforcementDisarmerContainerMaxAllowed &&
-		to.enforcementDisarmerContainerPeriod == opts.enforcementDisarmerContainerPeriod &&
-		to.enforcementDisarmerExecutableEnabled == opts.enforcementDisarmerExecutableEnabled &&
-		to.enforcementDisarmerExecutableMaxAllowed == opts.enforcementDisarmerExecutableMaxAllowed &&
-		to.enforcementDisarmerExecutablePeriod == opts.enforcementDisarmerExecutablePeriod &&
-		to.eventServerRetention == opts.eventServerRetention &&
-		to.discardRuntime == opts.discardRuntime &&
-		to.networkFlowMonitorEnabled == opts.networkFlowMonitorEnabled
+	return reflect.DeepEqual(to, opts)
 }
