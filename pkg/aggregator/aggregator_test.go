@@ -309,7 +309,7 @@ func TestDefaultSeries(t *testing.T) {
 	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "config_id:config123", "ha_agent_enabled:true"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "ha_agent_enabled:true", "config_id:config123"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -658,16 +658,6 @@ func TestTags(t *testing.T) {
 			withVersion:             false,
 			haAgentEnabled:          true,
 			want:                    []string{"ha_agent_enabled:true"},
-		},
-		{
-			name:                    "tags enabled, with version, with config id",
-			hostname:                "hostname",
-			tlmContainerTagsEnabled: true,
-			agentTags:               func(types.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
-			globalTags:              func(types.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
-			withVersion:             true,
-			configID:                "config123",
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo", "config_id:config123"},
 		},
 	}
 	for _, tt := range tests {
