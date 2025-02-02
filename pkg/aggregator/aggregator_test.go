@@ -679,6 +679,36 @@ func TestTags(t *testing.T) {
 	}
 }
 
+func TestGonfigIDTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		configID string
+		want     []string
+	}{
+		{
+			name: "without config_id",
+			want: []string{},
+		},
+		{
+			name:     "with config_id",
+			configID: "my-config",
+			want:     []string{"config_id:my-config"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("config_id", tt.configID)
+
+			taggerComponent := taggerMock.SetupFakeTagger(t)
+			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second)
+			assert.ElementsMatch(t, tt.want, agg.configIDTags())
+		})
+	}
+}
+
 func TestTimeSamplerFlush(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("dogstatsd_pipeline_count", 1)
