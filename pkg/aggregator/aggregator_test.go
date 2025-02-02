@@ -283,6 +283,9 @@ func TestDefaultSeries(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerMock.SetupFakeTagger(t)
 
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("config_id", "config123")
+
 	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 	mockHaAgent.SetEnabled(true)
 	mockHaAgent.SetState(haagent.Active)
@@ -306,14 +309,14 @@ func TestDefaultSeries(t *testing.T) {
 	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "ha_agent_enabled:true"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "config_id:config123", "ha_agent_enabled:true"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"ha_agent_enabled:true", "agent_state:standby"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"ha_agent_enabled:true", "config_id:config123", "ha_agent_state:standby"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
