@@ -26,18 +26,13 @@ import (
 // a group version resource string is in the form `{group}/{version}/{resource}` (example: apps/v1/deployments)
 // if the groupResource argument is not in the correct format, an empty string is returned
 func groupResourceToGVRString(groupResource string) string {
-	resource, group, _ := strings.Cut(strings.TrimSpace(groupResource), ".")
-
-	if len(validation.IsDNS1123Label(resource)) == 0 {
-		if len(group) > 0 {
-			if len(validation.IsDNS1123Subdomain(group)) == 0 {
-				// format is `{group}/{version}/{resource}`
-				return fmt.Sprintf("%s//%s", group, resource)
-			}
-		} else {
-			// format is `{resource}`
-			return resource
-		}
+	if len(validation.IsDNS1123Label(groupResource)) == 0 {
+		// format is `{resource}`
+		return groupResource
+	} else if len(validation.IsDNS1123Subdomain(groupResource)) == 0 {
+		resource, group, _ := strings.Cut(groupResource, ".")
+		// format is `{group}/{version}/{resource}`
+		return fmt.Sprintf("%s//%s", group, resource)
 	}
 
 	// invalid group resource format
