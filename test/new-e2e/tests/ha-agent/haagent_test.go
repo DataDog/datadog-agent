@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type haAgentTestSuite struct {
@@ -73,6 +75,20 @@ func (s *haAgentTestSuite) TestHaAgentAddedToRCListeners() {
 
 		assert.Contains(c, output, "Add HA Agent RCListener")
 	}, 5*time.Minute, 3*time.Second)
+}
+
+func (s *haAgentTestSuite) TestDiagnoseHaAgentMetadata() {
+	t := s.T()
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		diagnose := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "ha-agent"}))
+		t.Log(diagnose)
+		var payload Payload
+		err := json.Unmarshal([]byte(diagnose), &payload)
+		require.NoError(t, err)
+
+		expectedMetadata := haAgentMetadata{}
+		assert.Equal(t, expectedMetadata, payload.Metadata)
+	}, 1*time.Minute, 3*time.Second)
 }
 
 // TODO: Add test for Agent behaviour when receiving RC HA_AGENT messages
