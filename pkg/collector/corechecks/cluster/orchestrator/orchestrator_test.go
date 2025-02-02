@@ -74,7 +74,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	vpaClient := vpa.NewSimpleClientset()
 	crdClient := crd.NewSimpleClientset()
-	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
+	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, APIExtClient: crdClient}
 
 	cfg := mockconfig.New(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(

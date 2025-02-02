@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
@@ -24,6 +25,7 @@ import (
 
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
+	apiExtClient := apiextensionsfake.NewSimpleClientset()
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
@@ -31,6 +33,7 @@ func TestNewController(t *testing.T) {
 	// V1
 	controller := NewController(
 		client,
+		apiExtClient,
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration(),
 		factory.Admissionregistration(),
@@ -48,6 +51,7 @@ func TestNewController(t *testing.T) {
 	// V1beta1
 	controller = NewController(
 		client,
+		apiExtClient,
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration(),
 		factory.Admissionregistration(),

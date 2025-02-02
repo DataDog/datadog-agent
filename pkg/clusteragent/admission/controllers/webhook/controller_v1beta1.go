@@ -15,6 +15,7 @@ import (
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	admiv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -50,6 +52,7 @@ type ControllerV1beta1 struct {
 // NewControllerV1beta1 returns a new Webhook Controller using admissionregistration/v1beta1.
 func NewControllerV1beta1(
 	client kubernetes.Interface,
+	apiExtClient clientset.Interface,
 	secretInformer coreinformers.SecretInformer,
 	validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer,
 	mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
@@ -63,6 +66,7 @@ func NewControllerV1beta1(
 ) *ControllerV1beta1 {
 	controller := &ControllerV1beta1{}
 	controller.clientSet = client
+	controller.apiExtClient = apiExtClient
 	controller.config = config
 	controller.secretsLister = secretInformer.Lister()
 	controller.secretsSynced = secretInformer.Informer().HasSynced
@@ -398,7 +402,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.ValidatingWebhook {
+func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resources types.ResourceRuleConfigList, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.ValidatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -425,23 +429,21 @@ func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string
 		MatchConditions:         matchConditions,
 	}
 
-	for group, resources := range resourcesMap {
-		for _, resource := range resources {
-			webhook.Rules = append(webhook.Rules, admiv1beta1.RuleWithOperations{
-				Operations: operations,
-				Rule: admiv1beta1.Rule{
-					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
-					Resources:   []string{resource},
-				},
-			})
-		}
+	for _, resource := range resources {
+		webhook.Rules = append(webhook.Rules, admiv1.RuleWithOperations{
+			Operations: operations,
+			Rule: admiv1.Rule{
+				APIGroups:   resource.APIGroups,
+				APIVersions: resource.APIVersions,
+				Resources:   resource.Resources,
+			},
+		})
 	}
 
 	return webhook
 }
 
-func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.MutatingWebhook {
+func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resources types.ResourceRuleConfigList, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.MutatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -470,17 +472,15 @@ func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, 
 		MatchConditions:         matchConditions,
 	}
 
-	for group, resources := range resourcesMap {
-		for _, resource := range resources {
-			webhook.Rules = append(webhook.Rules, admiv1beta1.RuleWithOperations{
-				Operations: operations,
-				Rule: admiv1beta1.Rule{
-					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
-					Resources:   []string{resource},
-				},
-			})
-		}
+	for _, resource := range resources {
+		webhook.Rules = append(webhook.Rules, admiv1.RuleWithOperations{
+			Operations: operations,
+			Rule: admiv1.Rule{
+				APIGroups:   resource.APIGroups,
+				APIVersions: resource.APIVersions,
+				Resources:   resource.Resources,
+			},
+		})
 	}
 
 	return webhook

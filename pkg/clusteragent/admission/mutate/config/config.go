@@ -10,6 +10,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -68,7 +70,7 @@ type Webhook struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       types.ResourceRuleConfigList
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	wmeta           workloadmeta.Component
@@ -88,10 +90,12 @@ type Webhook struct {
 // NewWebhook returns a new Webhook
 func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.InjectionFilter, datadogConfig config.Component) *Webhook {
 	return &Webhook{
-		name:            webhookName,
-		isEnabled:       datadogConfig.GetBool("admission_controller.inject_config.enabled"),
-		endpoint:        datadogConfig.GetString("admission_controller.inject_config.endpoint"),
-		resources:       map[string][]string{"": {"pods"}},
+		name:      webhookName,
+		isEnabled: datadogConfig.GetBool("admission_controller.inject_config.enabled"),
+		endpoint:  datadogConfig.GetString("admission_controller.inject_config.endpoint"),
+		resources: types.ResourceRuleConfigList{
+			types.GetPodsV1Resource(),
+		},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		wmeta:           wmeta,
@@ -121,6 +125,11 @@ func (w *Webhook) IsEnabled() bool {
 	return w.isEnabled
 }
 
+// Start starts the webhook
+func (w *Webhook) Start(context.Context) error {
+	return nil
+}
+
 // Endpoint returns the endpoint of the webhook
 func (w *Webhook) Endpoint() string {
 	return w.endpoint
@@ -128,7 +137,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() types.ResourceRuleConfigList {
 	return w.resources
 }
 

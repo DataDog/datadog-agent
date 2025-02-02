@@ -16,11 +16,13 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -33,14 +35,15 @@ type ControllerContext struct {
 	ValidatingInformers          informers.SharedInformerFactory
 	MutatingInformers            informers.SharedInformerFactory
 	Client                       kubernetes.Interface
+	APIExtClient                 clientset.Interface
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) ([]webhook.Webhook, error) {
-	var webhooks []webhook.Webhook
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) ([]types.Webhook, error) {
+	var webhooks []types.Webhook
 
 	if !datadogConfig.GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
@@ -83,6 +86,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled, matchConditionsSupported, datadogConfig)
 	webhookController := webhook.NewController(
 		ctx.Client,
+		ctx.APIExtClient,
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.ValidatingInformers.Admissionregistration(),
 		ctx.MutatingInformers.Admissionregistration(),

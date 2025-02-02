@@ -10,6 +10,7 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -47,7 +49,7 @@ const (
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
 	name            string
-	resources       map[string][]string
+	resources       types.ResourceRuleConfigList
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 
@@ -80,7 +82,9 @@ func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, fi
 	webhook := &Webhook{
 		name: webhookName,
 
-		resources:       map[string][]string{"": {"pods"}},
+		resources: types.ResourceRuleConfigList{
+			types.GetPodsV1Resource(),
+		},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		wmeta:           wmeta,
@@ -109,6 +113,11 @@ func (w *Webhook) IsEnabled() bool {
 	return w.config.isEnabled
 }
 
+// Start starts the webhook
+func (w *Webhook) Start(context.Context) error {
+	return nil
+}
+
 // Endpoint returns the endpoint of the webhook
 func (w *Webhook) Endpoint() string {
 	return w.config.endpoint
@@ -116,7 +125,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() types.ResourceRuleConfigList {
 	return w.resources
 }
 

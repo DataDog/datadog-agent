@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
@@ -90,7 +91,7 @@ type WebhookForPods struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       types.ResourceRuleConfigList
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
@@ -101,8 +102,13 @@ func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 		name: webhookForPodsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
-		resources:       map[string][]string{"": {"pods"}},
+		endpoint: pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
+		resources: types.ResourceRuleConfigList{
+			types.ResourceRuleConfig{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+			},
+		},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
@@ -124,6 +130,11 @@ func (w *WebhookForPods) IsEnabled() bool {
 	return w.isEnabled
 }
 
+// Start starts the webhook
+func (w *WebhookForPods) Start(context.Context) error {
+	return nil
+}
+
 // Endpoint returns the endpoint of the webhook
 func (w *WebhookForPods) Endpoint() string {
 	return w.endpoint
@@ -131,7 +142,7 @@ func (w *WebhookForPods) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForPods) Resources() map[string][]string {
+func (w *WebhookForPods) Resources() types.ResourceRuleConfigList {
 	return w.resources
 }
 
@@ -163,7 +174,7 @@ type WebhookForCommands struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       map[string][]string
+	resources       types.ResourceRuleConfigList
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
@@ -174,8 +185,10 @@ func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForComma
 		name: webhookForCommandsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
-		resources:       map[string][]string{"": {"pods/exec"}},
+		endpoint: pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
+		resources: types.ResourceRuleConfigList{
+			types.GetPodsV1Resource(),
+		},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
@@ -197,6 +210,11 @@ func (w *WebhookForCommands) IsEnabled() bool {
 	return w.isEnabled
 }
 
+// Start starts the webhook
+func (w *WebhookForCommands) Start(context.Context) error {
+	return nil
+}
+
 // Endpoint returns the endpoint of the webhook
 func (w *WebhookForCommands) Endpoint() string {
 	return w.endpoint
@@ -204,7 +222,7 @@ func (w *WebhookForCommands) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *WebhookForCommands) Resources() map[string][]string {
+func (w *WebhookForCommands) Resources() types.ResourceRuleConfigList {
 	return w.resources
 }
 

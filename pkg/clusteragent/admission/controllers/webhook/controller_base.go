@@ -10,8 +10,8 @@ package webhook
 import (
 	"fmt"
 
-	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers/admissionregistration"
@@ -21,11 +21,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook/types"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
@@ -33,6 +32,7 @@ import (
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/deprecatedresources"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,12 +41,13 @@ import (
 // Controller is an interface implemented by ControllerV1 and ControllerV1beta1.
 type Controller interface {
 	Run(stopCh <-chan struct{})
-	EnabledWebhooks() []Webhook
+	EnabledWebhooks() []types.Webhook
 }
 
 // NewController returns the adequate implementation of the Controller interface.
 func NewController(
 	client kubernetes.Interface,
+	apiExtClient clientset.Interface,
 	secretInformer coreinformers.SecretInformer,
 	validatingInformers admissionregistration.Interface,
 	mutatingInformers admissionregistration.Interface,
@@ -59,36 +60,9 @@ func NewController(
 	demultiplexer demultiplexer.Component,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
+		return NewControllerV1(client, apiExtClient, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
-}
-
-// Webhook represents an admission webhook
-type Webhook interface {
-	// Name returns the name of the webhook
-	Name() string
-	// WebhookType Type returns the type of the webhook
-	WebhookType() common.WebhookType
-	// IsEnabled returns whether the webhook is enabled
-	IsEnabled() bool
-	// Endpoint returns the endpoint of the webhook
-	Endpoint() string
-	// Resources returns the kubernetes resources for which the webhook should
-	// be invoked.
-	// The key is the API group, and the value is a list of resources.
-	Resources() map[string][]string
-	// Operations returns the operations on the resources specified for which
-	// the webhook should be invoked
-	Operations() []admiv1.OperationType
-	// LabelSelectors returns the label selectors that specify when the webhook
-	// should be invoked
-	LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector)
-	// MatchConditions returns the Match Conditions used for fine-grained
-	// request filtering
-	MatchConditions() []admiv1.MatchCondition
-	// WebhookFunc runs the logic of the webhook and returns the admission response
-	WebhookFunc() admission.WebhookFunc
+	return NewControllerV1beta1(client, apiExtClient, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 }
 
 // generateWebhooks returns the list of webhooks. The order of the webhooks returned
@@ -97,7 +71,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []types.Webhook {
 	// Note: the auto_instrumentation pod injection filter is used across
 	// multiple mutating webhooks, so we add it as a hard dependency to each
 	// of the components that use it via the injectionFilter parameter.
@@ -105,22 +79,23 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	//       in the admission controller section in agent status.
 	injectionFilter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
 
-	var webhooks []Webhook
-	var validatingWebhooks []Webhook
-	var mutatingWebhooks []Webhook
+	var webhooks []types.Webhook
+	var validatingWebhooks []types.Webhook
+	var mutatingWebhooks []types.Webhook
 
 	// Add Validating webhooks.
 	if c.config.isValidationEnabled() {
 		// Future validating webhooks can be added here.
-		validatingWebhooks = []Webhook{
+		validatingWebhooks = []types.Webhook{
 			kubernetesadmissionevents.NewWebhook(datadogConfig, demultiplexer, c.config.supportsMatchConditions()),
+			deprecatedresources.NewWebhook(datadogConfig, demultiplexer, c.apiExtClient, c.config.supportsMatchConditions()),
 		}
 		webhooks = append(webhooks, validatingWebhooks...)
 	}
 
 	// Add Mutating webhooks.
 	if c.config.isMutationEnabled() {
-		mutatingWebhooks = []Webhook{
+		mutatingWebhooks = []types.Webhook{
 			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
 			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
 			agentsidecar.NewWebhook(datadogConfig),
@@ -155,6 +130,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 // For the nolint:structcheck see https://github.com/golangci/golangci-lint/issues/537
 type controllerBase struct {
 	clientSet                kubernetes.Interface //nolint:structcheck
+	apiExtClient             clientset.Interface  //nolint:structcheck
 	config                   Config
 	secretsLister            corelisters.SecretLister
 	secretsSynced            cache.InformerSynced //nolint:structcheck
@@ -163,12 +139,12 @@ type controllerBase struct {
 	queue                    workqueue.TypedRateLimitingInterface[string]
 	isLeaderFunc             func() bool
 	leadershipStateNotif     <-chan struct{}
-	webhooks                 []Webhook
+	webhooks                 []types.Webhook
 }
 
 // EnabledWebhooks returns the list of enabled webhooks.
-func (c *controllerBase) EnabledWebhooks() []Webhook {
-	var res []Webhook
+func (c *controllerBase) EnabledWebhooks() []types.Webhook {
+	var res []types.Webhook
 
 	for _, webhook := range c.webhooks {
 		if webhook.IsEnabled() {

@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -171,9 +172,9 @@ func TestAdmissionControllerFailureModeV1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, resourcePods, nil, nil, nil)
 		assert.Equal(t, admiv1.Ignore, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, resourcePods, nil, nil, nil)
 		assert.Equal(t, admiv1.Ignore, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 
@@ -181,9 +182,9 @@ func TestAdmissionControllerFailureModeV1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, resourcePods, nil, nil, nil)
 		assert.Equal(t, admiv1.Fail, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, resourcePods, nil, nil, nil)
 		assert.Equal(t, admiv1.Fail, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 }
@@ -197,7 +198,7 @@ func TestAdmissionControllerReinvocationPolicyV1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.reinvocationpolicy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, resourcePods, nil, nil, nil)
 		assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *mutatingWebhookSkeleton.ReinvocationPolicy)
 	}
 }
@@ -1058,7 +1059,7 @@ func TestGetValidatingWebhookSkeletonV1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
-			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
+			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, resourcePods, nsSelector, objSelector, nil))
 		})
 	}
 }
@@ -1164,7 +1165,7 @@ func TestGetMutatingWebhookSkeletonV1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
-			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
+			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, resourcePods, nsSelector, objSelector, nil))
 		})
 	}
 }
@@ -1177,6 +1178,7 @@ func newFixtureV1(t *testing.T) *fixtureV1 {
 	f := &fixtureV1{}
 	f.t = t
 	f.client = fake.NewSimpleClientset()
+	f.apiExtClient = apiextensionsfake.NewSimpleClientset()
 	return f
 }
 
@@ -1186,6 +1188,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 	datadogConfig := fxutil.Test[configComp.Component](f.t, core.MockBundle())
 	return NewControllerV1(
 		f.client,
+		f.apiExtClient,
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration().V1().ValidatingWebhookConfigurations(),
 		factory.Admissionregistration().V1().MutatingWebhookConfigurations(),
@@ -1222,7 +1225,7 @@ func (f *fixtureV1) populateMutatingWebhooksCache(webhooks ...*admiv1.MutatingWe
 
 func validateV1(t *testing.T, validatingWebhooks *admiv1.ValidatingWebhookConfiguration, mutatingWebhooks *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) {
 	// Validate the number of webhooks.
-	require.Len(t, validatingWebhooks.Webhooks, 0)
+	require.Len(t, validatingWebhooks.Webhooks, 1)
 	require.Len(t, mutatingWebhooks.Webhooks, 3)
 
 	// Validate the CA bundle for webhooks.
