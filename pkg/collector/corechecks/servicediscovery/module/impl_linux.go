@@ -215,6 +215,9 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
 	services := make([]model.Service, 0)
 
 	procRoot := kernel.ProcFSRoot()
@@ -461,17 +464,11 @@ type parsingContext struct {
 
 // addIgnoredPid store excluded pid.
 func (s *discovery) addIgnoredPid(pid int32) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
 	s.ignorePids[pid] = struct{}{}
 }
 
 // shouldIgnorePid returns true if process should be excluded from handling.
 func (s *discovery) shouldIgnorePid(pid int32) bool {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
 	_, found := s.ignorePids[pid]
 	return found
 }
@@ -622,9 +619,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	var info *serviceInfo
-	s.mux.RLock()
 	cached, ok := s.cache[pid]
-	s.mux.RUnlock()
 	if ok {
 		info = cached
 	} else {
@@ -633,9 +628,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 			return nil
 		}
 
-		s.mux.Lock()
 		s.cache[pid] = info
-		s.mux.Unlock()
 	}
 
 	if s.shouldIgnoreService(info.name) {
@@ -787,7 +780,6 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	service.ContainerServiceNameSource = tagName
 	service.CheckedContainerData = true
 
-	s.mux.Lock()
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
 		serviceInfo.containerServiceName = serviceName
@@ -795,7 +787,6 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		serviceInfo.checkedContainerData = true
 		serviceInfo.containerID = id
 	}
-	s.mux.Unlock()
 }
 
 func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
@@ -848,6 +839,9 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 
 // getStatus returns the list of currently running services.
 func (s *discovery) getServices() (*model.ServicesResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
 	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
@@ -912,9 +906,6 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		s.potentialServices.add(pid)
 		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
-
-	s.mux.Lock()
-	defer s.mux.Unlock()
 
 	s.updateCacheInfo(response, now)
 	s.handleStoppedServices(response, alivePids)
