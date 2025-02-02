@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import (
 	"context"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -18,15 +19,13 @@ type infraAttributesMetricProcessor struct {
 	logger      *zap.Logger
 	tagger      taggerClient
 	cardinality types.TagCardinality
-	generateID  GenerateKubeMetadataEntityID
 }
 
-func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateID GenerateKubeMetadataEntityID) (*infraAttributesMetricProcessor, error) {
+func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesMetricProcessor, error) {
 	iamp := &infraAttributesMetricProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
-		generateID:  generateID,
 	}
 	set.Logger.Info("Metric Infra Attributes Processor configured")
 	return iamp, nil
@@ -36,7 +35,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		processInfraTags(iamp.logger, iamp.tagger, iamp.cardinality, iamp.generateID, resourceAttributes)
+		processInfraTags(iamp.logger, iamp.tagger, iamp.cardinality, resourceAttributes)
 	}
 	return md, nil
 }
