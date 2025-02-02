@@ -33,7 +33,6 @@ func TestGetComponents(t *testing.T) {
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 	fakeTagger := mock.SetupFakeTagger(t)
-
 	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
