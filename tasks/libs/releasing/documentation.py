@@ -9,7 +9,7 @@ SPACE_KEY = "agent"
 NON_RELEASING_TEAMS = {
     'telemetry-and-analytics',
     'documentation',
-    'software-integrity-and-trust',
+    'sdlc-security',
     'single-machine-performance',
     'agent-all',
     'apm-core-reliability-and-performance',

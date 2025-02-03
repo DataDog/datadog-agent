@@ -21,7 +21,7 @@ TEAMS = (
     'triage',
     'windows-kernel-integrations',
     'container-integrations',
-    'software-integrity-and-trust',
+    'sdlc-security',
     'opentelemetry',
     'universal-service-monitoring',
     'agent-build-and-releases',
