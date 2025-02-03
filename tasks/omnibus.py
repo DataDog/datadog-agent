@@ -164,6 +164,8 @@ def get_omnibus_env(
         'DD_CC',
         'DD_CXX',
         'DD_CMAKE_TOOLCHAIN',
+        'OMNIBUS_FORCE_PACKAGES',
+        'OMNIBUS_PACKAGE_ARTIFACT_DIR',
     ]
     for key in env_to_forward:
         if key in os.environ:
