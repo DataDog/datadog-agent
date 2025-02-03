@@ -120,5 +120,5 @@ func normalize(configsRequest *pbgo.ClientGetConfigsRequest) {
 	// err is explicitly ignored as it is not an actual error and the expected normalized service
 	// is returned regardless.
 	configsRequest.Client.ClientTracer.Service, _ = traceutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
-	configsRequest.Client.ClientTracer.Env = traceutil.NormalizeTag(configsRequest.Client.ClientTracer.Env)
+	configsRequest.Client.ClientTracer.Env = traceutil.NormalizeTagValue(configsRequest.Client.ClientTracer.Env)
 }

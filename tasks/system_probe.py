@@ -762,7 +762,7 @@ def build_sysprobe_binary(
         ldflags += ' -s -w'
 
     if static:
-        build_tags.extend(["osusergo", "netgo"])
+        build_tags.extend(["osusergo", "netgo", "static"])
         build_tags = list(set(build_tags).difference({"netcgo"}))
 
     if not is_windows and "pcap" in build_tags:

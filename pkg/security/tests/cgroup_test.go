@@ -344,12 +344,14 @@ func TestCGroupSnapshot(t *testing.T) {
 		cgroupFS := utils.NewCGroupFS()
 		_, _, cgroupSysFSPath, err := cgroupFS.FindCGroupContext(uint32(os.Getpid()), uint32(os.Getpid()))
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 
 		var stats unix.Stat_t
 		if err := unix.Stat(cgroupSysFSPath, &stats); err != nil {
-			t.Fatal(err)
+			t.Error(err)
+			return
 		}
 		assert.Equal(t, stats.Ino, testsuiteEntry.CGroup.CGroupFile.Inode)
 
