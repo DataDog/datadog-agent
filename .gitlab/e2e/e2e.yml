@@ -217,6 +217,10 @@ new-e2e-fips-compliance-test:
   variables:
     TARGETS: ./tests/fips-compliance
     TEAM: agent-runtimes
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
+      - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
 
 new-e2e-windows-fips-compliance-test:
   extends: .new_e2e_template
@@ -233,6 +237,7 @@ new-e2e-windows-fips-compliance-test:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestWindowsVM$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersWindowsSuite$"
 
 new-e2e-windows-service-test:
   extends: .new_e2e_template
