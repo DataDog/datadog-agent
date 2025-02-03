@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// InjectionFilter is an interface to determine if a pod should be mutated.
-type InjectionFilter interface {
+// MutationFilter is an interface to determine if a pod should be mutated.
+type MutationFilter interface {
 	// ShouldMutatePod checks if a pod is mutable per explicit rules and
 	// the NSFilter if InjectionFilter has one.
 	ShouldMutatePod(pod *corev1.Pod) bool

@@ -232,10 +232,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.config(c)
 			}
 
-			filter, err := NewFilter(c)
+			filter, err := NewFilter(NewFilterConfig(c))
 			require.NoError(t, err)
 
-			cfg, err := NewInstrumentationInjectorConfig(c)
+			cfg, err := NewMutatorConfig(c)
 			require.NoError(t, err)
 			require.Equal(t, instrumentationV2, cfg.version)
 			require.True(t, cfg.version.usesInjector())
@@ -249,7 +249,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			injector := NewInstrumentationInjector(cfg, filter, wmeta)
+			injector := NewMutator(cfg, filter, wmeta)
 			err = injector.injectAutoInstruConfig(tt.pod, tt.libInfo)
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
@@ -593,11 +593,11 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			c := configmock.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
-			filter, err := NewFilter(c)
+			filter, err := NewFilter(NewFilterConfig(c))
 			require.NoError(t, err)
-			cfg, err := NewInstrumentationInjectorConfig(c)
+			cfg, err := NewMutatorConfig(c)
 			require.NoError(t, err)
-			injector := NewInstrumentationInjector(cfg, filter, wmeta)
+			injector := NewMutator(cfg, filter, wmeta)
 
 			err = injector.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
 				libs:   tt.libsToInject,
@@ -1077,11 +1077,11 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			filter, err := NewFilter(mockConfig)
+			filter, err := NewFilter(NewFilterConfig(mockConfig))
 			require.NoError(t, err)
-			cfg, err := NewInstrumentationInjectorConfig(mockConfig)
+			cfg, err := NewMutatorConfig(mockConfig)
 			require.NoError(t, err)
-			injector := NewInstrumentationInjector(cfg, filter, wmeta)
+			injector := NewMutator(cfg, filter, wmeta)
 
 			if tt.expectedPodEligible != nil {
 				require.Equal(t, *tt.expectedPodEligible, injector.isPodEligible(tt.pod))
@@ -1670,10 +1670,10 @@ func TestInjectLibInitContainer(t *testing.T) {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
 
-			filter, err := NewFilter(conf)
+			filter, err := NewFilter(NewFilterConfig(conf))
 			require.NoError(t, err)
 
-			cfg, err := NewInstrumentationInjectorConfig(conf)
+			cfg, err := NewMutatorConfig(conf)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -1683,7 +1683,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			// N.B. this is a bit hacky but consistent.
 			cfg.initSecurityContext = tt.secCtx
 
-			injector := NewInstrumentationInjector(cfg, filter, wmeta)
+			injector := NewMutator(cfg, filter, wmeta)
 
 			c := tt.lang.libInfo("", tt.image).initContainers(cfg.version)[0]
 			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, cfg.defaultResourceRequirements)
@@ -3599,22 +3599,22 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			filter, err := NewFilter(mockConfig)
+			filter, err := NewFilter(NewFilterConfig(mockConfig))
 			require.NoError(t, err)
-			cfg, err := NewInstrumentationInjectorConfig(mockConfig)
+			cfg, err := NewMutatorConfig(mockConfig)
 			require.NoError(t, err)
-			injector := NewInstrumentationInjector(cfg, filter, wmeta)
+			injector := NewMutator(cfg, filter, wmeta)
 			require.Equal(t, tt.want, injector.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
 
-func mustInjector(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *InstrumentationInjector {
-	filter, err := NewFilter(ddConfig)
+func mustInjector(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Mutator {
+	filter, err := NewFilter(NewFilterConfig(ddConfig))
 	require.NoError(t, err)
-	cfg, err := NewInstrumentationInjectorConfig(ddConfig)
+	cfg, err := NewMutatorConfig(ddConfig)
 	require.NoError(t, err)
-	return NewInstrumentationInjector(cfg, filter, wmeta)
+	return NewMutator(cfg, filter, wmeta)
 }
 
 func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Webhook {
@@ -3624,17 +3624,17 @@ func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Com
 }
 
 func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
-	filter, err := NewFilter(ddConfig)
+	filter, err := NewFilter(NewFilterConfig(ddConfig))
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := NewInstrumentationInjectorConfig(ddConfig)
+	cfg, err := NewMutatorConfig(ddConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	injector := NewInstrumentationInjector(cfg, filter, wmeta)
+	injector := NewMutator(cfg, filter, wmeta)
 	webhook, err := NewWebhook(wmeta, ddConfig, injector)
 	if err != nil {
 		return nil, err

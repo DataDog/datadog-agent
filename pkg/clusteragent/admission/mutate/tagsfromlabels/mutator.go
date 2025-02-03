@@ -27,35 +27,35 @@ var labelsToEnv = map[string]string{
 	kubernetes.VersionTagLabelKey: kubernetes.VersionTagEnvVar,
 }
 
-// TagsInjectorConfig holds the settings required for the tags injector.
-type TagsInjectorConfig struct {
+// MutatorConfig holds the settings required for the tags mutator.
+type MutatorConfig struct {
 	ownerCacheTTL time.Duration
 }
 
-// NewTagsInjectorConfig instantiates the required settings for the tags injector from the datadog config.
-func NewTagsInjectorConfig(datadogConfig config.Component) *TagsInjectorConfig {
-	return &TagsInjectorConfig{
+// NewMutatorConfig instantiates the required settings for the tags mutator from the datadog config.
+func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
+	return &MutatorConfig{
 		ownerCacheTTL: ownerCacheTTL(datadogConfig),
 	}
 }
 
-// TagsInjector satisfies the common.Injector interface for the tags injector.
-type TagsInjector struct {
-	config *TagsInjectorConfig
-	filter mutatecommon.InjectionFilter
+// Mutator satisfies the common.Mutator interface for the tags mutator.
+type Mutator struct {
+	config *MutatorConfig
+	filter mutatecommon.MutationFilter
 }
 
-// NewTagsInjector creates a new injector interface for the tags injector.
-func NewTagsInjector(cfg *TagsInjectorConfig, filter mutatecommon.InjectionFilter) *TagsInjector {
-	return &TagsInjector{
+// NewMutator creates a new injector interface for the tags mutator.
+func NewMutator(cfg *MutatorConfig, filter mutatecommon.MutationFilter) *Mutator {
+	return &Mutator{
 		config: cfg,
 		filter: filter,
 	}
 }
 
-// InjectPod implements the common.Injector interface for the tags injector. It injects DD_ENV, DD_VERSION, DD_SERVICE
+// MutatePod implements the common.Mutator interface for the tags mutator. It injects DD_ENV, DD_VERSION, DD_SERVICE
 // env vars into a pod template if needed.
-func (i *TagsInjector) InjectPod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 	var injected bool
 
 	if pod == nil {

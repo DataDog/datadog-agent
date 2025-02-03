@@ -15,20 +15,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewInjectionFilter constructs an injection filter.
-func NewInjectionFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (InjectionFilter, error) {
+// NewMutationFilter constructs an injection filter.
+func NewMutationFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (MutationFilter, error) {
 	filter, err := makeNamespaceFilter(enabledNamespaces, disabledNamespaces)
 
-	injectionFilter := &injectionFilter{
+	mutationFilter := &mutationFilter{
 		enabled: enabled,
 		filter:  filter,
 		err:     err,
 	}
 
-	return &injectionFilterImpl{NSFilter: injectionFilter}, err
+	return &injectionFilterImpl{NSFilter: mutationFilter}, err
 }
 
-type injectionFilter struct {
+type mutationFilter struct {
 	enabled bool
 	filter  *containers.Filter
 	err     error
@@ -42,7 +42,7 @@ type injectionFilter struct {
 //
 // This DOES NOT respect `mutate_unlabelled` since it is a namespace
 // specific check.
-func (f *injectionFilter) IsNamespaceEligible(ns string) bool {
+func (f *mutationFilter) IsNamespaceEligible(ns string) bool {
 	if !f.enabled {
 		log.Debugf("injection filter is disabled")
 		return false
@@ -62,7 +62,7 @@ func (f *injectionFilter) IsNamespaceEligible(ns string) bool {
 // Err returns an error if the namespace filter failed to initialize.
 //
 // This is safe to ignore for most uses, except for in auto_instrumentation itself.
-func (f *injectionFilter) Err() error {
+func (f *mutationFilter) Err() error {
 	return f.err
 }
 

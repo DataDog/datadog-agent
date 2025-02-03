@@ -49,15 +49,15 @@ type Webhook struct {
 	matchConditions []admissionregistrationv1.MatchCondition
 
 	wmeta           workloadmeta.Component
-	injector        mutatecommon.Injector
-	injectionFilter mutatecommon.InjectionFilter
+	injector        mutatecommon.Mutator
+	injectionFilter mutatecommon.MutationFilter
 
 	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
 	config webhookConfig
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, injector mutatecommon.Injector) (*Webhook, error) {
+func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, injector mutatecommon.Mutator) (*Webhook, error) {
 	config := retrieveConfig(datadogConfig)
 	webhook := &Webhook{
 		name:            webhookName,
@@ -124,7 +124,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 }
 
 func (w *Webhook) inject(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
-	return w.injector.InjectPod(pod, ns, cl)
+	return w.injector.MutatePod(pod, ns, cl)
 }
 
 func initContainerName(lang language) string {

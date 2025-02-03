@@ -65,27 +65,20 @@ type Webhook struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	wmeta           workloadmeta.Component
-	injector        mutatecommon.Injector
+	mutator         mutatecommon.Mutator
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) *Webhook {
-	enabled := datadogConfig.GetBool("admission_controller.inject_config.enabled")
-	enabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_config.enabled_namespaces")
-	disabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_config.disabled_namespaces")
-	injectionFilter, _ := mutatecommon.NewInjectionFilter(enabled, enabledNamespaces, disabledNamespaces)
-
-	injector := NewConfigInjector(NewConfigInjectorConfig(datadogConfig), injectionFilter)
-
+func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, mutator mutatecommon.Mutator) *Webhook {
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       enabled,
+		isEnabled:       datadogConfig.GetBool("admission_controller.inject_config.enabled"),
 		endpoint:        datadogConfig.GetString("admission_controller.inject_config.endpoint"),
 		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		wmeta:           wmeta,
-		injector:        injector,
+		mutator:         mutator,
 	}
 }
 
@@ -143,5 +136,5 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 // inject is a helper method to call the underlying injector directly from the webook. This is useful for testing. All
 // the logic must be in the injector itself and we should consider refactoring this method out.
 func (w *Webhook) inject(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-	return w.injector.InjectPod(pod, ns, dc)
+	return w.mutator.MutatePod(pod, ns, dc)
 }

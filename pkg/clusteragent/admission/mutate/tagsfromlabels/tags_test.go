@@ -167,8 +167,11 @@ func Test_injectTags(t *testing.T) {
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			webhook := NewWebhook(wmeta, datadogConfig)
-			_, err := webhook.inject(tt.pod, "ns", nil)
+			filter, err := NewFilter(NewFilterConfig(datadogConfig))
+			assert.NoError(t, err)
+			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+			webhook := NewWebhook(wmeta, datadogConfig, mutator)
+			_, err = webhook.inject(tt.pod, "ns", nil)
 			assert.NoError(t, err)
 			assert.Len(t, tt.pod.Spec.Containers, 1)
 			assert.Len(t, tt.wantPodFunc().Spec.Containers, 1)

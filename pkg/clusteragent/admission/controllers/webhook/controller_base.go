@@ -100,7 +100,6 @@ type Webhook interface {
 func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
-	var mutatingWebhooks []Webhook
 
 	// Add Validating webhooks.
 	if c.config.isValidationEnabled() {
@@ -111,39 +110,86 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 		webhooks = append(webhooks, validatingWebhooks...)
 	}
 
-	// Add Mutating webhooks.
-	if c.config.isMutationEnabled() {
-		mutatingWebhooks = []Webhook{
-			configWebhook.NewWebhook(wmeta, datadogConfig),
-			tagsfromlabels.NewWebhook(wmeta, datadogConfig),
-			agentsidecar.NewWebhook(datadogConfig),
-			autoscaling.NewWebhook(pa, datadogConfig),
-		}
-		webhooks = append(webhooks, mutatingWebhooks...)
+	// Skip mutating webhooks if the mutation feature is disabled.
+	if !c.config.isMutationEnabled() {
+		return webhooks
+	}
 
-		// APM Instrumentation webhook needs to be registered after the configWebhook webhook.
-		apmInjectorCfg, err := autoinstrumentation.NewInstrumentationInjectorConfig(datadogConfig)
-		apmFilter, err := autoinstrumentation.NewFilter(datadogConfig)
-		apmInjector := autoinstrumentation.NewInstrumentationInjector(apmInjectorCfg, apmFilter, wmeta)
-		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig, apmInjector)
+	// Setup config webhook.
+	configWebhook, err := generateConfigWebhook(wmeta, datadogConfig)
+	if err != nil {
+		log.Errorf("failed to register config webhook: %v", err)
+	} else {
+		webhooks = append(webhooks, configWebhook)
+	}
+
+	// Setup tags from labels webhook.
+	tagsWebhook, err := generateTagsFromLabelsWebhook(wmeta, datadogConfig)
+	if err != nil {
+		log.Errorf("failed to register tags from labels webhook: %v", err)
+	} else {
+		webhooks = append(webhooks, tagsWebhook)
+	}
+
+	// Setup agents sidecar webhook.
+	agentsWebhook := agentsidecar.NewWebhook(datadogConfig)
+	webhooks = append(webhooks, agentsWebhook)
+
+	// Setup autoscaling webhook.
+	autoscalingWebhook := autoscaling.NewWebhook(pa, datadogConfig)
+	webhooks = append(webhooks, autoscalingWebhook)
+
+	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
+	apmWebhook, err := generateAutoInstrumentationWebhook(wmeta, datadogConfig)
+	if err != nil {
+		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
+	} else {
+		webhooks = append(webhooks, apmWebhook)
+	}
+
+	isCWSInstrumentationEnabled := datadogConfig.GetBool("admission_controller.cws_instrumentation.enabled")
+	if isCWSInstrumentationEnabled {
+		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig)
 		if err == nil {
-			webhooks = append(webhooks, apm)
+			webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
 		} else {
-			log.Errorf("failed to register APM Instrumentation webhook: %v", err)
-		}
-
-		isCWSInstrumentationEnabled := datadogConfig.GetBool("admission_controller.cws_instrumentation.enabled")
-		if isCWSInstrumentationEnabled {
-			cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig)
-			if err == nil {
-				webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
-			} else {
-				log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
-			}
+			log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
 		}
 	}
 
 	return webhooks
+}
+
+func generateConfigWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*configWebhook.Webhook, error) {
+	filter, err := configWebhook.NewFilter(configWebhook.NewFilterConfig(datadogConfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config filter: %v", err)
+	}
+	mutatorCfg := configWebhook.NewMutatorConfig(datadogConfig)
+	mutator := configWebhook.NewMutator(mutatorCfg, filter)
+	return configWebhook.NewWebhook(wmeta, datadogConfig, mutator), nil
+}
+
+func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*tagsfromlabels.Webhook, error) {
+	filter, err := tagsfromlabels.NewFilter(tagsfromlabels.NewFilterConfig(datadogConfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tags from labels filter: %v", err)
+	}
+	mutator := tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter)
+	return tagsfromlabels.NewWebhook(wmeta, datadogConfig, mutator), nil
+}
+
+func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*autoinstrumentation.Webhook, error) {
+	filter, err := autoinstrumentation.NewFilter(autoinstrumentation.NewFilterConfig(datadogConfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auto instrumentation filter: %v", err)
+	}
+	mutatorCfg, err := autoinstrumentation.NewMutatorConfig(datadogConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auto instrumentation mutator config: %v", err)
+	}
+	mutator := autoinstrumentation.NewMutator(mutatorCfg, filter, wmeta)
+	return autoinstrumentation.NewWebhook(wmeta, datadogConfig, mutator)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.

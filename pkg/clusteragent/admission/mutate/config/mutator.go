@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConfigInjectorConfig contains the settings for the config injector.
-type ConfigInjectorConfig struct {
+// MutatorConfig contains the settings for the config injector.
+type MutatorConfig struct {
 	mode              string
 	localServiceName  string
 	traceAgentSocket  string
@@ -33,9 +33,9 @@ type ConfigInjectorConfig struct {
 	typeSocketVolumes bool
 }
 
-// NewConfigInjectorConfig instantiates the required settings for the config injector from the datadog config.
-func NewConfigInjectorConfig(datadogConfig config.Component) *ConfigInjectorConfig {
-	return &ConfigInjectorConfig{
+// NewMutatorConfig instantiates the required settings for the mutator from the datadog config.
+func NewMutatorConfig(datadogConfig config.Component) *MutatorConfig {
+	return &MutatorConfig{
 		mode:              datadogConfig.GetString("admission_controller.inject_config.mode"),
 		localServiceName:  datadogConfig.GetString("admission_controller.inject_config.local_service_name"),
 		traceAgentSocket:  datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket"),
@@ -45,26 +45,26 @@ func NewConfigInjectorConfig(datadogConfig config.Component) *ConfigInjectorConf
 	}
 }
 
-// ConfigInjector satisfies the common.Injector interface for the config webhook.
-type ConfigInjector struct {
-	config *ConfigInjectorConfig
-	filter mutatecommon.InjectionFilter
+// Mutator satisfies the common.Mutator interface for the config webhook.
+type Mutator struct {
+	config *MutatorConfig
+	filter mutatecommon.MutationFilter
 }
 
-// NewConfigInjector creates a new injector interface for the config webhook.
-func NewConfigInjector(cfg *ConfigInjectorConfig, filter mutatecommon.InjectionFilter) *ConfigInjector {
-	return &ConfigInjector{
+// NewMutator creates a new mutator for the config webhook.
+func NewMutator(cfg *MutatorConfig, filter mutatecommon.MutationFilter) *Mutator {
+	return &Mutator{
 		config: cfg,
 		filter: filter,
 	}
 }
 
-// InjectPod implementst the common.Injector interface for the config webhook. It injects the following environment
+// MutatePod implements the common.Mutator interface for the config webhook. It injects the following environment
 // variables into the pod template:
 //   - DD_AGENT_HOST: the host IP of the node
 //   - DD_ENTITY_ID: the entity ID of the pod
 //   - DD_EXTERNAL_ENV: the External Data Environment Variable
-func (i *ConfigInjector) InjectPod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 	var injectedConfig, injectedEntity, injectedExternalEnv bool
 	var (
 		agentHostIPEnvVar = corev1.EnvVar{
@@ -144,7 +144,7 @@ func (i *ConfigInjector) InjectPod(pod *corev1.Pod, ns string, dc dynamic.Interf
 // wait if the agent has issues that prevent it from creating the sockets.
 //
 // This function returns true if at least one volume was injected.
-func (i *ConfigInjector) injectSocketVolumes(pod *corev1.Pod) bool {
+func (i *Mutator) injectSocketVolumes(pod *corev1.Pod) bool {
 	var injectedVolNames []string
 
 	if i.config.typeSocketVolumes {

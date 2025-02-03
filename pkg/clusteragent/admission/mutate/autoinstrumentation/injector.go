@@ -24,15 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func NewFilter(datadogConfig config.Component) (mutatecommon.InjectionFilter, error) {
-	return mutatecommon.NewInjectionFilter(
-		datadogConfig.GetBool("apm_config.instrumentation.enabled"),
-		datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces"),
-		datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
-	)
-}
-
-type InstrumentationInjectorConfig struct {
+type MutatorConfig struct {
 	pinnedLibraries []libInfo
 	version         version // autoinstrumentation logic version
 
@@ -52,7 +44,7 @@ type InstrumentationInjectorConfig struct {
 	defaultResourceRequirements initResourceRequirementConfiguration
 }
 
-func NewInstrumentationInjectorConfig(datadogConfig config.Component) (*InstrumentationInjectorConfig, error) {
+func NewMutatorConfig(datadogConfig config.Component) (*MutatorConfig, error) {
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	libVersions := datadogConfig.GetStringMapString("apm_config.instrumentation.lib_versions")
 
@@ -71,7 +63,7 @@ func NewInstrumentationInjectorConfig(datadogConfig config.Component) (*Instrume
 		return nil, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
 	}
 
-	return &InstrumentationInjectorConfig{
+	return &MutatorConfig{
 		securityClientLibraryPodMutators:  securityClientLibraryConfigMutators(datadogConfig),
 		profilingClientLibraryPodMutators: profilingClientLibraryConfigMutators(datadogConfig),
 		pinnedLibraries:                   getPinnedLibraries(libVersions, containerRegistry),
@@ -86,21 +78,21 @@ func NewInstrumentationInjectorConfig(datadogConfig config.Component) (*Instrume
 	}, nil
 }
 
-type InstrumentationInjector struct {
-	config *InstrumentationInjectorConfig
-	filter mutatecommon.InjectionFilter
+type Mutator struct {
+	config *MutatorConfig
+	filter mutatecommon.MutationFilter
 	wmeta  workloadmeta.Component
 }
 
-func NewInstrumentationInjector(config *InstrumentationInjectorConfig, filter mutatecommon.InjectionFilter, wmeta workloadmeta.Component) *InstrumentationInjector {
-	return &InstrumentationInjector{
+func NewMutator(config *MutatorConfig, filter mutatecommon.MutationFilter, wmeta workloadmeta.Component) *Mutator {
+	return &Mutator{
 		config: config,
 		filter: filter,
 		wmeta:  wmeta,
 	}
 }
 
-func (i *InstrumentationInjector) InjectPod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
@@ -146,7 +138,7 @@ func (i *InstrumentationInjector) InjectPod(pod *corev1.Pod, ns string, dc dynam
 	return true, nil
 }
 
-func (i *InstrumentationInjector) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLibInfo) error {
+func (i *Mutator) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
 	}
@@ -221,14 +213,14 @@ func (i *InstrumentationInjector) injectAutoInstruConfig(pod *corev1.Pod, config
 	return lastError
 }
 
-func (i *InstrumentationInjector) newContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
+func (i *Mutator) newContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
 	return containerMutators{
 		containerResourceRequirements{requirements},
 		containerSecurityContext{i.config.initSecurityContext},
 	}
 }
 
-func (i *InstrumentationInjector) newInjector(startTime time.Time, pod *corev1.Pod, opts ...podInjectorOption) podMutator {
+func (i *Mutator) newInjector(startTime time.Time, pod *corev1.Pod, opts ...podInjectorOption) podMutator {
 	for _, e := range []annotationExtractor[podInjectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
@@ -248,13 +240,13 @@ func (i *InstrumentationInjector) newInjector(startTime time.Time, pod *corev1.P
 }
 
 // isPodEligible checks whether we are allowed to inject in this pod.
-func (i *InstrumentationInjector) isPodEligible(pod *corev1.Pod) bool {
+func (i *Mutator) isPodEligible(pod *corev1.Pod) bool {
 	return i.filter.ShouldMutatePod(pod)
 }
 
 // extractLibInfo metadata about what library information we should be
 // injecting into the pod and where it came from.
-func (i *InstrumentationInjector) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
+func (i *Mutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	extracted := i.initExtractedLibInfo(pod)
 
 	libs := i.extractLibrariesFromAnnotations(pod)
@@ -297,7 +289,7 @@ func (i *InstrumentationInjector) extractLibInfo(pod *corev1.Pod) extractedPodLi
 	return extractedPodLibInfo{}
 }
 
-func (i *InstrumentationInjector) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
+func (i *Mutator) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
 	var (
 		libList        []libInfo
 		extractLibInfo = func(e annotationExtractor[libInfo]) {
@@ -324,7 +316,7 @@ func (i *InstrumentationInjector) extractLibrariesFromAnnotations(pod *corev1.Po
 	return libList
 }
 
-func (i *InstrumentationInjector) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
+func (i *Mutator) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	// it's possible to get here without single step being enabled, and the pod having
 	// annotations on it to opt it into pod mutation, we disambiguate those two cases.
 	var (
@@ -347,7 +339,7 @@ func (i *InstrumentationInjector) initExtractedLibInfo(pod *corev1.Pod) extracte
 //
 // The languages information is available in workloadmeta-store
 // and attached on the pod's owner.
-func (i *InstrumentationInjector) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguageDetection {
+func (i *Mutator) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguageDetection {
 	if !i.config.languageDetectionEnabled ||
 		!i.config.languageDetectionReportingEnabled {
 		return nil
@@ -362,7 +354,7 @@ func (i *InstrumentationInjector) getLibrariesLanguageDetection(pod *corev1.Pod)
 // getAutoDetectedLibraries constructs the libraries to be injected if the languages
 // were stored in workloadmeta store based on owner annotations
 // (for example: Deployment, DaemonSet, StatefulSet).
-func (i *InstrumentationInjector) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
+func (i *Mutator) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 	ownerName, ownerKind, found := getOwnerNameAndKind(pod)
 	if !found {
 		return nil
