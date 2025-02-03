@@ -28,7 +28,7 @@ extensions:
 Example profiler options config:
 ```
 extensions:
-  ddprofiling: 
+  ddprofiling:
     profiler_options:
       service: svc
       version: 0.1
