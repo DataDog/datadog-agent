@@ -36,6 +36,11 @@ func TestMProtectEvent(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("mprotect", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			var data []byte
@@ -56,10 +61,6 @@ func TestMProtectEvent(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMProtectSchema(t, event)
