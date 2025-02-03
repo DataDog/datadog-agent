@@ -42,6 +42,7 @@ ALL_TAGS = {
     "npm",
     "oracle",
     "orchestrator",
+    "osusergo",
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
@@ -56,7 +57,6 @@ ALL_TAGS = {
     "zk",
     "zlib",
     "zstd",
-    'osusergo',
 }
 
 ### Tag inclusion lists
