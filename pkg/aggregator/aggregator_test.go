@@ -679,7 +679,7 @@ func TestTags(t *testing.T) {
 	}
 }
 
-func TestGonfigIDTags(t *testing.T) {
+func TestConfigIDTags(t *testing.T) {
 	tests := []struct {
 		name     string
 		configID string
