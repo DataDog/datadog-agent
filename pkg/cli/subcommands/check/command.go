@@ -648,7 +648,7 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 		err := c.Run()
 		warnings := c.GetWarnings()
 		sStats, _ := c.GetSenderStats()
-		s.Add(time.Since(t0), err, warnings, sStats)
+		s.Add(time.Since(t0), err, warnings, sStats, nil)
 		if pause > 0 && i < times-1 {
 			time.Sleep(time.Duration(pause) * time.Millisecond)
 		}
