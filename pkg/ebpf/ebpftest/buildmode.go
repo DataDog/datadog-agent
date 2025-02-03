@@ -46,6 +46,7 @@ func (p prebuiltMode) Env() map[string]string {
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
+		"DD_ENABLE_EBPFLESS":                 "false",
 	}
 }
 
@@ -62,6 +63,7 @@ func (r runtimeCompiled) Env() map[string]string {
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
+		"DD_ENABLE_EBPFLESS":                 "false",
 	}
 }
 
@@ -78,6 +80,7 @@ func (c core) Env() map[string]string {
 		"DD_ENABLE_CO_RE":                    "true",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
+		"DD_ENABLE_EBPFLESS":                 "false",
 	}
 }
 
@@ -94,6 +97,7 @@ func (f fentry) Env() map[string]string {
 		"DD_ENABLE_CO_RE":                    "true",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
+		"DD_ENABLE_EBPFLESS":                 "false",
 	}
 }
 
@@ -110,13 +114,13 @@ func (e ebpfless) Env() map[string]string {
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
-		"DD_NETWORK_CONFIG_ENABLE_EBPFLESS":  "true",
+		"DD_ENABLE_EBPFLESS":                 "true",
 	}
 }
 
 // GetBuildMode returns which build mode the current environment matches, if any
 func GetBuildMode() BuildMode {
-	for _, mode := range []BuildMode{Prebuilt, RuntimeCompiled, CORE, Fentry} {
+	for _, mode := range []BuildMode{Prebuilt, RuntimeCompiled, CORE, Fentry, Ebpfless} {
 		if hasBuildModeEnv(mode) {
 			return mode
 		}

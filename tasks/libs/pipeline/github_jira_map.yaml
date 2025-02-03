@@ -13,8 +13,8 @@
 '@datadog/ndm-integrations': NDINT
 '@datadog/container-intake': CTK
 '@datadog/agent-metrics-logs': AMLII
-'@datadog/agent-metrics': AGTMETRICS
-'@datadog/agent-logs': AGNTLOG
+'@datadog/agent-metric-pipelines': AGTMETRICS
+'@datadog/agent-log-pipelines': AGNTLOG
 '@datadog/agent-runtimes': ARUN
 '@datadog/agent-configuration': ACFG
 '@datadog/container-app': CAP
