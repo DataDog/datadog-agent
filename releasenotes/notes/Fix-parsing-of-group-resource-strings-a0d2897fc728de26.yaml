@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed parsing of group resource strings in order to support groups with periods.
+    Fixed parsing of group resource strings to support groups with periods.
