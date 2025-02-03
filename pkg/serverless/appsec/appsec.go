@@ -12,10 +12,10 @@ import (
 	"errors"
 	"math/rand"
 	"os"
-	"time"
 
 	appsecLog "github.com/DataDog/appsec-internal-go/log"
 	waf "github.com/DataDog/go-libddwaf/v3"
+	wafErrors "github.com/DataDog/go-libddwaf/v3/errors"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/limiter"
@@ -156,7 +156,7 @@ func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
 
 	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses})
 	if err != nil {
-		if err == waf.ErrTimeout {
+		if err == wafErrors.ErrTimeout {
 			log.Debugf("appsec: waf timeout value of %s reached", a.cfg.WafTimeout)
 		} else {
 			log.Errorf("appsec: unexpected waf execution error: %v", err)
@@ -164,9 +164,8 @@ func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
 		}
 	}
 
-	dt, _ := ctx.TotalRuntime()
 	if res.HasEvents() {
-		log.Debugf("appsec: security events found in %s: %v", time.Duration(dt), res.Events)
+		log.Debugf("appsec: security events found in %s: %v", ctx.Stats().Timers["waf.duration_ext"], res.Events)
 	}
 	if !a.eventsRateLimiter.Allow() {
 		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.TraceRateLimit)
