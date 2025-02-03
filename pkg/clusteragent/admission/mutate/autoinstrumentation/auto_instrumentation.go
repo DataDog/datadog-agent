@@ -524,8 +524,8 @@ func (w *Webhook) newContainerMutators(requirements corev1.ResourceRequirements)
 	}
 }
 
-func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod, opts ...injectorOption) podMutator {
-	for _, e := range []annotationExtractor[injectorOption]{
+func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod, opts ...podInjectorOption) podMutator {
+	for _, e := range []annotationExtractor[podInjectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
 	} {
@@ -539,7 +539,7 @@ func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod, opts ...inje
 		opts = append(opts, opt)
 	}
 
-	return newInjector(startTime, w.config.containerRegistry, w.config.injectorImageTag, opts...).
+	return newPodInjector(startTime, w.config.containerRegistry, w.config.injectorImageTag, opts...).
 		podMutator(w.config.version)
 }
 

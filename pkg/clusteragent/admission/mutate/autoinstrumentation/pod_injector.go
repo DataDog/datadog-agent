@@ -70,7 +70,7 @@ var volumeMountETCDPreloadAppContainer = etcVolume.mount(corev1.VolumeMount{
 	ReadOnly:  true,
 })
 
-type injector struct {
+type podInjector struct {
 	image      string
 	registry   string
 	injected   bool
@@ -78,7 +78,7 @@ type injector struct {
 	opts       libRequirementOptions
 }
 
-func (i *injector) initContainer() initContainer {
+func (i *podInjector) initContainer() initContainer {
 	var (
 		name  = "datadog-init-apm-inject"
 		mount = corev1.VolumeMount{
@@ -113,7 +113,7 @@ func (i *injector) initContainer() initContainer {
 	}
 }
 
-func (i *injector) requirements() libRequirement {
+func (i *podInjector) requirements() libRequirement {
 	return libRequirement{
 		libRequirementOptions: i.opts,
 		initContainers:        []initContainer{i.initContainer()},
@@ -142,38 +142,38 @@ func (i *injector) requirements() libRequirement {
 	}
 }
 
-type injectorOption func(*injector)
+type podInjectorOption func(*podInjector)
 
-var injectorVersionAnnotationExtractor = annotationExtractor[injectorOption]{
+var injectorVersionAnnotationExtractor = annotationExtractor[podInjectorOption]{
 	key: "admission.datadoghq.com/apm-inject.version",
 	do:  infallibleFn(injectorWithImageTag),
 }
 
-var injectorImageAnnotationExtractor = annotationExtractor[injectorOption]{
+var injectorImageAnnotationExtractor = annotationExtractor[podInjectorOption]{
 	key: "admission.datadoghq.com/apm-inject.custom-image",
 	do:  infallibleFn(injectorWithImageName),
 }
 
-func injectorWithLibRequirementOptions(opts libRequirementOptions) injectorOption {
-	return func(i *injector) {
+func injectorWithLibRequirementOptions(opts libRequirementOptions) podInjectorOption {
+	return func(i *podInjector) {
 		i.opts = opts
 	}
 }
 
-func injectorWithImageName(name string) injectorOption {
-	return func(i *injector) {
+func injectorWithImageName(name string) podInjectorOption {
+	return func(i *podInjector) {
 		i.image = name
 	}
 }
 
-func injectorWithImageTag(tag string) injectorOption {
-	return func(i *injector) {
+func injectorWithImageTag(tag string) podInjectorOption {
+	return func(i *podInjector) {
 		i.image = fmt.Sprintf("%s/apm-inject:%s", i.registry, tag)
 	}
 }
 
-func newInjector(startTime time.Time, registry, imageTag string, opts ...injectorOption) *injector {
-	i := &injector{
+func newPodInjector(startTime time.Time, registry, imageTag string, opts ...podInjectorOption) *podInjector {
+	i := &podInjector{
 		registry:   registry,
 		injectTime: startTime,
 	}
@@ -190,7 +190,7 @@ func newInjector(startTime time.Time, registry, imageTag string, opts ...injecto
 	return i
 }
 
-func (i *injector) podMutator(v version) podMutator {
+func (i *podInjector) podMutator(v version) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		if i.injected {
 			return nil

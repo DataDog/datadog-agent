@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestInjectorOptions(t *testing.T) {
-	i := newInjector(time.Now(), "registry", "1")
+	i := newPodInjector(time.Now(), "registry", "1")
 	require.Equal(t, "registry/apm-inject:1", i.image)
 }
 
@@ -29,7 +30,7 @@ func TestInjectorLibRequirements(t *testing.T) {
 			},
 		},
 	}
-	i := newInjector(time.Now(), "registry", "1",
+	i := newPodInjector(time.Now(), "registry", "1",
 		injectorWithLibRequirementOptions(libRequirementOptions{initContainerMutators: mutators}),
 	)
 
