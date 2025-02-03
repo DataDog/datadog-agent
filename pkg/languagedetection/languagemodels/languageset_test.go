@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package util
+package languagemodels
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 ////////////////////////////////
@@ -99,19 +100,19 @@ func TestHas(t *testing.T) {
 	tests := []struct {
 		name       string
 		baseSet    TimedLanguageSet
-		target     Language
+		target     LanguageName
 		shouldHave bool
 	}{
 		{
 			name:       "has existing item",
 			baseSet:    TimedLanguageSet{"java": {}},
-			target:     "java",
+			target:     Java,
 			shouldHave: true,
 		},
 		{
 			name:       "should not have missing item",
 			baseSet:    TimedLanguageSet{"java": {}},
-			target:     "cpp",
+			target:     Python,
 			shouldHave: false,
 		},
 	}
