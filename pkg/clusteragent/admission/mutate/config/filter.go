@@ -27,5 +27,5 @@ func NewFilterConfig(datadogConfig config.Component) *FilterConfig {
 }
 
 func NewFilter(cfg *FilterConfig) (mutatecommon.MutationFilter, error) {
-	return mutatecommon.NewMutationFilter(cfg.enabled, cfg.enabledNamespaces, cfg.disabledNamespaces)
+	return mutatecommon.NewDefaulFilter(cfg.enabled, cfg.enabledNamespaces, cfg.disabledNamespaces)
 }

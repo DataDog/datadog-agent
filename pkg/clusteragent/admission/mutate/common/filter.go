@@ -10,39 +10,62 @@ package common
 import (
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewMutationFilter constructs an injection filter.
-func NewMutationFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (MutationFilter, error) {
-	filter, err := makeNamespaceFilter(enabledNamespaces, disabledNamespaces)
-
-	mutationFilter := &mutationFilter{
-		enabled: enabled,
-		filter:  filter,
-		err:     err,
-	}
-
-	return &injectionFilterImpl{NSFilter: mutationFilter}, err
+// MutationFilter is an interface to determine if a pod should be mutated.
+type MutationFilter interface {
+	// ShouldMutatePod checks if a pod is mutable per explicit rules and
+	// the NSFilter if InjectionFilter has one.
+	ShouldMutatePod(pod *corev1.Pod) bool
+	// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
+	IsNamespaceEligible(ns string) bool
+	// InitError returns an error if the InjectionFilter failed to initialize.
+	InitError() error
 }
 
-type mutationFilter struct {
+// DefaultFilter provides a default implementation of the MutationFilter interface that uses namespaces for filtering.
+type DefaultFilter struct {
 	enabled bool
 	filter  *containers.Filter
 	err     error
 }
 
-// IsNamespaceEligible returns true of APM Single Step Instrumentation
-// is enabled and enabled for this namespace.
-//
-// There could be an error in configuration which would imply that
-// APM is disabled.
-//
-// This DOES NOT respect `mutate_unlabelled` since it is a namespace
-// specific check.
-func (f *mutationFilter) IsNamespaceEligible(ns string) bool {
+// NewDefaulFilter constructs the default mutation filter from the enabled flag and the list of enabled and disabled
+// namespaces.
+func NewDefaulFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (*DefaultFilter, error) {
+	filter, err := makeNamespaceFilter(enabledNamespaces, disabledNamespaces)
+	return &DefaultFilter{
+		enabled: enabled,
+		filter:  filter,
+		err:     err,
+	}, err
+}
+
+// ShouldMutatePod checks if a pod is mutable per explicit rules and them validates the namespace.
+func (f *DefaultFilter) ShouldMutatePod(pod *corev1.Pod) bool {
+	switch getPodMutationLabelFlag(pod) {
+	case podMutationDisabled:
+		return false
+	case podMutationEnabled:
+		return true
+	}
+
+	if f.IsNamespaceEligible(pod.Namespace) {
+		return true
+	}
+
+	return pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled")
+}
+
+// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
+func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
 	if !f.enabled {
 		log.Debugf("injection filter is disabled")
 		return false
@@ -59,10 +82,8 @@ func (f *mutationFilter) IsNamespaceEligible(ns string) bool {
 	return !f.filter.IsExcluded(nil, "", "", ns)
 }
 
-// Err returns an error if the namespace filter failed to initialize.
-//
-// This is safe to ignore for most uses, except for in auto_instrumentation itself.
-func (f *mutationFilter) Err() error {
+// InitError returns an error if the MutationFilter failed to initialize.
+func (f *DefaultFilter) InitError() error {
 	return f.err
 }
 
@@ -113,4 +134,34 @@ func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*conta
 	}
 
 	return containers.NewFilter(containers.GlobalFilter, enabledNamespacesWithPrefix, filterExcludeList)
+}
+
+type podMutationLabelFlag int
+
+const (
+	podMutationUnspecified podMutationLabelFlag = iota
+	podMutationEnabled
+	podMutationDisabled
+)
+
+// getPodMutationLabelFlag returns podMutationUnspecified if the label is not
+// set or if the label is set to an invalid value.
+func getPodMutationLabelFlag(pod *corev1.Pod) podMutationLabelFlag {
+	if val, found := pod.GetLabels()[common.EnabledLabelKey]; found {
+		switch val {
+		case "true":
+			return podMutationEnabled
+		case "false":
+			return podMutationDisabled
+		default:
+			log.Warnf(
+				"Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it",
+				common.EnabledLabelKey,
+				val,
+				PodString(pod),
+			)
+		}
+	}
+
+	return podMutationUnspecified
 }
