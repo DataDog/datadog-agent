@@ -122,7 +122,10 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 		webhooks = append(webhooks, mutatingWebhooks...)
 
 		// APM Instrumentation webhook needs to be registered after the configWebhook webhook.
-		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig)
+		apmInjectorCfg, err := autoinstrumentation.NewInstrumentationInjectorConfig(datadogConfig)
+		apmFilter, err := autoinstrumentation.NewFilter(datadogConfig)
+		apmInjector := autoinstrumentation.NewInstrumentationInjector(apmInjectorCfg, apmFilter, wmeta)
+		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig, apmInjector)
 		if err == nil {
 			webhooks = append(webhooks, apm)
 		} else {
