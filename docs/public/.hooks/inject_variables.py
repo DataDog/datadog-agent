@@ -1,10 +1,8 @@
-from functools import cache
 from pathlib import Path
 
 from markdown.preprocessors import Preprocessor
 
 
-@cache
 def variable_replacements():
     return {
         f"<<<{variable}>>>": replacement

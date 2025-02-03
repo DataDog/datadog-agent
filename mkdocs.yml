@@ -75,6 +75,9 @@ nav:
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
 
+watch:
+- .go-version
+
 hooks:
 - docs/public/.hooks/plugin_register.py
 - docs/public/.hooks/title_from_content.py
