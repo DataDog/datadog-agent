@@ -26,6 +26,11 @@ func (ev *Event) GetContainerId() string {
 	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 }
 
+// GetEventService returns the value of the field, resolving if necessary
+func (ev *Event) GetEventService() string {
+	return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+}
+
 // GetExecFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFilePath() string {
 	if ev.GetEventType().String() != "exec" {

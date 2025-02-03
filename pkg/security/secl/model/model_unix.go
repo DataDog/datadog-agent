@@ -48,6 +48,7 @@ const (
 // gengetter: GetProcessUid
 // gengetter: GetProcessUser
 // gengetter: GetTimestamp
+// gengetter: GetEventService
 type Event struct {
 	BaseEvent
 

@@ -27,6 +27,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 // genaccessors
 // gengetter: GetContainerId
 // gengetter: GetContainerId
+// gengetter: GetEventService
 // gengetter: GetExecFilePath
 // gengetter: GetExitCode
 // gengetter: GetProcessEnvp
