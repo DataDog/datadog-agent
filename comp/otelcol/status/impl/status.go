@@ -101,7 +101,7 @@ func (s statusProvider) Section() string {
 	return "OTel Agent"
 }
 
-// GetStatus returns the status
+// GetStatus returns the OTel Agent status in string form
 func (s statusProvider) GetStatus() (string, error) {
 	buf := new(bytes.Buffer)
 	err := s.Text(false, buf)

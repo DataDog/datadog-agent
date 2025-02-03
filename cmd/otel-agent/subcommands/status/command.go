@@ -1,13 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 // Package status implements the core status component information provider interface
 package status
 
 import (
 	"context"
+	"os"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -15,9 +20,6 @@ import (
 	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-	"os"
 )
 
 type dependencies struct {
@@ -25,6 +27,8 @@ type dependencies struct {
 
 	Status status.Component
 }
+
+const headerText = "==========\nOTel Agent\n==========\n"
 
 // MakeCommand returns a `version` command to be used by agent binaries.
 func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Command {
@@ -35,7 +39,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalConfGetter()
 			acfg, err := agentConfig.NewConfigComponent(context.Background(), globalParams.CoreConfPath, globalParams.ConfPaths)
-			if err != nil {
+			if err != nil && err != agentConfig.ErrNoDDExporter {
 				return err
 			}
 			uris := append(globalParams.ConfPaths, globalParams.Sets...)
@@ -43,7 +47,9 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				runStatus,
 				fx.Supply(uris),
 				fx.Provide(func() (coreconfig.Component, error) {
-					pkgconfigenv.DetectFeatures(acfg)
+					if err != agentConfig.ErrNoDDExporter {
+						pkgconfigenv.DetectFeatures(acfg)
+					}
 					return acfg, nil
 				}),
 				otelagentStatusfx.Module(),
@@ -59,7 +65,7 @@ func runStatus(deps dependencies) error {
 	if err != nil {
 		return err
 	}
-	_, err = os.Stdout.Write([]byte(statusText))
+	_, err = os.Stdout.Write([]byte(headerText + statusText))
 	if err != nil {
 		return err
 	}
