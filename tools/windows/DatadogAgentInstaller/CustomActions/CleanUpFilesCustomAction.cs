@@ -3,6 +3,7 @@ using Datadog.CustomActions.Interfaces;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.IO;
+using System.Linq;
 
 namespace Datadog.CustomActions
 {
@@ -18,10 +19,10 @@ namespace Datadog.CustomActions
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
                 Path.Combine(projectLocation, "python-scripts"),
-                // installation specific files
-                Path.Combine(applicationDataLocation, "install_info"),
-                Path.Combine(applicationDataLocation, "auth_token")
-            };
+            }
+            // installation specific files
+            .Concat(session.GeneratedPaths());
+
             foreach (var path in toDelete)
             {
                 try

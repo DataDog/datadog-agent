@@ -26,28 +26,6 @@ namespace Datadog.CustomActions
         private SecurityIdentifier _ddAgentUserSID;
         private SecurityIdentifier _previousDdAgentUserSID;
 
-        private List<string> PathsWithAgentAccess
-        {
-            get
-            {
-                var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
-
-                return new List<string>
-                {
-                    Path.Combine(configRoot, "conf.d"),
-                    Path.Combine(configRoot, "checks.d"),
-                    Path.Combine(configRoot, "run"),
-                    Path.Combine(configRoot, "logs"),
-                    Path.Combine(configRoot, "datadog.yaml"),
-                    Path.Combine(configRoot, "system-probe.yaml"),
-                    Path.Combine(configRoot, "auth_token"),
-                    Path.Combine(configRoot, "install_info"),
-                    Path.Combine(configRoot, "python-cache"),
-                    Path.Combine(configRoot, "ipc_cert.pem"),
-                };
-            }
-        }
-
         public ConfigureUserCustomActions(
             ISession session,
             string rollbackDataName,
@@ -235,7 +213,7 @@ namespace Datadog.CustomActions
         /// </remarks>
         private void ResetConfigurationPermissions()
         {
-            var paths = PathsWithAgentAccess;
+            var paths = _session.PathsWithAgentAccess();
             // add dirs recursively only if they exist (EnumerateFileSystemEntries throws an exception if they don't)
             foreach (var dir in paths.Where(_fileSystemServices.IsDirectory).ToArray())
             {
@@ -369,7 +347,7 @@ namespace Datadog.CustomActions
         private void GrantAgentAccessPermissions()
         {
             // add ddagentuser FullControl to select places
-            foreach (var filePath in PathsWithAgentAccess)
+            foreach (var filePath in _session.PathsWithAgentAccess())
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -701,7 +679,7 @@ namespace Datadog.CustomActions
                 if (securityIdentifier != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
                     _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-                    foreach (var filePath in PathsWithAgentAccess.Where(_fileSystemServices.Exists))
+                    foreach (var filePath in _session.PathsWithAgentAccess().Where(_fileSystemServices.Exists))
                     {
                         try
                         {
