@@ -10,5 +10,6 @@ overall-pipeline-stats:
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
     - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
     - inv -e github.print-overall-pipeline-stats -n 90 --sleeping
