@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // TODO(components):
 // * Lifecycle can't be used atm because:
