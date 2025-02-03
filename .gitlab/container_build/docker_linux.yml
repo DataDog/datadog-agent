@@ -276,6 +276,7 @@ docker_build_cluster_agent_fips_amd64:
   before_script:
     - !reference [.docker_build_s3, before_script]
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
 
 docker_build_cluster_agent_fips_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_s3]
@@ -293,6 +294,7 @@ docker_build_cluster_agent_fips_arm64:
   before_script:
     - !reference [.docker_build_s3, before_script]
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
 
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:
