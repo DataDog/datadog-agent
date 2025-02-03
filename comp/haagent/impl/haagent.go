@@ -34,8 +34,8 @@ func (h *haAgentImpl) Enabled() bool {
 	return h.haAgentConfigs.enabled
 }
 
-func (h *haAgentImpl) GetGroup() string {
-	return h.haAgentConfigs.group
+func (h *haAgentImpl) GetConfigID() string {
+	return h.haAgentConfigs.configID
 }
 
 func (h *haAgentImpl) GetState() haagent.State {
@@ -79,6 +79,11 @@ func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
 	return true
 }
 
+// IsHaIntegration return true if it's an HA integration.
+func (h *haAgentImpl) IsHaIntegration(integrationName string) bool {
+	return validHaIntegrations[integrationName]
+}
+
 func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	h.log.Debugf("Updates received: count=%d", len(updates))
 
@@ -103,17 +108,17 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			})
 			continue
 		}
-		if haAgentMsg.Group != h.GetGroup() {
-			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected group %s, got %s",
-				configPath, h.GetGroup(), haAgentMsg.Group)
+		if haAgentMsg.ConfigID != h.GetConfigID() {
+			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected configID %s, got %s",
+				configPath, h.GetConfigID(), haAgentMsg.ConfigID)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: "group does not match",
+				Error: "config_id does not match",
 			})
 			continue
 		}
 
-		h.SetLeader(haAgentMsg.Leader)
+		h.SetLeader(haAgentMsg.ActiveAgent)
 
 		h.log.Debugf("Processed config %s: %v", configPath, haAgentMsg)
 

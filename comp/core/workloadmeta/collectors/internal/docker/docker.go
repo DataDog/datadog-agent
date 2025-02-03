@@ -646,26 +646,53 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		OSVersion:    imgInspect.OsVersion,
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
-		Layers:       layersFromDockerHistory(imageHistory),
+		Layers:       layersFromDockerHistoryAndInspect(imageHistory, imgInspect),
 		SBOM:         sbom,
 	}, nil
 }
 
-func layersFromDockerHistory(history []image.HistoryResponseItem) []workloadmeta.ContainerImageLayer {
+// it has been observed that docker can return layers that are missing all metadata when inherited from a base container
+func isInheritedLayer(layer image.HistoryResponseItem) bool {
+	return layer.CreatedBy == "" && layer.Size == 0
+}
+
+func layersFromDockerHistoryAndInspect(history []image.HistoryResponseItem, inspect types.ImageInspect) []workloadmeta.ContainerImageLayer {
 	var layers []workloadmeta.ContainerImageLayer
 
-	// Docker returns the layers in reverse-chronological order
+	// Sanity check our current assumption that there cannot be more RootFS layer IDs than history layers
+	if len(inspect.RootFS.Layers) > len(history) {
+		log.Warn("The number of RootFS layers exceeded the number of history layers")
+		return layers
+	}
+
+	// inspectIdx tracks the current RootFS layer ID index (in Docker, this corresponds to the Diff ID of a layer)
+	// NOTE: Docker returns the RootFS layers in chronological order
+	inspectIdx := 0
+
+	// Docker returns the history layers in reverse-chronological order
 	for i := len(history) - 1; i >= 0; i-- {
 		created := time.Unix(history[i].Created, 0)
 
+		isEmptyLayer := history[i].Size == 0
+		isInheritedLayer := isInheritedLayer(history[i])
+
+		digest := ""
+		if isInheritedLayer || !isEmptyLayer {
+			if isInheritedLayer {
+				log.Debugf("detected an inherited layer for image ID: \"%s\", assigning it digest: \"%s\"", inspect.ID, inspect.RootFS.Layers[inspectIdx])
+			}
+			digest = inspect.RootFS.Layers[inspectIdx]
+			inspectIdx++
+		}
+
 		layer := workloadmeta.ContainerImageLayer{
-			Digest:    history[i].ID,
+			Digest:    digest,
 			SizeBytes: history[i].Size,
 			History: &v1.History{
 				Created:    &created,
 				CreatedBy:  history[i].CreatedBy,
 				Comment:    history[i].Comment,
-				EmptyLayer: history[i].Size == 0,
+				EmptyLayer: isEmptyLayer,
 			},
 		}
 

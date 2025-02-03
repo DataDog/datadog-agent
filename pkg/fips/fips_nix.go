@@ -10,13 +10,16 @@ package fips
 
 import (
 	"os"
-	"strconv"
 )
 
-// Status returns a displayable string or error of FIPS compliance state of the agent build and runtime
+// Status returns a displayable string or error of FIPS Mode of the agent build and runtime
 func Status() string {
 	enabled, _ := Enabled()
-	return strconv.FormatBool(enabled)
+	if enabled {
+		return "enabled"
+	} else {
+		return "disabled"
+	}
 }
 
 // Enabled checks to see if the agent runtime environment is as expected relating to its build to be FIPS compliant. For Linux this is that the binary is run with the GOFIPS=1 environment variable.

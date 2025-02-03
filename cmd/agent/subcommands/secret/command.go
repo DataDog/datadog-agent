@@ -114,7 +114,7 @@ func commonSubAgentSecretRefresh(conf config.Component, agentName, portConfigNam
 	c := apiutil.GetClient(false)
 	c.Timeout = conf.GetDuration("server_timeout") * time.Second
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/secret/refresh", port)
+	url := fmt.Sprintf("https://127.0.0.1:%d/secret/refresh", port)
 	res, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
 	if err != nil {
 		return nil, fmt.Errorf("could not contact %s: %s", agentName, err)

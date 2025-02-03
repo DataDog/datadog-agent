@@ -93,7 +93,7 @@ When defining a component interface, avoid using structs or interfaces from thir
 
     import "github.com/prometheus/client_golang/prometheus"
 
-    // team: agent-shared-components
+    // team: agent-runtimes
 
     // Component is the component type.
     type Component interface {
