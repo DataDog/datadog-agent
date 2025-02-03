@@ -191,5 +191,5 @@ func TestOSSExtensionNoAPIKey(t *testing.T) {
 	)
 
 	err = ext.Start(context.Background(), host)
-	assert.Error(t, errApiKeyMissing, err)
+	assert.Error(t, errAPIKeyMissing, err)
 }

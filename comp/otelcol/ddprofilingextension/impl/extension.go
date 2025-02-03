@@ -24,7 +24,7 @@ var (
 	_                extension.Extension = (*ddExtension)(nil)
 	_                component.Config    = (*Config)(nil)
 	defaultEndpoint                      = "7501"
-	errApiKeyMissing                     = errors.New("API key is required for ddprofiling extension")
+	errAPIKeyMissing                     = errors.New("API key is required for ddprofiling extension")
 )
 
 // ddExtension is a basic OpenTelemetry Collector extension.
@@ -79,7 +79,7 @@ func (e *ddExtension) startForOCB() error {
 	profilerOptions := e.buildProfilerOptions()
 
 	if string(e.cfg.API.Key) == "" {
-		return errApiKeyMissing
+		return errAPIKeyMissing
 	}
 	// agentless
 	profilerOptions = append(profilerOptions,
