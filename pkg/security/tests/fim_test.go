@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"testing"
@@ -123,26 +122,35 @@ func TestFIMPermError(t *testing.T) {
 	}
 
 	test.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"open", testFile,
+		}
+		envs := []string{}
+
 		test.WaitSignal(t, func() error {
-			_ = runSyscallTesterFunc(context.Background(), t, syscallTester,
-				"process-credentials", "setuid", "4001", "4001", ";",
-				"open", testFile,
-			)
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_open_rule")
 		})
 	})
 
 	test.Run(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		t.Skip("not stable")
+
+		args := []string{
+			"process-credentials", "setuid", "4001", "4001", ";",
+			"unlink", testFile,
+		}
+		envs := []string{}
+
 		test.WaitSignal(t, func() error {
-			_ = runSyscallTesterFunc(context.Background(), t, syscallTester,
-				"process-credentials", "setuid", "4001", "4001", ";",
-				"unlink", testFile,
-			)
+			cmd := cmdFunc(syscallTester, args, envs)
+			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_unlink_rule")
 		})
 	})
