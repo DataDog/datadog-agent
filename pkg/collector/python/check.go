@@ -293,6 +293,10 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		}
 	}
 
+	if commonOptions.HAEnabled != nil {
+		c.haEnabled = *commonOptions.HAEnabled
+	}
+
 	cInitConfig := TrackedCString(string(initConfig))
 	cInstance := TrackedCString(string(data))
 	cCheckID := TrackedCString(string(c.id))
