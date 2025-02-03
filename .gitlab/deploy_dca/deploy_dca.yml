@@ -68,6 +68,22 @@ deploy_containers-dca_internal-latest:
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}-fips"
 
+deploy_containers-dca-fips-latest:
+  extends: .deploy_containers-dca-fips-base
+  rules: !reference [.on_deploy_manual_final]
+  variables:
+    VERSION: latest
+
+deploy_containers-dca-fips-rc:
+  extends: .deploy_containers-dca-fips-base
+  rules: !reference [.on_deploy_rc]
+  variables:
+    VERSION: rc
+
+deploy_containers-dca-fips:
+  extends: .deploy_containers-dca-fips-base
+  rules: !reference [.on_deploy_manual_auto_on_rc]
+
 deploy_containers-dca-fips_internal:
   extends: .deploy_containers-dca-fips-base
   rules: !reference [.on_deploy_internal_manual_final]
