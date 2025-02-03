@@ -7,9 +7,9 @@ import os
 import platform as py_platform
 import sys
 from collections import OrderedDict
+from enum import Enum
 from functools import wraps
 from pathlib import Path
-from enum import Enum
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -26,10 +26,10 @@ DEVCONTAINER_NAME = "datadog_agent_devcontainer"
 DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
 
 
-class Skaffold_profile(Enum):
-    NONE = None
+class SkaffoldProfile(Enum):
     KIND = "kind"
     MINIKUBE = "minikube"
+
 
 @task
 def setup(
@@ -37,7 +37,7 @@ def setup(
     target="agent",
     build_include=None,
     build_exclude=None,
-    skaffold_profile=None,
+    SkaffoldProfile=None,
     flavor=AgentFlavor.base.name,
     image='',
 ):
@@ -57,7 +57,7 @@ def setup(
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
-    use_tags.append("test") # always include the test tag for autocompletion in vscode
+    use_tags.append("test")  # always include the test tag for autocompletion in vscode
 
     if not os.path.exists(DEVCONTAINER_DIR):
         os.makedirs(DEVCONTAINER_DIR)
@@ -117,7 +117,7 @@ def setup(
                 },
                 "gopls": {"formatting.local": "github.com/DataDog/datadog-agent"},
             },
-            "extensions": ["golang.Go","ms-python.python","redhat.vscode-yaml"],
+            "extensions": ["golang.Go", "ms-python.python", "redhat.vscode-yaml"],
         }
     }
 
@@ -131,18 +131,19 @@ def setup(
         "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}",
     }
 
-    configure_skaffold(devcontainer, Skaffold_profile(skaffold_profile))
+    configure_skaffold(devcontainer, SkaffoldProfile(SkaffoldProfile))
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
 
-def configure_skaffold(devcontainer: dict, profile: Skaffold_profile):
-    if profile == Skaffold_profile.KIND:
-        devcontainer["runArgs"].append("--network=host") # to connect to the kind api-server
+
+def configure_skaffold(devcontainer: dict, profile: SkaffoldProfile):
+    if profile == SkaffoldProfile.KIND:
+        devcontainer["runArgs"].append("--network=host")  # to connect to the kind api-server
         # add requires extensions
         additional_extensions = ["GoogleCloudTools.cloudcode"]
         devcontainer["customizations"]["vscode"]["extensions"].extend(additional_extensions)
-        
+
         # Additionnal features
         additional_features = {
             "ghcr.io/rio/features/skaffold:2": {},
@@ -178,7 +179,7 @@ def configure_skaffold(devcontainer: dict, profile: Skaffold_profile):
         # add Datadog helm chart registry to the devcontainer
         devcontainer["onCreateCommand"] += " && helm repo add datadog https://helm.datadoghq.com && helm repo update"
 
-    elif profile == Skaffold_profile.MINIKUBE:
+    elif profile == SkaffoldProfile.MINIKUBE:
         # TODO: add minikube specific settings
         pass
 
