@@ -30,6 +30,7 @@ import (
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
@@ -184,11 +185,15 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation filter: %v", err)
 	}
-	mutatorCfg, err := autoinstrumentation.NewMutatorConfig(datadogConfig)
+	apmMutatorCfg, err := autoinstrumentation.NewMutatorConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation mutator config: %v", err)
 	}
-	mutator := autoinstrumentation.NewMutator(mutatorCfg, filter, wmeta)
+	mutator := mutatecommon.NewMultiMutator(
+		autoinstrumentation.NewMutator(apmMutatorCfg, filter, wmeta),
+		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter),
+		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), filter),
+	)
 	return autoinstrumentation.NewWebhook(wmeta, datadogConfig, mutator)
 }
 
