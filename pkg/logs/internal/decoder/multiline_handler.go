@@ -33,7 +33,6 @@ type MultiLineHandler struct {
 	isBufferTruncated bool
 	linesLen          int
 	msg               *message.Message
-	timestamp         string
 	countInfo         *status.CountInfo
 	linesCombinedInfo *status.CountInfo
 	telemetryEnabled  bool
@@ -97,10 +96,9 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 	isTruncated := h.shouldTruncate
 	h.shouldTruncate = false
 
-	// track the raw data length and the timestamp so that the agent tails
+	// track the raw data length so that the agent tails
 	// from the right place at restart
 	h.linesLen += msg.RawDataLen
-	h.timestamp = msg.ParsingExtra.Timestamp
 	h.msg = msg
 	h.linesCombined++
 
