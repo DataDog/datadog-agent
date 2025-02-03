@@ -704,6 +704,7 @@ workflow:
         - omnibus/config/projects/agent.rb
         - omnibus/config/software/**/*
         - omnibus/config/templates/**/*
+        - release.json
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .except_windows_installer_changes:
