@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {

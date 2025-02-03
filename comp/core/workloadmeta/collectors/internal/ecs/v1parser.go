@@ -138,7 +138,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 	for _, taskContainer := range entity.Containers {
 		container, err := c.store.GetContainer(taskContainer.ID)
 		if err != nil {
-			log.Tracef("cannot find container %q found in task %q: %s", taskContainer, entity.ID, err)
+			log.Tracef("cannot find container %q found in task %q: %s", taskContainer.String(false), entity.ID, err)
 			continue
 		}
 

@@ -21,8 +21,7 @@ import (
 
 func TestType(t *testing.T) {
 	tc := newTestTaggerClient()
-	gc := newTestGenerateIDClient().generateID
-	factory := NewFactory(tc, gc)
+	factory := NewFactoryForAgent(tc)
 	pType := factory.Type()
 
 	assert.Equal(t, pType, Type)
@@ -30,8 +29,7 @@ func TestType(t *testing.T) {
 
 func TestCreateDefaultConfig(t *testing.T) {
 	tc := newTestTaggerClient()
-	gc := newTestGenerateIDClient().generateID
-	factory := NewFactory(tc, gc)
+	factory := NewFactoryForAgent(tc)
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
@@ -54,11 +52,10 @@ func TestCreateProcessors(t *testing.T) {
 			cm, err := confmaptest.LoadConf(filepath.Join("testdata", tt.configName))
 			require.NoError(t, err)
 			tc := newTestTaggerClient()
-			gc := newTestGenerateIDClient().generateID
 
 			for k := range cm.ToStringMap() {
 				// Check if all processor variations that are defined in test config can be actually created
-				factory := NewFactory(tc, gc)
+				factory := NewFactoryForAgent(tc)
 				cfg := factory.CreateDefaultConfig()
 
 				sub, err := cm.Sub(k)
@@ -93,4 +90,11 @@ func TestCreateProcessors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitializeTagger(t *testing.T) {
+	f := &factory{}
+	err := f.initializeTaggerClient()
+	assert.NoError(t, err)
+	assert.NotNil(t, f.tagger)
 }
