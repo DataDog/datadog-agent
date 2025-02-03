@@ -62,15 +62,15 @@ type Controller struct {
 
 	limitHeap *autoscaling.HashHeap
 
-	podWatcher           podWatcher
+	podWatcher           PodWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
 
 	localSender sender.Sender
 }
 
-// newController returns a new workload autoscaling controller
-func newController(
+// NewController returns a new workload autoscaling controller
+func NewController(
 	clusterID string,
 	eventRecorder record.EventRecorder,
 	restMapper apimeta.RESTMapper,
@@ -79,7 +79,7 @@ func newController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	store *store,
-	podWatcher podWatcher,
+	podWatcher PodWatcher,
 	localSender sender.Sender,
 	limitHeap *autoscaling.HashHeap,
 ) (*Controller, error) {
@@ -422,7 +422,7 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	// Check that we are within the limit of 100 DatadogPodAutoscalers
 	key := podAutoscalerInternal.ID()
 	if !c.limitHeap.Exists(key) {
-		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", maxDatadogPodAutoscalerObjects)
+		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", c.limitHeap.MaxSize())
 	}
 
 	// Check that targetRef is not set to the cluster agent

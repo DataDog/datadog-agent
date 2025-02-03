@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workload
+package provider
 
 import (
 	"context"
@@ -19,6 +19,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -31,10 +33,10 @@ func StartWorkloadAutoscaling(
 	ctx context.Context,
 	clusterID string,
 	apiCl *apiserver.APIClient,
-	rcClient rcClient,
+	rcClient workload.RcClient,
 	wlm workloadmeta.Component,
 	senderManager sender.SenderManager,
-) (PodPatcher, error) {
+) (workload.PodPatcher, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
 	}
@@ -49,10 +51,11 @@ func StartWorkloadAutoscaling(
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-workload-autoscaler"})
 
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
-	podPatcher := newPODPatcher(store, le.IsLeader, apiCl.DynamicCl, eventRecorder)
-	podWatcher := newPodWatcher(wlm, podPatcher)
+	podPatcher := workload.NewPodPatcher(store, le.IsLeader, apiCl.DynamicCl, eventRecorder)
+	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
+	localRecommender := local.NewRecommender(podWatcher, store)
 
-	_, err = newConfigRetriever(store, le.IsLeader, rcClient)
+	_, err = workload.NewConfigRetriever(store, le.IsLeader, rcClient)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
 	}
@@ -66,7 +69,7 @@ func StartWorkloadAutoscaling(
 
 	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store)
 
-	controller, err := newController(clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store, podWatcher, sender, limitHeap)
+	controller, err := workload.NewController(clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store, podWatcher, sender, limitHeap)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
@@ -78,6 +81,7 @@ func StartWorkloadAutoscaling(
 	// TODO: Wait POD Watcher sync before running the controller
 	go podWatcher.Run(ctx)
 	go controller.Run(ctx)
+	go localRecommender.Run(ctx)
 
 	return podPatcher, nil
 }
