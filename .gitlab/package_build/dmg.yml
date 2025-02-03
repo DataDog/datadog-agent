@@ -156,7 +156,11 @@ new-agent_dmg-x64-a7:
     - exit
     - !reference [.vault_login]
     # Setup builder
-    - brew remove --force --ignore-dependencies $(brew list --formula)
+    - |
+      for dependency in $(brew list --formula); do
+        echo "Uninstalling $dependency"
+        brew remove --force --ignore-dependencies $dependency || echo "Warning: $dependency could not be removed"
+      done
     - rm -rf /usr/local/lib/ruby
     - rm -rf /Library/Frameworks/Python.framework/Versions/*
     # Setup

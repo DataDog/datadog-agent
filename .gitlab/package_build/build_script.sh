@@ -46,7 +46,8 @@ python3 -m pip install -r requirements.txt
 rm -rf ./opt/datadog-agent ./vendor ./vendor-new ./var/cache/omnibus/src/* ./omnibus/Gemfile.lock
 
 # Create target folders
-mkdir -p ./opt/datadog-agent ./var/cache/omnibus && chown "$USER" ./opt/datadog-agent ./var/cache/omnibus
+mkdir -p ./opt/datadog-agent ./var/cache/omnibus # TODO: && chown "$USER" ./opt/datadog-agent ./var/cache/omnibus ? -> seems to break runners
+
 # sudo mkdir -p ./opt/datadog-agent ./var/cache/omnibus && sudo chown "$USER" ./opt/datadog-agent ./var/cache/omnibus
 
 # Set bundler install path to cached folder
