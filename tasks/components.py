@@ -117,7 +117,6 @@ components_classic_style = [
     'comp/metadata/inventorychecks/inventorychecksimpl',
     'comp/metadata/inventoryhost/inventoryhostimpl',
     'comp/metadata/inventoryotel/inventoryotelimpl',
-    'comp/metadata/haagent/haagentimpl',
     'comp/metadata/packagesigning/packagesigningimpl',
     'comp/metadata/resources/resourcesimpl',
     'comp/metadata/runner/runnerimpl',
