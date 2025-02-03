@@ -228,6 +228,7 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
 
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])
+    new_jobs['default'] = copy.deepcopy(config['default'])
     new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHORT_SHA'] = 'undefined'
