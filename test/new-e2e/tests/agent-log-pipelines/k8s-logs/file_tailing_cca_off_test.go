@@ -7,6 +7,7 @@ package k8sfiletailing
 
 import (
 	"context"
+	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/kindfilelogging"
 	"testing"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/kindfilelogging"
 )
 
 type k8sCCAOffSuite struct {

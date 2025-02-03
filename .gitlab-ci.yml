@@ -876,33 +876,41 @@ workflow:
         - pkg/collector/corechecks/servicediscovery/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_aml_or_e2e_changes:
+.on_amp_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/tests/agent-metrics-logs/**/*
+        - test/new-e2e/tests/agent-metric-pipelines/**/*
         - cmd/agent/subcommands/dogstatsd*/*
-        - cmd/agent/subcommands/streamlogs/*
         - cmd/dogstatsd/**/*
         - comp/agent/jmxlogger/**/*
         - comp/aggregator/**/*
         - comp/collector/**/*
         - comp/core/agenttelemetry/**/*
-        - comp/core/autodiscovery/providers/config_reader*.go
-        - comp/core/autodiscovery/providers/file*.go
         - comp/dogstatsd/**/*
         - comp/forwarder/**/*
-        - comp/logs/**/*
         - comp/serializer/**/*
         - pkg/aggregator/**/*
         - pkg/collector/**/*
         - pkg/commonchecks/**/*
         - pkg/jmxfetch/**/*
-        - pkg/logs/**/*
         - pkg/metrics/**/*
         - pkg/persistentcache/**/*
         - pkg/serializer/**/*
         - rtloader/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_alp_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-log-pipelines/**/*
+        - cmd/agent/subcommands/streamlogs/*
+        - comp/core/agenttelemetry/**/*
+        - comp/core/autodiscovery/providers/config_reader*.go
+        - comp/core/autodiscovery/providers/file*.go
+        - comp/logs/**/*
+        - pkg/logs/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_cws_or_e2e_changes:
