@@ -25,11 +25,9 @@ func makeHandler() (chan *message.Message, func(*message.Message)) {
 }
 
 func newMessage(content string) *message.Message {
-	m := &message.Message{
-		Status:     message.StatusInfo,
-		RawDataLen: len([]byte(content)),
-	}
-	m.SetContent([]byte(content))
+
+	m := message.NewMessage([]byte(content), nil, message.StatusInfo, 0)
+	m.RawDataLen = len([]byte(content))
 	return m
 }
 

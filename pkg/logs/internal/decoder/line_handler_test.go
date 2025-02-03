@@ -25,20 +25,14 @@ const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 const contentLenLimit = 100
 
 func getDummyMessage(content string) *message.Message {
-	m := &message.Message{
-		Status:     "info",
-		RawDataLen: len(content),
-	}
-	m.SetContent([]byte(content))
+	m := message.NewMessage([]byte(content), nil, message.StatusInfo, 0)
+	m.RawDataLen = len(content)
 	return m
 }
 
 func getDummyMessageWithLF(content string) *message.Message {
-	m := &message.Message{
-		Status:     "info",
-		RawDataLen: len(content) + 1,
-	}
-	m.SetContent([]byte(content))
+	m := message.NewMessage([]byte(content), nil, message.StatusInfo, 0)
+	m.RawDataLen = len(content) + 1
 	return m
 }
 
