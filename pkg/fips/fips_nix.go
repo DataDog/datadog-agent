@@ -18,9 +18,7 @@ func Status() string {
 	}
 }
 
-// Enabled checks to see if the agent runtime environment is as expected relating to its build to be FIPS compliant. The binary is built with requirefips and will not run out of FIPS Mode so:
-// * For Linux: if OpenSSL isn't installed and running in FIPS Mode the agent will panic
-// * For Windows: if FIPS Mode is not enabled in the registry then the agent will panic
+// Enabled checks to see if the agent runtime environment is as expected relating to its build to be FIPS compliant. The linux binary is built with requirefips and will not run out of FIPS Mode causing a panic if OpenSSL isn't installed and running in FIPS Mode as well
 func Enabled() (bool, error) {
 	// requirefips only allows for the agent to run in FIPS Mode, GOFIPS=0 will not disable it
 	return true, nil
