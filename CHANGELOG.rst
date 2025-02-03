@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.62.1:
+
+7.62.1
+======
+
+.. _Release Notes_7.62.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-02-03
+
+
+.. _Release Notes_7.62.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a connection tracking regression in the 7.62 Fargate preview for Cloud Network Monitoring.
+
+
 .. _Release Notes_7.62.0:
 
 7.62.0
