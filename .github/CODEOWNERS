@@ -43,7 +43,7 @@
 /repository.datadog.yml                 @DataDog/agent-devx-infra
 /generate_tools.go                      @DataDog/agent-devx-infra
 /service.datadog.yaml                   @DataDog/agent-delivery
-/static-analysis.datadog.yml            @DataDog/software-integrity-and-trust @DataDog/sdlc-security @DataDog/agent-devx-infra
+/static-analysis.datadog.yml            @DataDog/sdlc-security @DataDog/agent-devx-infra
 
 /modules.yml                            @DataDog/agent-runtimes
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
@@ -435,7 +435,7 @@
 /pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations @DataDog/agent-configuration
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
-/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust @DataDog/sdlc-security
+/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/sdlc-security
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
