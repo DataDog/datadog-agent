@@ -181,17 +181,16 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 }
 
 func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
-	if slice == nil {
-		return errors.New("nil slice parameter when generating header code")
-	}
-	if len(slice.ParameterPieces) != 3 {
-		return fmt.Errorf("invalid slice parameter when generating header code: %d fields", len(slice.ParameterPieces))
-	}
-
 	// Slices are defined with an "array" pointer as piece 0, which is a pointer to the actual
 	// type, which is defined as piece 0 under that.
-	if len(slice.ParameterPieces) != 3 &&
-		len(slice.ParameterPieces[0].ParameterPieces) != 1 {
+
+	// Validate entire data structure is valid and not nil before accessing
+	if slice == nil ||
+		len(slice.ParameterPieces) != 3 ||
+		slice.ParameterPieces[0] == nil ||
+		slice.ParameterPieces[1] == nil ||
+		len(slice.ParameterPieces[0].ParameterPieces) != 1 ||
+		slice.ParameterPieces[0].ParameterPieces[0] == nil {
 		return errors.New("malformed slice type")
 	}
 
