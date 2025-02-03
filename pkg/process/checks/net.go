@@ -509,7 +509,7 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 			maxRetries,
 			err,
 		)
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(time.Duration(250*attempt) * time.Millisecond)
 	}
 	return "", fmt.Errorf("failed to get network ID after %d attempts: %s", maxRetries, err)
 }
