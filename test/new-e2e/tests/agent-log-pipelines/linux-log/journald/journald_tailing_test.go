@@ -8,6 +8,7 @@ package journaldlog
 import (
 	_ "embed"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils"
 )
 
 const eventuallyWithTickDuration = 5 * time.Second

@@ -26,13 +26,13 @@ Package expvarserver contains the component type for the expVar server.
 
 ### [comp/agent/jmxlogger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/jmxlogger)
 
-*Datadog Team*: agent-metrics
+*Datadog Team*: agent-metric-pipelines
 
 Package jmxlogger implements the logger for JMX.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
-*Datadog Team*: agent-metrics
+*Datadog Team*: agent-metric-pipelines
 
 Package aggregator implements the "aggregator" bundle,
 
@@ -68,7 +68,7 @@ auth_token file but can fetch it it's available.
 
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
-*Datadog Team*: agent-metrics
+*Datadog Team*: agent-metric-pipelines
 
 Package checks implements the "checks" bundle, for all of the component based agent checks
 
@@ -92,7 +92,7 @@ Package winregistry implements the Windows Registry check
 
 ## [comp/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/collector) (Component Bundle)
 
-*Datadog Team*: agent-metrics
+*Datadog Team*: agent-metric-pipelines
 
 Package collector defines the collector bundle.
 
@@ -215,7 +215,7 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd) (Component Bundle)
 
-*Datadog Team*: agent-metrics
+*Datadog Team*: agent-metric-pipelines
 
 
 
@@ -245,7 +245,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
-*Datadog Team*: agent-metrics
+*Datadog Team*: agent-metric-pipelines
 
 Package forwarder implements the "forwarder" bundle
 
@@ -255,19 +255,19 @@ Package defaultforwarder implements a component to send payloads to the backend
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 Package eventplatform contains the logic for forwarding events to the event platform
 
 ### [comp/forwarder/eventplatformreceiver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 Package eventplatformreceiver implements the receiver for the event platform package
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 Package orchestrator implements the orchestrator forwarder component.
 
@@ -277,7 +277,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 
 
@@ -300,6 +300,12 @@ send logs.
 
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
+
+### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
+
+*Datadog Team*: ndm-core
+
+Package haagent implements a component to generate the 'ha_agent_metadata' metadata payload for inventory.
 
 ### [comp/metadata/host](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/host)
 
@@ -637,13 +643,13 @@ Package rdnsquerier provides the reverse DNS querier component.
 
 ### [comp/serializer/logscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/logscompression)
 
-*Datadog Team*: agent-logs
+*Datadog Team*: agent-log-pipelines
 
 Package logscompression provides the component for logs compression
 
 ### [comp/serializer/metricscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/metricscompression)
 
-*Datadog Team*: agent-metrics
+*Datadog Team*: agent-metric-pipelines
 
 Package metricscompression provides the component for metrics compression
 

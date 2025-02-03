@@ -8,6 +8,7 @@ package metadata
 import (
 	"testing"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"go.uber.org/fx"
 
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -29,6 +30,7 @@ func TestBundleDependencies(t *testing.T) {
 			return option.None[agent.Component]()
 		}),
 		authtokenimpl.Module(),
+		haagentmock.Module(),
 	)
 }
 

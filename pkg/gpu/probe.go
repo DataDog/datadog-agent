@@ -33,9 +33,8 @@ import (
 )
 
 const (
-	gpuAttacherName    = "gpu"
-	gpuModuleName      = gpuAttacherName
-	gpuTelemetryModule = gpuModuleName
+	gpuAttacherName    = GpuModuleName
+	gpuTelemetryModule = GpuModuleName
 
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
@@ -164,7 +163,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	}
 
-	p.attacher, err = uprobes.NewUprobeAttacher(gpuModuleName, gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
+	p.attacher, err = uprobes.NewUprobeAttacher(GpuModuleName, gpuAttacherName, attachCfg, p.m, nil, &uprobes.NativeBinaryInspector{}, deps.ProcessMonitor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -188,7 +187,7 @@ func (p *Probe) start() error {
 	if err := p.m.Start(); err != nil {
 		return fmt.Errorf("failed to start manager: %w", err)
 	}
-	ddebpf.AddNameMappings(p.m.Manager, gpuModuleName)
+	ddebpf.AddNameMappings(p.m.Manager, GpuModuleName)
 
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
@@ -200,7 +199,7 @@ func (p *Probe) start() error {
 func (p *Probe) Close() {
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
-	ddebpf.ClearNameMappings(gpuModuleName)
+	ddebpf.ClearNameMappings(GpuModuleName)
 	p.consumer.Stop()
 	p.eventHandler.Stop()
 }
