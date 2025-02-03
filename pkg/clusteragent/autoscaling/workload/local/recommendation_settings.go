@@ -50,20 +50,13 @@ func getOptionsFromPodResource(target *datadoghq.DatadogPodAutoscalerResourceTar
 	if target == nil {
 		return nil, fmt.Errorf("nil target")
 	}
-	if target.Value.Type != datadoghq.DatadogPodAutoscalerUtilizationTargetValueType {
-		return nil, fmt.Errorf("invalid value type: %s", target.Value.Type)
-	}
-	metric, ok := resourceToMetric[target.Name]
-	if !ok {
-		return nil, fmt.Errorf("invalid resource name: %s", target.Name)
-	}
 
-	if err := validateUtilizationValue(target.Value); err != nil {
-		return nil, fmt.Errorf("invalid utilization value: %s", err)
+	if err := validateTarget(target.Value.Type, target.Name, target.Value); err != nil {
+		return nil, err
 	}
 
 	recSettings := &resourceRecommenderSettings{
-		metricName:    metric,
+		metricName:    resourceToMetric[target.Name],
 		lowWatermark:  float64((*target.Value.Utilization - watermarkTolerance)) / 100.0,
 		highWatermark: float64((*target.Value.Utilization + watermarkTolerance)) / 100.0,
 	}
@@ -74,26 +67,35 @@ func getOptionsFromContainerResource(target *datadoghq.DatadogPodAutoscalerConta
 	if target == nil {
 		return nil, fmt.Errorf("nil target")
 	}
-	if target.Value.Type != datadoghq.DatadogPodAutoscalerUtilizationTargetValueType {
-		return nil, fmt.Errorf("invalid value type: %s", target.Value.Type)
-	}
 
-	metric, ok := resourceToMetric[target.Name]
-	if !ok {
-		return nil, fmt.Errorf("invalid resource name: %s", target.Name)
-	}
-
-	if err := validateUtilizationValue(target.Value); err != nil {
-		return nil, fmt.Errorf("invalid utilization value: %s", err)
+	if err := validateTarget(target.Value.Type, target.Name, target.Value); err != nil {
+		return nil, err
 	}
 
 	recSettings := &resourceRecommenderSettings{
-		metricName:    metric,
+		metricName:    resourceToMetric[target.Name],
 		lowWatermark:  float64((*target.Value.Utilization - watermarkTolerance)) / 100.0,
 		highWatermark: float64((*target.Value.Utilization + watermarkTolerance)) / 100.0,
 		containerName: target.Container,
 	}
 	return recSettings, nil
+}
+
+func validateTarget(targetType datadoghq.DatadogPodAutoscalerTargetValueType, name corev1.ResourceName, value datadoghq.DatadogPodAutoscalerTargetValue) error {
+	if targetType != datadoghq.DatadogPodAutoscalerUtilizationTargetValueType {
+		return fmt.Errorf("invalid value type: %s", targetType)
+	}
+
+	_, ok := resourceToMetric[name]
+	if !ok {
+		return fmt.Errorf("invalid resource name: %s", name)
+	}
+
+	if err := validateUtilizationValue(value); err != nil {
+		return fmt.Errorf("invalid utilization value: %s", err)
+	}
+
+	return nil
 }
 
 func validateUtilizationValue(value datadoghq.DatadogPodAutoscalerTargetValue) error {
