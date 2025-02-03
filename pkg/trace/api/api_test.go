@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1044,14 +1045,26 @@ func TestExpvar(t *testing.T) {
 	}
 
 	c := newTestReceiverConfig()
-	c.DebugServerPort = 5012
+	c.DebugServerPort = 6789
 	info.InitInfo(c)
+
+	// Starting a TLS httptest server to retrieve tlsCert
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	tlsConfig := ts.TLS.Clone()
+	// Setting a client with the proper TLS configuration
+	client := ts.Client()
+	ts.Close()
+
+	// Starting Debug Server
 	s := NewDebugServer(c)
+	s.SetTLSConfig(tlsConfig)
+
+	// Starting the Debug server
 	s.Start()
 	defer s.Stop()
 
-	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
-	assert.NoError(t, err)
+	resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/debug/vars", c.DebugServerPort))
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	t.Run("read-expvars", func(t *testing.T) {
@@ -1065,6 +1078,39 @@ func TestExpvar(t *testing.T) {
 			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
 		}
 	})
+}
+
+func TestWithoutIPCCert(t *testing.T) {
+	c := newTestReceiverConfig()
+
+	// Getting an available port
+	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var l *net.TCPListener
+	l, err = net.ListenTCP("tcp", a)
+	require.NoError(t, err)
+
+	availablePort := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, l.Close())
+	require.NotZero(t, availablePort)
+
+	c.DebugServerPort = availablePort
+	info.InitInfo(c)
+
+	// Starting Debug Server
+	s := NewDebugServer(c)
+
+	// Starting the Debug server
+	s.Start()
+	defer s.Stop()
+
+	// Server should not be able to connect because it didn't start
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(c.DebugServerPort)), time.Second)
+	require.Error(t, err)
+	if conn != nil {
+		conn.Close()
+	}
 }
 
 func TestNormalizeHTTPHeader(t *testing.T) {
