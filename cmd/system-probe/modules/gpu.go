@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -108,6 +109,12 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 
 		utils.WriteAsJSON(w, stats)
 	})
+
+	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpu.GpuModuleName))
 
 	return nil
 }

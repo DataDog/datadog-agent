@@ -173,3 +173,8 @@ type ChangePermissionEvent struct {
 	OldSd      string `field:"old_sd,handler:ResolveOldSecurityDescriptor"` // SECLDoc[old_sd] Definition:`Original Security Descriptor of the object of which permission was changed`
 	NewSd      string `field:"new_sd,handler:ResolveNewSecurityDescriptor"` // SECLDoc[new_sd] Definition:`New Security Descriptor of the object of which permission was changed`
 }
+
+// SetAncestorFields force the process cache entry to be valid
+func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, error) {
+	return true, nil
+}
