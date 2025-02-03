@@ -207,6 +207,10 @@ def validate_used_by_otel(ctx: Context):
             # we are only interested into local modules
             if not require["Path"].startswith("github.com/DataDog/datadog-agent/"):
                 continue
+            # pkg/util/optional was removed, so it cannot be added to modules.yml/ used_by_otel. Skipping here
+            # until all pkg/util/optional imports are removed.
+            if require["Path"].startswith("github.com/DataDog/datadog-agent/pkg/util/optional"):
+                continue
             # we need the relative path of module (without github.com/DataDog/datadog-agent/ prefix)
             rel_path = require['Path'].removeprefix("github.com/DataDog/datadog-agent/")
             # check if indirect module is labeled as "used_by_otel"
