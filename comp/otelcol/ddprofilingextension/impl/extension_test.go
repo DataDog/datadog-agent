@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	ossconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -76,7 +77,7 @@ func TestNewExtension(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, ok := ext.(*ddExtension)
-	assert.True(t, ok)
+	require.True(t, ok)
 }
 
 func testServer(t *testing.T, got chan string) *httptest.Server {
@@ -113,7 +114,7 @@ func TestAgentExtension(t *testing.T) {
 	assert.NoError(t, err)
 
 	ext, ok := ext.(*ddExtension)
-	assert.True(t, ok)
+	require.True(t, ok)
 
 	host := newHostWithExtensions(
 		map[component.ID]component.Component{

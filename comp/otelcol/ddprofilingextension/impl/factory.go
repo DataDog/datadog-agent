@@ -8,6 +8,7 @@ package ddprofilingextensionimpl
 
 import (
 	"context"
+	"errors"
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -39,7 +40,11 @@ func NewFactoryForAgent(traceAgent traceagent.Component, log corelog.Component) 
 
 // Create creates a new instance of the Datadog Profiling Extension
 func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
-	return NewExtension(cfg.(*Config), set.BuildInfo, f.traceAgent, f.log)
+	config, ok := cfg.(*Config)
+	if !ok {
+		return nil, errors.New("invalid ddprofiling extension config")
+	}
+	return NewExtension(config, set.BuildInfo, f.traceAgent, f.log)
 }
 
 // Stability returns the stability level of the component
