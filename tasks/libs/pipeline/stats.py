@@ -41,6 +41,8 @@ REQUIRED_JOBS = [
     "dogstatsd_rpm-x64",
     "security_go_generate_check",
     "lint_python",
+    # 'single-machine-performance-regression_detector',
+    # 'single-machine-performance-regression_detector-pr-comment',
 ]
 
 
@@ -151,9 +153,9 @@ def compute_required_jobs_max_duration(project_name: str):
     return series
 
 
-def get_max_duration(project_name: str):
+def get_max_duration(project_name: str, pipeline_id: str = None):
     datadog_agent = get_gitlab_repo(repo=project_name)
-    pipeline = datadog_agent.pipelines.get(os.getenv("CI_PIPELINE_ID"))
+    pipeline = datadog_agent.pipelines.get(pipeline_id or os.getenv("CI_PIPELINE_ID"))
     start = datetime.fromisoformat(pipeline.created_at[:-1])
     max = start
     status = "success"

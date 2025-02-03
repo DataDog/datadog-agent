@@ -27,6 +27,7 @@ from tasks.libs.civisibility import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import experimental
+from tasks.libs.pipeline.stats import get_max_duration
 
 
 @task
@@ -436,3 +437,74 @@ def is_regression_detector_in_critical_path(ctx, pipeline_id, verbose=True) -> b
             print('Regression detector is NOT in the critical path')
 
     return is_regression_detector
+
+
+@task
+def get_all_required_jobs_duration(ctx):
+    pipelines = [
+        54575993,
+        54574489,
+        54572789,
+        54574495,
+        54574273,
+        54577666,
+        54574886,
+        54580926,
+        54580479,
+        54572875,
+        54573820,
+        54574484,
+    ]
+    durations = []
+
+    print(len(pipelines), 'pipelines')
+
+    for i, p in enumerate(pipelines):
+        print(f'#{i + 1}/{len(pipelines)}: {p}')
+        d = get_required_jobs_duration(ctx, p)
+        durations.append(d)
+
+    durations = sorted(durations)
+    print(
+        f'Median duration: {durations[len(durations) // 2]//3600}:{durations[len(durations) // 2] // 60 % 60} ({durations[len(durations) // 2]})'
+    )
+
+
+@task
+def get_required_jobs_duration(ctx, pipeline_id):
+    d = get_max_duration('DataDog/datadog-agent', pipeline_id)[0]
+
+    print(f'{d // 3600}:{d // 60 % 60:02d}')
+
+    return d
+
+
+@task
+def r(ctx, pipeline_id):
+    from datetime import datetime
+
+    pipeline = get_gitlab_repo().pipelines.get(pipeline_id)
+    jobs = pipeline.jobs.list(all=True, per_page=100)
+
+    # Only required jobs
+    job_ends = {
+        job.name: (datetime.fromisoformat(job.finished_at) - datetime.fromisoformat(pipeline.created_at))
+        for job in jobs
+        if job.finished_at
+    }
+    # job_ends = sorted(
+    #     (datetime.fromisoformat(end) - datetime.fromisoformat(pipeline.created_at), job)
+    #     for (job, end) in job_ends.items()
+    #     if end
+    # )
+
+    # assert any(
+    #     'regression_detector' in job for _, job in job_ends
+    # ), f'No regression detector job for pipeline {pipeline_id}'
+
+    # for end, job in job_ends:
+    #     print(f'{end.seconds // 3600}:{end.seconds // 60 % 60:02d} -> {job}')
+
+    print('end reg', job_ends['single-machine-performance-regression_detector'])
+    print('end comment', job_ends['single-machine-performance-regression_detector-pr-comment'])
+    print('end send-pipeline-stats', job_ends['send_pipeline_stats'])
