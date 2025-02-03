@@ -219,3 +219,16 @@ func Test_haAgentImpl_resetAgentState(t *testing.T) {
 	// THEN
 	assert.Equal(t, haagent.Unknown, haAgentComp.GetState())
 }
+
+func Test_IsActive(t *testing.T) {
+	agentConfigs := map[string]interface{}{
+		"hostname": "my-agent-hostname",
+	}
+	haAgent := newTestHaAgentComponent(t, agentConfigs).Comp
+
+	haAgent.SetLeader("another-agent")
+	assert.False(t, haAgent.IsActive())
+
+	haAgent.SetLeader("my-agent-hostname")
+	assert.True(t, haAgent.IsActive())
+}
