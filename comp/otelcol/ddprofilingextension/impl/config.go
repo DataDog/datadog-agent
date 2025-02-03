@@ -34,4 +34,8 @@ type ProfilerOptions struct {
 	// Period in seconds the profiler will report with.
 	// Default: 60s
 	Period int `mapstructure:"period"`
+	// ProfileTypes specifies additional profile types to enable.
+	// supported values are blockprofile, mutexprofile and goroutineprofile.
+	// By default CPU and Heap profiles are enabled.
+	ProfileTypes []string `mapstructure:"profile_types"`
 }

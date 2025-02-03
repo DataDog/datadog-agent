@@ -100,18 +100,25 @@ func (e *ddExtension) startForOCB() error {
 }
 
 func (e *ddExtension) buildProfilerOptions() []profiler.Option {
-	profilerOptions := []profiler.Option{
-		profiler.WithProfileTypes(
-			profiler.CPUProfile,
-			profiler.HeapProfile,
-			// The profiles below are disabled by default to keep overhead
-			// low, but can be enabled as needed.
-
-			// profiler.BlockProfile,
-			// profiler.MutexProfile,
-			// profiler.GoroutineProfile,
-		),
+	defaultProfileTypes := []profiler.ProfileType{
+		profiler.CPUProfile,
+		profiler.HeapProfile,
 	}
+
+	profilerOptions := []profiler.Option{}
+
+	for _, profileType := range e.cfg.ProfilerOptions.ProfileTypes {
+		if profileType == "blockprofile" {
+			defaultProfileTypes = append(defaultProfileTypes, profiler.BlockProfile)
+		}
+		if profileType == "mutexprofile" {
+			defaultProfileTypes = append(defaultProfileTypes, profiler.MutexProfile)
+		}
+		if profileType == "goroutineprofile" {
+			defaultProfileTypes = append(defaultProfileTypes, profiler.GoroutineProfile)
+		}
+	}
+	profilerOptions = append(profilerOptions, profiler.WithProfileTypes(defaultProfileTypes...))
 
 	if e.cfg.ProfilerOptions.Service != "" {
 		profilerOptions = append(profilerOptions, profiler.WithService(e.cfg.ProfilerOptions.Service))

@@ -31,7 +31,8 @@ extensions:
   ddprofiling:
     profiler_options:
       service: svc
-      version: 0.1
+      version: v0.1
       env: env
       period: 30
+      profile_types: [blockprofile, mutexprofile, goroutineprofile]
 ```
