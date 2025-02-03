@@ -177,14 +177,7 @@ func (hr *horizontalController) computeScaleAction(
 	}
 
 	// Checking scale direction
-	var scaleDirection common.ScaleDirection
-	if targetDesiredReplicas == currentDesiredReplicas {
-		scaleDirection = common.NoScale
-	} else if targetDesiredReplicas > currentDesiredReplicas {
-		scaleDirection = common.ScaleUp
-	} else {
-		scaleDirection = common.ScaleDown
-	}
+	scaleDirection := common.GetScaleDirection(currentDesiredReplicas, targetDesiredReplicas)
 
 	// No scaling needed
 	if scaleDirection == common.NoScale {
