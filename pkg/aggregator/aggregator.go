@@ -621,6 +621,8 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 			[]string{"ha_agent_state:" + string(agg.haAgent.GetState())},
 		)
 		// Send along a metric to show if HA Agent is running with ha_agent_state tag.
+		// datadog.agent.ha_agent.running is currently used in dashboard to monitor HA Agent state (active/standby)
+		// This metric is not intended to be used as replacement for datadog.agent.running
 		series.Append(&metrics.Serie{
 			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
