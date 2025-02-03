@@ -855,7 +855,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
@@ -874,7 +874,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_dns")
@@ -2197,7 +2197,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 			_, err := dockerInstance2.Command("getconf", []string{"-a"}, []string{}).CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *model.Event) bool {
-			t.Fatal("Got an event that should have been suppressed")
+			t.Error("Got an event that should have been suppressed")
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
 		if err != nil {
