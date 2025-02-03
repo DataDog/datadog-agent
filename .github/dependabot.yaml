@@ -64,7 +64,7 @@ updates:
     labels:
       - dependencies
       - dependencies-go
-      - team/agent-shared-components
+      - team/agent-configuration
       - changelog/no-changelog
     ignore:
       # Ignore internal modules

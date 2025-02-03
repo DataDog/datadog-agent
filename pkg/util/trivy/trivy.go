@@ -110,6 +110,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	}
 	if analyzersDisabled(LanguagesAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeIndividualPkgs...)
 	}
 	if analyzersDisabled(SecretAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
@@ -256,7 +257,7 @@ type driver struct {
 }
 
 func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []string, _ types.ScanOptions) (
-	results types.Results, osFound ftypes.OS, err error) {
+	types.Results, ftypes.OS, error) {
 
 	detail, err := d.applier.ApplyLayers(artifactKey, blobKeys)
 	switch {
@@ -284,20 +285,31 @@ func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []
 		return nil, ftypes.OS{}, xerrors.Errorf("failed to apply layers: %w", err)
 	}
 
-	result := types.Result{
+	results := make([]types.Result, 0, 1+len(detail.Applications))
+
+	// main OS result
+	osresult := types.Result{
 		Target: fmt.Sprintf("%s (%s %s)", target, detail.OS.Family, detail.OS.Name),
 		Class:  types.ClassOSPkg,
 		Type:   detail.OS.Family,
 	}
 
 	sort.Sort(detail.Packages)
-	result.Packages = detail.Packages
+	osresult.Packages = detail.Packages
+	results = append(results, osresult)
+
 	for _, app := range detail.Applications {
 		sort.Sort(app.Packages)
-		result.Packages = append(result.Packages, app.Packages...)
+		appresult := types.Result{
+			Target:   app.FilePath,
+			Class:    types.ClassLangPkg,
+			Type:     app.Type,
+			Packages: app.Packages,
+		}
+		results = append(results, appresult)
 	}
 
-	return []types.Result{result}, detail.OS, nil
+	return results, detail.OS, nil
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner, useCache bool) (*types.Report, error) {

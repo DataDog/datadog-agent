@@ -317,7 +317,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// connection aggregation with port rollups
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false, "DD_ENABLE_EBPFLESS", "DD_NETWORK_CONFIG_ENABLE_EBPFLESS")
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
@@ -428,6 +428,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
 	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "configure_cgroup_perms"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

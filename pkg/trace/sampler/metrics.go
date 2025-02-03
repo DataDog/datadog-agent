@@ -24,28 +24,33 @@ type metrics struct {
 	value      map[metricsKey]metricsValue
 }
 
-type metricsKey [3]string
+type metricsKey struct {
+	targetService    string
+	targetEnv        string
+	samplingPriority string
+}
 
 func newMetricsKey(service, env string, samplingPriority *SamplingPriority) metricsKey {
-	var key metricsKey
-	if service != "" {
-		key[0] = "target_service:" + service
-	}
-	if env != "" {
-		key[1] = "target_env:" + env
+	mk := metricsKey{
+		targetService: service,
+		targetEnv:     env,
 	}
 	if samplingPriority != nil {
-		key[2] = samplingPriority.tag()
+		mk.samplingPriority = samplingPriority.tagValue()
 	}
-	return key
+	return mk
 }
 
 func (k metricsKey) tags() []string {
-	tags := make([]string, 0, len(k))
-	for _, v := range k {
-		if v != "" {
-			tags = append(tags, v)
-		}
+	tags := make([]string, 0, 3) // Pre-allocate number of fields for efficiency
+	if k.targetService != "" {
+		tags = append(tags, "target_service:"+k.targetService)
+	}
+	if k.targetEnv != "" {
+		tags = append(tags, "target_env:"+k.targetEnv)
+	}
+	if k.samplingPriority != "" {
+		tags = append(tags, "sampling_priority:"+k.samplingPriority)
 	}
 	return tags
 }
