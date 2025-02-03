@@ -118,6 +118,7 @@ type CommonInstanceConfig struct {
 	Name                  string   `yaml:"name"`
 	Namespace             string   `yaml:"namespace"`
 	NoIndex               bool     `yaml:"no_index"`
+	// HAEnabled is a pointer to a boolean to make the difference between a default value and an unset value
 	HAEnabled             *bool    `yaml:"ha_enabled"`
 }
 
