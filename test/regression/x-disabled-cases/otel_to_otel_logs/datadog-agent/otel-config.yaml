@@ -9,12 +9,17 @@ exporters:
   datadog:
     traces:
       span_name_as_resource_name: true
+      endpoint: "http://127.0.0.1:9091"
     metrics:
       resource_attributes_as_tags: true
-    hostname: "otelcol-test-olivierg2"
+    hostname: "otelcol-test-olivierg"
     api:
-      key: ${env:DD_API_KEY}
-      site: ${env:DD_SITE}
+      key: "00000001"
+#      site: "127.0.0.1:9092"
+    # #metrics:
+    #  # endpoint: https://api.datadoghq.com
+      
+
 processors:
   batch:
 connectors:
