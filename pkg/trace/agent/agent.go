@@ -322,7 +322,7 @@ func (a *Agent) Process(p *api.Payload) {
 	sampledChunks := new(writer.SampledChunks)
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
-	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
+	p.TracerPayload.Env = traceutil.NormalizeTagValue(p.TracerPayload.Env)
 
 	a.discardSpans(p)
 
@@ -521,7 +521,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}
-	in.Env = traceutil.NormalizeTag(in.Env)
+	in.Env = traceutil.NormalizeTagValue(in.Env)
 	if in.TracerVersion == "" {
 		in.TracerVersion = tracerVersion
 	}

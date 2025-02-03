@@ -662,7 +662,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
 
 	// Only compute the binary path if we are going to need it. It's better to do these two checks
-	// (which are cheak, the handlesExecutables function is cached) than to do the syscall
+	// (which are cheap, the handlesExecutables function is cached) than to do the syscall
 	// every time
 	var binPath string
 	var err error
@@ -679,21 +679,18 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 
 	if ua.handlesExecutables() {
 		matchingRules := ua.getRulesForExecutable(binPath, procInfo)
-
 		if len(matchingRules) != 0 {
 			registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
 			err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB, utils.IgnoreCB)
-			if err != nil {
-				return err
-			}
+			// Do not return in case of error, as we still might want to attach to libraries
 		}
 	}
 
 	if attachToLibs && ua.handlesLibraries() {
-		return ua.attachToLibrariesOfPID(pid)
+		err = errors.Join(err, ua.attachToLibrariesOfPID(pid))
 	}
 
-	return nil
+	return err
 }
 
 // DetachPID detaches the uprobes attached to a PID

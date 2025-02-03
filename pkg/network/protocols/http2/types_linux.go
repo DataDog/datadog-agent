@@ -83,6 +83,7 @@ type HTTP2Telemetry struct {
 	Literal_value_exceeds_frame      uint64
 	Exceeding_max_interesting_frames uint64
 	Exceeding_max_frames_to_filter   uint64
+	Continuation_frames              uint64
 	Path_size_bucket                 [8]uint64
 }
 type HTTP2IncompleteFrameEntry struct {

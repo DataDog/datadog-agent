@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -262,7 +263,7 @@ func (lp *languagePatcher) handleDeployment(ctx context.Context, owner langUtil.
 	return err
 }
 
-func (lp *languagePatcher) generateAnnotationsPatch(currentLangs, newLangs langUtil.ContainersLanguages) map[string]interface{} {
+func (lp *languagePatcher) generateAnnotationsPatch(currentLangs, newLangs languagemodels.ContainersLanguages) map[string]interface{} {
 	currentAnnotations := currentLangs.ToAnnotations()
 	targetAnnotations := newLangs.ToAnnotations()
 

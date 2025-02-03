@@ -21,6 +21,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,20 +64,27 @@ type TracerSuite struct {
 	suite.Suite
 }
 
+func SupportedNetworkBuildModes() []ebpftest.BuildMode {
+	modes := ebpftest.SupportedBuildModes()
+	if !slices.Contains(modes, ebpftest.Ebpfless) {
+		modes = append(modes, ebpftest.Ebpfless)
+	}
+	return modes
+}
+
 func TestTracerSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, ebpftest.SupportedBuildModes(), "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, SupportedNetworkBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(TracerSuite))
 	})
 }
 
-func isFentry() bool {
-	return ebpftest.GetBuildMode() == ebpftest.Fentry
-}
-
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
-	if isFentry() {
+	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
 
@@ -402,13 +410,15 @@ func (s *TracerSuite) TestTCPConnsReported() {
 		// Test
 		connections := getConnections(collect, tr)
 
-		if forward == nil {
-			// Server-side
-			forward, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		// Server-side
+		newForward, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if newForward != nil {
+			forward = newForward
 		}
-		if reverse == nil {
-			// Client-side
-			reverse, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		// Client-side
+		newReverse, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if newReverse != nil {
+			reverse = newReverse
 		}
 
 		require.NotNil(collect, forward)
