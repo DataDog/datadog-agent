@@ -28,21 +28,6 @@ import (
 // Kubernetes cluster-autoscaler to mark a volume as safe to evict
 const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 
-// Mutator provides a common interface for building components capable of mutating pods so that individual webhooks can
-// share mutators.
-type Mutator interface {
-	// MutatePod will optionally mutate a pod, returning true if mutation occurs and an error if there is a problem.
-	MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error)
-}
-
-// MutationFunc is a function that mutates a pod
-type MutationFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error)
-
-// MutatePod allows MutationFunc to satisfy the Mutator interface.
-func (f MutationFunc) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-	return f(pod, ns, dc)
-}
-
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
 func Mutate(rawPod []byte, ns string, mutationType string, m MutationFunc, dc dynamic.Interface) ([]byte, error) {
