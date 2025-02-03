@@ -687,8 +687,11 @@ def print_overall_pipeline_stats(ctx, n_days=90, sleeping=False):
     repo = get_gitlab_repo()
 
     def get_pipeline_from_pr(branch):
-        print(f'Fetching pipeline for PR {branch}')
-        latest = repo.pipelines.latest(ref=branch)
+        latest = next(repo.pipelines.list(ref=branch, per_page=1, iterator=True))
+        # try:
+        #     latest = repo.pipelines.latest(ref=branch)
+        # except Exception:
+        #     latest = repo.pipelines.list(ref=branch, per_page=1)[0]
 
         return latest
 
@@ -708,9 +711,6 @@ def print_overall_pipeline_stats(ctx, n_days=90, sleeping=False):
     # print(failing_status)
     # import pdb; pdb.set_trace()
 
-
-
-
     # pr = gh.repo.get_pull(33109)
     # last_commit = gh.repo.get_commit(pr.head.sha)
     # statuses = list(last_commit.get_statuses())
@@ -726,7 +726,6 @@ def print_overall_pipeline_stats(ctx, n_days=90, sleeping=False):
 
     # import pdb; pdb.set_trace()
     # exit()
-
 
     # prs = gh.list_merged_prs()
     prs = gh.repo.get_pulls(state="closed", sort="updated", direction="desc", base="main")
@@ -768,8 +767,10 @@ def print_overall_pipeline_stats(ctx, n_days=90, sleeping=False):
         # Get the pipeline status
         status = pipeline.status
         if status != 'success':
-            failing_jobs = pipeline.jobs.list(status='failed')
-            print(f'PR {pr.number} has a failing pipeline, failing jobs: {" ".join([job.name for job in failing_jobs])}')
+            failing_jobs = pipeline.jobs.list(per_page=100, all=True)
+            print(
+                f'PR {pr.number} has a failing pipeline, failing jobs: {" ".join([job.name for job in failing_jobs if job.status == "failed"])}'
+            )
             broken_prs.append(pr)
 
         # for _ in range(100):

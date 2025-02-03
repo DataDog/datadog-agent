@@ -454,13 +454,53 @@ def get_all_required_jobs_duration(ctx):
         54572875,
         54573820,
         54574484,
+        #
+        54513564,
+        54568372,
+        54641452,
+        54642662,
+        54643508,
+        54645117,
+        54650708,
+        54651475,
+        54651661,
+        54651665,
+        54651826,
+        54651835,
+        54653946,
+        54653964,
+        54654699,
+        54660591,
+        54662339,
+        54665456,
+        54665495,
+        54671008,
+        54675938,
+        54678250,
+        54680440,
+        54686805,
+        54687976,
+        54688221,
+        54698099,
+        54698663,
+        54700381,
+        54701055,
+        54703861,
+        54704506,
+        54705145,
     ]
     durations = []
 
     print(len(pipelines), 'pipelines')
 
+    # repo = get_gitlab_repo()
     for i, p in enumerate(pipelines):
         print(f'#{i + 1}/{len(pipelines)}: {p}')
+        # d = repo.pipelines.get(p).duration
+        # if not d:
+        #     continue
+        # print(d)
+        # durations.append(d)
         d = get_required_jobs_duration(ctx, p)
         durations.append(d)
 
