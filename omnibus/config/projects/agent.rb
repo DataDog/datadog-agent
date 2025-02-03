@@ -110,6 +110,9 @@ if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   skip_healthcheck true
 else
   do_build = true
+  if ENV["OMNIBUS_FORCE_PACKAGES"]
+    do_package = true
+  end
 end
 
 # For now we build and package in the same stage for heroku
