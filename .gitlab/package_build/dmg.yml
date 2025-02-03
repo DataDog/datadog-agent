@@ -150,10 +150,10 @@ new-agent_dmg-x64-a7:
       - /tmp/celian
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
+  # TODO
+  retry: 2
   script:
     - set -e
-    - brew remove --force --ignore-dependencies --formula awscli
-    - exit
     - !reference [.vault_login]
     # Setup builder
     - |
