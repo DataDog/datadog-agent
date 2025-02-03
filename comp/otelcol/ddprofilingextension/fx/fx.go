@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// team: opentelemetry opentelemetry-agent
+
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(

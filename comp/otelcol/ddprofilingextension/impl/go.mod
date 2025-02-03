@@ -253,3 +253,7 @@ replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../p
 replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
 
 replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../../core/tagger/origindetection
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version

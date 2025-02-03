@@ -8,7 +8,7 @@ package ddprofilingextension
 
 import "go.opentelemetry.io/collector/extension"
 
-// team: opentelemetry
+// team: opentelemetry opentelemetry-agent
 
 // Component implements the component.Component interface.
 type Component interface {
