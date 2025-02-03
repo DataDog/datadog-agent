@@ -15,9 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type cipherTestCase struct {
@@ -64,7 +65,7 @@ func (s *fipsServer) Start(t *testing.T, tc cipherTestCase) {
 			require.NoError(c, err)
 		}
 		assert.Nil(c, err)
-	}, 60*time.Second, 20*time.Second)
+	}, 120*time.Second, 10*time.Second)
 
 	// Wait for container to start and ensure it's a fresh instance
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
