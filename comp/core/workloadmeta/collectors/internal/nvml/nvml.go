@@ -176,7 +176,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 func (c *collector) Pull(_ context.Context) error {
 	nvmlLib, err := c.getNVML()
 	if err != nil {
-		return fmt.Errorf("failed to get NVML library: %v", err)
+		return fmt.Errorf("failed to get NVML library: %w", err)
 	}
 
 	count, ret := nvmlLib.DeviceGetCount()

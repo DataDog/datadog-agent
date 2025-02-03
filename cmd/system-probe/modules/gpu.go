@@ -173,6 +173,9 @@ func getAgentPID(procRoot string) (uint32, error) {
 	return 0, errors.New("agent process not found")
 }
 
+// configureCgroupPermissions configures the cgroup permissions to access NVIDIA
+// devices for the system-probe and agent processes, as the NVIDIA device plugin
+// sets them in a way that can be overwritten by SystemD cgroups.
 func configureCgroupPermissions() {
 	root := hostRoot()
 
