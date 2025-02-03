@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
@@ -38,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // defaultReceiverBufferSize is used as a default for the initial size of http body buffer
@@ -260,7 +260,21 @@ func (r *HTTPReceiver) Start() {
 
 	if r.conf.ReceiverPort > 0 {
 		addr := net.JoinHostPort(r.conf.ReceiverHost, strconv.Itoa(r.conf.ReceiverPort))
-		ln, err := r.listenTCP(addr)
+
+		var ln net.Listener
+		var err error
+		if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
+			//TODO handle error properly
+			unixFD, _ := strconv.Atoi(tcpFDStr)
+			f := os.NewFile(uintptr(unixFD), "tcp_conn")
+			//TODO: handle f.Close()
+			//TODO handle error properly
+			listener, _ := net.FileListener(f)
+			ln, err = r.listenTCPListener(listener)
+		} else {
+			ln, err = r.listenTCP(addr)
+		}
+
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartHttpServer, err)
 			killProcess("Error creating tcp listener: %v", err)
@@ -279,7 +293,20 @@ func (r *HTTPReceiver) Start() {
 
 	if path := r.conf.ReceiverSocket; path != "" {
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
-			ln, err := r.listenUnix(path)
+			var ln net.Listener
+			var err error
+			if unixFDStr, ok := os.LookupEnv("DD_APM_UNIX_RECEIVER_FD"); ok {
+				//TODO handle error properly
+				unixFD, _ := strconv.Atoi(unixFDStr)
+				f := os.NewFile(uintptr(unixFD), "unix_conn")
+				//TODO: handle f.Close()
+				//TODO: handle error properly
+				listener, _ := net.FileListener(f)
+				ln, err = r.listenUnixListener(path, listener)
+			} else {
+				ln, err = r.listenUnix(path)
+			}
+
 			if err != nil {
 				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
@@ -339,18 +366,27 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return r.listenUnixListener(path, ln)
+}
+
+func (r *HTTPReceiver) listenUnixListener(path string, ln net.Listener) (net.Listener, error) {
 	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
-	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd), err
+	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd), nil
 }
 
-// listenTCP creates a new net.Listener on the provided TCP address.
 func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 	tcpln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
+	return r.listenTCPListener(tcpln)
+}
+
+// listenTCP creates a new net.Listener on the provided TCP address.
+func (r *HTTPReceiver) listenTCPListener(tcpln net.Listener) (net.Listener, error) {
 	if climit := r.conf.ConnectionLimit; climit > 0 {
 		ln, err := newRateLimitedListener(tcpln, climit, r.statsd)
 		go func() {
@@ -359,7 +395,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 		}()
 		return ln, err
 	}
-	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections, r.statsd), err
+	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections, r.statsd), nil
 }
 
 // Stop stops the receiver and shuts down the HTTP server.

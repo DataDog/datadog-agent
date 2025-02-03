@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -111,7 +112,18 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
 	if cfg.GRPCPort != 0 {
-		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
+		var ln net.Listener
+		var err error
+		if grpcFDStr, ok := os.LookupEnv("DD_OTLP_CONFIG_GRPC_FD"); ok {
+			//TODO handle error properly
+			grpcFD, _ := strconv.Atoi(grpcFDStr)
+			f := os.NewFile(uintptr(grpcFD), "otlp_conn")
+			//TODO: handle f.Close()
+			ln, err = net.FileListener(f)
+		} else {
+			ln, err = net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
+		}
+
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
