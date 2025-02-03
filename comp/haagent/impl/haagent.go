@@ -74,11 +74,6 @@ func (h *haAgentImpl) IsActive() bool {
 	return h.GetState() == haagent.Active
 }
 
-// IsHaIntegration return true if it's an HA integration.
-func (h *haAgentImpl) IsHaIntegration(integrationName string) bool {
-	return validHaIntegrations[integrationName]
-}
-
 func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	h.log.Debugf("Updates received: count=%d", len(updates))
 
