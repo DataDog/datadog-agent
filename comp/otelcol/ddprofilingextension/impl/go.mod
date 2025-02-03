@@ -8,6 +8,8 @@ replace github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../trace/
 
 replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../../core/log/def
 
+replace github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
+
 require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
@@ -52,7 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
