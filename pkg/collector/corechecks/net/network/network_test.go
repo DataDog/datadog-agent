@@ -10,10 +10,7 @@ package network
 import (
 	"bufio"
 	"bytes"
-	"errors"
-	"syscall"
 	"testing"
-	"unsafe"
 
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
@@ -25,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/safchain/ethtool"
 )
 
 type fakeNetworkStats struct {
@@ -77,58 +75,30 @@ func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
 }
 
-type MockSyscall struct {
+type MockEthtool struct {
 	mock.Mock
 }
 
-func (m *MockSyscall) Socket(domain, typ, protocol int) (fd int, err error) {
-	args := m.Called(domain, typ, protocol)
-	return args.Int(0), args.Error(1)
-}
-
-//nolint:govet
-func (m *MockSyscall) Syscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-	args := m.Called(trap, a1, a2, a3)
-	if trap == unix.SYS_IOCTL {
-		cmd := a2
-		req := (*ifreq)(unsafe.Pointer(a3))
-
-		switch cmd {
-		case uintptr(ETHTOOL_GDRVINFO):
-			if string(bytes.Trim(req.Name[:], "\x00")) == "virtual_iface" {
-				return 0, 0, 25
-			}
-			drvInfo := (*ethtool_drvinfo)(unsafe.Pointer(req.Data))
-			drvInfo.Driver = "mock_driver"
-			drvInfo.Version = "mock_version"
-			return 0, 0, 0
-
-		case uintptr(ETHTOOL_GSSET_INFO):
-			stringSet := (*ethtool_gstrings)(unsafe.Pointer(req.Data))
-			stringSet.Len = 2
-			return 0, 0, 0
-
-		case uintptr(ETHTOOL_GSTRINGS):
-			stringSet := (*ethtool_gstrings)(unsafe.Pointer(req.Data))
-			mockStats := []string{"tx_packets", "rx_bytes"}
-			for i, stat := range mockStats {
-				copy(stringSet.Data[i*ETH_GSTRING_LEN:(i+1)*ETH_GSTRING_LEN], stat)
-			}
-			return 0, 0, 0
-
-		case uintptr(ETHTOOL_GSTATS):
-			stats := (*ethtool_stats)(unsafe.Pointer(req.Data))
-			stats.Data[0] = 12345
-			stats.Data[1] = 67890
-			return 0, 0, 0
-		}
+func (f *MockEthtool) DriverInfo(intf string) (ethtool.DrvInfo, error) {
+	if intf == "eth0" {
+		return ethtool.DrvInfo{
+			Driver:  "mock_driver",
+			Version: "mock_version",
+		}, nil
 	}
-	return args.Get(0).(uintptr), args.Get(1).(uintptr), syscall.Errno(0)
+
+	return ethtool.DrvInfo{}, unix.ENOTTY
 }
 
-func (m *MockSyscall) Close(fd int) error {
-	args := m.Called(fd)
-	return args.Error(0)
+func (f *MockEthtool) Stats(intf string) (map[string]uint64, error) {
+	if intf == "eth0" {
+		return map[string]uint64{
+			"tx_packets": 12345,
+			"rx_bytes":   67890,
+		}, nil
+	}
+
+	return nil, unix.ENOTTY
 }
 
 func TestDefaultConfiguration(t *testing.T) {
@@ -351,15 +321,12 @@ func TestNetworkCheck(t *testing.T) {
 		},
 	}
 
-	mockSyscall := new(MockSyscall)
+	mockEthtool := new(MockEthtool)
+	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
+	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	mockSyscall.On("Socket", mock.Anything, mock.Anything, mock.Anything).Return(1, nil)
-	mockSyscall.On("Syscall", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(uintptr(0), uintptr(0), syscall.Errno(0))
-	mockSyscall.On("Close", mock.Anything).Return(nil)
-
-	getSyscall = mockSyscall.Syscall
-	getSocket = mockSyscall.Socket
-	getClose = mockSyscall.Close
+	getDrvInfo = mockEthtool.DriverInfo
+	getStats = mockEthtool.Stats
 
 	networkCheck := NetworkCheck{
 		net: net,
@@ -639,15 +606,13 @@ excluded_interface_re: "eth[0-9]"
 }
 
 func TestFetchEthtoolStats(t *testing.T) {
-	mockSyscall := new(MockSyscall)
+	mockEthtool := new(MockEthtool)
 
-	mockSyscall.On("Socket", mock.Anything, mock.Anything, mock.Anything).Return(1, nil)
-	mockSyscall.On("Syscall", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(uintptr(0), uintptr(0), syscall.Errno(0))
-	mockSyscall.On("Close", mock.Anything).Return(nil)
+	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
+	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getSyscall = mockSyscall.Syscall
-	getSocket = mockSyscall.Socket
-	getClose = mockSyscall.Close
+	getDrvInfo = mockEthtool.DriverInfo
+	getStats = mockEthtool.Stats
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
@@ -685,57 +650,14 @@ func TestFetchEthtoolStats(t *testing.T) {
 	mockSender.AssertCalled(t, "Rate", "system.net.rx_bytes", float64(67890), "", expectedTags)
 }
 
-func TestFetchEthtoolStatsErrorBadSocket(t *testing.T) {
-	mockSyscall := new(MockSyscall)
-
-	getSyscall = mockSyscall.Syscall
-	getSocket = func(_ int, _ int, _ int) (int, error) {
-		return 0, errors.New("bad socket")
-	}
-	getClose = mockSyscall.Close
-
-	net := &fakeNetworkStats{
-		counterStats: []net.IOCountersStat{
-			{
-				Name:        "virtual_iface",
-				BytesRecv:   100,
-				BytesSent:   200,
-				PacketsRecv: 300,
-				Dropin:      400,
-				Errin:       500,
-				PacketsSent: 600,
-				Dropout:     700,
-				Errout:      800,
-			},
-		},
-	}
-
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
-
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	err := networkCheck.Run()
-	assert.Equal(t, errors.New("bad socket"), err)
-}
-
 func TestFetchEthtoolStatsENOTTY(t *testing.T) {
-	mockSyscall := new(MockSyscall)
+	mockEthtool := new(MockEthtool)
 
-	mockSyscall.On("Socket", mock.Anything, mock.Anything, mock.Anything).Return(1, nil)
-	mockSyscall.On("Syscall", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(uintptr(0), uintptr(0), syscall.Errno(0))
-	mockSyscall.On("Close", mock.Anything).Return(nil)
+	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
+	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getSyscall = mockSyscall.Syscall
-	getSocket = mockSyscall.Socket
-	getClose = mockSyscall.Close
+	getDrvInfo = mockEthtool.DriverInfo
+	getStats = mockEthtool.Stats
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{

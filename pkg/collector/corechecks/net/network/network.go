@@ -16,8 +16,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
-	"unsafe"
 
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
@@ -31,19 +29,12 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/safchain/ethtool"
 )
 
 const (
 	// CheckName is the name of the check
 	CheckName = "network"
-
-	SIOCETHTOOL        = 0x8946
-	ETHTOOL_GDRVINFO   = 0x00000003
-	ETHTOOL_GSTATS     = 0x0000001D
-	ETHTOOL_GSTRINGS   = 0x0000001B
-	ETHTOOL_GSSET_INFO = 0x00000037
-	ETH_SS_STATS       = 0x1
-	ETH_GSTRING_LEN    = 32
 )
 
 var (
@@ -110,9 +101,9 @@ var (
 
 	filesystem = afero.NewOsFs()
 
-	getSyscall = unix.Syscall
-	getSocket  = syscall.Socket
-	getClose   = syscall.Close
+	ethtoolObject = ethtool.Ethtool{}
+	getDrvInfo    = ethtoolObject.DriverInfo
+	getStats      = ethtoolObject.Stats
 )
 
 // NetworkCheck represent a network check
@@ -163,30 +154,9 @@ func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 	return netstatTCPExtCounters(n.procPath)
 }
 
-type ifreq struct {
-	Name [16]byte
-	Data uintptr
-}
-
-type ethtool_drvinfo struct {
-	Driver  string
-	Version string
-}
-
-type ethtool_stats struct {
-	Count uint32
-	Data  []uint64
-}
-
-type ethtool_gstrings struct {
-	Cmd       uint32
-	StringSet uint32
-	Len       uint32
-	Data      []byte
-}
-
 // Run executes the check
 func (c *NetworkCheck) Run() error {
+	log.Debug("Rahul was Running golang network check")
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
@@ -281,75 +251,40 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 }
 
 func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) error {
-	ethtoolSocket, err := getSocket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
+	ethtoolObjectPtr, err := ethtool.NewEthtool()
 	if err != nil {
+		log.Errorf("Failed to create ethtool object: %s", err)
 		return err
 	}
-	defer func() {
-		if err := getClose(ethtoolSocket); err != nil {
-			log.Errorf("failed to close socket: %v", err)
-		}
-	}()
+	ethtoolObject = *ethtoolObjectPtr
 
 	// Preparing the interface name and copy it into the request
 	ifaceBytes := []byte(interfaceIO.Name)
 	if len(ifaceBytes) > 15 {
 		ifaceBytes = ifaceBytes[:15]
 	}
-	var req ifreq
-	copy(req.Name[:], ifaceBytes)
 
 	// Fetch driver information (ETHTOOL_GDRVINFO)
-	var drvInfo ethtool_drvinfo
-	req.Data = uintptr(unsafe.Pointer(&drvInfo))
-	_, _, errno := getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GDRVINFO), uintptr(unsafe.Pointer(&req)))
-	if errno == unix.ENOTTY {
-		log.Debugf("driver info and other ethtool stats are not supported for interface: %s", interfaceIO.Name)
-		return nil
-	} else if errno != 0 {
-		return errors.New("failed to get driver info for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
+	drvInfo, err := getDrvInfo(string(ifaceBytes))
+	if err != nil {
+		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
+			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
+		} else {
+			return errors.New("failed to get driver info for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", err))
+		}
 	}
 
 	driverName := string(bytes.Trim([]byte(drvInfo.Driver[:]), "\x00"))
 	driverVersion := string(bytes.Trim([]byte(drvInfo.Version[:]), "\x00"))
 
-	// Fetch stats set info (ETHTOOL_GSSET_INFO) and names (ETHTOOL_GSTRINGS)
-	var stringSet ethtool_gstrings
-	stringSet.Cmd = ETHTOOL_GSTRINGS
-	stringSet.StringSet = ETH_SS_STATS
-
-	req.Data = uintptr(unsafe.Pointer(&stringSet))
-	_, _, errno = getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GSSET_INFO), uintptr(unsafe.Pointer(&req)))
-	if errno != 0 {
-		return errors.New("failed to get stats set info for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
-	}
-	statsCount := stringSet.Len
-
-	buf := make([]byte, statsCount*ETH_GSTRING_LEN)
-	stringSet.Data = buf
-	req.Data = uintptr(unsafe.Pointer(&stringSet))
-	_, _, errno = getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GSTRINGS), uintptr(unsafe.Pointer(&req)))
-	if errno != 0 {
-		return errors.New("failed to get stats names for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
-	}
-
-	statsNames := make([]string, statsCount)
-	for i := 0; i < int(statsCount); i++ {
-		offset := i * ETH_GSTRING_LEN
-		statsNames[i] = string(bytes.Trim(buf[offset:offset+ETH_GSTRING_LEN], "\x00"))
-	}
-
-	// Fetch stats values (ETHTOOL_GSTATS)
-	data := make([]uint64, statsCount)
-	stats := ethtool_stats{
-		Count: uint32(statsCount),
-		Data:  data,
-	}
-
-	req.Data = uintptr(unsafe.Pointer(&stats))
-	_, _, errno = getSyscall(unix.SYS_IOCTL, uintptr(ethtoolSocket), uintptr(ETHTOOL_GSTATS), uintptr(unsafe.Pointer(&req)))
-	if errno != 0 {
-		return errors.New("failed to get stats for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", errno))
+	// Fetch ethtool stats values (ETHTOOL_GSTATS)
+	statsMap, err := getStats(string(ifaceBytes))
+	if err != nil {
+		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
+			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
+		} else {
+			return errors.New("failed to get ethtool stats information for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", err))
+		}
 	}
 
 	tags := []string{
@@ -358,12 +293,9 @@ func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) err
 		"driver_version:" + driverVersion,
 	}
 
-	for i, statName := range statsNames {
-		if i >= len(data) {
-			break
-		}
-		metricName := fmt.Sprintf("system.net.%s", statName)
-		sender.Rate(metricName, float64(data[i]), "", tags)
+	for metricName, metricValue := range statsMap {
+		metricName := fmt.Sprintf("system.net.%s", metricName)
+		sender.Rate(metricName, float64(metricValue), "", tags)
 	}
 
 	return nil
