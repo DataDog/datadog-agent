@@ -26,6 +26,9 @@ type StatsKey struct {
 
 	// DeviceUUID is the UUID of the device
 	DeviceUUID string `json:"device_uuid"`
+
+	// ContainerID is the ID of the container the process is running on
+	ContainerID string `json:"container_id"`
 }
 
 // StatsTuple is a single entry in the GPUStats array, as we cannot use a complex key in the map

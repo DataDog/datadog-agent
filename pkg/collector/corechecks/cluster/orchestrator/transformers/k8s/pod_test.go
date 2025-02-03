@@ -9,10 +9,13 @@ package k8s
 
 import (
 	"fmt"
+	"reflect"
+	"sort"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -72,8 +75,10 @@ func TestExtractPod(t *testing.T) {
 	parseRequests := resource.MustParse("250M")
 	parseLimits := resource.MustParse("550M")
 	tests := map[string]struct {
-		input    v1.Pod
-		expected model.Pod
+		input             v1.Pod
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.Pod
 	}{
 		"full pod with containers without resourceRequirements": {
 			input: v1.Pod{
@@ -142,10 +147,10 @@ func TestExtractPod(t *testing.T) {
 					Namespace:         "namespace",
 					CreationTimestamp: timestamp,
 					Labels: map[string]string{
-						"label": "foo",
+						"app": "my-app",
 					},
 					Annotations: map[string]string{
-						"annotation": "bar",
+						"annotation": "my-annotation",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -165,14 +170,21 @@ func TestExtractPod(t *testing.T) {
 					},
 					PriorityClassName: "high-priority",
 				},
-			}, expected: model.Pod{
+			},
+			labelsAsTags: map[string]string{
+				"app": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
+			expected: model.Pod{
 				Metadata: &model.Metadata{
 					Name:              "pod",
 					Namespace:         "namespace",
 					Uid:               "e42e5adc-0749-11e8-a2b8-000c29dea4f6",
 					CreationTimestamp: 1389744000,
-					Labels:            []string{"label:foo"},
-					Annotations:       []string{"annotation:bar"},
+					Labels:            []string{"app:my-app"},
+					Annotations:       []string{"annotation:my-annotation"},
 					OwnerReferences: []*model.OwnerReference{
 						{
 							Name: "test-controller",
@@ -230,7 +242,12 @@ func TestExtractPod(t *testing.T) {
 						LastTransitionTime: timestamp.Unix(),
 					},
 				},
-				Tags: []string{"kube_condition_ready:true", "kube_condition_podscheduled:true"},
+				Tags: []string{
+					"kube_condition_ready:true",
+					"kube_condition_podscheduled:true",
+					"application:my-app",
+					"annotation_key:my-annotation",
+				},
 				ResourceRequirements: []*model.ResourceRequirements{
 					{
 						Limits:   map[string]int64{},
@@ -523,7 +540,14 @@ func TestExtractPod(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractPod(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractPod(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }
@@ -965,4 +989,239 @@ func TestMapToTags(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{"foo:bar", "node-role.kubernetes.io/nodeless"}, tags)
 	assert.Len(t, tags, 2)
+}
+
+func TestConvertNodeSelector(t *testing.T) {
+	tests := []struct {
+		name  string
+		input *v1.NodeSelector
+		want  *model.NodeSelector
+	}{
+		{
+			name:  "nil input",
+			input: nil,
+			want:  nil,
+		},
+		{
+			name: "empty NodeSelector",
+			input: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{},
+			},
+			want: &model.NodeSelector{NodeSelectorTerms: nil},
+		},
+		{
+			name: "with MatchExpressions and MatchFields",
+			input: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{
+					{
+						MatchExpressions: []v1.NodeSelectorRequirement{
+							{Key: "key1", Operator: v1.NodeSelectorOpIn, Values: []string{"v1", "v2"}},
+						},
+						MatchFields: []v1.NodeSelectorRequirement{
+							{Key: "field1", Operator: v1.NodeSelectorOpNotIn, Values: []string{"v3"}},
+						},
+					},
+				},
+			},
+			want: &model.NodeSelector{
+				NodeSelectorTerms: []*model.NodeSelectorTerm{
+					{
+						MatchExpressions: []*model.LabelSelectorRequirement{
+							{Key: "key1", Operator: "In", Values: []string{"v1", "v2"}},
+						},
+						MatchFields: []*model.LabelSelectorRequirement{
+							{Key: "field1", Operator: "NotIn", Values: []string{"v3"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertNodeSelector(tt.input)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("convertNodeSelector() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConvertPreferredSchedulingTerm(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []v1.PreferredSchedulingTerm
+		want  []*model.PreferredSchedulingTerm
+	}{
+		{
+			name:  "empty terms",
+			input: []v1.PreferredSchedulingTerm{},
+			want:  nil,
+		},
+		{
+			name: "single preferred scheduling term",
+			input: []v1.PreferredSchedulingTerm{
+				{
+					Preference: v1.NodeSelectorTerm{
+						MatchExpressions: []v1.NodeSelectorRequirement{
+							{Key: "k", Operator: v1.NodeSelectorOpExists},
+						},
+					},
+					Weight: 10,
+				},
+			},
+			want: []*model.PreferredSchedulingTerm{
+				{
+					Preference: &model.NodeSelectorTerm{
+						MatchExpressions: []*model.LabelSelectorRequirement{
+							{Key: "k", Operator: "Exists", Values: nil},
+						},
+						MatchFields: nil,
+					},
+					Weight: 10,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertPreferredSchedulingTerm(tt.input)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("convertPreferredSchedulingTerm() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConvertNodeSelectorTerms(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []v1.NodeSelectorTerm
+		want  []*model.NodeSelectorTerm
+	}{
+		{
+			name:  "empty terms",
+			input: []v1.NodeSelectorTerm{},
+			want:  nil,
+		},
+		{
+			name: "multiple NodeSelectorTerms",
+			input: []v1.NodeSelectorTerm{
+				{
+					MatchExpressions: []v1.NodeSelectorRequirement{
+						{Key: "k1", Operator: v1.NodeSelectorOpIn, Values: []string{"v1"}},
+					},
+				},
+				{
+					MatchExpressions: []v1.NodeSelectorRequirement{
+						{Key: "k2", Operator: v1.NodeSelectorOpNotIn, Values: []string{"v2"}},
+					},
+				},
+			},
+			want: []*model.NodeSelectorTerm{
+				{
+					MatchExpressions: []*model.LabelSelectorRequirement{
+						{Key: "k1", Operator: "In", Values: []string{"v1"}},
+					},
+					MatchFields: nil,
+				},
+				{
+					MatchExpressions: []*model.LabelSelectorRequirement{
+						{Key: "k2", Operator: "NotIn", Values: []string{"v2"}},
+					},
+					MatchFields: nil,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertNodeSelectorTerms(tt.input)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("convertNodeSelectorTerms() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConvertNodeSelectorTerm(t *testing.T) {
+	tests := []struct {
+		name  string
+		input v1.NodeSelectorTerm
+		want  *model.NodeSelectorTerm
+	}{
+		{
+			name:  "empty term",
+			input: v1.NodeSelectorTerm{},
+			want: &model.NodeSelectorTerm{
+				MatchExpressions: nil,
+				MatchFields:      nil,
+			},
+		},
+		{
+			name: "with match expressions and fields",
+			input: v1.NodeSelectorTerm{
+				MatchExpressions: []v1.NodeSelectorRequirement{
+					{Key: "k1", Operator: v1.NodeSelectorOpExists},
+				},
+				MatchFields: []v1.NodeSelectorRequirement{
+					{Key: "f1", Operator: v1.NodeSelectorOpDoesNotExist},
+				},
+			},
+			want: &model.NodeSelectorTerm{
+				MatchExpressions: []*model.LabelSelectorRequirement{
+					{Key: "k1", Operator: "Exists"},
+				},
+				MatchFields: []*model.LabelSelectorRequirement{
+					{Key: "f1", Operator: "DoesNotExist"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertNodeSelectorTerm(tt.input)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("convertNodeSelectorTerm() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConvertNodeSelectorRequirements(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []v1.NodeSelectorRequirement
+		want  []*model.LabelSelectorRequirement
+	}{
+		{
+			name:  "no requirements",
+			input: []v1.NodeSelectorRequirement{},
+			want:  nil,
+		},
+		{
+			name: "with multiple requirements",
+			input: []v1.NodeSelectorRequirement{
+				{Key: "k1", Operator: v1.NodeSelectorOpIn, Values: []string{"v1", "v2"}},
+				{Key: "k2", Operator: v1.NodeSelectorOpNotIn, Values: []string{"v3"}},
+			},
+			want: []*model.LabelSelectorRequirement{
+				{Key: "k1", Operator: "In", Values: []string{"v1", "v2"}},
+				{Key: "k2", Operator: "NotIn", Values: []string{"v3"}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertNodeSelectorRequirements(tt.input)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("convertNodeSelectorRequirements() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
 }

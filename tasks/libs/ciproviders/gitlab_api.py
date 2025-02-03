@@ -23,8 +23,7 @@ from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
-from tasks.libs.common.git import get_common_ancestor, get_current_branch
+from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function
 
 BASE_URL = "https://gitlab.ddbuild.io"
@@ -120,6 +119,13 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     pipeline.refresh()
 
 
+@retry_function('cancel pipeline #{0.id}', retry_delay=5)
+def cancel_pipeline(pipeline: ProjectPipeline):
+    """Cancels a pipeline, retries if there is an error."""
+
+    pipeline.cancel()
+
+
 class GitlabCIDiff:
     def __init__(
         self,
@@ -177,7 +183,7 @@ class GitlabCIDiff:
             added=set(data['added']),
             removed=set(data['removed']),
             modified=set(data['modified']),
-            renamed=set(data['renamed']),
+            renamed=data['renamed'],
             modified_diffs=data['modied_diffs'],
             added_contents=data['added_contents'],
         )
@@ -1042,7 +1048,6 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
         ("RUN_UNIT_TESTS", ["on"]),
-        ("TESTING_CLEANUP", ["true"]),
     ]
     release_contexts = [
         ("BUCKET_BRANCH", ["stable"]),
@@ -1054,7 +1059,6 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
         ("RUN_UNIT_TESTS", ["on"]),
-        ("TESTING_CLEANUP", ["true"]),
     ]
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
@@ -1065,7 +1069,6 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["off"]),
         ("RUN_UNIT_TESTS", ["off"]),
-        ("TESTING_CLEANUP", ["false"]),
     ]
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
@@ -1214,7 +1217,7 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     after_name = after or "local files"
 
     # The before commit is the LCA commit between before and after
-    before = before or DEFAULT_BRANCH
+    before = before or get_default_branch()
     before = get_common_ancestor(ctx, before, after or "HEAD")
 
     print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
@@ -1252,19 +1255,26 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
     return all_stages
 
 
-def update_test_infra_def(file_path, image_tag):
+def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comment=""):
     """
-    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
+    Updates TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
     """
-    with open(file_path) as gl:
-        file_content = gl.readlines()
-    with open(file_path, "w") as gl:
-        for line in file_content:
-            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
-            if test_infra_def:
-                gl.write(line.replace(test_infra_def.group(1), image_tag))
+    test_infra_def = {}
+    with open(file_path) as test_infra_version_file:
+        try:
+            test_infra_def = yaml.safe_load(test_infra_version_file)
+            test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"] = image_tag
+            if is_dev_image:
+                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = "-dev"
             else:
-                gl.write(line)
+                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = ""
+        except yaml.YAMLError as e:
+            raise Exit(f"Error while loading {file_path}: {e}") from e
+    with open(file_path, "w") as test_infra_version_file:
+        test_infra_version_file.write(prefix_comment + ('\n\n' if prefix_comment else ''))
+        # Add explicit_start=True to keep the document start marker ---
+        # See "Document Start" in https://www.yaml.info/learn/document.html for more details
+        yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
 
 
 def update_gitlab_config(file_path, tag, images="", test=True, update=True):

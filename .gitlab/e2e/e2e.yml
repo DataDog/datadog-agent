@@ -14,8 +14,16 @@
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
+    # TODO: ADXT-768: Create new secret with different ssh key for the different cloud providers
+    # SSH Key retrieval for AWS
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AWS_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_AWS_PRIVATE_KEY_PATH && chmod 600 $E2E_AWS_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AWS_PRIVATE_KEY_PATH || exit $?
+    # SSH Key retrieval for Azure
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_AZURE_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_AZURE_PRIVATE_KEY_PATH && chmod 600 $E2E_AZURE_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_AZURE_PRIVATE_KEY_PATH || exit $?
+    # SSH Key retrieval for GCP
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_GCP_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_GCP_PRIVATE_KEY_PATH && chmod 600 $E2E_GCP_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_GCP_PRIVATE_KEY_PATH || exit $?
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
@@ -35,15 +43,23 @@
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
-    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    # AWS SSH Key configuration
+    E2E_AWS_PUBLIC_KEY_PATH: /tmp/agent-qa-aws-ssh-key.pub
+    E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-aws-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    # Azure SSH Key configuration
+    E2E_AZURE_PUBLIC_KEY_PATH: /tmp/agent-qa-azure-ssh-key.pub
+    E2E_AZURE_PRIVATE_KEY_PATH: /tmp/agent-qa-azure-ssh-key
+    # GCP SSH Key configuration
+    E2E_GCP_PUBLIC_KEY_PATH: /tmp/agent-qa-gcp-ssh-key.pub
+    E2E_GCP_PRIVATE_KEY_PATH: /tmp/agent-qa-gcp-ssh-key
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 1
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   artifacts:
@@ -79,6 +95,7 @@
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_agent
+    - qa_agent_jmx
     - qa_dca
     - qa_dogstatsd
 
@@ -149,14 +166,23 @@ new-e2e-remote-config:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
 
-new-e2e-agent-shared-components:
+new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
   rules:
-    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.on_acfg_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-shared-components
-    TEAM: agent-shared-components
+    TARGETS: ./tests/agent-configuration
+    TEAM: agent-configuration
+
+new-e2e-agent-runtimes:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes
+    TEAM: agent-runtimes
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -165,7 +191,7 @@ new-e2e-agent-subcommands:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
-    TEAM: agent-shared-components
+    TEAM: agent-configuration
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
@@ -178,6 +204,35 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
+
+new-e2e-fips-compliance-test:
+  extends: .new_e2e_template_needs_deb_x64
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - deploy_deb_testing-a7_x64
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: agent-runtimes
+
+new-e2e-windows-fips-compliance-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - deploy_windows_testing-a7-fips
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: windows-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestWindowsVM$"
 
 new-e2e-windows-service-test:
   extends: .new_e2e_template
@@ -269,20 +324,39 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
 
-new-e2e-aml:
+new-e2e-amp:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
+    - qa_agent_jmx
+    - qa_agent_fips_jmx
     - qa_dca
   rules:
-    - !reference [.on_aml_or_e2e_changes]
+    - !reference [.on_amp_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-metrics-logs
-    TEAM: agent-metrics-logs
+    TARGETS: ./tests/agent-metric-pipelines
+    TEAM: agent-metric-pipelines
+
+new-e2e-alp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
+    - qa_agent_jmx
+    - qa_agent_fips_jmx
+    - qa_dca
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
 
 new-e2e-cws:
   extends: .new_e2e_template
@@ -297,7 +371,6 @@ new-e2e-cws:
     - qa_agent
     - qa_dca
   variables:
-    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
     CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
@@ -315,6 +388,7 @@ new-e2e-discovery:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_x64
+    - qa_agent
   rules:
     - !reference [.on_discovery_or_e2e_changes]
     - !reference [.manual]
@@ -367,6 +441,26 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
+new-e2e-installer-script:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_installer_oci
+    - qa_installer_script
+  variables:
+    TARGETS: ./tests/installer/script
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "install_script"
+
 new-e2e-installer:
   extends: .new_e2e_template
   rules:
@@ -380,12 +474,13 @@ new-e2e-installer:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2
 
 new-e2e-installer-windows:
   extends: .new_e2e_template
@@ -395,21 +490,35 @@ new-e2e-installer-windows:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   before_script:
     # CURRENT_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - CURRENT_AGENT_VERSION=$(invoke agent.version) || exit $?; export CURRENT_AGENT_VERSION
-    - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
+  parallel:
+    matrix:
+      # agent-package
+      - EXTRA_PARAMS: --run "TestAgentInstallsWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$"
+      # install-script
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      # installer-package
+      - EXTRA_PARAMS: --run "TestInstaller$"
+      - EXTRA_PARAMS: --run "TestInstallerRollback$"
+      - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
+      - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
+
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -424,8 +533,8 @@ new-e2e-installer-ansible:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -455,6 +564,24 @@ new-e2e-ndm-snmp:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
 
+new-e2e-ha-agent:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_ha_agent_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ha-agent
+    TEAM: ndm-core
+
+new-e2e-netpath:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_netpath_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/netpath
+    TEAM: network-performance-monitoring
+
 new-e2e-windows-systemprobe:
   extends: .new_e2e_template
   rules:
@@ -467,7 +594,10 @@ new-e2e-windows-systemprobe:
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
-    SHOULD_RUN_IN_FLAKES_FINDER: "false" # Currently broken in flake finder ADXT-687
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
+      - EXTRA_PARAMS: --run TestVMSuite
 
 new-e2e-windows-security-agent:
   extends: .new_e2e_template
@@ -573,6 +703,7 @@ new-e2e-gpu:
   variables:
     TARGETS: ./tests/gpu                          # the target path where tests are
     TEAM: ebpf-platform
+    E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
   needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
     - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_x64                  # agent 7 debian package
@@ -594,13 +725,14 @@ generate-flakes-finder-pipeline:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_windows_testing-a7
-    - qa_installer_oci
-    - qa_agent_oci
+    - deploy_installer_oci
+    - deploy_agent_oci
     - qa_cws_instrumentation
     - qa_dca
     - qa_dogstatsd
     - qa_agent
     - qa_agent_ot
+    - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
     - inv -e testwasher.generate-flake-finder-pipeline
@@ -618,6 +750,7 @@ trigger-flakes-finder:
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
   trigger:
     include:
       - artifact: flake-finder-gitlab-ci.yml

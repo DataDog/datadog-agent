@@ -122,10 +122,11 @@ type APIGatewayCustomAuthorizerRequestTypeRequestContext struct {
 // ALBTargetGroupRequest mirrors events.ALBTargetGroupRequest type, removing
 // unused fields.
 type ALBTargetGroupRequest struct {
-	HTTPMethod     string
-	Path           string
-	Headers        map[string]string
-	RequestContext ALBTargetGroupRequestContext
+	HTTPMethod        string
+	Path              string
+	Headers           map[string]string
+	MultiValueHeaders map[string][]string
+	RequestContext    ALBTargetGroupRequestContext
 }
 
 // ALBTargetGroupRequestContext mirrors events.ALBTargetGroupRequestContext

@@ -6,6 +6,7 @@
 package agentimpl
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -32,6 +33,9 @@ import (
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
 func runAgentSidekicks(ag component) error {
+	// Configure the Trace Agent Debug server to use the IPC certificate
+	ag.Agent.DebugServer.SetTLSConfig(ag.at.GetTLSServerConfig())
+
 	tracecfg := ag.config.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
@@ -40,7 +44,7 @@ func runAgentSidekicks(ag component) error {
 
 	defer watchdog.LogOnPanic(ag.Statsd)
 
-	if err := util.SetupCoreDump(pkgconfigsetup.Datadog()); err != nil {
+	if err := coredump.Setup(pkgconfigsetup.Datadog()); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -69,14 +73,33 @@ func runAgentSidekicks(ag component) error {
 		log.Errorf("could not set auth token: %s", err)
 	} else {
 		ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
+		api.AttachEndpoint(api.Endpoint{
+			Pattern: "/config/set",
+			Handler: func(_ *api.HTTPReceiver) http.Handler {
+				return ag.config.SetHandler()
+			},
+		})
 	}
+	if secrets, ok := ag.secrets.Get(); ok {
+		// Adding a route to trigger a secrets refresh from the CLI.
+		// TODO - components: the secrets comp already export a route but it requires the API component which is not
+		// used by the trace agent. This should be removed once the trace-agent is fully componentize.
+		ag.Agent.DebugServer.AddRoute("/secret/refresh", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if apiutil.Validate(w, req) != nil {
+				return
+			}
 
-	api.AttachEndpoint(api.Endpoint{
-		Pattern: "/config/set",
-		Handler: func(_ *api.HTTPReceiver) http.Handler {
-			return ag.config.SetHandler()
-		},
-	})
+			res, err := secrets.Refresh()
+			if err != nil {
+				log.Errorf("error while refresing secrets: %s", err)
+				w.Header().Set("Content-Type", "application/json")
+				body, _ := json.Marshal(map[string]string{"error": err.Error()})
+				http.Error(w, string(body), http.StatusInternalServerError)
+				return
+			}
+			w.Write([]byte(res))
+		}))
+	}
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {

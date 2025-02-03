@@ -132,7 +132,7 @@ build do
     ).stdout.split()
     # Retrieving integrations from cache
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-    cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
+    cache_branch = (shellout! "inv release.get-release-json-value base_branch --no-worktree", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     if cache_bucket != ''
       mkdir cached_wheels_dir
       shellout! "inv -e agent.get-integrations-from-cache " \
@@ -227,8 +227,14 @@ build do
   # Removing tests that don't need to be shipped in the embedded folder
   if windows_target?
     delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
+    delete "#{python_3_embedded}/Lib/site-packages/openstack/tests/"
+    delete "#{python_3_embedded}/Lib/site-packages/psutil/tests/"
+    delete "#{python_3_embedded}/Lib/site-packages/test/" # cm-client
   else
     delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/Cryptodome/SelfTest/"
+    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/openstack/tests/"
+    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/psutil/tests/"
+    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/test/" # cm-client
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent

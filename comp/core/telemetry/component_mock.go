@@ -9,7 +9,6 @@ package telemetry
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
 
 // Metric interface defines the retrieval functions to extract information from a metric
@@ -28,5 +27,4 @@ type Mock interface {
 	GetCountMetric(subsystem, name string) ([]Metric, error)
 	GetGaugeMetric(subsystem, name string) ([]Metric, error)
 	GetHistogramMetric(subsystem, name string) ([]Metric, error)
-	GetMeterProvider() *sdk.MeterProvider
 }

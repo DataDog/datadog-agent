@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,25 +27,28 @@ const (
 )
 
 type eventPayload struct {
-	NamingSchemaVersion  string   `json:"naming_schema_version"`
-	ServiceName          string   `json:"service_name"`
-	GeneratedServiceName string   `json:"generated_service_name"`
-	DDService            string   `json:"dd_service,omitempty"`
-	HostName             string   `json:"host_name"`
-	Env                  string   `json:"env"`
-	ServiceLanguage      string   `json:"service_language"`
-	ServiceType          string   `json:"service_type"`
-	StartTime            int64    `json:"start_time"`
-	StartTimeMilli       int64    `json:"start_time_milli"`
-	LastSeen             int64    `json:"last_seen"`
-	APMInstrumentation   string   `json:"apm_instrumentation"`
-	ServiceNameSource    string   `json:"service_name_source,omitempty"`
-	Ports                []uint16 `json:"ports"`
-	PID                  int      `json:"pid"`
-	CommandLine          []string `json:"command_line"`
-	RSSMemory            uint64   `json:"rss_memory"`
-	CPUCores             float64  `json:"cpu_cores"`
-	ContainerID          string   `json:"container_id"`
+	NamingSchemaVersion        string   `json:"naming_schema_version"`
+	ServiceName                string   `json:"service_name"`
+	GeneratedServiceName       string   `json:"generated_service_name"`
+	GeneratedServiceNameSource string   `json:"generated_service_name_source,omitempty"`
+	ContainerServiceName       string   `json:"container_service_name,omitempty"`
+	ContainerServiceNameSource string   `json:"container_service_name_source,omitempty"`
+	DDService                  string   `json:"dd_service,omitempty"`
+	HostName                   string   `json:"host_name"`
+	Env                        string   `json:"env"`
+	ServiceLanguage            string   `json:"service_language"`
+	ServiceType                string   `json:"service_type"`
+	StartTime                  int64    `json:"start_time"`
+	StartTimeMilli             int64    `json:"start_time_milli"`
+	LastSeen                   int64    `json:"last_seen"`
+	APMInstrumentation         string   `json:"apm_instrumentation"`
+	ServiceNameSource          string   `json:"service_name_source,omitempty"`
+	Ports                      []uint16 `json:"ports"`
+	PID                        int      `json:"pid"`
+	CommandLine                []string `json:"command_line"`
+	RSSMemory                  uint64   `json:"rss_memory"`
+	CPUCores                   float64  `json:"cpu_cores"`
+	ContainerID                string   `json:"container_id"`
 }
 
 type event struct {
@@ -58,14 +62,14 @@ type telemetrySender struct {
 	hostname hostname.Component
 }
 
-func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
+func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 	host := ts.hostname.GetSafe(context.Background())
 	env := pkgconfigsetup.Datadog().GetString("env")
 
 	nameSource := ""
-	if svc.service.DDService != "" {
+	if service.DDService != "" {
 		nameSource = "provided"
-		if svc.service.DDServiceInjected {
+		if service.DDServiceInjected {
 			nameSource = "injected"
 		}
 	}
@@ -74,25 +78,28 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 		RequestType: t,
 		APIVersion:  "v2",
 		Payload: &eventPayload{
-			NamingSchemaVersion:  "1",
-			ServiceName:          svc.meta.Name,
-			GeneratedServiceName: svc.service.GeneratedName,
-			DDService:            svc.service.DDService,
-			HostName:             host,
-			Env:                  env,
-			ServiceLanguage:      svc.meta.Language,
-			ServiceType:          svc.meta.Type,
-			StartTime:            int64(svc.service.StartTimeMilli / 1000),
-			StartTimeMilli:       int64(svc.service.StartTimeMilli),
-			LastSeen:             svc.LastHeartbeat.Unix(),
-			APMInstrumentation:   svc.meta.APMInstrumentation,
-			ServiceNameSource:    nameSource,
-			Ports:                svc.service.Ports,
-			PID:                  svc.service.PID,
-			CommandLine:          svc.service.CommandLine,
-			RSSMemory:            svc.service.RSS,
-			CPUCores:             svc.service.CPUCores,
-			ContainerID:          svc.service.ContainerID,
+			NamingSchemaVersion:        "1",
+			ServiceName:                service.Name,
+			GeneratedServiceName:       service.GeneratedName,
+			GeneratedServiceNameSource: service.GeneratedNameSource,
+			ContainerServiceName:       service.ContainerServiceName,
+			ContainerServiceNameSource: service.ContainerServiceNameSource,
+			DDService:                  service.DDService,
+			HostName:                   host,
+			Env:                        env,
+			ServiceLanguage:            service.Language,
+			ServiceType:                service.Type,
+			StartTime:                  int64(service.StartTimeMilli / 1000),
+			StartTimeMilli:             int64(service.StartTimeMilli),
+			LastSeen:                   service.LastHeartbeat,
+			APMInstrumentation:         service.APMInstrumentation,
+			ServiceNameSource:          nameSource,
+			Ports:                      service.Ports,
+			PID:                        service.PID,
+			CommandLine:                service.CommandLine,
+			RSSMemory:                  service.RSS,
+			CPUCores:                   service.CPUCores,
+			ContainerID:                service.ContainerID,
 		},
 	}
 }
@@ -104,14 +111,14 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 	}
 }
 
-func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
+func (ts *telemetrySender) sendStartServiceEvent(service model.Service) {
 	log.Debugf("[pid: %d | name: %s | ports: %v] start-service",
-		svc.service.PID,
-		svc.meta.Name,
-		svc.service.Ports,
+		service.PID,
+		service.Name,
+		service.Ports,
 	)
 
-	e := ts.newEvent(eventTypeStartService, svc)
+	e := ts.newEvent(eventTypeStartService, service)
 	b, err := json.Marshal(e)
 	if err != nil {
 		log.Errorf("failed to encode start-service event as json: %v", err)
@@ -121,13 +128,13 @@ func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }
 
-func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
+func (ts *telemetrySender) sendHeartbeatServiceEvent(service model.Service) {
 	log.Debugf("[pid: %d | name: %s] heartbeat-service",
-		svc.service.PID,
-		svc.meta.Name,
+		service.PID,
+		service.Name,
 	)
 
-	e := ts.newEvent(eventTypeHeartbeatService, svc)
+	e := ts.newEvent(eventTypeHeartbeatService, service)
 	b, err := json.Marshal(e)
 	if err != nil {
 		log.Errorf("failed to encode heartbeat-service event as json: %v", err)
@@ -137,13 +144,13 @@ func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
 	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }
 
-func (ts *telemetrySender) sendEndServiceEvent(svc serviceInfo) {
+func (ts *telemetrySender) sendEndServiceEvent(service model.Service) {
 	log.Debugf("[pid: %d | name: %s] end-service",
-		svc.service.PID,
-		svc.meta.Name,
+		service.PID,
+		service.Name,
 	)
 
-	e := ts.newEvent(eventTypeEndService, svc)
+	e := ts.newEvent(eventTypeEndService, service)
 	b, err := json.Marshal(e)
 	if err != nil {
 		log.Errorf("failed to encode end-service event as json: %v", err)

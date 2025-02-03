@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !apm || windows || linux
+//go:build !darwin
 
 // Package apm provides a stub for the APM check
 package apm
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -19,6 +19,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewNoneOption[func() check.Check]()
+func Factory() option.Option[func() check.Check] {
+	return option.None[func() check.Check]()
 }

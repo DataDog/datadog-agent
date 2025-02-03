@@ -6,10 +6,11 @@
 package checks
 
 import (
+	"net/http"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -18,7 +19,7 @@ import (
 )
 
 // runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
-// Underying procutil.Probe is responsible for the actual implementation
+// Underlying procutil.Probe is responsible for the actual implementation
 func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
@@ -38,8 +39,8 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return nil, err
 	}
 
-	if sysProbeUtil := p.getRemoteSysProbeUtil(); sysProbeUtil != nil {
-		mergeStatWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
+	if p.sysprobeClient != nil && p.sysProbeConfig.ProcessModuleEnabled {
+		mergeStatWithSysprobeStats(p.lastPIDs, procs, p.sysprobeClient)
 	}
 
 	var containers []*model.Container
@@ -61,7 +62,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return CombinedRunResult{}, nil
 	}
 
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, p.getLastConnRates())
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -95,7 +96,6 @@ func fmtProcessStats(
 	pidToCid map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	connRates ProcessConnRates,
 ) [][]*model.ProcessStat {
 	chunked := make([][]*model.ProcessStat, 0)
 	chunk := make([]*model.ProcessStat, 0, maxBatchSize)
@@ -133,9 +133,6 @@ func fmtProcessStats(
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            pidToCid[int(pid)],
 		}
-		if connRates != nil {
-			stat.Networks = connRates[pid]
-		}
 
 		chunk = append(chunk, stat)
 
@@ -160,8 +157,8 @@ func calculateRate(cur, prev uint64, before time.Time) float32 {
 }
 
 // mergeStatWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeStatWithSysprobeStats(pids []int32, stats map[int32]*procutil.Stats, pu net.SysProbeUtil) {
-	pStats, err := pu.GetProcStats(pids)
+func mergeStatWithSysprobeStats(pids []int32, stats map[int32]*procutil.Stats, client *http.Client) {
+	pStats, err := net.GetProcStats(client, pids)
 	if err == nil {
 		for pid, stats := range stats {
 			if s, ok := pStats.StatsByPID[pid]; ok {

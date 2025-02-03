@@ -1,13 +1,27 @@
-# Pkg Name: Test list
-# If you mute a parent test it will ignore all the subtests as well
-# For example:
+# * Here is the file format:
+# <package-name>:
+#  - test: <test-name> # Mark this test always flaky
+#  - test: <test-name>
+#    on-log: <log-pattern> # Mark this test flaky if the pattern (regex) is found within its log
+#  - test: <test-name>
+#    on-log: # Mark this test flaky if any of the patterns are found within its log
+#      - <log-pattern>
+#      - <log-pattern>
+# It is also possible to specify a log pattern for all tests:
+# on-log:
+#   - "I'm flaky..."
+# * For example:
 # "pkg/gohai":
-#   - "TestGetPayload"
-# "test/new-e2e/tests/agent-platform/install-script"
-#   - "TestInstallScript/test_install_script_on_centos-79_x86_64_datadog-agent_agent_7"
+#   - test: "TestGetPayload"
+# "test/new-e2e/tests/agent-platform/install-script":
+#   - test: "TestInstallScript/test_install_script_on_centos-79_x86_64_datadog-agent_agent_7"
+# * Note:
+# If you mute a parent test it will ignore all the subtests as well.
 
 # TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 test/new-e2e/tests/containers:
-  - TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
-  - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
-  - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+  - test: TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
+  - test: TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+  - test: TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+  - test: TestKindSuite/TestAdmissionControllerWithAutoDetectedLanguage
+  - test: TestEKSSuite/TestAdmissionControllerWithAutoDetectedLanguage

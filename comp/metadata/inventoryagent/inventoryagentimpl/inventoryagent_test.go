@@ -483,15 +483,15 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_cws_security_profiles_enabled"].(bool))
 	assert.True(t, ia.data["feature_cws_remote_config_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_http_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
+	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
@@ -662,6 +662,14 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
 	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+}
+
+func TestFetchFleet(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"config_id": "my-config",
+	}, nil)
+	ia.fetchFleetMetadata()
+	assert.Equal(t, "my-config", ia.data["config_id"].(string))
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {

@@ -12,65 +12,41 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
-	"strings"
 	"sync"
-	"time"
 
-	"github.com/containerd/containerd/mount"
-	"github.com/containerd/containerd/namespaces"
+	"golang.org/x/xerrors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
-	"github.com/aquasecurity/trivy-db/pkg/db"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	image2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
 	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
-	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
-	"github.com/aquasecurity/trivy/pkg/scanner/local"
-	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
-	"github.com/aquasecurity/trivy/pkg/vulnerability"
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/leases"
-	"github.com/containerd/errdefs"
-	"github.com/docker/docker/client"
 
 	// This is required to load sqlite based RPM databases
 	_ "modernc.org/sqlite"
 )
 
 const (
-	cleanupTimeout = 30 * time.Second
-
 	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
 	LanguagesAnalyzers    = "languages"           // LanguagesAnalyzers defines a language analyzer
 	SecretAnalyzers       = "secret"              // SecretAnalyzers defines a secret analyzer
 	ConfigFileAnalyzers   = "config"              // ConfigFileAnalyzers defines a configuration file analyzer
-	LicenseAnalyzers      = "license"             // LicenseAnalyzers defines a license analyzer
 	TypeApkCommand        = "apk-command"         // TypeApkCommand defines a apk-command analyzer
 	HistoryDockerfile     = "history-dockerfile"  // HistoryDockerfile defines a history-dockerfile analyzer
 	TypeImageConfigSecret = "image-config-secret" // TypeImageConfigSecret defines a history-dockerfile analyzer
 )
-
-// ContainerdAccessor is a function that should return a containerd client
-type ContainerdAccessor func() (cutil.ContainerdItf, error)
 
 // collectorConfig allows to pass configuration
 type collectorConfig struct {
@@ -84,16 +60,13 @@ type Collector struct {
 	config           collectorConfig
 	cacheInitialized sync.Once
 	persistentCache  CacheWithCleaner
-	osScanner        ospkg.Scanner
-	langScanner      langpkg.Scanner
-	vulnClient       vulnerability.Client
 	marshaler        cyclonedx.Marshaler
-	wmeta            optional.Option[workloadmeta.Component]
+	wmeta            option.Option[workloadmeta.Component]
 }
 
 var globalCollector *Collector
 
-func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Option {
+func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 	parallel := 1
 	if opts.Fast {
 		parallel = runtime.NumCPU()
@@ -106,32 +79,17 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
-		WalkOption: artifact.WalkOption{
-			ErrorCallback: func(_ string, err error) error {
-				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
-					return nil
-				}
-				return err
-			},
-		},
+		WalkerOption:      walker.Option{},
 	}
 
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
-		option.OnlyDirs = []string{
+		option.WalkerOption.OnlyDirs = []string{
 			"/etc/*",
 			"/lib/apk/db/*",
 			"/usr/lib/*",
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
-		}
-		if root != "" {
-			// OnlyDirs is handled differently for image than for filesystem.
-			// This needs to be fixed properly but in the meantime, use absolute
-			// paths for fs and relative paths for images.
-			for i := range option.OnlyDirs {
-				option.OnlyDirs[i] = filepath.Join(root, option.OnlyDirs[i])
-			}
 		}
 	}
 
@@ -152,15 +110,13 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	}
 	if analyzersDisabled(LanguagesAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeIndividualPkgs...)
 	}
 	if analyzersDisabled(SecretAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
 	}
 	if analyzersDisabled(ConfigFileAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeConfigFiles...)
-	}
-	if analyzersDisabled(LicenseAnalyzers) {
-		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLicenseFile)
 	}
 	if analyzersDisabled(TypeApkCommand) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeApkCommand)
@@ -176,7 +132,10 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		analyzer.TypeRedHatContentManifestType,
 		analyzer.TypeRedHatDockerfileType,
 		analyzer.TypeSBOM,
-		analyzer.TypeUbuntuESM)
+		analyzer.TypeUbuntuESM,
+		analyzer.TypeLicenseFile,
+		analyzer.TypeRpmArchive,
+	)
 	return disabledAnalyzers
 }
 
@@ -186,23 +145,20 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 }
 
 // NewCollector returns a new collector
-func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
+func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
 	return &Collector{
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
 			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
 			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
-		osScanner:   ospkg.NewScanner(),
-		langScanner: langpkg.NewScanner(),
-		vulnClient:  vulnerability.NewClient(db.Config{}),
-		marshaler:   cyclonedx.NewMarshaler(""),
-		wmeta:       wmeta,
+		marshaler: cyclonedx.NewMarshaler(""),
+		wmeta:     wmeta,
 	}, nil
 }
 
 // GetGlobalCollector gets the global collector
-func GetGlobalCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
+func GetGlobalCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}
@@ -258,158 +214,13 @@ func (c *Collector) getCache() (CacheWithCleaner, error) {
 	return c.persistentCache, nil
 }
 
-// ScanDockerImageFromGraphDriver scans a docker image directly from the graph driver
-func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
-	if cleanup != nil {
-		defer cleanup()
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
-	}
-
-	if fanalImage.inspect.GraphDriver.Name == "overlay2" {
-		var layers []string
-		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
-			layers = append(layers, strings.Split(layerDirs, ":")...)
-		}
-
-		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
-			layers = append(layers, strings.Split(layerDirs, ":")...)
-		}
-
-		if env.IsContainerized() {
-			for i, layer := range layers {
-				layers[i] = containersimage.SanitizeHostPath(layer)
-			}
-		}
-
-		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
-	}
-
-	return nil, fmt.Errorf("unsupported graph driver: %s", fanalImage.inspect.GraphDriver.Name)
-}
-
-// ScanDockerImage scans a docker image by exporting it and scanning the tarball
-func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
-	if cleanup != nil {
-		defer cleanup()
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
-	}
-
-	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
-}
-
-func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
-	overlayFsReader := NewFS(layers)
-	report, err := c.scanFilesystem(ctx, overlayFsReader, "/", imgMeta, scanOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	return report, nil
-}
-
-// ScanContainerdImageFromSnapshotter scans containerd image directly from the snapshotter
-func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	// Computing duration of containerd lease
-	deadline, _ := ctx.Deadline()
-	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
-	clClient := client.RawClient()
-	imageID := imgMeta.ID
-
-	mounts, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
-	}
-
-	layers := extractLayersFromOverlayFSMounts(mounts)
-	if len(layers) == 0 {
-		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts %+v for image %s", mounts, imgMeta.ID)
-	}
-
-	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
-	// Adding a lease to cleanup dandling snaphots at expiration
-	ctx, done, err := clClient.WithLease(ctx,
-		leases.WithID(imageID),
-		leases.WithExpiration(expiration),
-		leases.WithLabels(map[string]string{
-			"containerd.io/gc.ref.snapshot." + containerd.DefaultSnapshotter: imageID,
-		}),
-	)
-	if err != nil && !errdefs.IsAlreadyExists(err) {
-		return nil, fmt.Errorf("unable to get a lease, err: %w", err)
-	}
-
-	report, err := c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
-
-	if err := done(ctx); err != nil {
-		log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
-	}
-
-	return report, err
-}
-
-// ScanContainerdImage scans containerd image by exporting it and scanning the tarball
-func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
-	if cleanup != nil {
-		defer cleanup()
-	}
-	if err != nil {
-		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
-	}
-
-	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
-}
-
-// ScanContainerdImageFromFilesystem scans containerd image from file-system
-func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	//nolint:gosimple // TODO(CINT) Fix go simple linte
-	imagePath, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("containerd-image-*"))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create temp dir, err: %w", err)
-	}
-	defer func() {
-		err := os.RemoveAll(imagePath)
-		if err != nil {
-			log.Errorf("Unable to remove temp dir: %s, err: %v", imagePath, err)
-		}
-	}()
-
-	// Computing duration of containerd lease
-	deadline, _ := ctx.Deadline()
-	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
-
-	cleanUp, err := client.MountImage(ctx, expiration, imgMeta.Namespace, img, imagePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to mount containerd image, err: %w", err)
-	}
-
-	defer func() {
-		cleanUpContext, cleanUpContextCancel := context.WithTimeout(context.Background(), cleanupTimeout)
-		err := cleanUp(cleanUpContext)
-		cleanUpContextCancel()
-		if err != nil {
-			log.Errorf("Unable to clean up mounted image, err: %v", err)
-		}
-	}()
-
-	return c.scanFilesystem(ctx, os.DirFS("/"), imagePath, imgMeta, scanOptions)
-}
-
-func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+// scanFilesystem scans the specified directory and logs detailed scan steps.
+func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
-	fsArtifact, err := local2.NewArtifact(fsys, path, cache, getDefaultArtifactOption(".", scanOptions))
+	fsArtifact, err := local2.NewArtifact(path, cache, NewFSWalker(), getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
@@ -437,8 +248,68 @@ func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string,
 }
 
 // ScanFilesystem scans file-system
-func (c *Collector) ScanFilesystem(ctx context.Context, fsys fs.FS, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	return c.scanFilesystem(ctx, fsys, path, nil, scanOptions)
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	return c.scanFilesystem(ctx, path, nil, scanOptions)
+}
+
+type driver struct {
+	applier applier.Applier
+}
+
+func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []string, _ types.ScanOptions) (
+	types.Results, ftypes.OS, error) {
+
+	detail, err := d.applier.ApplyLayers(artifactKey, blobKeys)
+	switch {
+	case errors.Is(err, analyzer.ErrUnknownOS):
+		log.Debug("OS is not detected.")
+
+		// Packages may contain OS-independent binary information even though OS is not detected.
+		if len(detail.Packages) != 0 {
+			detail.OS = ftypes.OS{Family: "none"}
+		}
+
+		// If OS is not detected and repositories are detected, we'll try to use repositories as OS.
+		if detail.Repository != nil {
+			log.Debug("Package repository %s, version %s", string(detail.Repository.Family), detail.Repository.Release)
+			log.Debug("Assuming OS family %s, version %s", string(detail.Repository.Family), detail.Repository.Release)
+			detail.OS = ftypes.OS{
+				Family: detail.Repository.Family,
+				Name:   detail.Repository.Release,
+			}
+		}
+	case errors.Is(err, analyzer.ErrNoPkgsDetected):
+		log.Warn("No OS package is detected. Make sure you haven't deleted any files that contain information about the installed packages.")
+		log.Warn(`e.g. files under "/lib/apk/db/", "/var/lib/dpkg/" and "/var/lib/rpm"`)
+	case err != nil:
+		return nil, ftypes.OS{}, xerrors.Errorf("failed to apply layers: %w", err)
+	}
+
+	results := make([]types.Result, 0, 1+len(detail.Applications))
+
+	// main OS result
+	osresult := types.Result{
+		Target: fmt.Sprintf("%s (%s %s)", target, detail.OS.Family, detail.OS.Name),
+		Class:  types.ClassOSPkg,
+		Type:   detail.OS.Family,
+	}
+
+	sort.Sort(detail.Packages)
+	osresult.Packages = detail.Packages
+	results = append(results, osresult)
+
+	for _, app := range detail.Applications {
+		sort.Sort(app.Packages)
+		appresult := types.Result{
+			Target:   app.FilePath,
+			Class:    types.ClassLangPkg,
+			Type:     app.Type,
+			Packages: app.Packages,
+		}
+		results = append(results, appresult)
+	}
+
+	return results, detail.OS, nil
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner, useCache bool) (*types.Report, error) {
@@ -452,11 +323,13 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
 	}
 
-	s := scanner.NewScanner(local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient), artifact)
+	s := scanner.NewScanner(&driver{applier: applier}, artifact)
+
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
-		VulnType:            []string{},
 		ScanRemovedPackages: false,
-		ListAllPackages:     true,
+		PkgTypes:            []types.PkgType{types.PkgTypeOS, types.PkgTypeLibrary},
+		PkgRelationships:    ftypes.Relationships,
+		Scanners:            types.Scanners{types.SBOMScanner},
 	})
 	if err != nil {
 		return nil, err
@@ -471,7 +344,7 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, err
 	}
 
-	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption("", scanOptions))
+	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
@@ -486,19 +359,4 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		id:        trivyReport.Metadata.ImageID,
 		marshaler: c.marshaler,
 	}, nil
-}
-
-func extractLayersFromOverlayFSMounts(mounts []mount.Mount) []string {
-	var layers []string
-	for _, mount := range mounts {
-		for _, opt := range mount.Options {
-			for _, prefix := range []string{"upperdir=", "lowerdir="} {
-				trimmedOpt := strings.TrimPrefix(opt, prefix)
-				if trimmedOpt != opt {
-					layers = append(layers, strings.Split(trimmedOpt, ":")...)
-				}
-			}
-		}
-	}
-	return layers
 }

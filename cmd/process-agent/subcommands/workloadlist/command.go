@@ -91,7 +91,7 @@ func workloadURL(verbose bool) (string, error) {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}
 
-	url := fmt.Sprintf("http://%s/agent/workload-list", addressPort)
+	url := fmt.Sprintf("https://%s/agent/workload-list", addressPort)
 
 	if verbose {
 		return url + "/verbose", nil

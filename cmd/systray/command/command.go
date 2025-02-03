@@ -29,13 +29,14 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -108,9 +109,10 @@ func MakeCommand() *cobra.Command {
 					defaultpaths.StreamlogsLogFile,
 				)),
 				noopAutodiscover.Module(),
-				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				compressionfx.Module(),
+				fx.Supply(option.None[workloadmeta.Component]()),
+				fx.Supply(option.None[collector.Component]()),
+				logscompressionfx.Module(),
+				metricscompressionfx.Module(),
 				diagnosesendermanagerimpl.Module(),
 				nooptagger.Module(),
 				authtokenimpl.Module(),

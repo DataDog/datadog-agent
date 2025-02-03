@@ -7,7 +7,7 @@
 package utils
 
 import (
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 // GetProcesses returns list of active processes
@@ -37,8 +37,8 @@ type FilledProcess struct {
 	Ppid       int32
 	CreateTime int64
 	Name       string
-	Uids       []int32
-	Gids       []int32
+	Uids       []uint32
+	Gids       []uint32
 	MemInfo    *process.MemoryInfoStat
 	Cmdline    []string
 }

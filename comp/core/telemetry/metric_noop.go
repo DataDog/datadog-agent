@@ -7,10 +7,4 @@
 
 package telemetry
 
-type MeterOption interface {
-}
-
-type Meter interface {
-}
-
 type MetricFamily struct{}

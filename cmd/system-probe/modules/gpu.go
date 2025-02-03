@@ -10,6 +10,7 @@ package modules
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -19,10 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,12 +52,22 @@ var GPUMonitoring = module.Factory{
 		}
 
 		c := gpuconfig.New()
+
+		if c.ConfigureCgroupPerms {
+			log.Info("Configuring GPU device cgroup permissions for system-probe")
+			err := gpu.ConfigureDeviceCgroups(uint32(os.Getpid()), hostRoot())
+			if err != nil {
+				log.Warnf("Failed to configure device cgroups for process: %v, gpu-monitoring module might not work properly", err)
+			}
+		}
+
 		probeDeps := gpu.ProbeDependencies{
 			Telemetry: deps.Telemetry,
 			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library
 			//(https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30)
 			NvmlLib:        nvml.New(nvml.WithLibraryPath(c.NVMLLibraryPath)),
 			ProcessMonitor: processEventConsumer,
+			WorkloadMeta:   deps.WMeta,
 		}
 
 		ret := probeDeps.NvmlLib.Init()
@@ -97,6 +110,12 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, stats)
 	})
 
+	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpu.GpuModuleName))
+
 	return nil
 }
 
@@ -121,4 +140,17 @@ func createGPUProcessEventConsumer(evm *eventmonitor.EventMonitor) error {
 	}
 
 	return nil
+}
+
+func hostRoot() string {
+	envHostRoot := os.Getenv("HOST_ROOT")
+	if envHostRoot != "" {
+		return envHostRoot
+	}
+
+	if env.IsContainerized() {
+		return "/host"
+	}
+
+	return "/"
 }

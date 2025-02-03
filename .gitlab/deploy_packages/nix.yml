@@ -14,6 +14,18 @@ deploy_packages_deb-arm64-7:
   variables:
     PACKAGE_ARCH: arm64
 
+deploy_packages_deb-x64-7-fips:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_deb-x64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_deb-arm64-7-fips:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_deb-arm64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: arm64
+
 deploy_packages_heroku_deb-x64-7:
   extends: .deploy_packages_deb-7
   needs: [ agent_heroku_deb-x64-a7 ]
@@ -62,6 +74,18 @@ deploy_packages_rpm-arm64-7:
   variables:
     PACKAGE_ARCH: aarch64
 
+deploy_packages_rpm-x64-7-fips:
+  extends: .deploy_packages_rpm-7
+  needs: [ agent_rpm-x64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_rpm-arm64-7-fips:
+  extends: .deploy_packages_rpm-7
+  needs: [ agent_rpm-arm64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
 deploy_packages_iot_rpm-x64-7:
   extends: .deploy_packages_rpm-7
   needs: [ iot_agent_rpm-x64 ]
@@ -95,6 +119,18 @@ deploy_packages_suse_rpm-x64-7:
 deploy_packages_suse_rpm-arm64-7:
   extends: .deploy_packages_suse_rpm-7
   needs: [ agent_suse-arm64-a7 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_suse_rpm-x64-7-fips:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ agent_suse-x64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_suse_rpm-arm64-7-fips:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ agent_suse-arm64-a7-fips ]
   variables:
     PACKAGE_ARCH: aarch64
 

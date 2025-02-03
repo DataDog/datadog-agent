@@ -9,26 +9,36 @@ package ptracer
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/image"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // ECSMetadata defines ECS metadata
 // https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v4.html
 type ECSMetadata struct {
-	DockerID   string `json:"DockerId"`
-	DockerName string `json:"DockerName"`
-	Name       string `json:"Name"`
-	Image      string `json:"Image"`
+	DockerID string `json:"DockerId"`
 }
 
 func retrieveECSMetadata(url string) (*ECSMetadata, error) {
-	body, err := simpleHTTPRequest(url)
+	res, err := http.Get(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get ECS metadata endpoint response: %w", err)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ECS metadata endpoint response: %w", err)
+	}
+
+	if res.StatusCode > 299 {
+		return nil, fmt.Errorf("ECS metadata endpoint returned an invalid http code: %d", res.StatusCode)
 	}
 
 	data := ECSMetadata{}
@@ -41,15 +51,11 @@ func retrieveECSMetadata(url string) (*ECSMetadata, error) {
 
 func retrieveEnvMetadata(ctx *ebpfless.ContainerContext) {
 	if id := os.Getenv("DD_CONTAINER_ID"); id != "" {
-		ctx.ID = id
-	}
-
-	if name := os.Getenv("DD_CONTAINER_NAME"); name != "" {
-		ctx.Name = name
+		ctx.ID = containerutils.ContainerID(id)
 	}
 }
 
-func newContainerContext(containerID string) (*ebpfless.ContainerContext, error) {
+func newContainerContext(containerID containerutils.ContainerID) (*ebpfless.ContainerContext, error) {
 	ctx := &ebpfless.ContainerContext{
 		ID: containerID,
 	}
@@ -62,21 +68,7 @@ func newContainerContext(containerID string) (*ebpfless.ContainerContext, error)
 		if data != nil {
 			if data.DockerID != "" && ctx.ID == "" {
 				// only set the container ID if we previously failed to retrieve it from proc
-				ctx.ID = data.DockerID
-			}
-			if data.DockerName != "" {
-				ctx.Name = data.DockerName
-			}
-			if data.Image != "" {
-				_, _, shortImageName, tag, err := image.SplitImageName(data.Image)
-				if err == nil {
-					ctx.ImageShortName = shortImageName
-					if tag != "" {
-						ctx.ImageTag = tag
-					} else {
-						ctx.ImageTag = "latest"
-					}
-				}
+				ctx.ID = containerutils.ContainerID(data.DockerID)
 			}
 		}
 	}

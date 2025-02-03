@@ -78,11 +78,16 @@ def run_golangci_lint(
             concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
             tags_arg = " ".join(sorted(set(tags)))
             timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-            return ctx.run(
+            res = ctx.run(
                 f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
                 env=env,
                 warn=True,
             )
+            # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+            # for some reason this becomes -2 here
+            if res is not None and (res.exited == -2 or res.exited == 130):
+                raise KeyboardInterrupt()
+            return res
 
         target_path = Path(module_path) / target
         result, time_result = TimedOperationResult.run(
@@ -127,8 +132,10 @@ def deps_vendored(ctx, verbose=False):
     with timed("go mod vendor"):
         verbosity = ' -v' if verbose else ''
 
-        ctx.run(f"go mod vendor{verbosity}")
-        ctx.run(f"go mod tidy{verbosity}")
+        # We need to set GOWORK=off to avoid the go command to use the go.work directory
+        # It is needed because it does not work very well with vendoring, we should no longer need it when we get rid of vendoring. ADXR-766
+        ctx.run(f"go mod vendor{verbosity}", env={"GOWORK": "off"})
+        ctx.run(f"go mod tidy{verbosity}", env={"GOWORK": "off"})
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
@@ -195,149 +202,6 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
                 print(license)
             f.write(f'{license}\n')
     print("licenses files generated")
-
-
-@task
-def generate_protobuf(ctx):
-    """
-    Generates protobuf definitions in pkg/proto
-
-    We must build the packages one at a time due to protoc-gen-go limitations
-    """
-
-    # Key: path, Value: grpc_gateway, inject_tags
-    PROTO_PKGS = {
-        'model/v1': (False, False),
-        'remoteconfig': (False, False),
-        'api/v1': (True, False),
-        'trace': (False, True),
-        'process': (False, False),
-        'workloadmeta': (False, False),
-        'languagedetection': (False, False),
-        'remoteagent': (False, False),
-    }
-
-    # maybe put this in a separate function
-    PKG_PLUGINS = {
-        'trace': '--go-vtproto_out=',
-    }
-
-    PKG_CLI_EXTRAS = {
-        'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
-    }
-
-    # protoc-go-inject-tag targets
-    inject_tag_targets = {
-        'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
-    }
-
-    # msgp targets (file, io)
-    msgp_targets = {
-        'trace': [
-            ('trace.go', False),
-            ('span.pb.go', False),
-            ('stats.pb.go', True),
-            ('tracer_payload.pb.go', False),
-            ('agent_payload.pb.go', False),
-        ],
-        'core': [('remoteconfig.pb.go', False)],
-    }
-
-    # msgp patches key is `pkg` : (patch, destination)
-    #     if `destination` is `None` diff will target inherent patch files
-    msgp_patches = {
-        'trace': [
-            ('0001-Customize-msgpack-parsing.patch', '-p4'),
-            ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
-        ],
-    }
-
-    base = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.abspath(os.path.join(base, ".."))
-    proto_root = os.path.join(repo_root, "pkg", "proto")
-    protodep_root = os.path.join(proto_root, "protodep")
-
-    print(f"nuking old definitions at: {proto_root}")
-    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.go"))
-    for file_path in file_list:
-        try:
-            os.remove(file_path)
-        except OSError:
-            print("Error while deleting file : ", file_path)
-
-    # also cleanup gateway generated files
-    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.gw.go"))
-    for file_path in file_list:
-        try:
-            os.remove(file_path)
-        except OSError:
-            print("Error while deleting file : ", file_path)
-
-    with ctx.cd(repo_root):
-        # protobuf defs
-        print(f"generating protobuf code from: {proto_root}")
-
-        for pkg, (grpc_gateway, inject_tags) in PROTO_PKGS.items():
-            files = []
-            pkg_root = os.path.join(proto_root, "datadog", pkg).rstrip(os.sep)
-            pkg_root_level = pkg_root.count(os.sep)
-            for path in Path(pkg_root).rglob('*.proto'):
-                if path.as_posix().count(os.sep) == pkg_root_level + 1:
-                    files.append(path.as_posix())
-
-            targets = ' '.join(files)
-
-            # output_generator could potentially change for some packages
-            # so keep it in a variable for sanity.
-            output_generator = "--go_out=plugins=grpc:"
-            cli_extras = ''
-            ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
-
-            if pkg in PKG_PLUGINS:
-                output_generator = PKG_PLUGINS[pkg]
-
-                if pkg in PKG_CLI_EXTRAS:
-                    cli_extras = PKG_CLI_EXTRAS[pkg]
-
-                ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
-
-            if inject_tags:
-                inject_path = os.path.join(proto_root, "pbgo", pkg)
-                # inject_tags logic
-                for target in inject_tag_targets[pkg]:
-                    ctx.run(f"protoc-go-inject-tag -input={os.path.join(inject_path, target)}")
-
-            if grpc_gateway:
-                # grpc-gateway logic
-                ctx.run(
-                    f"protoc -I{proto_root} -I{protodep_root} --grpc-gateway_out=logtostderr=true:{repo_root} {targets}"
-                )
-
-        # mockgen
-        pbgo_dir = os.path.join(proto_root, "pbgo")
-        mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
-        pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
-        try:
-            os.mkdir(mockgen_out)
-        except FileExistsError:
-            print(f"{mockgen_out} folder already exists")
-
-        # TODO: this should be parametrized
-        ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
-
-    # generate messagepack marshallers
-    for pkg, files in msgp_targets.items():
-        for src, io_gen in files:
-            dst = os.path.splitext(os.path.basename(src))[0]  # .go
-            dst = os.path.splitext(dst)[0]  # .pb
-            ctx.run(f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}")
-
-    # apply msgp patches
-    for pkg, patches in msgp_patches.items():
-        for patch in patches:
-            patch_file = os.path.join(proto_root, "patches", patch[0])
-            switches = patch[1] if patch[1] else ''
-            ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
 
 
 @task
@@ -408,6 +272,11 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     check_valid_mods(ctx)
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
+        ctx.run("go work sync")
+        res = ctx.run("git diff --exit-code **/go.mod **/go.sum", warn=True)
+        if res.exited is None or res.exited > 0:
+            errors_found.append("modules dependencies are out of sync, please run go work sync")
+
         for mod in get_default_modules().values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
@@ -448,6 +317,8 @@ def tidy_all(ctx):
 def tidy(ctx):
     check_valid_mods(ctx)
 
+    ctx.run("go work sync")
+
     if os.name != 'nt':  # not windows
         import resource
 
@@ -472,7 +343,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.22.8 linux/amd64"
+    # result is like "go version go1.23.5 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

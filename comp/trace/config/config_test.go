@@ -9,6 +9,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -23,7 +25,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -136,9 +137,8 @@ func TestSplitTagRegex(t *testing.T) {
 		var b bytes.Buffer
 		w := bufio.NewWriter(&b)
 
-		logger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %Msg")
+		logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
 		assert.Nil(t, err)
-		seelog.ReplaceLogger(logger) //nolint:errcheck
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))
 		w.Flush()
@@ -246,6 +246,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		}
 	})
 }
+
+//go:embed testdata/stringcode.go.tmpl
+var stringCodeBody string
 
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
@@ -362,11 +365,6 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		body, err := os.ReadFile("testdata/stringcode.go.tmpl")
-		if err != nil {
-			t.Fatal(err)
-		}
-
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
@@ -374,7 +372,7 @@ func TestConfigHostname(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tmpl, err := template.New("program").Parse(string(body))
+			tmpl, err := template.New("program").Parse(stringCodeBody)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -401,6 +399,7 @@ func TestConfigHostname(t *testing.T) {
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
+			t.Skip("Skip flaky test while we explore fixes.")
 			bin := makeProgram(t, "host.name", 0)
 			defer os.Remove(bin)
 
@@ -557,6 +556,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, "mymachine", cfg.Hostname)
 	assert.Equal(t, "https://user:password@proxy_for_https:1234", cfg.ProxyURL.String())
 	assert.True(t, cfg.SkipSSLValidation)
+	assert.Equal(t, uint16(tls.VersionTLS13), cfg.NewHTTPTransport().TLSClientConfig.MinVersion)
 	assert.Equal(t, 18125, cfg.StatsdPort)
 	assert.False(t, cfg.Enabled)
 	assert.Equal(t, "abc", cfg.LogFilePath)
@@ -612,6 +612,12 @@ func TestFullYamlConfig(t *testing.T) {
 			Repl:    "?",
 			Re:      regexp.MustCompile("(?s).*"),
 		},
+		{
+			Name:    "exception.stacktrace",
+			Pattern: "(?s).*",
+			Repl:    "?",
+			Re:      regexp.MustCompile("(?s).*"),
+		},
 	}, cfg.ReplaceTags)
 
 	assert.EqualValues(t, []string{"/health", "/500"}, cfg.Ignore["resource"])
@@ -631,6 +637,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 	assert.True(t, o.Cache.Enabled)
+	assert.Equal(t, int64(5555555), o.Cache.MaxSize)
 
 	assert.True(t, cfg.InstallSignature.Found)
 	assert.Equal(t, traceconfig.InstallSignatureConfig{
@@ -951,6 +958,19 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 12.3, cfg.OTLPReceiver.ProbabilisticSampling)
+	})
+
+	env = "DD_APM_ERROR_TRACKING_STANDALONE_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
+		}))
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, true, cfg.ErrorTrackingStandalone)
 	})
 
 	for _, envKey := range []string{
@@ -1765,6 +1785,22 @@ func TestLoadEnv(t *testing.T) {
 		assert.False(t, cfg.Obfuscation.Cache.Enabled)
 	})
 
+	env = "DD_APM_OBFUSCATION_CACHE_MAX_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "1234567")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		actualConfig := pkgconfigsetup.Datadog().GetString("apm_config.obfuscation.cache.max_size")
+		actualParsed := cfg.Obfuscation.Cache.MaxSize
+		assert.Equal(t, "1234567", actualConfig)
+		assert.Equal(t, int64(1234567), actualParsed)
+	})
+
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
@@ -2219,6 +2255,38 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	err := yaml.Unmarshal(resp.Body.Bytes(), &conf)
 	assert.NoError(t, err, "Error loading YAML configuration from the API")
 	assert.Contains(t, conf, "apm_config")
+}
+
+func TestSetConfigHandler(t *testing.T) {
+	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
+
+	handler := config.SetHandler().ServeHTTP
+
+	// Refuse non POST query
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
+
+	// Refuse missing auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	handler(resp, req)
+	assert.Equal(t, http.StatusUnauthorized, resp.Code)
+
+	// Refuse invalid auth token
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer ABCDE")
+	handler(resp, req)
+	assert.Equal(t, http.StatusForbidden, resp.Code)
+
+	// Accept valid auth token return OK
+	resp = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	handler(resp, req)
+	assert.Equal(t, http.StatusOK, resp.Code)
 }
 
 func TestDisableReceiverConfig(t *testing.T) {

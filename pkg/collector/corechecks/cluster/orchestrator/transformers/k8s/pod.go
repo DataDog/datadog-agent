@@ -9,6 +9,8 @@ package k8s
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -30,7 +32,7 @@ const (
 
 // ExtractPod returns the protobuf model corresponding to a Kubernetes Pod
 // resource.
-func ExtractPod(p *corev1.Pod) *model.Pod {
+func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
 	podModel := model.Pod{
 		Metadata: extractMetadata(&p.ObjectMeta),
 	}
@@ -74,7 +76,73 @@ func ExtractPod(p *corev1.Pod) *model.Pod {
 		}
 	}
 
+	if p.Spec.Affinity != nil && p.Spec.Affinity.NodeAffinity != nil {
+		podModel.NodeAffinity = &model.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution:  convertNodeSelector(p.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution),
+			PreferredDuringSchedulingIgnoredDuringExecution: convertPreferredSchedulingTerm(p.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution),
+		}
+	}
+
+	pctx := ctx.(*processors.K8sProcessorContext)
+	podModel.Tags = append(podModel.Tags, transformers.RetrieveMetadataTags(p.ObjectMeta.Labels, p.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
+
 	return &podModel
+}
+
+func convertNodeSelector(ns *corev1.NodeSelector) *model.NodeSelector {
+	if ns == nil {
+		return nil
+	}
+	return &model.NodeSelector{
+		NodeSelectorTerms: convertNodeSelectorTerms(ns.NodeSelectorTerms),
+	}
+}
+
+func convertPreferredSchedulingTerm(terms []corev1.PreferredSchedulingTerm) []*model.PreferredSchedulingTerm {
+	if len(terms) == 0 {
+		return nil
+	}
+	var preferredTerms []*model.PreferredSchedulingTerm
+	for _, term := range terms {
+		preferredTerms = append(preferredTerms, &model.PreferredSchedulingTerm{
+			Preference: convertNodeSelectorTerm(term.Preference),
+			Weight:     term.Weight,
+		})
+	}
+	return preferredTerms
+}
+
+func convertNodeSelectorTerms(terms []corev1.NodeSelectorTerm) []*model.NodeSelectorTerm {
+	if len(terms) == 0 {
+		return nil
+	}
+	var nodeSelectorTerms []*model.NodeSelectorTerm
+	for _, term := range terms {
+		nodeSelectorTerms = append(nodeSelectorTerms, convertNodeSelectorTerm(term))
+	}
+	return nodeSelectorTerms
+}
+
+func convertNodeSelectorTerm(term corev1.NodeSelectorTerm) *model.NodeSelectorTerm {
+	return &model.NodeSelectorTerm{
+		MatchExpressions: convertNodeSelectorRequirements(term.MatchExpressions),
+		MatchFields:      convertNodeSelectorRequirements(term.MatchFields),
+	}
+}
+
+func convertNodeSelectorRequirements(requirements []corev1.NodeSelectorRequirement) []*model.LabelSelectorRequirement {
+	if len(requirements) == 0 {
+		return nil
+	}
+	var nodeSelectorRequirements []*model.LabelSelectorRequirement
+	for _, req := range requirements {
+		nodeSelectorRequirements = append(nodeSelectorRequirements, &model.LabelSelectorRequirement{
+			Key:      req.Key,
+			Operator: string(req.Operator),
+			Values:   req.Values,
+		})
+	}
+	return nodeSelectorRequirements
 }
 
 // ExtractPodTemplateResourceRequirements extracts resource requirements of containers and initContainers into model.ResourceRequirements

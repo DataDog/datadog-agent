@@ -28,7 +28,7 @@ import (
 func TestNPMUpgradeToNPM(t *testing.T) {
 	s := &testNPMUpgradeToNPMSuite{}
 	s.previousVersion = "7.42.0-1"
-	run(t, s)
+	Run(t, s)
 }
 
 type testNPMUpgradeToNPMSuite struct {
@@ -55,7 +55,7 @@ func (s *testNPMUpgradeToNPMSuite) TestNPMUgpradeToNPM() {
 func TestNPMUpgradeNPMToNPM(t *testing.T) {
 	s := &testNPMUpgradeNPMToNPMSuite{}
 	s.previousVersion = "7.42.0-1"
-	run(t, s)
+	Run(t, s)
 }
 
 type testNPMUpgradeNPMToNPMSuite struct {
@@ -84,7 +84,7 @@ func (s *testNPMUpgradeNPMToNPMSuite) TestNPMUpgradeNPMToNPM() {
 // Old name: Scenario 9
 func TestNPMInstallWithAddLocal(t *testing.T) {
 	s := &testNPMInstallWithAddLocalSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testNPMInstallWithAddLocalSuite struct {
@@ -113,7 +113,7 @@ func TestNPMUpgradeFromBeta(t *testing.T) {
 	s := &testNPMUpgradeFromBeta{}
 	s.previousVersion = "7.23.2-beta1-1"
 	s.url = "https://ddagent-windows-unstable.s3.amazonaws.com/datadog-agent-7.23.2-beta1-1-x86_64.msi"
-	run(t, s)
+	Run(t, s)
 }
 
 type testNPMUpgradeFromBeta struct {
@@ -149,7 +149,7 @@ func (s *testNPMInstallSuite) TearDownSuite() {
 
 func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteHost, options ...windowsAgent.InstallAgentOption) {
 	if s.url == "" {
-		url, err := windowsAgent.GetStableMSIURL(s.previousVersion, "x86_64")
+		url, err := windowsAgent.GetStableMSIURL(s.previousVersion, "x86_64", "")
 		s.Require().NoError(err, "should get MSI URL for version %s", s.previousVersion)
 		s.url = url
 	}
@@ -213,7 +213,7 @@ func (s *testNPMInstallSuite) testNPMFunctional() {
 func (s *testNPMInstallSuite) upgradeAgent(host *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) {
 	installOpts := []windowsAgent.InstallAgentOption{
 		windowsAgent.WithPackage(agentPackage),
-		windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 	}
 	installOpts = append(installOpts, options...)
 	if !s.Run(fmt.Sprintf("upgrade to %s", agentPackage.AgentVersion()), func() {

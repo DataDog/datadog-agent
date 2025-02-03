@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -147,7 +146,7 @@ func Test_resolveProfiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
@@ -156,7 +155,7 @@ func Test_resolveProfiles(t *testing.T) {
 				assert.Contains(t, err.Error(), errorMsg)
 			}
 
-			w.Flush()
+			assert.NoError(t, w.Flush())
 			logs := b.String()
 
 			for _, aLogCount := range tt.expectedLogs {

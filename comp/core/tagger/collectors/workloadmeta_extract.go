@@ -149,6 +149,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
+			case workloadmeta.KindGPU:
+				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -225,8 +227,10 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	}
 
 	// static tags for ECS and EKS Fargate containers
-	for tag, value := range c.staticTags {
-		tagList.AddLow(tag, value)
+	for tag, valueList := range c.staticTags {
+		for _, value := range valueList {
+			tagList.AddLow(tag, value)
+		}
 	}
 
 	// gpu tags from container resource requests
@@ -399,8 +403,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	}
 
 	// static tags for EKS Fargate pods
-	for tag, value := range c.staticTags {
-		tagList.AddLow(tag, value)
+	for tag, valueList := range c.staticTags {
+		for _, value := range valueList {
+			tagList.AddLow(tag, value)
+		}
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -501,7 +507,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
-			EntityID:             common.GetGlobalEntityID(),
+			EntityID:             types.GetGlobalEntityID(),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -599,6 +605,35 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 		{
 			Source:               kubeMetadataSource,
 			EntityID:             common.BuildTaggerEntityID(kubeMetadata.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
+	gpu := ev.Entity.(*workloadmeta.GPU)
+
+	tagList := taglist.NewTagList()
+
+	tagList.AddLow(tags.KubeGPUVendor, gpu.Vendor)
+	tagList.AddLow(tags.KubeGPUDevice, gpu.Device)
+	tagList.AddLow(tags.KubeGPUUUID, gpu.ID)
+
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               gpuSource,
+			EntityID:             common.BuildTaggerEntityID(gpu.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

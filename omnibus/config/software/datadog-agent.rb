@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
+require './lib/project_helpers.rb'
 require 'pathname'
 
 name 'datadog-agent'
@@ -19,7 +20,6 @@ dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # 
 # especially at higher thread counts.
 dependency "libjemalloc" if linux_target?
 
-dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
 
 source path: '..'
@@ -30,9 +30,15 @@ always_build true
 build do
   license :project_license
 
+  bundled_agents = []
+  if heroku_target?
+    bundled_agents = ["process-agent"]
+  end
+
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
+  fips_args = fips_mode? ? "--fips-mode" : ""
   if windows_target?
     env = {
         'GOPATH' => gopath.to_path,
@@ -57,9 +63,24 @@ build do
 
   # include embedded path (mostly for `pkg-config` binary)
   env = with_standard_compiler_flags(with_embedded_path(env))
-  default_install_dir = "/opt/datadog-agent"
-  if Omnibus::Config.host_distribution == "ociru"
-    default_install_dir = "#{install_dir}"
+
+  # Use msgo toolchain when fips mode is enabled
+  if fips_mode?
+    if windows_target?
+      msgoroot = ENV['MSGO_ROOT']
+      if msgoroot.nil? || msgoroot.empty?
+        raise "MSGO_ROOT not set"
+      end
+      if !File.exist?("#{msgoroot}\\bin\\go.exe")
+        raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
+      end
+      env["GOROOT"] = msgoroot
+      env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+    else
+      msgoroot = "/usr/local/msgo"
+      env["GOROOT"] = msgoroot
+      env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+    end
   end
 
   # we assume the go deps are already installed before running omnibus
@@ -70,23 +91,24 @@ build do
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "inv -e rtloader.clean"
-    command "inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\"\"", :env => env
+    command "inv -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
-    command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
+    command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg}", env: env
   else
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
     command "inv -e rtloader.install"
+    bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
 
     include_sds = ""
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{default_install_dir}/embedded --python-home-2=#{default_install_dir}/embedded --python-home-3=#{default_install_dir}/embedded --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
 
     if heroku_target?
-      command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent", env: env
+      command "inv -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
     end
   end
 
@@ -104,7 +126,8 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  move 'bin/agent/dist/conf.d', "#{conf_dir}/"
+  copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+  delete 'bin/agent/dist/conf.d'
 
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
@@ -115,8 +138,10 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  platform = windows_arch_i386? ? "x86" : "x64"
-  command "invoke trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  if not bundled_agents.include? "trace-agent"
+    platform = windows_arch_i386? ? "x86" : "x64"
+    command "invoke trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  end
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -125,7 +150,9 @@ build do
   end
 
   # Process agent
-  command "invoke -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  if not bundled_agents.include? "process-agent"
+    command "invoke -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+  end
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
@@ -134,12 +161,12 @@ build do
   end
 
   # System-probe
-  sysprobe_support = (not heroku_target?) && (linux_target? || (windows_target? && do_windows_sysprobe != ""))
-  if sysprobe_support
+  if sysprobe_enabled? || (windows_target? && do_windows_sysprobe != "")
     if windows_target?
-      command "invoke -e system-probe.build", env: env
+      command "invoke -e system-probe.build #{fips_args}", env: env
     elsif linux_target?
-      command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}", env: env
+      command "invoke -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env
+      command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
     end
 
     if windows_target?
@@ -160,7 +187,7 @@ build do
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
-    command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+    command "invoke -e security-agent.build #{fips_args} --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
     else
@@ -172,11 +199,11 @@ build do
   # CWS Instrumentation
   cws_inst_support = !heroku_target? && linux_target?
   if cws_inst_support
-    command "invoke -e cws-instrumentation.build", :env => env
+    command "invoke -e cws-instrumentation.build #{fips_args}", :env => env
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # OTel agent
+  # OTel agent - can never be bundled
   if ot_target?
     unless windows_target?
       command "invoke -e otel-agent.build", :env => env
@@ -224,7 +251,44 @@ build do
     delete "#{install_dir}/uselessfile"
   end
 
-  python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
-  mkdir "#{install_dir}/python-scripts"
-  copy "#{python_scripts_dir}/*", "#{install_dir}/python-scripts"
+  # TODO: move this to omnibus-ruby::health-check.rb
+  # check that linux binaries contains OpenSSL symbols when building to support FIPS
+  if fips_mode? && linux_target?
+    # Put the ruby code in a block to prevent omnibus from running it directly but rather at build step with the rest of the code above.
+    # If not in a block, it will search for binaries that have not been built yet.
+    block do
+      LINUX_BINARIES = [
+        "#{install_dir}/bin/agent/agent",
+        "#{install_dir}/embedded/bin/trace-agent",
+        "#{install_dir}/embedded/bin/process-agent",
+        "#{install_dir}/embedded/bin/security-agent",
+        "#{install_dir}/embedded/bin/system-probe",
+      ]
+
+      symbol = "_Cfunc_go_openssl"
+      check_block = Proc.new { |binary, symbols|
+        count = symbols.scan(symbol).count
+        if count > 0
+          log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
+        else
+          raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
+        end
+      }.curry
+
+      LINUX_BINARIES.each do |bin|
+        partially_applied_check = check_block.call(bin)
+        GoSymbolsInspector.new(bin,  &partially_applied_check).inspect()
+      end
+    end
+  end
+
+  block do
+    python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
+    mkdir "#{install_dir}/python-scripts"
+    Dir.glob("#{python_scripts_dir}/*").each do |file|
+      unless File.basename(file).end_with?('_tests.py')
+        copy file, "#{install_dir}/python-scripts"
+      end
+    end
+  end
 end

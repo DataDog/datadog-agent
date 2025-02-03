@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -69,13 +69,19 @@ func (t *replayTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (t *replayTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}
 
 	entityID := types.NewEntityID(prefix, id)
 	return t.Tag(entityID, cardinality)
+}
+
+// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
+// This is a no-op for the replay tagger
+func (t *replayTagger) GenerateContainerIDFromOriginInfo(origindetection.OriginInfo) (string, error) {
+	return "", nil
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.

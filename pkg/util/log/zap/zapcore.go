@@ -7,7 +7,6 @@
 package log
 
 import (
-	"github.com/cihub/seelog"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,18 +19,18 @@ type core struct {
 }
 
 func (c *core) Enabled(level zapcore.Level) bool {
-	var seelogLevel seelog.LogLevel
+	var seelogLevel log.LogLevel
 	switch level {
 	case zapcore.DebugLevel:
-		seelogLevel = seelog.DebugLvl
+		seelogLevel = log.DebugLvl
 	case zapcore.InfoLevel:
-		seelogLevel = seelog.InfoLvl
+		seelogLevel = log.InfoLvl
 	case zapcore.WarnLevel:
-		seelogLevel = seelog.WarnLvl
+		seelogLevel = log.WarnLvl
 	case zapcore.ErrorLevel:
-		seelogLevel = seelog.ErrorLvl
+		seelogLevel = log.ErrorLvl
 	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-		seelogLevel = seelog.CriticalLvl
+		seelogLevel = log.CriticalLvl
 	}
 	return log.ShouldLog(seelogLevel)
 }

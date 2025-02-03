@@ -16,10 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestExternalHostTags(t *testing.T) {
@@ -36,8 +37,9 @@ func TestExternalHostTags(t *testing.T) {
 	c := newCollector(fxutil.Test[dependencies](t,
 		core.MockBundle(),
 		demultiplexerimpl.MockModule(),
-		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
-			return optional.NewNoneOption[serializer.MetricSerializer]()
+		haagentmock.Module(),
+		fx.Provide(func() option.Option[serializer.MetricSerializer] {
+			return option.None[serializer.MetricSerializer]()
 		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},

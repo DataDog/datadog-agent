@@ -133,6 +133,9 @@ func (c *cfg) SetHandler() http.Handler {
 			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
 			return
 		}
+		if apiutil.Validate(w, req) != nil {
+			return
+		}
 		for key, values := range req.URL.Query() {
 			if len(values) == 0 {
 				continue

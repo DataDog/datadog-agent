@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor/processortest"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
+	conventions22 "go.opentelemetry.io/collector/semconv/v1.22.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
@@ -84,7 +85,8 @@ var (
 						"k8s.namespace.name":  "namespace",
 						"k8s.deployment.name": "deployment",
 					},
-				}}),
+				},
+			}),
 			outResourceAttributes: []map[string]any{
 				{
 					"global":       "tag",
@@ -130,9 +132,8 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
-			gc := newTestGenerateIDClient().generateID
 
-			factory := NewFactory(tc, gc)
+			factory := NewFactoryForAgent(tc)
 			fmp, err := factory.CreateMetrics(
 				context.Background(),
 				processortest.NewNopSettings(),
@@ -185,11 +186,11 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			entityIDs: []string{"container_id://container_id_goes_here", "kubernetes_pod_uid://k8s_pod_uid_goes_here"},
 		},
 		{
-			name: "container image ID",
+			name: "image digest",
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeContainerImageID: "docker.io/foo@sha256:sha_goes_here",
+					conventions22.AttributeOciManifestDigest: "docker.io/foo@sha256:sha_goes_here",
 				})
 				return attributes
 			}(),
@@ -263,10 +264,9 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			entityIDs: []string{"process://process_pid_goes_here"},
 		},
 	}
-	gc := newTestGenerateIDClient().generateID
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			entityIDs := entityIDsFromAttributes(testInstance.attrs, gc)
+			entityIDs := entityIDsFromAttributes(testInstance.attrs)
 			entityIDsAsStrings := make([]string, len(entityIDs))
 			for idx, entityID := range entityIDs {
 				entityIDsAsStrings[idx] = entityID.String()

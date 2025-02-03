@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -53,11 +54,13 @@ type Worker struct {
 	runnerID                int
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
+	haAgent                 haagent.Component
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
 	senderManager sender.SenderManager,
+	haAgent haagent.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -84,6 +87,7 @@ func NewWorker(
 		checksTracker,
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
+		haAgent,
 		pollingInterval,
 	)
 }
@@ -98,6 +102,7 @@ func newWorkerWithOptions(
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	getDefaultSenderFunc func() (sender.Sender, error),
+	haAgent haagent.Component,
 	utilizationTickInterval time.Duration,
 ) (*Worker, error) {
 
@@ -115,6 +120,7 @@ func newWorkerWithOptions(
 		runnerID:                runnerID,
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
+		haAgent:                 haAgent,
 		utilizationTickInterval: utilizationTickInterval,
 	}, nil
 }
@@ -134,6 +140,11 @@ func (w *Worker) Run() {
 	for check := range w.pendingChecksChan {
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
+
+		if !w.haAgent.ShouldRunIntegration(check.String()) {
+			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
+			continue
+		}
 
 		// Add check to tracker if it's not already running
 		if !w.checksTracker.AddCheck(check) {

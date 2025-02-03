@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
@@ -47,6 +46,7 @@ const (
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
+	KindGPU                    Kind = "gpu"
 )
 
 // Source is the source name of an entity.
@@ -63,6 +63,10 @@ const (
 	// containers. `docker`, `containerd`, 'crio', `podman` and `ecs_fargate`
 	// use this source.
 	SourceRuntime Source = "runtime"
+
+	// SourceTrivy represents entities detected by Trivy during the SBOM scan.
+	// `crio` uses this source.
+	SourceTrivy Source = "trivy"
 
 	// SourceNodeOrchestrator represents entities detected by the node
 	// agent from an orchestrator. `kubelet` and `ecs` use this.
@@ -449,6 +453,19 @@ func (cr ContainerResources) String(bool) string {
 	return sb.String()
 }
 
+// ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
+type ContainerAllocatedResource struct {
+	// Name is the name of the resource as defined in the pod spec (e.g. "nvidia.com/gpu").
+	Name string
+
+	// ID is the unique ID of the resource, the format depends on the provider
+	ID string
+}
+
+func (c ContainerAllocatedResource) String() string {
+	return fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
+}
+
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
@@ -532,6 +549,10 @@ type Container struct {
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
+
+	// AllocatedResources is the list of resources allocated to this pod. Requires the
+	// PodResources API to query that data.
+	AllocatedResources []ContainerAllocatedResource
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -584,6 +605,11 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
+	for _, r := range c.AllocatedResources {
+		_, _ = fmt.Fprintln(&sb, r.String())
+	}
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
@@ -853,11 +879,11 @@ type KubernetesDeployment struct {
 
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
-	InjectableLanguages langUtil.ContainersLanguages
+	InjectableLanguages languagemodels.ContainersLanguages
 
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
-	DetectedLanguages langUtil.ContainersLanguages
+	DetectedLanguages languagemodels.ContainersLanguages
 }
 
 // GetID implements Entity#GetID.
@@ -893,7 +919,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
 
-	langPrinter := func(containersLanguages langUtil.ContainersLanguages) {
+	langPrinter := func(containersLanguages languagemodels.ContainersLanguages) {
 		initContainersInfo := make([]string, 0, len(containersLanguages))
 		containersInfo := make([]string, 0, len(containersLanguages))
 
@@ -1108,13 +1134,17 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
-		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
-		switch i.SBOM.Status {
-		case Success:
-			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-		case Failed:
-			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
-		default:
+		if i.SBOM != nil {
+			_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
+			switch i.SBOM.Status {
+			case Success:
+				_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
+			case Failed:
+				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
+			default:
+			}
+		} else {
+			fmt.Fprintln(&sb, "SBOM is nil")
 		}
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
@@ -1319,3 +1349,127 @@ func (e EventBundle) Acknowledge() {
 // InitHelper this should be provided as a helper to allow passing the component into
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
+
+// GPU represents a GPU resource.
+type GPU struct {
+	EntityID
+	EntityMeta
+	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
+	Vendor string
+
+	// Device is the comercial name of the device (e.g., Tesla V100) as returned
+	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
+	// have some additional information like the memory size (e.g., Tesla
+	// A100-SXM2-80GB), the exact format of this field is vendor and device
+	// specific.
+	Device     string
+	ActivePIDs []int
+
+	// Index is the index of the GPU in the host system. This is useful as sometimes
+	// GPUs will be identified by their index instead of their UUID. Note that the index
+	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
+	// of containers.
+	Index int
+
+	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.
+	Architecture string
+
+	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
+	ComputeCapability GPUComputeCapability
+
+	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
+	SMCount int
+
+	// MigEnabled is true if the GPU supports MIG (Multi-Instance GPU) and it is enabled.
+	MigEnabled bool
+	// MigDevices is a list of MIG devices that are part of the GPU.
+	MigDevices []*MigDevice
+}
+
+// MigDevice contains information about a MIG device, including the GPU instance ID, device info, attributes, and profile. Nvidia MIG allows a single physical GPU to be partitioned into multiple isolated GPU instances so that multiple workloads can run on the same GPU.
+type MigDevice struct {
+	// GPUInstanceID is the ID of the GPU instance. This is a unique identifier inside the parent GPU device.
+	GPUInstanceID int
+	// UUID is the device id retrieved from nvml in the format "MIG-XXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXX"
+	UUID string
+	Name string
+	// GPUInstanceSliceCount and MemorySizeInGb are retrieved from the profile
+	// mig 1g.10gb profile will have GPUInstanceSliceCount = 1 and MemorySizeMB = 10000
+	GPUInstanceSliceCount uint32
+	MemorySizeMB          uint64
+	// ResourceName is the resource of the profile used, e.g. "1g.10gb", "2g.20gb", etc.
+	ResourceName string
+}
+
+func (m *MigDevice) String() string {
+	return fmt.Sprintf("GPU Instance ID: %d, UUID: %s, Resource: %s", m.GPUInstanceID, m.UUID, m.ResourceName)
+}
+
+var _ Entity = &GPU{}
+
+// GetID implements Entity#GetID.
+func (g GPU) GetID() EntityID {
+	return g.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (g *GPU) Merge(e Entity) error {
+	gg, ok := e.(*GPU)
+	if !ok {
+		return fmt.Errorf("cannot merge GPU with different kind %T", e)
+	}
+
+	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the soure
+	if gg.ActivePIDs != nil {
+		g.ActivePIDs = nil
+	}
+
+	return merge(g, gg)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (g GPU) DeepCopy() Entity {
+	cp := deepcopy.Copy(g).(GPU)
+	return &cp
+}
+
+// String implements Entity#String.
+func (g GPU) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, g.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, g.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
+	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
+	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
+	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
+	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
+	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
+	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
+	if g.MigEnabled {
+		_, _ = fmt.Fprintln(&sb, "----------- MIG Device -----------")
+		_, _ = fmt.Fprintln(&sb, "MIG Enabled: true")
+		for _, migDevice := range g.MigDevices {
+			_, _ = fmt.Fprintln(&sb, migDevice.String())
+		}
+	}
+
+	return sb.String()
+}
+
+// GPUComputeCapability represents the compute capability version of a GPU.
+type GPUComputeCapability struct {
+	// Major represents the major version of the compute capability.
+	Major int
+
+	// Minor represents the minor version of the compute capability.
+	Minor int
+}
+
+func (gcc GPUComputeCapability) String() string {
+	return fmt.Sprintf("%d.%d", gcc.Major, gcc.Minor)
+}

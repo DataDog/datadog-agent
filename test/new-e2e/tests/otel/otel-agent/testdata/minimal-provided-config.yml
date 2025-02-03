@@ -5,7 +5,7 @@ connectors:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       ignore_resources: []
-      peer_service_aggregation: false
+      peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
       resource_attributes_as_container_tags: []
@@ -20,6 +20,8 @@ exporters:
       site: datadoghq.com
     auth: null
     compression: ""
+    compression_params:
+      level: 0
     cookies: null
     disable_keep_alives: false
     endpoint: ""
@@ -27,6 +29,7 @@ exporters:
     host_metadata:
       enabled: false
       hostname_source: config_or_system
+      reporter_period: 30m0s
       tags: []
     hostname: otelcol-docker
     http2_ping_timeout: 0s
@@ -68,6 +71,7 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
+      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
@@ -89,14 +93,14 @@ exporters:
       reload_interval: 0s
       server_name_override: ""
     traces:
-      compute_stats_by_span_kind: false
+      compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       dialer:
         timeout: 0s
       ignore_resources: []
-      peer_service_aggregation: false
+      peer_service_aggregation: true
       peer_tags: []
-      peer_tags_aggregation: false
+      peer_tags_aggregation: true
       span_name_as_resource_name: true
       span_name_remappings: {}
       trace_buffer: 0

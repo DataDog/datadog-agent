@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"io"
 	"net"
 	"path/filepath"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -37,8 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 const (
@@ -49,7 +49,7 @@ type client struct {
 	conn          net.Conn
 	probe         *EBPFLessProbe
 	nsID          uint64
-	containerID   string
+	containerID   containerutils.ContainerID
 	containerName string
 }
 
@@ -63,7 +63,7 @@ type EBPFLessProbe struct {
 	sync.Mutex
 
 	Resolvers         *resolvers.EBPFLessResolvers
-	containerContexts map[string]*ebpfless.ContainerContext
+	containerContexts map[containerutils.ContainerID]*ebpfless.ContainerContext
 
 	// Constants and configuration
 	opts         Opts
@@ -97,15 +97,14 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	case ebpfless.MessageTypeHello:
 		if cl.nsID == 0 {
 			p.probe.DispatchCustomEvent(
-				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber),
+				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber, p.probe.Opts.Tagger),
 			)
 
 			cl.nsID = msg.Hello.NSID
 			if msg.Hello.ContainerContext != nil {
 				cl.containerID = msg.Hello.ContainerContext.ID
-				cl.containerName = msg.Hello.ContainerContext.Name
 				p.containerContexts[msg.Hello.ContainerContext.ID] = msg.Hello.ContainerContext
-				seclog.Infof("tracing started for container ID [%s] (Name: [%s]) with entrypoint %q", msg.Hello.ContainerContext.ID, msg.Hello.ContainerContext.Name, msg.Hello.EntrypointArgs)
+				seclog.Infof("tracing started for container ID [%s] with entrypoint %q", msg.Hello.ContainerContext.ID, msg.Hello.EntrypointArgs)
 			}
 		}
 	case ebpfless.MessageTypeSyscall:
@@ -298,16 +297,52 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	case ebpfless.SyscallTypeUmount:
 		event.Type = uint32(model.FileUmountEventType)
 		event.Umount.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeConnect:
+		event.Type = uint32(model.ConnectEventType)
+		event.Connect.Addr = model.IPPortContext{
+			IPNet: *eval.IPNetFromIP(syscallMsg.Connect.Addr),
+			Port:  syscallMsg.Connect.Port,
+		}
+		event.Connect.AddrFamily = syscallMsg.Connect.AddressFamily
+		event.Connect.Protocol = syscallMsg.Connect.Protocol
+		event.Connect.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeAccept:
+		event.Type = uint32(model.AcceptEventType)
+		event.Accept.Addr = model.IPPortContext{
+			IPNet: *eval.IPNetFromIP(syscallMsg.Accept.Addr),
+			Port:  syscallMsg.Accept.Port,
+		}
+		event.Accept.AddrFamily = syscallMsg.Accept.AddressFamily
+		event.Accept.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeBind:
+		event.Type = uint32(model.BindEventType)
+		if syscallMsg.Bind.AddressFamily == unix.AF_UNIX {
+			event.Bind.Addr = model.IPPortContext{
+				IPNet: net.IPNet{
+					IP:   net.IP(nil),
+					Mask: net.IPMask(nil),
+				},
+				Port: 0,
+			}
+		} else {
+			event.Bind.Addr = model.IPPortContext{
+				IPNet: *eval.IPNetFromIP(syscallMsg.Bind.Addr),
+				Port:  syscallMsg.Bind.Port,
+			}
+		}
+
+		event.Bind.AddrFamily = syscallMsg.Bind.AddressFamily
+		event.Bind.Protocol = syscallMsg.Bind.Protocol
+		event.Bind.Retval = syscallMsg.Retval
 	}
 
 	// container context
 	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
 		event.ContainerContext.CreatedAt = containerContext.CreatedAt
-		event.ContainerContext.Tags = []string{
-			"image_name:" + containerContext.ImageShortName,
-			"image_tag:" + containerContext.ImageTag,
-		}
 	}
 
 	// copy span context if any
@@ -345,10 +380,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
-	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
@@ -638,7 +670,7 @@ func (p *EBPFLessProbe) DumpProcessCache(withArgs bool) (string, error) {
 func (p *EBPFLessProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 
 // GetEventTags returns the event tags
-func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
+func (p *EBPFLessProbe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
@@ -660,7 +692,7 @@ func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe
-func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFLessProbe, error) {
+func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
 	processKiller, err := NewProcessKiller(config)
@@ -681,21 +713,21 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		cancelFnc:         cancelFnc,
 		clients:           make(map[net.Conn]*client),
 		processKiller:     processKiller,
-		containerContexts: make(map[string]*ebpfless.ContainerContext),
+		containerContexts: make(map[containerutils.ContainerID]*ebpfless.ContainerContext),
 	}
 
 	resolversOpts := resolvers.Opts{
 		Tagger: opts.Tagger,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

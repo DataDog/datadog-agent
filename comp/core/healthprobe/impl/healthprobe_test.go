@@ -13,11 +13,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestServer(t *testing.T) {

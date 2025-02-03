@@ -12,7 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 
 	"golang.org/x/sys/windows"
 )
@@ -20,6 +20,8 @@ import (
 // #define WIN32_LEAN_AND_MEAN
 // #include <windows.h>
 // #include <winevt.h>
+//
+// #include <stdlib.h>
 //
 // /* Helper to get a pointer value from the union in EVT_VARIANT without abusing
 //  * unsafe.Pointer+uintptr and triggering warnings that are not relevant because
@@ -31,6 +33,11 @@ import (
 import "C"
 
 // implements EvtVariantValues
+
+const (
+	EvtVariantTypeMask = 0x7f // EvtVariantTypeMask is not exposed on all buildchains
+)
+
 type evtVariantValues struct {
 	// C memory, filled by the EvtRender call
 	buf unsafe.Pointer
@@ -45,7 +52,7 @@ func (v *evtVariantValues) String(index uint) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	t := C.EVT_VARIANT_TYPE_MASK & value.Type
+	t := EvtVariantTypeMask & value.Type
 	if t == evtapi.EvtVarTypeString {
 		return windows.UTF16PtrToString((*uint16)(C.dataptr(value))), nil
 	}
@@ -57,7 +64,7 @@ func (v *evtVariantValues) UInt(index uint) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	t := C.EVT_VARIANT_TYPE_MASK & value.Type
+	t := EvtVariantTypeMask & value.Type
 	if t == evtapi.EvtVarTypeByte {
 		return uint64(*(*uint8)(unsafe.Pointer(value))), nil
 	} else if t == evtapi.EvtVarTypeUInt16 {
@@ -74,7 +81,7 @@ func (v *evtVariantValues) Time(index uint) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	t := C.EVT_VARIANT_TYPE_MASK & value.Type
+	t := EvtVariantTypeMask & value.Type
 	if t == evtapi.EvtVarTypeFileTime {
 		ft := (*C.FILETIME)(unsafe.Pointer(value))
 		nsec := (uint64(ft.dwHighDateTime) << 32) | uint64(ft.dwLowDateTime)
@@ -89,7 +96,7 @@ func (v *evtVariantValues) SID(index uint) (*windows.SID, error) {
 	if err != nil {
 		return nil, err
 	}
-	t := C.EVT_VARIANT_TYPE_MASK & value.Type
+	t := EvtVariantTypeMask & value.Type
 	if t == evtapi.EvtVarTypeSid {
 		origSid := (*windows.SID)(C.dataptr(value))
 		s, err := origSid.Copy()

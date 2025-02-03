@@ -6,7 +6,9 @@
 package installer
 
 import (
+	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
@@ -59,7 +61,6 @@ type BaseInstallerSuite struct {
 	currentAgentVersion    agentVersion.Version
 	stableInstallerVersion PackageVersion
 	stableAgentVersion     PackageVersion
-	outputDir              string
 }
 
 // Installer the Datadog Installer for testing.
@@ -109,12 +110,8 @@ func (s *BaseInstallerSuite) SetupSuite() {
 // BeforeTest creates a new Datadog Installer and sets the output logs directory for each tests
 func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
-
-	var err error
-	s.outputDir, err = s.CreateTestOutputDir()
-	s.Require().NoError(err, "should get output dir")
-	s.T().Logf("Output dir: %s", s.outputDir)
-	s.installer = NewDatadogInstaller(s.Env(), s.outputDir)
+	s.ensureDirs()
+	s.installer = NewDatadogInstaller(s.Env(), s.SessionOutputDir())
 }
 
 // Require instantiates a suiteAssertions for the current suite.
@@ -129,7 +126,19 @@ func (s *BaseInstallerSuite) Require() *suiteasserts.SuiteAssertions {
 	return suiteasserts.New(s.BaseSuite.Require(), s)
 }
 
-// OutputDir returns the output directory for the test
-func (s *BaseInstallerSuite) OutputDir() string {
-	return s.outputDir
+// ensureDirs enforces the required dirs are created.
+// They should be created by the powershell script but here we use the MSI; so this
+// is a quick fix with hardcoded paths that should be removed once the powershell
+// script is used.
+func (s *BaseInstallerSuite) ensureDirs() {
+	basePath := "C:/ProgramData/Datadog Installer"
+	paths := []string{
+		path.Join(basePath, "packages"),
+		path.Join(basePath, "configs"),
+		path.Join(basePath, "locks"),
+		path.Join(basePath, "tmp"),
+	}
+	for _, p := range paths {
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
+	}
 }

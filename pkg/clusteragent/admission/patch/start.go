@@ -17,13 +17,12 @@ import (
 
 // ControllerContext holds necessary context for the patch controller
 type ControllerContext struct {
-	IsLeaderFunc        func() bool
-	LeaderSubscribeFunc func() <-chan struct{}
-	K8sClient           kubernetes.Interface
-	RcClient            *rcclient.Client
-	ClusterName         string
-	ClusterID           string
-	StopCh              chan struct{}
+	LeadershipStateSubscribeFunc func() (notifChan <-chan struct{}, isLeader func() bool)
+	K8sClient                    kubernetes.Interface
+	RcClient                     *rcclient.Client
+	ClusterName                  string
+	ClusterID                    string
+	StopCh                       chan struct{}
 }
 
 // StartControllers starts the patch controllers
@@ -33,11 +32,12 @@ func StartControllers(ctx ControllerContext) error {
 	if ctx.RcClient != nil {
 		telemetryCollector = telemetry.NewCollector(ctx.RcClient.ID, ctx.ClusterID)
 	}
-	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), telemetryCollector, ctx.ClusterName)
+	leadershipStateNotif, isLeaderFunc := ctx.LeadershipStateSubscribeFunc()
+	provider, err := newPatchProvider(ctx.RcClient, isLeaderFunc, leadershipStateNotif, telemetryCollector, ctx.ClusterName)
 	if err != nil {
 		return err
 	}
-	patcher := newPatcher(ctx.K8sClient, ctx.IsLeaderFunc, telemetryCollector, provider)
+	patcher := newPatcher(ctx.K8sClient, isLeaderFunc, telemetryCollector, provider)
 	go provider.start(ctx.StopCh)
 	go patcher.start(ctx.StopCh)
 	return nil

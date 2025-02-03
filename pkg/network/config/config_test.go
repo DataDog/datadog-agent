@@ -75,42 +75,48 @@ func TestDisablingProtocolClassification(t *testing.T) {
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
+	t.Run("Default", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.enable_http_monitoring", true)
+		mockSystemProbe.SetWithoutSource("network_config.enable_http_monitoring", false)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "false")
 		cfg := New()
 
 		_, err := sysconfig.New("", "")
 		require.NoError(t, err)
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_monitoring", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_monitoring", false)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "false")
 		cfg := New()
 
 		_, err := sysconfig.New("", "")
 		require.NoError(t, err)
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
@@ -147,12 +153,6 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
-	})
-
-	t.Run("Not enabled", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		cfg := New()
-		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 }
 
@@ -1269,23 +1269,23 @@ func TestIstioMonitoring(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		assert.False(t, cfg.EnableIstioMonitoring)
+		assert.True(t, cfg.EnableIstioMonitoring)
 	})
 
 	t.Run("via yaml", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.istio.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.istio.enabled", false)
 		cfg := New()
 
-		assert.True(t, cfg.EnableIstioMonitoring)
+		assert.False(t, cfg.EnableIstioMonitoring)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENABLED", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENABLED", "false")
 		cfg := New()
 
-		assert.True(t, cfg.EnableIstioMonitoring)
+		assert.False(t, cfg.EnableIstioMonitoring)
 	})
 }
 
@@ -1365,6 +1365,56 @@ func TestUSMEventStream(t *testing.T) {
 	})
 }
 
+func TestUSMKernelBufferPages(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, cfg.USMKernelBufferPages, 16)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.kernel_buffer_pages", 109)
+		cfg := New()
+
+		assert.Equal(t, cfg.USMKernelBufferPages, 109)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_KERNEL_BUFFER_PAGES", "109")
+		cfg := New()
+
+		assert.Equal(t, cfg.USMKernelBufferPages, 109)
+	})
+}
+
+func TestUSMDataChannelSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, cfg.USMDataChannelSize, 100)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.data_channel_size", 109)
+		cfg := New()
+
+		assert.Equal(t, cfg.USMDataChannelSize, 109)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DATA_CHANNEL_SIZE", "109")
+		cfg := New()
+
+		assert.Equal(t, cfg.USMDataChannelSize, 109)
+	})
+}
+
 func TestMaxUSMConcurrentRequests(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		mock.NewSystemProbe(t)
@@ -1393,36 +1443,43 @@ func TestMaxUSMConcurrentRequests(t *testing.T) {
 }
 
 func TestUSMTLSNativeEnabled(t *testing.T) {
-	t.Run("via deprecated YAML", func(t *testing.T) {
-		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("network_config.enable_https_monitoring", true)
+	t.Run("Default", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := New()
 
-		require.True(t, cfg.EnableNativeTLSMonitoring)
+		assert.True(t, cfg.EnableNativeTLSMonitoring)
+	})
+
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.enable_https_monitoring", false)
+		cfg := New()
+
+		assert.False(t, cfg.EnableNativeTLSMonitoring)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "true")
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING", "false")
 		cfg := New()
 
-		require.True(t, cfg.EnableNativeTLSMonitoring)
+		assert.False(t, cfg.EnableNativeTLSMonitoring)
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.native.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.native.enabled", false)
 		cfg := New()
 
-		require.True(t, cfg.EnableNativeTLSMonitoring)
+		assert.False(t, cfg.EnableNativeTLSMonitoring)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "false")
 		cfg := New()
 
-		require.True(t, cfg.EnableNativeTLSMonitoring)
+		assert.False(t, cfg.EnableNativeTLSMonitoring)
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
@@ -1431,7 +1488,7 @@ func TestUSMTLSNativeEnabled(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "false")
 		cfg := New()
 
-		require.False(t, cfg.EnableNativeTLSMonitoring)
+		assert.False(t, cfg.EnableNativeTLSMonitoring)
 	})
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
@@ -1440,7 +1497,7 @@ func TestUSMTLSNativeEnabled(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
 		cfg := New()
 
-		require.True(t, cfg.EnableNativeTLSMonitoring)
+		assert.True(t, cfg.EnableNativeTLSMonitoring)
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {
@@ -1449,49 +1506,41 @@ func TestUSMTLSNativeEnabled(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NATIVE_ENABLED", "true")
 		cfg := New()
 
-		require.True(t, cfg.EnableNativeTLSMonitoring)
-	})
-
-	t.Run("Not enabled", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		cfg := New()
-
-		// Default value.
-		require.False(t, cfg.EnableNativeTLSMonitoring)
+		assert.True(t, cfg.EnableNativeTLSMonitoring)
 	})
 }
 
 func TestUSMTLSGoEnabled(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_go_tls_support", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_go_tls_support", false)
 		cfg := New()
 
-		require.True(t, cfg.EnableGoTLSSupport)
+		require.False(t, cfg.EnableGoTLSSupport)
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "false")
 		cfg := New()
 
-		require.True(t, cfg.EnableGoTLSSupport)
+		require.False(t, cfg.EnableGoTLSSupport)
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.go.enabled", true)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.tls.go.enabled", false)
 		cfg := New()
 
-		require.True(t, cfg.EnableGoTLSSupport)
+		require.False(t, cfg.EnableGoTLSSupport)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "false")
 		cfg := New()
 
-		require.True(t, cfg.EnableGoTLSSupport)
+		require.False(t, cfg.EnableGoTLSSupport)
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
@@ -1512,21 +1561,28 @@ func TestUSMTLSGoEnabled(t *testing.T) {
 		require.True(t, cfg.EnableGoTLSSupport)
 	})
 
-	t.Run("Both enabled", func(t *testing.T) {
+	t.Run("Both disabled", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLED", "false")
+		cfg := New()
+
+		require.False(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("Deprecated is disabled takes precedence over default", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_go_tls_support", false)
+		cfg := New()
+
+		require.False(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("Enabled by default", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := New()
 
 		require.True(t, cfg.EnableGoTLSSupport)
-	})
-
-	t.Run("Not enabled", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		cfg := New()
-
-		// Default value.
-		require.False(t, cfg.EnableGoTLSSupport)
 	})
 }
 

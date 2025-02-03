@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=readonly -no_std_marshalers $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -62,12 +63,15 @@ type JKillActionReport struct {
 }
 
 // IsResolved return if the action is resolved
-func (k *KillActionReport) IsResolved() bool {
+func (k *KillActionReport) IsResolved() error {
 	k.RLock()
 	defer k.RUnlock()
 
 	// for sigkill wait for exit
-	return k.Signal != "SIGKILL" || k.resolved || k.Status == KillActionStatusRuleDisarmed
+	if k.Signal != "SIGKILL" || k.resolved || k.Status == KillActionStatusRuleDisarmed {
+		return nil
+	}
+	return fmt.Errorf("kill action current state: %+v", k)
 }
 
 // ToJSON marshal the action

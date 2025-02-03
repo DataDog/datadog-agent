@@ -8,11 +8,11 @@
 package testutil
 
 import (
-	"bufio"
+	"context"
 	"fmt"
-	"io"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -23,34 +23,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	procutil "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
-// SampleName represents the name of the sample binary.
-type SampleName string
+// sampleName represents the name of the sample binary.
+type sampleName string
 
 const (
 	// CudaSample is the sample binary that uses CUDA.
-	CudaSample SampleName = "cudasample"
+	CudaSample sampleName = "cudasample"
 )
 
-// DockerImage represents the Docker image to use for running the sample binary.
-type DockerImage string
+// dockerImage represents the Docker image to use for running the sample binary.
+type dockerImage string
+
+var startedPattern = regexp.MustCompile("Starting CudaSample program")
+var finishedPattern = regexp.MustCompile("CUDA calls made")
 
 const (
 	// MinimalDockerImage is the minimal docker image, just used for running a binary
-	MinimalDockerImage DockerImage = "alpine:3.20.3"
+	MinimalDockerImage dockerImage = "alpine:3.20.3"
 )
 
-type SampleArgs struct { //nolint:revive // TODO
+// SampleArgs holds arguments for the sample binary
+type SampleArgs struct {
 	// StartWaitTimeSec represents the time in seconds to wait before the binary starting the CUDA calls
 	StartWaitTimeSec int
-
-	// EndWaitTimeSec represents the time in seconds to wait before the binary stops after making the CUDA calls
-	// This is necessary because the mock CUDA calls are instant, which means that the binary will exit before the
-	// eBPF probe has a chance to read the events and inspect the binary. To make the behavior of the sample binary
-	// more predictable and avoid flakiness in the tests, we introduce a delay before the binary exits.
-	EndWaitTimeSec int
 
 	// CudaVisibleDevicesEnv represents the value of the CUDA_VISIBLE_DEVICES environment variable
 	CudaVisibleDevicesEnv string
@@ -60,34 +59,21 @@ type SampleArgs struct { //nolint:revive // TODO
 }
 
 func (a *SampleArgs) getEnv() []string {
-	env := []string{}
 	if a.CudaVisibleDevicesEnv != "" {
-		env = append(env, fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", a.CudaVisibleDevicesEnv))
+		return []string{fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", a.CudaVisibleDevicesEnv)}
 	}
-	return env
+	return nil
 }
 
 func (a *SampleArgs) getCLIArgs() []string {
 	return []string{
-		strconv.Itoa(int(a.StartWaitTimeSec)),
-		strconv.Itoa(int(a.EndWaitTimeSec)),
+		strconv.Itoa(a.StartWaitTimeSec),
 		strconv.Itoa(a.SelectedDevice),
 	}
 }
 
-// redirectReaderToLog reads from the reader and logs the output with the given prefix
-func redirectReaderToLog(r io.Reader, prefix string) {
-	go func() {
-		scanner := bufio.NewScanner(r)
-		for scanner.Scan() {
-			log.Debugf("%s: %s", prefix, scanner.Text())
-		}
-		// Automatically exits when the scanner reaches EOF, that is, when the command finishes
-	}()
-}
-
 // RunSampleWithArgs executes the sample binary and returns the command. Cleanup is configured automatically
-func getBuiltSamplePath(t *testing.T, sample SampleName) string {
+func getBuiltSamplePath(t *testing.T, sample sampleName) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
@@ -100,91 +86,105 @@ func getBuiltSamplePath(t *testing.T, sample SampleName) string {
 	return builtBin
 }
 
-// GetDefaultArgs returns the default arguments for the sample binary
-func GetDefaultArgs() SampleArgs {
+// getDefaultArgs returns the default arguments for the sample binary
+func getDefaultArgs() SampleArgs {
 	return SampleArgs{
 		StartWaitTimeSec:      5,
-		EndWaitTimeSec:        1, // We need the process to stay active a bit so we can inspect its environment variables, if it ends too quickly we get no information
 		CudaVisibleDevicesEnv: "",
 		SelectedDevice:        0,
 	}
 }
 
-func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs, logName string) *exec.Cmd {
+func runCommandAndPipeOutput(t *testing.T, command []string, args SampleArgs) (cmd *exec.Cmd, err error) {
 	command = append(command, args.getCLIArgs()...)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
-	cmd := exec.Command(command[0], command[1:]...)
+	cmd = exec.CommandContext(ctx, command[0], command[1:]...)
 	t.Cleanup(func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
 		}
 	})
 
+	scanner, err := procutil.NewScanner(startedPattern, finishedPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+	defer func() {
+		//print the cudasample log in case there was an error
+		if err != nil {
+			scanner.PrintLogs(t)
+		}
+	}()
 	env := args.getEnv()
 	cmd.Env = append(cmd.Env, env...)
+	cmd.Stdout = scanner
+	cmd.Stderr = scanner
 
-	stdout, err := cmd.StdoutPipe()
-	require.NoError(t, err)
-	stderr, err := cmd.StderrPipe()
-	require.NoError(t, err)
-
-	redirectReaderToLog(stdout, fmt.Sprintf("%s stdout", logName))
-	redirectReaderToLog(stderr, fmt.Sprintf("%s stderr", logName))
-
-	log.Debugf("Running command %v, env=%v", command, env)
 	err = cmd.Start()
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	return cmd
+	for {
+		select {
+		case <-ctx.Done():
+			if err = ctx.Err(); err != nil {
+				return nil, fmt.Errorf("failed to start the process %s due to: %w", command[0], err)
+			}
+		case <-scanner.DoneChan:
+			t.Logf("%s command succeeded", command)
+			return cmd, nil
+		case <-time.After(dockerutils.DefaultTimeout):
+			//setting the error explicitly to trigger the defer function
+			err = fmt.Errorf("%s execution attempt reached timeout %v ", CudaSample, dockerutils.DefaultTimeout)
+			return nil, err
+		}
+	}
 }
 
 // RunSample executes the sample binary and returns the command. Cleanup is configured automatically
-func RunSample(t *testing.T, name SampleName) *exec.Cmd {
-	return RunSampleWithArgs(t, name, GetDefaultArgs())
+func RunSample(t *testing.T, name sampleName) (*exec.Cmd, error) {
+	return RunSampleWithArgs(t, name, getDefaultArgs())
 }
 
 // RunSampleWithArgs executes the sample binary with args and returns the command. Cleanup is configured automatically
-func RunSampleWithArgs(t *testing.T, name SampleName, args SampleArgs) *exec.Cmd {
+func RunSampleWithArgs(t *testing.T, name sampleName, args SampleArgs) (*exec.Cmd, error) {
 	builtBin := getBuiltSamplePath(t, name)
-
-	return runCommandAndPipeOutput(t, []string{builtBin}, args, string(name))
+	return runCommandAndPipeOutput(t, []string{builtBin}, args)
 }
 
 // RunSampleInDocker executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
-func RunSampleInDocker(t *testing.T, name SampleName, image DockerImage) (int, string) {
-	return RunSampleInDockerWithArgs(t, name, image, GetDefaultArgs())
+func RunSampleInDocker(t *testing.T, name sampleName, image dockerImage) (int, string) {
+	return RunSampleInDockerWithArgs(t, name, image, getDefaultArgs())
 }
 
 // RunSampleInDockerWithArgs executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
-func RunSampleInDockerWithArgs(t *testing.T, name SampleName, image DockerImage, args SampleArgs) (int, string) {
+func RunSampleInDockerWithArgs(t *testing.T, name sampleName, image dockerImage, args SampleArgs) (int, string) {
 	builtBin := getBuiltSamplePath(t, name)
 	containerName := fmt.Sprintf("gpu-testutil-%s", utils.RandString(10))
-	mountArg := fmt.Sprintf("%s:%s", builtBin, builtBin)
+	scanner, err := procutil.NewScanner(startedPattern, finishedPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
 
-	command := []string{"docker", "run", "--rm", "-v", mountArg, "--name", containerName}
+	dockerConfig := dockerutils.NewRunConfig(containerName,
+		dockerutils.DefaultTimeout,
+		dockerutils.DefaultRetries,
+		scanner,
+		args.getEnv(),
+		string(image),
+		builtBin,
+		args.getCLIArgs(),
+		map[string]string{builtBin: builtBin})
 
-	// Pass environment variables to the container as docker args
-	for _, env := range args.getEnv() {
-		command = append(command, "-e", env)
-	}
-
-	command = append(command, string(image), builtBin)
-
-	_ = runCommandAndPipeOutput(t, command, args, string(name))
+	require.NoError(t, dockerutils.Run(t, dockerConfig))
 
 	var dockerPID int64
 	var dockerContainerID string
-	var err error
-	// The docker container might take a bit to start, so we retry until we get the PID
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerPID, err = dockerutils.GetMainPID(containerName)
-		assert.NoError(c, err)
-	}, 1*time.Second, 100*time.Millisecond, "failed to get docker PID")
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		dockerContainerID, err = dockerutils.GetContainerID(containerName)
-		assert.NoError(c, err)
-	}, 1*time.Second, 100*time.Millisecond, "failed to get docker container ID")
+	dockerPID, err = dockerutils.GetMainPID(containerName)
+	assert.NoError(t, err, "failed to get docker PID")
+	dockerContainerID, err = dockerutils.GetContainerID(containerName)
+	assert.NoError(t, err, "failed to get docker container ID")
 
 	log.Debugf("Sample binary %s running in Docker container %s (CID=%s) with PID %d", name, containerName, dockerContainerID, dockerPID)
 

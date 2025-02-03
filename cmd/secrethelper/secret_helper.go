@@ -32,11 +32,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/secrethelper/providers"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -50,9 +48,6 @@ const (
 	filePrefix              = "file"
 	k8sSecretPrefix         = "k8s_secret"
 )
-
-// NewKubeClient returns a new kubernetes.Interface
-type NewKubeClient func(timeout time.Duration) (kubernetes.Interface, error)
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
@@ -100,17 +95,17 @@ func readCmd(cliParams *cliParams) error {
 		dir = cliParams.args[0]
 	}
 
-	return readSecrets(os.Stdin, os.Stdout, dir, cliParams.usePrefixes, apiserver.GetKubeClient)
+	return readSecrets(os.Stdin, os.Stdout, dir, cliParams.usePrefixes, apiserver.GetKubeSecret)
 }
 
-func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes bool, newKubeClientFunc NewKubeClient) error {
+func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes bool, kubeSecretGetter providers.KubeSecretGetter) error {
 	inputSecrets, err := parseInputSecrets(r)
 	if err != nil {
 		return err
 	}
 
 	if usePrefixes {
-		return writeFetchedSecrets(w, readSecretsUsingPrefixes(inputSecrets, dir, newKubeClientFunc))
+		return writeFetchedSecrets(w, readSecretsUsingPrefixes(inputSecrets, dir, kubeSecretGetter))
 	}
 
 	return writeFetchedSecrets(w, readSecretsFromFile(inputSecrets, dir))
@@ -161,7 +156,7 @@ func readSecretsFromFile(secretsList []string, dir string) map[string]secrets.Se
 	return res
 }
 
-func readSecretsUsingPrefixes(secretsList []string, rootPath string, newKubeClientFunc NewKubeClient) map[string]secrets.SecretVal {
+func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretGetter providers.KubeSecretGetter) map[string]secrets.SecretVal {
 	res := make(map[string]secrets.SecretVal)
 
 	for _, secretID := range secretsList {
@@ -175,12 +170,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, newKubeClie
 		case filePrefix:
 			res[secretID] = providers.ReadSecretFile(id)
 		case k8sSecretPrefix:
-			kubeClient, err := newKubeClientFunc(10 * time.Second)
-			if err != nil {
-				res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
-			} else {
-				res[secretID] = providers.ReadKubernetesSecret(kubeClient, id)
-			}
+			res[secretID] = providers.ReadKubernetesSecret(kubeSecretGetter, id)
 		default:
 			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: fmt.Sprintf("provider not supported: %s", prefix)}
 		}

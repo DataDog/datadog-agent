@@ -98,6 +98,7 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
+			t.source.RecordBytes(int64(len(data)))
 			msg := decoder.NewInput(data)
 			if ipAddress != "" && pkgconfigsetup.Datadog().GetBool("logs_config.use_sourcehost_tag") {
 				lastColonIndex := strings.LastIndex(ipAddress, ":")

@@ -56,6 +56,26 @@ agent_deb-arm64-a7:
   variables:
     DD_PROJECT: "agent"
 
+agent_deb-x64-a7-fips:
+  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["datadog-agent-7-x64-fips"]
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+    DD_PROJECT: "agent"
+
+agent_deb-arm64-a7-fips:
+  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["datadog-agent-7-arm64-fips"]
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+    DD_PROJECT: "agent"
+
 .package_ot_deb_common:
   extends: [.package_deb_common]
   script:

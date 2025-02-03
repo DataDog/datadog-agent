@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,12 +31,6 @@ const cgroupV1BaseController = "memory"
 // This value needs to be large enough to reduce latency and I/O load.
 // It also needs to be small enough to catch the first traces of new containers.
 const readerCacheExpiration = 2 * time.Second
-
-const (
-	legacyContainerIDPrefix = "cid-"
-	containerIDPrefix       = "ci-"
-	inodePrefix             = "in-"
-)
 
 type ucredKey struct{}
 
@@ -96,7 +91,7 @@ func (i *noCgroupsProvider) GetContainerID(_ context.Context, h http.Header) str
 }
 
 // NewIDProvider initializes an IDProvider instance using the provided procRoot to perform cgroups lookups in linux environments.
-func NewIDProvider(procRoot string) IDProvider {
+func NewIDProvider(procRoot string, containerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error)) IDProvider {
 	// taken from pkg/util/containers/metrics/system.collector_linux.go
 	var hostPrefix string
 	if strings.HasPrefix(procRoot, "/host") {
@@ -120,10 +115,11 @@ func NewIDProvider(procRoot string) IDProvider {
 	}
 	c := NewCache(1 * time.Minute)
 	return &cgroupIDProvider{
-		procRoot:   procRoot,
-		controller: cgroupController,
-		cache:      c,
-		reader:     reader,
+		procRoot:                  procRoot,
+		controller:                cgroupController,
+		cache:                     c,
+		reader:                    reader,
+		containerIDFromOriginInfo: containerIDFromOriginInfo,
 	}
 }
 
@@ -131,8 +127,9 @@ type cgroupIDProvider struct {
 	procRoot   string
 	controller string
 	// reader is used to retrieve the container ID from its cgroup v2 inode.
-	reader *cgroups.Reader
-	cache  *Cache
+	reader                    *cgroups.Reader
+	cache                     *Cache
+	containerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error)
 }
 
 // GetContainerID returns the container ID.
@@ -141,9 +138,21 @@ type cgroupIDProvider struct {
 // * Datadog-Container-ID header
 // * Looks for a PID in the ctx which is used to search cgroups for a container ID.
 func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
+	originInfo := origindetection.OriginInfo{ProductOrigin: origindetection.ProductOriginAPM}
+
 	// Retrieve container ID from Local Data header
-	if localData := h.Get(header.LocalData); localData != "" {
-		return c.resolveContainerIDFromLocalData(localData)
+	if localDataString := h.Get(header.LocalData); localDataString != "" {
+		var err error
+		originInfo.LocalData, err = origindetection.ParseLocalData(localDataString)
+		if err != nil {
+			log.Errorf("Could not parse local data (%s): %v", localDataString, err)
+		}
+
+		if originInfo.LocalData.ContainerID != "" {
+			return originInfo.LocalData.ContainerID
+		} else if originInfo.LocalData.Inode != 0 {
+			return c.resolveContainerIDFromInode(strconv.FormatUint(originInfo.LocalData.Inode, 10))
+		}
 	}
 
 	// Retrieve container ID from Datadog-Container-ID header.
@@ -157,66 +166,12 @@ func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) st
 		return containerID
 	}
 
+	// Retrieve container ID from External Data header
+	if externalData := h.Get(header.ExternalData); externalData != "" {
+		return c.resolveContainerIDFromExternalData(externalData)
+	}
+
 	return ""
-}
-
-// resolveContainerIDFromLocalData returns the container ID for the given Local Data.
-// The Local Data is a list that can contain one or two (split by a ',') of either:
-// * "cid-<container-id>" or "ci-<container-id>" for the container ID.
-// * "in-<cgroupv2-inode>" for the cgroupv2 inode.
-// Possible values:
-// * "cid-<container-id>"
-// * "ci-<container-id>,in-<cgroupv2-inode>"
-func (c *cgroupIDProvider) resolveContainerIDFromLocalData(localData string) string {
-	containerID := ""
-
-	if strings.Contains(localData, ",") {
-		// The Local Data can contain a list
-		containerID = c.resolveContainerIDFromLocalDataList(localData)
-	} else {
-		// The Local Data can contain a single value
-		if strings.HasPrefix(localData, legacyContainerIDPrefix) { // Container ID with old format: cid-<container-id>
-			containerID = localData[len(legacyContainerIDPrefix):]
-		} else if strings.HasPrefix(localData, containerIDPrefix) { // Container ID with new format: ci-<container-id>
-			containerID = localData[len(containerIDPrefix):]
-		} else if strings.HasPrefix(localData, inodePrefix) { // Cgroupv2 inode format: in-<cgroupv2-inode>
-			containerID = c.resolveContainerIDFromInode(localData[len(inodePrefix):])
-		}
-	}
-
-	if containerID == "" {
-		log.Debugf("Could not parse container ID from Local Data: %s", localData)
-	}
-	return containerID
-}
-
-// resolveContainerIDFromLocalDataList returns the container ID for the given Local Data list.
-func (c *cgroupIDProvider) resolveContainerIDFromLocalDataList(localData string) string {
-	containerID, err := c.getCachedContainerID(localData, func() (string, error) {
-		containerID := ""
-		containerIDFromInode := ""
-
-		// The list should always contain two items. With a malformed list, we will overwrite variables.
-		items := strings.Split(localData, ",")
-		for _, item := range items {
-			if strings.HasPrefix(item, containerIDPrefix) {
-				containerID = item[len(containerIDPrefix):]
-			} else if strings.HasPrefix(item, inodePrefix) {
-				containerIDFromInode = c.resolveContainerIDFromInode(item[len(inodePrefix):])
-			}
-		}
-
-		if containerID != "" {
-			return containerID, nil
-		}
-		return containerIDFromInode, nil
-	})
-	if err != nil {
-		log.Debugf("Could not get container ID from Local Data: %s: %v", localData, err)
-		return ""
-	}
-
-	return containerID
 }
 
 // resolveContainerIDFromInode returns the container ID for the given cgroupv2 inode.
@@ -294,6 +249,27 @@ func (c *cgroupIDProvider) getCachedContainerID(key string, retrievalFunc func()
 
 	c.cache.Store(currentTime, key, val, nil)
 	return val, nil
+}
+
+// resolveContainerIDFromExternalData returns the container ID for the given External Data.
+func (c *cgroupIDProvider) resolveContainerIDFromExternalData(rawExternalData string) string {
+	var generatedContainerID string
+
+	externalData, err := origindetection.ParseExternalData(rawExternalData)
+	if err != nil {
+		log.Errorf("Could not parse external data (%s): %v", rawExternalData, err)
+		return ""
+	}
+	generatedContainerID, err = c.containerIDFromOriginInfo(origindetection.OriginInfo{
+		ExternalData:  externalData,
+		ProductOrigin: origindetection.ProductOriginAPM,
+	})
+	if err != nil {
+		log.Errorf("Could not generate container ID from external data (%s): %v", rawExternalData, err)
+		return ""
+	}
+
+	return generatedContainerID
 }
 
 // The below cache is copied from /pkg/util/containers/v2/metrics/provider/cache.go. It is not

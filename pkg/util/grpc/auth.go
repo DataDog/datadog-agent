@@ -7,6 +7,7 @@ package grpc
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 
@@ -45,7 +46,7 @@ func AuthInterceptor(verifier verifierFunc) grpc_auth.AuthFunc {
 // using the given token.
 func StaticAuthInterceptor(token string) grpc_auth.AuthFunc {
 	return AuthInterceptor(func(reqToken string) (interface{}, error) {
-		if reqToken != token {
+		if subtle.ConstantTimeCompare([]byte(reqToken), []byte(token)) == 0 {
 			return struct{}{}, errors.New("invalid session token")
 		}
 

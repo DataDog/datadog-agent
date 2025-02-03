@@ -22,9 +22,12 @@ func FuzzConvertBOM(f *testing.F) {
 
 		var bom cyclonedx.BOM
 		f.Fuzz(&bom)
+		bom.SpecVersion = cyclonedx.SpecVersion1_6
 
 		pb := convertBOM(&bom)
 		_, err := proto.Marshal(pb)
+
 		assert.Nil(t, err)
+		assert.Equal(t, pb.SpecVersion, cyclonedx.SpecVersion1_4.String())
 	})
 }

@@ -5,7 +5,6 @@
 
 //go:build crio
 
-// Package crio implements the crio Workloadmeta collector.
 package crio
 
 import (
@@ -17,20 +16,19 @@ import (
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/crio"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// convertToEvent converts a CRI-O container to a workloadmeta event.
-func (c *collector) convertToEvent(ctx context.Context, ctr *v1.Container) workloadmeta.CollectorEvent {
+// convertContainerToEvent converts a CRI-O container to a workloadmeta event.
+func (c *collector) convertContainerToEvent(ctx context.Context, ctr *v1.Container) workloadmeta.CollectorEvent {
 	name := getContainerName(ctr.GetMetadata())
 	namespace := getPodNamespace(ctx, c.client, ctr.GetPodSandboxId())
 	containerStatus, info := getContainerStatus(ctx, c.client, ctr.GetId())
 	pid, hostname, cgroupsPath := parseContainerInfo(info)
 	cpuLimit, memLimit := getResourceLimits(containerStatus, info)
 	image := getContainerImage(ctx, c.client, ctr.GetImage())
-	ports := extractPortsFromAnnotations(ctr.GetAnnotations())
+	ports := parsePortsFromAnnotations(ctr.GetAnnotations())
 
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,
@@ -61,15 +59,6 @@ func (c *collector) convertToEvent(ctx context.Context, ctr *v1.Container) workl
 	}
 }
 
-// getCRIOSocketPath returns the configured CRI-O socket path or the default path.
-func getCRIOSocketPath() string {
-	criSocket := pkgconfigsetup.Datadog().GetString("cri_socket_path")
-	if criSocket == "" {
-		return defaultCrioSocketPath
-	}
-	return criSocket
-}
-
 // getContainerName retrieves the container name.
 func getContainerName(containerMetadata *v1.ContainerMetadata) string {
 	if containerMetadata == nil {
@@ -93,74 +82,11 @@ func getContainerStatus(ctx context.Context, client crio.Client, containerID str
 	statusResponse, err := client.GetContainerStatus(ctx, containerID)
 	if err != nil || statusResponse.GetStatus() == nil {
 		log.Errorf("Failed to get container status for container %s: %v", containerID, err)
-		return &v1.ContainerStatus{State: v1.ContainerState_CONTAINER_UNKNOWN}, make(map[string]string)
+		return nil, nil
 	}
 	status := statusResponse.GetStatus()
 	info := statusResponse.GetInfo()
 	return status, info
-}
-
-// getResourceLimits extracts CPU and memory limits from container status or info as a fallback.
-func getResourceLimits(containerStatus *v1.ContainerStatus, info map[string]string) (*float64, *uint64) {
-	// First, try to get resources from containerStatus
-	if containerStatus != nil && containerStatus.GetResources() != nil && containerStatus.GetResources().GetLinux() != nil {
-		var cpuLimit *float64
-		var memLimit *uint64
-		cpuPeriod := float64(containerStatus.GetResources().GetLinux().GetCpuPeriod())
-		cpuQuota := float64(containerStatus.GetResources().GetLinux().GetCpuQuota())
-		memLimitInBytes := uint64(containerStatus.GetResources().GetLinux().GetMemoryLimitInBytes())
-
-		if cpuPeriod != 0 && cpuQuota != 0 {
-			limit := cpuQuota / cpuPeriod
-			cpuLimit = &limit
-		}
-		if memLimitInBytes != 0 {
-			memLimit = &memLimitInBytes
-		}
-		return cpuLimit, memLimit
-	}
-
-	if info == nil || info["info"] == "" {
-		log.Warn("Info map is nil or does not contain resource information")
-		return nil, nil
-	}
-
-	// Fallback to parsing resources from info if status resources are nil
-	var parsedInfo struct {
-		RuntimeSpec struct {
-			Linux struct {
-				Resources struct {
-					CPU struct {
-						Quota  int64 `json:"quota"`
-						Period int64 `json:"period"`
-					} `json:"cpu"`
-					Memory struct {
-						LimitInBytes int64 `json:"memoryLimitInBytes"`
-					} `json:"memory"`
-				} `json:"resources"`
-			} `json:"linux"`
-		} `json:"runtimeSpec"`
-	}
-
-	if err := json.Unmarshal([]byte(info["info"]), &parsedInfo); err != nil {
-		log.Warnf("Failed to parse resources from container info: %v", err)
-		return nil, nil
-	}
-
-	cpuPeriod := float64(parsedInfo.RuntimeSpec.Linux.Resources.CPU.Period)
-	cpuQuota := float64(parsedInfo.RuntimeSpec.Linux.Resources.CPU.Quota)
-	memLimitInBytes := uint64(parsedInfo.RuntimeSpec.Linux.Resources.Memory.LimitInBytes)
-
-	var cpuLimit *float64
-	var memLimit *uint64
-	if cpuPeriod != 0 && cpuQuota != 0 {
-		limit := cpuQuota / cpuPeriod
-		cpuLimit = &limit
-	}
-	if memLimitInBytes != 0 {
-		memLimit = &memLimitInBytes
-	}
-	return cpuLimit, memLimit
 }
 
 // getContainerImage retrieves and converts a container image to workloadmeta format.
@@ -169,12 +95,17 @@ func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.Im
 		log.Warn("Image spec is nil, cannot fetch image")
 		return workloadmeta.ContainerImage{}
 	}
-	image, err := client.GetContainerImage(ctx, imageSpec)
-	if err != nil || image == nil {
-		log.Warnf("Failed to fetch image: %v", err)
+	imageResp, err := client.GetContainerImage(ctx, imageSpec, false)
+	if err != nil || imageResp == nil || imageResp.GetImage() == nil {
+		log.Warnf(
+			"Failed to fetch image, err: %v, imageResp is nil: %v, imageResp.GetImage() is nil: %v",
+			err,
+			imageResp == nil,
+			imageResp != nil && imageResp.GetImage() == nil,
+		)
 		return workloadmeta.ContainerImage{}
 	}
-
+	image := imageResp.GetImage()
 	imgID := image.GetId()
 	imgName := ""
 	if len(image.GetRepoTags()) > 0 {
@@ -182,9 +113,17 @@ func getContainerImage(ctx context.Context, client crio.Client, imageSpec *v1.Im
 	}
 	wmImg, err := workloadmeta.NewContainerImage(imgID, imgName)
 	if err != nil {
-		log.Warnf("Failed to create image: %v", err)
+		log.Debugf("Failed to create image: %v", err)
 		return workloadmeta.ContainerImage{}
 	}
+
+	imgIDAsDigest, err := parseDigests(image.GetRepoDigests())
+	if err == nil {
+		wmImg.ID = imgIDAsDigest
+	} else if sbomCollectionIsEnabled() {
+		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgID, err)
+	}
+
 	if len(image.GetRepoDigests()) > 0 {
 		wmImg.RepoDigest = image.GetRepoDigests()[0]
 	}
@@ -200,9 +139,9 @@ func getContainerState(containerStatus *v1.ContainerStatus) workloadmeta.Contain
 	return workloadmeta.ContainerState{
 		Running:    containerStatus.GetState() == v1.ContainerState_CONTAINER_RUNNING,
 		Status:     mapContainerStatus(containerStatus.GetState()),
-		CreatedAt:  time.Unix(0, containerStatus.GetCreatedAt()),
-		StartedAt:  time.Unix(0, containerStatus.GetStartedAt()),
-		FinishedAt: time.Unix(0, containerStatus.GetFinishedAt()),
+		CreatedAt:  time.Unix(0, containerStatus.GetCreatedAt()).UTC(),
+		StartedAt:  time.Unix(0, containerStatus.GetStartedAt()).UTC(),
+		FinishedAt: time.Unix(0, containerStatus.GetFinishedAt()).UTC(),
 		ExitCode:   &exitCode,
 	}
 }
@@ -222,8 +161,8 @@ func mapContainerStatus(state v1.ContainerState) workloadmeta.ContainerStatus {
 	return workloadmeta.ContainerStatusUnknown
 }
 
-// generateUnsetEvent creates an unset event for a given container ID.
-func generateUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.CollectorEvent {
+// generateUnsetContainerEvent creates an unset event for a given container ID.
+func generateUnsetContainerEvent(seenID workloadmeta.EntityID) workloadmeta.CollectorEvent {
 	return workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeUnset,
 		Source: workloadmeta.SourceRuntime,
@@ -233,27 +172,76 @@ func generateUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.CollectorEven
 	}
 }
 
-// extractPortsFromAnnotations parses container ports from annotations.
-func extractPortsFromAnnotations(annotations map[string]string) []workloadmeta.ContainerPort {
+// getResourceLimits extracts CPU and memory limits from container status or info as a fallback.
+func getResourceLimits(containerStatus *v1.ContainerStatus, info map[string]string) (*float64, *uint64) {
+	// First, try to get resources from containerStatus
+	if containerStatus != nil && containerStatus.GetResources() != nil && containerStatus.GetResources().GetLinux() != nil {
+		cpuPeriod := float64(containerStatus.GetResources().GetLinux().GetCpuPeriod())
+		cpuQuota := float64(containerStatus.GetResources().GetLinux().GetCpuQuota())
+		memLimitInBytes := uint64(containerStatus.GetResources().GetLinux().GetMemoryLimitInBytes())
+
+		var cpuLimit *float64
+		var memLimit *uint64
+
+		if cpuPeriod != 0 && cpuQuota != 0 {
+			limit := cpuQuota / cpuPeriod
+			cpuLimit = &limit
+		}
+		if memLimitInBytes != 0 {
+			memLimit = &memLimitInBytes
+		}
+		return cpuLimit, memLimit
+	}
+
+	// If containerStatus is nil or does not contain resource information, try to get resources from container info
+	return parseResourceLimitsFromInfo(info)
+}
+
+// parseResourceLimitsFromInfo extracts CPU and memory limits from JSON-encoded container info.
+func parseResourceLimitsFromInfo(info map[string]string) (*float64, *uint64) {
+	if info == nil || info["info"] == "" {
+		log.Debug("Info map is nil or does not contain resource information")
+		return nil, nil
+	}
+
+	var parsed resourceInfo
+	if err := json.Unmarshal([]byte(info["info"]), &parsed); err != nil {
+		log.Debugf("Failed to parse resources from container info: %v", err)
+		return nil, nil
+	}
+
+	cpuPeriod := float64(parsed.RuntimeSpec.Linux.Resources.CPU.Period)
+	cpuQuota := float64(parsed.RuntimeSpec.Linux.Resources.CPU.Quota)
+	memLimitInBytes := uint64(parsed.RuntimeSpec.Linux.Resources.Memory.LimitInBytes)
+
+	var cpuLimit *float64
+	var memLimit *uint64
+	if cpuPeriod != 0 && cpuQuota != 0 {
+		limit := cpuQuota / cpuPeriod
+		cpuLimit = &limit
+	}
+	if memLimitInBytes != 0 {
+		memLimit = &memLimitInBytes
+	}
+	return cpuLimit, memLimit
+}
+
+// parsePortsFromAnnotations parses container ports from annotations.
+func parsePortsFromAnnotations(annotations map[string]string) []workloadmeta.ContainerPort {
 	var wmContainerPorts []workloadmeta.ContainerPort
 
 	if len(annotations) == 0 {
-		log.Warn("Annotations are nil or empty")
+		log.Debug("Annotations are nil or empty")
 		return wmContainerPorts
 	}
 
 	for key, value := range annotations {
 		if strings.Contains(key, "ports") {
-			var ports []struct {
-				Name          string `json:"name"`
-				ContainerPort int    `json:"containerPort"`
-				Protocol      string `json:"protocol"`
-				HostPort      uint16 `json:"hostPort"`
-			}
+			var ports []portAnnotation
 
 			if err := json.Unmarshal([]byte(value), &ports); err != nil {
-				log.Warnf("Failed to parse ports from annotation %s: %v", key, err)
-				continue //skip to next annotation
+				log.Debugf("Failed to parse ports from annotation %s: %v", key, err)
+				continue // skip to next annotation
 			}
 
 			for _, port := range ports {
@@ -271,32 +259,52 @@ func extractPortsFromAnnotations(annotations map[string]string) []workloadmeta.C
 
 // parseContainerInfo takes a map[string]string with JSON-encoded data and extracts PID, Hostname, and CgroupsPath.
 func parseContainerInfo(info map[string]string) (int, string, string) {
-	var pid int
-	var hostname, cgroupsPath string
-
 	if info == nil || info["info"] == "" {
-		log.Warn("Container info is nil or empty")
-		return pid, hostname, cgroupsPath
+		log.Debug("Container info is nil or empty")
+		return 0, "", ""
 	}
 
-	var parsedInfo struct {
-		PID         int `json:"pid"`
-		RuntimeSpec struct {
-			Hostname string `json:"hostname"`
-			Linux    struct {
-				CgroupsPath string `json:"cgroupsPath"`
-			} `json:"linux"`
-		} `json:"runtimeSpec"`
+	var parsed containerInfo
+	if err := json.Unmarshal([]byte(info["info"]), &parsed); err != nil {
+		log.Debugf("Failed to parse container info: %v", err)
+		return 0, "", ""
 	}
 
-	// Unmarshal the JSON string into the struct
-	if err := json.Unmarshal([]byte(info["info"]), &parsedInfo); err == nil {
-		pid = parsedInfo.PID
-		hostname = parsedInfo.RuntimeSpec.Hostname
-		cgroupsPath = parsedInfo.RuntimeSpec.Linux.CgroupsPath
-	} else {
-		log.Warnf("Failed to parse container info: %v", err)
-	}
+	return parsed.PID, parsed.RuntimeSpec.Hostname, parsed.RuntimeSpec.Linux.CgroupsPath
+}
 
-	return pid, hostname, cgroupsPath
+// resourceInfo contains CPU and memory resource information.
+type resourceInfo struct {
+	RuntimeSpec struct {
+		Linux struct {
+			Resources struct {
+				CPU struct {
+					Quota  int64 `json:"quota"`
+					Period int64 `json:"period"`
+				} `json:"cpu"`
+				Memory struct {
+					LimitInBytes int64 `json:"memoryLimitInBytes"`
+				} `json:"memory"`
+			} `json:"resources"`
+		} `json:"linux"`
+	} `json:"runtimeSpec"`
+}
+
+// portAnnotation contains container port information.
+type portAnnotation struct {
+	Name          string `json:"name"`
+	ContainerPort int    `json:"containerPort"`
+	Protocol      string `json:"protocol"`
+	HostPort      uint16 `json:"hostPort"`
+}
+
+// containerInfo contains additional container information.
+type containerInfo struct {
+	PID         int `json:"pid"`
+	RuntimeSpec struct {
+		Hostname string `json:"hostname"`
+		Linux    struct {
+			CgroupsPath string `json:"cgroupsPath"`
+		} `json:"linux"`
+	} `json:"runtimeSpec"`
 }

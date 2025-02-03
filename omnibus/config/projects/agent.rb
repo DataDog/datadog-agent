@@ -3,6 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
+require "./lib/project_helpers.rb"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -210,7 +211,7 @@ package :msi do
 end
 
 package :xz do
-  skip_packager (!do_build && !BUILD_OCIRU)
+  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target?
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
@@ -223,8 +224,13 @@ if do_build
   # Datadog agent
   dependency 'datadog-agent'
 
+  # This depends on the agent and must be added after it
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-security-agent-policies'
+  end
+
   # System-probe
-  if linux_target? && !heroku_target?
+  if sysprobe_enabled?
     dependency 'system-probe'
   end
 
@@ -236,24 +242,6 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
-  end
-
-  # Include traps db file in snmp.d/traps_db/
-  dependency 'snmp-traps'
-
-  # Additional software
-  if windows_target?
-    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-      dependency 'datadog-windows-filter-driver'
-    end
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      dependency 'datadog-windows-apminject'
-    end
-    if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-      dependency 'datadog-windows-procmon-driver'
-      ## this is a duplicate of the above dependency in linux
-      dependency 'datadog-security-agent-policies'
-    end
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
@@ -325,16 +313,46 @@ if windows_target?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 
+  raise_if_fips_symbol_not_found = Proc.new { |symbols|
+    count = symbols.scan("github.com/microsoft/go-crypto-winnative").count()
+    if count == 0
+      raise FIPSSymbolsNotFound.new("Expected to find symbol 'github.com/microsoft/go-crypto-winnative' but no symbol was found.")
+    end
+  }
+
   GO_BINARIES.each do |bin|
     # Check the exported symbols from the binary
     inspect_binary(bin, &raise_if_forbidden_symbol_found)
+
+    if fips_mode?
+      # Check that CNG symbols are present
+      inspect_binary(bin, &raise_if_fips_symbol_not_found)
+    end
 
     # strip the binary of debug symbols
     windows_symbol_stripping_file bin
   end
 
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    BINARIES_TO_SIGN = GO_BINARIES + [
+  if windows_signing_enabled?
+    # Sign additional binaries from here.
+    # We can't request signing from the respective components/software definitions
+    # for now since the binaries may be restored from cache, which would
+    # shortcut the associated build directives, which would not schedule the files
+    # for signing.
+    PYTHON_BINARIES = [
+      "#{python_3_embedded}\\python.exe",
+      "#{python_3_embedded}\\pythonw.exe",
+      "#{python_3_embedded}\\python3.dll",
+      "#{python_3_embedded}\\python312.dll",
+    ]
+    OPENSSL_BINARIES = [
+      "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
+      "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
+      "#{python_3_embedded}\\bin\\openssl.exe",
+      fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
+    ].compact
+
+    BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]

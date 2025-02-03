@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -340,7 +340,6 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				Name:      volumeName,
 				MountPath: "/opt/datadog-packages/datadog-apm-inject",
 				SubPath:   "opt/datadog-packages/datadog-apm-inject",
-				ReadOnly:  true,
 			}, mounts[0], "expected first container volume mount to be the injector")
 			require.Equal(t, corev1.VolumeMount{
 				Name:      etcVolume.Name,
@@ -653,27 +652,35 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 }
 
 func TestExtractLibInfo(t *testing.T) {
+	defaultLibImageVersions := map[string]string{
+		"java":   "registry/dd-lib-java-init:v1",
+		"js":     "registry/dd-lib-js-init:v5",
+		"python": "registry/dd-lib-python-init:v2",
+		"dotnet": "registry/dd-lib-dotnet-init:v3",
+		"ruby":   "registry/dd-lib-ruby-init:v2",
+	}
+
 	// TODO: Add new entry when a new language is supported
 	allLatestDefaultLibs := []libInfo{
 		{
 			lang:  "java",
-			image: "registry/dd-lib-java-init:v1",
+			image: defaultLibImageVersions["java"],
 		},
 		{
 			lang:  "js",
-			image: "registry/dd-lib-js-init:v5",
+			image: defaultLibImageVersions["js"],
 		},
 		{
 			lang:  "python",
-			image: "registry/dd-lib-python-init:v2",
+			image: defaultLibImageVersions["python"],
 		},
 		{
 			lang:  "dotnet",
-			image: "registry/dd-lib-dotnet-init:v3",
+			image: defaultLibImageVersions["dotnet"],
 		},
 		{
 			lang:  "ruby",
-			image: "registry/dd-lib-ruby-init:v2",
+			image: defaultLibImageVersions["ruby"],
 		},
 	}
 
@@ -689,6 +696,17 @@ func TestExtractLibInfo(t *testing.T) {
 		{
 			name:              "java",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
+			},
+		},
+		{
+			name:              "java with default version",
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "default"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -960,6 +978,21 @@ func TestExtractLibInfo(t *testing.T) {
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
+			},
+		},
+		{
+			name:              "single step instrumentation with default java version",
+			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: defaultLibImageVersions["java"],
+				},
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "default"})
 			},
 		},
 		{
@@ -2307,16 +2340,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					"admission.datadoghq.com/enabled": "false",
 				},
 			}.Create(),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
+			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
@@ -2415,16 +2439,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "test-deployment-123",
 			}.Create(),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
+			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
@@ -2495,16 +2510,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "test-deployment-123",
 			}.Create(),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
+			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
@@ -2517,16 +2523,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "test-deployment-123",
 			}.Create(),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			},
+			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
@@ -3600,10 +3597,10 @@ func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Com
 	return webhook
 }
 
-func languageSetOf(languages ...string) util.LanguageSet {
-	set := util.LanguageSet{}
+func languageSetOf(languages ...string) languagemodels.LanguageSet {
+	set := languagemodels.LanguageSet{}
 	for _, l := range languages {
-		_ = set.Add(util.Language(l))
+		_ = set.Add(languagemodels.LanguageName(l))
 	}
 	return set
 }

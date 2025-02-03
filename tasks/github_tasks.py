@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -16,16 +17,19 @@ from tasks.libs.ciproviders.github_actions_tools import (
     follow_workflow_run,
     print_failed_jobs_logs,
     print_workflow_conclusion,
+    trigger_buildenv_workflow,
     trigger_macos_workflow,
 )
-from tasks.libs.common.color import color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
-from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_git_pretty_ref
+from tasks.libs.notify.pipeline_status import send_slack_message
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.releasing.version import current_version
 from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
@@ -36,7 +40,7 @@ def concurrency_key():
     current_ref = get_git_pretty_ref()
 
     # We want workflows to run to completion on the default branch and release branches
-    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', current_ref):
+    if re.search(rf'^({get_default_branch()}|\d+\.\d+\.x)$', current_ref):
         return None
 
     return current_ref
@@ -68,17 +72,22 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
 def trigger_macos(
     _,
     workflow_type="build",
-    datadog_agent_ref=DEFAULT_BRANCH,
+    datadog_agent_ref=None,
     release_version="nightly-a7",
     major_version="7",
     destination=".",
     version_cache=None,
     retry_download=3,
     retry_interval=10,
-    fast_tests=None,
-    test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
+    """
+    Args:
+        datadog_agent_ref: If None, will be the default branch.
+    """
+
+    datadog_agent_ref = datadog_agent_ref or get_default_branch()
+
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
             # Provide the release version to be able to fetch the associated
@@ -99,28 +108,60 @@ def trigger_macos(
             version_cache_file_content=version_cache,
             integrations_core_ref=integrations_core_ref,
         )
-    elif workflow_type == "test":
-        conclusion = _trigger_macos_workflow(
-            release_version,
-            destination,
-            retry_download,
-            retry_interval,
-            workflow_name="test.yaml",
-            datadog_agent_ref=datadog_agent_ref,
-            version_cache_file_content=version_cache,
-            fast_tests=fast_tests,
-            test_washer=test_washer,
-        )
-        repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
-    elif workflow_type == "lint":
-        conclusion = _trigger_macos_workflow(
-            release_version,
-            workflow_name="lint.yaml",
-            datadog_agent_ref=datadog_agent_ref,
-            version_cache_file_content=version_cache,
-        )
+    else:
+        raise Exit(f"Unsupported workflow type: {workflow_type}", code=1)
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
+
+
+def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
+    if new_version is None:
+        raise Exit(message="Buildenv workflow need the 'new_version' field value to be not None")
+
+    run = trigger_buildenv_workflow(
+        workflow_name="runner-bump.yml",
+        github_action_ref=buildenv_ref,
+        new_version=new_version,
+    )
+    # We are only waiting 0.5min between each status check because buildenv is much faster than macOS builds
+    workflow_conclusion, workflow_url = follow_workflow_run(run, "DataDog/buildenv", 0.5)
+
+    if workflow_conclusion != "success":
+        if workflow_conclusion == "failure":
+            print_failed_jobs_logs(run)
+        return workflow_conclusion
+
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
+
+    download_with_retry(download_artifacts, run, ".", 3, 5, "DataDog/buildenv")
+
+    with open("PR_URL_ARTIFACT") as f:
+        PR_URL = f.read().strip()
+
+    if not PR_URL:
+        raise Exit(message="Failed to fetch artifact from the workflow. (Empty artifact)")
+
+    message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
+
+    send_slack_message("ci-infra-support", message)
+    return workflow_conclusion
+
+
+@task
+def update_windows_runner_version(
+    ctx,
+    new_version=None,
+    buildenv_ref="master",
+):
+    """
+    Trigger a workflow on the buildenv repository to bump windows gitlab runner
+    """
+    if new_version is None:
+        new_version = str(current_version(ctx, "7"))
+
+    conclusion = _update_windows_runner_version(new_version, buildenv_ref)
+    if conclusion != "success":
+        raise Exit(message=f"Buildenv workflow {conclusion}", code=1)
 
 
 @task
@@ -446,7 +487,7 @@ def pr_merge_dd_event_sender(
 
     tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
     labels = set(github.get_pr_labels(pr.number))
-    all_qa_labels = {'qa/done', 'qa/no-code-change'}
+    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
     qa_labels = all_qa_labels.intersection(labels)
     if len(qa_labels) == 0:
         tags.append('qa_label:missing')
@@ -487,7 +528,7 @@ def extract_test_qa_description(pr_body: str) -> str:
     pr_body_lines = pr_body.splitlines()
     index_of_test_qa_section = -1
     for i, line in enumerate(pr_body_lines):
-        if line.startswith('### Describe how to test'):
+        if line.startswith('### Describe how you validated your changes'):
             index_of_test_qa_section = i
             break
     if index_of_test_qa_section == -1:
@@ -538,3 +579,93 @@ def agenttelemetry_list_change_ack_check(_, pr_id=-1):
             print(
                 "'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed."
             )
+
+
+@task
+def get_required_checks(_, branch: str = "main"):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (read).
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    required_checks = gh.get_branch_required_checks(branch)
+    print(required_checks)
+
+
+@task(iterable=['check'])
+def add_required_checks(_, branch: str, check: str, force: bool = False):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (write).
+
+    Use it like this:
+    inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if not check:
+        raise Exit(color_message("No check name provided, exiting", Color.RED), code=1)
+
+    gh = GithubAPI()
+    gh.add_branch_required_check(branch, check, force)
+
+
+@task
+def check_qa_labels(_, labels: str):
+    """
+    Check if the PR has one of qa/[done|no-code-change|rc-required] label
+    """
+    labels = set(labels.split(" "))
+    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
+    qa_labels = all_qa_labels.intersection(labels)
+    docs = "\n".join(
+        [
+            "You must set one of:",
+            "- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities",
+            "  Examples: code owner changes, e2e test framework changes, documentation changes",
+            "- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed.",
+            "  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge.",
+            "  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet.",
+            "- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment",
+            "",
+            "See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details.",
+        ]
+    )
+    if len(qa_labels) == 0:
+        raise Exit(f"No QA label set.\n{docs}", code=1)
+    if len(qa_labels) > 1:
+        raise Exit(f"More than one QA label set.\n{docs}", code=1)
+    print("QA label set correctly")
+
+
+@task
+def print_pr_state(_, id):
+    """Print the PR merge state if the PR is stuck within the merge queue."""
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    query = """
+query {
+  repository (owner: "DataDog", name: "datadog-agent") {
+    pullRequest(number: ID) {
+      reviewDecision
+      state
+      statusCheckRollup {
+        state
+      }
+      mergeable
+      mergeStateStatus
+      locked
+    }
+  }
+}
+""".replace("ID", id)  # Use replace to avoid formatting issues with curly braces
+
+    gh = GithubAPI()
+    res = gh.graphql(query)
+
+    print(json.dumps(res, indent=2))

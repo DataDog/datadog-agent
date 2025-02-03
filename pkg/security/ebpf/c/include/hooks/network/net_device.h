@@ -85,7 +85,7 @@ int rethook_dev_new_index(ctx_t *ctx) {
 
     struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
     if (entry != NULL) {
-        entry->ifindex.ifindex = (u32)CTX_PARMRET(ctx, 1);
+        entry->ifindex.ifindex = (u32)CTX_PARMRET(ctx);
     }
     return 0;
 };
@@ -112,7 +112,7 @@ int hook___dev_get_by_index(ctx_t *ctx) {
 HOOK_EXIT("register_netdevice")
 int rethook_register_netdevice(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
-    int ret = CTX_PARMRET(ctx, 1);
+    int ret = CTX_PARMRET(ctx);
     if (ret != 0) {
         // interface registration failed, remove cache entry
         bpf_map_delete_elem(&register_netdevice_cache, &id);

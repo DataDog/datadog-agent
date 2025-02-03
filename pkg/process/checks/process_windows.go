@@ -11,7 +11,7 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 

@@ -18,7 +18,6 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -27,11 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
@@ -1060,10 +1060,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
-	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
@@ -1290,7 +1287,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 }
 
 // NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*WindowsProbe, error) {
+func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
 	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
@@ -1300,12 +1297,12 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry t
 	resolversOpts := resolvers.Opts{
 		Tagger: probe.Opts.Tagger,
 	}
-	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, telemetry, resolversOpts)
+	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
@@ -1456,7 +1453,7 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 func (p *WindowsProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 
 // GetEventTags returns the event tags
-func (p *WindowsProbe) GetEventTags(_ string) []string {
+func (p *WindowsProbe) GetEventTags(_ containerutils.ContainerID) []string {
 	return nil
 }
 
@@ -1477,12 +1474,12 @@ func (p *WindowsProbe) EnableEnforcement(state bool) {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
 
-	pp, err := NewWindowsProbe(p, config, opts, telemetry)
+	pp, err := NewWindowsProbe(p, config, opts)
 	if err != nil {
 		return nil, err
 	}

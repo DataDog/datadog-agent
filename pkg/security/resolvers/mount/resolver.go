@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cmodel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -221,7 +222,7 @@ func (mr *Resolver) Delete(mountID uint32) error {
 }
 
 // ResolveFilesystem returns the name of the filesystem
-func (mr *Resolver) ResolveFilesystem(mountID uint32, device uint32, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) ResolveFilesystem(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -404,14 +405,14 @@ func (mr *Resolver) getMountPath(mountID uint32, device uint32, pid uint32) (str
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
-func (mr *Resolver) ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	return mr.resolveMountRoot(mountID, device, pid, containerID)
 }
 
-func (mr *Resolver) resolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMountRoot(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
 	mount, source, origin, err := mr.resolveMount(mountID, device, pid, containerID)
 	if err != nil {
 		return "", source, origin, err
@@ -420,7 +421,7 @@ func (mr *Resolver) resolveMountRoot(mountID uint32, device uint32, pid uint32, 
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *Resolver) ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -431,7 +432,7 @@ func (mr *Resolver) syncCacheMiss() {
 	mr.procMissStats.Inc()
 }
 
-func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID string, workload *cmodel.CacheEntry) error {
+func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID containerutils.ContainerID, workload *cmodel.CacheEntry) error {
 	if workload != nil {
 		pids = append(pids, workload.GetPIDs()...)
 	} else if len(containerID) == 0 && !slices.Contains(pids, 1) {
@@ -446,7 +447,7 @@ func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID strin
 	return nil
 }
 
-func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
@@ -480,14 +481,14 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 }
 
 // ResolveMount returns the mount
-func (mr *Resolver) ResolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMount(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	return mr.resolveMount(mountID, device, pid, containerID)
 }
 
-func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}

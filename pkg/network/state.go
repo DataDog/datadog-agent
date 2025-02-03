@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"go4.org/intern"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -565,7 +564,7 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 			return true
 		}
 
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("duplicate connection in collection: cookie: %d, c1: %+v, c2: %+v", c.Cookie, *ck, *c)
 		}
 
@@ -1421,6 +1420,7 @@ func (ac *aggregateConnection) merge(c *ConnectionStats) {
 	}
 
 	ac.ProtocolStack.MergeWith(c.ProtocolStack)
+	ac.TLSTags.MergeWith(c.TLSTags)
 
 	if ac.DNSStats == nil {
 		ac.DNSStats = c.DNSStats
@@ -1484,6 +1484,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	}
 
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
+	a.TLSTags.MergeWith(b.TLSTags)
 
 	return false
 }

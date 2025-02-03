@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime, timedelta
 
 from invoke.exceptions import Exit
 
@@ -16,8 +17,12 @@ def create_metric(metric_type, metric_name, timestamp, value, tags, unit=None, m
     unit = unit or unset
     metadata = unset
 
-    if metric_origin:
-        metadata = MetricMetadata(origin=MetricOrigin(**metric_origin))
+    origin_metadata = metric_origin or {
+        "origin_product": 10,  # Agent
+        "origin_sub_product": 54,  # Agent CI
+        "origin_product_detail": 64,  # Gitlab
+    }
+    metadata = MetricMetadata(origin=MetricOrigin(**origin_metadata))
 
     return MetricSeries(
         metric=metric_name,
@@ -95,4 +100,23 @@ def send_event(title: str, text: str, tags: list[str] = None):
             )
             raise Exit(code=1)
 
+        return response
+
+
+def get_ci_pipeline_events(query, days):
+    """
+    Fetch pipeline events using Datadog CI Visibility API
+    """
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v2.api.ci_visibility_pipelines_api import CIVisibilityPipelinesApi
+
+    configuration = Configuration()
+    with ApiClient(configuration) as api_client:
+        api_instance = CIVisibilityPipelinesApi(api_client)
+        response = api_instance.list_ci_app_pipeline_events(
+            filter_query=query,
+            filter_from=(datetime.now() - timedelta(days=days)),
+            filter_to=datetime.now(),
+            page_limit=5,
+        )
         return response

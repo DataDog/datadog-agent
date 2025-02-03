@@ -6,9 +6,14 @@
 package scrubber
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"reflect"
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,4 +72,26 @@ func TestScrubJSON(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, string(actual))
 	})
+}
+
+func TestConfigScrubbedJson(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "config.json")
+	inputConfData, err := os.ReadFile(inputConf)
+	require.NoError(t, err)
+	cleaned, err := ScrubJSON([]byte(inputConfData))
+	require.NoError(t, err)
+	// First test that the a scrubbed json is still valid
+	var actualOutJSON map[string]interface{}
+	err = json.Unmarshal(cleaned, &actualOutJSON)
+	assert.NoError(t, err, "Could not load JSON configuration after being scrubbed")
+
+	outputConf := filepath.Join(wd, "test", "config_scrubbed.json")
+	outputConfData, err := os.ReadFile(outputConf)
+	require.NoError(t, err)
+	var expectedOutJSON map[string]interface{}
+	err = json.Unmarshal(outputConfData, &expectedOutJSON)
+	require.NoError(t, err)
+	assert.Equal(t, reflect.DeepEqual(expectedOutJSON, actualOutJSON), true)
 }

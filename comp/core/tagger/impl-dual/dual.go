@@ -54,7 +54,8 @@ func NewComponent(req Requires) (Provides, error) {
 
 		return Provides{
 			local.Provides{
-				Comp: provide.Comp,
+				Comp:     provide.Comp,
+				Endpoint: provide.Endpoint,
 			},
 		}, nil
 	}

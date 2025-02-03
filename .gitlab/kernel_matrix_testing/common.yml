@@ -1,3 +1,11 @@
+# KMT: EC2 Locations
+.kmt_ec2_location_us_east_1:
+  variables:
+    KITCHEN_EC2_REGION: us-east-1
+    KITCHEN_EC2_SUBNET: subnet-05d7c6b1b5cfea811
+    KITCHEN_EC2_SG_IDS: sg-019917348cb0eb7e7
+
+
 # --- Common scripts
 .shared_filters_and_queries:
   - FILTER_TEAM="Name=tag:team,Values=ebpf-platform"
@@ -122,7 +130,7 @@
 # -- Environment setup
 .kmt_setup_env:
   extends:
-    - .kitchen_ec2_location_us_east_1
+    - .kmt_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
@@ -210,12 +218,7 @@
     # setup_env job hasn't finished. This causes instances to be leftover for more time than necessary.
     - inv kmt.wait-for-setup-job --pipeline-id $CI_PIPELINE_ID --arch $ARCH --component $TEST_COMPONENT
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
-    - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
-    - echo ${INSTANCE_ID}
-    - |
-      if [[ "${INSTANCE_ID}" != "" ]] && [[ "${INSTANCE_ID}" != "null" ]]; then
-        aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
-      fi
+    - cat instance.json | jq -r 'map(.[]) | .[]' | grep -v "null" | xargs --no-run-if-empty -n 1 -t aws ec2 terminate-instances --instance-ids
   after_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]

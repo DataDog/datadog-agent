@@ -12,17 +12,16 @@ import (
 	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
 const (
@@ -36,6 +35,7 @@ const (
 	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
 	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
+	gpuSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
 
 	clusterTagNamePrefix = "kube_cluster_name"
 )
@@ -57,7 +57,7 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags                    map[string]string
+	staticTags                    map[string][]string // for ECS and EKS Fargate
 	k8sResourcesAnnotationsAsTags map[string]map[string]string
 	k8sResourcesLabelsAsTags      map[string]map[string]string
 	globContainerLabels           map[string]glob.Glob
@@ -91,42 +91,51 @@ func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags
 
 // Run runs the continuous event watching loop and sends new tags to the
 // tagger based on the events sent by the workloadmeta.
-func (c *WorkloadMetaCollector) Run(ctx context.Context) {
-	c.collectStaticGlobalTags(ctx)
+func (c *WorkloadMetaCollector) Run(ctx context.Context, datadogConfig config.Component) {
+	c.collectStaticGlobalTags(ctx, datadogConfig)
 	c.stream(ctx)
 }
 
-func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
-	c.staticTags = util.GetStaticTags(ctx)
+func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
+	c.staticTags = tagutil.GetStaticTags(ctx, datadogConfig)
 	if _, exists := c.staticTags[clusterTagNamePrefix]; flavor.GetFlavor() == flavor.ClusterAgent && !exists {
 		// If we are running the cluster agent, we want to set the kube_cluster_name tag as a global tag if we are able
 		// to read it, for the instances where we are running in an environment where hostname cannot be detected.
 		if cluster := clustername.GetClusterNameTagValue(ctx, ""); cluster != "" {
 			if c.staticTags == nil {
-				c.staticTags = make(map[string]string, 1)
+				c.staticTags = make(map[string][]string, 1)
 			}
-			c.staticTags[clusterTagNamePrefix] = cluster
+			if _, exists := c.staticTags[clusterTagNamePrefix]; !exists {
+				c.staticTags[clusterTagNamePrefix] = []string{}
+			}
+			c.staticTags[clusterTagNamePrefix] = append(c.staticTags[clusterTagNamePrefix], cluster)
 		}
 	}
-	if len(c.staticTags) > 0 {
-		tags := taglist.NewTagList()
+	// These are the global tags that should only be applied to the internal global entity on DCA.
+	// Whereas the static tags are applied to containers and pods directly as well.
+	globalEnvTags := tagutil.GetGlobalEnvTags(datadogConfig)
 
-		for tag, value := range c.staticTags {
-			tags.AddLow(tag, value)
+	tagList := taglist.NewTagList()
+
+	for _, tags := range []map[string][]string{c.staticTags, globalEnvTags} {
+		for tagKey, valueList := range tags {
+			for _, value := range valueList {
+				tagList.AddLow(tagKey, value)
+			}
 		}
-
-		low, orch, high, standard := tags.Compute()
-		c.tagProcessor.ProcessTagInfo([]*types.TagInfo{
-			{
-				Source:               staticSource,
-				EntityID:             common.GetGlobalEntityID(),
-				HighCardTags:         high,
-				OrchestratorCardTags: orch,
-				LowCardTags:          low,
-				StandardTags:         standard,
-			},
-		})
 	}
+
+	low, orch, high, standard := tagList.Compute()
+	c.tagProcessor.ProcessTagInfo([]*types.TagInfo{
+		{
+			Source:               staticSource,
+			EntityID:             types.GetGlobalEntityID(),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	})
 }
 
 func (c *WorkloadMetaCollector) stream(ctx context.Context) {

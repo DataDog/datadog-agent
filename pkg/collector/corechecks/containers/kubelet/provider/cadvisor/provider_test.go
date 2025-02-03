@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -111,7 +110,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	fakeTagger := mock.SetupFakeTagger(suite.T())
 
 	for entity, tags := range commontesting.CommonTags {
-		prefix, id, _ := taggercommon.ExtractPrefixAndID(entity)
+		prefix, id, _ := taggertypes.ExtractPrefixAndID(entity)
 		entityID := taggertypes.NewEntityID(prefix, id)
 		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 	}

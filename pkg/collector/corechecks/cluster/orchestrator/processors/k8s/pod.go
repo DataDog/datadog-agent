@@ -132,7 +132,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Pod)
-	return k8sTransformers.ExtractPod(r)
+	return k8sTransformers.ExtractPod(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
@@ -162,6 +162,23 @@ func (h *PodHandlers) ResourceUID(ctx processors.ProcessorContext, resource inte
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
+}
+
+// ResourceTaggerTags is a handler called to retrieve tags for a resource from the tagger.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
+	r, ok := resource.(*corev1.Pod)
+	if !ok {
+		log.Debugf("Could not cast resource to pod")
+		return nil
+	}
+	tags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
+	if err != nil {
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
+		return nil
+	}
+	return tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

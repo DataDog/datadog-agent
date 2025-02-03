@@ -57,37 +57,29 @@ docker_image_build_otel:
     - when: always
 
 
-ddflare_extension_ocb_build:
+datadog_otel_components_ocb_build:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_deps"]
+  artifacts:
+    paths:
+      - ocb-output.log
+      - otelcol-custom.log
+      - flare-info.log
+    when: always
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - mkdir -p /tmp/otel-ci
-    - cp test/otel/testdata/* /tmp/otel-ci/
-    - wget -O /tmp/otel-ci/ocb https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.114.0/ocb_0.114.0_linux_amd64
-    - chmod +x /tmp/otel-ci/ocb
   script:
-    - echo 'Building collector with OCB and test ddflare extension'
-    - /tmp/otel-ci/ocb --config=/tmp/otel-ci/builder-config.yaml > ocb-output.log 2>&1
-    - grep -q 'Compiled' ocb-output.log || (echo "OCB failed to compile" && exit 1)
-    - "grep -q '{\"binary\": \"/tmp/otel-ci/otelcol-custom/otelcol-custom\"}' ocb-output.log || (echo \"OCB failed to compile\" && exit 1)"
-    - /tmp/otel-ci/otelcol-custom/otelcol-custom --config /tmp/otel-ci/collector-config.yaml > otelcol-custom.log 2>&1 &
-    - OTELCOL_PID=$!  # Capture the process ID
-    - sleep 10  # Wait for the process to start
-    - grep -q 'Everything is ready. Begin running and processing data.' otelcol-custom.log || (echo "custom collector failed to start" && kill $OTELCOL_PID && exit 1)
-    - curl -k https://localhost:7777 > flare-info.log 2>&1 # get the dd flare info
-    - "grep -q '\"provided_configuration\": \"\"' flare-info.log || (echo \"provided config should not be supported with ocb\" && kill $OTELCOL_PID && exit 1)"
-    - grep -q 'extensions:\\n  - ddflare\\n' flare-info.log || (echo "ddflare extension should be enabled" && kill $OTELCOL_PID && exit 1)
-    - kill $OTELCOL_PID  # Kill the process
+    - echo "Building custom collector with datadog components"
+    - test/otel/testdata/ocb_build_script.sh
+    - echo "see artifacts for job logs"
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
-      when: never
-    - if: $CI_COMMIT_TAG
       when: never
     - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
       when: never
     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
       when: never
     - when: always
+  timeout: 15 minutes

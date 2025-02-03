@@ -21,6 +21,7 @@
 #include "conntrack/maps.h"
 #include "netns.h"
 #include "ip.h"
+#include "pid_tgid.h"
 
 #if defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
 #include "ipv6.h"
@@ -50,7 +51,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct)
 
 SEC("kprobe/ctnetlink_fill_info")
 int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid());
     if (pid != systemprobe_pid()) {
         log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process");
         return 0;

@@ -120,10 +120,10 @@ message PackageState {
   string package = 1;
   string stable_version = 2;
   string experiment_version = 3;
-  string stable_config_version = 5;
-  string experiment_config_version = 6;
-  string remote_config_version = 7;
   PackageStateTask task = 4;
+  reserved 5, 6, 7, 8, 9, 10;
+  string stable_config_version = 11;
+  string experiment_config_version = 12;
 }
 
 message PackageStateTask {

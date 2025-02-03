@@ -25,6 +25,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 const (
@@ -66,7 +67,7 @@ type CWSPtracerCtx struct {
 	wg           sync.WaitGroup
 	cancel       context.Context
 	cancelFnc    context.CancelFunc
-	containerID  string
+	containerID  containerutils.ContainerID
 	probeAddr    string
 	client       net.Conn
 	clientReady  chan bool
@@ -284,6 +285,7 @@ func registerSyscallHandlers() (map[int]syscallHandler, []string) {
 	syscalls := registerFIMHandlers(handlers)
 	syscalls = append(syscalls, registerProcessHandlers(handlers)...)
 	syscalls = append(syscalls, registerERPCHandlers(handlers)...)
+	syscalls = append(syscalls, registerNetworkHandlers(handlers)...)
 	return handlers, syscalls
 }
 

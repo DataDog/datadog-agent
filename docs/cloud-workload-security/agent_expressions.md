@@ -40,7 +40,7 @@ SECL operators are used to combine event attributes together into a full express
 | `>=`                  | File             | Greater or equal                         | 7.27          |
 | `<`                   | File             | Lesser                                   | 7.27          |
 | `<=`                  | File             | Lesser or equal                          | 7.27          |
-| `!`                   | File             | Not                                      | 7.27          |
+| `!` or `not`          | File             | Not                                      | 7.27          |
 | `^`                   | File             | Binary not                               | 7.27          |
 | `in [elem1, ...]`     | File             | Element is contained in list             | 7.27          |
 | `not in [elem1, ...]` | File             | Element is not contained in list         | 7.27          |
@@ -48,8 +48,8 @@ SECL operators are used to combine event attributes together into a full express
 | `!~`                  | File             | String not matching                      | 7.27          |
 | `&`                   | File             | Binary and                               | 7.27          |
 | `\|`                  | File             | Binary or                                | 7.27          |
-| `&&`                  | File             | Logical and                              | 7.27          |
-| `\|\|`                | File             | Logical or                               | 7.27          |
+| `&&` or `and`         | File             | Logical and                              | 7.27          |
+| `\|\|` or `or`        | File             | Logical or                               | 7.27          |
 | `in CIDR`             | Network          | Element is in the IP range               | 7.37          |
 | `not in CIDR`         | Network          | Element is not in the IP range           | 7.37          |
 | `allin CIDR`          | Network          | All the elements are in the IP range     | 7.37          |

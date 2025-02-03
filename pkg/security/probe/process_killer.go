@@ -425,7 +425,7 @@ func (p *ProcessKiller) getDisarmerParams(kill *rules.KillDefinition) (*disarmer
 	if kill.Disarmer != nil && kill.Disarmer.Container != nil && kill.Disarmer.Container.MaxAllowed > 0 {
 		containerParams.enabled = true
 		containerParams.capacity = uint64(kill.Disarmer.Container.MaxAllowed)
-		containerParams.period = kill.Disarmer.Container.Period
+		containerParams.period = kill.Disarmer.Container.Period.GetDuration()
 	} else if p.cfg.RuntimeSecurity.EnforcementDisarmerContainerEnabled {
 		containerParams.enabled = true
 		containerParams.capacity = uint64(p.cfg.RuntimeSecurity.EnforcementDisarmerContainerMaxAllowed)
@@ -435,7 +435,7 @@ func (p *ProcessKiller) getDisarmerParams(kill *rules.KillDefinition) (*disarmer
 	if kill.Disarmer != nil && kill.Disarmer.Executable != nil && kill.Disarmer.Executable.MaxAllowed > 0 {
 		executableParams.enabled = true
 		executableParams.capacity = uint64(kill.Disarmer.Executable.MaxAllowed)
-		executableParams.period = kill.Disarmer.Executable.Period
+		executableParams.period = kill.Disarmer.Executable.Period.GetDuration()
 	} else if p.cfg.RuntimeSecurity.EnforcementDisarmerExecutableEnabled {
 		executableParams.enabled = true
 		executableParams.capacity = uint64(p.cfg.RuntimeSecurity.EnforcementDisarmerExecutableMaxAllowed)

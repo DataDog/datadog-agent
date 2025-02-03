@@ -9,31 +9,24 @@
 package common
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 )
 
-// ValidationFunc is a function that validates a pod
-type ValidationFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error)
+// ValidationFunc is a function that validates an admission request.
+type ValidationFunc func(request *admission.Request, ns string, cl dynamic.Interface) (bool, error)
 
-// Validate handles validating pods and encoding and decoding admission
-// requests and responses for the public validate functions
-func Validate(rawPod []byte, ns string, webhookName string, v ValidationFunc, dc dynamic.Interface) (bool, error) {
-	var pod corev1.Pod
-	if err := json.Unmarshal(rawPod, &pod); err != nil {
-		return false, fmt.Errorf("failed to decode raw object: %w", err)
-	}
-
-	validated, err := v(&pod, ns, dc)
+// Validate handles validating, encoding and decoding admission requests and responses for the public validate functions.
+func Validate(request *admission.Request, webhookName string, v ValidationFunc, dc dynamic.Interface) (bool, error) {
+	validated, err := v(request, request.Namespace, dc)
 	if err != nil {
 		metrics.ValidationAttempts.Inc(webhookName, metrics.StatusError, strconv.FormatBool(false), err.Error())
-		return false, fmt.Errorf("failed to validate pod: %w", err)
+		return false, fmt.Errorf("failed to validate admission request: %w", err)
 	}
 
 	metrics.ValidationAttempts.Inc(webhookName, metrics.StatusSuccess, strconv.FormatBool(validated), "")

@@ -1109,71 +1109,42 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
     // some code path.
     u32 index;
 
-    switch (pkt.type) {
-    case PKTBUF_SKB:
-        switch (level) {
-        case PARSER_LEVEL_RECORD_BATCH:
+    switch (level) {
+    case PARSER_LEVEL_RECORD_BATCH:
+        if (api_version >= 12) {
+            index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12;
+        } else {
+            index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
+        }
+        break;
+    case PARSER_LEVEL_PARTITION:
+    default:
+        switch (api_key) {
+        case KAFKA_FETCH:
             if (api_version >= 12) {
-                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12;
             } else {
-                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0;
             }
             break;
-        case PARSER_LEVEL_PARTITION:
-        default:
-            switch (api_key) {
-            case KAFKA_FETCH:
-                if (api_version >= 12) {
-                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12;
-                } else {
-                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0;
-                }
-                break;
-            case KAFKA_PRODUCE:
-                if (api_version >= 9) {
-                    index = PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9;
-                } else {
-                    index = PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0;
-                }
-                break;
-            default:
-                // Shouldn't happen
-                return;
+        case KAFKA_PRODUCE:
+            if (api_version >= 9) {
+                index = PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9;
+            } else {
+                index = PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0;
             }
+            break;
+        default:
+            // Shouldn't happen
+            return;
         }
+    }
+
+    switch (pkt.type) {
+    case PKTBUF_SKB:
         bpf_tail_call_compat(ctx, &protocols_progs, index);
         break;
     case PKTBUF_TLS:
-        switch (level) {
-        case PARSER_LEVEL_RECORD_BATCH:
-            if (api_version >= 12) {
-                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12;
-            } else {
-                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
-            }
-            break;
-        case PARSER_LEVEL_PARTITION:
-        default:
-            switch (api_key) {
-            case KAFKA_FETCH:
-                if (api_version >= 12) {
-                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12;
-                } else {
-                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0;
-                }
-                break;
-            case KAFKA_PRODUCE:
-                if (api_version >= 9) {
-                    index = PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9;
-                } else {
-                    index = PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0;
-                }
-                break;
-            default:
-                // Shouldn't happen
-                return;
-            }
-        }
         bpf_tail_call_compat(ctx, &tls_process_progs, index);
         break;
     }
@@ -1631,6 +1602,12 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     */
 
     u32 offset = pktbuf_data_offset(pkt);
+    u32 pktlen = pktbuf_data_end(pkt) - offset;
+
+    if (pktlen < sizeof(kafka_header_t)) {
+        return false;
+    }
+
     kafka_transaction_t *kafka_transaction = &kafka->event.transaction;
     kafka_header_t kafka_header;
     bpf_memset(&kafka_header, 0, sizeof(kafka_header));

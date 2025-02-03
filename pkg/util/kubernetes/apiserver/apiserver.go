@@ -64,6 +64,15 @@ const (
 	tokenTime         = "tokenTimestamp"
 	tokenKey          = "tokenKey"
 	metadataMapExpire = 2 * time.Minute
+
+	// Default QPS and Burst values for the clients
+	informerClientQPSLimit = 5
+	informerClientQPSBurst = 10
+	standardClientQPSLimit = 10
+	standardClientQPSBurst = 20
+	// This is mostly required for built-in controllers in Cluster Agent (ExternalMetrics, Autoscaling that can generate a high nunber of `Update` requests)
+	controllerClientQPSLimit = 150
+	controllerClientQPSBurst = 300
 )
 
 // APIClient provides authenticated access to the
@@ -198,7 +207,7 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 }
 
 // GetClientConfig returns a REST client configuration
-func GetClientConfig(timeout time.Duration) (*rest.Config, error) {
+func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := pkgconfigsetup.Datadog().GetString("kubernetes_kubeconfig_path")
@@ -231,6 +240,8 @@ func GetClientConfig(timeout time.Duration) (*rest.Config, error) {
 	}
 
 	clientConfig.Timeout = timeout
+	clientConfig.QPS = qps
+	clientConfig.Burst = burst
 	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
 		return NewCustomRoundTripper(rt, timeout)
 	})
@@ -240,10 +251,10 @@ func GetClientConfig(timeout time.Duration) (*rest.Config, error) {
 
 // GetKubeClient returns a kubernetes API server client
 // You should not use this function except if you need to create a *NEW* Client.
-func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
+func GetKubeClient(timeout time.Duration, qps float32, burst int) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})
-	clientConfig, err := GetClientConfig(timeout)
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -251,8 +262,8 @@ func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(clientConfig)
 }
 
-func getKubeDynamicClient(timeout time.Duration) (dynamic.Interface, error) {
-	clientConfig, err := GetClientConfig(timeout)
+func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynamic.Interface, error) {
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -260,8 +271,8 @@ func getKubeDynamicClient(timeout time.Duration) (dynamic.Interface, error) {
 	return dynamic.NewForConfig(clientConfig)
 }
 
-func getCRDClient(timeout time.Duration) (*clientset.Clientset, error) {
-	clientConfig, err := GetClientConfig(timeout)
+func getCRDClient(timeout time.Duration, qps float32, burst int) (*clientset.Clientset, error) {
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -269,16 +280,16 @@ func getCRDClient(timeout time.Duration) (*clientset.Clientset, error) {
 	return clientset.NewForConfig(clientConfig)
 }
 
-func getAPISClient(timeout time.Duration) (*apiregistrationclient.ApiregistrationV1Client, error) {
-	clientConfig, err := GetClientConfig(timeout)
+func getAPISClient(timeout time.Duration, qps float32, burst int) (*apiregistrationclient.ApiregistrationV1Client, error) {
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
 	return apiregistrationclient.NewForConfig(clientConfig)
 }
 
-func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
-	clientConfig, err := GetClientConfig(timeout)
+func getKubeVPAClient(timeout time.Duration, qps float32, burst int) (vpa.Interface, error) {
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -286,8 +297,8 @@ func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
 	return vpa.NewForConfig(clientConfig)
 }
 
-func getScaleClient(discoveryCl discovery.ServerResourcesInterface, restMapper meta.RESTMapper, timeout time.Duration) (scale.ScalesGetter, error) {
-	clientConfig, err := GetClientConfig(timeout)
+func getScaleClient(discoveryCl discovery.ServerResourcesInterface, restMapper meta.RESTMapper, timeout time.Duration, qps float32, burst int) (scale.ScalesGetter, error) {
+	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
 	}
@@ -311,13 +322,13 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 func (c *APIClient) connect() error {
 	var err error
 	// Clients
-	c.Cl, err = GetKubeClient(c.defaultClientTimeout)
+	c.Cl, err = GetKubeClient(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
 
-	c.DynamicCl, err = getKubeDynamicClient(c.defaultClientTimeout)
+	c.DynamicCl, err = getKubeDynamicClient(c.defaultClientTimeout, controllerClientQPSLimit, controllerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver dynamic client: %v", err)
 		return err
@@ -328,38 +339,38 @@ func (c *APIClient) connect() error {
 	c.RESTMapper = restmapper.NewDeferredDiscoveryRESTMapper(cachedClient)
 
 	// Scale client  has specific init and dependencies
-	c.ScaleCl, err = getScaleClient(c.Cl.Discovery(), c.RESTMapper, c.defaultClientTimeout)
+	c.ScaleCl, err = getScaleClient(c.Cl.Discovery(), c.RESTMapper, c.defaultClientTimeout, controllerClientQPSLimit, controllerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get scale client: %v", err)
 		return err
 	}
 
 	// Informer clients
-	c.InformerCl, err = GetKubeClient(c.defaultInformerTimeout)
+	c.InformerCl, err = GetKubeClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver client: %v", err)
 		return err
 	}
 
-	c.DynamicInformerCl, err = getKubeDynamicClient(c.defaultInformerTimeout)
+	c.DynamicInformerCl, err = getKubeDynamicClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver dynamic client: %v", err)
 		return err
 	}
 
-	c.VPAInformerClient, err = getKubeVPAClient(c.defaultInformerTimeout)
+	c.VPAInformerClient, err = getKubeVPAClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver vpa client: %v", err)
 		return err
 	}
 
-	c.CRDInformerClient, err = getCRDClient(c.defaultInformerTimeout)
+	c.CRDInformerClient, err = getCRDClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver CRDClient client: %v", err)
 		return err
 	}
 
-	c.APISInformerClient, err = getAPISClient(c.defaultInformerTimeout)
+	c.APISInformerClient, err = getAPISClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver APISClient client: %v", err)
 		return err
@@ -651,7 +662,7 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 
 // RESTClient returns a new REST client
 func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer) (*rest.RESTClient, error) {
-	clientConfig, err := GetClientConfig(c.defaultClientTimeout)
+	clientConfig, err := GetClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -665,7 +676,7 @@ func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion
 
 // MetadataClient returns a new kubernetes metadata client
 func (c *APIClient) MetadataClient() (metadata.Interface, error) {
-	clientConfig, err := GetClientConfig(c.defaultInformerTimeout)
+	clientConfig, err := GetClientConfig(c.defaultInformerTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -676,7 +687,7 @@ func (c *APIClient) MetadataClient() (metadata.Interface, error) {
 
 // NewSPDYExecutor returns a new SPDY executor for the provided method and URL
 func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer, method string, url *url.URL) (remotecommand.Executor, error) {
-	clientConfig, err := GetClientConfig(c.defaultClientTimeout)
+	clientConfig, err := GetClientConfig(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
 	if err != nil {
 		return nil, err
 	}
@@ -686,4 +697,19 @@ func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVe
 	clientConfig.NegotiatedSerializer = negotiatedSerializer
 
 	return remotecommand.NewSPDYExecutor(clientConfig, method, url)
+}
+
+// GetKubeSecret fetches a secret from k8s
+func GetKubeSecret(namespace string, name string) (map[string][]byte, error) {
+	kubeClient, err := GetKubeClient(10*time.Second, 0, 0) // Default QPS and burst to Kube client defaults using 0)
+	if err != nil {
+		return nil, err
+	}
+
+	secret, err := kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return secret.Data, nil
 }

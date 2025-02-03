@@ -8,242 +8,178 @@ package telemetry
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
-	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
-	"sync"
+	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
-	"github.com/gorilla/mux"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	// EnvTraceID is the environment variable key for the trace ID
-	EnvTraceID = "DATADOG_TRACE_ID"
-	// EnvParentID is the environment variable key for the parent ID
-	EnvParentID = "DATADOG_PARENT_ID"
-)
-
-const (
+	envTraceID         = "DATADOG_TRACE_ID"
+	envParentID        = "DATADOG_PARENT_ID"
 	telemetrySubdomain = "instrumentation-telemetry-intake"
-	telemetryEndpoint  = "/v0.4/traces"
 )
 
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
 	telemetryClient internaltelemetry.Client
+	done            chan struct{}
+	flushed         chan struct{}
 
-	site    string
+	env     string
 	service string
-
-	listener *telemetryListener
-	server   *http.Server
-	client   *http.Client
-
-	samplingRules []tracer.SamplingRule
 }
 
-// Option is a functional option for telemetry.
-type Option func(*Telemetry)
-
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(apiKey string, site string, service string, opts ...Option) (*Telemetry, error) {
-	endpoint := &traceconfig.Endpoint{
+func NewTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
+	t := newTelemetry(client, apiKey, site, service)
+	t.Start()
+	return t
+}
+
+func newTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
+	endpoint := &internaltelemetry.Endpoint{
 		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
 		APIKey: apiKey,
 	}
-	listener := newTelemetryListener()
-	t := &Telemetry{
-		telemetryClient: internaltelemetry.NewClient(env.GetHTTPClient(), []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
-		site:            site,
-		service:         service,
-		listener:        listener,
-		server:          &http.Server{},
-		client: &http.Client{
-			Transport: &http.Transport{
-				Dial: listener.Dial,
-			},
-		},
-	}
-	for _, opt := range opts {
-		opt(t)
-	}
-	t.server.Handler = t.handler()
-	return t, nil
-}
-
-// Start starts the telemetry
-func (t *Telemetry) Start(_ context.Context) error {
-	go func() {
-		err := t.server.Serve(t.listener)
-		if err != nil {
-			log.Infof("telemetry server stopped: %v", err)
-		}
-	}()
 	env := "prod"
-	if t.site == "datad0g.com" {
+	if site == "datad0g.com" {
 		env = "staging"
 	}
 
-	tracer.Start(
-		tracer.WithService(t.service),
-		tracer.WithServiceVersion(version.AgentVersion),
-		tracer.WithEnv(env),
-		tracer.WithGlobalTag("site", t.site),
-		tracer.WithHTTPClient(t.client),
-		tracer.WithLogStartup(false),
+	return &Telemetry{
+		telemetryClient: internaltelemetry.NewClient(client, []*internaltelemetry.Endpoint{endpoint}, service, site == "datad0g.com"),
+		done:            make(chan struct{}),
+		flushed:         make(chan struct{}),
+		env:             env,
+		service:         service,
+	}
+}
 
-		// We don't need the value, we just need to enforce that it's not
-		// the default. If it is, then the tracer will try to use the socket
-		// if it exists -- and it always exists for newer agents.
-		// If the agent address is the socket, the tracer overrides WithHTTPClient to use it.
-		tracer.WithAgentAddr("192.0.2.42:12345"), // 192.0.2.0/24 is reserved
-		tracer.WithSamplingRules(t.samplingRules),
-	)
-	return nil
+// Start starts the telemetry
+func (t *Telemetry) Start() {
+	ticker := time.Tick(1 * time.Minute)
+	go func() {
+		for {
+			select {
+			case <-ticker:
+				t.sendCompletedSpans()
+			case <-t.done:
+				t.sendCompletedSpans()
+				close(t.flushed)
+				return
+			}
+		}
+	}()
 }
 
 // Stop stops the telemetry
-func (t *Telemetry) Stop(ctx context.Context) error {
-	tracer.Flush()
-	tracer.Stop()
-	t.listener.Close()
-	err := t.server.Shutdown(ctx)
-	if err != nil {
-		log.Errorf("error shutting down telemetry server: %v", err)
+func (t *Telemetry) Stop() {
+	close(t.done)
+	<-t.flushed
+}
+
+func (t *Telemetry) extractCompletedSpans() internaltelemetry.Traces {
+	spans := globalTracer.flushCompletedSpans()
+	if len(spans) == 0 {
+		return internaltelemetry.Traces{}
 	}
-	return nil
-}
-
-func (t *Telemetry) handler() http.Handler {
-	r := mux.NewRouter().Headers("Content-Type", "application/msgpack").Subrouter()
-	r.HandleFunc(telemetryEndpoint, func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			log.Errorf("error reading request body: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		var traces pb.Traces
-		_, err = traces.UnmarshalMsg(body)
-		if err != nil {
-			log.Errorf("error unmarshalling traces: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		t.telemetryClient.SendTraces(traces)
-		w.WriteHeader(http.StatusOK)
-	})
-	return r
-}
-
-type telemetryListener struct {
-	conns chan net.Conn
-
-	close     chan struct{}
-	closeOnce sync.Once
-}
-
-func newTelemetryListener() *telemetryListener {
-	return &telemetryListener{
-		conns: make(chan net.Conn),
-		close: make(chan struct{}),
+	traces := make(map[uint64][]*internaltelemetry.Span)
+	for _, span := range spans {
+		span.span.Service = t.service
+		span.span.Meta["env"] = t.env
+		span.span.Meta["version"] = version.AgentVersion
+		span.span.Metrics["_sampling_priority_v1"] = 2
+		traces[span.span.TraceID] = append(traces[span.span.TraceID], &span.span)
 	}
-}
-
-func (l *telemetryListener) Close() error {
-	l.closeOnce.Do(func() {
-		close(l.close)
-	})
-	return nil
-}
-
-func (l *telemetryListener) Accept() (net.Conn, error) {
-	select {
-	case <-l.close:
-		return nil, errors.New("listener closed")
-	case conn := <-l.conns:
-		return conn, nil
+	tracesArray := make([]internaltelemetry.Trace, 0, len(traces))
+	for _, trace := range traces {
+		tracesArray = append(tracesArray, internaltelemetry.Trace(trace))
 	}
+	return internaltelemetry.Traces(tracesArray)
 }
 
-func (l *telemetryListener) Addr() net.Addr {
-	return addr(0)
-}
-
-func (l *telemetryListener) Dial(_, _ string) (net.Conn, error) {
-	select {
-	case <-l.close:
-		return nil, errors.New("listener closed")
-	default:
+func (t *Telemetry) sendCompletedSpans() {
+	tracesArray := t.extractCompletedSpans()
+	if len(tracesArray) == 0 {
+		return
 	}
-	server, client := net.Pipe()
-	l.conns <- server
-	return client, nil
+	t.telemetryClient.SendTraces(tracesArray)
 }
 
-type addr int
-
-func (addr) Network() string {
-	return "memory"
-}
-
-func (addr) String() string {
-	return "local"
-}
-
-// SpanContextFromEnv injects the traceID and parentID from the environment into the context if available.
-func SpanContextFromEnv() (ddtrace.SpanContext, bool) {
-	traceID := os.Getenv(EnvTraceID)
-	parentID := os.Getenv(EnvParentID)
-	ctxCarrier := tracer.TextMapCarrier{
-		tracer.DefaultTraceIDHeader:  traceID,
-		tracer.DefaultParentIDHeader: parentID,
-		tracer.DefaultPriorityHeader: "2",
-	}
-	spanCtx, err := tracer.Extract(ctxCarrier)
-	if err != nil {
-		log.Debugf("failed to extract span context from install script params: %v", err)
-		return nil, false
-	}
-	return spanCtx, true
-}
-
-// EnvFromSpanContext returns the environment variables for the span context.
-func EnvFromSpanContext(spanCtx ddtrace.SpanContext) []string {
-	env := []string{
-		fmt.Sprintf("%s=%d", EnvTraceID, spanCtx.TraceID()),
-		fmt.Sprintf("%s=%d", EnvParentID, spanCtx.SpanID()),
-	}
-	return env
-}
-
-// SpanContextFromContext extracts the span context from the context if available.
-func SpanContextFromContext(ctx context.Context) (ddtrace.SpanContext, bool) {
-	span, ok := tracer.SpanFromContext(ctx)
+// SpanFromContext returns the span from the context if available.
+func SpanFromContext(ctx context.Context) (*Span, bool) {
+	spanIDs, ok := getSpanIDsFromContext(ctx)
 	if !ok {
 		return nil, false
 	}
-	return span.Context(), true
+	return globalTracer.getSpan(spanIDs.spanID)
 }
 
-// WithSamplingRules sets the sampling rules for the telemetry.
-func WithSamplingRules(rules ...tracer.SamplingRule) Option {
-	return func(t *Telemetry) {
-		t.samplingRules = rules
+// StartSpanFromEnv starts a span using the environment variables to find the parent span.
+func StartSpanFromEnv(ctx context.Context, operationName string) (*Span, context.Context) {
+	traceID, parentID := extractIDsFromEnv()
+	return StartSpanFromIDs(ctx, operationName, traceID, parentID)
+}
+
+func extractIDsFromEnv() (string, string) {
+	parentID, ok := os.LookupEnv(envParentID)
+	if !ok {
+		return "0", "0"
+	}
+	traceID, ok := os.LookupEnv(envTraceID)
+	if !ok {
+		return "0", "0"
+	}
+	return traceID, parentID
+}
+
+func converIDsToUint64(traceID, parentID string) (uint64, uint64) {
+	traceIDInt, err := strconv.ParseUint(traceID, 10, 64)
+	if err != nil {
+		return 0, 0
+	}
+	parentIDInt, err := strconv.ParseUint(parentID, 10, 64)
+	if err != nil {
+		return 0, 0
+	}
+	return traceIDInt, parentIDInt
+}
+
+// StartSpanFromIDs starts a span using the trace and parent
+// IDs provided.
+func StartSpanFromIDs(ctx context.Context, operationName, traceID, parentID string) (*Span, context.Context) {
+	traceIDInt, parentIDInt := converIDsToUint64(traceID, parentID)
+	span, ctx := startSpanFromIDs(ctx, operationName, traceIDInt, parentIDInt)
+	span.SetTopLevel()
+	return span, ctx
+}
+
+func startSpanFromIDs(ctx context.Context, operationName string, traceID, parentID uint64) (*Span, context.Context) {
+	s := newSpan(operationName, parentID, traceID)
+	ctx = setSpanIDsInContext(ctx, s)
+	return s, ctx
+}
+
+// StartSpanFromContext starts a span using the context to find the parent span.
+func StartSpanFromContext(ctx context.Context, operationName string) (*Span, context.Context) {
+	spanIDs, _ := getSpanIDsFromContext(ctx)
+	return startSpanFromIDs(ctx, operationName, spanIDs.traceID, spanIDs.spanID)
+}
+
+// EnvFromContext returns the environment variables for the context.
+func EnvFromContext(ctx context.Context) []string {
+	sIDs, ok := getSpanIDsFromContext(ctx)
+	if !ok {
+		return []string{}
+	}
+	return []string{
+		fmt.Sprintf("%s=%s", envTraceID, strconv.FormatUint(sIDs.traceID, 10)),
+		fmt.Sprintf("%s=%s", envParentID, strconv.FormatUint(sIDs.spanID, 10)),
 	}
 }

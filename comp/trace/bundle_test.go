@@ -13,10 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -44,6 +47,7 @@ func TestBundleDependencies(t *testing.T) {
 		zstdfx.Module(),
 		taggerfx.Module(tagger.Params{}),
 		fx.Supply(&traceagentimpl.Params{}),
+		createandfetchimpl.Module(),
 	)
 }
 
@@ -62,6 +66,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
 		coreconfig.MockModule(),
+		fxutil.ProvideNoneOptional[secrets.Component](),
 		telemetryimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
@@ -73,6 +78,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
 		taggerfx.Module(tagger.Params{}),
+		fetchonlyimpl.MockModule(),
 	))
 
 	require.NotNil(t, cfg.Object())

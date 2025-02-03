@@ -68,8 +68,9 @@ type Webhook struct {
 	name            string
 	isEnabled       bool
 	endpoint        string
-	resources       []string
+	resources       map[string][]string
 	operations      []admissionregistrationv1.OperationType
+	matchConditions []admissionregistrationv1.MatchCondition
 	wmeta           workloadmeta.Component
 	injectionFilter mutatecommon.InjectionFilter
 
@@ -90,8 +91,9 @@ func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.Injec
 		name:            webhookName,
 		isEnabled:       datadogConfig.GetBool("admission_controller.inject_config.enabled"),
 		endpoint:        datadogConfig.GetString("admission_controller.inject_config.endpoint"),
-		resources:       []string{"pods"},
+		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+		matchConditions: []admissionregistrationv1.MatchCondition{},
 		wmeta:           wmeta,
 		injectionFilter: injectionFilter,
 
@@ -126,7 +128,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() []string {
+func (w *Webhook) Resources() map[string][]string {
 	return w.resources
 }
 
@@ -142,10 +144,16 @@ func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *
 	return common.DefaultLabelSelectors(useNamespaceSelector)
 }
 
+// MatchConditions returns the Match Conditions used for fine-grained
+// request filtering
+func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
+	return w.matchConditions
+}
+
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.inject, request.DynamicClient))
 	}
 }
 

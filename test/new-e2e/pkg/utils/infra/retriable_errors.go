@@ -55,5 +55,16 @@ func getKnownErrors() []knownError {
 			errorMessage: `ssh: handshake failed: ssh: unable to authenticate`,
 			retryType:    ReCreate,
 		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-798
+			// https://datadoghq.atlassian.net/browse/ADXT-813
+			errorMessage: `error: awsx:ecs:FargateTaskDefinition resource '.+fakeintake.+' has a problem: grpc: the client connection is closing`,
+			retryType:    ReCreate,
+		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-726
+			errorMessage: `error: .*ssh: rejected: connect failed (No route to host)`,
+			retryType:    ReCreate,
+		},
 	}
 }

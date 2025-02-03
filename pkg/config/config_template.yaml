@@ -1024,13 +1024,13 @@ api_key:
   ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 10
   ## The max size in MB that an integration logs file is allowed to use
   #
-  # integrations_logs_files_max_size
+  # integrations_logs_files_max_size: 10
 
   ## @param integrations_logs_total_usage - integer - optional - default: 100
   ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_TOTAL_USAGE - integer - optional - default: 100
   ## The total combined usage all integrations logs files can use
   #
-  # integrations_logs_total_usage
+  # integrations_logs_total_usage: 100
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -1197,7 +1197,7 @@ api_key:
   #         remove_query_string: false
   ##        @param DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS - boolean - optional
   ##        If enabled, path segments in URLs containing digits are replaced by "?"
-  #         remove_path_with_digits: false
+  #         remove_paths_with_digits: false
   #
   #     memcached:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
@@ -1235,36 +1235,49 @@ api_key:
   #     remove_stack_traces: false
   #
   #     sql_exec_plan:
-  ##        @param DD_APM_SQL_EXEC_PLAN_ENABLED - boolean - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED - boolean - optional
   ##        Enables obfuscation rules for JSON query execution plans. Disabled by default.
   #         enabled: false
-  ##        @param DD_APM_SQL_EXEC_PLAN_KEEP_VALUES - object - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
   #             - id1
-  ##        @param DD_APM_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
   #         obfuscate_sql_values:
   #             - val1
   #
   #     sql_exec_plan_normalize:
-  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional
   ##        Enables obfuscation rules for JSON query execution plans, including cost and row estimates.
   ##        Produces a normalized execution plan. Disabled by default.
   #         enabled: false
-  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - object - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
   #             - id1
-  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
   #         obfuscate_sql_values:
   #             - val1
-  #    cache:
-  ##        @param DD_APM_CACHE_ENABLED - boolean - optional
+  #     cache:
+  ##        @param DD_APM_OBFUSCATION_CACHE_ENABLED - boolean - optional
   ##        Enables caching obfuscated statements. Currently supported for SQL and MongoDB queries.
   ##        Enabled by default.
   #         enabled: true
+  ##        @param DD_APM_OBFUSCATION_CACHE_MAX_SIZE - integer - optional - default: 5000000
+  ##        The maximum size of the cache in bytes. The maximum allowed resource length is 5000.
+  ##        Datadog stores a minimum of 1000 queries (5000000 / 5000) by default.
+  #         max_size: 5000000
+
+  ## @sql_obfuscation_mode - string - optional - default: ""
+  ## @env DD_APM_SQL_OBFUSCATION_MODE - string - optional - default: ""
+  ## Obfuscator mode for SQL queries.
+  ## Leave empty to use the default obfuscator.
+  ## Set to "obfuscate_only" to obfuscate the query with the new `sqllexer` obfuscator.
+  ## If you use DBM, set to "obfuscate_and_normalize" to obfuscate and normalize the query for better APM/DBM correlation.
+  #
+  # sql_obfuscation_mode: ""
 
   ## @param filter_tags - object - optional
   ## @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
@@ -1379,7 +1392,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -1404,29 +1417,34 @@ api_key:
     #
     # port: 5012
 
-  ## @param instrumentation_enabled - boolean - default: false
-  ## @env DD_APM_INSTRUMENTATION_ENABLED - boolean - default: false
-  ## Enables Single Step Instrumentation in the cluster (in beta)
+  ## @param instrumentation - custom object - optional
+  ## Specifies settings for Single Step Instrumentation.
   #
-  # instrumentation_enabled: false
+  # instrumentation:
 
-  ## @param instrumentation_enabled_namespaces - list of strings - optional
-  ## @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - space separated list of strings - optional
-  ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
-  ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
-  #
-  # instrumentation_enabled_namespaces:
-  # - ns1
-  # - apps
+    ## @param enabled - boolean - default: false
+    ## @env DD_APM_INSTRUMENTATION_ENABLED - boolean - default: false
+    ## Enables Single Step Instrumentation in the cluster (in beta)
+    #
+    # enabled: false
 
-  ## @param instrumentation_disabled_namespaces - list of strings - optional
-  ## @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - space separated list of strings - optional
-  ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
-  ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
-  #
-  # instrumentation_disabled_namespaces:
-  # - ns2
-  # - system-ns
+    ## @param enabled_namespaces - list of strings - optional
+    ## @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - space separated list of strings - optional
+    ## Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
+    ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
+    #
+    # enabled_namespaces:
+    # - ns1
+    # - apps
+
+    ## @param disabled_namespaces - list of strings - optional
+    ## @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - space separated list of strings - optional
+    ## Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
+    ## Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
+    #
+    # disabled_namespaces:
+    # - ns2
+    # - system-ns
 
   ## @param trace_buffer - integer - optional - default: 0
   ## @env DD_APM_TRACE_BUFFER - integer - optional - default: 0
@@ -1448,19 +1466,30 @@ api_key:
   ## Enables and configures the Probabilistic Sampler, compatible with the
   ## OTel Probabilistic Sampler Processor ( https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor#probabilistic-sampling-processor )
   ##
-  #probabilistic_sampler:
-  ## @env DD_APM_PROBABILISTIC_SAMPLER_ENABLED - boolean - optional - default: false
-  ## Enables or disables the probabilistic sampler
-  #  enabled: false
-  #
-  ## @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
-  ## Samples this percentage (0-100) of traffic
-  #  sampling_percentage: 0
-  #
-  ## @env DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED - integer - optional - default: 0
-  ## hash_seed: A seed used for the hash algorithm. This must match other agents and OTel
-  ##            collectors using the probabilistic sampler to ensure consistent sampling.
-  #  hash_seed: 0
+  # probabilistic_sampler:
+
+    ## @env DD_APM_PROBABILISTIC_SAMPLER_ENABLED - boolean - optional - default: false
+    ## Enables or disables the probabilistic sampler
+    #  enabled: false
+    #
+    ## @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
+    ## Samples this percentage (0-100) of traffic
+    #  sampling_percentage: 0
+    #
+    ## @env DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED - integer - optional - default: 0
+    ## hash_seed: A seed used for the hash algorithm. This must match other agents and OTel
+    ##            collectors using the probabilistic sampler to ensure consistent sampling.
+    #  hash_seed: 0
+
+  ## @param error_tracking_standalone - object - optional
+  ## Enables Error Tracking Standalone
+  ##
+  # error_tracking_standalone:
+
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_APM_ERROR_TRACKING_STANDALONE_ENABLED - boolean - optional - default: false
+    ## Enables or disables Error Tracking Standalone
+    # enabled: false
 
 
   {{- if .InternalProfiling -}}
@@ -3603,7 +3632,7 @@ api_key:
 ## @param prometheus_scrape - custom object - optional
 ## This section configures the Autodiscovery based on the Prometheus annotations
 #
-# prometheus:
+# prometheus_scrape:
 
   ## @param enabled - boolean - optional - default: false
   ## Enables the prometheus config provider
@@ -3854,50 +3883,50 @@ api_key:
       ## @param ignored_ip_addresses - list of strings - optional
       ## A list of IP addresses to ignore when scanning the network.
       #
-      # ignored_ip_addresses:
-      #   - <IP_ADDRESS_1>
-      #   - <IP_ADDRESS_2>
+      #   ignored_ip_addresses:
+      #     - <IP_ADDRESS_1>
+      #     - <IP_ADDRESS_2>
 
       ## @param port - integer - optional - default: 161
       ## The UDP port to use when connecting to SNMP devices.
       #
-      # port: 161
+      #   port: 161
 
       ## @param snmp_version - integer - optional - default: <BEST_GUESS>
       ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
       ## If unset, the Agent tries to guess the correct version based on other configuration
       ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
       #
-      # snmp_version: <VERSION>
+      #   snmp_version: <VERSION>
 
       ## @param timeout - integer - optional - default: 5
       ## The number of seconds before timing out.
       #
-      # timeout: 5
+      #   timeout: 5
 
       ## @param retries - integer - optional - default: 3
       ## The number of retries before failure.
       #
-      # retries: 3
+      #   retries: 3
 
       ## @param community_string - string - optional
       ## Required for SNMP v1 & v2.
       ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
       ## Ex: 'public'
       #
-      # community_string: '<COMMUNITY>'
+      #   community_string: '<COMMUNITY>'
 
       ## @param user - string - optional
       ## The username to connect to your SNMP devices.
       ## SNMPv3 only.
       #
-      # user: <USERNAME>
+      #   user: <USERNAME>
 
       ## @param authKey - string - optional
       ## The passphrase to use with your Authentication type.
       ## SNMPv3 only.
       #
-      # authKey: <AUTHENTICATION_KEY>
+      #   authKey: <AUTHENTICATION_KEY>
 
       ## @param authProtocol - string - optional
       ## The authentication protocol to use when connecting to your SNMP devices.
@@ -3905,13 +3934,13 @@ api_key:
       ## Defaults to MD5 when `authentication_key` is specified.
       ## SNMPv3 only.
       #
-      # authProtocol: <AUTHENTICATION_PROTOCOL>
+      #   authProtocol: <AUTHENTICATION_PROTOCOL>
 
       ## @param privKey - string - optional
       ## The passphrase to use with your privacy protocol.
       ## SNMPv3 only.
       #
-      # privKey: <PRIVACY_KEY>
+      #   privKey: <PRIVACY_KEY>
 
       ## @param privProtocol - string - optional
       ## The privacy protocol to use when connecting to your SNMP devices.
@@ -3919,35 +3948,35 @@ api_key:
       ## Defaults to DES when `privacy_key` is specified.
       ## SNMPv3 only.
       #
-      # privProtocol: <PRIVACY_PROTOCOL>
+      #   privProtocol: <PRIVACY_PROTOCOL>
 
       ## @param context_name - string - optional
       ## The name of your context (optional SNMP v3-only parameter).
       #
-      # context_name: <CONTEXT_NAME>
+      #   context_name: <CONTEXT_NAME>
 
       ## @param tags - list of strings - optional
       ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
       ##
       ## Learn more about tagging at https://docs.datadoghq.com/tagging
       #
-      # tags:
-      #   - <KEY_1>:<VALUE_1>
-      #   - <KEY_2>:<VALUE_2>
+      #   tags:
+      #     - <KEY_1>:<VALUE_1>
+      #     - <KEY_2>:<VALUE_2>
 
       ## @param ad_identifier - string - optional - default: snmp
       ## A unique identifier to attach to devices from that subnetwork.
       ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
       ## specify the corresponding ad_identifier at the top of the file.
       #
-      # ad_identifier: snmp
+      #   ad_identifier: snmp
 
       ## @param loader - string - optional - default: python
       ## Check loader to use. Available loaders:
       ## - core: will use corecheck SNMP integration
       ## - python: will use python SNMP integration
       #
-      # loader: core
+      #   loader: core
 
       ## @param min_collection_interval - number - optional - default: 15
       ## This changes the collection interval for the check instances created from
@@ -3956,7 +3985,7 @@ api_key:
       ## For more information, see:
       ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
       #
-      # min_collection_interval: 15
+      #   min_collection_interval: 15
 
       ## @param use_device_id_as_hostname - boolean - optional - default: false
       ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
@@ -3964,12 +3993,12 @@ api_key:
       ## `host:device:<DEVICE_ID>` as tag).
       ## This option is needed for custom tags.
       #
-      # use_device_id_as_hostname: true
+      #   use_device_id_as_hostname: true
 
       ## @param oid_batch_size - integer - optional - default: 5
       ## The number of OIDs handled by each batch.
       #
-      # oid_batch_size: 5
+      #   oid_batch_size: 5
 
       ## @param interface_configs - map - optional
       ## This option is used to override interface inbound/outbound speed and add interface tags
@@ -3984,27 +4013,27 @@ api_key:
       ##         - "testTagKey:testTagValue"
       ##         - "tagKey2:tagValue2"
       #
-      # interface_config:
-      #   "10.0.0.1":
-      #     - match_field: name
-      #       match_value: eth0
-      #       in_speed: 50
-      #       out_speed: 25
-      #     - match_field: index
-      #       match_value: '10'
-      #       in_speed: 50
-      #       out_speed: 25
-      #   "10.0.0.2":
-      #     - match_field: name
-      #       match_value: eth3
-      #       in_speed: 50
-      #       out_speed: 25
-      #   "10.0.0.3":
-      #     - match_field: name
-      #       match_value: eth4
-      #       tags:
-      #         - "monitored:true"
-      #         - "customKey:customValue"
+      #   interface_config:
+      #     "10.0.0.1":
+      #       - match_field: name
+      #         match_value: eth0
+      #         in_speed: 50
+      #         out_speed: 25
+      #       - match_field: index
+      #         match_value: '10'
+      #         in_speed: 50
+      #         out_speed: 25
+      #     "10.0.0.2":
+      #       - match_field: name
+      #         match_value: eth3
+      #         in_speed: 50
+      #         out_speed: 25
+      #     "10.0.0.3":
+      #       - match_field: name
+      #         match_value: eth4
+      #         tags:
+      #           - "monitored:true"
+      #           - "customKey:customValue"
 
       ## @param ping - custom object - optional
       ## Configure ICMP pings for all hosts in SNMP autodiscovery
@@ -4018,17 +4047,17 @@ api_key:
       ## of system-probe for elevated privileges. See
       ## system-probe.yaml.example for details.
       #
-      # ping:
-      #   enabled: true             # Disabled by default
-      #   timeout: 3000             # Timeout in milliseconds
-      #   count: 2                  # Number of ping packets to send per check run
-      #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
-      #   linux:                    # Linux-specific configuration
-      #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
-      #                             # This may be required if your system doesn't support
-      #                             # sending pings in an unprivileged fashion (using a UDP socket).
-      #                             # If `use_raw_socket` is set to true, you MUST also enable
-      #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
+      #   ping:
+      #     enabled: true             # Disabled by default
+      #     timeout: 3000             # Timeout in milliseconds
+      #     count: 2                  # Number of ping packets to send per check run
+      #     interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
+      #     linux:                    # Linux-specific configuration
+      #       use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
+      #                               # This may be required if your system doesn't support
+      #                               # sending pings in an unprivileged fashion (using a UDP socket).
+      #                               # If `use_raw_socket` is set to true, you MUST also enable
+      #                               # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
 
   ## @param snmp_traps - custom object - optional

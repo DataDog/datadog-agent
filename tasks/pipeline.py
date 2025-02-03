@@ -13,14 +13,14 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    cancel_pipeline,
     get_gitlab_bot_token,
     get_gitlab_repo,
     gitlab_configuration_is_modified,
     refresh_pipeline,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
-from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_current_branch, get_default_branch
 from tasks.libs.common.utils import (
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
@@ -43,11 +43,9 @@ BOT_NAME = "github-actions[bot]"
 # Tasks to trigger pipelines
 
 
-def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, release_version_7, repo_branch):
+def check_deploy_pipeline(repo_branch):
     """
-    Run checks to verify a deploy pipeline is valid:
-    - it targets a valid repo branch
-    - it has matching Agent 6 and Agent 7 tags (depending on release_version_* values)
+    Run checks to verify a deploy pipeline is valid (it targets a valid repo branch)
     """
 
     # Check that the target repo branch is valid
@@ -57,44 +55,9 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
         )
         raise Exit(code=1)
 
-    #
-    # If git_ref matches v7 pattern and release_version_6 is not empty, make sure Gitlab has v6 tag.
-    # If git_ref matches v6 pattern and release_version_7 is not empty, make sure Gitlab has v7 tag.
-    # v7 version pattern should be able to match 7.12.24-rc2 and 7.12.34
-    #
-    v7_pattern = r'^7\.(\d+\.\d+)(-.+|)$'
-    v6_pattern = r'^6\.(\d+\.\d+)(-.+|)$'
-
-    match = re.match(v7_pattern, git_ref)
-
-    # TODO(@spencergilbert): remove cross reference check when all references to a6 are removed
-    if release_version_6 and match:
-        # release_version_6 is not empty and git_ref matches v7 pattern, construct v6 tag and check.
-        tag_name = "6." + "".join(match.groups())
-        try:
-            repo.tags.get(tag_name)
-        except GitlabError:
-            print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
-            print("v6 tags are no longer created, this check will be removed in a later commit")
-
-        print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
-    else:
-        match = re.match(v6_pattern, git_ref)
-
-        if release_version_7 and match:
-            # release_version_7 is not empty and git_ref matches v6 pattern, construct v7 tag and check.
-            tag_name = "7." + "".join(match.groups())
-            try:
-                repo.tags.get(tag_name)
-            except GitlabError as e:
-                print(f"Cannot find GitLab v7 tag {tag_name} while trying to build git ref {git_ref}")
-                raise Exit(code=1) from e
-
-            print(f"Successfully cross checked v7 tag {tag_name} and git ref {git_ref}")
-
 
 @task
-def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_sha=False, sha=None):
+def clean_running_pipelines(ctx, git_ref=None, here=False, use_latest_sha=False, sha=None):
     """
     Fetch running pipelines on a target ref (+ optionally a git sha), and ask the user if they
     should be cancelled.
@@ -104,6 +67,8 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
 
     if here:
         git_ref = get_current_branch(ctx)
+    else:
+        git_ref = git_ref or get_default_branch()
 
     print(f"Fetching running pipelines on {git_ref}")
 
@@ -130,11 +95,12 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
-def trigger(_, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
+def trigger(_, git_ref=None, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
     """
 
+    git_ref = git_ref or get_default_branch()
     use_release_entries = ""
     major_versions = []
 
@@ -165,6 +131,9 @@ def auto_cancel_previous_pipelines(ctx):
         raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
     git_ref = os.environ["CI_COMMIT_REF_NAME"]
+    if git_ref == "":
+        raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
+
     git_sha = os.getenv("CI_COMMIT_SHA")
 
     repo = get_gitlab_repo()
@@ -289,7 +258,7 @@ def run(
 
     if deploy or deploy_installer:
         # Check the validity of the deploy pipeline
-        check_deploy_pipeline(repo, git_ref, release_version_6, release_version_7, repo_branch)
+        check_deploy_pipeline(repo_branch)
         # Force all builds and e2e tests to be run
         if not all_builds:
             print(
@@ -788,7 +757,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
         [
             # Fetch
             f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
-            f"git fetch '{owner}'",
+            f"git fetch '{owner}' '{branch}'",
             # Create branch
             f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
             f"git checkout -b '{owner}/{branch}'",
@@ -829,16 +798,16 @@ def test_merge_queue(ctx):
     # Create a new main and push it
     print("Creating a new main branch")
     timestamp = int(datetime.now(timezone.utc).timestamp())
-    test_main = f"mq/test_{timestamp}"
+    test_default = f"mq/test_{timestamp}"
     current_branch = get_current_branch(ctx)
-    ctx.run("git checkout main", hide=True)
+    ctx.run(f"git checkout {get_default_branch()}", hide=True)
     ctx.run("git pull", hide=True)
-    ctx.run(f"git checkout -b {test_main}", hide=True)
-    ctx.run(f"git push origin {test_main}", hide=True)
+    ctx.run(f"git checkout -b {test_default}", hide=True)
+    ctx.run(f"git push origin {test_default}", hide=True)
     # Create a PR towards this new branch and adds it to the merge queue
     print("Creating a PR and adding it to the merge queue")
     gh = GithubAPI()
-    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_main, current_branch)
+    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_default, current_branch)
     pr.create_issue_comment("/merge")
     # Search for the generated pipeline
     print(f"PR {pr.html_url} is waiting for MQ pipeline generation")
@@ -848,7 +817,7 @@ def test_merge_queue(ctx):
         time.sleep(30)
         pipelines = agent.pipelines.list(per_page=100)
         try:
-            pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_main}"))
+            pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_default}"))
             print(f"Pipeline found: {pipeline.web_url}")
             break
         except StopIteration as e:
@@ -863,11 +832,11 @@ def test_merge_queue(ctx):
     # Clean up
     print("Cleaning up")
     if success:
-        pipeline.cancel()
+        cancel_pipeline(pipeline)
     pr.edit(state="closed")
     ctx.run(f"git checkout {current_branch}", hide=True)
-    ctx.run(f"git branch -D {test_main}", hide=True)
-    ctx.run(f"git push origin :{test_main}", hide=True)
+    ctx.run(f"git branch -D {test_default}", hide=True)
+    ctx.run(f"git push origin :{test_default}", hide=True)
     if not success:
         raise Exit(message="Merge queue test failed", code=1)
 
@@ -927,7 +896,7 @@ def compare_to_itself(ctx):
         if attempt == max_attempts - 1:
             # Clean up the branch and possible pipelines
             for pipeline in pipelines:
-                pipeline.cancel()
+                cancel_pipeline(pipeline)
             ctx.run(f"git checkout {current_branch}", hide=True)
             ctx.run(f"git branch -D {new_branch}", hide=True)
             ctx.run(f"git push origin :{new_branch}", hide=True)
@@ -944,7 +913,7 @@ def compare_to_itself(ctx):
         # Clean up
         print("Cleaning up the pipelines")
         for pipeline in pipelines:
-            pipeline.cancel()
+            cancel_pipeline(pipeline)
         print("Cleaning up git")
         ctx.run(f"git checkout {current_branch}", hide=True)
         ctx.run(f"git branch -D {new_branch}", hide=True)

@@ -88,7 +88,7 @@ func (n *innerNode) Merge(src InnerNode) error {
 			}
 
 			if srcIsLeaf {
-				if srcLeaf.SourceGreaterOrEqual(dstLeaf.Source()) {
+				if srcLeaf.Source() == dstLeaf.Source() || srcLeaf.SourceGreaterThan(dstLeaf.Source()) {
 					n.children[name] = srcLeaf.Clone()
 				}
 			} else {
@@ -132,7 +132,7 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 		}
 
 		if leaf, ok := node.(LeafNode); ok {
-			if source.IsGreaterOrEqualThan(leaf.Source()) {
+			if source == leaf.Source() || source.IsGreaterThan(leaf.Source()) {
 				n.children[part] = newLeafNode(value, source)
 				return true, nil
 			}
@@ -160,6 +160,12 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 // InsertChildNode sets a node in the current node
 func (n *innerNode) InsertChildNode(name string, node Node) {
 	n.children[name] = node
+	n.makeRemapCase()
+}
+
+// RemoveChild removes a node from the current node
+func (n *innerNode) RemoveChild(name string) {
+	delete(n.children, name)
 	n.makeRemapCase()
 }
 

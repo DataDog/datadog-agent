@@ -112,7 +112,7 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 	case events.APIGatewayCustomAuthorizerRequestTypeRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	case events.ALBTargetGroupRequest:
-		carrier, err = headersCarrier(ev.Headers)
+		carrier, err = headersOrMultiheadersCarrier(ev.Headers, ev.MultiValueHeaders)
 	case events.LambdaFunctionURLRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	case events.StepFunctionPayload:

@@ -44,7 +44,10 @@ func GetSymbols(path string) (*Symbols, error) {
 	}
 
 	for _, sym := range syms {
-		data.SymbolTable[sym.Value] = sym.Name
+		// Only store symbols that are CUDA kernels
+		if fatbin.HasKernelWithName(sym.Name) {
+			data.SymbolTable[sym.Value] = sym.Name
+		}
 	}
 
 	return data, nil

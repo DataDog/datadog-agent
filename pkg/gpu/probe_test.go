@@ -11,18 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type probeTestSuite struct {
@@ -50,6 +47,8 @@ func (s *probeTestSuite) getProbe() *Probe {
 	deps := ProbeDependencies{
 		NvmlLib:        testutil.GetBasicNvmlMock(),
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
+		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),
+		Telemetry:      testutil.GetTelemetryMock(t),
 	}
 	probe, err := NewProbe(cfg, deps)
 	require.NoError(t, err)
@@ -72,9 +71,8 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	t := s.T()
 
 	probe := s.getProbe()
-	cmd := testutil.RunSample(t, testutil.CudaSample)
-
-	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+	cmd, err := testutil.RunSample(t, testutil.CudaSample)
+	require.NoError(t, err)
 
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
@@ -89,7 +87,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 		}
 
 		return handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
-	}, 10*time.Second, 500*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
+	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
 
 	// Check device assignments
 	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
@@ -115,15 +113,14 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	probe := s.getProbe()
 
-	cmd := testutil.RunSample(t, testutil.CudaSample)
+	cmd, err := testutil.RunSample(t, testutil.CudaSample)
+	require.NoError(t, err)
 
-	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
-
-	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
-	// so that we can time out correctly
+	//TODO: change this check to  count telemetry counter of the consumer (once added).
+	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, cmd.Process.Pid)
-	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
+		return len(probe.consumer.streamHandlers) == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", len(probe.consumer.streamHandlers))
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -145,21 +142,20 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 
 	sampleArgs := testutil.SampleArgs{
 		StartWaitTimeSec:      6, // default wait time for WaitForProgramsToBeTraced is 5 seconds, give margin to attach manually to avoid flakes
-		EndWaitTimeSec:        1, // We need the process to stay active a bit so we can inspect its environment variables, if it ends too quickly we get no information
 		CudaVisibleDevicesEnv: "1,2",
 		SelectedDevice:        1,
 	}
 	// Visible devices 1,2 -> selects 1 in that array -> global device index = 2
 	selectedGPU := testutil.GPUUUIDs[2]
 
-	cmd := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
-	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
+	cmd, err := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
+	require.NoError(t, err)
 
-	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
-	// so that we can time out correctly
+	//TODO: change this check to  count telemetry counter of the consumer (once added).
+	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, cmd.Process.Pid)
-	}, 60*time.Second, 500*time.Millisecond, "process not stopped")
+		return len(probe.consumer.streamHandlers) == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", len(probe.consumer.streamHandlers))
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -175,22 +171,9 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 func (s *probeTestSuite) TestDetectsContainer() {
 	t := s.T()
 
-	// Flaky test in CI, avoid failures on main for now.
-	flake.Mark(t)
-
 	probe := s.getProbe()
 
-	args := testutil.GetDefaultArgs()
-	args.EndWaitTimeSec = 1
-	pid, cid := testutil.RunSampleInDockerWithArgs(t, testutil.CudaSample, testutil.MinimalDockerImage, args)
-
-	utils.WaitForProgramsToBeTraced(t, gpuModuleName, gpuAttacherName, pid, utils.ManualTracingFallbackDisabled)
-
-	// Wait until the process finishes and we can get the stats. Run this instead of waiting for the process to finish
-	// so that we can time out correctly
-	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced(gpuModuleName, gpuAttacherName, pid)
-	}, 20*time.Second, 500*time.Millisecond, "process not stopped")
+	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
 	// Check that the stream handlers have the correct container ID assigned
 	for key, handler := range probe.consumer.streamHandlers {
@@ -200,7 +183,7 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	}
 
 	stats, err := probe.GetAndFlush()
-	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID}
+	key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	pidStats := getMetricsEntry(key, stats)

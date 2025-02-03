@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -44,7 +43,7 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type collectorImpl struct {
@@ -68,7 +67,7 @@ type Requires struct {
 	Config              config.Component
 	Serializer          serializer.MetricSerializer
 	TraceAgent          traceagent.Component
-	LogsAgent           optional.Option[logsagentpipeline.Component]
+	LogsAgent           option.Option[logsagentpipeline.Component]
 	SourceProvider      serializerexporter.SourceProviderFunc
 	Tagger              tagger.Component
 	StatsdClientWrapper *metricsclient.StatsdClientWrapper
@@ -119,12 +118,9 @@ func newConfigProviderSettings(uris []string, converter confmap.Converter, enhan
 				httpsprovider.NewFactory(),
 			},
 			ConverterFactories: converterFactories,
+			DefaultScheme:      "env",
 		},
 	}
-}
-
-func generateID(group, resource, namespace, name string) string {
-	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
 }
 
 func addFactories(reqs Requires, factories otelcol.Factories) {
@@ -133,13 +129,13 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	} else {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 	}
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.114.0",
+	Version:     "v0.118.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }

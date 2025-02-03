@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -31,9 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 )
 
@@ -41,6 +39,7 @@ const (
 	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
 	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
 	kubeNamespaceTracegenWorkload           = "workload-tracegen"
+	kubeDeploymentDogstatsdUDP              = "dogstatsd-udp"
 	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
 	kubeDeploymentDogstatsdUDPExternalData  = "dogstatsd-udp-external-data-only"
 	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
@@ -51,21 +50,12 @@ const (
 var GitCommit string
 
 type k8sSuite struct {
-	baseSuite
-
-	KubeClusterName             string
-	AgentLinuxHelmInstallName   string
-	AgentWindowsHelmInstallName string
-	KubernetesAgentRef          *components.KubernetesAgent
-
-	K8sConfig *restclient.Config
-	K8sClient kubernetes.Interface
+	baseSuite[environments.Kubernetes]
 }
 
 func (suite *k8sSuite) SetupSuite() {
-	suite.clusterName = suite.KubeClusterName
-
 	suite.baseSuite.SetupSuite()
+	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
 }
 
 func (suite *k8sSuite) TearDownSuite() {
@@ -76,10 +66,10 @@ func (suite *k8sSuite) TearDownSuite() {
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
 	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
-		suite.KubeClusterName,
-		suite.KubeClusterName,
-		suite.startTime.UnixMilli(),
-		suite.endTime.UnixMilli(),
+		suite.clusterName,
+		suite.clusterName,
+		suite.StartTime().UnixMilli(),
+		suite.EndTime().UnixMilli(),
 	))
 }
 
@@ -119,7 +109,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 
 	suite.Run("agent pods are ready and not restarting", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			linuxNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
@@ -127,7 +117,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				return
 			}
 
-			windowsNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+			windowsNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
@@ -135,39 +125,39 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 				return
 			}
 
-			linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxNodeAgent.LabelSelectors["app"]).String(),
+			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Linux datadog agent pods") {
 				return
 			}
 
-			windowsPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.WindowsNodeAgent.LabelSelectors["app"]).String(),
+			windowsPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
 				return
 			}
 
-			clusterAgentPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"]).String(),
+			clusterAgentPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list datadog cluster agent pods") {
 				return
 			}
 
-			clusterChecksPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterChecks.LabelSelectors["app"]).String(),
+			clusterChecksPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods") {
 				return
 			}
 
-			dogstatsdPods, err := suite.K8sClient.CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
+			dogstatsdPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
@@ -198,13 +188,13 @@ func (suite *k8sSuite) TestAdmissionControllerWebhooksExist() {
 	expectedWebhookName := "datadog-webhook"
 
 	suite.Run("agent registered mutating webhook configuration", func() {
-		mutatingConfig, err := suite.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
+		mutatingConfig, err := suite.Env().KubernetesCluster.Client().AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
 		suite.Require().NoError(err)
 		suite.NotNilf(mutatingConfig, "None of the mutating webhook configurations have the name '%s'", expectedWebhookName)
 	})
 
 	suite.Run("agent registered validating webhook configuration", func() {
-		validatingConfig, err := suite.K8sClient.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
+		validatingConfig, err := suite.Env().KubernetesCluster.Client().AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, expectedWebhookName, metav1.GetOptions{})
 		suite.Require().NoError(err)
 		suite.NotNilf(validatingConfig, "None of the validating webhook configurations have the name '%s'", expectedWebhookName)
 	})
@@ -221,27 +211,27 @@ func (suite *k8sSuite) TestVersion() {
 	}{
 		{
 			"Linux agent",
-			suite.KubernetesAgentRef.LinuxNodeAgent.LabelSelectors["app"],
+			suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"],
 			"agent",
 		},
 		{
 			"Windows agent",
-			suite.KubernetesAgentRef.WindowsNodeAgent.LabelSelectors["app"],
+			suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"],
 			"agent",
 		},
 		{
 			"cluster agent",
-			suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"],
+			suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"],
 			"cluster-agent",
 		},
 		{
 			"cluster checks",
-			suite.KubernetesAgentRef.LinuxClusterChecks.LabelSelectors["app"],
+			suite.Env().Agent.LinuxClusterChecks.LabelSelectors["app"],
 			"agent",
 		},
 	} {
 		suite.Run(tt.podType+" pods are running the good version", func() {
-			linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", tt.appSelector).String(),
 				Limit:         1,
 			})
@@ -276,8 +266,8 @@ func (suite *k8sSuite) TestCLI() {
 func (suite *k8sSuite) testAgentCLI() {
 	ctx := context.Background()
 
-	pod, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	pod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 		Limit:         1,
 	})
 	suite.Require().NoError(err)
@@ -383,8 +373,8 @@ func (suite *k8sSuite) testAgentCLI() {
 func (suite *k8sSuite) testClusterAgentCLI() {
 	ctx := context.Background()
 
-	pod, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"]).String(),
+	pod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
 		Limit:         1,
 	})
 	suite.Require().NoError(err)
@@ -468,7 +458,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
-				`^email:team-container-platform@datadoghq.com$`,
+				`^domain:deployment$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^org:agent-org$`,
+				`^parent-name:nginx$`,
 				`^team:contp$`,
 			},
 			AcceptUnexpectedTags: true,
@@ -543,7 +536,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
-				`^email:team-container-platform@datadoghq.com$`,
+				`^domain:deployment$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^org:agent-org$`,
+				`^parent-name:nginx$`,
 				`^team:contp$`,
 			},
 			Message: `GET / HTTP/1\.1`,
@@ -794,89 +790,61 @@ func (suite *k8sSuite) TestCPU() {
 	})
 }
 
+func (suite *k8sSuite) TestKSM() {
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state.vpa.count",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_namespace:workload-(?:nginx|redis)$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 1,
+				Min: 1,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state_customresource.ddm_value",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^customresource_group:datadoghq.com$`,
+				`^customresource_version:v1alpha1$`,
+				`^customresource_kind:DatadogMetric`,
+				`^cr_type:ddm$`,
+				`^ddm_namespace:workload-(?:nginx|redis)$`,
+				`^ddm_name:(?:nginx|redis)$`,
+			},
+		},
+	})
+}
+
 func (suite *k8sSuite) TestDogstatsdInAgent() {
 	// Test with UDS
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
 	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
 	// Test with UDP + External Data
-	suite.testDogstatsdExternalData(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
 }
 
 func (suite *k8sSuite) TestDogstatsdStandalone() {
 	// Test with UDS
-	suite.testDogstatsdContainerID(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
+	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
 	// Dogstatsd standalone does not support origin detection
 	// Test with UDP + DD_ENTITY_ID
-	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
 }
 
-func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
-	// Test dogstatsd origin detection with UDP + DD_ENTITY_ID
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "custom.metric",
-			Tags: []string{
-				"^kube_deployment:dogstatsd-udp$",
-				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^kube_deployment:dogstatsd-udp$`,
-				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
-				`^kube_qos:Burstable$`,
-				`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`,
-				`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`,
-				`^pod_phase:running$`,
-				`^series:`,
-			},
-		},
-	})
-}
-
-// testDogstatsdExternalData tests that the External Data origin resolution works for the dogstatsd.
-func (suite *k8sSuite) testDogstatsdExternalData(kubeNamespace, kubeDeployment string) {
-	ctx := context.Background()
-
-	// Record old pod, so we can be sure we are not looking at the incorrect one after deletion
-	oldPods, err := suite.K8sClient.CoreV1().Pods(kubeNamespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
-	})
-	suite.Require().NoError(err)
-	suite.Require().Len(oldPods.Items, 1)
-	oldPod := oldPods.Items[0]
-
-	// Delete the pod to ensure it is recreated after the admission controller is deployed
-	err = suite.K8sClient.CoreV1().Pods(kubeNamespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
-	})
-	suite.Require().NoError(err)
-
-	// Wait for the fresh pod to be created
-	var pod corev1.Pod
-	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := suite.K8sClient.CoreV1().Pods(kubeNamespace).List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", kubeDeployment).String(),
-		})
-		if !assert.NoError(c, err) {
-			return
-		}
-		if !assert.Len(c, pods.Items, 1) {
-			return
-		}
-		pod = pods.Items[0]
-		if !assert.NotEqual(c, oldPod.Name, pod.Name) {
-			return
-		}
-	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of pod with name %s in namespace %s", kubeDeployment, kubeNamespace)
-
-	suite.Require().Len(pod.Spec.Containers, 1)
-
+func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
@@ -892,41 +860,6 @@ func (suite *k8sSuite) testDogstatsdExternalData(kubeNamespace, kubeDeployment s
 				`^display_container_name:dogstatsd`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
-				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
-				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
-				`^image_tag:main$`,
-				`^kube_container_name:dogstatsd$`,
-				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
-				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
-				`^kube_qos:Burstable$`,
-				`^kube_replica_set:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
-				`^pod_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+-[[:alnum:]]+$`,
-				`^pod_phase:running$`,
-				`^series:`,
-				`^short_image:apps-dogstatsd$`,
-			},
-		},
-	})
-}
-
-func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "custom.metric",
-			Tags: []string{
-				"^kube_deployment:" + regexp.QuoteMeta(kubeDeployment) + "$",
-				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^container_id:`,
-				`^container_name:dogstatsd$`,
-				`^display_container_name:dogstatsd`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:main$`,
@@ -1003,10 +936,44 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	// by the Cluster Agent so that we can be sure that in the next restart the
 	// libraries for the detected language are injected
 	if languageShouldBeAutoDetected {
+
+		suite.Require().EventuallyWithTf(func(_ *assert.CollectT) {
+			appPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-mutated-lib-injection").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", name).String(),
+				Limit:         1,
+			})
+
+			suite.Require().NoError(err)
+			suite.Require().Len(appPod.Items, 1)
+
+			nodeName := appPod.Items[0].Spec.NodeName
+
+			agentPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+				FieldSelector: fields.OneTermEqualSelector("spec.nodeName", nodeName).String(),
+				Limit:         1,
+			})
+
+			suite.Require().NoError(err)
+			suite.Require().Len(agentPod.Items, 1)
+
+			stdout, _, err := suite.podExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
+			suite.Require().NoError(err)
+			suite.Contains(stdout, "Language: python")
+			if suite.T().Failed() {
+				suite.T().Log(stdout)
+			}
+		}, 5*time.Minute, 10*time.Second, "Language python was never detected by node agent.")
+
 		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-			deployment, err := suite.K8sClient.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 			if !assert.NoError(c, err) {
+				c.Errorf("deployment with name %s in namespace %s not found", name, namespace)
 				return
+			}
+
+			if deployment.Status.AvailableReplicas == 0 {
+				c.Errorf("deployment with name %s in namespace %s has 0 available replicas", name, namespace)
 			}
 
 			detectedLangsLabelIsSet := false
@@ -1021,37 +988,12 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		}, 5*time.Minute, 10*time.Second, "The deployment with name %s in namespace %s does not exist or does not have the auto detected languages annotation", name, namespace)
 	}
 
-	// Record old pod, so we can be sure we are not looking at the incorrect one after deletion
-	oldPods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
 	suite.Require().NoError(err)
-	suite.Require().Len(oldPods.Items, 1)
-	oldPod := oldPods.Items[0]
-
-	// Delete the pod to ensure it is recreated after the admission controller is deployed
-	err = suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
-	})
-	suite.Require().NoError(err)
-
-	// Wait for the fresh pod to be created
-	var pod corev1.Pod
-	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", name).String(),
-		})
-		if !assert.NoError(c, err) {
-			return
-		}
-		if !assert.Len(c, pods.Items, 1) {
-			return
-		}
-		pod = pods.Items[0]
-		if !assert.NotEqual(c, oldPod.Name, pod.Name) {
-			return
-		}
-	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of pod with name %s in namespace %s", name, namespace)
+	suite.Require().Len(pods.Items, 1)
+	pod := pods.Items[0]
 
 	suite.Require().Len(pod.Spec.Containers, 1)
 
@@ -1134,7 +1076,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 
 func (suite *k8sSuite) TestContainerImage() {
 	sendEvent := func(alertType, text string) {
-		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 			Title: pointer.Ptr(suite.T().Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
@@ -1204,7 +1146,7 @@ func (suite *k8sSuite) TestContainerImage() {
 
 func (suite *k8sSuite) TestSBOM() {
 	sendEvent := func(alertType, text string) {
-		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 			Title: pointer.Ptr(suite.T().Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
@@ -1329,7 +1271,7 @@ func (suite *k8sSuite) TestSBOM() {
 
 func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	sendEvent := func(alertType, text string) {
-		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 			Title: pointer.Ptr(suite.T().Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
@@ -1359,7 +1301,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	var nginxPod corev1.Pod
 
 	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := suite.K8sClient.CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
+		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
 			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
 		})
@@ -1379,7 +1321,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		})
 	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
 
-	err := suite.K8sClient.CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
+	err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
 	suite.Require().NoError(err)
 
 	suite.EventuallyWithTf(func(collect *assert.CollectT) {
@@ -1422,7 +1364,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	suite.Run(fmt.Sprintf("hpa   kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
 		sendEvent := func(alertType, text string, time *int) {
-			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testHPA %s/%s", namespace, deployment)),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 %s
@@ -1510,7 +1452,7 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 type podExecOption func(*corev1.PodExecOptions)
 
 func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string, podOptions ...podExecOption) (stdout, stderr string, err error) {
-	req := suite.K8sClient.CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod).SubResource("exec")
+	req := suite.Env().KubernetesCluster.Client().CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod).SubResource("exec")
 	option := &corev1.PodExecOptions{
 		Stdin:     false,
 		Stdout:    true,
@@ -1529,7 +1471,7 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string, p
 		scheme.ParameterCodec,
 	)
 
-	exec, err := remotecommand.NewSPDYExecutor(suite.K8sConfig, "POST", req.URL())
+	exec, err := remotecommand.NewSPDYExecutor(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig, "POST", req.URL())
 	if err != nil {
 		return "", "", err
 	}

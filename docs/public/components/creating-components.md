@@ -53,7 +53,7 @@ This file hierarchy aims to solve a few problems:
 
 ## Bootstrapping components
 
-You can use the [invoke](../setup.md#preface) task `deva components.new-component comp/<COMPONENT_NAME>` to generate a scaffold for your new component.
+You can use the [command](../setup.md#tooling) `inv components.new-component comp/<COMPONENT_NAME>` to generate a scaffold for your new component.
 
 Every public variable, function, struct, and interface of your component **must** be documented. Refer to the [Documentation](#documentation) section below for details.
 
@@ -93,7 +93,7 @@ When defining a component interface, avoid using structs or interfaces from thir
 
     import "github.com/prometheus/client_golang/prometheus"
 
-    // team: agent-shared-components
+    // team: agent-runtimes
 
     // Component is the component type.
     type Component interface {
@@ -114,11 +114,11 @@ internally by each component (more on this [here TODO]()). -->
 ### The impl folders
 
 The `impl` folder is where the component implementation is written. The details of component implementation are up to the developer.
-The only requirements are that the package name follows the pattern `<COMPONENT_NAME>impl` and that there is a public instantiation function called `NewComponent`.
+The only requirements are that the package name follows the pattern `<COMPONENT_NAME>impl` for the regular implementation or `<IMPL_NAME>impl` for the alternative implementation, and that there is a public instantiation function called `NewComponent`.
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
-    package compressionimpl
+    package zstdimpl
 
     // NewComponent returns a new ZSTD implementation for the compression component
     func NewComponent(reqs Requires) Provides {
@@ -134,7 +134,7 @@ In this example, the compression component must access the configuration compone
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
-    package compressionimpl
+    package zstdimpl
 
     import (
         "fmt"
@@ -160,7 +160,7 @@ In this example, the compression component must access the configuration compone
 For the output of the component, populate the `Provides` struct with the return values.
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
-    package compressionimpl
+    package zstdimpl
 
     import (
         // Always import the component def folder, so that you can return a 'compression.Component' type.
@@ -180,7 +180,7 @@ All together, the component code looks like the following:
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
-    package compressionimpl
+    package zstdimpl
 
     import (
         "fmt"

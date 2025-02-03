@@ -11,13 +11,13 @@ receivers:
 exporters:
     datadog/1:
       api:
-        key: 12345
+        key: abcde12345
     datadog/2:
       api:
-        key: 12345
+        key: abcde12345
     datadog/3:
       api:
-        key: 12345
+        key: abcde12345
 
 extensions:
   pprof/user-defined:

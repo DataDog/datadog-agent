@@ -18,13 +18,19 @@ func newJavaDetector(ctx DetectionContext) detector {
 	return &javaDetector{ctx: ctx}
 }
 
+var vendorToSource = map[serverVendor]ServiceNameSource{
+	tomcat:    Tomcat,
+	weblogic:  WebLogic,
+	websphere: WebSphere,
+	jboss:     JBoss,
+}
+
 func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success bool) {
 	// Look for dd.service
 	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
 		metadata.DDService = strings.TrimPrefix(args[index], "-Ddd.service=")
 	}
 	prevArgIsFlag := false
-	var additionalNames []string
 
 	for _, a := range args {
 		hasFlagPrefix := strings.HasPrefix(a, "-")
@@ -38,18 +44,30 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 
 			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
 				// do JEE detection to see if we can extract additional service names from context roots.
-				additionalNames = jeeExtractor(jd).extractServiceNamesForJEEServer()
+				vendor, additionalNames := jeeExtractor(jd).extractServiceNamesForJEEServer()
+
+				source := CommandLine
+				if len(additionalNames) > 0 {
+					if vendorSource, ok := vendorToSource[vendor]; ok {
+						// The name gets joined to the AdditionalNames, so a part of
+						// the name still comes from the command line, but report
+						// the source as the web server since that is not easy to
+						// guess from looking at the command line.
+						source = vendorSource
+					}
+				}
+
 				if strings.HasSuffix(arg, javaJarExtension) || strings.HasSuffix(arg, javaWarExtension) {
 					// try to see if the application is a spring boot archive and extract its application name
 					if len(additionalNames) == 0 {
 						if springAppName, ok := newSpringBootParser(jd.ctx).GetSpringBootAppName(a); ok {
 							success = true
-							metadata.Name = springAppName
+							metadata.SetNames(springAppName, Spring)
 							return
 						}
 					}
 					success = true
-					metadata.SetNames(arg[:len(arg)-len(javaJarExtension)], additionalNames...)
+					metadata.SetNames(arg[:len(arg)-len(javaJarExtension)], source, additionalNames...)
 					return
 				}
 				if strings.HasPrefix(arg, javaApachePrefix) {
@@ -58,7 +76,7 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 					arg = arg[len(javaApachePrefix):]
 					if idx := strings.Index(arg, "."); idx != -1 {
 						success = true
-						metadata.SetNames(arg[:idx], additionalNames...)
+						metadata.SetNames(arg[:idx], source, additionalNames...)
 						return
 					}
 				}
@@ -66,12 +84,12 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {
 					// take just the class name without the package
 					success = true
-					metadata.SetNames(arg[idx+1:], additionalNames...)
+					metadata.SetNames(arg[idx+1:], source, additionalNames...)
 					return
 				}
 
 				success = true
-				metadata.SetNames(arg, additionalNames...)
+				metadata.SetNames(arg, source, additionalNames...)
 				return
 			}
 		}

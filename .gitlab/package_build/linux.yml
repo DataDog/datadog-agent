@@ -67,6 +67,12 @@
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
+.agent_fips_build:
+  variables:
+    FLAVOR: fips
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+
 # build Agent 7 binaries for x86_64
 datadog-agent-7-x64:
   extends: [.agent_build_common, .agent_build_x86, .agent_7_build]
@@ -82,6 +88,14 @@ datadog-ot-agent-7-x64:
 # build Agent 7 binaries for arm64
 datadog-ot-agent-7-arm64:
   extends: [.agent_build_common, .agent_build_arm64, .ot_agent_7_build]
+
+# build Agent 7 binaries for x86_64 with FIPS
+datadog-agent-7-x64-fips:
+  extends: [.agent_build_common, .agent_build_x86, .agent_fips_build]
+
+# build Agent 7 binaries for arm64 with FIPS
+datadog-agent-7-arm64-fips:
+  extends: [.agent_build_common, .agent_build_arm64, .agent_fips_build]
 
 .iot-agent-common:
   extends: .agent_build_common

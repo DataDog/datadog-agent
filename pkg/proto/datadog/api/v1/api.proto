@@ -6,6 +6,7 @@ import "datadog/model/v1/model.proto";
 import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
+import "datadog/autodiscovery/autodiscovery.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
@@ -46,6 +47,22 @@ service AgentSecure {
     rpc TaggerStreamEntities(datadog.model.v1.StreamTagsRequest) returns (stream datadog.model.v1.StreamTagsResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/tagger/stream_entities"
+            body: "*"
+        };
+    };
+
+    // Generates a container ID from Origin Info.
+    // can be called through the HTTP gateway, and entity will be returned as JSON:
+    //	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
+    //	     -XPOST -k -H "Content-Type: application/json" \
+    //	     --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
+    //	     https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
+    //	  {
+    //	    "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
+    //	  }
+    rpc TaggerGenerateContainerIDFromOriginInfo(datadog.model.v1.GenerateContainerIDFromOriginInfoRequest) returns (datadog.model.v1.GenerateContainerIDFromOriginInfoResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/tagger/generate_container_id_from_origin_info"
             body: "*"
         };
     };
@@ -153,6 +170,22 @@ service AgentSecure {
             body: "*"
         };
     };
+
+    // Subscribes to autodiscovery config updates
+    rpc AutodiscoveryStreamConfig(google.protobuf.Empty) returns (stream datadog.autodiscovery.AutodiscoveryStreamResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/autodiscovery/stream_configs"
+            body: "*"
+        };
+    };
+
+    // Get the host tags
+    rpc GetHostTags(datadog.model.v1.HostTagRequest) returns (datadog.model.v1.HostTagReply) {
+        option (google.api.http) = {
+            get: "/v1/grpc/host_tags"
+        };
+    };
+
 }
 
 // Service exposed by remote agents to allow querying by the Core Agent.

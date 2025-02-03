@@ -50,7 +50,7 @@ ULONG DDEnableTrace(
     PEVENT_FILTER_EVENT_ID  disabledFilters = NULL;
     if (PIDCount > 0)
     {
-        eventFilterDescriptors[eventFilterDescriptorIndex].Ptr  = (ULONGLONG)PIDs;
+        eventFilterDescriptors[eventFilterDescriptorIndex].Ptr  = (LONG_PTR)PIDs;
         eventFilterDescriptors[eventFilterDescriptorIndex].Size = (ULONG)(sizeof(PIDs[0]) * PIDCount);
         eventFilterDescriptors[eventFilterDescriptorIndex].Type = EVENT_FILTER_TYPE_PID;
 
@@ -69,7 +69,7 @@ ULONG DDEnableTrace(
         {
             enabledFilters->Events[i] = enableFilterIDs[i];
         }
-        eventFilterDescriptors[eventFilterDescriptorIndex].Ptr  = (ULONGLONG)enabledFilters;
+        eventFilterDescriptors[eventFilterDescriptorIndex].Ptr  = (LONG_PTR)enabledFilters;
         eventFilterDescriptors[eventFilterDescriptorIndex].Size = size;
         eventFilterDescriptors[eventFilterDescriptorIndex].Type = EVENT_FILTER_TYPE_EVENT_ID;
 
@@ -88,7 +88,7 @@ ULONG DDEnableTrace(
         {
             disabledFilters->Events[i] = disableFilterIDs[i];
         }
-        eventFilterDescriptors[eventFilterDescriptorIndex].Ptr  = (ULONGLONG)disabledFilters;
+        eventFilterDescriptors[eventFilterDescriptorIndex].Ptr  = (LONG_PTR)disabledFilters;
         eventFilterDescriptors[eventFilterDescriptorIndex].Size = size;
         eventFilterDescriptors[eventFilterDescriptorIndex].Type = EVENT_FILTER_TYPE_EVENT_ID;
 

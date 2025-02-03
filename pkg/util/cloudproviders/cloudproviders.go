@@ -13,9 +13,9 @@ import (
 
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 
@@ -144,7 +144,7 @@ func GetHostAliases(ctx context.Context) []string {
 	}
 	wg.Wait()
 
-	return util.SortUniqInPlace(aliases)
+	return sort.UniqInPlace(aliases)
 }
 
 // GetPublicIPv4 returns the public IPv4 from different providers

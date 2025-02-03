@@ -69,16 +69,6 @@ class TestGroupPerTag(unittest.TestCase):
         self.assertNotIn("kitchen", grouped)
         self.assertNotIn("kitchen-e2e", grouped)
 
-    def test_e2e_kitchen(self):
-        test_dir = Path("./tasks/unit_tests/testdata/to_group")
-        grouped = junit.group_per_tags(test_dir, ["upload_option.os_version_from_name"])
-        self.assertNotIn("default", grouped)
-        self.assertIn("kitchen", grouped)
-        self.assertCountEqual([f"{str(test_dir)}/onepiece", f"{str(test_dir)}/dragonball"], grouped["kitchen"])
-        self.assertIn("kitchen-e2e", grouped)
-        self.assertEqual([f"{str(test_dir)}/naruto"], grouped["kitchen-e2e"])
-        self.assertNotIn("e2e", grouped)
-
 
 class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1515"})
@@ -123,10 +113,12 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "beer"})
     @patch("tasks.libs.common.junit_upload_core.Popen")
-    def test_e2e(self, mock_popen):
+    @patch("tasks.libs.common.junit_upload_core.which")
+    def test_e2e(self, mock_which, mock_popen):
         mock_instance = MagicMock()
         mock_instance.communicate.return_value = (b"stdout", b"")
         mock_popen.return_value = mock_instance
+        mock_which.side_effect = lambda cmd: f"/usr/local/bin/{cmd}"
         junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 31)

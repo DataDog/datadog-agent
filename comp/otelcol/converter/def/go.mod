@@ -1,10 +1,11 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/converter/def
 
-go 1.22.0
+go 1.23.0
 
-require go.opentelemetry.io/collector/confmap v1.20.0
+require go.opentelemetry.io/collector/confmap v1.24.0
 
 require (
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect

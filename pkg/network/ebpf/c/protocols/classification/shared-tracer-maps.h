@@ -15,26 +15,35 @@ static __always_inline bool is_protocol_classification_supported() {
     return val > 0;
 }
 
-static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tuple) {
+static __always_inline protocol_stack_t* __get_protocol_stack_if_exists(conn_tuple_t* tuple) {
     protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
     if (!wrapper) {
         return NULL;
     }
+    wrapper->updated = bpf_ktime_get_ns();
     return &wrapper->stack;
 }
 
-static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
+// Returns the protocol_stack_t associated with the given connection tuple.
+// If the tuple is not found, returns NULL.
+static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple_t* tuple) {
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    return __get_protocol_stack_if_exists(&normalized_tup);
+}
+
+// Returns the protocol_stack_t associated with the given connection tuple.
+// If the tuple is not found, creates a new entry and returns it.
+static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
-    protocol_stack_wrapper_t* wrapper = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+    protocol_stack_t *wrapper = __get_protocol_stack_if_exists(&normalized_tup);
     if (wrapper) {
-        wrapper->updated = bpf_ktime_get_ns();
-        return &wrapper->stack;
+        return wrapper;
     }
 
     // this code path is executed once during the entire connection lifecycle
     protocol_stack_wrapper_t empty_wrapper = {0};
-    empty_wrapper.updated = bpf_ktime_get_ns();
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
@@ -42,7 +51,7 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
     // EBUSY can be returned if a program tries to access an already held bucket lock
     // https://elixir.bootlin.com/linux/latest/source/kernel/bpf/hashtab.c#L164
     // Before kernel version 6.7 it was possible for a program to get interrupted before disabling
-    // interrupts for acquring the bucket spinlock but after marking a bucket as busy.
+    // interrupts for acquiring the bucket spinlock but after marking a bucket as busy.
     // https://github.com/torvalds/linux/commit/d35381aa73f7e1e8b25f3ed5283287a64d9ddff5
     // As such a program running from an irq context would falsely see a bucket as busy in certain cases
     // as explained in the linked commit message.
@@ -51,11 +60,11 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
     // above scenario.
     // However the EBUSY error does not carry any signal for us since this is caused by a kernel bug.
     bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST, -EEXIST, -EBUSY);
-    return __get_protocol_stack(&normalized_tup);
+    return __get_protocol_stack_if_exists(&normalized_tup);
 }
 
 __maybe_unused static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
-    protocol_stack_t *stack = get_protocol_stack(skb_tup);
+    protocol_stack_t *stack = get_or_create_protocol_stack(skb_tup);
     if (!stack) {
         return;
     }

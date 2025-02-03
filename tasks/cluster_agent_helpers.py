@@ -20,7 +20,7 @@ def build_common(
     race,
     development,
     skip_assets,
-    go_mod="mod",
+    go_mod="readonly",
 ):
     """
     Build Cluster Agent

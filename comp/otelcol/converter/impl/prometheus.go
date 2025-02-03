@@ -95,7 +95,7 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 					}
 					staticConfigSlice, ok := staticConfig.([]any)
 					if !ok {
-						return
+						continue
 					}
 					for _, staticConfig := range staticConfigSlice {
 						staticConfigMap, ok := staticConfig.(map[string]any)
@@ -116,9 +116,11 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 								return
 							}
 							if targetString == internalMetricsAddress {
-								if ddExporter := receiverInPipelineWithDatadogExporter(conf, receiver); ddExporter != "" {
+								if ddExporters := receiverInPipelineWithDatadogExporter(conf, receiver); ddExporters != nil {
 									scrapeConfigMap["job_name"] = "datadog-agent"
-									delete(datadogExportersMap, ddExporter)
+									for _, ddExporter := range ddExporters {
+										delete(datadogExportersMap, ddExporter)
+									}
 								}
 							}
 						}
@@ -186,28 +188,29 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 	}
 }
 
-func receiverInPipelineWithDatadogExporter(conf *confmap.Conf, receiverName string) string {
+func receiverInPipelineWithDatadogExporter(conf *confmap.Conf, receiverName string) []string {
+	var ddExporters []string
 	stringMapConf := conf.ToStringMap()
 	service, ok := stringMapConf["service"]
 	if !ok {
-		return ""
+		return nil
 	}
 	serviceMap, ok := service.(map[string]any)
 	if !ok {
-		return ""
+		return nil
 	}
 	pipelines, ok := serviceMap["pipelines"]
 	if !ok {
-		return ""
+		return nil
 	}
 	pipelinesMap, ok := pipelines.(map[string]any)
 	if !ok {
-		return ""
+		return nil
 	}
 	for _, components := range pipelinesMap {
 		componentsMap, ok := components.(map[string]any)
 		if !ok {
-			return ""
+			return nil
 		}
 		exporters, ok := componentsMap["exporters"]
 		if !ok {
@@ -215,7 +218,7 @@ func receiverInPipelineWithDatadogExporter(conf *confmap.Conf, receiverName stri
 		}
 		exportersSlice, ok := exporters.([]any)
 		if !ok {
-			return ""
+			return nil
 		}
 		for _, exporter := range exportersSlice {
 			if exporterString, ok := exporter.(string); ok {
@@ -227,26 +230,23 @@ func receiverInPipelineWithDatadogExporter(conf *confmap.Conf, receiverName stri
 					}
 					receiverSlice, ok := receivers.([]any)
 					if !ok {
-						return ""
+						return nil
 					}
 					for _, receiver := range receiverSlice {
 						receiverString, ok := receiver.(string)
 						if !ok {
-							return ""
+							return nil
 						}
 						if receiverString == receiverName {
-							return exporterString
+							ddExporters = append(ddExporters, exporterString)
 						}
-
 					}
-
 				}
 			}
 		}
 
 	}
-
-	return ""
+	return ddExporters
 }
 
 func getDatadogExporters(conf *confmap.Conf) map[string]any {

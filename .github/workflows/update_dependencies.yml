@@ -1,0 +1,84 @@
+name: Update golang.org/x/... dependencies
+on:
+  schedule:
+    # Run every 10th of the month, as it seems golang.org/x/... packages are usually
+    # released at the beginning of the month.
+    # Run at 6AM UTC so that it's ready at the beginning of the day CET.
+    - cron: "0 6 10 * *"
+
+  # allow triggering the workflow manually
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  backport:
+    name: Update golang.org/x/... dependencies
+    runs-on: ubuntu-latest
+    permissions: {} # the workflow uses the GitHub App token to create the PR so no specific permissions needed here
+    steps:
+      - uses: actions/create-github-app-token@c1a285145b9d317df6ced56c09f525b5c2b6f755 # v1.11.1
+        id: app-token
+        with:
+          app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
+          private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
+      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          # credentials are needed to create the PR at the end of the workflow
+          persist-credentials: true
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: ".go-version"
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Update every golang.org/x/... package
+        run: |
+          go get -u golang.org/x/arch golang.org/x/crypto \
+                    golang.org/x/lint golang.org/x/mod \
+                    golang.org/x/net golang.org/x/sync \
+                    golang.org/x/sys golang.org/x/term \
+                    golang.org/x/text golang.org/x/time \
+                    golang.org/x/xerrors golang.org/x/tools \
+                    golang.org/x/exp
+          # run tidy twice because the first one doesn't always clean everything
+          # depending on module order
+          inv -e tidy
+          inv -e tidy
+      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
+        id: autocommit
+        with:
+          commit_message: "chore(deps): update all golang.org/x/... dependencies"
+          branch: update-golang-org-x-${{ github.run_id }}-${{ github.run_attempt }}
+          create_branch: true
+          skip_fetch: true
+      - name: Create PR
+        env:
+          TMP_PR_BODY_PATH: /tmp/pr_body
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_TITLE: "[automated] Update golang.org/x/... dependencies"
+          PR_LABELS: "team/agent-runtimes,qa/done,changelog/no-changelog"
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          # Generate the PR description
+          cat > $TMP_PR_BODY_PATH <<- EOM
+          ### What does this PR do?
+          Update all \`golang.org/x/...\` dependencies.
+
+          ### Motivation
+          Keep dependencies up-to-date, benefit from bug fixes and new features.
+
+          ### Describe how you validated your changes
+          CI is considered enough to validate changes.
+          EOM
+
+          # Create the PR
+          gh pr create \
+          --base "$GITHUB_REF" \
+          --title "$PR_TITLE" \
+          --body-file "$TMP_PR_BODY_PATH" \
+          --label "$PR_LABELS" \
+          --reviewer "DataDog/agent-runtimes"

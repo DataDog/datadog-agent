@@ -3,9 +3,8 @@ erratic: false
 
 target:
   name: datadog-agent
-  command: /bin/entrypoint.sh
-  cpu_allotment: 8
-  memory_allotment: 30g
+  cpu_allotment: 4
+  memory_allotment: 2GiB
 
   environment:
     DD_API_KEY: 00000001
@@ -19,7 +18,7 @@ target:
     DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
     DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
     DD_INTERNAL_PROFILING_PERIOD: 1m
-    DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     DD_PROFILING_EXECUTION_TRACE_ENABLED: true
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true

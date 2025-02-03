@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
@@ -336,7 +335,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := ddlog.LoggerFromWriterWithMinLevelAndFormat(w, ddlog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	require.NoError(t, err)
 	ddlog.SetupLogger(l, "debug")
 

@@ -136,6 +136,10 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityEvents1(in *jl
 			out.Arch = string(in.String())
 		case "origin":
 			out.Origin = string(in.String())
+		case "kernel_version":
+			out.KernelVersion = string(in.String())
+		case "distribution":
+			out.Distribution = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -203,6 +207,16 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityEvents1(out *j
 		const prefix string = ",\"origin\":"
 		out.RawString(prefix)
 		out.String(string(in.Origin))
+	}
+	if in.KernelVersion != "" {
+		const prefix string = ",\"kernel_version\":"
+		out.RawString(prefix)
+		out.String(string(in.KernelVersion))
+	}
+	if in.Distribution != "" {
+		const prefix string = ",\"distribution\":"
+		out.RawString(prefix)
+		out.String(string(in.Distribution))
 	}
 	out.RawByte('}')
 }

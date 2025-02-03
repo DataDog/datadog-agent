@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    USM now monitors TLS traffic encrypted with Go TLS by default.
+    To disable this feature, set the `service_monitoring_config.tls.go.enabled`
+    configuration option to false.

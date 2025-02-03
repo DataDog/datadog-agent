@@ -295,12 +295,16 @@ type FileRegistry interface {
 
 	// GetRegisteredProcesses returns a map of all the processes that are currently registered in the registry
 	GetRegisteredProcesses() map[uint32]struct{}
+
+	// Log is a function that gets called periodically to log the state of the registry
+	Log()
 }
 
 // AttachCallback is a callback that is called whenever a probe is attached successfully
 type AttachCallback func(*manager.Probe, *utils.FilePath)
 
-var NopOnAttachCallback AttachCallback = nil //nolint:revive // TODO
+// NopOnAttachCallback is a callback that indicates that no action should be taken for the callback
+var NopOnAttachCallback AttachCallback
 
 // UprobeAttacher is a struct that handles the attachment of uprobes to processes and libraries
 type UprobeAttacher struct {
@@ -489,6 +493,9 @@ func (ua *UprobeAttacher) Start() error {
 			case <-processSync.C:
 				// We always track process deletions in the scan, to avoid memory leaks.
 				_ = ua.Sync(ua.config.EnablePeriodicScanNewProcesses, true)
+
+				// Periodically log the state of the registry
+				ua.fileRegistry.Log()
 			}
 		}
 	}()
@@ -655,7 +662,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
 
 	// Only compute the binary path if we are going to need it. It's better to do these two checks
-	// (which are cheak, the handlesExecutables function is cached) than to do the syscall
+	// (which are cheap, the handlesExecutables function is cached) than to do the syscall
 	// every time
 	var binPath string
 	var err error
@@ -672,21 +679,18 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 
 	if ua.handlesExecutables() {
 		matchingRules := ua.getRulesForExecutable(binPath, procInfo)
-
 		if len(matchingRules) != 0 {
 			registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
 			err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB, utils.IgnoreCB)
-			if err != nil {
-				return err
-			}
+			// Do not return in case of error, as we still might want to attach to libraries
 		}
 	}
 
 	if attachToLibs && ua.handlesLibraries() {
-		return ua.attachToLibrariesOfPID(pid)
+		err = errors.Join(err, ua.attachToLibrariesOfPID(pid))
 	}
 
-	return nil
+	return err
 }
 
 // DetachPID detaches the uprobes attached to a PID

@@ -8,52 +8,139 @@ package util
 
 import (
 	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+type source int
+
+const (
+	uninitialized source = iota
+	setAuthToken
+	createAndSetAuthToken
 )
 
 var (
 	tokenLock sync.RWMutex
 	token     string
 	dcaToken  string
+	// The clientTLSConfig is set by default with `InsecureSkipVerify: true`.
+	// This is intentionally done to allow the Agent to local Agent APIs when the clientTLSConfig is not yet initialized.
+	// However, this default value should be removed in the future.
+	// TODO: Monitor and fix the logs printed by GetTLSClientConfig and GetTLSServerConfig.
+	clientTLSConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	serverTLSConfig = &tls.Config{}
+	initSource      source
 )
 
-// SetAuthToken sets the session token
+// SetAuthToken sets the session token and IPC certificate
 // Requires that the config has been set up before calling
 func SetAuthToken(config model.Reader) error {
 	tokenLock.Lock()
 	defer tokenLock.Unlock()
 
 	// Noop if token is already set
-	if token != "" {
+	if initSource != uninitialized {
 		return nil
 	}
 
 	var err error
-	token, err = security.FetchAuthToken(config)
-	return err
+	token, err = pkgtoken.FetchAuthToken(config)
+	if err != nil {
+		return err
+	}
+	ipccert, ipckey, err := cert.FetchAgentIPCCert(config)
+	if err != nil {
+		return err
+	}
+
+	certPool := x509.NewCertPool()
+	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
+		return fmt.Errorf("unable to use cert for creating CertPool")
+	}
+
+	clientTLSConfig = &tls.Config{
+		RootCAs: certPool,
+	}
+
+	tlsCert, err := tls.X509KeyPair(ipccert, ipckey)
+	if err != nil {
+		return err
+	}
+	serverTLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+	}
+
+	initSource = setAuthToken
+
+	return nil
 }
 
-// CreateAndSetAuthToken creates and sets the authorization token
+// CreateAndSetAuthToken creates and sets the authorization token and IPC certificate
 // Requires that the config has been set up before calling
 func CreateAndSetAuthToken(config model.Reader) error {
 	tokenLock.Lock()
 	defer tokenLock.Unlock()
 
 	// Noop if token is already set
-	if token != "" {
+	switch initSource {
+	case setAuthToken:
+		log.Infof("function CreateAndSetAuthToken was called after SetAuthToken was called")
+		return nil
+	case createAndSetAuthToken:
 		return nil
 	}
 
 	var err error
-	token, err = security.CreateOrFetchToken(config)
-	return err
+	token, err = pkgtoken.CreateOrFetchToken(config)
+	if err != nil {
+		return err
+	}
+	ipccert, ipckey, err := cert.CreateOrFetchAgentIPCCert(config)
+	if err != nil {
+		return err
+	}
+
+	certPool := x509.NewCertPool()
+	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
+		return fmt.Errorf("Unable to generate certPool from PERM IPC cert")
+	}
+
+	clientTLSConfig = &tls.Config{
+		RootCAs: certPool,
+	}
+
+	tlsCert, err := tls.X509KeyPair(ipccert, ipckey)
+	if err != nil {
+		return fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
+	}
+	serverTLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+	}
+
+	initSource = createAndSetAuthToken
+
+	return nil
+}
+
+// IsInitialized return true if the auth_token and IPC cert/key pair have been initialized with SetAuthToken or CreateAndSetAuthToken functions
+func IsInitialized() bool {
+	tokenLock.RLock()
+	defer tokenLock.Unlock()
+	return initSource != uninitialized
 }
 
 // GetAuthToken gets the session token
@@ -61,6 +148,31 @@ func GetAuthToken() string {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	return token
+}
+
+// GetTLSClientConfig gets the certificate and key used for IPC
+func GetTLSClientConfig() *tls.Config {
+	tokenLock.RLock()
+	defer tokenLock.RUnlock()
+	if initSource == uninitialized {
+		log.Errorf("GetTLSClientConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
+	}
+	return clientTLSConfig.Clone()
+}
+
+// GetTLSServerConfig gets the certificate and key used for IPC
+func GetTLSServerConfig() *tls.Config {
+	tokenLock.RLock()
+	defer tokenLock.RUnlock()
+	if initSource == uninitialized {
+		log.Errorf("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function), generating a self-signed certificate")
+		config, err := generateSelfSignedCert()
+		if err != nil {
+			log.Error(err.Error())
+		}
+		serverTLSConfig = &config
+	}
+	return serverTLSConfig.Clone()
 }
 
 // InitDCAAuthToken initialize the session token for the Cluster Agent based on config options
@@ -75,7 +187,7 @@ func InitDCAAuthToken(config model.Reader) error {
 	}
 
 	var err error
-	dcaToken, err = security.CreateOrGetClusterAgentAuthToken(config)
+	dcaToken, err = pkgtoken.CreateOrGetClusterAgentAuthToken(config)
 	return err
 }
 
@@ -168,4 +280,29 @@ func IsForbidden(ip string) bool {
 func IsIPv6(ip string) bool {
 	parsed := net.ParseIP(ip)
 	return parsed != nil && parsed.To4() == nil
+}
+
+func generateSelfSignedCert() (tls.Config, error) {
+	// create cert
+	hosts := []string{"127.0.0.1", "localhost"}
+	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
+	if err != nil {
+		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
+	}
+
+	// PEM encode the private key
+	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	})
+
+	// Create a TLS cert using the private key and certificate
+	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
+	if err != nil {
+		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
+
+	}
+
+	return tls.Config{
+		Certificates: []tls.Certificate{rootTLSCert},
+	}, nil
 }

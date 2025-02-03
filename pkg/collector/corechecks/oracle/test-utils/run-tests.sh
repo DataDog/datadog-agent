@@ -38,5 +38,5 @@ do
   go clean -testcache
 
   # Tests are running sequentially for the predictability of the memory leak test
-  gotestsum --jsonfile module_test_output.json --format pkgname --packages=./pkg/collector/corechecks/oracle/... -- -mod=mod -vet=off --tags=oracle_test,oracle,test 
+  gotestsum --jsonfile module_test_output.json --format pkgname --packages=./pkg/collector/corechecks/oracle/... -- -mod=readonly -vet=off --tags=oracle_test,oracle,test 
 done

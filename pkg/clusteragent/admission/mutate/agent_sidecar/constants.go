@@ -11,3 +11,10 @@ const (
 	agentSidecarContainerName = "datadog-agent-injected"
 	providerFargate           = "fargate"
 )
+
+const (
+	agentConfigVolumeName  = "agent-config"
+	agentOptionsVolumeName = "agent-option"
+	agentTmpVolumeName     = "agent-tmp"
+	agentLogsVolumeName    = "agent-log"
+)

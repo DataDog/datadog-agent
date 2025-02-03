@@ -32,8 +32,8 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
-from tasks.libs.common.git import get_file_modifications, get_staged_files
+from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.git import get_default_branch, get_file_modifications, get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
@@ -52,7 +52,7 @@ def python(ctx):
 
     print(
         f"""Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/{DEFAULT_BRANCH}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+    https://github.com/DataDog/datadog-agent/blob/{get_default_branch()}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
     )
 
     if running_in_ci():
@@ -113,9 +113,7 @@ def filenames(ctx):
     max_length = 255
     for filename in files:
         if (
-            not filename.startswith(
-                ('test/kitchen/', 'tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression')
-            )
+            not filename.startswith(('tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression'))
             and prefix_length + len(filename) > max_length
         ):
             print(
@@ -656,7 +654,8 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-agent-platform-step-by-step-ubuntu-a6-x86_64',
         'new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64',
         'new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64',
-        'new-e2e-agent-shared-components',
+        'new-e2e-agent-runtimes',
+        'new-e2e-agent-configuration',
         'new-e2e-cws',
         'new-e2e-language-detection',
         'new-e2e-npm-docker',

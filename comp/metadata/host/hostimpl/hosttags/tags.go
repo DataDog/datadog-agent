@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
 
 var (
@@ -179,7 +179,7 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	}
 
 	t := &Tags{
-		System:              util.SortUniqInPlace(hostTags),
+		System:              sort.UniqInPlace(hostTags),
 		GoogleCloudPlatform: gceTags,
 	}
 

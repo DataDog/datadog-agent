@@ -10,18 +10,25 @@ HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
         return 0;
     }
 
-    /* TODO: implement the event for pid equal to 0 or -1. */
-    if (pid < 1) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_SIGNAL,
         .signal = {
-            .pid = 0, // 0 in case the root ns pid resolution failed
             .type = type,
         },
     };
+
+    if (pid < 1) {
+        /*
+          in case kill is called with pid 0 or -1 and targets multiple processes, it
+          may not go through the kill_permission callpath; but still is valuable to track
+        */
+        syscall.signal.need_target_resolution = 0;
+        syscall.signal.pid = pid;
+    } else {
+        syscall.signal.need_target_resolution = 1;
+        syscall.signal.pid = 0; // it will be resolved later on by check_kill_permission
+    }
+
     cache_syscall(&syscall);
     return 0;
 }
@@ -29,7 +36,7 @@ HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
 HOOK_ENTRY("check_kill_permission")
 int hook_check_kill_permission(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SIGNAL);
-    if (!syscall) {
+    if (!syscall || syscall->signal.need_target_resolution == 0) {
         return 0;
     }
 
@@ -46,7 +53,7 @@ int hook_check_kill_permission(ctx_t *ctx) {
 /* hook here to grab the EPERM retval */
 HOOK_EXIT("check_kill_permission")
 int rethook_check_kill_permission(ctx_t *ctx) {
-    int retval = (int)CTX_PARMRET(ctx, 3);
+    int retval = (int)CTX_PARMRET(ctx);
 
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SIGNAL);
     if (!syscall) {

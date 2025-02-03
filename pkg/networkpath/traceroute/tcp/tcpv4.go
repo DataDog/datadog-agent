@@ -8,14 +8,12 @@ package tcp
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"time"
 
-	"golang.org/x/net/ipv4"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"golang.org/x/net/ipv4"
 )
 
 type (
@@ -31,134 +29,24 @@ type (
 		MaxTTL   uint8
 		Delay    time.Duration // delay between sending packets (not applicable if we go the serial send/receive route)
 		Timeout  time.Duration // full timeout for all packets
-	}
-
-	// Results encapsulates a response from the TCP
-	// traceroute
-	Results struct {
-		Source     net.IP
-		SourcePort uint16
-		Target     net.IP
-		DstPort    uint16
-		Hops       []*Hop
-	}
-
-	// Hop encapsulates information about a single
-	// hop in a TCP traceroute
-	Hop struct {
-		IP       net.IP
-		Port     uint16
-		ICMPType layers.ICMPv4TypeCode
-		RTT      time.Duration
-		IsDest   bool
+		buffer   gopacket.SerializeBuffer
 	}
 )
 
-// TracerouteSequential runs a traceroute sequentially where a packet is
-// sent and we wait for a response before sending the next packet
-func (t *TCPv4) TracerouteSequential() (*Results, error) {
-	// Get local address for the interface that connects to this
-	// host and store in in the probe
-	//
-	// TODO: do this once for the probe and hang on to the
-	// listener until we decide to close the probe
-	addr, err := localAddrForHost(t.Target, t.DestPort)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get local address for target: %w", err)
-	}
-	t.srcIP = addr.IP
-	t.srcPort = addr.AddrPort().Port()
+// NewTCPv4 initializes a new TCPv4 traceroute instance
+func NewTCPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration) *TCPv4 {
+	buffer := gopacket.NewSerializeBuffer()
 
-	// So far I haven't had success trying to simply create a socket
-	// using syscalls directly, but in theory doing so would allow us
-	// to avoid creating two listeners since we could see all IP traffic
-	// this way
-	//
-	// Create a raw ICMP listener to catch ICMP responses
-	icmpConn, err := net.ListenPacket("ip4:icmp", addr.IP.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ICMP listener: %w", err)
+	return &TCPv4{
+		Target:   target,
+		DestPort: targetPort,
+		NumPaths: numPaths,
+		MinTTL:   minTTL,
+		MaxTTL:   maxTTL,
+		Delay:    delay,
+		Timeout:  timeout,
+		buffer:   buffer,
 	}
-	defer icmpConn.Close()
-	// RawConn is necessary to set the TTL and ID fields
-	rawIcmpConn, err := ipv4.NewRawConn(icmpConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get raw ICMP listener: %w", err)
-	}
-
-	// Create a raw TCP listener to catch the TCP response from our final
-	// hop if we get one
-	tcpConn, err := net.ListenPacket("ip4:tcp", addr.IP.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create TCP listener: %w", err)
-	}
-	defer tcpConn.Close()
-	log.Tracef("Listening for TCP on: %s\n", addr.IP.String()+":"+addr.AddrPort().String())
-	// RawConn is necessary to set the TTL and ID fields
-	rawTCPConn, err := ipv4.NewRawConn(tcpConn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get raw TCP listener: %w", err)
-	}
-
-	// hops should be of length # of hops
-	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL)
-
-	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		seqNumber := rand.Uint32()
-		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, t.Timeout)
-		if err != nil {
-			return nil, fmt.Errorf("failed to run traceroute: %w", err)
-		}
-		hops = append(hops, hop)
-		log.Tracef("Discovered hop: %+v", hop)
-		// if we've reached our destination,
-		// we're done
-		if hop.IsDest {
-			break
-		}
-	}
-
-	return &Results{
-		Source:     t.srcIP,
-		SourcePort: t.srcPort,
-		Target:     t.Target,
-		DstPort:    t.DestPort,
-		Hops:       hops,
-	}, nil
-}
-
-func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
-	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
-	if err != nil {
-		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
-		return nil, err
-	}
-
-	err = sendPacket(rawTCPConn, tcpHeader, tcpPacket)
-	if err != nil {
-		log.Errorf("failed to send TCP SYN: %s", err.Error())
-		return nil, err
-	}
-
-	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
-	if err != nil {
-		log.Errorf("failed to listen for packets: %s", err.Error())
-		return nil, err
-	}
-
-	rtt := time.Duration(0)
-	if !hopIP.Equal(net.IP{}) {
-		rtt = end.Sub(start)
-	}
-
-	return &Hop{
-		IP:       hopIP,
-		Port:     hopPort,
-		ICMPType: icmpType,
-		RTT:      rtt,
-		IsDest:   hopIP.Equal(t.Target),
-	}, nil
 }
 
 // Close doesn't to anything yet, but we should
@@ -166,4 +54,63 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 // when we're done with a path test
 func (t *TCPv4) Close() error {
 	return nil
+}
+
+// createRawTCPSyn creates a TCP packet with the specified parameters
+func (t *TCPv4) createRawTCPSyn(seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
+	ipHdr, packet, hdrlen, err := t.createRawTCPSynBuffer(seqNum, ttl)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ipHdr, packet[hdrlen:], nil
+}
+
+func (t *TCPv4) createRawTCPSynBuffer(seqNum uint32, ttl int) (*ipv4.Header, []byte, int, error) {
+	ipLayer := &layers.IPv4{
+		Version:  4,
+		Length:   20,
+		TTL:      uint8(ttl),
+		Id:       uint16(41821),
+		Protocol: 6,
+		DstIP:    t.Target,
+		SrcIP:    t.srcIP,
+	}
+
+	tcpLayer := &layers.TCP{
+		SrcPort: layers.TCPPort(t.srcPort),
+		DstPort: layers.TCPPort(t.DestPort),
+		Seq:     seqNum,
+		Ack:     0,
+		SYN:     true,
+		Window:  1024,
+	}
+
+	err := tcpLayer.SetNetworkLayerForChecksum(ipLayer)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("failed to create packet checksum: %w", err)
+	}
+
+	// clear the gopacket.SerializeBuffer
+	if len(t.buffer.Bytes()) > 0 {
+		if err = t.buffer.Clear(); err != nil {
+			t.buffer = gopacket.NewSerializeBuffer()
+		}
+	}
+	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
+	err = gopacket.SerializeLayers(t.buffer, opts,
+		ipLayer,
+		tcpLayer,
+	)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("failed to serialize packet: %w", err)
+	}
+	packet := t.buffer.Bytes()
+
+	var ipHdr ipv4.Header
+	if err := ipHdr.Parse(packet[:20]); err != nil {
+		return nil, nil, 0, fmt.Errorf("failed to parse IP header: %w", err)
+	}
+
+	return &ipHdr, packet, 20, nil
 }

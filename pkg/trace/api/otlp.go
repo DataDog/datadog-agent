@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"math"
 	"net"
 	"net/http"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
@@ -26,10 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -37,6 +36,9 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -79,7 +81,7 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.span_name_as_resource_name_enabled", spanNameAsResourceNameEnabledVal, nil, 1)
 	spanNameRemappingsEnabledVal := 0.0
-	if cfg.OTLPReceiver.SpanNameRemappings != nil && len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
+	if len(cfg.OTLPReceiver.SpanNameRemappings) > 0 {
 		if operationAndResourceNamesV2GateEnabled {
 			log.Warnf("Detected SpanNameRemappings in config - this feature will be deprecated in a future version. Please remove it to access functionality from feature gate \"enable_operation_and_resource_name_logic_v2\".")
 		} else {
@@ -97,12 +99,12 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		ignoreResNames[resName] = struct{}{}
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
-	enableReceiveResourceSpansV2Val := 0.0
-	if cfg.HasFeature("enable_receive_resource_spans_v2") {
-		enableReceiveResourceSpansV2Val = 1.0
+	enableReceiveResourceSpansV2Val := 1.0
+	if cfg.HasFeature("disable_receive_resource_spans_v2") {
+		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -225,10 +227,10 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	if o.conf.HasFeature("enable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV2(ctx, rspans, httpHeader.Get(header.ComputedStats) != "")
+	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
+		return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
 	}
-	return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
+	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)))
 }
 
 func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool) source.Source {
@@ -417,8 +419,8 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedStats:    rattr[keyStatsComputed] != "" || isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)),
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || isHeaderTrue(header.ComputedTopLevel, httpHeader.Get(header.ComputedTopLevel)),
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -549,6 +551,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if in.Events().Len() > 0 {
 		transform.SetMetaOTLP(span, "events", transform.MarshalEvents(in.Events()))
 	}
+	transform.TagSpanIfContainsExceptionEvent(in, span)
 	if in.Links().Len() > 0 {
 		transform.SetMetaOTLP(span, "_dd.span_links", transform.MarshalLinks(in.Links()))
 	}
@@ -638,12 +641,12 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
 	}
+	res := pcommon.NewResource()
+	for k, v := range rattr {
+		res.Attributes().PutStr(k, v)
+	}
 	if span.Resource == "" {
 		if transform.OperationAndResourceNameV2Enabled(o.conf) {
-			res := pcommon.NewResource()
-			for k, v := range rattr {
-				res.Attributes().PutStr(k, v)
-			}
 			span.Resource = traceutil.GetOTelResourceV2(in, res)
 		} else {
 			if r := resourceFromTags(span.Meta); r != "" {
@@ -654,7 +657,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 	}
 	if span.Type == "" {
-		span.Type = spanKind2Type(in.Kind(), span)
+		span.Type = traceutil.SpanKind2Type(in, res)
 	}
 	return span
 }
@@ -683,32 +686,15 @@ func resourceFromTags(meta map[string]string) string {
 			return m + " " + svc
 		}
 		return m
+	} else if typ := meta[semconv117.AttributeGraphqlOperationType]; typ != "" {
+		// Enrich GraphQL query resource names.
+		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
+		if name := meta[semconv117.AttributeGraphqlOperationName]; name != "" {
+			return typ + " " + name
+		}
+		return typ
 	}
 	return ""
-}
-
-// spanKind2Type returns a span's type based on the given kind and other present properties.
-func spanKind2Type(kind ptrace.SpanKind, span *pb.Span) string {
-	var typ string
-	switch kind {
-	case ptrace.SpanKindServer:
-		typ = "web"
-	case ptrace.SpanKindClient:
-		typ = "http"
-		db, ok := span.Meta[string(semconv.AttributeDBSystem)]
-		if !ok {
-			break
-		}
-		switch db {
-		case "redis", "memcached":
-			typ = "cache"
-		default:
-			typ = "db"
-		}
-	default:
-		typ = "custom"
-	}
-	return typ
 }
 
 // computeTopLevelAndMeasured updates the span's top-level and measured attributes.

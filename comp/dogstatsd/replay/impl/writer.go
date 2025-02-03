@@ -22,7 +22,6 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerproto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -317,7 +316,7 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 
 	// iterate entities
 	for _, entityIDStr := range tc.taggerState {
-		prefix, id, err := common.ExtractPrefixAndID(entityIDStr)
+		prefix, id, err := types.ExtractPrefixAndID(entityIDStr)
 		if err != nil {
 			log.Warnf("Invalid entity id: %q", id)
 			continue

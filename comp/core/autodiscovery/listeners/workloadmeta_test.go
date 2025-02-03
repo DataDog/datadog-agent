@@ -83,9 +83,9 @@ func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wl
 }
 
 func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
-	filters, err := newContainerFilters()
-	if err != nil {
-		t.Fatalf("cannot initialize container filters: %s", err)
+	filters := newContainerFilters()
+	if filters == nil {
+		t.Fatal("got nil containers filter")
 	}
 
 	w := fxutil.Test[workloadmetamock.Mock](t, fx.Options(

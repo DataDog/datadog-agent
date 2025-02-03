@@ -419,3 +419,20 @@ func IsServiceRunning(serviceName string) (running bool, err error) {
 	}
 	return (status.State == windows.SERVICE_RUNNING), nil
 }
+
+// GetServiceUser returns the service user for the given service
+func GetServiceUser(serviceName string) (string, error) {
+	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_CONFIG)
+	if err != nil {
+		return "", err
+	}
+	defer closeManagerService(manager, service)
+
+	serviceConfig, err := service.Config()
+	if err != nil {
+		return "", fmt.Errorf("could not retrieve config for %s: %w", serviceName, err)
+	}
+
+	return serviceConfig.ServiceStartName, nil
+
+}

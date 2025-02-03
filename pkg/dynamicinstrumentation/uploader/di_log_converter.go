@@ -79,7 +79,7 @@ func convertProbe(probe *ditypes.Probe) ditypes.ProbeInSnapshot {
 	}
 }
 
-func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditypes.Captures {
+func convertCaptures(defs []*ditypes.Parameter, captures []*ditypes.Param) ditypes.Captures {
 	return ditypes.Captures{
 		Entry: &ditypes.Capture{
 			Arguments: convertArgs(defs, captures),
@@ -87,8 +87,8 @@ func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditype
 	}
 }
 
-func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
-	notCapturedReason := "Failed to instrument, type is unsupported or too complex. Please report this issue."
+func reportCaptureError(defs []*ditypes.Parameter) ditypes.Captures {
+	notCapturedReason := "type unsupported"
 
 	args := make(map[string]*ditypes.CapturedValue)
 	for _, def := range defs {
@@ -104,23 +104,21 @@ func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
 	}
 }
 
-func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
+func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
 		var (
-			argName    string
-			captureDef *ditypes.Parameter
-			defPieces  []ditypes.Parameter
+			argName   string
+			defPieces []*ditypes.Parameter
 		)
 		if idx < len(defs) {
 			argName = defs[idx].Name
-			captureDef = &defs[idx]
 		}
 		if argName == "" {
 			argName = fmt.Sprintf("arg_%d", idx)
 		}
 		if reflect.Kind(capture.Kind) == reflect.Slice {
-			args[argName] = convertSlice(captureDef, capture)
+			args[argName] = convertSlice(capture)
 			continue
 		}
 		if capture == nil {
@@ -143,15 +141,29 @@ func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string
 	return args
 }
 
-func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.CapturedValue {
-	if def == nil || len(def.ParameterPieces) != 2 {
-		// The definition should have two fields, for type, and for length
-		return nil
+func convertSlice(capture *ditypes.Param) *ditypes.CapturedValue {
+	defs := []*ditypes.Parameter{}
+	for i := range capture.Fields {
+		var (
+			fieldType string
+			fieldKind uint
+			fieldSize int64
+		)
+		if capture.Fields[i] != nil {
+			fieldType = capture.Fields[i].Type
+			fieldKind = uint(capture.Fields[i].Kind)
+			fieldSize = int64(capture.Fields[i].Size)
+		}
+		defs = append(defs, &ditypes.Parameter{
+			Name:      fmt.Sprintf("[%d]%s", i, fieldType),
+			Type:      fieldType,
+			Kind:      fieldKind,
+			TotalSize: fieldSize,
+		})
 	}
 	sliceValue := &ditypes.CapturedValue{
-		Fields: map[string]*ditypes.CapturedValue{},
+		Fields: convertArgs(defs, capture.Fields),
 	}
-	sliceValue.Fields = convertArgs(def.ParameterPieces, capture.Fields)
 	return sliceValue
 }
 
@@ -163,7 +175,7 @@ func parseFuncName(funcName string) (string, string) {
 	return "", funcName
 }
 
-func getFunctionArguments(proc *ditypes.ProcessInfo, probe *ditypes.Probe) []ditypes.Parameter {
+func getFunctionArguments(proc *ditypes.ProcessInfo, probe *ditypes.Probe) []*ditypes.Parameter {
 	return proc.TypeMap.Functions[probe.FuncName]
 }
 

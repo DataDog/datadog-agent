@@ -9,7 +9,7 @@
 package utils
 
 import (
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 )
 
 // NumCPU returns the count of CPUs in the CPU affinity mask of the pid 1 process

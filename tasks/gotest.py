@@ -21,13 +21,10 @@ from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit
 
-from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
-from tasks.cluster_agent import integration_tests as dca_integration_tests
 from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
-from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
@@ -44,7 +41,6 @@ from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
-from tasks.trace_agent import integration_tests as trace_integration_tests
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
 
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
@@ -149,6 +145,9 @@ def test_flavor(
                     out_stream=test_profiler,
                     warn=True,
                 )
+                # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+                if res is not None and res.exited == 130:
+                    raise KeyboardInterrupt()
 
         module_result.result_json_path = os.path.join(module_path, GO_TEST_RESULT_TMP_JSON)
 
@@ -206,7 +205,9 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool, extra_flakes_config: str | None = None
+) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path
@@ -226,7 +227,10 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        tw = TestWasher()
+        flakes_configs = ["flakes.yaml"]
+        if extra_flakes_config is not None:
+            flakes_configs.append(extra_flakes_config)
+        tw = TestWasher(flakes_file_paths=flakes_configs)
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
@@ -255,7 +259,6 @@ def test(
     race=False,
     profile=False,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     cpus=None,
     major_version='7',
@@ -264,7 +267,7 @@ def test(
     test_run_name="",
     save_result_json=None,
     rerun_fails=None,
-    go_mod="mod",
+    go_mod="readonly",
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
@@ -303,7 +306,6 @@ def test(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
-        python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
     )
@@ -406,27 +408,6 @@ def test(
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
-    """
-    Run all the available integration tests
-    """
-    tests = [
-        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
-    ]
-    for t in tests:
-        try:
-            t()
-        except Exit as e:
-            if e.code != 0:
-                raise
-            elif debug:
-                print(e.message)
-
-
-@task
 def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow="default"):
     """
     Run e2e tests in several environments.
@@ -514,12 +495,13 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
             modules_to_test[best_module_path] = GoModule(best_module_path, test_targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
+    default_modules = get_default_modules()
     for module in modules_to_test:
         modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
         if (
             len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = get_default_modules()[module].test_targets
+            modules_to_test[module].test_targets = default_modules[module].test_targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
@@ -752,16 +734,17 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
 
+    default_modules = get_default_modules()
     for package in packages:
         module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
-        if module_path not in get_default_modules() or not get_default_modules()[module_path].should_test():
+        if module_path not in default_modules or not default_modules[module_path].should_test():
             continue
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
-        for target in get_default_modules()[module_path].test_targets:
+        for target in default_modules[module_path].test_targets:
             if normpath(os.path.join(module_path, target)) in package:
                 targeted = True
                 break
@@ -784,12 +767,13 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
             modules_to_test[module_path] = GoModule(module_path, test_targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
+    default_modules = get_default_modules()
     for module in modules_to_test:
         modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
         if (
             len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = get_default_modules()[module].test_targets
+            modules_to_test[module].test_targets = default_modules[module].test_targets
 
     module_to_remove = []
     # Clean up to avoid running tests on package with no Go files matching build tags

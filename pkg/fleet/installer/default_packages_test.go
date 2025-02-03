@@ -8,8 +8,8 @@ package installer
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/stretchr/testify/assert"
 )
 

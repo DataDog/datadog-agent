@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,15 +43,18 @@ func TestMain(m *testing.M) {
 	if logLevel == "" {
 		logLevel = "warn"
 	}
-	log.SetupLogger(seelog.Default, logLevel)
+	log.SetupLogger(log.Default(), logLevel)
 	platformInit()
 	os.Exit(m.Run())
 }
 
 func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
 

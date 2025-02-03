@@ -16,13 +16,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/jackc/pgx/v5/pgproto3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -32,6 +33,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
@@ -47,7 +49,6 @@ const (
 	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
 	truncateTableQuery       = "TRUNCATE TABLE dummy"
 	showQuery                = "SHOW search_path"
-	maxSupportedMessages     = protocols.PostgresMaxMessagesPerTailCall * protocols.PostgresMaxTailCalls
 )
 
 var (
@@ -106,11 +107,7 @@ type postgresProtocolParsingSuite struct {
 func TestPostgresMonitoring(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(postgresProtocolParsingSuite))
 	})
 }
@@ -121,7 +118,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 		t.Run(name, func(t *testing.T) {
 			cfg := getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug
-			setupUSMTLSMonitor(t, cfg)
+			setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 		})
 	}
 }
@@ -144,7 +141,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			testDecoding(t, tt.isTLS)
@@ -190,7 +187,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 		return count * 2
 	}
 
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS), useExistingConsumer)
 	if isTLS {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
@@ -591,7 +588,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 		},
 		// The purpose of this test is to validate the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit.
 		{
-			name: "validate supporting max supported messages limit",
+			name: "validate max supported messages limit",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
@@ -607,7 +604,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
 				// We reduce the limit by 2 messages because the protocol adds messages at the beginning of the maximum message response.
-				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, maxSupportedMessages-3)...)))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, protocols.PostgresMaxTotalMessages-3)...)))
 				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -623,7 +620,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 		// This test validates that when we exceed the POSTGRES_MAX_MESSAGES_PER_TAIL_CALL * POSTGRES_MAX_TAIL_CALLS_FOR_MAX_MESSAGES limit,
 		// the request is not captured as we will miss the response.In this case, it applies to the SELECT query.
 		{
-			name: "validate exceeding max supported messages limit is not supported",
+			name: "exceeding max supported messages limit",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
@@ -638,7 +635,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
-				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, maxSupportedMessages+1)...)))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(1, protocols.PostgresMaxTotalMessages+1)...)))
 				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -719,7 +716,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
 
 	// Creating the monitor
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled), useExistingConsumer)
 
 	wg := sync.WaitGroup{}
 
@@ -762,7 +759,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 }
 
 func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnablePostgresMonitoring = true
 	cfg.MaxTrackedConnections = 1000
 	cfg.EnableGoTLSSupport = enableTLS
@@ -889,4 +886,170 @@ func createFragment(fragment []byte) [ebpf.BufferSize]byte {
 	var b [ebpf.BufferSize]byte
 	copy(b[:], fragment)
 	return b
+}
+
+func (s *postgresProtocolParsingSuite) TestKernelTelemetry() {
+	t := s.T()
+	tests := []struct {
+		name  string
+		isTLS bool
+	}{
+		{
+			name:  "without TLS",
+			isTLS: false,
+		},
+		{
+			name:  "with TLS",
+			isTLS: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			testKernelMessagesCount(t, tt.isTLS)
+		})
+	}
+}
+
+// testKernelMessagesCount check postgres kernel messages count.
+func testKernelMessagesCount(t *testing.T, isTLS bool) {
+	serverHost := "127.0.0.1"
+	serverAddress := net.JoinHostPort(serverHost, postgresPort)
+	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
+	waitForPostgresServer(t, serverAddress, isTLS)
+
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS), useExistingConsumer)
+	if isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+	}
+	pgClient := setupPGClient(t, serverAddress, isTLS)
+	t.Cleanup(func() {
+		if pgClient != nil {
+			_ = pgClient.RunQuery(dropTableQuery)
+			pgClient.Close()
+			pgClient = nil
+		}
+	})
+
+	createLargeTable(t, pgClient, ebpf.MsgCountFirstBucket+ebpf.MsgCountBucketSize*ebpf.MsgCountNumBuckets)
+	expectedBuckets := [ebpf.MsgCountNumBuckets]bool{}
+
+	for i := 0; i < ebpf.MsgCountNumBuckets; i++ {
+		testName := fmt.Sprintf("kernel messages count bucket[%d]", i)
+		t.Run(testName, func(t *testing.T) {
+
+			expectedBuckets[i] = true
+			cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
+
+			require.NoError(t, monitor.Resume())
+			if i == 0 {
+				// first bucket, it counts upto ebpf.MsgCountFirstBucketMax messages
+				// subtract three messages ('bind', 'row description' and 'ready')
+				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(ebpf.MsgCountFirstBucket-3)))
+			} else {
+				limitCount := ebpf.MsgCountFirstBucket + i*ebpf.MsgCountBucketSize - 3
+				require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(limitCount)))
+			}
+			require.NoError(t, monitor.Pause())
+
+			validateKernelBuckets(t, monitor, isTLS, expectedBuckets)
+			if i > 0 {
+				// clear current bucket except the first one, which is always non-empty.
+				expectedBuckets[i] = false
+			}
+		})
+	}
+
+	t.Run("exceed max buckets", func(t *testing.T) {
+
+		cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
+		require.NoError(t, monitor.Resume())
+
+		require.NoError(t, pgClient.RunQuery(generateSelectLimitQuery(ebpf.MsgCountMaxTotal)))
+		require.NoError(t, monitor.Pause())
+
+		validateKernelExceedingMax(t, monitor, isTLS)
+	})
+}
+
+func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGXClient {
+	pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+		ServerAddress: serverAddress,
+		EnableTLS:     isTLS,
+	})
+	require.NoError(t, err)
+	require.NoError(t, pg.Ping())
+	return pg
+}
+
+// createLargeTable runs a postgres query to create a table large enough to retrieve long responses later.
+func createLargeTable(t *testing.T, pg *postgres.PGXClient, tableValuesCount int) {
+	require.NoError(t, pg.RunQuery(createTableQuery))
+	require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, tableValuesCount)...)))
+}
+
+// validateKernel Checking telemetry data received for a postgres query
+func validateKernelBuckets(t *testing.T, monitor *Monitor, tls bool, expected [ebpf.MsgCountNumBuckets]bool) {
+	var actual *ebpf.PostgresKernelMsgCount
+	assert.Eventually(t, func() bool {
+		found, err := getKernelTelemetry(monitor, tls)
+		if err != nil {
+			return false
+		}
+		actual = found
+		return compareMessagesCount(found, expected)
+	}, time.Second*2, time.Millisecond*100)
+	if t.Failed() {
+		t.Logf("expected telemetry:\n %+v;\nactual telemetry:\n %+v", expected, actual)
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, postgres.KernelTelemetryMap)
+	}
+}
+
+// getKernelTelemetry returns statistics obtained from the kernel
+func getKernelTelemetry(monitor *Monitor, isTLS bool) (*ebpf.PostgresKernelMsgCount, error) {
+	pgKernelTelemetry := &ebpf.PostgresKernelMsgCount{}
+	mapName := postgres.KernelTelemetryMap
+	key := uint32(0)
+	if isTLS {
+		key = uint32(1)
+	}
+	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
+	}
+	if err := mp.Lookup(unsafe.Pointer(&key), unsafe.Pointer(pgKernelTelemetry)); err != nil {
+		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
+	}
+	return pgKernelTelemetry, nil
+}
+
+// compareMessagesCount returns true if the expected bucket is non-empty
+func compareMessagesCount(found *ebpf.PostgresKernelMsgCount, expected [ebpf.MsgCountNumBuckets]bool) bool {
+	for i := range expected {
+		if expected[i] && found.Msg_count_buckets[i] == 0 {
+			return false
+		}
+		if !expected[i] && found.Msg_count_buckets[i] > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// validateKernelExceedingMax check for exceeding the maximum number of buckets
+func validateKernelExceedingMax(t *testing.T, monitor *Monitor, tls bool) {
+	var actual *ebpf.PostgresKernelMsgCount
+	assert.Eventually(t, func() bool {
+		found, err := getKernelTelemetry(monitor, tls)
+		if err != nil {
+			return false
+		}
+		actual = found
+		return found.Reached_max_messages > 0
+	}, time.Second*2, time.Millisecond*100)
+	if t.Failed() {
+		t.Logf("expected non-zero max messages, actual telemetry:\n %+v", actual)
+	}
 }

@@ -10,12 +10,14 @@ package clusterchecks
 import (
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -49,7 +51,8 @@ func extractCheckNames(configs []integration.Config) []string {
 }
 
 func TestScheduleUnschedule(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 	stored, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Len(t, stored, 0)
@@ -80,7 +83,8 @@ func TestScheduleUnschedule(t *testing.T) {
 }
 
 func TestScheduleUnscheduleEndpoints(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 
 	config1 := generateIntegration("cluster-check")
 	config2 := generateEndpointsIntegration("endpoints-check1", "node1", false)
@@ -96,7 +100,8 @@ func TestScheduleUnscheduleEndpoints(t *testing.T) {
 }
 
 func TestExcludeEndpoint(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 
 	config1 := generateEndpointsIntegration("endpoints-check1", "node1", true)
 	config2 := generateEndpointsIntegration("endpoints-check2", "node2", false)
@@ -109,7 +114,8 @@ func TestExcludeEndpoint(t *testing.T) {
 }
 
 func TestScheduleReschedule(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 	config := generateIntegration("cluster-check")
 
 	// Register to node1
@@ -141,7 +147,8 @@ func TestScheduleReschedule(t *testing.T) {
 }
 
 func TestScheduleRescheduleEndpoints(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 	config := generateEndpointsIntegration("endpoints-check1", "node1", false)
 
 	// Register to node1
@@ -172,7 +179,8 @@ func TestScheduleRescheduleEndpoints(t *testing.T) {
 }
 
 func TestDescheduleRescheduleSameNode(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 	config := generateIntegration("cluster-check")
 
 	// Schedule to node1
@@ -205,7 +213,8 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 }
 
 func TestProcessNodeStatus(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 	status1 := types.NodeStatus{LastChange: 10}
 
 	// Warmup phase, upToDate is unconditionally true
@@ -246,7 +255,8 @@ func TestProcessNodeStatus(t *testing.T) {
 }
 
 func TestGetNodeWithLessChecks(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 
 	// No node registered -> empty string
 	assert.Equal(t, "", dispatcher.getNodeWithLessChecks())
@@ -270,7 +280,8 @@ func TestGetNodeWithLessChecks(t *testing.T) {
 }
 
 func TestExpireNodes(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 
 	// Node with no status (bug ?), handled by expiration
 	dispatcher.addConfig(generateIntegration("one"), "node1")
@@ -302,7 +313,8 @@ func TestExpireNodes(t *testing.T) {
 
 func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	// This test case can represent a rollout of the cluster check workers
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 
 	// Register a node with a correct status & schedule a Check
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
@@ -337,9 +349,10 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 
 	// Ensure we have 1 dangling to schedule, as new available node is registered
 	assert.True(t, dispatcher.shouldDispatchDangling())
-	configs := dispatcher.retrieveAndClearDangling()
+	configs := dispatcher.retrieveDangling()
 	// Assert the check is scheduled
-	dispatcher.reschedule(configs)
+	scheduledIDs := dispatcher.reschedule(configs)
+	dispatcher.deleteDangling(scheduledIDs)
 	danglingConfig, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(danglingConfig))
@@ -352,7 +365,8 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 }
 
 func TestDispatchFourConfigsTwoNodes(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 
 	// Register two nodes
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
@@ -389,7 +403,11 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 }
 
 func TestDanglingConfig(t *testing.T) {
-	dispatcher := newDispatcher()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("cluster_checks.unscheduled_check_threshold", 1)
+	mockConfig.SetWithoutSource("cluster_checks.node_expiration_timeout", 1)
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 	config := integration.Config{
 		Name:         "cluster-check",
 		ClusterCheck: true,
@@ -405,18 +423,27 @@ func TestDanglingConfig(t *testing.T) {
 	// shouldDispatchDangling is still false because no node is available
 	assert.False(t, dispatcher.shouldDispatchDangling())
 
+	// force config to dangle long enough to be classified as unscheduled check
+	assert.False(t, dispatcher.store.danglingConfigs[config.Digest()].unscheduledCheck)
+	require.Eventually(t, func() bool {
+		dispatcher.scanUnscheduledChecks()
+		return dispatcher.store.danglingConfigs[config.Digest()].unscheduledCheck
+	}, 2*time.Second, 250*time.Millisecond)
+
 	// register a node, shouldDispatchDangling will become true
 	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
 	assert.True(t, dispatcher.shouldDispatchDangling())
 
 	// get the danglings and make sure they are removed from the store
-	configs := dispatcher.retrieveAndClearDangling()
+	configs := dispatcher.retrieveDangling()
+	dispatcher.deleteDangling([]string{config.Digest()})
 	assert.Len(t, configs, 1)
 	assert.Equal(t, 0, len(dispatcher.store.danglingConfigs))
 }
 
 func TestUnscheduleDanglingConfig(t *testing.T) {
-	testDispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	testDispatcher := newDispatcher(fakeTagger)
 
 	testConfig := integration.Config{
 		Name:         "cluster-check-example",
@@ -446,7 +473,8 @@ func TestUnscheduleDanglingConfig(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 	config := generateIntegration("cluster-check")
 
 	// Register to node1
@@ -480,10 +508,11 @@ func TestPatchConfiguration(t *testing.T) {
 	}
 	initialDigest := checkConfig.Digest()
 
+	fakeTagger := mock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
-	dispatcher := newDispatcher()
+	dispatcher := newDispatcher(fakeTagger)
 
 	out, err := dispatcher.patchConfiguration(checkConfig)
 	assert.NoError(t, err)
@@ -517,10 +546,11 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 		LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 
+	fakeTagger := mock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
-	dispatcher := newDispatcher()
+	dispatcher := newDispatcher(fakeTagger)
 
 	out, err := dispatcher.patchEndpointsConfiguration(checkConfig)
 	assert.NoError(t, err)
@@ -555,20 +585,22 @@ func TestExtraTags(t *testing.T) {
 		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
 	} {
 		t.Run("", func(t *testing.T) {
+			fakeTagger := mock.SetupFakeTagger(t)
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("cluster_checks.extra_tags", tc.extraTagsConfig)
+			fakeTagger.SetGlobalTags(tc.extraTagsConfig, []string{}, []string{}, []string{})
 			mockConfig.SetWithoutSource("cluster_name", tc.clusterNameConfig)
 			mockConfig.SetWithoutSource("cluster_checks.cluster_tag_name", tc.tagNameConfig)
 
 			clustername.ResetClusterName()
-			dispatcher := newDispatcher()
+			dispatcher := newDispatcher(fakeTagger)
 			assert.EqualValues(t, tc.expected, dispatcher.extraTags)
 		})
 	}
 }
 
 func TestGetAllEndpointsCheckConfigs(t *testing.T) {
-	dispatcher := newDispatcher()
+	fakeTagger := mock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
 
 	// Register configs to different nodes
 	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check1", "node1", false), "node1")
@@ -642,10 +674,11 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 }
 
 func TestUpdateRunnersStats(t *testing.T) {
+	fakeTagger := mock.SetupFakeTagger(t)
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_checks.rebalance_with_utilization", true)
 
-	dispatcher := newDispatcher()
+	dispatcher := newDispatcher(fakeTagger)
 	status := types.NodeStatus{LastChange: 10}
 	dispatcher.store.active = true
 

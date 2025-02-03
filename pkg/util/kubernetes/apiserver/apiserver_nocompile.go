@@ -11,19 +11,14 @@ package apiserver
 import (
 	"context"
 	"errors"
-	"time"
-
-	"k8s.io/client-go/kubernetes"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	// ErrNotCompiled is returned if kubernetes apiserver support is not compiled in.
-	// User classes should handle that case as gracefully as possible.
-	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
-)
+// ErrNotCompiled is returned if kubernetes apiserver support is not compiled in.
+// User classes should handle that case as gracefully as possible.
+var ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 
 // APIClient provides authenticated access to the
 type APIClient struct {
@@ -66,9 +61,7 @@ func GetNodeLabels(_ *APIClient, _ string) (map[string]string, error) {
 	return nil, nil
 }
 
-// GetKubeClient returns a Kubernetes client.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func GetKubeClient(_ time.Duration) (kubernetes.Interface, error) {
+// GetKubeSecret fetches a secret from k8s
+func GetKubeSecret(string, string) (map[string][]byte, error) {
 	return nil, ErrNotCompiled
 }

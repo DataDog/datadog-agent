@@ -46,9 +46,10 @@ const (
 
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
-	name       string
-	resources  []string
-	operations []admissionregistrationv1.OperationType
+	name            string
+	resources       map[string][]string
+	operations      []admissionregistrationv1.OperationType
+	matchConditions []admissionregistrationv1.MatchCondition
 
 	wmeta workloadmeta.Component
 
@@ -79,9 +80,10 @@ func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, fi
 	webhook := &Webhook{
 		name: webhookName,
 
-		resources:  []string{"pods"},
-		operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
-		wmeta:      wmeta,
+		resources:       map[string][]string{"": {"pods"}},
+		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+		matchConditions: []admissionregistrationv1.MatchCondition{},
+		wmeta:           wmeta,
 
 		config: config,
 	}
@@ -114,7 +116,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() []string {
+func (w *Webhook) Resources() map[string][]string {
 	return w.resources
 }
 
@@ -130,10 +132,16 @@ func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *
 	return common.DefaultLabelSelectors(useNamespaceSelector)
 }
 
+// MatchConditions returns the Match Conditions used for fine-grained
+// request filtering
+func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
+	return w.matchConditions
+}
+
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient))
+		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.inject, request.DynamicClient))
 	}
 }
 
@@ -149,7 +157,6 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 	if pod.Namespace == "" {
 		pod.Namespace = ns
 	}
-	injectApmTelemetryConfig(pod)
 
 	if !w.isPodEligible(pod) {
 		return false, nil
@@ -304,13 +311,13 @@ func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguag
 
 // getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
 // that should be enabled by default
-func (w *Webhook) getAllLatestDefaultLibraries() []libInfo {
+func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
 		if !lang.isEnabledByDefault() {
 			continue
 		}
-		libsToInject = append(libsToInject, lang.defaultLibInfo(w.config.containerRegistry, ""))
+		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
 	}
 
 	return libsToInject
@@ -363,6 +370,9 @@ func (s libInfoSource) mutatePod(pod *corev1.Pod) error {
 		Name:  instrumentationInstallTypeEnvVarName,
 		Value: s.injectionType(),
 	})
+
+	injectApmTelemetryConfig(pod)
+
 	return nil
 }
 
@@ -434,7 +444,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	}
 
 	if extracted.source.isSingleStep() {
-		return extracted.withLibs(w.getAllLatestDefaultLibraries())
+		return extracted.withLibs(getAllLatestDefaultLibraries(w.config.containerRegistry))
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -448,7 +458,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extracted.withLibs(w.getAllLatestDefaultLibraries())
+		return extracted.withLibs(getAllLatestDefaultLibraries(w.config.containerRegistry))
 	}
 
 	return extractedPodLibInfo{}

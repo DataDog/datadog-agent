@@ -7,15 +7,22 @@
 package languagedetection
 
 import (
+	"bytes"
+	"io"
+	"net/http"
 	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
+	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,34 +36,43 @@ type languageFromCLI struct {
 	validator func(exe string) bool
 }
 
-// rubyPattern is a regexp validator for the ruby prefix
-var rubyPattern = regexp.MustCompile(`^ruby\d+\.\d+$`)
+var (
+	rubyPattern = regexp.MustCompile(`^ruby\d+\.\d+$`)
+	phpPattern  = regexp.MustCompile(`^php(?:-fpm)?\d(?:\.\d)?$`)
+)
+
+func matchesRubyPrefix(exe string) bool {
+	return rubyPattern.MatchString(exe)
+}
+
+func matchesJavaPrefix(exe string) bool {
+	return exe != "javac"
+}
+
+func matchesPHPPrefix(exe string) bool {
+	return phpPattern.MatchString(exe)
+}
 
 // knownPrefixes maps languages names to their prefix
 var knownPrefixes = map[string]languageFromCLI{
 	"python": {name: languagemodels.Python},
-	"java": {name: languagemodels.Java, validator: func(exe string) bool {
-		return exe != "javac"
-	}},
-	"ruby": {name: languagemodels.Ruby, validator: func(exe string) bool {
-		return rubyPattern.MatchString(exe)
-	}},
+	"java":   {name: languagemodels.Java, validator: matchesJavaPrefix},
+	"ruby":   {name: languagemodels.Ruby, validator: matchesRubyPrefix},
+	"php":    {name: languagemodels.PHP, validator: matchesPHPPrefix},
 }
 
 // exactMatches maps an exact exe name match to a prefix
 var exactMatches = map[string]languageFromCLI{
-	"py":     {name: languagemodels.Python},
-	"python": {name: languagemodels.Python},
-
-	"java": {name: languagemodels.Java},
-
-	"npm":  {name: languagemodels.Node},
-	"node": {name: languagemodels.Node},
-
-	"dotnet": {name: languagemodels.Dotnet},
-
-	"ruby":  {name: languagemodels.Ruby},
-	"rubyw": {name: languagemodels.Ruby},
+	"py":      {name: languagemodels.Python},
+	"python":  {name: languagemodels.Python},
+	"java":    {name: languagemodels.Java},
+	"npm":     {name: languagemodels.Node},
+	"node":    {name: languagemodels.Node},
+	"dotnet":  {name: languagemodels.Dotnet},
+	"ruby":    {name: languagemodels.Ruby},
+	"rubyw":   {name: languagemodels.Ruby},
+	"php":     {name: languagemodels.PHP},
+	"php-fpm": {name: languagemodels.PHP},
 }
 
 // languageNameFromCmdline returns a process's language from its command.
@@ -140,15 +156,8 @@ func DetectLanguage(procs []languagemodels.Process, sysprobeConfig model.Reader)
 		}()
 
 		log.Trace("[language detection] Requesting language from system probe")
-		util, err := net.GetRemoteSystemProbeUtil(
-			sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-		)
-		if err != nil {
-			log.Warn("[language detection] Failed to request language:", err)
-			return langs
-		}
-
-		privilegedLangs, err := util.DetectLanguage(unknownPids)
+		sysprobeClient := sysprobeclient.Get(sysprobeConfig.GetString("system_probe_config.sysprobe_socket"))
+		privilegedLangs, err := detectLanguage(sysprobeClient, unknownPids)
 		if err != nil {
 			log.Warn("[language detection] Failed to request language:", err)
 			return langs
@@ -159,6 +168,49 @@ func DetectLanguage(procs []languagemodels.Process, sysprobeConfig model.Reader)
 		}
 	}
 	return langs
+}
+
+func detectLanguage(client *http.Client, pids []int32) ([]languagemodels.Language, error) {
+	procs := make([]*languagepb.Process, len(pids))
+	for i, pid := range pids {
+		procs[i] = &languagepb.Process{Pid: pid}
+	}
+	reqBytes, err := proto.Marshal(&languagepb.DetectLanguageRequest{Processes: procs})
+	if err != nil {
+		return nil, err
+	}
+
+	url := sysprobeclient.ModuleURL(sysconfig.LanguageDetectionModule, "/detect")
+	req, err := http.NewRequest(http.MethodGet, url, bytes.NewBuffer(reqBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var resProto languagepb.DetectLanguageResponse
+	err = proto.Unmarshal(resBody, &resProto)
+	if err != nil {
+		return nil, err
+	}
+
+	langs := make([]languagemodels.Language, len(pids))
+	for i, lang := range resProto.Languages {
+		langs[i] = languagemodels.Language{
+			Name:    languagemodels.LanguageName(lang.Name),
+			Version: lang.Version,
+		}
+	}
+	return langs, nil
 }
 
 func privilegedLanguageDetectionEnabled(sysProbeConfig model.Reader) bool {

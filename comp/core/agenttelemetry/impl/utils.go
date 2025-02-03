@@ -8,6 +8,7 @@ package agenttelemetryimpl
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -98,11 +99,16 @@ func aggregateMetric(mt dto.MetricType, aggm *dto.Metric, srcm *dto.Metric) {
 					aggmb.Exemplar.Label = nil
 				}
 			}
+
+			// copy the sample count (it is implicit "+Inf" bucket)
+			aggm.Histogram.SampleCount = srcm.Histogram.SampleCount
 		} else {
 			// for the same metric family bucket structure is the same
 			for i, srcb := range srcm.Histogram.Bucket {
 				*aggm.Histogram.Bucket[i].CumulativeCount += srcb.GetCumulativeCount()
 			}
+			// copy the sample count (it is implicit "+Inf" bucket)
+			*aggm.Histogram.SampleCount += srcm.Histogram.GetSampleCount()
 		}
 	}
 }
@@ -122,4 +128,14 @@ func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
 // Make string key from LabelPair
 func makeLabelPairKey(l *dto.LabelPair) string {
 	return fmt.Sprintf("%s:%s:", l.GetName(), l.GetValue())
+}
+
+// Sort and serialize labels into a string
+func convertLabelsToKey(labels []*dto.LabelPair) string {
+	sortedLabels := cloneLabelsSorted(labels)
+	var sb strings.Builder
+	for _, tag := range sortedLabels {
+		sb.WriteString(makeLabelPairKey(tag))
+	}
+	return sb.String()
 }

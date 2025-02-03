@@ -7,12 +7,11 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	gopsutilProcess "github.com/shirou/gopsutil/v3/process"
+	gopsutilProcess "github.com/shirou/gopsutil/v4/process"
 )
 
 const (
@@ -23,7 +22,7 @@ const (
 )
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
@@ -34,14 +33,14 @@ func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (
 	}
 
 	if opts.EBPFLessEnabled {
-		pp, err := NewEBPFLessProbe(p, config, opts, telemetry)
+		pp, err := NewEBPFLessProbe(p, config, opts)
 		if err != nil {
 			return nil, err
 		}
 		p.PlatformProbe = pp
 		p.agentContainerContext = acc
 	} else {
-		pp, err := NewEBPFProbe(p, config, opts, telemetry)
+		pp, err := NewEBPFProbe(p, config, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -69,6 +68,11 @@ func IsRawPacketNotSupported(kv *kernel.Version) bool {
 func IsNetworkNotSupported(kv *kernel.Version) bool {
 	// TODO: Oracle because we are missing offset
 	return kv.IsRH7Kernel() || kv.IsOracleUEKKernel()
+}
+
+// IsNetworkFlowMonitorNotSupported returns if the network flow monitor feature is supported
+func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
+	return IsNetworkNotSupported(kv) || !kv.IsMapValuesToMapHelpersAllowed() || !kv.HasBPFForEachMapElemHelper()
 }
 
 // NewAgentContainerContext returns the agent container context
