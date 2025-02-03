@@ -82,3 +82,4 @@ datadog_otel_components_ocb_build:
     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
       when: never
     - when: always
+  timeout: 15 minutes
