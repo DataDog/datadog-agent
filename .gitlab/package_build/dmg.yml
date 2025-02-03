@@ -158,11 +158,12 @@ new-agent_dmg-x64-a7:
     # Setup builder
     - |
       for dependency in $(brew list --formula); do
-        echo "Uninstalling $dependency"
         brew remove --force --ignore-dependencies $dependency || echo "Warning: $dependency could not be removed"
       done
     - rm -rf /usr/local/lib/ruby
     - rm -rf /Library/Frameworks/Python.framework/Versions/*
+    # TODO
+    - bash .gitlab/package_build/builder_setup.sh
     # Setup
     - |
       export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
