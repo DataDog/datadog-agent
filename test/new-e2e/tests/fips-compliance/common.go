@@ -65,12 +65,12 @@ func (s *fipsServer) Start(t *testing.T, tc cipherTestCase) {
 			require.NoError(c, err)
 		}
 		assert.Nil(c, err)
-	}, 120*time.Second, 10*time.Second)
+	}, 120*time.Second, 10*time.Second, "docker-compose timed out starting server")
 
 	// Wait for container to start and ensure it's a fresh instance
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		serverLogs, _ := s.dockerHost.Execute("docker logs dd-fips-server")
-		assert.Contains(c, serverLogs, "Server Starting...", "Server should start")
+		assert.Contains(c, serverLogs, "Server Starting...", "fips-server timed out waiting for cipher initialization to finish")
 		assert.Equal(c, 1, strings.Count(serverLogs, "Server Starting..."), "Server should start only once, logs from previous runs should not be present")
 	}, 60*time.Second, 5*time.Second)
 }
