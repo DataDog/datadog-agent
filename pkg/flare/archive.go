@@ -136,9 +136,9 @@ func provideRemoteConfig(fb flaretypes.FlareBuilder) error {
 }
 
 func provideConfigDump(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                                 //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) })                  //nolint:errcheck
-	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) }) //nolint:errcheck
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
+	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)                                                      //nolint:errcheck
 	return nil
 }
 
@@ -258,6 +258,12 @@ func getSystemProbeStats() ([]byte, error) {
 func getSystemProbeTelemetry() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
 	url := sysprobeclient.URL("/telemetry")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeConfig() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.URL("/config")
 	return getHTTPData(sysProbeClient, url)
 }
 
