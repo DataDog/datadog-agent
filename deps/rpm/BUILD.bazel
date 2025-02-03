@@ -32,8 +32,10 @@ configure_make(
         "//deps/libgcrypt",
         "//deps/libgpg-error",
         "//deps/popt",
+        "//deps/openssl",
         "@lua//:liblua",
         "@sqlite3",
         "@zstd",
+        "@zlib",
     ],
 )
