@@ -72,6 +72,7 @@ func getExpectedModelResourceRequirements() []*model.ResourceRequirements {
 func TestExtractPod(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 
+	restartPolicyAlways := v1.ContainerRestartPolicyAlways
 	parseRequests := resource.MustParse("250M")
 	parseLimits := resource.MustParse("550M")
 	tests := map[string]struct {
@@ -535,6 +536,33 @@ func TestExtractPod(t *testing.T) {
 					},
 				},
 				Tags: []string{"kube_condition_ready:true"},
+			},
+		},
+		"sidecar pod": {
+			input: v1.Pod{
+				Spec: v1.PodSpec{
+					InitContainers: []v1.Container{
+						{
+							Name:          "sidecar-container",
+							RestartPolicy: &restartPolicyAlways,
+							Resources: v1.ResourceRequirements{
+								Limits:   map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseLimits},
+								Requests: map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: parseRequests},
+							},
+						},
+					},
+				},
+			},
+			expected: model.Pod{
+				Metadata: &model.Metadata{},
+				ResourceRequirements: []*model.ResourceRequirements{
+					{
+						Name:     "sidecar-container",
+						Type:     model.ResourceRequirementsType_nativeSidecar,
+						Limits:   map[string]int64{v1.ResourceMemory.String(): parseLimits.Value()},
+						Requests: map[string]int64{v1.ResourceMemory.String(): parseRequests.Value()},
+					},
+				},
 			},
 		},
 	}
@@ -1286,6 +1314,22 @@ func TestExtractPodResourceRequirementsSidecar(t *testing.T) {
 						v1.ResourceCPU.String():    50,
 						v1.ResourceMemory.String(): 104857600,
 					},
+				},
+			},
+		},
+		"sidecar pod with no resources": {
+			input: []v1.Container{
+				{
+					Name:          "sidecar",
+					RestartPolicy: &restartAlways,
+				},
+			},
+			expected: []*model.ResourceRequirements{
+				{
+					Name:     "sidecar",
+					Type:     model.ResourceRequirementsType_nativeSidecar,
+					Limits:   map[string]int64{},
+					Requests: map[string]int64{},
 				},
 			},
 		},
