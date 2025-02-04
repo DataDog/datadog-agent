@@ -169,11 +169,11 @@ def update_python_dependencies(ctx) -> Generator[SetupResult]:
 
 
 @task
-def install_pre_commit(ctx, interactive=True):
-    """Will install pre-commit and the hooks.
+def pre_commit(ctx, interactive=True):
+    """Will set up pre-commit hooks.
 
     Note:
-        pre-commit will be uninstalled / cleaned before being installed.
+        pre-commit hooks will be uninstalled / cleaned before being installed.
     """
 
     print(color_message("Enabling pre-commit...", Color.BLUE))
@@ -182,7 +182,7 @@ def install_pre_commit(ctx, interactive=True):
     message = ""
 
     if not ctx.run("pre-commit --version", hide=True, warn=True).ok:
-        message = "Please install pre-commit first: https://pre-commit.com/#installation."
+        message = "Please install pre-commit binary first: https://pre-commit.com/#installation."
         status = Status.FAIL
 
         if interactive:
@@ -236,7 +236,7 @@ def install_pre_commit(ctx, interactive=True):
 
 
 def enable_pre_commit(ctx) -> SetupResult:
-    status, message = install_pre_commit(ctx, interactive=False)
+    status, message = pre_commit(ctx, interactive=False)
 
     return SetupResult("Enable pre-commit", status, message)
 
