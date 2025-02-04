@@ -206,7 +206,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 		Use:   "inventory-otel",
 		Short: "Print the Inventory otel metadata payload.",
 		Long: `
-This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
+This command print the inventory-otel metadata payload. This payload is used by the 'OTel Agent' product.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-otel")),
