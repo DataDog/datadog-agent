@@ -597,7 +597,7 @@ func TestClientProcessEvent_IncompleteContainerProcessInfo(t *testing.T) {
 	assert.Equal(t, client.freshlyUpdatedPods, map[string]struct{}{"nginx-pod-name": {}})
 	// The pod's container process info is not complete yet, so we don't not send anything
 	assert.Empty(t, client.getFreshBatchProto())
-	assert.False(t, client.currentBatch[pod.Name].hasLanguageForAllContainers())
+	assert.False(t, client.currentBatch[pod.Name].hasCompleteLanguageInfo())
 
 	// Container process starts and is collected
 	client.store.Notify(collectorEvents2)
@@ -605,7 +605,7 @@ func TestClientProcessEvent_IncompleteContainerProcessInfo(t *testing.T) {
 
 	// The pod's container process info is complete now, so we would send the data
 	assert.NotEmpty(t, client.getFreshBatchProto())
-	assert.True(t, client.currentBatch[pod.Name].hasLanguageForAllContainers())
+	assert.True(t, client.currentBatch[pod.Name].hasCompleteLanguageInfo())
 }
 
 func TestClientProcessEvent_PodMissing(t *testing.T) {
@@ -954,7 +954,7 @@ func TestClientProcessEvent_PartialContainersWithUnsupportedLang(t *testing.T) {
 	// but no language is detected one some of the containers
 	assert.NotEmpty(t, client.getFreshBatchProto())
 	assert.NotEmpty(t, client.getCurrentBatchProto())
-	assert.True(t, client.currentBatch[pod.Name].hasLanguageForAllContainers())
+	assert.True(t, client.currentBatch[pod.Name].hasCompleteLanguageInfo())
 }
 
 func TestClientProcessEvent_ContainerWithUnsupportedLang(t *testing.T) {

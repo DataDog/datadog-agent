@@ -74,14 +74,15 @@ func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bo
 	return cInfo[container]
 }
 
-// hasLanguageForAllContainers returns true if the pod has language information for all containers.
+// hasCompleteLanguageInfo returns true if the pod has language information for all containers.
 //
 // A pod has language information if it meets the following conditions: (1) One process event for
 // each container in the pod has been received, and (2) the process check successfully detected at
 // least one supported language in at least one container in the pod.
 //
 // We don't consider init containers here because they are short-lived.
-func (p *podInfo) hasLanguageForAllContainers() bool {
+func (p *podInfo) hasCompleteLanguageInfo() bool {
+	// Preserve not sending podInfo if all containers have no language detected
 	atLeastOneContainerLanguageDetected := false
 	for container := range p.containers {
 		// Haven't received a process event from this container
@@ -97,7 +98,7 @@ func (p *podInfo) hasLanguageForAllContainers() bool {
 func (b batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
 	res := &pbgo.ParentLanguageAnnotationRequest{}
 	for podName, podInfo := range b {
-		if podInfo.hasLanguageForAllContainers() {
+		if podInfo.hasCompleteLanguageInfo() {
 			res.PodDetails = append(res.PodDetails, podInfo.toProto(podName))
 		}
 	}
