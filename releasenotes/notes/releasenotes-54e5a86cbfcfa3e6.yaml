@@ -6,4 +6,4 @@
 #
 enhancements:
   - |
-    Report resource requirements with restartPolicy=Always as native sidecars.
+    Report resource requirements as native sidecars when `restartPolicy=Always` is used.
