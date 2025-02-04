@@ -4,6 +4,24 @@
 
 ## Configuration
 
+### IAM Permission needed
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ssm:GetParameter",
+      "Resource": [
+        "arn:aws:ssm:${Region}:${Account}:parameter/${ParameterNameWithoutLeadingSlash}"
+      ]
+    }
+  ]
+}
+
+```
+
 ### Backend Settings
 
 | Setting | Description |
