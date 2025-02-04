@@ -80,7 +80,13 @@ func (i *InstallerExec) Install(ctx context.Context, url string, args []string) 
 
 // ForceInstall installs a package, even if it's already installed.
 func (i *InstallerExec) ForceInstall(ctx context.Context, url string, args []string) (err error) {
-	return i.Install(ctx, url, append(args, "--force"))
+	var cmdLineArgs = []string{url, "--force"}
+	if len(args) > 0 {
+		cmdLineArgs = append(cmdLineArgs, "--install_args", strings.Join(args, ","))
+	}
+	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
 }
 
 // Remove removes a package.
