@@ -84,7 +84,12 @@ func NewWorker(
 
 // NewHTTPClient creates a new http.Client
 func NewHTTPClient(config config.Component) *http.Client {
-	transport := httputils.CreateHTTPTransport(config)
+	var transport http.RoundTripper
+	if config.GetBool("force_h2c") {
+		transport = httputils.CreateH2CTransport(config)
+	} else {
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2())
+	}
 
 	return &http.Client{
 		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,

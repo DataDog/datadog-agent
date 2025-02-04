@@ -133,6 +133,46 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*ht
 	return transport
 }
 
+// CreateH2CTransport creates an *http.Transport for use in the agent
+func CreateH2CTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*http2.Transport)) *http2.Transport {
+	// It’s OK to reuse the same file for all the http.Transport objects we create
+	// because all the writes to that file are protected by a global mutex.
+	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
+	keyLogWriterInit.Do(func() {
+		sslKeyLogFile := cfg.GetString("sslkeylogfile")
+		if sslKeyLogFile != "" {
+			var err error
+			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+			if err != nil {
+				log.Warnf("Failed to open %s for writing NSS keys: %v", sslKeyLogFile, err)
+			}
+		}
+	})
+
+	tlsConfig := &tls.Config{
+		KeyLogWriter:       keyLogWriter,
+		InsecureSkipVerify: cfg.GetBool("skip_ssl_validation"),
+	}
+
+	tlsConfig.MinVersion = minTLSVersionFromConfig(cfg)
+
+	transport := &http2.Transport{
+		AllowHTTP: true,
+		DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
+			return net.Dial(network, addr)
+		},
+		TLSClientConfig: tlsConfig,
+		// This parameter is set to avoid connections sitting idle in the pool indefinitely
+		IdleConnTimeout: 45 * time.Second,
+	}
+
+	for _, transportOption := range transportOptions {
+		transportOption(transport)
+	}
+
+	return transport
+}
+
 // GetProxyTransportFunc return a proxy function for a http.Transport that
 // would return the right proxy depending on the configuration.
 func GetProxyTransportFunc(p *pkgconfigmodel.Proxy, cfg pkgconfigmodel.Reader) func(*http.Request) (*url.URL, error) {
