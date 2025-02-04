@@ -25,6 +25,7 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -1149,7 +1150,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 		expectedReason  string
 		upscaleWindow   int32
 		downscaleWindow int32
-		scaleDirection  scaleDirection
+		scaleDirection  common.ScaleDirection
 	}{
 		{
 			name: "no downscale stabilization - constant upscale",
@@ -1163,7 +1164,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
-			scaleDirection:  scaleUp,
+			scaleDirection:  common.ScaleUp,
 		},
 		{
 			name: "downscale stabilization",
@@ -1177,7 +1178,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 5 (originally 4) due to stabilization window",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
-			scaleDirection:  scaleDown,
+			scaleDirection:  common.ScaleDown,
 		},
 		{
 			name: "downscale stabilization, recommendation flapping",
@@ -1192,7 +1193,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 7 (originally 5) due to stabilization window",
 			upscaleWindow:   0,
 			downscaleWindow: 300,
-			scaleDirection:  scaleDown,
+			scaleDirection:  common.ScaleDown,
 		},
 		{
 			name: "upscale stabilization",
@@ -1206,7 +1207,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 8 (originally 12) due to stabilization window",
 			upscaleWindow:   300,
 			downscaleWindow: 0,
-			scaleDirection:  scaleUp,
+			scaleDirection:  common.ScaleUp,
 		},
 		{
 			name: "upscale stabilization, recommendation flapping",
@@ -1221,7 +1222,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 			expectedReason:  "desired replica count limited to 9 (originally 12) due to stabilization window",
 			upscaleWindow:   300,
 			downscaleWindow: 0,
-			scaleDirection:  scaleUp,
+			scaleDirection:  common.ScaleUp,
 		},
 	}
 

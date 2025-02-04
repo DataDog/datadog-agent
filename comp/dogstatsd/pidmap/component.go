@@ -6,7 +6,7 @@
 // Package pidmap implements a component for tracking pid and containerID relations
 package pidmap
 
-// team: agent-metrics
+// team: agent-metric-pipelines
 
 // Component is the component type.
 type Component interface {

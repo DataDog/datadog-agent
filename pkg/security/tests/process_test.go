@@ -2279,7 +2279,8 @@ func TestProcessResolution(t *testing.T) {
 		// it still checks the ResolveFromProcfs returns the correct entry
 		procEntry := resolver.ResolveFromProcfs(pid, nil)
 		if procEntry == nil {
-			t.Fatalf("not able to resolve the entry")
+			t.Errorf("not able to resolve the entry of pid %d", pid)
+			return
 		}
 
 		equals(t, mapsEntry, procEntry, false)
