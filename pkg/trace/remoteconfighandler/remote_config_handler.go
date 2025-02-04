@@ -7,6 +7,7 @@
 package remoteconfighandler
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -41,6 +42,7 @@ type RemoteConfigHandler struct {
 	rareSampler                   rareSampler
 	agentConfig                   *config.AgentConfig
 	configState                   *state.AgentConfigState
+	configHTTPClient              *http.Client
 	configSetEndpointFormatString string
 }
 
@@ -70,8 +72,13 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
 		},
+		configHTTPClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //Skipped while IPC cert supply chain is released
+			},
+		},
 		configSetEndpointFormatString: fmt.Sprintf(
-			"http://127.0.0.1:%s/config/set?log_level=%%s", strconv.Itoa(conf.DebugServerPort),
+			"https://127.0.0.1:%s/config/set?log_level=%%s", strconv.Itoa(conf.DebugServerPort),
 		),
 	}
 }
@@ -108,7 +115,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			if err != nil {
 				return
 			}
-			resp, err = http.DefaultClient.Do(req)
+			resp, err = h.configHTTPClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 				h.configState.LatestLogLevel = mergedConfig.LogLevel
@@ -126,7 +133,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			if err != nil {
 				return
 			}
-			resp, err = http.DefaultClient.Do(req)
+			resp, err = h.configHTTPClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 			}
