@@ -143,7 +143,6 @@ new-agent_dmg-x64-a7:
   # tags: ["macos:ventura-amd64-test", "specific:true"]
   tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
-  parallel: 5
   timeout: 6h
   artifacts:
     expire_in: 2 weeks
