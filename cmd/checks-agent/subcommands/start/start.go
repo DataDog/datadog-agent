@@ -313,7 +313,7 @@ func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentS
 	}, expBackoff)
 }
 
-func startScheduler(ctx context.Context, f context.CancelFunc, client core.AgentSecureClient, _ *pkgcollector.CheckScheduler, log log.Component) {
+func startScheduler(ctx context.Context, f context.CancelFunc, client core.AgentSecureClient, scheduler *pkgcollector.CheckScheduler, log log.Component) {
 	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
 	autodiscoveryStream := &autodiscoveryStream{
 		autodiscoveryStreamCancel: f,
@@ -355,8 +355,8 @@ func startScheduler(ctx context.Context, f context.CancelFunc, client core.Agent
 			}
 		}
 
-		// scheduler.Schedule(scheduleConfigs)
-		// scheduler.Unschedule(unscheduleConfigs)
+		scheduler.Schedule(scheduleConfigs)
+		scheduler.Unschedule(unscheduleConfigs)
 	}
 }
 
