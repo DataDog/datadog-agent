@@ -8,4 +8,4 @@
 ---
 deprecations:
   - |
-    `logs.processed` and `logs.sent` metrics will not be emitted by the Agent
+    `logs.processed` and `logs.sent` metrics are no longer emitted by the Agent
