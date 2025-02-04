@@ -10,6 +10,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -608,18 +609,20 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
+		Tags:           tagset.CompositeTagsFromSlice(slices.Concat(agg.tags(true), agg.configIDTags())),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
 
 	if agg.haAgent.Enabled() {
-		haAgentTags := append(agg.tags(false),
-			"config_id:"+agg.configID,
-			"ha_agent_state:"+string(agg.haAgent.GetState()),
+		haAgentTags := slices.Concat(agg.tags(false),
+			agg.configIDTags(),
+			[]string{"ha_agent_state:" + string(agg.haAgent.GetState())},
 		)
 		// Send along a metric to show if HA Agent is running with ha_agent_state tag.
+		// datadog.agent.ha_agent.running is currently used in dashboard to monitor HA Agent state (active/standby)
+		// This metric is not intended to be used as replacement for datadog.agent.running
 		series.Append(&metrics.Serie{
 			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
@@ -883,9 +886,6 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		if version.AgentPackageVersion != "" {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
-		if agg.configID != "" {
-			tags = append(tags, "config_id:"+agg.configID)
-		}
 	}
 	if agg.haAgent.Enabled() {
 		tags = append(tags, "ha_agent_enabled:true")
@@ -896,6 +896,16 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		tags = []string{}
 	}
 	return tags
+}
+
+// configIDTags returns the config_id tag for agent telemetry metrics.
+// the result is returned as list of string to ease processing.
+func (agg *BufferedAggregator) configIDTags() []string {
+	var tag []string
+	if agg.configID != "" {
+		tag = append(tag, "config_id:"+agg.configID)
+	}
+	return tag
 }
 
 func (agg *BufferedAggregator) updateChecksTelemetry() {
