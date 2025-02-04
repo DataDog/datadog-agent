@@ -233,7 +233,8 @@ func detectPodman(features FeatureMap, cfg model.Reader) {
 }
 
 func detectPodResources(features FeatureMap, cfg model.Reader) {
-	// We only check the path from config. Default socket path is defined in the config
+	// We only check the path from config. Default socket path is defined in the config,
+	// without the unix:/// prefix, as socket.IsAvailable receives a filesystem path.
 	socketPath := cfg.GetString("kubernetes_kubelet_podresources_socket")
 
 	exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
