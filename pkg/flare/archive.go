@@ -138,7 +138,6 @@ func provideRemoteConfig(fb flaretypes.FlareBuilder) error {
 func provideConfigDump(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                //nolint:errcheck
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
-	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)                                                      //nolint:errcheck
 	return nil
 }
 
@@ -148,6 +147,10 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
 		_ = fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry)
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)
+	} else {
+		// If system probe is disabled, we still want to include the system probe config file
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
 	}
 	return nil
 }
