@@ -74,9 +74,9 @@ done
 # avoiding the error.
 # TODO A
 # echo 'Installing / upgrading brew...'
-# brew untap --force homebrew/cask || true
-# sudo rm -rf /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core
-# do_with_retries "CI=1; unset HOMEBREW_NO_INSTALL_FROM_API; $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" 5
+brew untap --force homebrew/cask || true
+sudo rm -rf /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core
+do_with_retries "CI=1; unset HOMEBREW_NO_INSTALL_FROM_API; $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" 5
 
 # Environment variables passed to the CI
 echo "export DD_ENV=prod" >>~/.zshrc
