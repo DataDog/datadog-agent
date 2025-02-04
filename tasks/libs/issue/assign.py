@@ -81,7 +81,8 @@ def simple_match(word):
             'kubelet',
             'helm',
         ],
-        "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
+        "agent-log-pipelines": ['logs', 'log-ag'],
+        "agent-metric-pipelines": ['metric', 'statsd'],
         "agent-build-and-releases": ['omnibus', 'packaging', 'script'],
         "remote-config": ['installer', 'oci'],
         "agent-cspm": ['cspm'],
@@ -134,7 +135,7 @@ def team_to_label(team):
     dico = {
         'apm-core-reliability-and-performance': "agent-apm",
         'universal-service-monitoring': "usm",
-        'software-integrity-and-trust': "agent-security",
+        'sdlc-security': "agent-security",
         'agent-all': "triage",
         'telemetry-and-analytics': "agent-apm",
         'fleet': "fleet-automation",

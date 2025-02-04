@@ -10,6 +10,7 @@ package nvml
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -26,6 +27,8 @@ const (
 	componentName = "workloadmeta-nvml"
 	nvidiaVendor  = "nvidia"
 )
+
+var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 type collector struct {
 	id      string
@@ -107,19 +110,25 @@ func (c *collector) getGPUdeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 		// If any mid detection fails, we will return an mig disabled in config
 		migDeviceCount, ret := c.nvmlLib.DeviceGetMaxMigDeviceCount(device)
 		if ret != nvml.SUCCESS {
-			log.Warnf("failed to get MIG capable device count: %v", nvml.ErrorString(ret))
+			if logLimiter.ShouldLog() {
+				log.Warnf("failed to get MIG capable device count: %v", nvml.ErrorString(ret))
+			}
 			return &gpuDeviceInfo, nil
 		}
 		migDevs := make([]*workloadmeta.MigDevice, 0, migDeviceCount)
 		for j := 0; j < migDeviceCount; j++ {
 			migDevice, ret := c.nvmlLib.DeviceGetMigDeviceHandleByIndex(device, j)
 			if ret != nvml.SUCCESS {
-				log.Warnf("failed to get handle for MIG device %d: %v", j, nvml.ErrorString(ret))
+				if logLimiter.ShouldLog() {
+					log.Warnf("failed to get handle for MIG device %d: %v", j, nvml.ErrorString(ret))
+				}
 				return &gpuDeviceInfo, nil
 			}
 			migDeviceInfo, err := c.getDeviceInfoMig(migDevice)
 			if err != nil {
-				log.Warnf("failed to get device info for MIG device %d: %v", j, err)
+				if logLimiter.ShouldLog() {
+					log.Warnf("failed to get device info for MIG device %d: %v", j, err)
+				}
 				return &gpuDeviceInfo, nil
 			}
 			migDevs = append(migDevs, migDeviceInfo)
@@ -145,6 +154,22 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
 
+func (c *collector) getNVML() (nvml.Interface, error) {
+	if c.nvmlLib != nil {
+		return c.nvmlLib, nil
+	}
+
+	// TODO: Add configuration option for NVML library path
+	nvmlLib := nvml.New()
+	ret := nvmlLib.Init()
+	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
+		return nil, fmt.Errorf("failed to initialize NVML library: %v", nvml.ErrorString(ret))
+	}
+
+	c.nvmlLib = nvmlLib
+	return nvmlLib, nil
+}
+
 // Start initializes the NVML library and sets the store
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
@@ -152,26 +177,25 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	c.store = store
-	// TODO: Add configuration option for NVML library path
-	c.nvmlLib = nvml.New()
-	ret := c.nvmlLib.Init()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return fmt.Errorf("failed to initialize NVML library: %v", nvml.ErrorString(ret))
-	}
 
 	return nil
 }
 
 // Pull collects the GPUs available on the node and notifies the store
 func (c *collector) Pull(_ context.Context) error {
-	count, ret := c.nvmlLib.DeviceGetCount()
+	nvmlLib, err := c.getNVML()
+	if err != nil {
+		return fmt.Errorf("failed to get NVML library: %w", err)
+	}
+
+	count, ret := nvmlLib.DeviceGetCount()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to get device count: %v", nvml.ErrorString(ret))
 	}
 
 	var events []workloadmeta.CollectorEvent
 	for i := 0; i < count; i++ {
-		dev, ret := c.nvmlLib.DeviceGetHandleByIndex(i)
+		dev, ret := nvmlLib.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("failed to get device handle for index %d: %v", i, nvml.ErrorString(ret))
 		}
@@ -183,14 +207,18 @@ func (c *collector) Pull(_ context.Context) error {
 
 		arch, ret := dev.GetArchitecture()
 		if ret != nvml.SUCCESS {
-			log.Warnf("failed to get architecture for device index %d: %v", i, nvml.ErrorString(ret))
+			if logLimiter.ShouldLog() {
+				log.Warnf("failed to get architecture for device index %d: %v", i, nvml.ErrorString(ret))
+			}
 		} else {
 			gpu.Architecture = gpuArchToString(arch)
 		}
 
 		major, minor, ret := dev.GetCudaComputeCapability()
 		if ret != nvml.SUCCESS {
-			log.Warnf("failed to get CUDA compute capability for device index %d: %v", i, nvml.ErrorString(ret))
+			if logLimiter.ShouldLog() {
+				log.Warnf("failed to get CUDA compute capability for device index %d: %v", i, nvml.ErrorString(ret))
+			}
 		} else {
 			gpu.ComputeCapability.Major = major
 			gpu.ComputeCapability.Minor = minor
@@ -198,7 +226,9 @@ func (c *collector) Pull(_ context.Context) error {
 
 		devAttr, ret := dev.GetAttributes()
 		if ret != nvml.SUCCESS {
-			log.Warnf("failed to get device attributes for device index %d: %v", i, nvml.ErrorString(ret))
+			if logLimiter.ShouldLog() {
+				log.Warnf("failed to get device attributes for device index %d: %v", i, nvml.ErrorString(ret))
+			}
 		} else {
 			gpu.SMCount = int(devAttr.MultiprocessorCount)
 		}
