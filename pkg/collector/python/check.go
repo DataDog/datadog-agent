@@ -295,6 +295,10 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 	}
 
 	log.Debugf("commonOptions ha: %v", commonOptions)
+	if commonGlobalOptions.HAEnabled != nil {
+		c.haEnabled = *commonGlobalOptions.HAEnabled
+	}
+
 	if commonOptions.HAEnabled != nil {
 		c.haEnabled = *commonOptions.HAEnabled
 	}

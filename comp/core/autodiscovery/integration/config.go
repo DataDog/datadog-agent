@@ -119,12 +119,13 @@ type CommonInstanceConfig struct {
 	Namespace             string   `yaml:"namespace"`
 	NoIndex               bool     `yaml:"no_index"`
 	// HAEnabled is a pointer to a boolean to make the difference between a default value and an unset value
-	HAEnabled             *bool    `yaml:"ha_enabled"`
+	HAEnabled *bool `yaml:"ha_enabled"`
 }
 
 // CommonGlobalConfig holds the reserved fields for the yaml init_config data
 type CommonGlobalConfig struct {
-	Service string `yaml:"service"`
+	Service   string `yaml:"service"`
+	HAEnabled *bool  `yaml:"ha_enabled"`
 }
 
 // AdvancedADIdentifier contains user-defined autodiscovery information
