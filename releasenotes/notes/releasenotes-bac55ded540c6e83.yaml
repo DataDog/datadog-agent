@@ -1,0 +1,3 @@
+upgrade:
+  - |
+    Enabled ECS task collection by default (ecs_task_collection_enabled = true).
