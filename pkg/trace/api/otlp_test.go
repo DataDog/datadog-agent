@@ -206,8 +206,8 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}()
 	defer close(stop)
 
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{})
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{})
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, nil)
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, nil)
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
@@ -246,7 +246,7 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				{Name: "asd"},
 			},
 		},
-	}).Traces().ResourceSpans().At(0), http.Header{})
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 	timeout := time.After(500 * time.Millisecond)
 	select {
 	case <-timeout:
@@ -684,7 +684,7 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -1035,7 +1035,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -1051,7 +1051,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
 		return func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, header)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, header, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -1281,7 +1281,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				Attributes: rattr,
 				Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 			},
-		}).Traces().ResourceSpans().At(0), http.Header{})
+		}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 		assert.Equal(t, src.Kind, source.HostnameKind)
 		assert.Equal(t, src.Identifier, tt.out)
 		timeout := time.After(500 * time.Millisecond)
@@ -1314,7 +1314,7 @@ func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testi
 			Attributes: rattr,
 			Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 		},
-	}).Traces().ResourceSpans().At(0), http.Header{})
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 	timeout := time.After(500 * time.Millisecond)
 	select {
 	case <-timeout:

@@ -24,6 +24,7 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -266,7 +267,7 @@ func extractPathFromSmapsLine(line []byte) (string, bool) {
 }
 
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
-	boundSockets, err := utils.GetBoundSockets(p)
+	boundSockets, err := procfs.GetBoundSockets(p)
 	if err != nil {
 		seclog.Warnf("error while listing sockets (pid: %v): %s", p.Pid, err)
 		return

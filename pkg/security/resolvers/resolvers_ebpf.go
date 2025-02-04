@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
@@ -330,7 +331,7 @@ func (r *EBPFResolvers) snapshotBoundSockets() error {
 	}
 
 	for _, proc := range processes {
-		bs, err := utils.GetBoundSockets(proc)
+		bs, err := procfs.GetBoundSockets(proc)
 		if err != nil {
 			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
 			continue

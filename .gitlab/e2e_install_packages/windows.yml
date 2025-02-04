@@ -123,6 +123,7 @@ new-e2e-windows-agent-a7-x86_64-fips:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestFIPSAgent$"
+      - EXTRA_PARAMS: --run "TestFIPSAgentAltDir$"
       - EXTRA_PARAMS: --run "TestFIPSAgentDoesNotInstallOverAgent$"
       - EXTRA_PARAMS: --run "TestAgentDoesNotInstallOverFIPSAgent$"
   rules:

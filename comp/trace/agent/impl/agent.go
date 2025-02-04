@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -68,6 +69,7 @@ type dependencies struct {
 	Statsd             statsd.Component
 	Tagger             tagger.Component
 	Compressor         compression.Component
+	At                 authtoken.Component
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -77,11 +79,19 @@ func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 }
 
 func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
 }
 
 func (c component) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
+}
+
+func (c component) GetHTTPHandler(endpoint string) http.Handler {
+	c.Agent.Receiver.BuildHandlers()
+	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
+		return v
+	}
+	return nil
 }
 
 type component struct {
@@ -93,6 +103,7 @@ type component struct {
 	params             *Params
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
+	at                 authtoken.Component
 	wg                 *sync.WaitGroup
 }
 
@@ -115,6 +126,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		params:             deps.Params,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
+		at:                 deps.At,
 		wg:                 &sync.WaitGroup{},
 	}
 	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
