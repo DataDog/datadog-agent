@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 
 	// SQLite backend for database/sql
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
