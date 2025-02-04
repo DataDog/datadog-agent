@@ -457,17 +457,17 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	return nil
 }
 
-func (c *Controller) updateScalingValues(podAutoscalerInternal model.PodAutoscalerInternal) error {
+func (c *Controller) updateScalingValues(podAutoscalerInternal model.PodAutoscalerInternal) {
 	mainHorizontalScalingValues := podAutoscalerInternal.MainScalingValues().Horizontal
 	if mainHorizontalScalingValues == nil {
 		// Not scaling horizontally, but we still need to update main values
 		podAutoscalerInternal.UpdateFromValues(datadoghq.DatadogPodAutoscalerAutoscalingValueSource)
-		return nil // not horizontal scaling
+		return
 	}
 
 	// Check that the last received recommendation is not stale
 	lastReceivedTimestamp := mainHorizontalScalingValues.Timestamp
-	if c.clock.Now().Sub(lastReceivedTimestamp) > staleRecommendationThreshold {
+	if isRecommendationStale(c.clock.Now(), lastReceivedTimestamp) {
 		if !c.isFallbackEnabled {
 			log.Debugf("Product horizontal scaling values are stale, activating local fallback")
 			c.isFallbackEnabled = true
@@ -480,7 +480,6 @@ func (c *Controller) updateScalingValues(podAutoscalerInternal model.PodAutoscal
 		}
 		podAutoscalerInternal.UpdateFromValues(datadoghq.DatadogPodAutoscalerAutoscalingValueSource)
 	}
-	return nil
 }
 
 func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
@@ -497,4 +496,8 @@ func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, n
 
 	c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
 	return err
+}
+
+func isRecommendationStale(currentTime, lastReceivedTimestamp time.Time) bool {
+	return currentTime.Sub(lastReceivedTimestamp) > staleRecommendationThreshold
 }
