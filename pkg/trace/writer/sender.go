@@ -35,8 +35,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
-	// spread out the the maximum connection limit (climit) between senders
-	maxConns := math.Max(1, float64(climit/len(cfg.Endpoints)))
+	maxConns := maxConns(climit, cfg.Endpoints)
 	senders := make([]*sender, len(cfg.Endpoints))
 	for i, endpoint := range cfg.Endpoints {
 		url, err := url.Parse(endpoint.Host + path)
@@ -59,6 +58,24 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 		}, statsd)
 	}
 	return senders
+}
+
+func maxConns(climit int, endpoints []*config.Endpoint) int {
+	// spread out the the maximum connection limit (climit) between senders.
+	// We exclude multi-region failover senders from this calculation, since they
+	// will be inactive most of the time.
+
+	// short-circuit the most common setup
+	if len(endpoints) == 1 {
+		return climit
+	}
+	n := 0
+	for _, e := range endpoints {
+		if !e.IsMRF {
+			n++
+		}
+	}
+	return int(math.Max(1, float64(climit/n)))
 }
 
 // eventRecorder implementations are able to take note of events happening in

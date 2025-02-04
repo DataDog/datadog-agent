@@ -31,6 +31,37 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestMaxConns(t *testing.T) {
+	for tn, tc := range map[string]struct {
+		endpoints []*config.Endpoint
+		climit    int
+		maxConns  int
+	}{
+		"single-non-mrf": {
+			[]*config.Endpoint{{IsMRF: false}},
+			5,
+			5,
+		},
+		"multiple-non-mrf": {
+			[]*config.Endpoint{{IsMRF: false}, {IsMRF: false}},
+			5,
+			2,
+		},
+		"multiple-with-mrf": {
+			[]*config.Endpoint{{IsMRF: false}, {IsMRF: true}},
+			5,
+			5,
+		},
+		"single-mrf": {
+			[]*config.Endpoint{{IsMRF: true}},
+			5,
+			5,
+		},
+	} {
+		assert.Equal(t, tc.maxConns, maxConns(tc.climit, tc.endpoints), "%s", tn)
+	}
+}
+
 func TestIsRetriable(t *testing.T) {
 	for code, want := range map[int]bool{
 		400: false,
