@@ -43,6 +43,12 @@ checks:
       series: "connection.current"
       upper_bound: 3
 
+  - name: cpu
+    description: "Asserts CPU won't throttle given current allotment"
+    bounds:
+      series: cgroup.v2.cpu.stat.nr_throttled
+      upper_bound: "1"
+
 report_links:
   - text: "bounds checks dashboard"
     link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&tpl_var_run-id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"
