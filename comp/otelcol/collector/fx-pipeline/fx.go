@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: opentelemetry
+// team: opentelemetry opentelemetry-agent
 
 // Module for OTel Agent
 func Module() fxutil.Module {
