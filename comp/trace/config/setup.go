@@ -135,7 +135,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	}
 
 	cfg.IsMRFEnabled = func() bool {
-		return coreConfigObject.GetBool("multi_region_failover.enabled") && coreConfigObject.GetBool("multi_region_failover.failover_traces")
+		return coreConfigObject.GetBool("multi_region_failover.enabled") && coreConfigObject.GetBool("multi_region_failover.failover_apm")
 	}
 	return cfg, nil
 }

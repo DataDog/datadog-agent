@@ -485,7 +485,7 @@ type AgentConfig struct {
 	GetAgentAuthToken func() string `json:"-"`
 
 	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
-	// `multi_region_failover.enabled` and `multi_region_failover.failover_traces` settings.
+	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
 	IsMRFEnabled func() bool `json:"-"`
 }
 
