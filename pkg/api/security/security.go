@@ -121,7 +121,11 @@ func (authtokenFactory) Generate() (string, []byte, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("can't create agent authentication token value: %v", err.Error())
 	}
-	return hex.EncodeToString(key), []byte(key), nil
+
+	// convert the raw token to an hex string
+	token := hex.EncodeToString(key)
+
+	return token, []byte(token), nil
 }
 
 func (authtokenFactory) Deserialize(raw []byte) (string, error) {
@@ -181,7 +185,11 @@ func getClusterAgentAuthToken(ctx context.Context, config configModel.Reader, to
 	if tokenCreationAllowed {
 		return filesystem.FetchOrCreateArtifact(ctx, location, &authtokenFactory{})
 	}
-	return filesystem.FetchArtifact(location, &authtokenFactory{})
+	authToken, err := filesystem.FetchArtifact(location, &authtokenFactory{})
+	if err != nil {
+		return "", fmt.Errorf("failed to load cluster agent auth token: %v", err)
+	}
+	return authToken, validateAuthToken(authToken)
 }
 
 func validateAuthToken(authToken string) error {
