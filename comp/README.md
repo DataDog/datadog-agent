@@ -416,6 +416,10 @@ Package ddflareextension defines the OpenTelemetry Extension component.
 
 Package logsagentpipeline contains logs agent pipeline component
 
+### [comp/otelcol/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/status)
+
+Package status implements the core status component information provider interface
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
 *Datadog Team*: container-intake

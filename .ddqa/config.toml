@@ -10,7 +10,7 @@ github_team = "agent-metrics-logs"
 github_labels = ["team/agent-metrics-logs"]
 exclude_members = ["olivielpeau"]
 
-[teams."Agent Logs"]
+[teams."Agent Log Pipelines"]
 jira_project = "AGNTLOG"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
@@ -18,7 +18,7 @@ github_team = "agent-log-pipelines"
 github_labels = ["team/agent-log-pipelines"]
 exclude_members = [""]
 
-[teams."Agent Metrics"]
+[teams."Agent Metric Pipelines"]
 jira_project = "AGTMETRICS"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]

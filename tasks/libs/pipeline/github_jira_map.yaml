@@ -30,7 +30,7 @@
 '@datadog/windows-kernel-integrations': WKINT
 '@datadog/opentelemetry': OTAGENT
 '@datadog/agent-e2e-testing': ADXT
-'@datadog/software-integrity-and-trust': SINT
+'@datadog/sdlc-security': SINT
 '@datadog/single-machine-performance': SMP
 '@datadog/agent-integrations': AI
 '@datadog/debugger': DEBUG
