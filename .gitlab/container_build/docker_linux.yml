@@ -264,24 +264,28 @@ docker_build_cluster_agent_arm64:
 
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:
-  extends: [.docker_build_job_definition_amd64, .docker_build_s3]
+  extends: [.docker_build_job_definition_amd64]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cws_instrumentation-build_amd64
-      artifacts: false
+      artifacts: true
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation
+  before_script:
+    - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.amd64 $BUILD_CONTEXT/
 
 docker_build_cws_instrumentation_arm64:
-  extends: [.docker_build_job_definition_arm64, .docker_build_s3]
+  extends: [.docker_build_job_definition_arm64]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cws_instrumentation-build_arm64
-      artifacts: false
+      artifacts: true
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation
+  before_script:
+    - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.arm64 $BUILD_CONTEXT/
 
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
