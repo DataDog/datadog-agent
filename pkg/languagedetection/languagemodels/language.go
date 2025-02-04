@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package languagemodels contains the definitions of the languages we can detect,
+// and the interfaces for detecting them.
 package languagemodels
 
 // LanguageName is a string enum that represents a detected language name.
