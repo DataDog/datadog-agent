@@ -118,6 +118,7 @@ type networkInstanceConfig struct {
 	ExcludedInterfaces       []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe      string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern *regexp.Regexp
+	CollectEthtoolStats      bool `yaml:"collect_ethtool_stats"`
 }
 
 type networkInitConfig struct{}
@@ -169,9 +170,11 @@ func (c *NetworkCheck) Run() error {
 	for _, interfaceIO := range ioByInterface {
 		if !c.isDeviceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
-			err = fetchEthtoolStats(sender, interfaceIO)
-			if err != nil {
-				return err
+			if c.config.instance.CollectEthtoolStats {
+				err = handleEthtoolStats(sender, interfaceIO)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -250,7 +253,7 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func fetchEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) error {
+func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) error {
 	ethtoolObjectPtr, err := ethtool.NewEthtool()
 	if err != nil {
 		log.Errorf("Failed to create ethtool object: %s", err)

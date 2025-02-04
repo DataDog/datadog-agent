@@ -25,6 +25,11 @@ instances:
     #
     # excluded_interface_re: <NETWORK_INTERFACE_NAME>.*
 
+    ## @param collect_ethtool_stats - boolean - optional - default: false
+    ## Set to true to collect ethtool stats for your interfaces.
+    #
+    # collect_ethtool_stats: false
+
     ## @param combine_connection_states - boolean - optional - default: true
     ## Set to false to prevent combination of connection states.
     ## By default, states like fin_wait_1 and fin_wait_2 are combined

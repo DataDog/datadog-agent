@@ -334,6 +334,7 @@ func TestNetworkCheck(t *testing.T) {
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
+collect_ethtool_stats: true
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -635,7 +636,7 @@ func TestFetchEthtoolStats(t *testing.T) {
 	}
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_stats: true`), []byte(``), "test")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -680,7 +681,7 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	}
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_stats: true`), []byte(``), "test")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
