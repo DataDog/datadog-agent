@@ -85,7 +85,8 @@ var (
 						"k8s.namespace.name":  "namespace",
 						"k8s.deployment.name": "deployment",
 					},
-				}}),
+				},
+			}),
 			outResourceAttributes: []map[string]any{
 				{
 					"global":       "tag",
@@ -131,9 +132,8 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
-			gc := newTestGenerateIDClient().generateID
 
-			factory := NewFactory(tc, gc)
+			factory := NewFactoryForAgent(tc)
 			fmp, err := factory.CreateMetrics(
 				context.Background(),
 				processortest.NewNopSettings(),
@@ -264,10 +264,9 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			entityIDs: []string{"process://process_pid_goes_here"},
 		},
 	}
-	gc := newTestGenerateIDClient().generateID
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			entityIDs := entityIDsFromAttributes(testInstance.attrs, gc)
+			entityIDs := entityIDsFromAttributes(testInstance.attrs)
 			entityIDsAsStrings := make([]string, len(entityIDs))
 			for idx, entityID := range entityIDs {
 				entityIDsAsStrings[idx] = entityID.String()

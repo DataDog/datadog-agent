@@ -2,16 +2,10 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/def
 
 go 1.22.0
 
-replace (
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../telemetry
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
-	github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option/
-)
-
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.59.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.59.0
@@ -87,10 +81,10 @@ require (
 	go.uber.org/fx v1.23.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8 // indirect
+	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	google.golang.org/protobuf v1.36.3 // indirect
+	google.golang.org/protobuf v1.36.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
@@ -160,3 +154,9 @@ replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/uti
 replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
 
 replace github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../telemetry
+
+replace github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
+
+replace github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option

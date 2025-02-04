@@ -51,7 +51,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
-				c, err := newController("cluster-id1", recorder, nil, nil, fakeClient, informer, isLeader, store, nil, nil, hashHeap)
+				c, err := NewController("cluster-id1", recorder, nil, nil, fakeClient, informer, isLeader, store, nil, nil, hashHeap)
 				if err != nil {
 					return nil, err
 				}
@@ -451,7 +451,7 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 					Type:               datadoghq.DatadogPodAutoscalerErrorCondition,
 					Status:             corev1.ConditionTrue,
 					LastTransitionTime: metav1.NewTime(testTime),
-					Reason:             "Autoscaler disabled as maximum number per cluster reached (100)",
+					Reason:             fmt.Sprintf("Autoscaler disabled as maximum number per cluster reached (%d)", testMaxAutoscalerObjects),
 				},
 				{
 					Type:               datadoghq.DatadogPodAutoscalerActiveCondition,
@@ -649,7 +649,7 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 					Type:               datadoghq.DatadogPodAutoscalerErrorCondition,
 					Status:             corev1.ConditionTrue,
 					LastTransitionTime: metav1.NewTime(testTime),
-					Reason:             "Autoscaler disabled as maximum number per cluster reached (100)",
+					Reason:             fmt.Sprintf("Autoscaler disabled as maximum number per cluster reached (%d)", testMaxAutoscalerObjects),
 				},
 				{
 					Type:               datadoghq.DatadogPodAutoscalerActiveCondition,
