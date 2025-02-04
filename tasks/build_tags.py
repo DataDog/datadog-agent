@@ -76,7 +76,6 @@ AGENT_TAGS = {
     "kubeapiserver",
     "kubelet",
     "netcgo",
-    "oracle",
     "orchestrator",
     "otlp",
     "podman",
@@ -205,7 +204,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 
 # CHECKS_AGENT_TAGS lists the tags needed when building the checks agent
-CHECKS_AGENT_TAGS = {"zlib", "zstd", "python"}
+CHECKS_AGENT_TAGS = {"zlib", "zstd", "python", "oracle"}
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
