@@ -201,7 +201,7 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	lenHeaderBuf.Write([]byte("// Capture length of slice:"))
 	err := generateHeaderText(slice.ParameterPieces[0].ParameterPieces[0], typeHeaderBuf)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not generate header text for underlying slice element type: %w", err)
 	}
 	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{slice.ParameterPieces[1]}, lenHeaderBuf)
 	if err != nil {
@@ -215,7 +215,7 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 
 	sliceTemplate, err := resolveHeaderTemplate(slice)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not resolve header for slice type: %w", err)
 	}
 
 	err = sliceTemplate.Execute(out, w)
