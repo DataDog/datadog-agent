@@ -189,7 +189,11 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation mutator config: %v", err)
 	}
-	mutator := mutatecommon.NewMultiMutator(
+
+	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
+	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
+	// env vars to be set from labels if they are available..
+	mutator := mutatecommon.NewMutators(
 		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter),
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), filter),
 		autoinstrumentation.NewMutator(apmMutatorCfg, filter, wmeta),

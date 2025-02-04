@@ -18,7 +18,7 @@ import (
 )
 
 func TestInjectorOptions(t *testing.T) {
-	i := newPodInjector(time.Now(), "registry", "1")
+	i := newInjector(time.Now(), "registry", "1")
 	require.Equal(t, "registry/apm-inject:1", i.image)
 }
 
@@ -30,7 +30,7 @@ func TestInjectorLibRequirements(t *testing.T) {
 			},
 		},
 	}
-	i := newPodInjector(time.Now(), "registry", "1",
+	i := newInjector(time.Now(), "registry", "1",
 		injectorWithLibRequirementOptions(libRequirementOptions{initContainerMutators: mutators}),
 	)
 

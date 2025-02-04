@@ -19,29 +19,29 @@ type Mutator interface {
 	MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error)
 }
 
-// MutationFunc is a function that mutates a pod
-type MutationFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error)
+// MutatorFunc is a function that mutates a pod
+type MutatorFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error)
 
-// MutatePod allows MutationFunc to satisfy the Mutator interface.
-func (f MutationFunc) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+// MutatePod allows MutatorFunc to satisfy the Mutator interface.
+func (f MutatorFunc) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 	return f(pod, ns, dc)
 }
 
-// MultiMutator is a Mutator that combines multiple Mutators into a single Mutator.
-type MultiMutator struct {
+// Mutators is a Mutator that combines multiple Mutators into a single Mutator.
+type Mutators struct {
 	mutators []Mutator
 }
 
-// NewMultiMutator creates a new MultiMutator with the provided Mutators.
-func NewMultiMutator(mutators ...Mutator) *MultiMutator {
-	return &MultiMutator{
+// NewMutators creates a new MultiMutator with the provided Mutators.
+func NewMutators(mutators ...Mutator) *Mutators {
+	return &Mutators{
 		mutators: mutators,
 	}
 }
 
 // MutatePod will call MutatePod on each Mutator in the MultiMutator, returning true if any Mutator mutates the pod and
 // an error if there is a problem.
-func (m *MultiMutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+func (m *Mutators) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 	mutated := false
 	for _, mutator := range m.mutators {
 		mutatedPod, err := mutator.MutatePod(pod, ns, dc)

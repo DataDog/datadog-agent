@@ -76,7 +76,7 @@ func TestMultiMutator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mm := NewMultiMutator(tt.mutators...)
+			mm := NewMutators(tt.mutators...)
 			mutated, err := mm.MutatePod(&corev1.Pod{}, "ns", nil)
 			if mutated != tt.expectedMutated {
 				t.Errorf("MutatePod() = %v, want %v", mutated, tt.expectedMutated)
