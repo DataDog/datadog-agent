@@ -59,7 +59,7 @@ def display_pr_comment(
             with_info = True
         else:
             body_error += f"|{FAIL_CHAR}|{gate['name']}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
-            body_error_footer += f"|{gate['name']}|{gate['error_type']}|{gate['message'].replace("\n", "<br>")}|\n"
+            body_error_footer += f"|{gate['name']}|{gate['error_type']}|{gate['message'].replace('\n', '<br>')}|\n"
             with_error = True
 
     body_error_footer += "\n</details>\n"
