@@ -1,6 +1,6 @@
-go 1.23.1
+go 1.23.3
 
-toolchain go1.23.3
+toolchain go1.23.5
 
 use (
 	.
@@ -11,14 +11,21 @@ use (
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
 	comp/core/log/def
+	comp/core/log/fx
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
 	comp/core/secrets
 	comp/core/status
 	comp/core/status/statusimpl
+	comp/core/tagger/def
+	comp/core/tagger/fx-remote
+	comp/core/tagger/generic_store
+	comp/core/tagger/impl-remote
 	comp/core/tagger/origindetection
+	comp/core/tagger/subscriber
 	comp/core/tagger/tags
+	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
 	comp/core/telemetry
@@ -42,7 +49,8 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
-	comp/serializer/compression
+	comp/serializer/logscompression
+	comp/serializer/metricscompression
 	comp/trace/agent/def
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
@@ -66,6 +74,7 @@ use (
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/errors
+	pkg/fips
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor
@@ -82,7 +91,9 @@ use (
 	pkg/logs/status/utils
 	pkg/logs/util/testutils
 	pkg/metrics
+	pkg/network/payload
 	pkg/networkdevice/profile
+	pkg/networkpath/payload
 	pkg/obfuscate
 	pkg/orchestrator/model
 	pkg/process/util/api
@@ -102,6 +113,7 @@ use (
 	pkg/util/cache
 	pkg/util/cgroups
 	pkg/util/common
+	pkg/util/compression
 	pkg/util/containers/image
 	pkg/util/defaultpaths
 	pkg/util/executable

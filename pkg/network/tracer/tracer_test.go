@@ -21,6 +21,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,20 +64,27 @@ type TracerSuite struct {
 	suite.Suite
 }
 
+func SupportedNetworkBuildModes() []ebpftest.BuildMode {
+	modes := ebpftest.SupportedBuildModes()
+	if !slices.Contains(modes, ebpftest.Ebpfless) {
+		modes = append(modes, ebpftest.Ebpfless)
+	}
+	return modes
+}
+
 func TestTracerSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, ebpftest.SupportedBuildModes(), "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, SupportedNetworkBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(TracerSuite))
 	})
 }
 
-func isFentry() bool {
-	return ebpftest.GetBuildMode() == ebpftest.Fentry
-}
-
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
-	if isFentry() {
+	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
 
@@ -392,28 +400,37 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
-	defer c.Close()
 	<-processedChan
+	c.Close()
 
 	var forward *network.ConnectionStats
 	var reverse *network.ConnectionStats
-	var okForward, okReverse bool
 	// for ebpfless, it takes time for the packet capture to arrive, so poll
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		// Test
 		connections := getConnections(collect, tr)
-		// Server-side
-		forward, okForward = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-		require.True(collect, okForward)
-		// Client-side
-		reverse, okReverse = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		require.True(collect, okReverse)
-	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
-	assert.Equal(t, network.INCOMING, forward.Direction)
-	assert.Equal(t, network.OUTGOING, reverse.Direction)
-	assert.Equal(t, network.StatCounters{TCPEstablished: 1, TCPClosed: 1}, forward.Monotonic)
-	assert.Equal(t, network.StatCounters{TCPEstablished: 1, TCPClosed: 0}, reverse.Monotonic)
+		// Server-side
+		newForward, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if newForward != nil {
+			forward = newForward
+		}
+		// Client-side
+		newReverse, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if newReverse != nil {
+			reverse = newReverse
+		}
+
+		require.NotNil(collect, forward)
+		require.NotNil(collect, reverse)
+
+		require.Equal(collect, network.INCOMING, forward.Direction)
+		require.Equal(collect, network.OUTGOING, reverse.Direction)
+		require.Equal(collect, uint16(1), forward.Monotonic.TCPEstablished)
+		require.Equal(collect, uint16(1), forward.Monotonic.TCPClosed)
+		require.Equal(collect, uint16(1), reverse.Monotonic.TCPEstablished)
+		require.Equal(collect, uint16(1), reverse.Monotonic.TCPClosed)
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
 }
 
@@ -616,22 +633,25 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
 
-	// Make sure we're not picking up 127.0.0.1:80
-	cxs := getConnections(t, tr)
-	for _, c := range cxs.Conns {
-		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
-		assert.False(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
-	}
-
-	// ensure one of the connections is UDP to 127.0.0.1:80
-	assert.Condition(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Make sure we're not picking up 127.0.0.1:80
+		cxs := getConnections(collect, tr)
 		for _, c := range cxs.Conns {
-			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
-				return true
-			}
+			assert.False(collect, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
+			assert.False(collect, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
 		}
-		return false
-	}, "Unable to find UDP connection to 127.0.0.1:80")
+
+		// ensure one of the connections is UDP to 127.0.0.1:80
+		assert.Condition(collect, func() bool {
+			for _, c := range cxs.Conns {
+				if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
+					return true
+				}
+			}
+			return false
+		}, "Unable to find UDP connection to 127.0.0.1:80")
+
+	}, 2*time.Second, 100*time.Millisecond)
 }
 
 func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {

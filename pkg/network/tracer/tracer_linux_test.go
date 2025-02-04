@@ -41,7 +41,6 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -181,11 +180,8 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
 		connections := getConnections(ct, tr)
 
-		ok := false
-		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		if !assert.True(ct, ok) {
-			return
-		}
+		conn, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		require.NotNil(ct, conn)
 
 		assert.Equal(ct, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
 		assert.Equal(ct, serverMessageSize, int(conn.Monotonic.RecvBytes))
@@ -308,7 +304,7 @@ func (s *TracerSuite) TestTCPRTT() {
 	require.NoError(t, err)
 
 	// Obtain information from a TCP socket via GETSOCKOPT(2) system call.
-	tcpInfo, err := offsetguess.TcpGetInfo(c)
+	tcpInfo, err := offsetguess.TCPGetInfo(c)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -386,7 +382,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.EbpfTracerTelemetry.LastTcpSentMiscounts.Load())
+	assert.NotZero(t, connection.EbpfTracerTelemetry.LastTCPSentMiscounts.Load())
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {
@@ -518,10 +514,14 @@ func (s *TracerSuite) TestConntrackExpiration() {
 // connections when the first lookup fails
 func (s *TracerSuite) TestConntrackDelays() {
 	t := s.T()
+	cfg := testConfig()
+	// fargate does not have CAP_NET_ADMIN
+	skipOnEbpflessNotSupported(t, cfg)
+
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
 	tr.conntracker = tracertestutil.NewDelayedConntracker(tr.conntracker, 1)
 
@@ -561,10 +561,14 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 func (s *TracerSuite) TestTranslationBindingRegression() {
 	t := s.T()
+	cfg := testConfig()
+	// fargate does not have CAP_NET_ADMIN
+	skipOnEbpflessNotSupported(t, cfg)
+
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 
 	// Setup TCP server
 	server := tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
@@ -1192,7 +1196,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 // sets up two udp sockets talking to each other locally.
 // returns (listener, dialer)
-func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) { //nolint:revive // TODO
+func setupUDPSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) {
 	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
 
 	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
@@ -1238,7 +1242,7 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	config := testConfig()
 	tr := setupTracer(t, config)
 
-	ln, c := setupUdpSockets(t, udpnet, ip)
+	ln, c := setupUDPSockets(t, udpnet, ip)
 
 	msg := []byte("asdf")
 	_, err := c.Write(msg)
@@ -1284,13 +1288,14 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	var outgoing *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
-		if outgoing == nil {
-			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if newOutgoing != nil {
+			outgoing = newOutgoing
 		}
-		if incoming == nil {
-			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		if newIncoming != nil {
+			incoming = newIncoming
 		}
-
 		require.NotNil(collect, outgoing)
 		require.NotNil(collect, incoming)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
@@ -1327,7 +1332,7 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 	config := testConfig()
 	tr := setupTracer(t, config)
 
-	ln, c := setupUdpSockets(t, udpnet, ip)
+	ln, c := setupUDPSockets(t, udpnet, ip)
 
 	msg := []byte("asdf")
 	// send UDP packets of increasing length
@@ -1351,11 +1356,13 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 	var outgoing *network.ConnectionStats
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
-		if outgoing == nil {
-			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if newOutgoing != nil {
+			outgoing = newOutgoing
 		}
-		if incoming == nil {
-			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		if newIncoming != nil {
+			incoming = newIncoming
 		}
 
 		require.NotNil(collect, outgoing)
@@ -1532,7 +1539,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", assignedPort)
 
-	assert.EventuallyWithT(t, func(ct *assert.CollectT) { //nolint:revive // TODO
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// use t instead of ct because getConnections uses require (not assert), and we get a better error message that way
 		connections := getConnections(ct, tr)
 
@@ -1668,11 +1675,13 @@ func (s *TracerSuite) TestSendfileRegression() {
 		assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 			conns := getConnections(ct, tr)
 			t.Log(conns)
-			if outConn == nil {
-				outConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
+			newOutConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
+			if newOutConn != nil {
+				outConn = newOutConn
 			}
-			if inConn == nil {
-				inConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
+			newInConn := network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
+			if newInConn != nil {
+				inConn = newInConn
 			}
 			require.NotNil(ct, outConn)
 			require.NotNil(ct, inConn)
@@ -1816,18 +1825,27 @@ func (s *TracerSuite) TestShortWrite() {
 	t := s.T()
 	tr := setupTracer(t, testConfig())
 
+	exit := make(chan struct{})
 	read := make(chan struct{})
+
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		// set recv buffer to 0 and don't read
 		// to fill up tcp window
 		err := c.(*net.TCPConn).SetReadBuffer(0)
 		require.NoError(t, err)
-		<-read
+		select {
+		case <-read:
+		case <-exit:
+		}
+
+		_, err = io.Copy(io.Discard, c)
+		require.NoError(t, err)
+
 		c.Close()
 	})
 	require.NoError(t, server.Run())
 	t.Cleanup(func() {
-		close(read)
+		close(exit)
 		server.Shutdown()
 	})
 
@@ -1882,14 +1900,19 @@ func (s *TracerSuite) TestShortWrite() {
 	require.True(t, done)
 
 	f := os.NewFile(uintptr(sk), "")
-	defer f.Close()
 	c, err := net.FileConn(f)
 	require.NoError(t, err)
+	t.Cleanup(func() { c.Close() })
+
+	unix.Shutdown(sk, unix.SHUT_WR)
+	close(read)
+	unix.Close(sk)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns := getConnections(collect, tr)
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		require.True(collect, ok)
+
 		require.Equal(collect, sent, conn.Monotonic.SentBytes)
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
@@ -2021,12 +2044,15 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	var incoming, outgoing *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		connections := getConnections(collect, tr)
-		if outgoing == nil {
-			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if newOutgoing != nil {
+			outgoing = newOutgoing
 		}
-		if incoming == nil {
-			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if newIncoming != nil {
+			incoming = newIncoming
 		}
+
 		require.NotNil(collect, outgoing)
 		require.NotNil(collect, incoming)
 		if !assert.True(collect, incoming != nil && outgoing != nil) {
@@ -2034,13 +2060,12 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		}
 
 		m := outgoing.Monotonic
-		assert.Equal(collect, clientMessageSize, int(m.SentBytes))
-		// ebpfless RecvBytes is based off acknowledgements, so it can miss the first
-		// packet in a pre-existing connection
+		// skip byte counts in ebpfless: for ebpfless pre-existing connections,
+		// byte counts will miss the first couple packets while in connStatAttempted.
 		if !tr.config.EnableEbpfless {
+			assert.Equal(collect, clientMessageSize, int(m.SentBytes))
 			assert.Equal(collect, serverMessageSize, int(m.RecvBytes))
-		}
-		if !tr.config.EnableEbpfless {
+
 			assert.Equal(collect, os.Getpid(), int(outgoing.Pid))
 		}
 		assert.Equal(collect, addrPort(server.Address()), int(outgoing.DPort))
@@ -2048,13 +2073,12 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 		assert.Equal(collect, network.OUTGOING, outgoing.Direction)
 
 		m = incoming.Monotonic
-		// ebpfless RecvBytes is based off acknowledgements, so it can miss the first
-		// packet in a pre-existing connection
+		// skip byte counts in ebpfless: for ebpfless pre-existing connections,
+		// byte counts will miss the first couple packets while in connStatAttempted.
 		if !tr.config.EnableEbpfless {
 			assert.Equal(collect, clientMessageSize, int(m.RecvBytes))
-		}
-		assert.Equal(collect, serverMessageSize, int(m.SentBytes))
-		if !tr.config.EnableEbpfless {
+			assert.Equal(collect, serverMessageSize, int(m.SentBytes))
+
 			assert.Equal(collect, os.Getpid(), int(incoming.Pid))
 		}
 		assert.Equal(collect, addrPort(server.Address()), int(incoming.SPort))
@@ -2316,10 +2340,14 @@ func TestConntrackerFallback(t *testing.T) {
 
 func testConfig() *config.Config {
 	cfg := config.New()
-	if env.IsECSFargate() {
+	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		cfg.ProtocolClassificationEnabled = false
+	}
+
 	// prebuilt on 5.18+ does not support UDPv6
 	if isPrebuilt(cfg) && kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false

@@ -127,6 +127,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.HTTPTransportFunc = func() *http.Transport {
+		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
 	return cfg, nil
 }
 
@@ -211,7 +214,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	prevEnv := c.DefaultEnv
-	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
+	c.DefaultEnv = traceutil.NormalizeTagValue(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
@@ -226,6 +229,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
+	}
+	if core.IsSet("apm_config.sql_obfuscation_mode") {
+		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
 	}
 
 	/**
@@ -425,6 +431,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Obfuscation.RemoveStackTraces = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces")
 	if c.Obfuscation.RemoveStackTraces {
 		if err = addReplaceRule(c, "error.stack", `(?s).*`, "?"); err != nil {
+			return err
+		}
+		if err = addReplaceRule(c, "exception.stacktrace", `(?s).*`, "?"); err != nil {
 			return err
 		}
 	}

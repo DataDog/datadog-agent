@@ -26,10 +26,12 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -56,6 +58,9 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			model.SECLConstants()
+		},
 	}
 
 	activityDumpCmd.AddCommand(generateCommands(globalParams)...)
@@ -761,7 +766,7 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	}
 
 	generatedRules := dump.GenerateRules(ads, opts)
-	generatedRules = utils.BuildPatterns(generatedRules)
+	generatedRules = pathutils.BuildPatterns(generatedRules)
 
 	policyDef := rules.PolicyDef{
 		Rules: generatedRules,

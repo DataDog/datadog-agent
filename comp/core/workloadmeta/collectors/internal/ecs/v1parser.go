@@ -102,8 +102,13 @@ func (c *collector) parseTaskContainers(
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: entityID,
+				Runtime:  workloadmeta.ContainerRuntimeDocker,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: container.DockerName,
+				},
+				State: workloadmeta.ContainerState{
+					Status: workloadmeta.ContainerStatusUnknown,
+					Health: workloadmeta.ContainerHealthUnknown,
 				},
 			},
 		})
@@ -133,7 +138,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 	for _, taskContainer := range entity.Containers {
 		container, err := c.store.GetContainer(taskContainer.ID)
 		if err != nil {
-			log.Tracef("cannot find container %q found in task %q: %s", taskContainer, entity.ID, err)
+			log.Tracef("cannot find container %q found in task %q: %s", taskContainer.String(false), entity.ID, err)
 			continue
 		}
 

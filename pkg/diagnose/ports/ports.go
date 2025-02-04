@@ -8,7 +8,6 @@ package ports
 
 import (
 	"fmt"
-	"path"
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -17,9 +16,8 @@ import (
 )
 
 var agentNames = map[string]struct{}{
-	"datadog-agent": {}, "agent": {}, "trace-agent": {},
-	"process-agent": {}, "system-probe": {}, "security-agent": {},
-	"dogstatsd": {},
+	"agent": {}, "trace-agent": {}, "process-agent": {},
+	"system-probe": {}, "security-agent": {},
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
@@ -63,7 +61,8 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		}
 
 		// TODO: check process user/group
-		if processName, ok := isAgentProcess(port.Process); ok {
+		processName, ok := isAgentProcess(port.Pid, port.Process)
+		if ok {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
 				Result:    diagnosis.DiagnosisSuccess,
@@ -76,8 +75,8 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		if port.Pid == 0 {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisFail,
-				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process.", value),
+				Result:    diagnosis.DiagnosisWarning,
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process. Ensure this is the expected process.", value),
 			})
 			continue
 		}
@@ -85,15 +84,19 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		diagnoses = append(diagnoses, diagnosis.Diagnosis{
 			Name:      key,
 			Result:    diagnosis.DiagnosisFail,
-			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, port.Process, port.Pid, port.Proto),
+			Diagnosis: fmt.Sprintf("Required port %d is already used by '%s' process (PID=%d) for %s.", value, processName, port.Pid, port.Proto),
 		})
 	}
 
 	return diagnoses
 }
 
-func isAgentProcess(processName string) (string, bool) {
-	processName = path.Base(processName)
+// isAgentProcess checks if the given pid corresponds to an agent process
+func isAgentProcess(pid int, processName string) (string, bool) {
+	processName, err := RetrieveProcessName(pid, processName)
+	if err != nil {
+		return "", false
+	}
 	_, ok := agentNames[processName]
 	return processName, ok
 }

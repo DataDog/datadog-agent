@@ -46,7 +46,8 @@ jobs:
                     golang.org/x/exp
           # run tidy twice because the first one doesn't always clean everything
           # depending on module order
-          inv -e tidy tidy
+          inv -e tidy
+          inv -e tidy
       - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         id: autocommit
         with:
@@ -59,7 +60,7 @@ jobs:
           TMP_PR_BODY_PATH: /tmp/pr_body
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_TITLE: "[automated] Update golang.org/x/... dependencies"
-          PR_LABELS: "team/agent-shared-components,qa/done,changelog/no-changelog"
+          PR_LABELS: "team/agent-runtimes,qa/done,changelog/no-changelog"
           GITHUB_REF: ${{ github.ref }}
         run: |
           # Generate the PR description
@@ -79,4 +80,5 @@ jobs:
           --base "$GITHUB_REF" \
           --title "$PR_TITLE" \
           --body-file "$TMP_PR_BODY_PATH" \
-          --label "$PR_LABELS"
+          --label "$PR_LABELS" \
+          --reviewer "DataDog/agent-runtimes"

@@ -454,11 +454,19 @@ func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.Metri
 func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 	// Gather all prom metrics. Currently Gather() does not allow filtering by
 	// metric name, so we need to gather all metrics and filter them on our own.
-	//	pms, err := a.telemetry.Gather(false)
 	pms, err := a.telComp.Gather(false)
 	if err != nil {
 		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
 		return nil, err
+	}
+
+	// Ensure that metrics from the default Prometheus registry are also collected.
+	pmsDefault, errDefault := a.telComp.Gather(true)
+	if errDefault == nil {
+		pms = append(pms, pmsDefault...)
+	} else {
+		// Not a fatal error, just log it
+		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
 	}
 
 	session := a.sender.startSession(a.cancelCtx)

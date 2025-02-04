@@ -35,8 +35,6 @@ const (
 	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
-	envCDNLocalDirPath       = "DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH"
-	envCDNEnabled            = "DD_INSTALLER_CDN_ENABLED"
 	envAgentUserName         = "DD_AGENT_USER_NAME"
 	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
 	envAgentUserNameCompat = "DDAGENTUSER_NAME"
@@ -127,9 +125,6 @@ type Env struct {
 
 	InstallScript InstallScriptEnv
 
-	CDNEnabled      bool
-	CDNLocalDirPath string
-
 	Tags     []string
 	Hostname string
 
@@ -199,9 +194,6 @@ func FromEnv() *Env {
 			APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
 		},
 
-		CDNEnabled:      strings.ToLower(os.Getenv(envCDNEnabled)) == "true",
-		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),
-
 		Tags: append(
 			strings.FieldsFunc(os.Getenv(envTags), splitFunc),
 			strings.FieldsFunc(os.Getenv(envExtraTags), splitFunc)...,
@@ -243,6 +235,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RegistryPassword != "" {
 		env = append(env, envRegistryPassword+"="+e.RegistryPassword)
+	}
+	if e.InstallScript.APMInstrumentationEnabled != "" {
+		env = append(env, envApmInstrumentationEnabled+"="+e.InstallScript.APMInstrumentationEnabled)
 	}
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}
@@ -353,4 +348,12 @@ func getProxySetting(ddEnv string, env string) string {
 			os.Getenv(strings.ToLower(env)),
 		),
 	)
+}
+
+// ValidateAPMInstrumentationEnabled validates the value of the DD_APM_INSTRUMENTATION_ENABLED environment variable.
+func ValidateAPMInstrumentationEnabled(value string) error {
+	if value != APMInstrumentationEnabledAll && value != APMInstrumentationEnabledDocker && value != APMInstrumentationEnabledHost && value != APMInstrumentationNotSet {
+		return fmt.Errorf("invalid value for %s: %s", envApmInstrumentationEnabled, value)
+	}
+	return nil
 }

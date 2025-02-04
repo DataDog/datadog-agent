@@ -32,6 +32,7 @@ import (
 
 type remoteAgentServer struct {
 	started time.Time
+	pbcore.UnimplementedRemoteAgentServer
 }
 
 func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {

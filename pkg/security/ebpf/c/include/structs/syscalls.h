@@ -218,6 +218,12 @@ struct syscall_cache_t {
             u16 protocol;
         } connect;
 
+         struct {
+            u64 addr[2];
+            u16 family;
+            u16 port;
+        } accept;
+
         struct {
             struct dentry *dentry;
             struct path *path;
@@ -227,6 +233,10 @@ struct syscall_cache_t {
         struct {
             u32 auid;
         } login_uid;
+
+        struct {
+            u8 in_flight;
+        } stat;
     };
 };
 
