@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import re
@@ -7,6 +8,8 @@ import time
 from collections import Counter
 from functools import lru_cache
 
+import github.Commit
+import github.PullRequest
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -20,6 +23,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     trigger_buildenv_workflow,
     trigger_macos_workflow,
 )
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
@@ -669,3 +673,137 @@ query {
     res = gh.graphql(query)
 
     print(json.dumps(res, indent=2))
+
+
+@task
+def print_overall_pipeline_stats(ctx, n_days=90, sleeping=False):
+    """Prints stats about how many PRs are supposed to be blocked by the overall pipeline check."""
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    min_date = datetime.datetime.now() - datetime.timedelta(days=n_days)
+
+    gh = GithubAPI()
+    repo = get_gitlab_repo()
+
+    def get_pipeline_from_pr(branch):
+        latest = next(repo.pipelines.list(ref=branch, per_page=1, iterator=True))
+        # try:
+        #     latest = repo.pipelines.latest(ref=branch)
+        # except Exception:
+        #     latest = repo.pipelines.list(ref=branch, per_page=1)[0]
+
+        return latest
+
+    # # last_commit: github.Commit.Commit = gh.repo.get_commit('a886f348ad076e4f6992ff5596f5c36e75101e25')
+    # last_commit: github.Commit.Commit = gh.repo.get_commit('b792781202845e4fcf3bad0050563826a4d1b227')
+    # statuses = list(last_commit.get_statuses())
+    # print(len(statuses), 'statuses')
+
+    # # All statuses are retrieved (reverse chronological order), not only the last state
+    # final_statuses = {}
+    # for status in statuses:
+    #     final_statuses[status.context] = status.state
+
+    # # Pending statuses are ignored
+    # failing_status = [name for (name, state) in final_statuses.items() if state != 'success']
+
+    # print(failing_status)
+    # import pdb; pdb.set_trace()
+
+    # pr = gh.repo.get_pull(33109)
+    # last_commit = gh.repo.get_commit(pr.head.sha)
+    # statuses = list(last_commit.get_statuses())
+
+    # final_statuses = {}
+    # for status in statuses:
+    #     final_statuses[status.context] = status.state
+
+    # # Pending statuses are ignored
+    # failing_status = [name for (name, state) in final_statuses.items() if state == 'failure']
+    # if failing_status:
+    #     print(f'PR {pr.number} is broken with failing status: {", ".join(failing_status)}')
+
+    # import pdb; pdb.set_trace()
+    # exit()
+
+    # prs = gh.list_merged_prs()
+    prs = gh.repo.get_pulls(state="closed", sort="updated", direction="desc", base="main")
+
+    # for p in prs:
+    #     print(p)
+    # TODO: Iterate through a bunch of prs
+
+    # Fetch all PRs that are above the min_date
+    all_prs: list[github.PullRequest.PullRequest] = []
+    for page in range(1000):
+        print('Fetching page', page)
+        prs_page = prs.get_page(page)
+        recent_prs = [pr for pr in prs_page if pr.updated_at >= min_date]
+        all_prs.extend(recent_prs)
+
+        # At least one pr is outdated, other PRs will be outdated as well
+        if len(recent_prs) != len(prs_page):
+            break
+
+    sleeping and print('Sleeping 1m to avoid rate limits')
+    sleeping and time.sleep(60)
+
+    merged_prs: list[github.PullRequest.PullRequest] = [pr for pr in all_prs if pr.merged and pr.merged_at >= min_date]
+    print(f'Found {len(merged_prs)} merged PRs for the last {n_days} days')
+
+    # PRs that should not be merged
+    broken_prs = []
+    for i, pr in enumerate(merged_prs):
+        print(f'PR {i+1}/{len(merged_prs)}: {pr.html_url} ({len(broken_prs)/(i + 1)*100:.2f}% broken PRs so far)')
+
+        # Get the pipeline for the PR
+        try:
+            pipeline = get_pipeline_from_pr(pr.head.ref.removeprefix("'").removesuffix("'"))
+        except Exception:
+            print(f'Warning: No pipeline found for PR {pr.number}')
+            continue
+
+        # Get the pipeline status
+        status = pipeline.status
+        if status != 'success':
+            failing_jobs = pipeline.jobs.list(per_page=100, all=True)
+            print(
+                f'PR {pr.number} has a failing pipeline, failing jobs: {" ".join([job.name for job in failing_jobs if job.status == "failed"])}'
+            )
+            broken_prs.append(pr)
+
+        # for _ in range(100):
+        #     try:
+        #         last_commit: github.Commit.Commit = gh.repo.get_commit(pr.head.sha)
+        #         statuses = list(last_commit.get_statuses())
+        #         break
+        #     except Exception:
+        #         print('Rate limit, sleeping')
+        #         time.sleep(10)
+        #         print('Finished sleeping')
+        #         continue
+
+        # # All statuses are retrieved (reverse chronological order), not only the last state
+        # final_statuses = {}
+        # for status in statuses:
+        #     final_statuses[status.context] = status.state
+
+        # # Pending statuses are ignored
+        # failing_status = [name for (name, state) in final_statuses.items() if state == 'failure']
+
+        # if failing_status:
+        #     broken_prs.append(pr)
+        #     print(f'PR {pr.number} is broken with failing status: {", ".join(failing_status)}')
+
+        if sleeping and (i + 1) % 10 == 0:
+            print('Sleeping to avoid rate limits')
+            time.sleep(30)
+
+    print()
+    print(
+        f'Found {len(broken_prs)}/{len(merged_prs)} PRs that are broken: {len(broken_prs) / len(merged_prs) * 100:.2f}% of broken PRs'
+    )
+
+    print()
+    print(f'Broken PRs: {", ".join([str(pr.number) for pr in broken_prs])}')

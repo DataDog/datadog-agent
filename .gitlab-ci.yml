@@ -1,6 +1,7 @@
 ---
 include:
   - .gitlab/.pre/include.yml
+  - .gitlab/.pre/celian.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml

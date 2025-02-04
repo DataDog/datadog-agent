@@ -27,6 +27,7 @@ from tasks.libs.civisibility import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import experimental
+from tasks.libs.pipeline.stats import get_max_duration
 
 
 @task
@@ -325,3 +326,225 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+required_jobs = [
+    "go_mod_tidy_check",
+    "tests_deb-x64-py3",
+    "tests_deb-arm64-py3",
+    "tests_rpm-x64-py3",
+    "tests_rpm-arm64-py3",
+    "slack_teams_channels_check",
+    "lint_windows-x64",
+    "lint_linux-x64",
+    "lint_linux-arm64",
+    "lint_flavor_iot_linux-x64",
+    "lint_flavor_dogstatsd_linux-x64",
+    "tests_ebpf_arm64",
+    "tests_ebpf_x64",
+    "do-not-merge",
+    "agent_deb-x64-a7",
+    "agent_rpm-x64-a7",
+    "agent_suse-x64-a7",
+    "deploy_deb_testing-a7_x64",
+    "deploy_suse_rpm_testing_x64-a7",
+    "new-e2e-agent-platform-install-script-debian-a7-x86_64",
+    "new-e2e-agent-platform-install-script-suse-a7-x86_64",
+    "new-e2e-agent-platform-install-script-ubuntu-a7-x86_64",
+    "new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64",
+    "agent_heroku_deb-x64-a7",
+    "iot_agent_deb-x64",
+    "dogstatsd_deb-x64",
+    "iot_agent_rpm-x64",
+    "dogstatsd_rpm-x64",
+    "security_go_generate_check",
+    "lint_python",
+    "new-e2e-agent-platform-install-script-centos-a7-x86_64",
+    "single-machine-performance-regression_detector",
+    "lint_licenses",
+    "lint_components",
+    "lint_filename",
+    "lint_codeowners",
+    "lint_copyrights",
+    "lint_shell",
+    "tests_macos_gitlab_amd64",
+    "check_pkg_size",
+]
+
+
+@task
+def regression_detector_stats(ctx, verbose=False):
+    """Prints stats to see if the regression detector is in the critical path."""
+
+    # Dev branches
+    pipelines = (
+        53904471,
+        53909215,
+        53905400,
+        53900991,
+        53899736,
+        53900570,
+        53901363,
+        53896138,
+        53895136,
+        53687308,
+        53892855,
+    )
+
+    print(len(pipelines), 'pipelines')
+    crit_pipelines = []
+    for p in pipelines:
+        print(p)
+        if is_regression_detector_in_critical_path(ctx, p, verbose):
+            crit_pipelines.append(p)
+            print('Regression detector is in the critical path')
+
+    print(
+        f'{len(crit_pipelines)} out of {len(pipelines)} pipelines ({len(crit_pipelines)/len(pipelines)*100:.2f}%) have the regression detector in the critical path: {" ".join(map(str, crit_pipelines))}'
+    )
+
+
+@task
+def is_regression_detector_in_critical_path(ctx, pipeline_id, verbose=True) -> bool:
+    from datetime import datetime
+
+    pipeline = get_gitlab_repo().pipelines.get(pipeline_id)
+    jobs = pipeline.jobs.list(all=True, per_page=100)
+
+    # Only required jobs
+    job_ends = {job.name: job.finished_at for job in jobs if any(job.name.startswith(rj) for rj in required_jobs)}
+    job_ends = sorted(
+        (datetime.fromisoformat(end) - datetime.fromisoformat(pipeline.created_at), job)
+        for (job, end) in job_ends.items()
+        if end
+    )
+
+    assert any(
+        'regression_detector' in job for _, job in job_ends
+    ), f'No regression detector job for pipeline {pipeline_id}'
+
+    if verbose:
+        for end, job in job_ends:
+            print(f'{end.seconds // 3600}:{end.seconds // 60 % 60:02d} -> {job}')
+
+    last_job = job_ends[-1][1]
+    is_regression_detector = 'regression_detector' in last_job
+
+    if verbose:
+        if is_regression_detector:
+            print('Regression detector is in the critical path')
+        else:
+            print('Regression detector is NOT in the critical path')
+
+    return is_regression_detector
+
+
+@task
+def get_all_required_jobs_duration(ctx):
+    pipelines = [
+        54575993,
+        54574489,
+        54572789,
+        54574495,
+        54574273,
+        54577666,
+        54574886,
+        54580926,
+        54580479,
+        54572875,
+        54573820,
+        54574484,
+        #
+        54513564,
+        54568372,
+        54641452,
+        54642662,
+        54643508,
+        54645117,
+        54650708,
+        54651475,
+        54651661,
+        54651665,
+        54651826,
+        54651835,
+        54653946,
+        54653964,
+        54654699,
+        54660591,
+        54662339,
+        54665456,
+        54665495,
+        54671008,
+        54675938,
+        54678250,
+        54680440,
+        54686805,
+        54687976,
+        54688221,
+        54698099,
+        54698663,
+        54700381,
+        54701055,
+        54703861,
+        54704506,
+        54705145,
+    ]
+    durations = []
+
+    print(len(pipelines), 'pipelines')
+
+    # repo = get_gitlab_repo()
+    for i, p in enumerate(pipelines):
+        print(f'#{i + 1}/{len(pipelines)}: {p}')
+        # d = repo.pipelines.get(p).duration
+        # if not d:
+        #     continue
+        # print(d)
+        # durations.append(d)
+        d = get_required_jobs_duration(ctx, p)
+        durations.append(d)
+
+    durations = sorted(durations)
+    print(
+        f'Median duration: {durations[len(durations) // 2]//3600}:{durations[len(durations) // 2] // 60 % 60} ({durations[len(durations) // 2]})'
+    )
+
+
+@task
+def get_required_jobs_duration(ctx, pipeline_id):
+    d = get_max_duration('DataDog/datadog-agent', pipeline_id)[0]
+
+    print(f'{d // 3600}:{d // 60 % 60:02d}')
+
+    return d
+
+
+@task
+def r(ctx, pipeline_id):
+    from datetime import datetime
+
+    pipeline = get_gitlab_repo().pipelines.get(pipeline_id)
+    jobs = pipeline.jobs.list(all=True, per_page=100)
+
+    # Only required jobs
+    job_ends = {
+        job.name: (datetime.fromisoformat(job.finished_at) - datetime.fromisoformat(pipeline.created_at))
+        for job in jobs
+        if job.finished_at
+    }
+    # job_ends = sorted(
+    #     (datetime.fromisoformat(end) - datetime.fromisoformat(pipeline.created_at), job)
+    #     for (job, end) in job_ends.items()
+    #     if end
+    # )
+
+    # assert any(
+    #     'regression_detector' in job for _, job in job_ends
+    # ), f'No regression detector job for pipeline {pipeline_id}'
+
+    # for end, job in job_ends:
+    #     print(f'{end.seconds // 3600}:{end.seconds // 60 % 60:02d} -> {job}')
+
+    print('end reg', job_ends['single-machine-performance-regression_detector'])
+    print('end comment', job_ends['single-machine-performance-regression_detector-pr-comment'])
+    print('end send-pipeline-stats', job_ends['send_pipeline_stats'])
