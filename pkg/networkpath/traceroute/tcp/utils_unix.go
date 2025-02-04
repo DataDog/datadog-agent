@@ -28,8 +28,7 @@ type (
 		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
 	}
 
-	// TODO: naming is a bit off, this is a response to a packet
-	response struct {
+	packetResponse struct {
 		IP   net.IP
 		Type uint8
 		Code uint8
@@ -53,8 +52,8 @@ func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) err
 // receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
-func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) response {
-	respChan := make(chan response, 2)
+func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) packetResponse {
+	respChan := make(chan packetResponse, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	go func() {
@@ -72,7 +71,7 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 		select {
 		case <-ctx.Done():
 			log.Trace("timed out waiting for responses")
-			return response{
+			return packetResponse{
 				Err: err,
 			}
 		case resp := <-respChan:
@@ -88,7 +87,7 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 		}
 	}
 
-	return response{
+	return packetResponse{
 		Err: err,
 	}
 }
@@ -96,14 +95,14 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) response {
+func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) packetResponse {
 	buf := make([]byte, 1024)
 	tp := newParser()
 	icmpParser := icmp.NewICMPTCPParser()
 	for {
 		select {
 		case <-ctx.Done():
-			return response{
+			return packetResponse{
 				Err: common.CanceledError("listener canceled"),
 			}
 		default:
@@ -111,10 +110,8 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 		now := time.Now()
 		err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
 		if err != nil {
-			// TODO: is this a good idea or should we just return the error
-			// once we hit the deadline?
-			return response{
-				Err: fmt.Errorf("failed to read: %w", err),
+			return packetResponse{
+				Err: fmt.Errorf("failed to set read deadline: %w", err),
 			}
 		}
 		header, packet, _, err := conn.ReadFrom(buf)
@@ -124,7 +121,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 					continue
 				}
 			}
-			return response{
+			return packetResponse{
 				Err: err,
 			}
 		}
@@ -140,7 +137,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 				continue
 			}
 			if icmpResponse.Matches(localIP, localPort, remoteIP, remotePort, seqNum) {
-				return response{
+				return packetResponse{
 					IP:   icmpResponse.SrcIP,
 					Type: icmpResponse.TypeCode.Type(),
 					Code: icmpResponse.TypeCode.Code(),
@@ -154,7 +151,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 				continue
 			}
 			if tcpResp.Match(localIP, localPort, remoteIP, remotePort, seqNum) {
-				return response{
+				return packetResponse{
 					IP:   tcpResp.SrcIP,
 					Port: uint16(tcpResp.SrcPort),
 					Time: received,

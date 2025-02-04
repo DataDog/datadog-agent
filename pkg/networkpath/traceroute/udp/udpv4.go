@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"golang.org/x/net/ipv4"
@@ -111,7 +110,6 @@ func (u *UDPv4) createRawUDPBuffer(sourceIP net.IP, sourcePort uint16, destIP ne
 		return nil, nil, 0, 0, fmt.Errorf("failed to serialize packet: %w", err)
 	}
 	packet := u.buffer.Bytes()
-	log.Errorf("UDP Packet Length: %d", len(packet))
 
 	var ipHdr ipv4.Header
 	if err := ipHdr.Parse(packet[:20]); err != nil {
