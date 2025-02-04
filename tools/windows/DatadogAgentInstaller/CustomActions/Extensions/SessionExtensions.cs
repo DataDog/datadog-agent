@@ -73,8 +73,6 @@ namespace Datadog.CustomActions.Extensions
             return new List<string>
             {
                 Path.Combine(configRoot, "auth_token"),
-                // install-info is technically created by the installer
-                Path.Combine(configRoot, "install_info"),
                 Path.Combine(configRoot, "python-cache"),
                 Path.Combine(configRoot, "ipc_cert.pem"),
             };
@@ -100,6 +98,7 @@ namespace Datadog.CustomActions.Extensions
                 Path.Combine(configRoot, "logs"),
                 Path.Combine(configRoot, "datadog.yaml"),
                 Path.Combine(configRoot, "system-probe.yaml"),
+                Path.Combine(configRoot, "install_info"),
             }
             .Concat(session.GeneratedPaths()).ToList();
         }
