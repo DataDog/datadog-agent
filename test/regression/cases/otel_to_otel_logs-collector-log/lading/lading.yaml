@@ -28,3 +28,9 @@ blackhole:
 target_metrics:
   - prometheus:
       uri: "http://0.0.0.0:8888/metrics"
+      metrics:
+        - otelcol_exporter_queue_size              
+        - otelcol_exporter_sent_log_records
+        - otelcol_receiver_accepted_log_records 
+      
+
