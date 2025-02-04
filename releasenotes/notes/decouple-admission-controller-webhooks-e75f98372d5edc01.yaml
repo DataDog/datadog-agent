@@ -1,0 +1,30 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The auto instrumentation, config, and tags from labels webhooks have been
+    decoupled so that they function independently. These settings will now only
+    apply to the auto instrumentation webhook:
+    - `apm_config.instrumentation.enabled`
+    - `apm_config.instrumentation.enabled_namespaces`
+    - `apm_config.instrumentation.disabled_namespaces`
+
+    These settings will no longer apply to the config or tags from labels
+    webhooks. If you want to maintain the existing behavior, you will need to
+    configure the settings for each webhook separately.
+
+    For the config webhook, you can use the following settings:
+    - `admission_controller.inject_config.enabled`
+    - `admission_controller.inject_config.enabled_namespaces`
+    - `admission_controller.inject_config.disabled_namespaces`
+
+    For the tags from labels webhook, you can use the following settings:
+    - `admission_controller.inject_tags.enabled`
+    - `admission_controller.inject_tags.enabled_namespaces`
+    - `admission_controller.inject_tags.disabled_namespaces`
