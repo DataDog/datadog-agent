@@ -18,7 +18,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch(
-        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formated_metric",
+        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
     @patch("tasks.quality_gates.pr_commenter")
@@ -49,7 +49,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch(
-        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formated_metric",
+        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
     @patch("tasks.quality_gates.pr_commenter")
@@ -80,7 +80,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch(
-        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formated_metric",
+        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
     @patch("tasks.quality_gates.pr_commenter")
@@ -111,7 +111,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch(
-        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formated_metric",
+        "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB", side_effect=KeyError),
     )
     @patch("tasks.quality_gates.pr_commenter")
