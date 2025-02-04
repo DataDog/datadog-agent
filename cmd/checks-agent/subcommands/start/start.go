@@ -11,12 +11,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -54,6 +50,7 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -62,7 +59,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 type CLIParams struct {
@@ -116,6 +112,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		collectorimpl.Module(),
 		// Sending metrics to the backend
 		metricscompressionimpl.Module(),
+		logscompressionimpl.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
@@ -168,15 +165,7 @@ func start(
 
 	defer StopAgent(cancel, log)
 
-	go func() {
-		port := config.GetString("checks_agent_debug_port")
-		addr := net.JoinHostPort("localhost", port)
-		http.Handle("/telemetry", telemetry.Handler())
-		err := http.ListenAndServe(addr, nil)
-		if err != nil {
-			log.Warnf("pprof server: %s", err)
-		}
-	}()
+	startPprof(config, telemetry)
 
 	token := authToken.Get()
 
@@ -321,7 +310,7 @@ func (a *autodiscoveryStream) initStream(ctx context.Context, client core.AgentS
 	}, expBackoff)
 }
 
-func startScheduler(ctx context.Context, f context.CancelFunc, client core.AgentSecureClient, scheduler *pkgcollector.CheckScheduler, log log.Component) {
+func startScheduler(ctx context.Context, f context.CancelFunc, client core.AgentSecureClient, _ *pkgcollector.CheckScheduler, log log.Component) {
 	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
 	autodiscoveryStream := &autodiscoveryStream{
 		autodiscoveryStreamCancel: f,
@@ -363,31 +352,13 @@ func startScheduler(ctx context.Context, f context.CancelFunc, client core.Agent
 			}
 		}
 
-		scheduler.Schedule(scheduleConfigs)
-		scheduler.Unschedule(unscheduleConfigs)
+		// scheduler.Schedule(scheduleConfigs)
+		// scheduler.Unschedule(unscheduleConfigs)
 	}
 }
 
-func setupInternalProfiling(config config.Component) error {
-	runtime.MemProfileRate = 1
-	site := fmt.Sprintf(profiling.ProfilingURLTemplate, config.GetString("site"))
-
-	// We need the trace agent runnning to send profiles
-	profSettings := profiling.Settings{
-		ProfilingURL:         site,
-		Socket:               "/var/run/datadog/apm.socket",
-		Env:                  "local",
-		Service:              "checks-agent",
-		Period:               config.GetDuration("internal_profiling.period"),
-		CPUDuration:          config.GetDuration("internal_profiling.cpu_duration"),
-		MutexProfileFraction: config.GetInt("internal_profiling.mutex_profile_fraction"),
-		BlockProfileRate:     config.GetInt("internal_profiling.block_profile_rate"),
-		WithGoroutineProfile: config.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		WithBlockProfile:     config.GetBool("internal_profiling.enable_block_profiling"),
-		WithMutexProfile:     config.GetBool("internal_profiling.enable_mutex_profiling"),
-		WithDeltaProfiles:    config.GetBool("internal_profiling.delta_profiles"),
-		CustomAttributes:     config.GetStringSlice("internal_profiling.custom_attributes"),
-	}
-
-	return profiling.Start(profSettings)
+func setupInternalProfiling(_ config.Component) error {
+	return nil
 }
+
+func startPprof(_ config.Component, _ telemetry.Component) {}
