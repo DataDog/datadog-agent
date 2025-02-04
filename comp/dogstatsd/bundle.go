@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metrics-logs
+// team: agent-metric-pipelines
 
 // Bundle defines the fx options for this bundle.
 func Bundle(params server.Params) fxutil.BundleOptions {
