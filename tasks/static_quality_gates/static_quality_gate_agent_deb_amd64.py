@@ -15,11 +15,11 @@ def entrypoint(**kwargs):
     max_on_disk_size = arguments.max_on_disk_size
 
     metric_handler.register_gate_tags(
-        "static_quality_gate_agent_deb_x64", gate_name="static_quality_gate_agent_deb_x64", arch="x64", os="debian"
+        "static_quality_gate_agent_deb_amd64", gate_name="static_quality_gate_agent_deb_amd64", arch="x64", os="debian"
     )
 
-    metric_handler.register_metric("static_quality_gate_agent_deb_x64", "max_on_wire_size", max_on_wire_size)
-    metric_handler.register_metric("static_quality_gate_agent_deb_x64", "max_on_disk_size", max_on_disk_size)
+    metric_handler.register_metric("static_quality_gate_agent_deb_amd64", "max_on_wire_size", max_on_wire_size)
+    metric_handler.register_metric("static_quality_gate_agent_deb_amd64", "max_on_disk_size", max_on_disk_size)
 
     package_os = "debian"
     package_path = find_package_path("datadog-agent", package_os, "amd64")
@@ -30,10 +30,10 @@ def entrypoint(**kwargs):
         package_on_disk_size = directory_size(ctx, path=extract_dir)
 
         metric_handler.register_metric(
-            "static_quality_gate_agent_deb_x64", "current_on_wire_size", package_on_wire_size
+            "static_quality_gate_agent_deb_amd64", "current_on_wire_size", package_on_wire_size
         )
         metric_handler.register_metric(
-            "static_quality_gate_agent_deb_x64", "current_on_disk_size", package_on_disk_size
+            "static_quality_gate_agent_deb_amd64", "current_on_disk_size", package_on_disk_size
         )
 
         error_message = ""
