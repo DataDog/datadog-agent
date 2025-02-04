@@ -25,6 +25,17 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 // Event represents an event sent from the kernel
 // genaccessors
+// gengetter: GetContainerId
+// gengetter: GetContainerId
+// gengetter: GetEventService
+// gengetter: GetExecFilePath
+// gengetter: GetExitCode
+// gengetter: GetProcessEnvp
+// gengetter: GetProcessExecTime
+// gengetter: GetProcessExitTime
+// gengetter: GetProcessPid
+// gengetter: GetProcessPpid
+// gengetter: GetTimestamp
 type Event struct {
 	BaseEvent
 
@@ -81,7 +92,7 @@ type Process struct {
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
-	PPid uint32 `field:"ppid,opts:gen_getters"` // SECLDoc[ppid] Definition:`Parent process ID`
+	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
@@ -92,8 +103,8 @@ type Process struct {
 	OwnerSidString string `field:"user_sid"`                 // SECLDoc[user_sid] Definition:`Sid of the user of the process`
 	User           string `field:"user,handler:ResolveUser"` // SECLDoc[user] Definition:`User name`
 
-	Envs []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                  // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100,opts:gen_getters"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
+	Envs []string `field:"envs,handler:ResolveProcessEnvs,weight:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
 	Variables               eval.Variables `field:"-"`
@@ -107,7 +118,7 @@ type ExecEvent struct {
 
 // PIDContext holds the process context of an kernel event
 type PIDContext struct {
-	Pid uint32 `field:"pid,opts:gen_getters"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Pid uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
 }
 
 // NetworkDeviceContext defines a network device context

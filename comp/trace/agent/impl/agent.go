@@ -79,7 +79,7 @@ func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 }
 
 func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
 }
 
 func (c component) SendStatsPayload(p *pb.StatsPayload) {
