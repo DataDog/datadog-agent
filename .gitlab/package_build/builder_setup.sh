@@ -1,6 +1,5 @@
-#!/bin/zsh
 source ~/.zshrc
-set -euxo pipefail
+set -euo pipefail
 
 BUNDLER_VERSION=2.3.18
 CI_UPLOADER_ARM64_SHA=20818eb5dc843d8b87aab98e7fe8f5feb4a108145397b8d07e89afce2ba53b58
@@ -74,9 +73,9 @@ done
 # avoiding the error.
 # TODO A
 # echo 'Installing / upgrading brew...'
-brew untap --force homebrew/cask || true
-sudo rm -rf /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core
-do_with_retries "CI=1; unset HOMEBREW_NO_INSTALL_FROM_API; $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" 5
+# brew untap --force homebrew/cask || true
+# sudo rm -rf /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core
+# do_with_retries "CI=1; unset HOMEBREW_NO_INSTALL_FROM_API; $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)" 5
 
 # Environment variables passed to the CI
 echo "export DD_ENV=prod" >>~/.zshrc
