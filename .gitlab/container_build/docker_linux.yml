@@ -241,8 +241,6 @@ docker_build_cluster_agent_amd64:
     - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.arm64 $BUILD_CONTEXT/
     - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.amd64 $BUILD_CONTEXT/
-    - cp Dockerfiles/cluster-agent/datadog-cluster.yaml $BUILD_CONTEXT/
-    - cp Dockerfiles/cluster-agent/security-agent-policies $BUILD_CONTEXT/
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 docker_build_cluster_agent_arm64:
@@ -262,8 +260,6 @@ docker_build_cluster_agent_arm64:
     - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.arm64 $BUILD_CONTEXT/
     - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.amd64 $BUILD_CONTEXT/
-    - cp Dockerfiles/cluster-agent/datadog-cluster.yaml $BUILD_CONTEXT/
-    - cp Dockerfiles/cluster-agent/security-agent-policies $BUILD_CONTEXT/
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 # build the cws-instrumentation image
