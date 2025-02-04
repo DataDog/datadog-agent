@@ -1159,8 +1159,8 @@ func (c *HTTPClient) getUpdate(
 
 		configs = append(configs, path)
 	}
-	span.SetTag("configs.returned", configs)
-	span.SetTag("configs.expired", expiredConfigs)
+	// span.SetTag("configs.returned", configs)
+	// span.SetTag("configs.expired", expiredConfigs)
 
 	// Gather the files and map-ify them for the state data structure
 	targetFiles, err := c.getTargetFiles(c.uptane, configs)
