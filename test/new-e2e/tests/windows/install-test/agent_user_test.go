@@ -142,7 +142,7 @@ func TestAgentUser(t *testing.T) {
 			tc: tc,
 		}
 		t.Run(tc.TC().name, func(t *testing.T) {
-			run(t, s)
+			Run(t, s)
 		})
 	}
 }

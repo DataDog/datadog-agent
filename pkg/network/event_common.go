@@ -18,6 +18,7 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	networkpayload "github.com/DataDog/datadog-agent/pkg/network/payload"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -80,6 +81,9 @@ type ConnectionFamily uint8
 type ConnectionDirection uint8
 
 const (
+	// UNKNOWN represents connections where the direction is not known (yet)
+	UNKNOWN ConnectionDirection = 0
+
 	// INCOMING represents connections inbound to the host
 	INCOMING ConnectionDirection = 1 // incoming
 
@@ -295,14 +299,10 @@ type ConnectionStats struct {
 }
 
 // Via has info about the routing decision for a flow
-type Via struct {
-	Subnet Subnet `json:"subnet,omitempty"`
-}
+type Via = networkpayload.Via
 
 // Subnet stores info about a subnet
-type Subnet struct {
-	Alias string `json:"alias,omitempty"`
-}
+type Subnet = networkpayload.Subnet
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
 type IPTranslation struct {

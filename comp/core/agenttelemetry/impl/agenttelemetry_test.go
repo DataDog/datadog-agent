@@ -343,7 +343,8 @@ func getPayloadMetric(a *atel, metricName string) (*MetricPayload, bool) {
 	return nil, false
 }
 
-func getPayloadMetrics(a *atel, metricName string) ([]*MetricPayload, bool) {
+// If you have multiple metrics with the same name (timeseries) and filtered by a metric, use getPayloadFilteredMetricList
+func getPayloadFilteredMetricList(a *atel, metricName string) ([]*MetricPayload, bool) {
 	payload, err := getPayload(a)
 	if err != nil {
 		return nil, false
@@ -359,6 +360,39 @@ func getPayloadMetrics(a *atel, metricName string) ([]*MetricPayload, bool) {
 	}
 
 	return payloads, true
+}
+
+// If you have multiple metrics with different name (timeseries), meaning no multiple tags use getPayloadMetricMap
+func getPayloadMetricMap(a *atel) map[string]*MetricPayload {
+	payload, err := getPayload(a)
+	if err != nil {
+		return nil
+	}
+
+	payloads := make(map[string]*MetricPayload)
+
+	if mm, ok := payload.Payload.([]Payload); ok {
+		for _, payload := range mm {
+			metrics := payload.Payload.(AgentMetricsPayload).Metrics
+			for metricName, metricItf := range metrics {
+				metric := metricItf.(MetricPayload)
+				payloads[metricName] = &metric
+			}
+		}
+		return payloads
+	}
+
+	if m, ok := payload.Payload.(AgentMetricsPayload); ok {
+		metrics := m.Metrics
+		for metricName, metricItf := range metrics {
+			if metric, ok2 := metricItf.(MetricPayload); ok2 {
+				payloads[metricName] = &metric
+			}
+		}
+		return payloads
+	}
+
+	return nil
 }
 
 func getPayloadMetricByTagValues(metrics []*MetricPayload, tags map[string]interface{}) (*MetricPayload, bool) {
@@ -467,7 +501,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -500,16 +534,55 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
 	assert.Nil(t, m.GetLabel())
 }
 
-func TestNoTagSpecifiedAggregationGauge(t *testing.T) {
+func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
+  `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	gauge := tel.NewGauge("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
+	gauge.WithTags(map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"}).Set(10)
+	gauge.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Set(20)
+	gauge.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Set(30)
+
+	o := convertYamlStrToMap(t, c)
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+	require.True(t, a.enabled)
+
+	// run the runner to trigger the telemetry report
+	a.start()
+	r.(*runnerMock).run()
+
+	// 1 metric sent
+	assert.Equal(t, 1, len(s.sentMetrics))
+
+	// aggregated to 10 + 20 + 30 = 60
+	m := s.sentMetrics[0].metrics[0]
+	assert.Equal(t, float64(60), m.Gauge.GetValue())
+
+	// no tags
+	assert.Nil(t, m.GetLabel())
+}
+
+func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            metrics:
+              - name: bar.zoo
   `
 
 	// setup and initiate atel
@@ -547,7 +620,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -589,7 +662,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags:
                   - tag1
@@ -638,7 +711,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_total: true
                 aggregate_tags:
@@ -1183,7 +1256,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	counter.AddWithTags(1, map[string]string{"tag": "val1"})
 	counter.AddWithTags(2, map[string]string{"tag": "val2"})
 
-	ms, ok := getPayloadMetrics(a, "foo.bar")
+	ms, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	m1, ok1 := getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
 	require.True(t, ok1)
@@ -1195,7 +1268,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	// Second addition (expected values should be the same as the added values)
 	counter.AddWithTags(10, map[string]string{"tag": "val1"})
 	counter.AddWithTags(20, map[string]string{"tag": "val2"})
-	ms, ok = getPayloadMetrics(a, "foo.bar")
+	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
 	require.True(t, ok1)
@@ -1207,7 +1280,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	// Third and fourth addition (expected values should be the sum of 3rd and 4th values)
 	counter.AddWithTags(100, map[string]string{"tag": "val1"})
 	counter.AddWithTags(200, map[string]string{"tag": "val2"})
-	ms, ok = getPayloadMetrics(a, "foo.bar")
+	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
 	require.True(t, ok1)
@@ -1217,7 +1290,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	assert.Equal(t, m2.Value, 200.0)
 
 	// No addition (expected values should be zero)
-	ms, ok = getPayloadMetrics(a, "foo.bar")
+	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
 	require.True(t, ok1)
@@ -1669,7 +1742,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 	hist.Observe(2000, "val2")
 
 	// Test payload1
-	metrics1, ok := getPayloadMetrics(a, "foo.bar")
+	metrics1, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	require.Len(t, metrics1, 2)
 	require.Len(t, metrics1[0].Buckets, 5)
@@ -1695,7 +1768,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 	}
 
 	// Test payload2 (no new observations, everything is reset)
-	metrics2, ok := getPayloadMetrics(a, "foo.bar")
+	metrics2, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	require.Len(t, metrics2, 2)
 	require.Len(t, metrics2[0].Buckets, 5)
@@ -1789,7 +1862,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 	hist.Observe(2000, "val2")
 
 	// Test payload3
-	metrics3, ok := getPayloadMetrics(a, "foo.bar")
+	metrics3, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	require.Len(t, metrics3, 2)
 	require.Len(t, metrics3[0].Buckets, 5)
@@ -1966,4 +2039,40 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	compressBodyLen := len(cl1.(*clientMock).body)
 	nonCompressBodyLen := len(cl2.(*clientMock).body)
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
+}
+
+func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.bar
+              - name: bar.foo
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+	require.True(t, a.enabled)
+
+	gaugeFooBar := tel.NewGaugeWithOpts("foo", "bar", nil, "", telemetry.Options{DefaultMetric: false})
+	gaugeBarFoo := tel.NewGaugeWithOpts("bar", "foo", nil, "", telemetry.Options{DefaultMetric: true})
+	gaugeFooBar.Set(10)
+	gaugeBarFoo.Set(20)
+
+	// Test payload
+	metrics := getPayloadMetricMap(a)
+	require.Len(t, metrics, 2)
+	m1, ok1 := metrics["foo.bar"]
+	require.True(t, ok1)
+	assert.Equal(t, 10.0, m1.Value)
+	m2, ok2 := metrics["bar.foo"]
+	require.True(t, ok2)
+	assert.Equal(t, 20.0, m2.Value)
 }

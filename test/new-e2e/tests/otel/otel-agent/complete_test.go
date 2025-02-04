@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
@@ -27,7 +26,6 @@ type completeTestSuite struct {
 var completeConfig string
 
 func TestOTelAgentComplete(t *testing.T) {
-	flake.Mark(t) // incident-33599
 	values := `
 datadog:
   logs:
@@ -39,6 +37,8 @@ agents:
       env:
         - name: DD_OTELCOLLECTOR_CONVERTER_ENABLED
           value: 'false'
+        - name: DD_APM_FEATURES
+          value: 'disable_receive_resource_spans_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig)))))

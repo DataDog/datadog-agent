@@ -28,12 +28,4 @@ int tracepoint__net__netif_receive_skb(void *ctx) {
     return 0;
 }
 
-SEC("raw_tracepoint/net/netif_receive_skb")
-int BPF_PROG(raw_tracepoint__net__netif_receive_skb) {
-    CHECK_BPF_PROGRAM_BYPASSED()
-    log_debug("raw_tracepoint/net/netif_receive_skb");
-    flush(ctx);
-    return 0;
-}
-
 #endif

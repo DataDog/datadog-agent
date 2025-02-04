@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
@@ -133,7 +133,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		mountResolver = &mount.NoOpResolver{}
 		pathResolver = &path.NoOpResolver{}
 	}
-	containerResolver := &container.Resolver{}
+	containerResolver := container.New()
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
@@ -223,20 +223,16 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 		return cgroupContext, nil
 	}
 
-	path, err := r.DentryResolver.Resolve(pathKey, true)
+	cgroup, err := r.DentryResolver.Resolve(pathKey, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
 	}
 
-	cgroup := filepath.Dir(string(path))
-	if cgroup == "/" {
-		cgroup = path
-	}
-
 	cgroupContext := &model.CGroupContext{
-		CGroupID:    containerutils.CGroupID(cgroup),
-		CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
-		CGroupFile:  pathKey,
+		CGroupID:      containerutils.CGroupID(cgroup),
+		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
+		CGroupFile:    pathKey,
+		CGroupManager: containerutils.CGroupManager(cgroupFlags & containerutils.CGroupManagerMask).String(),
 	}
 
 	return cgroupContext, nil
@@ -258,6 +254,11 @@ func (r *EBPFResolvers) Snapshot() error {
 
 	if err := selinux.SnapshotSELinux(selinuxStatusMap); err != nil {
 		return err
+	}
+
+	// snapshot sockets
+	if err := r.snapshotBoundSockets(); err != nil {
+		return fmt.Errorf("unable to snapshot bound sockets: %w", err)
 	}
 
 	return nil
@@ -318,6 +319,24 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the namespace cache
 		r.NamespaceResolver.SyncCache(pid)
+	}
+
+	return nil
+}
+
+func (r *EBPFResolvers) snapshotBoundSockets() error {
+	processes, err := utils.GetProcesses()
+	if err != nil {
+		return err
+	}
+
+	for _, proc := range processes {
+		bs, err := procfs.GetBoundSockets(proc)
+		if err != nil {
+			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
+			continue
+		}
+		r.ProcessResolver.SyncBoundSockets(uint32(proc.Pid), bs)
 	}
 
 	return nil

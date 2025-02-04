@@ -151,14 +151,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error creating %s: %w", systemdPath, err)
 	}
 
-	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
-	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
-		if err = systemdReload(ctx); err != nil {
-			return err
-		}
-		return nil
-	}
-
 	for _, unit := range installerUnits {
 		if err = loadUnit(ctx, unit); err != nil {
 			return err

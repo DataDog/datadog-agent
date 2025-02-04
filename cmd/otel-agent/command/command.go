@@ -73,7 +73,8 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		true, // show env variable value in usage
 	)
 
-	if err := ef.Parse(os.Args[1:]); err != nil {
+	// There may be other env vars in addition to the ones in envflag.NewEnvFlag. Do not panic if those env vars do not have a help message (flag.ErrHelp)
+	if err := ef.Parse(os.Args[1:]); err != nil && err != flag.ErrHelp {
 		panic(err)
 	}
 
@@ -106,6 +107,10 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 			return nil
 		})
 
+	err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true)
+	if err != nil {
+		panic(err)
+	}
 	reg.RegisterFlags(flagSet)
 	return flagSet
 }

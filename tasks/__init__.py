@@ -51,6 +51,7 @@ from tasks import (
     pipeline,
     pre_commit,
     process_agent,
+    protobuf,
     release,
     rtloader,
     sds,
@@ -64,6 +65,7 @@ from tasks import (
     vim,
     vscode,
     winbuild,
+    windows_dev_env,
     worktree,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
@@ -78,7 +80,6 @@ from tasks.go import (
     deps,
     deps_vendored,
     generate_licenses,
-    generate_protobuf,
     go_fix,
     internal_deps_checker,
     lint_licenses,
@@ -124,7 +125,6 @@ ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(lint_components)
 ns.add_task(lint_fxutil_oneshot_test)
-ns.add_task(generate_protobuf)
 ns.add_task(reset)
 ns.add_task(show_linters_issues)
 ns.add_task(go_version)
@@ -184,6 +184,7 @@ ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(package)
 ns.add_collection(pipeline)
+ns.add_collection(protobuf)
 ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
@@ -214,6 +215,7 @@ ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
 ns.add_collection(debug)
 ns.add_collection(winbuild)
+ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.configure(
     {

@@ -7,13 +7,14 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3
-	golang.org/x/sys v0.28.0
+	golang.org/x/sys v0.29.0
 )
 
 require (
@@ -24,5 +25,3 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/DataDog/datadog-agent/pkg/version => ../../version

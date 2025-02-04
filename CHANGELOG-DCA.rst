@@ -2,6 +2,115 @@
 Release Notes
 =============
 
+.. _Release Notes_7.62.1:
+
+7.62.1
+======
+
+.. _Release Notes_7.62.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-02-03
+Pinned to datadog-agent v7.62.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7621>`_.
+
+.. _Release Notes_7.62.0:
+
+7.62.0
+======
+
+.. _Release Notes_7.62.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-01-29
+Pinned to datadog-agent v7.62.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7620>`_.
+
+.. _Release Notes_7.62.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added support for EndpointSlices in the metadata controller. This feature,
+  enabled by setting `kubernetesUseEndpointSlices` to `true`, resolves limitations
+  of Endpoints resources, particularly for services with more than 1000 addresses.
+  Must add `endpointslices` to DCA cluster role.
+
+- The `kubernetes_state_core` check now collects only metadata for configmaps,
+  reducing memory, CPU, and network usage in the Cluster Agent while preserving
+  full metric functionality.
+
+- The Datadog Cluster Agent admission controller agent sidecar injection now sets up
+  Agent sidecars to run with securityContext of `readOnlyRootFilesystem:false` by default.
+  Advanced users can customize the securityContext via clusterAgent.admissionController.agentSidecarInjection.profiles.
+
+
+.. _Release Notes_7.62.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Resolved a bug where `kube_service` tags were not properly deleted when a
+  service's ties to pods on a specific node were removed but the service itself
+  was not deleted.
+
+- Add mapping for apiservices and customresourcedefinitions to KSM check to
+  prevent errors on startup with discovering resources.
+
+- Include `gpu_vendor` pod tags on the Datadog Cluster Agent when
+  enabling datadog.clusterTagger.collectKubernetesTags.
+
+- When the Datadog Cluster Agent injects the Datadog Agent as a sidecar
+  on a Job, the agent will now exit when the main Job completes.
+
+
+.. _Release Notes_7.61.0:
+
+7.61.0
+======
+
+.. _Release Notes_7.61.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-01-13
+Pinned to datadog-agent v7.61.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7610>`_.
+
+.. _Release Notes_7.61.0_New Features:
+
+New Features
+------------
+
+- Implements the Kubernetes Admission Events webhooks. This new webhooks will emit Datadog Events
+  when receving Validation Admission requests. It will track deployments operations made by non-system
+  users.
+  The webhook is controlled by using the `admission_controller.kubernetes_admission_events.enabled` setting.
+
+- The cluster-agent now can collect pod disruption budgets from the cluster.
+
+
+.. _Release Notes_7.61.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Cluster Agent: ``DatadogAgent`` custom resource, cluster Agent deployment, and node Agent daemonset manifests are now added to the flare archive when the Cluster Agent is deployed with the Datadog Operator (version 1.11.0+).
+
+- Cluster Agent: Don't overwrite the LD_PRELOAD environment variable if it's already set, append the path to Datadog's injection library instead.
+
+
+.. _Release Notes_7.61.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The auto-instrumentation webhook no longer injects the default environment
+  variables when disabled.
+
+
 .. _Release Notes_7.60.1:
 
 7.60.1
@@ -148,7 +257,7 @@ Bug Fixes
 
 - Fixed an issue that prevented the Kubernetes autoscaler from evicting pods
   injected by the Admission Controller.
-  
+
 
 .. _Release Notes_7.57.1:
 
@@ -206,7 +315,7 @@ Bug Fixes
 
 - Library package versions for auto-instrumentation are now set to the latest major
   version of the library-package instead of `latest`.
-  
+
   * java:v1
   * dotnet:v2
   * python:v2

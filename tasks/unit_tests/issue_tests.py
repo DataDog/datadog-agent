@@ -25,11 +25,11 @@ class TestGuessFromLabels(unittest.TestCase):
 class TestGuessFromKeywords(unittest.TestCase):
     def test_from_simple_match(self):
         issue = MagicMock(title="I have an issue", body="I can't get any logs from the agent.")
-        self.assertEqual(guess_from_keywords(issue), "agent-metrics-logs")
+        self.assertEqual(guess_from_keywords(issue), "agent-log-pipelines")
 
     def test_with_a_file(self):
         issue = MagicMock(title="fix bug", body="It comes from the file pkg/agent/build.py")
-        self.assertEqual(guess_from_keywords(issue), "agent-shared-components")
+        self.assertEqual(guess_from_keywords(issue), "agent-runtimes")
 
     def test_no_match(self):
         issue = MagicMock(title="fix bug", body="It comes from the file... hm I don't know.")

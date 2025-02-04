@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewNamespaceCollectorVersions builds the group of collector versions.
-func NewNamespaceCollectorVersions() collectors.CollectorVersions {
+func NewNamespaceCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewNamespaceCollector(),
+		NewNamespaceCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type NamespaceCollector struct {
 
 // NewNamespaceCollector creates a new collector for the Kubernetes
 // Namespace resource.
-func NewNamespaceCollector() *NamespaceCollector {
+func NewNamespaceCollector(metadataAsTags utils.MetadataAsTags) *NamespaceCollector {
+	resourceType := getResourceType(namespaceName, namespaceVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &NamespaceCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewNamespaceCollector() *NamespaceCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "namespaces",
+			Name:                      namespaceName,
 			NodeType:                  orchestrator.K8sNamespace,
-			Version:                   "v1",
+			Version:                   namespaceVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NamespaceHandlers)),
 	}
@@ -75,6 +82,11 @@ func (c *NamespaceCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *NamespaceCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
@@ -85,7 +97,7 @@ func (c *NamespaceCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 
