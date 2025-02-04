@@ -199,7 +199,7 @@ func TestListenPackets(t *testing.T) {
 		remotePort uint16
 		seqNum     uint32
 		// output
-		expectedResponse response
+		expectedResponse packetResponse
 		errMsg           string
 	}{
 		{
@@ -267,7 +267,7 @@ func TestListenPackets(t *testing.T) {
 			remoteIP:   innerDstIP,
 			remotePort: 443,
 			seqNum:     28394,
-			expectedResponse: response{
+			expectedResponse: packetResponse{
 				IP:   srcIP,
 				Type: layers.ICMPv4TypeTimeExceeded,
 				Code: layers.ICMPv4CodeTTLExceeded,
@@ -288,7 +288,7 @@ func TestListenPackets(t *testing.T) {
 			remoteIP:   dstIP,
 			remotePort: 443,
 			seqNum:     28394,
-			expectedResponse: response{
+			expectedResponse: packetResponse{
 				IP:   dstIP,
 				Port: 443,
 			},
@@ -305,7 +305,7 @@ func TestListenPackets(t *testing.T) {
 			}
 			require.NoError(t, actualResponse.Err)
 			diff := cmp.Diff(test.expectedResponse, actualResponse,
-				cmpopts.IgnoreFields(response{}, "Time"), // not important for this test
+				cmpopts.IgnoreFields(packetResponse{}, "Time"), // not important for this test
 			)
 			assert.Empty(t, diff)
 		})
