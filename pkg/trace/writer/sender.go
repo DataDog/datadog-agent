@@ -366,15 +366,16 @@ func (s *sender) isEnabled() bool {
 			log.Infof("Sender for domain %v has been failed over to, enabling it for MRF.", s.cfg.url)
 			s.enabled = true
 		}
-	} else {
-		if s.enabled {
-			s.enabled = false
-			log.Infof("Sender for domain %v was disabled; payloads will be dropped for this domain.", s.cfg.url)
-		} else {
-			log.Debugf("Sender for domain %v is disabled; dropping payload for this domain.", s.cfg.url)
-		}
+		return true
 	}
-	return s.enabled
+
+	if s.enabled {
+		s.enabled = false
+		log.Infof("Sender for domain %v was disabled; payloads will be dropped for this domain.", s.cfg.url)
+	} else {
+		log.Debugf("Sender for domain %v is disabled; dropping payload for this domain.", s.cfg.url)
+	}
+	return false
 }
 
 // retriableError is an error returned by the server which may be retried at a later time.
