@@ -15,7 +15,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -25,6 +24,13 @@ const (
 	// rareSamplerBurst sizes the token store used by the rate limiter.
 	rareSamplerBurst = 50
 	rareKey          = "_dd.rare"
+
+	// MetricsRareHits is the metric name for the number of traces kept by the rare sampler.
+	MetricsRareHits = "datadog.trace_agent.sampler.rare.hits"
+	// MetricsRareMisses is the metric name for the number of traces missed by the rare sampler.
+	MetricsRareMisses = "datadog.trace_agent.sampler.rare.misses"
+	// MetricsRareShrinks is the metric name for the number of times the rare sampler has shrunk.
+	MetricsRareShrinks = "datadog.trace_agent.sampler.rare.shrinks"
 )
 
 // RareSampler samples traces that are not caught by the Priority sampler.
@@ -40,17 +46,15 @@ type RareSampler struct {
 	shrinks *atomic.Int64
 	mu      sync.RWMutex
 
-	tickStats   *time.Ticker
 	limiter     *rate.Limiter
 	ttl         time.Duration
 	cardinality int
 	seen        map[Signature]*seenSpans
-	statsd      statsd.ClientInterface
 }
 
 // NewRareSampler returns a NewRareSampler that ensures that we sample combinations
 // of env, service, name, resource, http-status, error type for each top level or measured spans
-func NewRareSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *RareSampler {
+func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 	e := &RareSampler{
 		enabled:     atomic.NewBool(conf.RareSamplerEnabled),
 		hits:        atomic.NewInt64(0),
@@ -60,15 +64,7 @@ func NewRareSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *Ra
 		ttl:         conf.RareSamplerCooldownPeriod,
 		cardinality: conf.RareSamplerCardinality,
 		seen:        make(map[Signature]*seenSpans),
-		tickStats:   time.NewTicker(10 * time.Second),
-		statsd:      statsd,
 	}
-
-	go func() {
-		for range e.tickStats.C {
-			e.report()
-		}
-	}()
 	return e
 }
 
@@ -79,11 +75,6 @@ func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
 		return false
 	}
 	return e.handleTrace(now, env, t)
-}
-
-// Stop stops reporting stats
-func (e *RareSampler) Stop() {
-	e.tickStats.Stop()
 }
 
 // SetEnabled marks the sampler as enabled or disabled
@@ -169,10 +160,10 @@ func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 	return s
 }
 
-func (e *RareSampler) report() {
-	_ = e.statsd.Count("datadog.trace_agent.sampler.rare.hits", e.hits.Swap(0), nil, 1)
-	_ = e.statsd.Count("datadog.trace_agent.sampler.rare.misses", e.misses.Swap(0), nil, 1)
-	_ = e.statsd.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(e.shrinks.Load()), nil, 1)
+func (e *RareSampler) report(statsd statsd.ClientInterface) {
+	_ = statsd.Count(MetricsRareHits, e.hits.Swap(0), nil, 1)
+	_ = statsd.Count(MetricsRareMisses, e.misses.Swap(0), nil, 1)
+	_ = statsd.Gauge(MetricsRareShrinks, float64(e.shrinks.Load()), nil, 1)
 }
 
 // seenSpans keeps record of a set of spans.
