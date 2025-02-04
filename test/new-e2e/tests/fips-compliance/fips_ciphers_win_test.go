@@ -91,7 +91,7 @@ func (s *fipsServerWinSuite) SetupSuite() {
 	require.NoError(s.T(), err)
 
 	// Start the fips-server in the Setup step so we pull the image from ghcr.io before a test runs
-	s.fipsServer.Start()
+	s.fipsServer.Start(s.T(), cipherTestCase{cert: "rsa"})
 }
 
 func (s *fipsServerWinSuite) generateTraffic() {
