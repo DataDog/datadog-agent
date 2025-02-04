@@ -44,15 +44,15 @@ func (s *testInstallSuite) TestInstall() {
 
 	// create dummy files with known value to be replaced
 	filesThatNeedToBeReplaced := []struct {
-		path string
+		path    string
 		content string
-	} {
+	}{
 		{
-			path: filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"),
+			path:    filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"),
 			content: "F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0",
 		},
 		{
-			path: filepath.Join(windowsAgent.DefaultConfigRoot, "ipc_cert.pem"),
+			path:    filepath.Join(windowsAgent.DefaultConfigRoot, "ipc_cert.pem"),
 			content: "0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F",
 		},
 	}
