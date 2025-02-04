@@ -229,7 +229,7 @@ docker_build_cluster_agent_amd64:
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_amd64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_amd64
       artifacts: false
     - job: cws_instrumentation-build_arm64
@@ -239,6 +239,9 @@ docker_build_cluster_agent_amd64:
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
     - !reference [.docker_build_s3, before_script]
+    - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
+    - cp Dockerfiles/cluster-agent/datadog-cluster.yaml $BUILD_CONTEXT/
+    - cp Dockerfiles/cluster-agent/security-agent-policies $BUILD_CONTEXT/
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 docker_build_cluster_agent_arm64:
@@ -246,7 +249,7 @@ docker_build_cluster_agent_arm64:
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_arm64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_amd64
       artifacts: false
     - job: cws_instrumentation-build_arm64
@@ -256,6 +259,9 @@ docker_build_cluster_agent_arm64:
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
     - !reference [.docker_build_s3, before_script]
+    - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
+    - cp Dockerfiles/cluster-agent/datadog-cluster.yaml $BUILD_CONTEXT/
+    - cp Dockerfiles/cluster-agent/security-agent-policies $BUILD_CONTEXT/
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 # build the cws-instrumentation image
