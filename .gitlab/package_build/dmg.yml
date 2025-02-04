@@ -140,7 +140,8 @@ agent_dmg-x64-a7:
 new-agent_dmg-x64-a7:
   stage: package_build
   extends: .macos_gitlab
-  tags: ["macos:ventura-amd64-test", "specific:true"]
+  # tags: ["macos:ventura-amd64-test", "specific:true"]
+  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
   artifacts:
@@ -155,6 +156,11 @@ new-agent_dmg-x64-a7:
   script:
     - set -e
     - !reference [.vault_login]
+
+    # Try builder
+    - bash .gitlab/package_build/builder_setup.sh
+    - exit
+
     # Setup builder
     - |
       for dependency in $(brew list --formula); do
