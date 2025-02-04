@@ -10,6 +10,7 @@ package diconfig
 import (
 	"cmp"
 	"debug/dwarf"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -181,7 +182,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 
 	typeReader.Seek(offset)
 	typeEntry, err := typeReader.Next()
-	if err != nil {
+	if err != nil || typeEntry == nil {
 		return nil, fmt.Errorf("could not get type entry: %w", err)
 	}
 
@@ -193,6 +194,9 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader)
 		if err != nil {
 			return nil, err
+		}
+		if typeEntry == nil {
+			return nil, errors.New("could not resolve type entry")
 		}
 	}
 
