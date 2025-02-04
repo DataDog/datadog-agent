@@ -16,13 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/rest"
 )
 
 var (
-	cache     *ResourceTypeCache
-	cacheOnce sync.Once
-	cacheErr  error
+	cache    *ResourceTypeCache
+	cacheErr error
 )
 
 // ResourceTypeCache is a global cache to store Kubernetes resource types.
@@ -33,43 +31,31 @@ type ResourceTypeCache struct {
 }
 
 // InitializeGlobalResourceTypeCache initializes the global cache if it hasn't been already.
-func InitializeGlobalResourceTypeCache() error {
-	cacheOnce.Do(func() {
-		config, err := rest.InClusterConfig()
-		if err != nil {
-			cacheErr = fmt.Errorf("failed to get in-cluster config: %w", err)
-			return
-		}
-		discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
-		if err != nil {
-			cacheErr = fmt.Errorf("failed to create discovery client: %w", err)
-			return
-		}
+func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterface) error {
+	cache = &ResourceTypeCache{
+		kindGroupToType: make(map[string]string),
+		discoveryClient: discoveryClient,
+	}
 
-		cache = &ResourceTypeCache{
-			kindGroupToType: make(map[string]string),
-			discoveryClient: discoveryClient,
-		}
-
-		// Optionally pre-populate the cache
-		err = cache.prepopulateCache()
-		if err != nil {
-			cacheErr = fmt.Errorf("failed to prepopulate resource type cache: %w", err)
-		}
-	})
+	// Optionally pre-populate the cache
+	err := cache.prepopulateCache()
+	if err != nil {
+		cacheErr = fmt.Errorf("failed to prepopulate resource type cache: %w", err)
+	}
 	return cacheErr
 }
 
 // GetResourceType retrieves the resource type for the given kind and group.
-func GetResourceType(kind, group string) (string, error) {
+func GetResourceType(kind, apiVersion string) (string, error) {
 	if cache == nil {
 		return "", fmt.Errorf("resource type cache is not initialized")
 	}
-	return cache.getResourceType(kind, group)
+	return cache.getResourceType(kind, apiVersion)
 }
 
 // getResourceType is the instance method to retrieve a resource type.
-func (r *ResourceTypeCache) getResourceType(kind, group string) (string, error) {
+func (r *ResourceTypeCache) getResourceType(kind, apiVersion string) (string, error) {
+	group := getAPIGroup(apiVersion)
 	cacheKey := getCacheKey(kind, group)
 
 	// Check the cache

@@ -9,18 +9,20 @@ package kubernetesapiserver
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/resourcetypes"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/resourcetypes"
+	mockdiscovery "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/resourcetypes/mock"
 )
 
 func TestGetDDAlertType(t *testing.T) {
@@ -60,7 +62,19 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "default/my-deployment-2"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "default"))), "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("api-group", "resourcetypes", "default", "generic-resource"))), "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
-	resourcetypes.MockInitializeGlobalResourceTypeCache(map[string]string{"ResourceType/api-group": "resourcetypes"})
+
+	mockDiscovery := new(mockdiscovery.MockDiscoveryClient)
+	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*apiv1.APIResourceList{
+		{
+			GroupVersion: "api-group/v1",
+			APIResources: []apiv1.APIResource{
+				{Kind: "ResourceType", Name: "resourcetypes"},
+			},
+		},
+	}, nil)
+
+	err := resourcetypes.InitializeGlobalResourceTypeCache(mockDiscovery)
+	assert.NoError(t, err)
 
 	tests := []struct {
 		name           string
@@ -70,11 +84,10 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get pod basic tags",
 			involvedObject: v1.ObjectReference{
-				UID:        "nginx",
-				Kind:       "Pod",
-				Name:       "my-pod",
-				Namespace:  "my-namespace",
-				APIVersion: "v1",
+				UID:       "nginx",
+				Kind:      "Pod",
+				Name:      "my-pod",
+				Namespace: "my-namespace",
 			},
 			tags: []string{
 				"kube_kind:Pod",
@@ -90,11 +103,10 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get pod namespace tags",
 			involvedObject: v1.ObjectReference{
-				UID:        "nginx",
-				Kind:       "Pod",
-				Name:       "my-pod",
-				Namespace:  "default",
-				APIVersion: "v1",
+				UID:       "nginx",
+				Kind:      "Pod",
+				Name:      "my-pod",
+				Namespace: "default",
 			},
 			tags: []string{
 				"kube_kind:Pod",
@@ -111,10 +123,9 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get deployment basic tags",
 			involvedObject: v1.ObjectReference{
-				Kind:       "Deployment",
-				Name:       "my-deployment-1",
-				Namespace:  "workload-redis",
-				APIVersion: "apps/v1",
+				Kind:      "Deployment",
+				Name:      "my-deployment-1",
+				Namespace: "workload-redis",
 			},
 			tags: []string{
 				"kube_kind:Deployment",
@@ -130,10 +141,9 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get deployment namespace tags",
 			involvedObject: v1.ObjectReference{
-				Kind:       "Deployment",
-				Name:       "my-deployment-2",
-				Namespace:  "default",
-				APIVersion: "apps/v1",
+				Kind:      "Deployment",
+				Name:      "my-deployment-2",
+				Namespace: "default",
 			},
 			tags: []string{
 				"kube_kind:Deployment",

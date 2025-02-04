@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/resourcetypes"
 	"strings"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/resourcetypes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -194,11 +194,6 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
 	}
 
-	err = resourcetypes.InitializeGlobalResourceTypeCache()
-	if err != nil {
-		log.Errorf("Could not initialize the global resource type cache: %s", err)
-	}
-
 	if k.instance.UnbundleEvents {
 		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, k.tagger, k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.instance.FilteringEnabled)
 	} else {
@@ -248,6 +243,11 @@ func (k *KubeASCheck) Run() error {
 		if err != nil {
 			k.Warnf("Could not connect to apiserver: %s", err) //nolint:errcheck
 			return err
+		}
+
+		err = resourcetypes.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery())
+		if err != nil {
+			log.Errorf("Could not initialize the global resource type cache: %s", err)
 		}
 
 		// We detect OpenShift presence for quota collection
