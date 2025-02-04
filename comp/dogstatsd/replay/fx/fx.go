@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metrics
+// team: agent-metric-pipelines
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {

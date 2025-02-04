@@ -38,6 +38,8 @@ extensions:
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver
     v0.118.0
 processors:
+- gomod: github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.61.0
+  path: ./comp/otelcol/otlp/components/processor/infraattributesprocessor
 - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.118.0
 - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.118.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor

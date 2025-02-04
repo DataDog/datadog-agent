@@ -14,7 +14,7 @@ build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
 
 # Deps fetch
-fetch_openjdk                        @DataDog/agent-metrics
+fetch_openjdk                        @DataDog/agent-metric-pipelines
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
@@ -166,4 +166,4 @@ pull_test_dockers*                @DataDog/universal-service-monitoring
 single_machine_performance*       @DataDog/single-machine-performance
 
 # Dependency Security
-software_composition_analysis*    @DataDog/software-integrity-and-trust
+software_composition_analysis*    @DataDog/sdlc-security
