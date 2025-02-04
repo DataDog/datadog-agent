@@ -43,7 +43,7 @@ def generate(ctx, do_mockgen=True):
     We must build the packages one at a time due to protoc-gen-go limitations
     """
     # Key: path, Value: grpc_gateway, inject_tags
-    check_dependencies(ctx)
+    check_tools(ctx)
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
@@ -151,7 +151,6 @@ def generate(ctx, do_mockgen=True):
 
     # Check the generated files were properly committed
     git_status = ctx.run("git status -suno", hide=True).stdout
-    # git_status = ctx.run("git status -suno | grep -E 'pkg/proto/pbgo.*.pb(.gw)?.go'").stdout.strip()
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
     if any(proto_file.search(line) for line in git_status.split("\n")):
         raise Exit(
@@ -160,7 +159,7 @@ def generate(ctx, do_mockgen=True):
         )
 
 
-def check_dependencies(ctx):
+def check_tools(ctx):
     """
     Check if all the required dependencies are installed
     """
@@ -175,6 +174,6 @@ def check_dependencies(ctx):
             raise Exit(
                 f"Expected protoc version {expected_version}, found {current_version}. Please run `inv install-protoc` before running this task.",
                 code=1,
-            ) from None
+            )
     except UnexpectedExit as e:
         raise Exit("protoc is not installed. Please install it before running this task.", code=1) from e

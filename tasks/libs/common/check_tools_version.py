@@ -109,8 +109,8 @@ def check_tools_installed(tools: list) -> bool:
     """
     Check if the tools are installed in the system.
     """
-    for tool in tools:
-        if not shutil.which(tool):
-            print(f"{tool} is not installed. Please install it before running this task.")
-            return False
+    not_installed = [tool for tool in tools if not shutil.which(tool)]
+    if not_installed:
+        print(f"{color_message('ERROR', Color.RED)}: The following tools are not installed: {', '.join(not_installed)}")
+        return False
     return True
