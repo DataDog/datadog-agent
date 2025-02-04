@@ -245,7 +245,6 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
-	log.Debugf("Configuring python check %s with config %v", c.id, initConfig)
 
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {
@@ -294,7 +293,6 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		}
 	}
 
-	log.Debugf("commonOptions ha: %v", commonOptions)
 	if commonGlobalOptions.HAEnabled != nil {
 		c.haEnabled = *commonGlobalOptions.HAEnabled
 	}

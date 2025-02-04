@@ -141,9 +141,6 @@ func (w *Worker) Run() {
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
 
-		checkLogger.Debug(fmt.Sprintf("haAgent.Enabled(): %v", w.haAgent.Enabled()))
-		checkLogger.Debug(fmt.Sprintf("check.IsHAEnabled(): %v", check.IsHAEnabled()))
-		checkLogger.Debug(fmt.Sprintf("haAgent.IsActive(): %v", w.haAgent.IsActive()))
 		if w.haAgent.Enabled() && check.IsHAEnabled() && !w.haAgent.IsActive() {
 			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
 			continue
