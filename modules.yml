@@ -74,6 +74,10 @@ modules:
   comp/otelcol/converter/impl: default
   comp/otelcol/ddflareextension/def: default
   comp/otelcol/ddflareextension/impl: default
+  comp/otelcol/ddprofilingextension/def:
+    used_by_otel: true
+  comp/otelcol/ddprofilingextension/impl:
+    used_by_otel: true
   comp/otelcol/logsagentpipeline:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
