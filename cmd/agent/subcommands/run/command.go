@@ -21,8 +21,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -457,17 +455,17 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
-					"log_level":                              commonsettings.NewLogLevelRuntimeSetting(),
-					"runtime_mutex_profile_fraction":         commonsettings.NewRuntimeMutexProfileFraction(),
-					"runtime_block_profile_rate":             commonsettings.NewRuntimeBlockProfileRate(),
-					"dogstatsd_stats":                        internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
-					"dogstatsd_capture_duration":             internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
-					"log_payloads":                           commonsettings.NewLogPayloadsRuntimeSetting(),
-					"internal_profiling_goroutines":          commonsettings.NewProfilingGoroutines(),
-					"multi_region_failover.enabled":          internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.enabled", "Enable/disable Multi-Region Failover support."),
-					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
-					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
-					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+					// "runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+					// "runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+					"dogstatsd_stats":            internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
+					"dogstatsd_capture_duration": internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
+					"log_payloads":               commonsettings.NewLogPayloadsRuntimeSetting(),
+					// "internal_profiling_goroutines":          commonsettings.NewProfilingGoroutines(),
+					// "multi_region_failover.enabled":          internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.enabled", "Enable/disable Multi-Region Failover support."),
+					// "multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
+					// "multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
+					// "internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
 				},
 				Config: config,
 			}
@@ -623,7 +621,7 @@ func stopAgent() {
 	clcrunnerapi.StopCLCRunnerServer()
 	jmxfetch.StopJmxfetch()
 
-	profiler.Stop()
+	// profiler.Stop()
 
 	// gracefully shut down any component
 	_, cancel := pkgcommon.GetMainCtxCancel()

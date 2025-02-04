@@ -7,30 +7,30 @@
 // static APM instrumentation detection. This program is never executed.
 package main
 
-import (
-	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
+// import (
+// 	"fmt"
+// 	"os"
+// 	"os/signal"
+// 	"syscall"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-)
+// 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+// )
 
-func main() {
-	tracer.Start()
+// func main() {
+// 	tracer.Start()
 
-	signalChan := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
+// 	signalChan := make(chan os.Signal, 1)
+// 	done := make(chan bool, 1)
 
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+// 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
-	go func() {
-		<-signalChan
-		done <- true
-	}()
+// 	go func() {
+// 		<-signalChan
+// 		done <- true
+// 	}()
 
-	fmt.Println("Running... Press Ctrl+C to exit.")
+// 	fmt.Println("Running... Press Ctrl+C to exit.")
 
-	<-done // Block until a signal is received
-	fmt.Println("Gracefully shutting down.")
-}
+// 	<-done // Block until a signal is received
+// 	fmt.Println("Gracefully shutting down.")
+// }

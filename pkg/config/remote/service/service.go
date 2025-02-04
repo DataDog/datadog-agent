@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/go-tuf/data"
 	tufutil "github.com/DataDog/go-tuf/util"
@@ -1063,16 +1062,16 @@ func (c *HTTPClient) GetCDNConfigUpdate(
 	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.GetCDNConfigUpdate")
-	defer span.Finish(tracer.WithError(err))
+	// span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.GetCDNConfigUpdate")
+	// defer span.Finish(tracer.WithError(err))
 	if !c.shouldUpdate() {
-		span.SetTag("use_cache", true)
+		// span.SetTag("use_cache", true)
 		return c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
 	}
 
 	err = c.update(ctx)
 	if err != nil {
-		span.SetTag("cache_update_error", true)
+		// span.SetTag("cache_update_error", true)
 		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
 	}
 
@@ -1082,8 +1081,8 @@ func (c *HTTPClient) GetCDNConfigUpdate(
 
 func (c *HTTPClient) update(ctx context.Context) error {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.update")
-	defer span.Finish(tracer.WithError(err))
+	// span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.update")
+	// defer span.Finish(tracer.WithError(err))
 	c.Lock()
 	defer c.Unlock()
 
@@ -1113,12 +1112,12 @@ func (c *HTTPClient) getUpdate(
 ) (*state.Update, error) {
 	c.Lock()
 	defer c.Unlock()
-	span, _ := tracer.StartSpanFromContext(ctx, "HTTPClient.getUpdate")
-	defer span.Finish()
-	span.SetTag("products", products)
-	span.SetTag("current_targets_version", currentTargetsVersion)
-	span.SetTag("current_root_version", currentRootVersion)
-	span.SetTag("cached_target_files", cachedTargetFiles)
+	// span, _ := tracer.StartSpanFromContext(ctx, "HTTPClient.getUpdate")
+	// defer span.Finish()
+	// span.SetTag("products", products)
+	// span.SetTag("current_targets_version", currentTargetsVersion)
+	// span.SetTag("current_root_version", currentRootVersion)
+	// span.SetTag("cached_target_files", cachedTargetFiles)
 
 	tufVersions, err := c.uptane.TUFVersionState()
 	if err != nil {

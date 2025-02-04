@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -102,13 +100,13 @@ func runAgentSidekicks(ag component) error {
 	}
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
-	if pcfg := profilingConfig(tracecfg); pcfg != nil {
-		if err := profiling.Start(*pcfg); err != nil {
-			log.Warn(err)
-		} else {
-			log.Infof("Internal profiling enabled: %s.", pcfg)
-		}
-	}
+	// if pcfg := profilingConfig(tracecfg); pcfg != nil {
+	// 	if err := profiling.Start(*pcfg); err != nil {
+	// 		log.Warn(err)
+	// 	} else {
+	// 		log.Infof("Internal profiling enabled: %s.", pcfg)
+	// 	}
+	// }
 	go func() {
 		time.Sleep(time.Second * 30)
 		ag.telemetryCollector.SendStartupSuccess()
@@ -122,37 +120,38 @@ func stopAgentSidekicks(cfg config.Component, statsd statsd.ClientInterface) {
 
 	log.Flush()
 
-	tracecfg := cfg.Object()
-	if pcfg := profilingConfig(tracecfg); pcfg != nil {
-		profiling.Stop()
-	}
+	// tracecfg := cfg.Object()
+	// if pcfg := profilingConfig(tracecfg); pcfg != nil {
+	// 	profiling.Stop()
+	// }
 }
 
-func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
-	if !pkgconfigsetup.Datadog().GetBool("apm_config.internal_profiling.enabled") {
-		return nil
-	}
-	endpoint := pkgconfigsetup.Datadog().GetString("internal_profiling.profile_dd_url")
-	if endpoint == "" {
-		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, tracecfg.Site)
-	}
-	tags := pkgconfigsetup.Datadog().GetStringSlice("internal_profiling.extra_tags")
-	tags = append(tags, fmt.Sprintf("version:%s", version.AgentVersion))
-	return &profiling.Settings{
-		ProfilingURL: endpoint,
+func profilingConfig(tracecfg *tracecfg.AgentConfig) bool {
+	return false
+	// if !pkgconfigsetup.Datadog().GetBool("apm_config.internal_profiling.enabled") {
+	// 	return nil
+	// }
+	// endpoint := pkgconfigsetup.Datadog().GetString("internal_profiling.profile_dd_url")
+	// if endpoint == "" {
+	// 	endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, tracecfg.Site)
+	// }
+	// tags := pkgconfigsetup.Datadog().GetStringSlice("internal_profiling.extra_tags")
+	// tags = append(tags, fmt.Sprintf("version:%s", version.AgentVersion))
+	// return &profiling.Settings{
+	// 	ProfilingURL: endpoint,
 
-		// remaining configuration parameters use the top-level `internal_profiling` config
-		Period:               pkgconfigsetup.Datadog().GetDuration("internal_profiling.period"),
-		Service:              "trace-agent",
-		CPUDuration:          pkgconfigsetup.Datadog().GetDuration("internal_profiling.cpu_duration"),
-		MutexProfileFraction: pkgconfigsetup.Datadog().GetInt("internal_profiling.mutex_profile_fraction"),
-		BlockProfileRate:     pkgconfigsetup.Datadog().GetInt("internal_profiling.block_profile_rate"),
-		WithGoroutineProfile: pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		WithBlockProfile:     pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_block_profiling"),
-		WithMutexProfile:     pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_mutex_profiling"),
-		WithDeltaProfiles:    pkgconfigsetup.Datadog().GetBool("internal_profiling.delta_profiles"),
-		Tags:                 tags,
-	}
+	// 	// remaining configuration parameters use the top-level `internal_profiling` config
+	// 	Period:               pkgconfigsetup.Datadog().GetDuration("internal_profiling.period"),
+	// 	Service:              "trace-agent",
+	// 	CPUDuration:          pkgconfigsetup.Datadog().GetDuration("internal_profiling.cpu_duration"),
+	// 	MutexProfileFraction: pkgconfigsetup.Datadog().GetInt("internal_profiling.mutex_profile_fraction"),
+	// 	BlockProfileRate:     pkgconfigsetup.Datadog().GetInt("internal_profiling.block_profile_rate"),
+	// 	WithGoroutineProfile: pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_goroutine_stacktraces"),
+	// 	WithBlockProfile:     pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_block_profiling"),
+	// 	WithMutexProfile:     pkgconfigsetup.Datadog().GetBool("internal_profiling.enable_mutex_profiling"),
+	// 	WithDeltaProfiles:    pkgconfigsetup.Datadog().GetBool("internal_profiling.delta_profiles"),
+	// 	Tags:                 tags,
+	// }
 }
 
 func newConfigFetcher() (rc.ConfigFetcher, error) {
