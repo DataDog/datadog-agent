@@ -38,12 +38,9 @@ func getCertFilepath(config configModel.Reader) string {
 type certificateFactory struct {
 }
 
-func (certificateFactory) Generate() (Certificate, error) {
-	return generateCertKeyPair()
-}
-
-func (certificateFactory) Serialize(src Certificate) ([]byte, error) {
-	return bytes.Join([][]byte{src.cert, src.key}, []byte{}), nil
+func (certificateFactory) Generate() (Certificate, []byte, error) {
+	cert, err := generateCertKeyPair()
+	return cert, bytes.Join([][]byte{cert.cert, cert.key}, []byte{}), err
 }
 
 func (certificateFactory) Deserialize(raw []byte) (Certificate, error) {

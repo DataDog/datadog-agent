@@ -38,7 +38,7 @@ const (
 func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
 	privKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
-		return nil, fmt.Errorf("generating random key: %v", err)
+		return nil, fmt.Errorf("generating random key: %v", err.Error())
 	}
 
 	return privKey, nil
@@ -49,7 +49,7 @@ func CertTemplate() (*x509.Certificate, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate serial number: %s", err)
+		return nil, fmt.Errorf("failed to generate serial number: %s", err.Error())
 	}
 
 	notBefore := time.Now()
@@ -115,17 +115,13 @@ func GenerateRootCert(hosts []string, bits int) (cert *x509.Certificate, certPEM
 type authtokenFactory struct {
 }
 
-func (authtokenFactory) Generate() (string, error) {
+func (authtokenFactory) Generate() (string, []byte, error) {
 	key := make([]byte, authTokenMinimalLen)
 	_, err := rand.Read(key)
 	if err != nil {
-		return "", fmt.Errorf("can't create agent authentication token value: %s", err)
+		return "", nil, fmt.Errorf("can't create agent authentication token value: %v", err.Error())
 	}
-	return hex.EncodeToString(key), nil
-}
-
-func (authtokenFactory) Serialize(src string) ([]byte, error) {
-	return []byte(src), nil
+	return hex.EncodeToString(key), []byte(key), nil
 }
 
 func (authtokenFactory) Deserialize(raw []byte) (string, error) {
@@ -151,27 +147,6 @@ func FetchAuthToken(config configModel.Reader) (string, error) {
 // It takes a context to allow for cancellation or timeout of the operation
 func FetchOrCreateAuthToken(ctx context.Context, config configModel.Reader) (string, error) {
 	return filesystem.FetchOrCreateArtifact(ctx, GetAuthTokenFilepath(config), &authtokenFactory{})
-}
-
-type dcaAuthTokenFactory struct {
-}
-
-func (dcaAuthTokenFactory) Generate() (string, error) {
-	key := make([]byte, authTokenMinimalLen)
-	_, err := rand.Read(key)
-	if err != nil {
-		return "", fmt.Errorf("can't create agent authentication token value: %s", err)
-	}
-	return hex.EncodeToString(key), nil
-}
-
-func (dcaAuthTokenFactory) Serialize(src string) ([]byte, error) {
-	return []byte(src), nil
-}
-
-func (dcaAuthTokenFactory) Deserialize(raw []byte) (string, error) {
-	token := string(raw)
-	return token, validateAuthToken(token)
 }
 
 // GetClusterAgentAuthToken load the authentication token from:
@@ -204,9 +179,9 @@ func getClusterAgentAuthToken(ctx context.Context, config configModel.Reader, to
 	location := filepath.Join(configUtils.ConfFileDirectory(config), clusterAgentAuthTokenFilename)
 	log.Debugf("Empty cluster_agent.auth_token, loading from %s", location)
 	if tokenCreationAllowed {
-		return filesystem.FetchOrCreateArtifact(ctx, location, &dcaAuthTokenFactory{})
+		return filesystem.FetchOrCreateArtifact(ctx, location, &authtokenFactory{})
 	}
-	return filesystem.FetchArtifact(location, &dcaAuthTokenFactory{})
+	return filesystem.FetchArtifact(location, &authtokenFactory{})
 }
 
 func validateAuthToken(authToken string) error {
