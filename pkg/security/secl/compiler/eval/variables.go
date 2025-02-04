@@ -16,6 +16,8 @@ import (
 	"github.com/jellydator/ttlcache/v3"
 )
 
+const defaultMaxVariables = 100
+
 var (
 	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
@@ -460,8 +462,11 @@ type NamedVariables struct {
 }
 
 // NewNamedVariables returns a new set of named variables
-func NewNamedVariables() *NamedVariables {
-	return &NamedVariables{}
+func NewNamedVariables(opts VariableOpts) *NamedVariables {
+	return &NamedVariables{
+		size: opts.Size,
+		ttl:  opts.TTL,
+	}
 }
 
 // GetBool returns the boolean value of the specified variable
@@ -508,8 +513,6 @@ func (v *NamedVariables) GetIntArray(name string) []int {
 	}
 	return ilval
 }
-
-const defaultMaxVariables = 100
 
 func (v *NamedVariables) newLRU() *ttlcache.Cache[string, interface{}] {
 	maxSize := v.size
@@ -573,7 +576,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 			key.AppendReleaseCallback(func() {
 				v.ReleaseVariable(key)
 			})
-			vars = NewNamedVariables()
+			vars = NewNamedVariables(opts)
 			v.vars[key] = vars
 		}
 		vars.Set(name, value)
