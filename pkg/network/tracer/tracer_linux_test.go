@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -1731,11 +1732,11 @@ func (s *TracerSuite) TestSendfileRegression() {
 				}
 
 				// Start UDP server
-				var rcvd int64
+				var rcvd atomic.Int64
 				server := &UDPServer{
 					network: "udp" + strings.TrimPrefix(family.String(), "v"),
 					onMessage: func(_ []byte, n int) []byte {
-						rcvd = rcvd + int64(n)
+						rcvd.Add(int64(n))
 						return nil
 					},
 				}
@@ -1746,7 +1747,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				c, err := net.DialTimeout(server.network, server.address, time.Second)
 				require.NoError(t, err)
 
-				testSendfileServer(t, c.(*net.UDPConn), network.UDP, family, func() int64 { return rcvd })
+				testSendfileServer(t, c.(*net.UDPConn), network.UDP, family, func() int64 { return rcvd.Load() })
 			})
 		})
 	}
