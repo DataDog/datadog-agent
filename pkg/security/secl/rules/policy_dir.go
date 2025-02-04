@@ -9,6 +9,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/hashicorp/go-multierror"
@@ -82,6 +83,8 @@ func (p *PoliciesDirProvider) LoadPolicies(macroFilters []MacroFilter, ruleFilte
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
+
+	slices.Sort(policyFiles)
 
 	// Load and parse policies
 	for _, filename := range policyFiles {

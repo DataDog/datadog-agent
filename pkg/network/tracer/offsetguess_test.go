@@ -300,7 +300,7 @@ func testOffsetGuess(t *testing.T) {
 			}
 
 			var offset uint64
-			var name offsetT = o //nolint:revive // TODO
+			var name = o
 			require.NoError(t, mp.Lookup(&name, &offset))
 			assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
 			t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])

@@ -11,14 +11,22 @@ package flake
 
 import (
 	"flag"
+	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 const flakyTestMessage = "flakytest: this is a known flaky test"
 
 var skipFlake = flag.Bool("skip-flake", false, "skip tests labeled as flakes")
+var flakyPatternsConfigMutex = sync.Mutex{}
 
 // Mark test as a known flaky.
 // If any of skip-flake flag or GO_TEST_SKIP_FLAKE environment variable is set, the test will be skipped.
@@ -30,6 +38,103 @@ func Mark(t testing.TB) {
 		return
 	}
 	t.Log(flakyTestMessage)
+}
+
+// Get the test function package which is the topmost function in the stack that is part of the datadog-agent package
+func getPackageName() (string, error) {
+	fullPackageName := ""
+	for i := 0; i < 42; i++ {
+		pc, _, _, ok := runtime.Caller(i)
+		if !ok {
+			// Top of the stack
+			break
+		}
+		fullname := runtime.FuncForPC(pc).Name()
+		if strings.Contains(fullname, "datadog-agent") {
+			fullPackageName = fullname
+		}
+	}
+
+	if fullPackageName == "" {
+		return "", fmt.Errorf("failed to fetch e2e test function information")
+	}
+
+	prefix := filepath.FromSlash("github.com/DataDog/datadog-agent/")
+	fullPackageName = strings.TrimPrefix(fullPackageName, prefix)
+	nameParts := strings.Split(fullPackageName, ".")
+	packageName := nameParts[0]
+
+	return packageName, nil
+}
+
+// MarkOnLog marks the test as flaky when the `pattern` regular expression is found in its logs.
+func MarkOnLog(t testing.TB, pattern string) {
+	// Types for the yaml file
+	type testEntry struct {
+		Test  string `yaml:"test"`
+		OnLog string `yaml:"on-log"`
+	}
+	type configEntries = map[string][]testEntry
+
+	t.Helper()
+	flakyPatternsConfig := os.Getenv("E2E_FLAKY_PATTERNS_CONFIG")
+	if flakyPatternsConfig == "" {
+		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky since E2E_FLAKY_PATTERNS_CONFIG is not set")
+		return
+	}
+
+	// Avoid race conditions
+	flakyPatternsConfigMutex.Lock()
+	defer flakyPatternsConfigMutex.Unlock()
+
+	flakyConfig := make(configEntries)
+
+	// Read initial config
+	_, err := os.Stat(flakyPatternsConfig)
+	if err == nil {
+		f, err := os.Open(flakyPatternsConfig)
+		if err != nil {
+			t.Logf("Warning: failed to open flaky patterns config file: %v", err)
+			return
+		}
+		defer f.Close()
+
+		dec := yaml.NewDecoder(f)
+		err = dec.Decode(&flakyConfig)
+		if err != nil {
+			t.Logf("Warning: failed to decode flaky patterns config file: %v", err)
+			return
+		}
+	}
+
+	packageName, err := getPackageName()
+	if err != nil {
+		t.Logf("Warning: failed to get package name: %v", err)
+		return
+	}
+
+	// Update config by adding an entry to this test with this pattern
+	entry := testEntry{Test: t.Name(), OnLog: pattern}
+	if packageConfig, ok := flakyConfig[packageName]; ok {
+		flakyConfig[packageName] = append(packageConfig, entry)
+	} else {
+		flakyConfig[packageName] = []testEntry{entry}
+	}
+
+	// Write config back
+	f, err := os.OpenFile(flakyPatternsConfig, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		t.Logf("Warning: failed to open flaky patterns config file: %v", err)
+		return
+	}
+	defer f.Close()
+
+	encoder := yaml.NewEncoder(f)
+	err = encoder.Encode(flakyConfig)
+	if err != nil {
+		t.Logf("Warning: failed to encode flaky patterns config file: %v", err)
+		return
+	}
 }
 
 func shouldSkipFlake() bool {

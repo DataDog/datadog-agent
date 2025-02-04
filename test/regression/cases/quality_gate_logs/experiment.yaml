@@ -4,7 +4,7 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 4
-  memory_allotment: 500MiB
+  memory_allotment: 350 MiB
 
   environment:
     DD_API_KEY: 00000001
@@ -28,7 +28,7 @@ checks:
     description: "Memory usage"
     bounds:
       series: total_rss_bytes
-      upper_bound: 414MiB
+      upper_bound: "406.0 MiB"
 
   - name: lost_bytes
     description: "Allowable bytes not polled by log Agent"

@@ -46,8 +46,8 @@ const (
 	udpSendSkb              = "kprobe__udp_send_skb"
 
 	skbFreeDatagramLocked   = "skb_free_datagram_locked"
-	__skbFreeDatagramLocked = "__skb_free_datagram_locked" //nolint:revive // TODO
-	skbConsumeUdp           = "skb_consume_udp"            //nolint:revive // TODO
+	__skbFreeDatagramLocked = "__skb_free_datagram_locked" // nolint:revive
+	skbConsumeUDP           = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
@@ -112,7 +112,7 @@ var programs = map[string]struct{}{
 	udpv6DestroySockReturn:    {},
 	skbFreeDatagramLocked:     {},
 	__skbFreeDatagramLocked:   {},
-	skbConsumeUdp:             {},
+	skbConsumeUDP:             {},
 	tcpRecvMsgPre5190Return:   {},
 	udpRecvMsgPre5190Return:   {},
 	udpv6RecvMsgPre5190Return: {},
@@ -203,7 +203,7 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 		return fmt.Errorf("error verifying kernel function presence: %s", err)
 	}
 	if _, miss := missing["skb_consume_udp"]; !miss {
-		enableProgram(enabled, skbConsumeUdp)
+		enableProgram(enabled, skbConsumeUDP)
 	} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
 		enableProgram(enabled, __skbFreeDatagramLocked)
 	} else if _, miss := missing["skb_free_datagram_locked"]; !miss {

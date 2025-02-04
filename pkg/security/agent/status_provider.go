@@ -57,6 +57,7 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 					"kernelLockdown": cfStatus.Environment.KernelLockdown,
 					"mmapableMaps":   cfStatus.Environment.UseMmapableMaps,
 					"ringBuffer":     cfStatus.Environment.UseRingBuffer,
+					"fentry":         cfStatus.Environment.UseFentry,
 				}
 				if cfStatus.Environment.Constants != nil {
 					environment["constantFetchers"] = cfStatus.Environment.Constants

@@ -9,7 +9,7 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 4
-  memory_allotment: 500MiB
+  memory_allotment: 250 MiB
 
   environment:
     DD_API_KEY: 00000001
@@ -35,7 +35,7 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "356.0 MiB"
+      upper_bound: "350.0 MiB"
 
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."
