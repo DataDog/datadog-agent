@@ -1,8 +1,8 @@
 # Jobs that deploy agent packages on QA environment, to be used by e2e tests.
 # We use two separate jobs for Windows and Linux so that a failure in deploying the
-# Linux / Windows scrip doesn't impact the other OS (i.e. Windows scripts failing to be signed blocking Linux E2E tests).
+# Linux / Windows script doesn't impact the other OS (i.e. Windows scripts failing to be signed blocking Linux E2E tests).
 
-qa_installer_script:
+qa_installer_script_linux:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: deploy_packages
   tags: ["arch:amd64"]
