@@ -190,9 +190,9 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 		return nil, fmt.Errorf("failed to create auto instrumentation mutator config: %v", err)
 	}
 	mutator := mutatecommon.NewMultiMutator(
-		autoinstrumentation.NewMutator(apmMutatorCfg, filter, wmeta),
 		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter),
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), filter),
+		autoinstrumentation.NewMutator(apmMutatorCfg, filter, wmeta),
 	)
 	return autoinstrumentation.NewWebhook(wmeta, datadogConfig, mutator)
 }
