@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
@@ -185,21 +186,6 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Make an iterator that returns elements from each IEnumerable in order.
-        /// Example: Chain("ABC", "DEF") -> A B C D E F
-        /// </summary>
-        private static IEnumerable<T> Chain<T>(IEnumerable<IEnumerable<T>> collection)
-        {
-            foreach (var inner in collection)
-            {
-                foreach (var item in inner)
-                {
-                    yield return item;
-                }
-            }
-        }
-
-        /// <summary>
         /// Reset the permissions for select files and directories in the agent configuration directory APPLICATIONDATADIRECTORY.
         /// - Enable ACE inheritance
         /// - Remove redundant explicit ACEs for the agent user that may have been left by previous installer versions
@@ -217,38 +203,14 @@ namespace Datadog.CustomActions
         /// </remarks>
         private void ResetConfigurationPermissions()
         {
-            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
-            var fsEnum = new List<IEnumerable<string>>();
-
-            // directories to process recursively
-            var dirs = new List<string> {
-                Path.Combine(configRoot, "conf.d"),
-                Path.Combine(configRoot, "checks.d"),
-                Path.Combine(configRoot, "run"),
-                Path.Combine(configRoot, "logs"),
-            };
-            // Add the directories themselves
-            fsEnum.Add(dirs);
-            // add their subdirs/files (recursively)
-            foreach (var dir in dirs)
+            var paths = _session.PathsWithAgentAccess();
+            // add dirs recursively only if they exist (EnumerateFileSystemEntries throws an exception if they don't)
+            foreach (var dir in paths.Where(_fileSystemServices.IsDirectory).ToArray())
             {
-                // add dirs only if they exist (EnumerateFileSystemEntries throws an exception if they don't)
-                if (_fileSystemServices.Exists(dir))
-                {
-                    fsEnum.Add(Directory.EnumerateFileSystemEntries(dir, "*.*", SearchOption.AllDirectories));
-                }
+                paths.AddRange(Directory.EnumerateFileSystemEntries(dir, "*.*", SearchOption.AllDirectories));
             }
-            // add specific files
-            fsEnum.Add(new List<string>
-                {
-                    Path.Combine(configRoot, "datadog.yaml"),
-                    Path.Combine(configRoot, "system-probe.yaml"),
-                    Path.Combine(configRoot, "auth_token"),
-                    Path.Combine(configRoot, "install_info"),
-                }
-             );
 
-            foreach (var filePath in Chain(fsEnum))
+            foreach (var filePath in paths)
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -375,7 +337,7 @@ namespace Datadog.CustomActions
         private void GrantAgentAccessPermissions()
         {
             // add ddagentuser FullControl to select places
-            foreach (var filePath in PathsWithAgentAccess())
+            foreach (var filePath in _session.PathsWithAgentAccess())
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -630,22 +592,6 @@ namespace Datadog.CustomActions
             return new ConfigureUserCustomActions(new SessionWrapper(session), "ConfigureUser").ConfigureUserRollback();
         }
 
-        private List<string> PathsWithAgentAccess()
-        {
-            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
-
-            return new List<string> {
-                Path.Combine(configRoot, "conf.d"),
-                Path.Combine(configRoot, "checks.d"),
-                Path.Combine(configRoot, "run"),
-                Path.Combine(configRoot, "logs"),
-                Path.Combine(configRoot, "datadog.yaml"),
-                Path.Combine(configRoot, "system-probe.yaml"),
-                Path.Combine(configRoot, "auth_token"),
-                Path.Combine(configRoot, "install_info"),
-                Path.Combine(configRoot, "python-cache"),
-            };
-        }
 
         /// <summary>
         /// Remove an explicit access ACE for the ddagentuser for @sid from @filePath
@@ -723,14 +669,11 @@ namespace Datadog.CustomActions
                 if (securityIdentifier != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
                     _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-                    foreach (var filePath in PathsWithAgentAccess())
+                    foreach (var filePath in _session.PathsWithAgentAccess().Where(_fileSystemServices.Exists))
                     {
                         try
                         {
-                            if (_fileSystemServices.Exists(filePath))
-                            {
-                                RemoveAgentAccess(securityIdentifier, filePath);
-                            }
+                            RemoveAgentAccess(securityIdentifier, filePath);
                         }
                         catch (Exception e)
                         {
