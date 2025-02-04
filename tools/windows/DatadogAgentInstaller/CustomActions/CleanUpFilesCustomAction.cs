@@ -12,7 +12,6 @@ namespace Datadog.CustomActions
         private static ActionResult CleanupFiles(ISession session)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
-            var applicationDataLocation = session.Property("APPLICATIONDATADIRECTORY");
             var toDelete = new[]
             {
                 // may contain python files created outside of install
