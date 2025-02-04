@@ -17,15 +17,12 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const createAndSetAuthTokenTimeout = 10 * time.Second
 
 type source int
 
@@ -108,7 +105,7 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), createAndSetAuthTokenTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.GetDuration("auth_init_timeout"))
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -217,7 +214,7 @@ func InitDCAAuthToken(config model.Reader) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), config.GetDuration("auth_init_timeout"))
 	defer cancel()
 
 	var err error

@@ -180,7 +180,7 @@ func TestDeadline(t *testing.T) {
 	err = CreateAndSetAuthToken(mockConfig)
 	duration := time.Since(start)
 	assert.Error(t, err)
-	assert.LessOrEqual(t, duration, createAndSetAuthTokenTimeout+time.Second)
+	assert.LessOrEqual(t, duration, mockConfig.GetDuration("auth_init_timeout")+time.Second)
 }
 
 // This test check that if one of thje artifacts creation fails and the other is processing, the function stops and returns an error
@@ -214,7 +214,7 @@ func TestFailEarly(t *testing.T) {
 	err = CreateAndSetAuthToken(mockConfig)
 	duration := time.Since(start)
 	assert.Error(t, err)
-	assert.LessOrEqual(t, duration, createAndSetAuthTokenTimeout+time.Second)
+	assert.LessOrEqual(t, duration, mockConfig.GetDuration("auth_init_timeout")+time.Second)
 }
 
 func TestStartingServerClientWithUninitializedTLS(t *testing.T) {
