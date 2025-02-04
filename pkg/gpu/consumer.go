@@ -104,7 +104,7 @@ func (c *cudaEventConsumer) Start() {
 	c.wg.Add(1)
 	go func() {
 		c.running.Store(true)
-		processSync := time.NewTicker(c.cfg.ScanTerminatedProcessesInterval)
+		processSync := time.NewTicker(c.cfg.ScanProcessesInterval)
 
 		defer func() {
 			cleanupExit()

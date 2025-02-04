@@ -191,7 +191,7 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	for i := 0; i < 10; i++ {
 		wg.Go(func() error {
 			// Write clientMessageSize to server, and read response
-			if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+			if _, err := c.Write(genPayload(clientMessageSize)); err != nil {
 				return err
 			}
 
