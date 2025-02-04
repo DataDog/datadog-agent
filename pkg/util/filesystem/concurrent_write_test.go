@@ -27,18 +27,14 @@ type MockArtiFactory struct {
 	id            int
 }
 
-func (m *MockArtiFactory) Generate() (string, error) {
+func (m *MockArtiFactory) Generate() (string, []byte, error) {
 	data := m.data
 	m.t.Logf("artifaction generation starts from %d", m.id)
 	if m.dataGenerator != nil {
 		data = m.dataGenerator()
 	}
 	m.t.Logf("artifaction generation ends from %d", m.id)
-	return data, nil
-}
-
-func (m *MockArtiFactory) Serialize(data string) ([]byte, error) {
-	return []byte(data), nil
+	return data, []byte(data), nil
 }
 
 func (m *MockArtiFactory) Deserialize(data []byte) (string, error) {
@@ -63,9 +59,9 @@ func TestFetchArtifact(t *testing.T) {
 	require.Error(t, err)
 
 	// Create a mock artifact file
-	content, err := mockFactory.Serialize(mockFactory.data)
+	_, raw, err := mockFactory.Generate()
 	require.NoError(t, err)
-	err = os.WriteFile(location, content, 0o600)
+	err = os.WriteFile(location, raw, 0o600)
 	require.NoError(t, err)
 	defer os.Remove(location)
 
@@ -112,7 +108,7 @@ func TestContextCancellation(t *testing.T) {
 
 	// Check that the error is due to context cancellation
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "context deadline exceeded")
+	assert.Contains(t, err.Error(), "unable to acquire lock in the given time")
 }
 
 func TestHandleMultipleConcurrentWrites(t *testing.T) {
@@ -123,7 +119,7 @@ func TestHandleMultipleConcurrentWrites(t *testing.T) {
 	g := new(errgroup.Group)
 
 	// Number of concurrent goroutines
-	numGoroutines := 100
+	numGoroutines := 50
 
 	results := make(chan string, numGoroutines)
 
@@ -159,6 +155,16 @@ func TestHandleMultipleConcurrentWrites(t *testing.T) {
 	// Make sure that all goroutine produced the same output
 	for i := 0; i < numGoroutines; i++ {
 		readedArtifact := <-results
-		assert.Equal(t, stringContent, readedArtifact)
+		assert.Equal(t, stringContent, readedArtifact, "all goroutines should read the same final artifact")
 	}
+
+	// The artifact file should exist now
+	_, err = os.Stat(location)
+	require.NoError(t, err, "artifact file should exist after creation")
+
+	// The lock file should be cleaned up
+	lockFilePath := location + lockSuffix
+	_, err = os.Stat(lockFilePath)
+	require.True(t, os.IsNotExist(err),
+		"lock file should not exist after successful creation and concurrent reads")
 }

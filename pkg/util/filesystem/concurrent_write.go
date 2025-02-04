@@ -7,7 +7,9 @@ package filesystem
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,8 +25,9 @@ const retryDelay = 500 * time.Millisecond
 // ArtifactBuilder is a generic interface for building, serializing, and deserializing artifacts.
 // The type parameter T represents the in-memory type of the artifact.
 type ArtifactBuilder[T any] interface {
-	Generate() (T, error)
-	Serialize(T) ([]byte, error)
+	// Generate creates a new artifact and returns it along with its serialized form.
+	Generate() (T, []byte, error)
+	// Deserialize converts a serialized artifact into an in-memory representation.
 	Deserialize([]byte) (T, error)
 }
 
@@ -47,7 +50,7 @@ func FetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, error
 // FetchOrCreateArtifact attempts to load an artifact using the provided factory.
 // If the artifact does not exist, it generates a new one, stores it, and returns it.
 //
-// The function first tries to load the artifact using the factory's location.
+// The function first tries to load the artifact using the provided location.
 // If loading fails, it generates a temporary artifact and attempts to acquire a file lock.
 // When the lock is acquired, the function checks if another process has already created the artifact.
 // If not, it moves the temporary artifact to its final location.
@@ -55,8 +58,14 @@ func FetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, error
 // The function will repeatedly try to acquire the lock until the context is canceled or the lock is acquired.
 //
 // This function is thread-safe and non-blocking.
-func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (artifact T, err error) {
+func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (T, error) {
 	var zero T
+	var succeed bool
+
+	perms, err := NewPermission()
+	if err != nil {
+		return zero, log.Errorf("unable to init NewPermission: %v", err)
+	}
 
 	res, err := FetchArtifact(location, factory)
 	if err == nil {
@@ -66,26 +75,38 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	fileLock := flock.New(location + lockSuffix)
 	defer func() {
 		log.Debugf("releasing lock for file %v", location)
+
+		// Calling Unlock() even if the lock was not acquired is safe
+		// [flock.Unlock()](https://pkg.go.dev/github.com/gofrs/flock#Flock.Unlock) is idempotent
+		// Unlock() also close the file descriptor
 		err := fileLock.Unlock()
-		// We don't want to remove the lock file here, as it may be used by another process
 		if err != nil {
 			log.Warnf("unable to release lock: %v", err)
+		}
+
+		// In a matter of letting the FS cleaned, we should remove the lock file
+		// We can consider that if either the artifact have been successfully created or retrieved, the lock file is no longer useful.
+		// On UNIX, it is possible to remove file open by another process, but the file will be removed only when the last process close it, so:
+		// - process that already opened it will still try to lock it, and when getting the lock, they will successfully load the artifact
+		// - process that didn't locked it yet will be able to load the artifact before trying to acquire the lock
+		// We filter the error to avoid logging an error if the file does not exist, which would mean that another process already cleaned it
+		//
+		// On windows, it is not possible to remove a file open by another process, so the remove call will succeed only for the last process that locked it
+		if succeed {
+			if err = os.Remove(location + lockSuffix); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				log.Debugf("unable to remove lock file: %v", err.Error())
+			}
 		}
 	}()
 
 	// trying to lock artifact file
-	locked, err := fileLock.TryLockContext(ctx, retryDelay)
-
+	locked, err := TryLockContext(ctx, fileLock, retryDelay)
 	if err != nil {
-		if locked {
-			// We acquired the lock, but an error occurred
-			// We should release the lock before returning
-			if err := fileLock.Unlock(); err != nil {
-				log.Warnf("unable to release lock: %v", err)
-			}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return zero, fmt.Errorf("unable to acquire lock in the given time: %v", err.Error())
 		}
 
-		return zero, fmt.Errorf("an error happen when trying to acquire lock: %v", err)
+		return zero, fmt.Errorf("an error happened while trying to acquire lock: %v", err)
 	}
 
 	if !locked {
@@ -98,10 +119,20 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	// First check if another process were able to create and save artifact during lock
 	res, err = FetchArtifact(location, factory)
 	if err == nil {
+		succeed = true
 		return res, nil
 	}
 
-	createdArtifact, tmpLocation, err := generateTmpArtifact(location, factory)
+	// If we are here, it means that the artifact does not exist, and we can expect that this process is the first to lock it
+	// and create it (except in case of a previous failure).
+	// If the process is run by a high-privileged user (root or Administrator), the lock file will be owned by this user.
+	// We must set the permissions to `dd-agent` or an equivalent user to allow other Agent processes to acquire the lock.
+	err = perms.RestrictAccessToUser(location + lockSuffix)
+	if err != nil {
+		return zero, fmt.Errorf("unable to restrict access to user: %v", err)
+	}
+
+	createdArtifact, tmpLocation, err := generateTmpArtifact(location, factory, perms)
 	if err != nil {
 		return zero, fmt.Errorf("unable to generate temporary artifact: %v", err.Error())
 	}
@@ -118,25 +149,39 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 		return zero, fmt.Errorf("unable to move temporary artifact to its final location: %v", err.Error())
 	}
 
+	// // If everything went well, we can safely remove the lock file
+	// // This will unlock the other process waiting for the lock
+	// // letting them check if the artifact is already created
+
+	succeed = true
 	return createdArtifact, nil
 }
 
-func generateTmpArtifact[T any](location string, factory ArtifactBuilder[T]) (T, string, error) {
+// TryLockContext tries to acquire a lock on the provided file.
+// It copy the behavior of flock.TryLock() but retry if the lock have the wrong permissions.
+// This allow the case where a the lock file is created by a different user than the one trying to acquire the lock.
+// and let the opportunity to the other process to set the right permissions in the meantime.
+func TryLockContext(ctx context.Context, lockfile *flock.Flock, retryDelay time.Duration) (bool, error) {
+	for {
+		if ok, err := lockfile.TryLock(); (ok || err != nil) && !errors.Is(err, fs.ErrPermission) {
+			return ok, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-time.After(retryDelay):
+			// try again
+		}
+	}
+}
+
+func generateTmpArtifact[T any](location string, factory ArtifactBuilder[T], perms *Permission) (T, string, error) {
 	var zero T
 
-	tmpArtifact, err := factory.Generate()
+	tmpArtifact, newArtifactContent, err := factory.Generate()
 	if err != nil {
 		return zero, "", fmt.Errorf("unable to generate new artifact: %v", err)
-	}
-
-	newArtifactContent, err := factory.Serialize(tmpArtifact)
-	if err != nil {
-		return zero, "", fmt.Errorf("unable to serialize new artifact: %v", err)
-	}
-
-	perms, err := NewPermission()
-	if err != nil {
-		return zero, "", fmt.Errorf("unable to prepare artifact: %v", err)
 	}
 
 	tmpFile, err := os.CreateTemp(filepath.Dir(location), "tmp-artifact-")
