@@ -53,10 +53,11 @@ function do_with_retries() {
 # something we don't ship, this made the build fail (see: https://github.com/DataDog/datadog-agent-macos-build/runs/1011733463?check_suite_focus=true).
 # In order to avoid such cases in the future where we use things we didn't expect to, we'd rather
 # start with a "clean" runner with the bare minimum, and only install the brew packages we require.
-echo 'Removing preinstalled environment...'
-for dependency in $(brew list --formula); do
-    brew remove --force --ignore-dependencies --formula $dependency || echo "Warning: $dependency could not be removed"
-done
+# TODO A
+# echo 'Removing preinstalled environment...'
+# for dependency in $(brew list --formula); do
+#     brew remove --force --ignore-dependencies --formula $dependency || echo "Warning: $dependency could not be removed"
+# done
 # TODO A
 # # Also completely remove the ruby env, otherwise some files remain after the formula uninstall,
 # # possibly causing gem version mismatch issues (eg. bundler).
