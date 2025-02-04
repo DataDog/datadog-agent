@@ -254,14 +254,14 @@ http_archive(
     url = "http://ftp.rpm.org/releases/rpm-4.18.x/rpm-{0}.tar.bz2".format(RPM_VERSION),
 )
 
-UTIL_LINUX_VERSION = "2.39.2"
+UTIL_LINUX_VERSION = "2.40.4"
 
 http_archive(
     name = "util-linux",
     build_file_content = all_content,
-    sha256 = "c8e1a11dd5879a2788973c73589fbcf08606e85aeec095e516162495ead8ba68",
+    sha256 = "5b3b1435c02ba201ebaa5066bb391965a614b61721155dfb7f7b6569e95b0627",
     strip_prefix = "util-linux-{0}".format(UTIL_LINUX_VERSION),
-    url = "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.39/util-linux-{0}.tar.gz".format(UTIL_LINUX_VERSION),
+    url = "https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.40/util-linux-{0}.tar.gz".format(UTIL_LINUX_VERSION),
 )
 
 NETTLE_VERSION = "3.9.1"
