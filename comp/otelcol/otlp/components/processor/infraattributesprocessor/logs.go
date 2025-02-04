@@ -19,15 +19,13 @@ type infraAttributesLogProcessor struct {
 	logger      *zap.Logger
 	tagger      taggerClient
 	cardinality types.TagCardinality
-	generateID  GenerateKubeMetadataEntityID
 }
 
-func newInfraAttributesLogsProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateID GenerateKubeMetadataEntityID) (*infraAttributesLogProcessor, error) {
+func newInfraAttributesLogsProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesLogProcessor, error) {
 	ialp := &infraAttributesLogProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
-		generateID:  generateID,
 	}
 
 	set.Logger.Info("Logs Infra Attributes Processor configured")
@@ -38,7 +36,7 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 	rls := ld.ResourceLogs()
 	for i := 0; i < rls.Len(); i++ {
 		resourceAttributes := rls.At(i).Resource().Attributes()
-		processInfraTags(ialp.logger, ialp.tagger, ialp.cardinality, ialp.generateID, resourceAttributes)
+		processInfraTags(ialp.logger, ialp.tagger, ialp.cardinality, resourceAttributes)
 	}
 	return ld, nil
 }

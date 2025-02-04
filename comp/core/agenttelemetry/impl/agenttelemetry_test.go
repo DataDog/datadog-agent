@@ -501,7 +501,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -541,7 +541,7 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -581,7 +581,7 @@ func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
   `
 
@@ -620,7 +620,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -662,7 +662,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags:
                   - tag1
@@ -711,7 +711,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_total: true
                 aggregate_tags:

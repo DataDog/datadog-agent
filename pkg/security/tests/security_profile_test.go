@@ -310,7 +310,7 @@ func TestAnomalyDetection(t *testing.T) {
 			// don't do anything
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection.")
+			t.Error("Should not had receive any anomaly detection.")
 			return false
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -379,7 +379,7 @@ func TestAnomalyDetection(t *testing.T) {
 			// don't do anything
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection.")
+			t.Error("Should not had receive any anomaly detection.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -462,7 +462,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*5, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -473,7 +473,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -503,7 +503,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*5, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -516,7 +516,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -527,7 +527,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -538,7 +538,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal("Should not had receive any anomaly detection during warm up.")
+			t.Error("Should not had receive any anomaly detection during warm up.")
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -617,7 +617,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -651,7 +651,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*3, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -855,7 +855,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
@@ -874,7 +874,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_dns")
@@ -1106,7 +1106,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1165,7 +1165,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1176,7 +1176,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1196,7 +1196,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1280,7 +1280,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1337,7 +1337,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1348,7 +1348,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1368,7 +1368,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1457,7 +1457,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// We shouldn't see anything: the profile is still learning
 			data, _ := event.MarshalJSON()
-			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			t.Error(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
 			// we answer false on purpose: we might have 2 or more syscall anomaly events
 			return false
 		}, time.Second*2, model.SyscallsEventType, events.AnomalyDetectionRuleID)
@@ -1475,7 +1475,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// this time we shouldn't see anything new.
 			data, _ := event.MarshalJSON()
-			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			t.Error(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
 			return false
 		}, time.Second*2, model.SyscallsEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1534,7 +1534,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// this time we shouldn't see anything new.
 			data, _ := event.MarshalJSON()
-			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			t.Error(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
 			return false
 		}, time.Second*2, model.SyscallsEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1556,7 +1556,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 		}, func(_ *rules.Rule, event *events.CustomEvent) bool {
 			// We shouldn't see anything: the profile is unstable
 			data, _ := event.MarshalJSON()
-			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			t.Error(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
 			// we answer false on purpose: we might have 2 or more syscall anomaly events
 			return false
 		}, time.Second*2, model.SyscallsEventType, events.AnomalyDetectionRuleID)
@@ -1642,7 +1642,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1820,7 +1820,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.DNSEventType, events.AnomalyDetectionRuleID)
 	})
@@ -1998,7 +1998,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			t.Error(errors.New("catch a custom event that should had been reinserted"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -2019,7 +2019,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -2042,7 +2042,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -2065,7 +2065,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Fatal(errors.New("catch a custom event that should had been discarded"))
+			t.Error(errors.New("catch a custom event that should had been discarded"))
 			return false
 		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
@@ -2197,7 +2197,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 			_, err := dockerInstance2.Command("getconf", []string{"-a"}, []string{}).CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, _ *model.Event) bool {
-			t.Fatal("Got an event that should have been suppressed")
+			t.Error("Got an event that should have been suppressed")
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
 		if err != nil {

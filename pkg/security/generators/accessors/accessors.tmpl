@@ -67,13 +67,12 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{- if and $Field.Iterator (not $Field.IsIterator) }}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					ctx.AppendResolvedField(field)
-					{{if $Field.Handler}}
-						ev := ctx.Event.(*Event)
-					{{end}}
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
 
-					iterator := &{{$Field.Iterator.ReturnType}}{}
+					ev := ctx.Event.(*Event)
+
+					iterator := &{{$Field.Iterator.ReturnType}}{Root: ev.{{$Field.Iterator.Name}}}
 
 					if regID != "" {
 						{{if $Field.Iterator.IsOrigTypePtr}}
@@ -94,7 +93,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
 								{{$Check = $SubName | printf "element%s"}}
 								if !{{$Check}}() {
-									ctx.Error = &eval.ErrNotSupported{Field: field}
 									return []{{$Field.ReturnType}}{ {{$Field.GetDefaultScalarReturnValue}} }
 								}
 							{{end}}
@@ -144,7 +142,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
 								{{$Check = $SubName | printf "current%s"}}
 								if !{{$Check}}() {
-									ctx.Error = &eval.ErrNotSupported{Field: field}
 									{{if $Field.GetArrayPrefix}}
 									return nil
 									{{else}}
@@ -192,7 +189,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					{{range $Check := $Checks}}
 						{{$Check = $Check | printf "ev.%s"}}
 						if !{{$Check}}() {
-							ctx.Error = &eval.ErrNotSupported{Field: field}
 							return {{$Field.GetDefaultReturnValue}}
 						}
 					{{end}}
@@ -283,9 +279,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	ctx := eval.NewContext(ev)
 	value := evaluator.Eval(ctx)
-	if ctx.Error != nil {
-		return nil, ctx.Error
-	}
 	return value, nil
 }
 
@@ -319,11 +312,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{end}}
 
 		{{$FieldName := $Field | BuildFirstAccessor $.AllFields}}
+		{{$SetHandler := $Field | GetSetHandler $.AllFields}}
+
 		case "{{$Name}}":
 			{{- $Field | NewField $.AllFields}}
-			{{if $Field.IsLength}}
+			{{if $Field | IsReadOnly}}
 				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
 			{{else}}
+			{{if ne $SetHandler ""}}
+				cont, err := {{$SetHandler}}
+				if err != nil || !cont {
+					return err
+				}
+			{{end}}
 			{{- if eq $Field.BasicType "string"}}
 				{{- if $Field.IsArray}}
 					switch rv := value.(type) {

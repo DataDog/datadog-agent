@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
@@ -470,14 +469,23 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID    string
-	Name  string
-	Image ContainerImage
+	ID        string
+	Name      string
+	Image     ContainerImage
+	Resources ContainerResources
 }
 
 // String returns a string representation of OrchestratorContainer.
-func (o OrchestratorContainer) String(_ bool) string {
-	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
+func (o OrchestratorContainer) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", o.Name)
+	_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
+		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
+		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+	}
+	return sb.String()
 }
 
 // ECSContainer is a reference to a container running in ECS
@@ -880,11 +888,11 @@ type KubernetesDeployment struct {
 
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
-	InjectableLanguages langUtil.ContainersLanguages
+	InjectableLanguages languagemodels.ContainersLanguages
 
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
-	DetectedLanguages langUtil.ContainersLanguages
+	DetectedLanguages languagemodels.ContainersLanguages
 }
 
 // GetID implements Entity#GetID.
@@ -920,7 +928,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
 
-	langPrinter := func(containersLanguages langUtil.ContainersLanguages) {
+	langPrinter := func(containersLanguages languagemodels.ContainersLanguages) {
 		initContainersInfo := make([]string, 0, len(containersLanguages))
 		containersInfo := make([]string, 0, len(containersLanguages))
 
