@@ -40,6 +40,8 @@ use (
 	comp/otelcol/converter/impl
 	comp/otelcol/ddflareextension/def
 	comp/otelcol/ddflareextension/impl
+	comp/otelcol/ddprofilingextension/def
+	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	comp/otelcol/otlp/components/exporter/datadogexporter

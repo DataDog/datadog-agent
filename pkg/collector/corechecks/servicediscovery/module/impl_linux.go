@@ -725,6 +725,9 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		{"kube_service", nil},
 	}
 
+	// Sort the tags to make the function deterministic
+	slices.Sort(tags)
+
 	for _, tag := range tags {
 		// Get index of separator between name and value
 		sepIndex := strings.IndexRune(tag, ':')
@@ -734,6 +737,11 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		}
 
 		for i := range tagsPriority {
+			if tagsPriority[i].tagValue != nil {
+				// We have seen this tag before, we don't need another value.
+				continue
+			}
+
 			if tag[:sepIndex] != tagsPriority[i].tagName {
 				// Not a tag we care about; we skip it
 				continue
