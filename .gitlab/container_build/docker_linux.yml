@@ -261,39 +261,39 @@ docker_build_cluster_agent_arm64:
     - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 docker_build_cluster_agent_fips_amd64:
-  extends: [.docker_build_job_definition_amd64, .docker_build_s3]
+  extends: [.docker_build_job_definition_amd64]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent_fips-build_amd64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_amd64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_arm64
-      artifacts: false
+      artifacts: true
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent-fips
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
-    - !reference [.docker_build_s3, before_script]
-    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
 
 docker_build_cluster_agent_fips_arm64:
-  extends: [.docker_build_job_definition_arm64, .docker_build_s3]
+  extends: [.docker_build_job_definition_arm64]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent_fips-build_arm64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_amd64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_arm64
-      artifacts: false
+      artifacts: true
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent-fips
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
-    - !reference [.docker_build_s3, before_script]
-    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
 
 # build the cws-instrumentation image
