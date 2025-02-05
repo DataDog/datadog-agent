@@ -22,7 +22,7 @@ const memfdLanguageDetectedFileName = "dd_language_detected"
 
 // memFdMaxSize is the longest string we're going to be
 // reading from this memfd file. Because this is _only_
-// langauge, this is likely to be very short (under 10 chars)
+// language, this is likely to be very short (under 10 chars)
 // since it's a known set of things we're writing at the moment.
 const memFdMaxSize = 10
 
