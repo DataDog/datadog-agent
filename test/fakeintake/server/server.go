@@ -475,7 +475,7 @@ func (fi *Server) extractDatadogAPIKey(req *http.Request) string {
 	return ""
 }
 
-func (fi *Server) handleGetLastAPIKey(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleGetLastAPIKey(w http.ResponseWriter, _req *http.Request) {
 	apiKey, err := fi.store.GetRecentAPIKey()
 	if err != nil {
 		response := buildErrorResponse(err)

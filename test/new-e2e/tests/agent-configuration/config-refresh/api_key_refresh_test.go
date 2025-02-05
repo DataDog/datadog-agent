@@ -82,7 +82,7 @@ api_key: ENC[api_key]
 	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
 	fmt.Printf("did we get an error: %v\n", err)
 	fmt.Printf("did we get api Key: %v\n", lastAPIKey)
-	v.T().Logf(fmt.Sprintf("did we get an error: %v\n", err))
-	v.T().Logf(fmt.Sprintf("did we get api Key: %v\n", lastAPIKey))
+	v.T().Logf("%s", fmt.Sprintf("did we get an error: %v\n", err))
+	v.T().Logf("%s", fmt.Sprintf("did we get api Key: %v\n", lastAPIKey))
 	v.T().Logf("Test Completed!!!!")
 }

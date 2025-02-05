@@ -122,7 +122,7 @@ func (s *sqlStore) Close() {
 	os.Remove(s.path)
 }
 
-func (s *sqlStore) SetRecentAPIKey(key string) {
+func (s *sqlStore) SetRecentAPIKey(_ string) {
 	// pass
 }
 
