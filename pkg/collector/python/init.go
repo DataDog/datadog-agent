@@ -540,7 +540,7 @@ func initFIPS(embeddedPath string) error {
 	if v := os.Getenv("OPENSSL_MODULES"); v == "" {
 		pathToOpenSSLModules := filepath.Join(embeddedPath, "lib", "ossl-modules")
 		if _, err := os.Stat(pathToOpenSSLModules); os.IsNotExist(err) {
-			return errors.New("The directory " + pathToOpenSSLModules + " does not exist")
+			return fmt.Errorf("The directory %q does not exist", pathToOpenSSLModules)
 		}
 		os.Setenv("OPENSSL_MODULES", pathToOpenSSLModules)
 	}
