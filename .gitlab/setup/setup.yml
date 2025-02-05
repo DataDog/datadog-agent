@@ -7,6 +7,14 @@ setup_agent_version:
     - source /root/.bashrc
     - inv -e agent.version -m 6 --version-cached
     - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
+    - echo "DEPLOY_AGENT - $DEPLOY_AGENT"
+    - echo "RUN_ALL_BUILDS - $RUN_ALL_BUILDS"
+    - echo "RUN_E2E_TESTS - $RUN_E2E_TESTS"
+    - echo "RUN_KMT_TESTS - $RUN_KMT_TESTS"
+    - echo "RELEASE_VERSION_6 - $RELEASE_VERSION_6"
+    - echo "RELEASE_VERSION_7 - $RELEASE_VERSION_7"
+    - echo "BUCKET_BRANCH - $BUCKET_BRANCH"
+    - echo "RC_BUILD - $RC_BUILD"
   needs: []
 
 github_rate_limit_info:
