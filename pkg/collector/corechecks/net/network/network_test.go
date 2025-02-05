@@ -82,7 +82,7 @@ type MockEthtool struct {
 func (f *MockEthtool) DriverInfo(intf string) (ethtool.DrvInfo, error) {
 	if intf == "eth0" {
 		return ethtool.DrvInfo{
-			Driver:  "mock_driver",
+			Driver:  "ena",
 			Version: "mock_version",
 		}, nil
 	}
@@ -93,8 +93,10 @@ func (f *MockEthtool) DriverInfo(intf string) (ethtool.DrvInfo, error) {
 func (f *MockEthtool) Stats(intf string) (map[string]uint64, error) {
 	if intf == "eth0" {
 		return map[string]uint64{
-			"tx_packets": 12345,
-			"rx_bytes":   67890,
+			"queue_0_tx_packets": 12345,
+			"rx_packets[0]":      67890,
+			"cpu0_rx_xdp_tx":     123,
+			"tx_timeout":         456,
 		}, nil
 	}
 
@@ -646,9 +648,13 @@ func TestFetchEthtoolStats(t *testing.T) {
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTags := []string{"interface:eth0", "driver_name:mock_driver", "driver_version:mock_version"}
-	mockSender.AssertCalled(t, "Rate", "system.net.tx_packets", float64(12345), "", expectedTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.rx_bytes", float64(67890), "", expectedTags)
+	expectedTags := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
+	mockSender.AssertCalled(t, "Rate", "system.net.ena.queue.tx_packets", float64(12345), "", expectedTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.ena.queue.rx_packets", float64(67890), "", expectedTags)
+	expectedTagsCPU := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
+	mockSender.AssertCalled(t, "Rate", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPU)
+	expectedTagsGlobal := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
+	mockSender.AssertCalled(t, "Rate", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
 }
 
 func TestFetchEthtoolStatsENOTTY(t *testing.T) {
@@ -691,9 +697,13 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTagsIfNoError := []string{"interface:virtual_iface", "driver_name:mock_driver", "driver_version:mock_version"}
-	mockSender.AssertNotCalled(t, "Rate", "system.net.tx_packets", float64(12345), "", expectedTagsIfNoError)
-	mockSender.AssertNotCalled(t, "Rate", "system.net.rx_bytes", float64(67890), "", expectedTagsIfNoError)
+	expectedTagsIfNoError := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
+	mockSender.AssertNotCalled(t, "Rate", "system.net.ena.queue.tx_packets", float64(12345), "", expectedTagsIfNoError)
+	mockSender.AssertNotCalled(t, "Rate", "system.net.ena.queue.rx_packets", float64(67890), "", expectedTagsIfNoError)
+	expectedTagsCPUIfNoError := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
+	mockSender.AssertNotCalled(t, "Rate", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPUIfNoError)
+	expectedTagsGlobal := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
+	mockSender.AssertNotCalled(t, "Rate", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
 }
 
 func TestNetStatTCPExtCountersUsingCorrectMockedProcfsPath(t *testing.T) {
