@@ -110,6 +110,10 @@ type ObfuscationConfig struct {
 	// for spans of type "redis".
 	Redis obfuscate.RedisConfig `mapstructure:"redis"`
 
+	// Valkey holds the configuration for obfuscating the "valkey.raw_command" tag
+	// for spans of type "valkey".
+	Valkey obfuscate.ValkeyConfig `mapstructure:"valkey"`
+
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
 	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
@@ -152,6 +156,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		SQLExecPlanNormalize: o.SQLExecPlanNormalize,
 		HTTP:                 o.HTTP,
 		Redis:                o.Redis,
+		Valkey:               o.Valkey,
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
 		Logger:               new(debugLogger),
