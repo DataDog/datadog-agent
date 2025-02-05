@@ -165,8 +165,8 @@ func TestOTLPMetrics(t *testing.T) {
 func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	assert := assert.New(t)
 	cfg := NewTestConfig(t)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	stats := &teststatsd.Client{}
 
@@ -206,8 +206,8 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}()
 	defer close(stop)
 
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{})
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{})
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, nil)
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, nil)
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
@@ -231,8 +231,8 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameRemappings overrides it
 	cfg := NewTestConfig(t)
 	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
@@ -246,7 +246,7 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				{Name: "asd"},
 			},
 		},
-	}).Traces().ResourceSpans().At(0), http.Header{})
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 	timeout := time.After(500 * time.Millisecond)
 	select {
 	case <-timeout:
@@ -269,8 +269,8 @@ func TestOTLPSpanNameV2(t *testing.T) {
 func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
 	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -684,7 +684,7 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -697,58 +697,85 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 }
 
 func TestCreateChunks(t *testing.T) {
-	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
-		testCreateChunk(false, t)
-	})
-
-	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
-		testCreateChunk(true, t)
-	})
-}
-
-func testCreateChunk(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	cfg := NewTestConfig(t)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	tests := []struct {
+		enableReceiveResourceSpansV2 bool
+		probabilisticSamplerEnabled  bool
+	}{
+		{
+			enableReceiveResourceSpansV2: false,
+			probabilisticSamplerEnabled:  false,
+		},
+		{
+			enableReceiveResourceSpansV2: true,
+			probabilisticSamplerEnabled:  false,
+		},
+		{
+			enableReceiveResourceSpansV2: false,
+			probabilisticSamplerEnabled:  true,
+		},
+		{
+			enableReceiveResourceSpansV2: true,
+			probabilisticSamplerEnabled:  true,
+		},
 	}
-	cfg.OTLPReceiver.ProbabilisticSampling = 50
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-	const (
-		traceID1 = 123           // sampled by 50% rate
-		traceID2 = 1237892138897 // not sampled by 50% rate
-		traceID3 = 1237892138898 // not sampled by 50% rate
-	)
-	traces := map[uint64]pb.Trace{
-		traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
-		traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
-		traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
-	}
-	priorities := map[uint64]sampler.SamplingPriority{
-		traceID3: sampler.PriorityUserKeep,
-	}
-	chunks := o.createChunks(traces, priorities)
-	var found int
-	for _, c := range chunks {
-		id := c.Spans[0].TraceID
-		require.ElementsMatch(t, c.Spans, traces[id])
-		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
-		switch id {
-		case traceID1:
-			//nolint:revive // TODO(OTEL) Fix revive linter
-			found += 1
-			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(1), c.Priority)
-		case traceID2:
-			found += 2
-			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(0), c.Priority)
-		case traceID3:
-			found += 3
-			require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(2), c.Priority)
+	for _, tt := range tests {
+		var names []string
+		if tt.enableReceiveResourceSpansV2 {
+			names = append(names, "ReceiveResourceSpansV2")
+		} else {
+			names = append(names, "ReceiveResourceSpansV1")
 		}
+		if tt.probabilisticSamplerEnabled {
+			names = append(names, "ProbabilisticSamplerEnabled")
+		} else {
+			names = append(names, "ProbabilisticSamplerDisabled")
+		}
+		t.Run(strings.Join(names, " "), func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			if !tt.enableReceiveResourceSpansV2 {
+				cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+			}
+			cfg.OTLPReceiver.ProbabilisticSampling = 50
+			cfg.ProbabilisticSamplerEnabled = tt.probabilisticSamplerEnabled
+			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			const (
+				traceID1 = 123           // sampled by 50% rate
+				traceID2 = 1237892138897 // not sampled by 50% rate
+				traceID3 = 1237892138898 // not sampled by 50% rate
+			)
+			traces := map[uint64]pb.Trace{
+				traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
+				traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
+				traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
+			}
+			priorities := map[uint64]sampler.SamplingPriority{
+				traceID3: sampler.PriorityUserKeep,
+			}
+			chunks := o.createChunks(traces, priorities)
+			require.Len(t, chunks, len(traces))
+			for _, c := range chunks {
+				if tt.probabilisticSamplerEnabled {
+					require.Emptyf(t, c.Spans[0].Meta["_dd.p.dm"], "decision maker must be empty")
+					require.Equalf(t, int32(sampler.PriorityNone), c.Priority, "priority must be none")
+				} else {
+					id := c.Spans[0].TraceID
+					require.ElementsMatch(t, c.Spans, traces[id])
+					require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
+					switch id {
+					case traceID1:
+						require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"], "traceID1: dm must be -9")
+						require.Equal(t, int32(1), c.Priority, "traceID1: priority must be 1")
+					case traceID2:
+						require.Empty(t, c.Spans[0].Meta["_dd.p.dm"], "traceID2: dm must be empty")
+						require.Equal(t, int32(0), c.Priority, "traceID2: priority must be 0")
+					case traceID3:
+						require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"], "traceID3: dm must be -4")
+						require.Equal(t, int32(2), c.Priority, "traceID3: priority must be 2")
+					}
+				}
+			}
+		})
 	}
-	require.Equal(t, 6, found)
 }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
@@ -763,8 +790,8 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 
 func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -1035,7 +1062,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -1051,7 +1078,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
 		return func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, header)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, header, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -1260,8 +1287,8 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 	for _, tt := range testcases {
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
@@ -1281,7 +1308,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				Attributes: rattr,
 				Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 			},
-		}).Traces().ResourceSpans().At(0), http.Header{})
+		}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 		assert.Equal(t, src.Kind, source.HostnameKind)
 		assert.Equal(t, src.Identifier, tt.out)
 		timeout := time.After(500 * time.Millisecond)
@@ -1296,7 +1323,6 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 
 func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testing.T) {
 	cfg := NewTestConfig(t)
-	cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rattr := map[string]interface{}{}
@@ -1315,7 +1341,7 @@ func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testi
 			Attributes: rattr,
 			Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 		},
-	}).Traces().ResourceSpans().At(0), http.Header{})
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 	timeout := time.After(500 * time.Millisecond)
 	select {
 	case <-timeout:
@@ -1343,16 +1369,16 @@ func TestOTLPReceiver(t *testing.T) {
 func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
@@ -1363,8 +1389,8 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Run("Start/grpc", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
@@ -1384,8 +1410,8 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
 		cfg := NewTestConfig(t)
-		if enableReceiveResourceSpansV2 {
-			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
 		o := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
@@ -1627,7 +1653,6 @@ func TestOTelSpanToDDSpan(t *testing.T) {
 func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
 	now := uint64(otlpTestSpan.StartTimestamp())
-	cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	if enableOperationAndResourceNameV2 {
 		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
@@ -3410,7 +3435,6 @@ func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t 
 func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
-	cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
 	if enableOperationAndResourceNameV2 {
 		cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
@@ -3795,8 +3819,8 @@ func testResourceAttributesMap(enableReceiveResourceSpansV2 bool, t *testing.T) 
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
 	cfg := NewTestConfig(t)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
@@ -4273,8 +4297,8 @@ func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	}()
 
 	cfg := NewBenchmarkTestConfig(b)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
@@ -4316,8 +4340,8 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 	}()
 
 	cfg := NewBenchmarkTestConfig(b)
-	if enableReceiveResourceSpansV2 {
-		cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})

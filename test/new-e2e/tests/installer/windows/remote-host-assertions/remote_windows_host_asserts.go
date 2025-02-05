@@ -181,3 +181,31 @@ func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWin
 
 	return r
 }
+
+// HasARunningDatadogInstallerService verifies that the Datadog Installer service is installed and correctly configured.
+func (r *RemoteWindowsHostAssertions) HasARunningDatadogInstallerService() *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+
+	r.HasAService("Datadog Installer").
+		WithStatus("Running").
+		HasNamedPipe(`\\.\pipe\dd_installer`).
+		WithSecurity(
+			// Only accessible to Administrators and LocalSystem
+			common.NewProtectedSecurityInfo(
+				common.GetIdentityForSID(common.AdministratorsSID),
+				common.GetIdentityForSID(common.LocalSystemSID),
+				[]common.AccessRule{
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.LocalSystemSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.AdministratorsSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+				},
+			))
+	return r
+}

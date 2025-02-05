@@ -53,6 +53,8 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -143,6 +145,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+				logscompressionfx.Module(),
 			)
 		},
 	}
@@ -152,7 +155,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, compression logscompression.Component) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -194,7 +197,7 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 		}
 	}()
 
-	if err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, tagger, settings); err != nil {
+	if err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, tagger, settings, compression); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -238,9 +241,9 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ healthprobe.Component, settings settings.Component) error {
+		func(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ healthprobe.Component, settings settings.Component, compression logscompression.Component) error {
 			defer StopSystemProbeWithDefaults()
-			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, tagger, settings)
+			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, tagger, settings, compression)
 			if err != nil {
 				return err
 			}
@@ -311,6 +314,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			}
 		}),
 		settingsimpl.Module(),
+		logscompressionfx.Module(),
 	)
 }
 
@@ -320,7 +324,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component) error {
+func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component, compression logscompression.Component) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
@@ -380,7 +384,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 		}()
 	}
 
-	if err = api.StartServer(cfg, telemetry, wmeta, tagger, settings); err != nil {
+	if err = api.StartServer(cfg, telemetry, wmeta, tagger, settings, compression); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil

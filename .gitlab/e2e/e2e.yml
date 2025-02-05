@@ -166,14 +166,23 @@ new-e2e-remote-config:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
 
-new-e2e-agent-shared-components:
+new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
   rules:
-    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.on_acfg_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-shared-components
-    TEAM: agent-shared-components
+    TARGETS: ./tests/agent-configuration
+    TEAM: agent-configuration
+
+new-e2e-agent-runtimes:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes
+    TEAM: agent-runtimes
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -182,7 +191,7 @@ new-e2e-agent-subcommands:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
-    TEAM: agent-shared-components
+    TEAM: agent-configuration
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
@@ -203,11 +212,32 @@ new-e2e-fips-compliance-test:
     - qa_agent_fips
     - deploy_deb_testing-a7_x64
   rules:
-    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/fips-compliance
-    TEAM: agent-shared-components
+    TEAM: agent-runtimes
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
+      - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
+
+new-e2e-windows-fips-compliance-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - deploy_windows_testing-a7-fips
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: windows-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestWindowsVM$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersWindowsSuite$"
 
 new-e2e-windows-service-test:
   extends: .new_e2e_template
@@ -299,7 +329,7 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
 
-new-e2e-aml:
+new-e2e-amp:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
@@ -310,11 +340,28 @@ new-e2e-aml:
     - qa_agent_fips_jmx
     - qa_dca
   rules:
-    - !reference [.on_aml_or_e2e_changes]
+    - !reference [.on_amp_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-metrics-logs
-    TEAM: agent-metrics-logs
+    TARGETS: ./tests/agent-metric-pipelines
+    TEAM: agent-metric-pipelines
+
+new-e2e-alp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
+    - qa_agent_jmx
+    - qa_agent_fips_jmx
+    - qa_dca
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
 
 new-e2e-cws:
   extends: .new_e2e_template
@@ -413,7 +460,7 @@ new-e2e-installer-script:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
-    - qa_installer_script
+    - qa_installer_script_linux
   variables:
     TARGETS: ./tests/installer/script
     TEAM: fleet
@@ -450,14 +497,15 @@ new-e2e-installer-windows:
     - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - qa_installer_script_windows
   before_script:
     # CURRENT_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - CURRENT_AGENT_VERSION=$(invoke agent.version) || exit $?; export CURRENT_AGENT_VERSION
-    - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
@@ -470,6 +518,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentInstalls$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$"
       # install-script
+      - EXTRA_PARAMS: --run "TestInstallScript$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"

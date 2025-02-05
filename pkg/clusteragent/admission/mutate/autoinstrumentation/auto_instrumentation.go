@@ -311,13 +311,13 @@ func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguag
 
 // getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
 // that should be enabled by default
-func (w *Webhook) getAllLatestDefaultLibraries() []libInfo {
+func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
 		if !lang.isEnabledByDefault() {
 			continue
 		}
-		libsToInject = append(libsToInject, lang.defaultLibInfo(w.config.containerRegistry, ""))
+		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
 	}
 
 	return libsToInject
@@ -444,7 +444,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	}
 
 	if extracted.source.isSingleStep() {
-		return extracted.withLibs(w.getAllLatestDefaultLibraries())
+		return extracted.withLibs(getAllLatestDefaultLibraries(w.config.containerRegistry))
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -458,7 +458,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extracted.withLibs(w.getAllLatestDefaultLibraries())
+		return extracted.withLibs(getAllLatestDefaultLibraries(w.config.containerRegistry))
 	}
 
 	return extractedPodLibInfo{}

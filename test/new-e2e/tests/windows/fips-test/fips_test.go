@@ -10,31 +10,38 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
-	"testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 type fipsAgentSuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 
 	installPath string
+	configRoot  string
 }
 
 func TestFIPSAgent(t *testing.T) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 	s := &fipsAgentSuite{}
+	e2e.Run(t, s, opts...)
+}
+
+func TestFIPSAgentAltDir(t *testing.T) {
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
+	s := &fipsAgentSuite{
+		installPath: "C:\\altdir",
+		configRoot:  "C:\\altconfroot",
+	}
 	e2e.Run(t, s, opts...)
 }
 
@@ -53,45 +60,22 @@ func (s *fipsAgentSuite) SetupSuite() {
 	require.NoError(s.T(), err)
 
 	// Install Agent (With FIPS mode enabled)
-	_, err = s.InstallAgent(host, windowsAgent.WithPackage(s.AgentPackage))
+	opts := []windowsAgent.InstallAgentOption{
+		windowsAgent.WithPackage(s.AgentPackage),
+	}
+	if s.installPath != "" {
+		opts = append(opts, windowsAgent.WithProjectLocation(s.installPath))
+	}
+	if s.configRoot != "" {
+		opts = append(opts, windowsAgent.WithApplicationDataDirectory(s.configRoot))
+	}
+	_, err = s.InstallAgent(host, opts...)
 	require.NoError(s.T(), err)
 
 	s.installPath, err = windowsAgent.GetInstallPathFromRegistry(host)
 	require.NoError(s.T(), err)
-}
-
-func (s *fipsAgentSuite) TestWithSystemFIPSDisabled() {
-	host := s.Env().RemoteHost
-	windowsCommon.DisableFIPSMode(host)
-
-	s.Run("version command", func() {
-		s.Run("gofips enabled", func() {
-			_, err := s.execAgentCommandWithFIPS("version")
-			assertErrorContainsFIPSPanic(s.T(), err, "agent should panic when GOFIPS=1 but system FIPS is disabled")
-		})
-
-		s.Run("gofips disabled", func() {
-			_, err := s.execAgentCommand("version")
-			require.NoError(s.T(), err)
-		})
-	})
-}
-
-func (s *fipsAgentSuite) TestWithSystemFIPSEnabled() {
-	host := s.Env().RemoteHost
-	windowsCommon.EnableFIPSMode(host)
-
-	s.Run("version command", func() {
-		s.Run("gofips enabled", func() {
-			_, err := s.execAgentCommandWithFIPS("version")
-			require.NoError(s.T(), err)
-		})
-
-		s.Run("gofips disabled", func() {
-			_, err := s.execAgentCommand("version")
-			require.NoError(s.T(), err)
-		})
-	})
+	s.configRoot, err = windowsAgent.GetConfigRootFromRegistry(host)
+	require.NoError(s.T(), err)
 }
 
 func (s *fipsAgentSuite) TestFIPSProviderPresent() {
@@ -100,6 +84,7 @@ func (s *fipsAgentSuite) TestFIPSProviderPresent() {
 	require.True(s.T(), exists, "Agent install path should contain the FIPS provider but doesn't")
 }
 
+// TestFIPSInstall tests that the MSI created a valid fipsmodule.cnf
 func (s *fipsAgentSuite) TestFIPSInstall() {
 	host := s.Env().RemoteHost
 	openssl := path.Join(s.installPath, "embedded3/bin/openssl.exe")
@@ -110,31 +95,51 @@ func (s *fipsAgentSuite) TestFIPSInstall() {
 	require.NoError(s.T(), err, "MSI should create valid fipsmodule.cnf")
 }
 
-func (s *fipsAgentSuite) execAgentCommand(command string, options ...client.ExecuteOption) (string, error) {
+// TestOpenSSLPaths tests that the MSI sets the OpenSSL paths in the registry
+func (s *fipsAgentSuite) TestOpenSSLPaths() {
 	host := s.Env().RemoteHost
 
-	require.NotEmpty(s.T(), s.installPath)
-	agentPath := filepath.Join(s.installPath, "bin", "agent.exe")
-
-	cmd := fmt.Sprintf(`& "%s" %s`, agentPath, command)
-	return host.Execute(cmd, options...)
-}
-
-func (s *fipsAgentSuite) execAgentCommandWithFIPS(command string) (string, error) {
-	// There isn't support for appending env vars to client.ExecuteOption, so
-	// this function doesn't accept any other options.
-
-	// Setting GOFIPS=1 causes the Windows FIPS Agent to panic if the system is not in FIPS mode.
-	// This setting does NOT control whether the FIPS Agent uses FIPS-compliant crypto libraries,
-	// the System-level setting determines that.
-	// https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#windows-fips-mode-cng
-	vars := client.EnvVar{
-		"GOFIPS": "1",
+	// assert openssl winctx registry keys exist
+	// https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+	expectedOpenSSLPaths := map[string]string{
+		"OPENSSLDIR": fmt.Sprintf(`%sembedded3\ssl`, s.installPath),
+		"ENGINESDIR": fmt.Sprintf(`%sembedded3\lib\engines-3`, s.installPath),
+		"MODULESDIR": fmt.Sprintf(`%sembedded3\lib\ossl-modules`, s.installPath),
+	}
+	// TODO: How to configure the version of OpenSSL?
+	opensslVersion := "3.4"
+	keyPath := fmt.Sprintf(`HKLM:\SOFTWARE\Wow6432Node\OpenSSL-%s-datadog-fips-agent`, opensslVersion)
+	exists, err := windowsCommon.RegistryKeyExists(host, keyPath)
+	require.NoError(s.T(), err)
+	if assert.True(s.T(), exists, "%s should exist", keyPath) {
+		for name, expected := range expectedOpenSSLPaths {
+			// check value matches
+			value, err := windowsCommon.GetRegistryValue(host, keyPath, name)
+			if assert.NoError(s.T(), err, "Failed to get %s", name) {
+				assert.Equal(s.T(), expected, value, "Unexpected value for %s", name)
+			}
+			// ensure value exists as a directory
+			fileInfo, err := host.Lstat(value)
+			if assert.NoError(s.T(), err, "Path %s for %s does not exist", value, name) {
+				assert.True(s.T(), fileInfo.IsDir(), "Path %s for %s is not a directory", value, name)
+			}
+		}
 	}
 
-	return s.execAgentCommand(command, client.WithEnvVariables(vars))
-}
-
-func assertErrorContainsFIPSPanic(t *testing.T, err error, args ...interface{}) bool {
-	return assert.ErrorContains(t, err, "panic: cngcrypto: not in FIPS mode", args...)
+	// assert that openssl uses the paths from the registry
+	// Example output:
+	// 	OpenSSL 3.3.2 3 Sep 2024 (Library: OpenSSL 3.3.2 3 Sep 2024)
+	//  <snipped>
+	//  compiler: gcc <snipped> -DOSSL_WINCTX=datadog-fips-agent
+	//  OPENSSLDIR: "C:\Program Files\Datadog\Datadog Agent\embedded3\ssl"
+	//  ENGINESDIR: "C:\Program Files\Datadog\Datadog Agent\embedded3\lib\engines-3"
+	//  MODULESDIR: "C:\Program Files\Datadog\Datadog Agent\embedded3\lib\ossl-modules"
+	openssl := path.Join(s.installPath, `embedded3\bin\openssl.exe`)
+	cmd := fmt.Sprintf(`& "%s" version -a`, openssl)
+	out, err := host.Execute(cmd)
+	require.NoError(s.T(), err)
+	assert.Contains(s.T(), out, `-DOSSL_WINCTX=datadog-fips-agent`, "Expected -DOSSL_WINCTX=datadog-fips-agent in openssl.exe output")
+	for name, expected := range expectedOpenSSLPaths {
+		assert.Contains(s.T(), out, fmt.Sprintf(`%s: "%s"`, name, expected), "Expected %s to be %s", name, expected)
+	}
 }

@@ -967,6 +967,35 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	// by the Cluster Agent so that we can be sure that in the next restart the
 	// libraries for the detected language are injected
 	if languageShouldBeAutoDetected {
+
+		suite.Require().EventuallyWithTf(func(_ *assert.CollectT) {
+			appPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-mutated-lib-injection").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", name).String(),
+				Limit:         1,
+			})
+
+			suite.Require().NoError(err)
+			suite.Require().Len(appPod.Items, 1)
+
+			nodeName := appPod.Items[0].Spec.NodeName
+
+			agentPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+				FieldSelector: fields.OneTermEqualSelector("spec.nodeName", nodeName).String(),
+				Limit:         1,
+			})
+
+			suite.Require().NoError(err)
+			suite.Require().Len(agentPod.Items, 1)
+
+			stdout, _, err := suite.podExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
+			suite.Require().NoError(err)
+			suite.Contains(stdout, "Language: python")
+			if suite.T().Failed() {
+				suite.T().Log(stdout)
+			}
+		}, 5*time.Minute, 10*time.Second, "Language python was never detected by node agent.")
+
 		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 			if !assert.NoError(c, err) {

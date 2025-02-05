@@ -30,7 +30,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.117.0"
+OCB_VERSION = "0.119.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -98,6 +98,10 @@ def find_matching_components(manifest, components_to_match: dict, present: bool)
 
 
 def versions_equal(version1, version2):
+    idx = version1.find("/")
+    if idx != -1:
+        # version may be in the format of "v1.xx.0/v0.yyy.0"
+        version1 = version1[idx + 1 :]
     # strip leading 'v' if present
     if version1.startswith("v"):
         version1 = version1[1:]
@@ -531,10 +535,13 @@ def pull_request(ctx):
                 f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
             )
             try:
+                # don't check if local branch exists; we just created it
                 check_clean_branch_state(ctx, gh, branch_name)
             except Exit as e:
-                print(e)
-                return
+                # local branch already exists, so skip error if this is thrown
+                if "already exists locally" not in str(e):
+                    print(e)
+                    return
             ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
             gh.create_pr(
                 pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",

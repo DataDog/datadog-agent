@@ -54,7 +54,6 @@ type Check struct {
 type checkTelemetry struct {
 	nvmlMetricsSent     telemetry.Counter
 	collectorErrors     telemetry.Counter
-	sysprobeChecks      telemetry.Counter
 	activeMetrics       telemetry.Gauge
 	sysprobeMetricsSent telemetry.Counter
 }
@@ -77,13 +76,11 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component) check.Chec
 }
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
-	subsystem := CheckName
 	return &checkTelemetry{
-		nvmlMetricsSent:     tm.NewCounter(subsystem, "nvml_metrics_sent", []string{"collector"}, "Number of NVML metrics sent"),
-		collectorErrors:     tm.NewCounter(subsystem, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		sysprobeChecks:      tm.NewCounter(subsystem, "sysprobe_checks", []string{"status"}, "Number of sysprobe checks, by status"),
-		activeMetrics:       tm.NewGauge(subsystem, "active_metrics", nil, "Number of active metrics"),
-		sysprobeMetricsSent: tm.NewCounter(subsystem, "sysprobe_metrics_sent", nil, "Number of metrics sent based on system probe data"),
+		nvmlMetricsSent:     tm.NewCounter(CheckName, "nvml_metrics_sent", []string{"collector"}, "Number of NVML metrics sent"),
+		collectorErrors:     tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:       tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		sysprobeMetricsSent: tm.NewCounter(CheckName, "sysprobe_metrics_sent", nil, "Number of metrics sent based on system probe data"),
 	}
 }
 
@@ -97,22 +94,45 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	// Initialize NVML collectors. if the config parameter doesn't exist or is
+	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	return nil
+}
+
+func (c *Check) ensureInitNVML() error {
+	if c.nvmlLib != nil {
+		return nil
+	}
+
+	// Initialize NVML library. if the config parameter doesn't exist or is
 	// empty string, the default value is used as defined in go-nvml library
 	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
-	c.nvmlLib = nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
-	ret := c.nvmlLib.Init()
+	nvmlLib := nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
+	ret := nvmlLib.Init()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
 	}
 
-	var err error
-	c.collectors, err = nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
+	c.nvmlLib = nvmlLib
+	return nil
+}
+
+// ensureInitCollectors initializes the NVML library and the collectors if they are not already initialized.
+// It returns an error if the initialization fails.
+func (c *Check) ensureInitCollectors() error {
+	if c.collectors != nil {
+		return nil
+	}
+
+	if err := c.ensureInitNVML(); err != nil {
+		return err
+	}
+
+	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
-	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	c.collectors = collectors
 	return nil
 }
 
@@ -148,10 +168,8 @@ func (c *Check) Run() error {
 func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
-		c.telemetry.sysprobeChecks.Add(1, "error")
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
-	c.telemetry.sysprobeChecks.Add(1, "success")
 
 	// Set all metrics to inactive, so we can remove the ones that we don't see
 	// and send the final metrics
@@ -217,7 +235,10 @@ func (c *Check) getTagsForKey(key model.StatsKey) []string {
 }
 
 func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
-	var err error
+	err := c.ensureInitCollectors()
+	if err != nil {
+		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
+	}
 
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())

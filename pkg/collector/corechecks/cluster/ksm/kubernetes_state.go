@@ -357,16 +357,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		builder.WithKubeClient(apiServerClient.InformerCl)
 	}
 
-	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
-	// Equivalent to configuring --metric-annotations-allowlist.
-	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
-		// Any annotation can be used for label joins.
-		allowedAnnotations[collector] = []string{"*"}
-	}
-
-	builder.WithAllowAnnotations(allowedAnnotations)
-
 	// Prepare watched namespaces
 	namespaces := k.instance.Namespaces
 
@@ -406,6 +396,16 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
+
+	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
+	// Equivalent to configuring --metric-annotations-allowlist.
+	allowedAnnotations := map[string][]string{}
+	for _, collector := range collectors {
+		// Any annotation can be used for label joins.
+		allowedAnnotations[collector] = []string{"*"}
+	}
+
+	builder.WithAllowAnnotations(allowedAnnotations)
 
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
