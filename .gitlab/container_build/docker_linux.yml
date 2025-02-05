@@ -271,8 +271,9 @@ docker_build_cluster_agent_fips_amd64:
     - job: cws_instrumentation-build_arm64
       artifacts: true
   variables:
-    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent-fips
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
+    TAG_SUFFIX: -fips
   before_script:
     - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
@@ -289,8 +290,9 @@ docker_build_cluster_agent_fips_arm64:
     - job: cws_instrumentation-build_arm64
       artifacts: true
   variables:
-    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent-fips
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
+    TAG_SUFFIX: -fips
   before_script:
     - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
