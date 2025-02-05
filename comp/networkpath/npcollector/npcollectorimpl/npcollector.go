@@ -188,13 +188,13 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", pathtest.Hostname, pathtest.Port)
 
-	s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.schedule.count", []string{}, 1) //nolint:errcheck
+	s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest.count", []string{}, 1) //nolint:errcheck
 	select {
 	case s.pathtestInputChan <- pathtest:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.schedule.received", []string{}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest.received", []string{}, 1) //nolint:errcheck
 		return nil
 	default:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.schedule.drop", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest.drop", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
@@ -341,14 +341,14 @@ func (s *npCollectorImpl) flush() {
 
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
-	s.statsdClient.Count(networkPathCollectorMetricPrefix+"pathtest.flush.count", int64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Count(networkPathCollectorMetricPrefix+"flush.pathtest.count", int64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 	for _, ptConf := range flowsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		select {
 		case s.pathtestProcessingChan <- ptConf:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.flush.flushed", []string{}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest.flushed", []string{}, 1) //nolint:errcheck
 		default:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.flush.drop", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest.drop", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
 			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
 		}
 	}
@@ -464,7 +464,7 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.worker.processed", []string{}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"worker.pathtest.processed", []string{}, 1) //nolint:errcheck
 		}
 	}
 }
