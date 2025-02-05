@@ -58,7 +58,7 @@ jobs:
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c
         with:
-          swap-size-gb: 10
+          swap-size-gb: 14
 
       - name: Build DataDog agent
         run: |
