@@ -637,6 +637,11 @@ workflow:
     when: never
   - !reference [.except_mergequeue]
 
+.except_release_branch_and_mq:
+  - <<: *if_release_branch
+    when: never
+  - !reference [.except_mergequeue]
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always

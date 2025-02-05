@@ -1,7 +1,7 @@
 static_quality_gates:
   stage: functional_test
   rules:
-    - !reference [.not_on_release_branch_or_tagged_commit]
+    - !reference [.except_release_branch_and_mq]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
