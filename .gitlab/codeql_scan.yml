@@ -1,0 +1,31 @@
+---
+# codeql_scan stage
+# Contains CodeQL scan job to perform security static analysis
+
+run_codeql_scan:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  stage: codeql_scan
+  # rules:
+  #   - if: $CI_PIPELINE_SOURCE == "schedule" && $CODE_SCANNING_PIPELINE == "true"
+  #     when: always
+  #   - when: never
+  variables:
+    ARCH: arm64
+    BASE_REF: main
+    GOMAXPROCS: 10
+    KUBERNETES_CPU_REQUEST: 10
+    KUBERNETES_CPU_LIMIT: 10
+    KUBERNETES_MEMORY_REQUEST: 64Gi
+    KUBERNETES_MEMORY_LIMIT: 64Gi
+    GITHUB_APP_PRIVATE_KEY_NAME: csec.codescanning.githubapp.privatekey
+    CODEQL: /usr/local/codeql/codeql
+    CODEQL_DB: /tmp/dd-source.codeql
+    PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/custom.qls
+    GO_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/golang/codeql-suites/dd-source.qls
+    DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=go,python,javascript --quiet
+    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
+    UPLOAD_CONFIGS: -upload_sarif=true
+  script:
+    - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
+    - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
