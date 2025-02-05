@@ -250,12 +250,12 @@ func init() {
 		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
 	}
 
+	resolvePythonHome()
+
 	fipsEnabled, err := fips.Enabled()
 	if err != nil {
 		log.Warnf("Error checking FIPS mode: %v", err)
 	}
-
-	resolvePythonHome()
 	if fipsEnabled {
 		err := initFIPS(PythonHome)
 		if err != nil {
