@@ -63,7 +63,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "default"))), "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("api-group", "resourcetypes", "default", "generic-resource"))), "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
 
-	mockDiscovery := new(mockdiscovery.MockDiscoveryClient)
+	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*apiv1.APIResourceList{
 		{
 			GroupVersion: "api-group/v1",

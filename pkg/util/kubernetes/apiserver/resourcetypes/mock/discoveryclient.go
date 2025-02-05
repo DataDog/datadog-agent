@@ -20,58 +20,58 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// MockDiscoveryClient is a mock implementation of the Kubernetes discovery client.
-type MockDiscoveryClient struct {
+// DiscoveryClient is a mock implementation of the Kubernetes discovery client.
+type DiscoveryClient struct {
 	mock.Mock
 }
 
 // RESTClient returns nil as it's not used in the mock.
-func (m *MockDiscoveryClient) RESTClient() rest.Interface {
+func (m *DiscoveryClient) RESTClient() rest.Interface {
 	return nil
 }
 
 // ServerGroups returns nil as this method is not used in the mock.
-func (m *MockDiscoveryClient) ServerGroups() (*v1.APIGroupList, error) {
+func (m *DiscoveryClient) ServerGroups() (*v1.APIGroupList, error) {
 	return nil, nil
 }
 
 // ServerResourcesForGroupVersion returns nil as this method is not used in the mock.
-func (m *MockDiscoveryClient) ServerResourcesForGroupVersion(_ string) (*v1.APIResourceList, error) {
+func (m *DiscoveryClient) ServerResourcesForGroupVersion(_ string) (*v1.APIResourceList, error) {
 	return nil, nil
 }
 
 // ServerPreferredResources returns nil as this method is not used in the mock.
-func (m *MockDiscoveryClient) ServerPreferredResources() ([]*v1.APIResourceList, error) {
+func (m *DiscoveryClient) ServerPreferredResources() ([]*v1.APIResourceList, error) {
 	return nil, nil
 }
 
 // ServerPreferredNamespacedResources returns nil as this method is not used in the mock.
-func (m *MockDiscoveryClient) ServerPreferredNamespacedResources() ([]*v1.APIResourceList, error) {
+func (m *DiscoveryClient) ServerPreferredNamespacedResources() ([]*v1.APIResourceList, error) {
 	return nil, nil
 }
 
 // ServerVersion returns nil as this method is not used in the mock.
-func (m *MockDiscoveryClient) ServerVersion() (*version.Info, error) {
+func (m *DiscoveryClient) ServerVersion() (*version.Info, error) {
 	return nil, nil
 }
 
 // OpenAPISchema returns nil as this method is not used in the mock.
-func (m *MockDiscoveryClient) OpenAPISchema() (*openapiv2.Document, error) {
+func (m *DiscoveryClient) OpenAPISchema() (*openapiv2.Document, error) {
 	return nil, nil
 }
 
 // OpenAPIV3 returns nil as this method is not used in the mock.
-func (m *MockDiscoveryClient) OpenAPIV3() openapi.Client {
+func (m *DiscoveryClient) OpenAPIV3() openapi.Client {
 	return nil
 }
 
 // WithLegacy returns nil as this method is not used in the mock.
-func (m *MockDiscoveryClient) WithLegacy() discovery.DiscoveryInterface {
+func (m *DiscoveryClient) WithLegacy() discovery.DiscoveryInterface {
 	return nil
 }
 
 // ServerGroupsAndResources mocks the discovery API response for available API groups and resources.
-func (m *MockDiscoveryClient) ServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
+func (m *DiscoveryClient) ServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
 	args := m.Called()
 	return nil, args.Get(1).([]*v1.APIResourceList), args.Error(2)
 }

@@ -18,7 +18,7 @@ import (
 )
 
 func TestInitializeGlobalResourceTypeCache(t *testing.T) {
-	mockDiscovery := new(mockdiscovery.MockDiscoveryClient)
+	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*v1.APIResourceList{}, nil)
 
 	tests := []struct {
@@ -51,7 +51,7 @@ func TestInitializeGlobalResourceTypeCache(t *testing.T) {
 }
 
 func TestGetResourceType(t *testing.T) {
-	mockDiscovery := new(mockdiscovery.MockDiscoveryClient)
+	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*v1.APIResourceList{
 		{
 			GroupVersion: "v1",
@@ -101,7 +101,7 @@ func TestGetResourceType(t *testing.T) {
 }
 
 func TestDiscoverResourceType(t *testing.T) {
-	mockDiscovery := new(mockdiscovery.MockDiscoveryClient)
+	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*v1.APIResourceList{
 		{
 			GroupVersion: "apps/v1",
@@ -151,7 +151,7 @@ func TestDiscoverResourceType(t *testing.T) {
 }
 
 func TestPrepopulateCache(t *testing.T) {
-	mockDiscovery := new(mockdiscovery.MockDiscoveryClient)
+	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*v1.APIResourceList{
 		{
 			GroupVersion: "v1",
