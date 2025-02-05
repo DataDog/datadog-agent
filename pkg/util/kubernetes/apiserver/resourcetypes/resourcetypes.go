@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	cache    *ResourceTypeCache
-	cacheErr error
+	cache     *ResourceTypeCache
+	cacheOnce sync.Once
+	cacheErr  error
 )
 
 // ResourceTypeCache is a global cache to store Kubernetes resource types.
@@ -32,16 +33,18 @@ type ResourceTypeCache struct {
 
 // InitializeGlobalResourceTypeCache initializes the global cache if it hasn't been already.
 func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterface) error {
-	cache = &ResourceTypeCache{
-		kindGroupToType: make(map[string]string),
-		discoveryClient: discoveryClient,
-	}
+	cacheOnce.Do(func() {
+		cache = &ResourceTypeCache{
+			kindGroupToType: make(map[string]string),
+			discoveryClient: discoveryClient,
+		}
 
-	// Optionally pre-populate the cache
-	err := cache.prepopulateCache()
-	if err != nil {
-		cacheErr = fmt.Errorf("failed to prepopulate resource type cache: %w", err)
-	}
+		// Optionally pre-populate the cache
+		err := cache.prepopulateCache()
+		if err != nil {
+			cacheErr = fmt.Errorf("failed to prepopulate resource type cache: %w", err)
+		}
+	})
 	return cacheErr
 }
 

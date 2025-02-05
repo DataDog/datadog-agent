@@ -8,6 +8,7 @@
 package resourcetypes
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ import (
 )
 
 func TestInitializeGlobalResourceTypeCache(t *testing.T) {
+	resetCache()
 	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*v1.APIResourceList{}, nil)
 
@@ -51,6 +53,7 @@ func TestInitializeGlobalResourceTypeCache(t *testing.T) {
 }
 
 func TestGetResourceType(t *testing.T) {
+	resetCache()
 	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*v1.APIResourceList{
 		{
@@ -101,6 +104,7 @@ func TestGetResourceType(t *testing.T) {
 }
 
 func TestDiscoverResourceType(t *testing.T) {
+	resetCache()
 	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*v1.APIResourceList{
 		{
@@ -151,6 +155,7 @@ func TestDiscoverResourceType(t *testing.T) {
 }
 
 func TestPrepopulateCache(t *testing.T) {
+	resetCache()
 	mockDiscovery := new(mockdiscovery.DiscoveryClient)
 	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*v1.APIResourceList{
 		{
@@ -194,6 +199,7 @@ func TestPrepopulateCache(t *testing.T) {
 }
 
 func TestUtilityFunctions(t *testing.T) {
+	resetCache()
 	tests := []struct {
 		name string
 		fn   func() string
@@ -236,4 +242,9 @@ func TestUtilityFunctions(t *testing.T) {
 			assert.Equal(t, tt.want, tt.fn())
 		})
 	}
+}
+
+func resetCache() {
+	cacheOnce = sync.Once{}
+	cache = nil
 }
