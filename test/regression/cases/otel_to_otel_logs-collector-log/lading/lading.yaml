@@ -29,8 +29,37 @@ target_metrics:
   - prometheus:
       uri: "http://0.0.0.0:8888/metrics"
       metrics:
-        - otelcol_exporter_queue_size              
+        - otelcol_exporter_enqueue_failed_log_records
+        - otelcol_exporter_enqueue_failed_metric_points
+        - otelcol_exporter_enqueue_failed_spans
+        - otelcol_exporter_queue_capacity
+        - otelcol_exporter_queue_size
+        - otelcol_exporter_send_failed_log_records
+        - otelcol_exporter_send_failed_metric_points
+        - otelcol_exporter_send_failed_spans
         - otelcol_exporter_sent_log_records
-        - otelcol_receiver_accepted_log_records 
+        - otelcol_exporter_sent_metric_points
+        - otelcol_exporter_sent_spans
+        - otelcol_process_cpu_seconds
+        - otelcol_process_memory_rss
+        - otelcol_process_runtime_heap_alloc_bytes
+        - otelcol_process_runtime_total_alloc_bytes
+        - otelcol_process_runtime_total_sys_memory_bytes
+        - otelcol_process_uptime
+        - otelcol_processor_batch_batch_send_size
+        - otelcol_processor_batch_batch_size_trigger_send
+        - otelcol_processor_batch_metadata_cardinality
+        - otelcol_processor_batch_timeout_trigger_send
+        - otelcol_processor_incoming_items
+        - otelcol_processor_outgoing_items
+        - otelcol_receiver_accepted_log_records
+        - otelcol_receiver_accepted_metric_points
+        - otelcol_receiver_accepted_spans
+        - otelcol_receiver_refused_log_records
+        - otelcol_receiver_refused_metric_points
+        - otelcol_receiver_refused_spans
+        - otelcol_scraper_errored_metric_points
+        - otelcol_scraper_scraped_metric_points
+
       
 
