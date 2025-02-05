@@ -203,7 +203,7 @@ receivers:
         job_name: datadog-agent
         metrics_path: /metrics
         scheme: http
-        scrape_interval: 10s
+        scrape_interval: 1m
         scrape_protocols:
         - OpenMetricsText1.0.0
         - OpenMetricsText0.0.1

@@ -1230,6 +1230,15 @@ api_key:
   ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
   #         remove_all_args: false
   #
+  #     valkey:
+  ##        @param DD_APM_OBFUSCATION_VALKEY_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "valkey". Enabled by default.
+  #         enabled: true
+  #
+  ##        @param DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS - boolean - optional
+  ##        When true, replaces all arguments of a valkey command with a single "?". Disabled by default.
+  #         remove_all_args: false
+  #
   ##    @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
   ##    Enables removing stack traces to replace them with "?". Disabled by default.
   #     remove_stack_traces: false
