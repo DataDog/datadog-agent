@@ -60,7 +60,7 @@ type cfg struct {
 	// UpdateAPIKeyFn is the callback func for API Key updates
 	updateAPIKeyFn func(oldKey, newKey string)
 
-	// at is used to retrieve the auth_token to issue authtenticated requests
+	// at is used to retrieve the auth_token to issue authenticated requests
 	at authtoken.Component
 }
 
