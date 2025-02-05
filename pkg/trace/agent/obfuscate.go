@@ -62,11 +62,15 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 			// no error was thrown but no query was found/sanitized either
 			return
 		}
-	case "redis":
-		// if a span is redis type, it should be quantized regardless of obfuscation setting
+	case "redis", "valkey":
+		// if a span is redis/valkey type, it should be quantized regardless of obfuscation setting.
+		// valkey is a folk of redis, so we can use the same logic for both.
 		span.Resource = o.QuantizeRedisString(span.Resource)
-		if a.conf.Obfuscation.Redis.Enabled {
+		if span.Type == "redis" && a.conf.Obfuscation.Redis.Enabled {
 			transform.ObfuscateRedisSpan(o, span, a.conf.Obfuscation.Redis.RemoveAllArgs)
+		}
+		if span.Type == "valkey" && a.conf.Obfuscation.Valkey.Enabled {
+			transform.ObfuscateValkeySpan(o, span, a.conf.Obfuscation.Valkey.RemoveAllArgs)
 		}
 	case "memcached":
 		if !a.conf.Obfuscation.Memcached.Enabled {
@@ -164,7 +168,7 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 		} else {
 			b.Resource = oq.Query
 		}
-	case "redis":
+	case "redis", "valkey":
 		b.Resource = o.QuantizeRedisString(b.Resource)
 	}
 }

@@ -18,6 +18,8 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"syscall"
 )
 
 type msiexecArgs struct {
@@ -43,6 +45,14 @@ type MsiexecOption func(*msiexecArgs) error
 func Install() MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.msiAction = "/i"
+		return nil
+	}
+}
+
+// AdministrativeInstall specifies that msiexec will be invoked to extract the product
+func AdministrativeInstall() MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.msiAction = "/a"
 		return nil
 	}
 }
@@ -277,12 +287,19 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 			_ = os.RemoveAll(tempDir)
 		})
 	}
-	args := append(a.additionalArgs, a.msiAction, a.target, "/qn", "MSIFASTINSTALL=7", "/log", a.logFile)
 	if a.ddagentUserName != "" {
-		args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
+		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
+	}
+	if a.msiAction == "/i" {
+		a.additionalArgs = append(a.additionalArgs, "MSIFASTINSTALL=7")
 	}
 
-	cmd.Cmd = exec.Command("msiexec", args...)
+	// Do NOT pass the args to msiexec in exec.Command as it will apply some quoting algorithm (CommandLineToArgvW) that is
+	// incompatible with msiexec. It will make arguments like `TARGETDIR` fail because they will be quoted.
+	// Instead, we use the SysProcAttr.CmdLine option and do the quoting ourselves.
+	args := append([]string{`"C:\Windows\system32\msiexec.exe"`, a.msiAction, fmt.Sprintf(`"%s"`, a.target), "/qn", "/log", fmt.Sprintf(`"%s"`, a.logFile)}, a.additionalArgs...)
+	cmd.Cmd = exec.Command("msiexec")
+	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: strings.Join(args, " ")}
 	cmd.logFile = a.logFile
 
 	return cmd, nil

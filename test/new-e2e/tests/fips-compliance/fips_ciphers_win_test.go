@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
@@ -24,8 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-
-	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
@@ -90,6 +89,9 @@ func (s *fipsServerWinSuite) SetupSuite() {
 		// The connectivity-datadog-core-endpoints diagnoses require a non-empty API key
 		windowsAgent.WithZeroAPIKey())
 	require.NoError(s.T(), err)
+
+	// Start the fips-server in the Setup step so we pull the image from ghcr.io before a test runs
+	s.fipsServer.Start(s.T(), cipherTestCase{cert: "rsa"})
 }
 
 func (s *fipsServerWinSuite) generateTraffic() {
