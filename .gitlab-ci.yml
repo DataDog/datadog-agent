@@ -59,7 +59,6 @@ stages:
   - .pre
   - setup
   - maintenance_jobs
-  - codeql_scan
   - deps_build
   - deps_fetch
   - lint
