@@ -46,7 +46,6 @@ const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
 	// mrfPrefix is the MRF site prefix.
-	// TODO: Ensure this is the actual API endpoint for MRF on APM
 	mrfPrefix = "mrf."
 	// rcClientName is the default name for remote configuration clients in the trace agent
 	rcClientName = "trace-agent"
