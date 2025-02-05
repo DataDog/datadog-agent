@@ -341,6 +341,7 @@ func (s *npCollectorImpl) flush() {
 
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
+	s.statsdClient.Count(networkPathCollectorMetricPrefix+"pathtest.flush.count", int64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 	for _, ptConf := range flowsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		select {
