@@ -38,7 +38,7 @@ const (
 func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
 	privKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
-		return nil, fmt.Errorf("generating random key: %v", err.Error())
+		return nil, fmt.Errorf("generating random key: %w", err)
 	}
 
 	return privKey, nil
@@ -49,7 +49,7 @@ func CertTemplate() (*x509.Certificate, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate serial number: %s", err.Error())
+		return nil, fmt.Errorf("failed to generate serial number: %w", err)
 	}
 
 	notBefore := time.Now()
