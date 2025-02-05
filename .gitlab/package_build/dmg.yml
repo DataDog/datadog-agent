@@ -139,7 +139,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  extends: .macos_gitlab
+  # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
@@ -153,14 +153,14 @@ new-agent_dmg-x64-a7:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   script:
     - set -e
-    - !reference [.vault_login]
+    # - !reference [.vault_login]
 
     # Try builder
     - brew list --formula
     - |
-      echo 'Installing cryptography...'
-      brew install cryptography@44.0.0 -fv
-      brew install DataDog/datadog-agent-macos-build/openssl@$OPENSSL_VERSION -fv
+      export OPENSSL_VERSION=1.1
+      # echo 'Installing cryptography...'
+      # brew install cryptography@44.0.0 -fv
       echo 'Installing openssl...'
       brew install DataDog/datadog-agent-macos-build/openssl@$OPENSSL_VERSION -fv
       brew link --overwrite openssl@$OPENSSL_VERSION
