@@ -417,10 +417,21 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
-		initPymemTelemetry(1 * time.Second)
-	} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
-		initPymemTelemetry(15 * time.Minute)
+	// Should we track python memory?
+	if pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
+		var interval time.Duration
+		if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
+			// detailed telemetry is enabled
+			interval = 1 * time.Second
+		} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
+			// default telemetry is enabled (emitted every 15 minute)
+			interval = 15 * time.Minute
+		}
+
+		// interval is 0 if telemetry is disabled
+		if interval > 0 {
+			initPymemTelemetry(interval)
+		}
 	}
 
 	// Set the PYTHONPATH if needed.
