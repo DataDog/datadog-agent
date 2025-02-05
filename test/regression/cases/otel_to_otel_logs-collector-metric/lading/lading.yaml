@@ -30,5 +30,5 @@ target_metrics:
       uri: "http://0.0.0.0:8888/metrics"
       metrics:
         - otelcol_exporter_queue_size
-        - otelcol_receiver_accepted_metric_point
+        - otelcol_receiver_accepted_metric_points
         - otelcol_exporter_sent_metric_points
