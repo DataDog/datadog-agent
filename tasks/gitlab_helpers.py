@@ -325,3 +325,24 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+
+@task
+def celian(ctx):
+    import time
+
+    time.sleep(1)
+    ctx.run('datadog-ci trace --name compute --start')
+    print('Computing something really long to compute...')
+    time.sleep(5)
+
+    ctx.run('datadog-ci trace --name flakiness --start')
+    print('Adding flakiness...')
+    time.sleep(2)
+    print('Added flakiness')
+    ctx.run('datadog-ci trace --name flakiness --end')
+
+    time.sleep(1)
+    print('Finished computing')
+    ctx.run('datadog-ci trace --name compute --start')
