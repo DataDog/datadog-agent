@@ -160,7 +160,7 @@ new-agent_dmg-x64-a7:
     - |
       export OPENSSL_VERSION=1.1
       echo 'Installing cryptography...'
-      brew install cryptography@44.0.0 -fv
+      brew install cryptography -fv
       echo 'Installing openssl...'
       brew install DataDog/datadog-agent-macos-build/openssl@$OPENSSL_VERSION -fv
       brew link --overwrite openssl@$OPENSSL_VERSION
