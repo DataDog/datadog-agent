@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package languagemodels contains the definitions of the languages we can detect,
-// and the interfaces for detecting them.
 package languagemodels
 
 // LanguageName is a string enum that represents a detected language name.
@@ -36,18 +34,8 @@ const (
 	Unknown LanguageName = ""
 )
 
-// IsUnknown returns true if the language is unknown.
-func (l LanguageName) IsUnknown() bool {
-	return l == Unknown
-}
-
 // Language contains metadata collected from the call to `DetectLanguage`
 type Language struct {
 	Name    LanguageName
 	Version string
-}
-
-// IsUnknown returns true if the language is unknown.
-func (l Language) IsUnknown() bool {
-	return l.Name.IsUnknown()
 }
