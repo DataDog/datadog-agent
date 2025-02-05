@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
@@ -82,7 +83,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runAnalyzeLogs,
 				core.Bundle(),
 				fx.Supply(cliParams),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    log.ForOneShot("", "off", true)}),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(defaults.DefaultParams()),
@@ -145,22 +149,13 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
 	fmt.Println("------------------------------------------------------")
-	waitTime := time.Duration(cliParams.inactivityTimeout) * time.Second
-	waitCtx, _ := context.WithTimeout(
+	waitTime := time.Duration(60) * time.Second
+	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), waitTime)
-	fmt.Println("analyze logs ANDREWQIAN1", ac)
-	fmt.Println("analyze logs ANDREWQIAN2", pkgconfigsetup.Datadog().GetString("confd_path"))
-	fmt.Println("analyze logs ANDREWQIAN3", context.Background())
 	common.LoadComponents(nil, nil, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
-	fmt.Println("TEST TODAY ANALYZE LOGS-----")
-	fmt.Println("hehexd1", waitCtx)
-	fmt.Println("hehexd2", []string{cliParams.LogConfigPath})
-	fmt.Println("hehexd3", 1)
-	fmt.Println("hehexd4", "")
-	fmt.Println("hehexd5", ac)
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
-	// cancelTimeout()
+	cancelTimeout()
 	if err != nil {
 		return nil, nil, nil
 	}
