@@ -4483,11 +4483,11 @@ api_key:
 
     ## @param ignore_missing_datadog_fields - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS - boolean - optional - default: false
-    ## IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
-    ## namespaced span attributes are missing. If it is true (default), we will use the incoming "datadog." namespaced
-    ## OTLP span attributes to construct the DD span, and if they are missing, we will recompute them from the other
-    ## OTLP semantic convention attributes. If it is false, we will only populate a field if its associated "datadog."
-    ## OTLP span attribute exists, otherwise we will leave it empty.
+    ## IgnoreMissingDatadogFields specifies whether to recompute DD span fields if the corresponding "datadog."
+    ## namespaced span attributes are missing. If true (default), incoming "datadog." namespaced
+    ## OTLP span attributes are used to construct the DD span. If these attributes are missing, they are recomputed from the other
+    ## OTLP semantic convention attributes. If it is false, a field is populated only if its associated "datadog."
+    ## OTLP span attribute exists; otherwise, the field is left empty.
     #  ignore_missing_datadog_fields: false
 
   ## @param logs - custom object - optional
