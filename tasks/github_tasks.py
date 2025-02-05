@@ -669,3 +669,80 @@ query {
     res = gh.graphql(query)
 
     print(json.dumps(res, indent=2))
+
+
+@task
+def check_permissions(_, repo: str):
+    """
+    Check the permissions on a given repository
+    - list members without any contribution in the last 6 months
+    - list teams with not any contributors
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI(f"datadog/{repo}")
+    all_teams = gh.find_all_teams(
+        gh._repository,
+        exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
+        exclude_permissions=['pull'],
+    )
+    idle_teams = []
+    idle_contributors = set()
+    committers = gh.get_committers()
+    reviewers = gh.get_reviewers()
+    print(f"Checking permissions for {repo}, {len(committers)} committers, {len(reviewers)} reviewers")
+    for team in all_teams:
+        members = team.get_members()
+        has_contributors = False
+        for member in members:
+            if member.login in committers or member.login in reviewers:
+                has_contributors = True
+            else:
+                idle_contributors.add(member.login)
+        if not has_contributors:
+            idle_teams.append((team.name, team.html_url))
+
+    print(f"Idle teams: {idle_teams}, idle contributors {idle_contributors}")
+    if idle_teams or idle_contributors:
+        from slack_sdk import WebClient
+
+        client = WebClient(token=os.environ['SLACK_API_TOKEN'])
+        header = f":github: {repo} permissions check\n"
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": header},
+            },
+        ]
+        message = header
+        if idle_teams:
+            teams = [f" - <{team[1]}|{team[0]}>\n" for team in idle_teams]
+            message += f"Teams:\n{''.join(teams)}"
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"Teams with no contributors:\n{''.join(teams)}"},
+                }
+            )
+        if idle_contributors:
+            contributors = [
+                f" - <https://github.com/{contributor}|{contributor}>\n" for contributor in idle_contributors
+            ]
+            message += f"Contributors:\n{''.join(contributors)}"
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"Users with no contribution:\n{''.join(contributors)}\n"},
+                }
+            )
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"Please check the `{repo}` <https://github.com/DataDog/{repo}/settings/access|settings>.",
+                },
+            }
+        )
+        client.chat_postMessage(channel="agent-devx-help", blocks=blocks, text=message)
+        print("Message sent to slack")

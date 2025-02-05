@@ -22,6 +22,9 @@ exporters:
 extensions:
 - gomod: github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.61.0
   path: ./comp/otelcol/ddflareextension/impl
+# blocked by https://github.com/open-telemetry/opentelemetry-collector/issues/12162
+# - gomod: github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.61.0
+#   path: ./comp/otelcol/ddprofilingextension/impl
 - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.118.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension
     v0.118.0
@@ -38,6 +41,8 @@ extensions:
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver
     v0.118.0
 processors:
+- gomod: github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.61.0
+  path: ./comp/otelcol/otlp/components/processor/infraattributesprocessor
 - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.118.0
 - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.118.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor
