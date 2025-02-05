@@ -1245,4 +1245,4 @@ celian:
     - !reference [.update-datadog-ci-amd64]
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - datadog-ci trace --name hello echo hello || true
-    - datadog-ci trace --name compute bash -c "echo start; sleep 5; echo end" || true
+    - datadog-ci trace --name compute -- bash -c "echo start; sleep 5; echo end" || true
