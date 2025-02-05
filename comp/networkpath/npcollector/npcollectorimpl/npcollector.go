@@ -192,7 +192,7 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_received", []string{}, 1) //nolint:errcheck
 		return nil
 	default:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_dropped_at_reception", []string{"reason:pathtest"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_dropped_at_reception", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
@@ -345,7 +345,7 @@ func (s *npCollectorImpl) flush() {
 		case s.pathtestProcessingChan <- ptConf:
 			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_added_to_processing", []string{}, 1) //nolint:errcheck
 		default:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_dropped_at_flush", []string{"reason:pathtest"}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_dropped_at_flush", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
 			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
 		}
 	}
