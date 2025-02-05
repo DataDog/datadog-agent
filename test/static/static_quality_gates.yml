@@ -5,3 +5,16 @@ static_quality_gate_agent_deb_amd64:
 static_quality_gate_docker_agent_amd64:
   max_on_wire_size: "321.56 MiB"
   max_on_disk_size: "942.69 MiB"
+
+static_quality_gate_docker_agent_arm64:
+  max_on_wire_size: "321.56 MiB"
+  max_on_disk_size: "942.69 MiB"
+
+static_quality_gate_docker_agent_jmx_amd64:
+  max_on_wire_size: "321.56 MiB"
+  max_on_disk_size: "942.69 MiB"
+
+static_quality_gate_docker_agent_jmx_arm64:
+  max_on_wire_size: "321.56 MiB"
+  max_on_disk_size: "942.69 MiB"
+
