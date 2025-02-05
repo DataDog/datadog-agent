@@ -3,6 +3,7 @@ include:
   - .gitlab/.pre/include.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
+  - /.gitlab/codeql_scan.yml
   - .gitlab/check_deploy/check_deploy.yml
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
@@ -58,6 +59,7 @@ stages:
   - .pre
   - setup
   - maintenance_jobs
+  - codeql_scan
   - deps_build
   - deps_fetch
   - lint
