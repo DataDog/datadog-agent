@@ -149,18 +149,14 @@ func TestHandleMultipleConcurrentWrites(t *testing.T) {
 
 	// Read the first artifact
 	content, err := os.ReadFile(location)
-	stringContent := string(content)
 	require.NoError(t, err)
+	stringContent := string(content)
 
 	// Make sure that all goroutine produced the same output
 	for i := 0; i < numGoroutines; i++ {
 		readedArtifact := <-results
 		assert.Equal(t, stringContent, readedArtifact, "all goroutines should read the same final artifact")
 	}
-
-	// The artifact file should exist now
-	_, err = os.Stat(location)
-	require.NoError(t, err, "artifact file should exist after creation")
 
 	// The lock file should be cleaned up
 	lockFilePath := location + lockSuffix
