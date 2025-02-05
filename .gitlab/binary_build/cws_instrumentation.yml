@@ -4,8 +4,7 @@
   needs: ["go_mod_tidy_check"]
   script:
     - inv check-go-version
-    - inv -e cws-instrumentation.build
-    - mv $CI_PROJECT_DIR/$CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation $CI_PROJECT_DIR/$CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.$ARCH
+    - inv -e cws-instrumentation.build --arch-suffix
   artifacts:
     paths:
       - $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.$ARCH
