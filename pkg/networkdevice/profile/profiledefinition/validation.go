@@ -3,14 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package configvalidation contains validation and enrichment functions
-package configvalidation
+package profiledefinition
 
 import (
 	"fmt"
 	"regexp"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 var validMetadataResources = map[string]map[string]bool{
@@ -50,8 +47,35 @@ const (
 	MetadataSymbol
 )
 
-// ValidateEnrichMetricTags validates and enrich metric tags
-func ValidateEnrichMetricTags(metricTags []profiledefinition.MetricTagConfig) []string {
+// ValidateEnrichProfile validates a profile and normalizes it.
+func ValidateEnrichProfile(profile *ProfileDefinition) []string {
+	NormalizeMetrics(profile.Metrics)
+	// migrate legacy profile.Device.Vendor to metadata field.
+	// TODO this is commented out because it changes existing behavior; uncomment when we want to support this properly.
+	// if profile.Device.Vendor != "" {
+	// 	dev, ok := profile.Metadata["device"]
+	// 	if !ok {
+	// 		profile.Metadata["device"] = MetadataResourceConfig{
+	// 			Fields: make(map[string]MetadataField),
+	// 		}
+	// 		dev = profile.Metadata["device"]
+	// 	}
+	// 	_, ok = dev.Fields["vendor"]
+	// 	if !ok {
+	// 		dev.Fields["vendor"] = MetadataField{
+	// 			Value: profile.Device.Vendor,
+	// 		}
+	// 	}
+	// 	profile.Device.Vendor = ""
+	// }
+	errors := ValidateEnrichMetadata(profile.Metadata)
+	errors = append(errors, ValidateEnrichMetrics(profile.Metrics)...)
+	errors = append(errors, ValidateEnrichMetricTags(profile.MetricTags)...)
+	return errors
+}
+
+// ValidateEnrichMetricTags validates and normalizes metric tags
+func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 	var errors []string
 	for i := range metricTags {
 		errors = append(errors, validateEnrichMetricTag(&metricTags[i])...)
@@ -62,7 +86,7 @@ func ValidateEnrichMetricTags(metricTags []profiledefinition.MetricTagConfig) []
 // ValidateEnrichMetrics will validate MetricsConfig and enrich it.
 // Example of enrichment:
 // - storage of compiled regex pattern
-func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
+func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]
@@ -100,7 +124,7 @@ func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
 }
 
 // ValidateEnrichMetadata will validate MetadataConfig and enrich it.
-func ValidateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
+func ValidateEnrichMetadata(metadata MetadataConfig) []string {
 	var errors []string
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]
@@ -136,7 +160,7 @@ func ValidateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string 
 	return errors
 }
 
-func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext SymbolContext) []string {
+func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []string {
 	var errors []string
 	if symbol.Name == "" {
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
@@ -172,8 +196,7 @@ func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext 
 	}
 	return errors
 }
-
-func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []string {
+func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 	var errors []string
 	if (metricTag.Column.OID != "" || metricTag.Column.Name != "") && (metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "") {
 		errors = append(errors, fmt.Sprintf("metric tag symbol and column cannot be both declared: symbol=%v, column=%v", metricTag.Symbol, metricTag.Column))
@@ -181,8 +204,8 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 
 	// Move deprecated metricTag.Column to metricTag.Symbol
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
-		metricTag.Symbol = profiledefinition.SymbolConfigCompat(metricTag.Column)
-		metricTag.Column = profiledefinition.SymbolConfig{}
+		metricTag.Symbol = SymbolConfigCompat(metricTag.Column)
+		metricTag.Column = SymbolConfig{}
 	}
 
 	// OID/Name to Symbol harmonization:
@@ -200,9 +223,9 @@ func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []str
 		metricTag.OID = ""
 	}
 	if metricTag.Symbol.OID != "" || metricTag.Symbol.Name != "" {
-		symbol := profiledefinition.SymbolConfig(metricTag.Symbol)
+		symbol := SymbolConfig(metricTag.Symbol)
 		errors = append(errors, validateEnrichSymbol(&symbol, MetricTagSymbol)...)
-		metricTag.Symbol = profiledefinition.SymbolConfigCompat(symbol)
+		metricTag.Symbol = SymbolConfigCompat(symbol)
 	}
 	if metricTag.Match != "" {
 		pattern, err := regexp.Compile(metricTag.Match)
