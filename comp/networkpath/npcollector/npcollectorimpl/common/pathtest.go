@@ -6,7 +6,6 @@
 package common
 
 import (
-	"encoding/binary"
 	"hash/fnv"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -32,9 +31,7 @@ type Pathtest struct {
 // GetHash returns the hash of the Pathtest
 func (p Pathtest) GetHash() uint64 {
 	h := fnv.New64()
-	h.Write([]byte(p.Hostname))                  //nolint:errcheck
-	binary.Write(h, binary.LittleEndian, p.Port) //nolint:errcheck
-	h.Write([]byte(p.Protocol))                  //nolint:errcheck
-	h.Write([]byte(p.SourceContainerID))         //nolint:errcheck
+	h.Write([]byte(p.Hostname)) //nolint:errcheck
+	h.Write([]byte(p.Protocol)) //nolint:errcheck
 	return h.Sum64()
 }
