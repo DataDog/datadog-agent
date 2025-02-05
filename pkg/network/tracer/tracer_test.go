@@ -1124,7 +1124,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	assert.Equal(t, uint16(1), conn.Last.TCPEstablished)
 	assert.Equal(t, uint16(0), conn.Last.TCPClosed)
 
-	testutil.GracefulCloseTCP(c)
+	c.Close()
 
 	// Wait for the connection to be sent from the perf buffer
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
