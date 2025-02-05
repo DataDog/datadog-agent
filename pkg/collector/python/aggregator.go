@@ -9,19 +9,24 @@
 package python
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
+	"crypto/tls"
 	"fmt"
-	"net/http"
 	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 /*
@@ -42,14 +47,37 @@ type metric struct {
 	FlushFirstValue bool     `json:"flush_first_value,omitempty"`
 }
 
-var httpOnce sync.Once
-var httpClient *http.Client
+var grpcOnce sync.Once
+var grpcClient pb.AgentSecureClient
 
-func getHTTPClient() *http.Client {
-	httpOnce.Do(func() {
-		httpClient = util.GetClient(false)
+func getGRPCClient() pb.AgentSecureClient {
+	grpcOnce.Do(func() {
+		token, err := security.FetchAuthToken(pkgconfigsetup.Datadog())
+		if err != nil {
+			panic(err)
+		}
+
+		// NOTE: we're using InsecureSkipVerify because the gRPC server only
+		// persists its TLS certs in memory, and we currently have no
+		// infrastructure to make them available to clients. This is NOT
+		// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
+		// connection.
+		creds := credentials.NewTLS(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+
+		conn, err := grpc.NewClient(fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")),
+			grpc.WithTransportCredentials(creds),
+			grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(token)),
+		)
+
+		if err != nil {
+			panic(err)
+		}
+
+		grpcClient = pb.NewAgentSecureClient(conn)
 	})
-	return httpClient
+	return grpcClient
 }
 
 // SubmitMetric is the method exposed to Python scripts to submit metrics
@@ -82,11 +110,8 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		_metricType = "HISTORATE"
 	}
 
-	// Send the HTTP request
-	url := fmt.Sprintf("https://localhost:%v/v1/grpc/aggregator/metrics", pkgconfigsetup.Datadog().GetInt("cmd_port"))
-	hc := getHTTPClient()
-	// Construct the POST payload.
-	payload := metric{
+	c := getGRPCClient()
+	resp, err := c.SendCheckMetric(context.Background(), &pb.Metric{
 		CheckId:         goCheckID,
 		Type:            _metricType,
 		MetricName:      _name,
@@ -94,16 +119,6 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		Hostname:        _hostname,
 		Tags:            _tags,
 		FlushFirstValue: _flushFirstValue,
-	}
-	postData, err := json.Marshal(payload)
-
-	if err != nil {
-		log.Errorf("Error marshalling payload: %v", err)
-		return
-	}
-
-	resp, err := util.DoPostWithOptions(hc, url, "application/json", bytes.NewBuffer(postData), &util.ReqOptions{
-		Conn: util.LeaveConnectionOpen,
 	})
 
 	if err != nil {
@@ -111,7 +126,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		return
 	}
 
-	log.Debug(fmt.Sprintf("python to aggregator response: %s", string(resp)))
+	log.Debug(fmt.Sprintf("python to aggregator response: %s", resp.Status))
 }
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks
