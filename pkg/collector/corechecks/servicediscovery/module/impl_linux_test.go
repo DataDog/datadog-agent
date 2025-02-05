@@ -1042,6 +1042,16 @@ func TestTagsPriority(t *testing.T) {
 			"service",
 			"my_service",
 		},
+		{
+			"multiple tags",
+			[]string{
+				"service:foo",
+				"service:bar",
+				"other:tag",
+			},
+			"service",
+			"bar",
+		},
 	}
 
 	for _, c := range cases {
