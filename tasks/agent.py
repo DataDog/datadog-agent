@@ -90,6 +90,7 @@ AGENT_CORECHECKS = [
     "network_path",
     "service_discovery",
     "gpu",
+    "disk",
 ]
 
 WINDOWS_CORECHECKS = [
