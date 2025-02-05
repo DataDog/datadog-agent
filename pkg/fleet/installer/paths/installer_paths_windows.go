@@ -336,3 +336,18 @@ func getProgramDataDirForProduct(product string) (path string, err error) {
 	path = val
 	return
 }
+
+// SetRepositoryPermissions sets the permissions on the repository directory
+// It needs to be world readable so that user processes can load installed libraries
+func SetRepositoryPermissions(path string) error {
+	// Desired permissions:
+	// - OWNER: Administrators
+	// - GROUP: Administrators
+	// - SYSTEM: Full Control (propagates to children)
+	// - Administrators: Full Control (propagates to children)
+	// - Everyone: 0x1200A9 Read and execute (propagates to children)
+	// - PROTECTED: does not inherit permissions from parent
+	sddl := "O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200A9;;;WD)"
+
+	return treeResetNamedSecurityInfoWithSDDL(path, sddl)
+}

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -357,7 +358,7 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("could not stat target package: %w", err)
 	}
-	if err := os.Chmod(sourcePath, 0755); err != nil {
+	if err := paths.SetRepositoryPermissions(sourcePath); err != nil {
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
 	err = os.Rename(sourcePath, targetPath)
