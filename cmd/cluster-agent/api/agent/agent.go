@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -33,7 +34,7 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, taggerComp tagger.Component, diagnoseComponent diagnose.Component) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, taggerComp tagger.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +54,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
+	r.HandleFunc("/metadata/cluster-agent", dcametadataComp.WritePayloadAsJSON).Methods("GET")
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
