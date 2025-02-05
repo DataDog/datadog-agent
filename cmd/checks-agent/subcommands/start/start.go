@@ -38,7 +38,7 @@ import (
 	remoteTagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -203,7 +203,7 @@ func start(
 	senderManager sender.SenderManager,
 	tagger tagger.Component,
 	authToken authtoken.Component,
-	_ telemetry.Component,
+	telemetry telemetry.Component,
 	_ pid.Component,
 ) error {
 	currentheapSize := getAlloc()
@@ -248,10 +248,9 @@ func start(
 	// TODO: figure out how to initial.ize checks contexts
 	// check.InitializeInventoryChecksContext(invChecks)
 
-	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), &mockSenderManager{}, option.None[integrations.Component](), tagger)
 	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
 	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
-	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
+	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), &mockSenderManager{}, option.None[integrations.Component](), tagger)
 
 	// Start the scheduler
 	go startScheduler(ctx, stream, scheduler, log, config)

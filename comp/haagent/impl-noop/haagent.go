@@ -20,6 +20,14 @@ func (h *haAgentImpl) Enabled() bool {
 	return false
 }
 
+func (h *haAgentImpl) GetConfigID() string {
+	return ""
+}
+
+func (h *haAgentImpl) IsHaIntegration(_ string) bool {
+	return false
+}
+
 func (h *haAgentImpl) GetGroup() string {
 	return ""
 }

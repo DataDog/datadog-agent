@@ -7,14 +7,14 @@
 package proto
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 // ContainersLanguagesToProto returns two proto messages ContainerLanguageDetails
 // The first one contains standard containers
 // The second one contains init containers
-func ContainersLanguagesToProto(c util.ContainersLanguages) (containersDetailsProto, initContainersDetailsProto []*pbgo.ContainerLanguageDetails) {
+func ContainersLanguagesToProto(c languagemodels.ContainersLanguages) (containersDetailsProto, initContainersDetailsProto []*pbgo.ContainerLanguageDetails) {
 	containersDetailsProto = make([]*pbgo.ContainerLanguageDetails, 0, len(c))
 	initContainersDetailsProto = make([]*pbgo.ContainerLanguageDetails, 0, len(c))
 	for container, languageSet := range c {
@@ -35,7 +35,7 @@ func ContainersLanguagesToProto(c util.ContainersLanguages) (containersDetailsPr
 }
 
 // ToProto returns a proto message Language
-func LanguageSetToProto(s util.LanguageSet) []*pbgo.Language {
+func LanguageSetToProto(s languagemodels.LanguageSet) []*pbgo.Language {
 	res := make([]*pbgo.Language, 0, len(s))
 	for lang := range s {
 		res = append(res, &pbgo.Language{

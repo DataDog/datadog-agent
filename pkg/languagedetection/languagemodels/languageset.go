@@ -8,8 +8,6 @@ package languagemodels
 import (
 	"reflect"
 	"time"
-
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 ////////////////////////////////
