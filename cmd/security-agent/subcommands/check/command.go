@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && kubeapiserver
+//go:build !windows
 
 // Package check holds check related files
 package check
@@ -14,12 +14,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/dynamic"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
@@ -31,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -38,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 // CliParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
@@ -93,6 +91,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
 				core.Bundle(),
+				logscompressionfx.Module(),
 				dogstatsd.ClientBundle,
 			)
 		},
@@ -109,8 +108,14 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams) error {
-	hname, err := hostname.Get(context.TODO())
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams, compression logscompression.Component) error {
+	var hname string
+	var err error
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		hname, err = hostname.Get(context.TODO())
+	} else {
+		hname, err = hostnameutils.GetHostnameWithContextAndFallback(context.Background())
+	}
 	if err != nil {
 		return err
 	}
@@ -137,20 +142,13 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 	var resolver compliance.Resolver
 	if checkArgs.overrideRegoInput != "" {
 		resolver = newFakeResolver(checkArgs.overrideRegoInput)
-	} else if flavor.GetFlavor() == flavor.ClusterAgent {
-		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
-			Hostname:           hname,
-			DockerProvider:     compliance.DefaultDockerProvider,
-			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
-			KubernetesProvider: complianceKubernetesProvider,
-			StatsdClient:       statsdClient,
-		})
 	} else {
 		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
 			Hostname:           hname,
 			HostRoot:           os.Getenv("HOST_ROOT"),
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
+			KubernetesProvider: complianceKubernetesProvider,
 			StatsdClient:       statsdClient,
 		})
 	}
@@ -218,7 +216,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 		}
 	}
 	if checkArgs.report {
-		if err := reportComplianceEvents(log, events); err != nil {
+		if err := reportComplianceEvents(log, events, compression); err != nil {
 			log.Error(err)
 			return err
 		}
@@ -241,7 +239,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent) error {
+func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent, compression logscompression.Component) error {
 	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
@@ -250,22 +248,12 @@ func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent) 
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
-	reporter := compliance.NewLogReporter(hostnameDetected, "compliance-agent", "compliance", endpoints, context)
+	reporter := compliance.NewLogReporter(hostnameDetected, "compliance-agent", "compliance", endpoints, context, compression)
 	defer reporter.Stop()
 	for _, event := range events {
 		reporter.ReportEvent(event)
 	}
 	return nil
-}
-
-func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
-	ctx, cancel := context.WithTimeout(_ctx, 2*time.Second)
-	defer cancel()
-	apiCl, err := apiserver.WaitForAPIClient(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 }
 
 type fakeResolver struct {

@@ -47,6 +47,8 @@ var packetSourceTelemetry = struct {
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
 	*afpacket.TPacket
+	// store AFPacketInfo used to visit packets to avoid malloc on a per-packet basis
+	afPacketInfo *AFPacketInfo
 
 	exit chan struct{}
 }
@@ -57,6 +59,11 @@ type AFPacketInfo struct {
 	// sockaddr_ll struct; see packet(7)
 	// https://man7.org/linux/man-pages/man7/packet.7.html
 	PktType uint8
+}
+
+// GetPacketInfoBuffer returns a pointer to AFPacketInfo which is reused between calls
+func (p *AFPacketSource) GetPacketInfoBuffer() *AFPacketInfo {
+	return p.afPacketInfo
 }
 
 // OptSnapLen specifies the maximum length of the packet to read
@@ -98,8 +105,9 @@ func NewAFPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
 	}
 
 	ps := &AFPacketSource{
-		TPacket: rawSocket,
-		exit:    make(chan struct{}),
+		TPacket:      rawSocket,
+		afPacketInfo: &AFPacketInfo{},
+		exit:         make(chan struct{}),
 	}
 	go ps.pollStats()
 
@@ -131,22 +139,17 @@ func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
 
 type zeroCopyPacketReader interface {
 	ZeroCopyReadPacketData() (data []byte, ci gopacket.CaptureInfo, err error)
+	// GetPacketInfoBuffer returns a pointer to AFPacketInfo which is reused between calls
+	GetPacketInfoBuffer() *AFPacketInfo
 }
 
 // AFPacketVisitor is the callback that AFPacketSource will trigger for packets
 // The data buffer is reused between calls, so be careful
 type AFPacketVisitor = func(data []byte, info PacketInfo, t time.Time) error
 
-func visitPackets(p zeroCopyPacketReader, exit <-chan struct{}, visit AFPacketVisitor) error {
-	pktInfo := &AFPacketInfo{}
+func visitPackets(p zeroCopyPacketReader, visit AFPacketVisitor) error {
+	pktInfo := p.GetPacketInfoBuffer()
 	for {
-		// allow the read loop to be prematurely interrupted
-		select {
-		case <-exit:
-			return nil
-		default:
-		}
-
 		data, stats, err := p.ZeroCopyReadPacketData()
 
 		// Immediately retry for EAGAIN
@@ -154,7 +157,7 @@ func visitPackets(p zeroCopyPacketReader, exit <-chan struct{}, visit AFPacketVi
 			continue
 		}
 
-		if err == afpacket.ErrTimeout {
+		if err == afpacket.ErrTimeout || err == afpacket.ErrCancelled {
 			return nil
 		}
 
@@ -177,8 +180,8 @@ func visitPackets(p zeroCopyPacketReader, exit <-chan struct{}, visit AFPacketVi
 }
 
 // VisitPackets starts reading packets from the source
-func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit AFPacketVisitor) error {
-	return visitPackets(p, exit, visit)
+func (p *AFPacketSource) VisitPackets(visit AFPacketVisitor) error {
+	return visitPackets(p, visit)
 }
 
 // LayerType is the gopacket.LayerType for this source

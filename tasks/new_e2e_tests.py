@@ -127,6 +127,13 @@ def run(
     if test_run_name != "":
         test_run_arg = f"-run {test_run_name}"
 
+    # Create temporary file for flaky patterns config
+    tmp_flaky_patterns_config = tempfile.NamedTemporaryFile(suffix="flaky_patterns_config.yaml", delete_on_close=False)
+    tmp_flaky_patterns_config.write(b"{}")
+    tmp_flaky_patterns_config.close()
+    flaky_patterns_config = tmp_flaky_patterns_config.name
+    env_vars["E2E_FLAKY_PATTERNS_CONFIG"] = flaky_patterns_config
+
     cmd = f'gotestsum --format {gotestsum_format} '
     scrubber_raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
@@ -158,6 +165,7 @@ def run(
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
+        "flaky_patterns_config": f'--flaky-patterns-config={flaky_patterns_config}' if flaky_patterns_config else '',
         "extra_flags": extra_flags,
     }
 
@@ -174,7 +182,9 @@ def run(
         test_profiler=None,
     )
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(
+        test_res, junit_tar, AgentFlavor.base, test_washer, extra_flakes_config=flaky_patterns_config
+    )
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
@@ -189,6 +199,7 @@ def run(
         print(
             f'To run this test locally, use: `{command}`. '
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
+            '\nYou can troubleshoot e2e test failures with this documentation: https://datadoghq.atlassian.net/wiki/x/7gIo0'
         )
 
     if logs_post_processing:
@@ -199,7 +210,9 @@ def run(
             os.makedirs(logs_folder, exist_ok=True)
             write_result_to_log_files(post_processed_output, logs_folder)
 
-            pretty_print_logs(test_res[0].result_json_path, post_processed_output)
+            pretty_print_logs(
+                test_res[0].result_json_path, post_processed_output, flakes_files=["flakes.yaml", flaky_patterns_config]
+            )
         else:
             print(
                 color_message("WARNING", "yellow")
@@ -382,7 +395,7 @@ def pretty_print_test_logs(logs_per_test: list[tuple[str, str, str]], max_size):
     return size
 
 
-def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_file="flakes.yaml"):
+def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_files=None):
     """Pretty prints logs with a specific order.
 
     Print order:
@@ -394,7 +407,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
 
     result_json_name = result_json_path.split("/")[-1]
     result_json_dir = result_json_path.removesuffix('/' + result_json_name)
-    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_path=flakes_file)
+    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files or ["flakes.yaml"])
     failing_tests, marked_flaky_tests = washer.parse_test_results(result_json_dir)
     all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
 

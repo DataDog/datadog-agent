@@ -33,6 +33,9 @@ import (
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
 func runAgentSidekicks(ag component) error {
+	// Configure the Trace Agent Debug server to use the IPC certificate
+	ag.Agent.DebugServer.SetTLSConfig(ag.at.GetTLSServerConfig())
+
 	tracecfg := ag.config.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
@@ -67,9 +70,13 @@ func runAgentSidekicks(ag component) error {
 	// pkg/config is not a go-module yet and pulls a large chunk of Agent code base with it. Using it within the
 	// trace-agent would largely increase the number of module pulled by OTEL when using the pkg/trace go-module.
 	ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
+	ag.Agent.DebugServer.AddRoute("/config/set", ag.config.SetHandler())
+	// The below endpoint is deprecated and has been replaced with /config/set on the debug server.
+	// It will be removed in a future version.
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
 		Handler: func(_ *api.HTTPReceiver) http.Handler {
+			log.Warnf("The /config/set endpoint on this port is deprecated and will be removed. The same endpoint is available on the debug server at 127.0.0.1:%d", tracecfg.DebugServerPort)
 			return ag.config.SetHandler()
 		},
 	})
@@ -94,9 +101,6 @@ func runAgentSidekicks(ag component) error {
 			w.Write([]byte(res))
 		}))
 	}
-
-	// Configure the Trace Agent Debug server to use the IPC certificate
-	ag.Agent.DebugServer.SetTLSConfig(ag.at.GetTLSServerConfig())
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {

@@ -58,7 +58,7 @@ func (h *IngressHandlers) BuildMessageBody(ctx processors.ProcessorContext, reso
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *IngressHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*netv1.Ingress)
-	return k8sTransformers.ExtractIngress(r)
+	return k8sTransformers.ExtractIngress(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

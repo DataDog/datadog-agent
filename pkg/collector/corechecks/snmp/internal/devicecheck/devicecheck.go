@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"reflect"
 	"runtime"
 	"strings"
@@ -18,7 +19,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	haagenthelpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -55,6 +55,60 @@ const (
 	checkDurationThreshold  = 30 // Thirty seconds
 )
 
+type profileCache struct {
+	sysObjectID string
+	timestamp   time.Time
+	profile     *profiledefinition.ProfileDefinition
+	err         error
+	scalarOIDs  []string
+	columnOIDs  []string
+}
+
+// GetProfile returns the cached profile, or an empty profile if the cache is empty.
+// Use this when you need to make sure you have *some* profile.
+func (pc *profileCache) GetProfile() profiledefinition.ProfileDefinition {
+	if pc.profile == nil {
+		return profiledefinition.ProfileDefinition{
+			Metadata: make(profiledefinition.MetadataConfig),
+		}
+	}
+	return *pc.profile
+}
+
+func (pc *profileCache) Update(sysObjectID string, now time.Time, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
+	if pc.IsOutdated(sysObjectID, config.ProfileName, config.ProfileProvider.LastUpdated()) {
+		// we cache the value even if there's an error, because an error indicates that
+		// the ProfileProvider couldn't find a match for either config.ProfileName or
+		// the given sysObjectID, and we're going to have the same error if we call this
+		// again without either the sysObjectID or the ProfileProvider changing.
+		pc.sysObjectID = sysObjectID
+		pc.timestamp = now
+		profile, err := config.BuildProfile(sysObjectID)
+		pc.profile = &profile
+		pc.err = err
+		pc.scalarOIDs, pc.columnOIDs = pc.profile.SplitOIDs(config.CollectDeviceMetadata)
+	}
+	return pc.GetProfile(), pc.err
+}
+
+func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, lastUpdate time.Time) bool {
+	if pc.profile == nil {
+		return true
+	}
+	if profileName == checkconfig.ProfileNameInline {
+		// inline profiles never change, so if we have a profile it's up-to-date.
+		return false
+	}
+	if profileName == checkconfig.ProfileNameAuto && pc.sysObjectID != sysObjectID {
+		// If we're auto-detecting profiles and the sysObjectID has changed, we're out of date.
+		return true
+	}
+	// If we get here then either we're auto-detecting but the sysobjectid hasn't
+	// changed, or we have a static name; either way we're out of date if and only
+	// if the profile provider has updated.
+	return pc.timestamp.Before(lastUpdate)
+}
+
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
 	config                  *checkconfig.CheckConfig
@@ -68,6 +122,7 @@ type DeviceCheck struct {
 	interfaceBandwidthState report.InterfaceBandwidthState
 	cacheKey                string
 	agentConfig             config.Component
+	profileCache            profileCache
 }
 
 const cacheKeyPrefix = "snmp-tags"
@@ -100,6 +155,10 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	}
 
 	d.readTagsFromCache()
+	if _, err := d.profileCache.Update("", time.Now(), d.config); err != nil {
+		// This could happen e.g. if the config references a profile that hasn't been loaded yet.
+		_ = log.Warnf("failed to refresh profile cache: %s", err)
+	}
 
 	return &d, nil
 }
@@ -163,7 +222,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var deviceStatus metadata.DeviceStatus
 	var pingStatus metadata.DeviceStatus
 
-	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
+	deviceReachable, profile, dynamicTags, values, checkErr := d.getValuesAndTags()
 
 	tags := utils.CopyStrings(staticTags)
 	if checkErr != nil {
@@ -183,7 +242,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), metricTags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), metricTags)
 	if values != nil {
-		d.sender.ReportMetrics(d.config.Metrics, values, metricTags, d.config.DeviceID)
+		d.sender.ReportMetrics(profile.Metrics, values, metricTags, d.config.DeviceID)
 	}
 
 	// Get a system appropriate ping check
@@ -232,7 +291,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 		deviceDiagnosis := d.diagnoses.Report()
 
-		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, pingStatus, deviceDiagnosis)
+		d.sender.ReportNetworkDeviceMetadata(d.config, profile, values, deviceMetadataTags, collectionTime,
+			deviceStatus, pingStatus, deviceDiagnosis)
 	}
 
 	d.submitTelemetryMetrics(startTime, metricTags)
@@ -253,14 +313,14 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 }
 
 func (d *DeviceCheck) buildExternalTags() []string {
-	agentTags := configUtils.GetConfiguredTags(d.agentConfig, false)
-	if haagenthelpers.IsEnabled(d.agentConfig) {
-		agentTags = append(agentTags, haagenthelpers.GetHaAgentTags(d.agentConfig)...)
-	}
-	return agentTags
+	return configUtils.GetConfiguredTags(d.agentConfig, false)
 }
 
-func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValueStore, error) {
+// getValuesAndTags build (or fetches from cache) a profile describing all the
+// metrics, tags, etc. to be fetched for this device, fetches the resulting
+// values, and returns (reachable, profile, tags, values, error). In the event
+// of an error, the returned profile will be the last cached profile.
+func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinition, []string, *valuestore.ResultValueStore, error) {
 	var deviceReachable bool
 	var checkErrors []string
 	var tags []string
@@ -269,7 +329,8 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	connErr := d.session.Connect()
 	if connErr != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
-		return false, tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
+		// cannot connect -> use cached profile
+		return false, d.profileCache.GetProfile(), tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
 		err := d.session.Close()
@@ -292,15 +353,16 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 		}
 	}
 
-	err = d.detectMetricsToMonitor(d.session)
+	profile, err := d.detectMetricsToMonitor(d.session)
 	if err != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_DETECT_PROFILE", "Agent failed to detect a profile for this network device.")
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
 
-	tags = append(tags, d.config.ProfileTags...)
+	tags = append(tags, profile.StaticTags...)
 
-	valuesStore, err := fetch.Fetch(d.session, d.config)
+	valuesStore, err := fetch.Fetch(d.session, d.profileCache.scalarOIDs, d.profileCache.columnOIDs, d.config.OidBatchSize,
+		d.config.BulkMaxRepetitions)
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
 	}
@@ -308,37 +370,38 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
 	} else {
-		tags = append(tags, d.sender.GetCheckInstanceMetricTags(d.config.MetricTags, valuesStore)...)
+		tags = append(tags, d.sender.GetCheckInstanceMetricTags(profile.MetricTags, valuesStore)...)
 	}
 
 	var joinedError error
 	if len(checkErrors) > 0 {
 		joinedError = errors.New(strings.Join(checkErrors, "; "))
 	}
-	return deviceReachable, tags, valuesStore, joinedError
+	return deviceReachable, profile, tags, valuesStore, joinedError
 }
 
-func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
-	if d.config.AutodetectProfile {
+func (d *DeviceCheck) getSysObjectID(sess session.Session) (string, error) {
+	if d.config.ProfileName == checkconfig.ProfileNameAuto {
 		// detect using sysObjectID
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
-			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
+			return "", fmt.Errorf("failed to fetch sysobjectid: %w", err)
 		}
-		profile, err := d.config.ProfileProvider.GetProfileNameForSysObjectID(sysObjectID)
-		if err != nil {
-			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
-		}
-		if profile != d.config.ProfileName {
-			log.Debugf("detected profile change: %s -> %s", d.config.ProfileName, profile)
-			err = d.config.SetProfile(profile)
-			if err != nil {
-				// Should not happen since the profile is one of those we matched in GetProfileNameForSysObjectID
-				return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
-			}
-		}
+		return sysObjectID, nil
 	}
-	return nil
+	return "", nil
+}
+
+func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) (profiledefinition.ProfileDefinition, error) {
+	sysObjectID, err := d.getSysObjectID(sess)
+	if err != nil {
+		return d.profileCache.GetProfile(), err
+	}
+	profile, err := d.profileCache.Update(sysObjectID, time.Now(), d.config)
+	if err != nil {
+		return profile, fmt.Errorf("failed to refresh profile cache: %w", err)
+	}
+	return profile, nil
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {

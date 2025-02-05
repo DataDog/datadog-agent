@@ -193,12 +193,7 @@ try {
    $adminRole = [System.Security.Principal.WindowsBuiltInRole]::Administrator
    if (-not $myWindowsPrincipal.IsInRole($adminRole)) {
       # We are not running "as Administrator"
-      $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
-      $newProcess.Arguments = $myInvocation.MyCommand.Definition;
-      $newProcess.Verb = "runas";
-      $proc = [System.Diagnostics.Process]::Start($newProcess);
-      $proc.WaitForExit()
-      return $proc.ExitCode
+      throw "This script must be run with administrative privileges."
    }
 
    # First thing to do is to stop the services if they are started
@@ -278,9 +273,11 @@ try {
 }
 catch [ExitCodeException] {
    Show-Error $_.Exception.Message $_.Exception.LastExitCode
+   Exit $_.Exception.LastExitCode
 }
 catch {
    Show-Error $_.Exception.Message $GENERAL_ERROR_CODE
+   Exit $GENERAL_ERROR_CODE
 }
 finally {
    Write-Host "Cleaning up..."

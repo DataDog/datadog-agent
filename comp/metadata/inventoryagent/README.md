@@ -124,6 +124,7 @@ The payload is a JSON dict with the following fields
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
   - `fleet_policies_applied` -- **array of string**: The Fleet Policies that have been applied to the agent, if any. Is empty if no policy is applied.
+  - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -167,7 +168,8 @@ Here an example of an inventory payload:
         "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
         "remote_configuration": "log_level: \"debug\"",
         "cli_configuration": "log_level: \"warn\"",
-        "source_local_configuration": ""
+        "source_local_configuration": "",
+        "config_id": "my-config"
     }
     "hostname": "my-host",
     "timestamp": 1631281754507358895

@@ -20,6 +20,8 @@ exporters:
       site: datadoghq.com
     auth: null
     compression: ""
+    compression_params:
+      level: 0
     cookies: null
     disable_keep_alives: false
     endpoint: ""
@@ -69,6 +71,7 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
+      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
@@ -222,7 +225,7 @@ receivers:
           job_name: datadog-agent
           metrics_path: /metrics
           scheme: http
-          scrape_interval: 10s
+          scrape_interval: 1m
           scrape_protocols:
             - OpenMetricsText1.0.0
             - OpenMetricsText0.0.1

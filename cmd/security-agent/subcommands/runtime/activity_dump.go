@@ -26,6 +26,7 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
@@ -57,6 +58,9 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			model.SECLConstants()
+		},
 	}
 
 	activityDumpCmd.AddCommand(generateCommands(globalParams)...)

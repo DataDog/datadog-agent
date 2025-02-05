@@ -35,8 +35,8 @@ static __always_inline u16 get_current_program_layer(classification_prog_t curre
     return 0;
 }
 
-static __always_inline classification_prog_t next_layer_entrypoint(usm_context_t *usm_ctx) {
-    u16 to_skip = usm_ctx->routing_skip_layers;
+static __always_inline classification_prog_t next_layer_entrypoint(classification_context_t *classification_ctx) {
+    u16 to_skip = classification_ctx->routing_skip_layers;
 
     if (!(to_skip&LAYER_ENCRYPTION_BIT)) {
         return __PROG_ENCRYPTION+1;

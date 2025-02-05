@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/uuid
 
-go 1.23.0
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../cache
@@ -11,7 +11,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
-	github.com/shirou/gopsutil/v4 v4.24.11
+	github.com/shirou/gopsutil/v4 v4.24.12
 	golang.org/x/sys v0.29.0
 )
 

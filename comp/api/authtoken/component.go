@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {

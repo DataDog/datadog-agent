@@ -9,7 +9,9 @@ package rconfig
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -177,8 +179,10 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		return err
 	}
 
-	for cfgPath, c := range r.lastDefaults {
-		if err := load(c.Metadata.ID, c.Config); err != nil {
+	for _, cfgPath := range slices.Sorted(maps.Keys(r.lastDefaults)) {
+		rawConfig := r.lastDefaults[cfgPath]
+
+		if err := load(rawConfig.Metadata.ID, rawConfig.Config); err != nil {
 			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
@@ -186,8 +190,10 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		}
 	}
 
-	for cfgPath, c := range r.lastCustoms {
-		if err := load(c.Metadata.ID, c.Config); err != nil {
+	for _, cfgPath := range slices.Sorted(maps.Keys(r.lastCustoms)) {
+		rawConfig := r.lastCustoms[cfgPath]
+
+		if err := load(rawConfig.Metadata.ID, rawConfig.Config); err != nil {
 			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {

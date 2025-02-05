@@ -22,6 +22,7 @@ func NetworkNFNatSelectors() []manager.ProbesSelector {
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
 			kprobeOrFentry("nf_nat_manip_pkt"),
 			kprobeOrFentry("nf_nat_packet"),
+			kprobeOrFentry("nf_ct_delete"),
 		}},
 	}
 }
@@ -44,6 +45,13 @@ func NetworkSelectors() []manager.ProbesSelector {
 			kprobeOrFentry("security_socket_bind"),
 			kprobeOrFentry("security_socket_connect"),
 			kprobeOrFentry("security_sk_classify_flow"),
+			kprobeOrFentry("inet_release"),
+			kprobeOrFentry("inet_shutdown"),
+			kprobeOrFentry("inet_bind"),
+			kretprobeOrFexit("inet_bind"),
+			kprobeOrFentry("inet6_bind"),
+			kretprobeOrFexit("inet6_bind"),
+			kprobeOrFentry("sk_common_release"),
 			kprobeOrFentry("path_get"),
 			kprobeOrFentry("proc_fd_link"),
 		}},
@@ -72,13 +80,15 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 }
 
 // SnapshotSelectors selectors required during the snapshot
-func SnapshotSelectors() []manager.ProbesSelector {
+func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
 	procsOpen := kprobeOrFentry("cgroup_procs_open")
 	tasksOpen := kprobeOrFentry("cgroup_tasks_open")
 	return []manager.ProbesSelector{
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
+
 		// required to stat /proc/.../exe
 		kprobeOrFentry("security_inode_getattr"),
-		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
+		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "newfstatat", fentry, EntryAndExit)},
 	}
 }
 
@@ -472,10 +482,22 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chdir", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchdir", fentry, EntryAndExit)},
 		},
+
+		"network_flow_monitor": {
+			// perf_event probes
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						UID:          SecurityAgentUID,
+						EBPFFuncName: "network_stats_worker",
+					},
+				},
+			}},
+		},
 	}
 
 	// Add probes required to track network interfaces and map network flows to processes
-	// networkEventTypes: dns, imds, packet
+	// networkEventTypes: dns, imds, packet, network_monitor
 	networkEventTypes := model.GetEventTypePerCategory(model.NetworkCategory)[model.NetworkCategory]
 	for _, networkEventType := range networkEventTypes {
 		selectorsPerEventTypeStore[networkEventType] = []manager.ProbesSelector{

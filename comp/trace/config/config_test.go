@@ -1663,6 +1663,34 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(t, cfg.Obfuscation.Redis.RemoveAllArgs)
 	})
 
+	env = "DD_APM_OBFUSCATION_VALKEY_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled"))
+		assert.True(t, cfg.Obfuscation.Valkey.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args"))
+		assert.True(t, cfg.Obfuscation.Valkey.RemoveAllArgs)
+	})
+
 	env = "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")

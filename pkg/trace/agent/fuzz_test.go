@@ -90,6 +90,11 @@ func FuzzObfuscateSpan(f *testing.F) {
 			Meta:     map[string]string{"redis.raw_command": "SET k v\nGET k"},
 		},
 		{
+			Type:     "valkey",
+			Resource: "SET k v\nGET k",
+			Meta:     map[string]string{"valkey.raw_command": "SET k v\nGET k"},
+		},
+		{
 			Type:     "sql",
 			Resource: "UPDATE users(name) SET ('Jim')",
 			Meta:     map[string]string{"sql.query": "UPDATE users(name) SET ('Jim')"},

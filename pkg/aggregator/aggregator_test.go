@@ -29,7 +29,9 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -281,6 +283,9 @@ func TestDefaultSeries(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerMock.SetupFakeTagger(t)
 
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("config_id", "config123")
+
 	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 	mockHaAgent.SetEnabled(true)
 	mockHaAgent.SetState(haagent.Active)
@@ -294,7 +299,7 @@ func TestDefaultSeries(t *testing.T) {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
 		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
-		require.Equal(t, []string{}, m[0].Tags)
+		require.Equal(t, []string{"ha_agent_enabled:true"}, m[0].Tags)
 		require.Equal(t, agg.hostname, m[0].Host)
 
 		return true
@@ -304,14 +309,14 @@ func TestDefaultSeries(t *testing.T) {
 	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "ha_agent_enabled:true", "config_id:config123"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_state:standby"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"ha_agent_enabled:true", "config_id:config123", "ha_agent_state:standby"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -319,7 +324,7 @@ func TestDefaultSeries(t *testing.T) {
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           agg.hostname,
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"ha_agent_enabled:true"}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 		NoIndex:        true,
@@ -578,6 +583,7 @@ func TestTags(t *testing.T) {
 		globalTags              func(types.TagCardinality) ([]string, error)
 		withVersion             bool
 		haAgentEnabled          bool
+		configID                string
 		want                    []string
 	}{
 		{
@@ -643,11 +649,22 @@ func TestTags(t *testing.T) {
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
 		},
+		{
+			name:                    "tags disabled, without version, ha agent enabled",
+			hostname:                "hostname",
+			tlmContainerTagsEnabled: false,
+			agentTags:               func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(types.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			withVersion:             false,
+			haAgentEnabled:          true,
+			want:                    []string{"ha_agent_enabled:true"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			mockConfig.SetWithoutSource("config_id", tt.configID)
 
 			taggerComponent := taggerMock.SetupFakeTagger(t)
 
@@ -658,6 +675,36 @@ func TestTags(t *testing.T) {
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
+		})
+	}
+}
+
+func TestConfigIDTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		configID string
+		want     []string
+	}{
+		{
+			name: "without config_id",
+			want: []string{},
+		},
+		{
+			name:     "with config_id",
+			configID: "my-config",
+			want:     []string{"config_id:my-config"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("config_id", tt.configID)
+
+			taggerComponent := taggerMock.SetupFakeTagger(t)
+			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second)
+			assert.ElementsMatch(t, tt.want, agg.configIDTags())
 		})
 	}
 }
@@ -794,10 +841,11 @@ type aggregatorDeps struct {
 	Demultiplexer    *AgentDemultiplexer
 	OrchestratorFwd  orchestratorforwarder.Component
 	EventPlatformFwd eventplatform.Component
+	Compressor       compression.Component
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionmock.MockModule(), haagentmock.Module())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), logscompressionmock.MockModule(), metricscompressionmock.MockModule(), haagentmock.Module())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

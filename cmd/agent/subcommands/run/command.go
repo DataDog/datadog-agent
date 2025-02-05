@@ -32,7 +32,6 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
 
 	// checks implemented as components
 
@@ -99,6 +98,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
+	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -115,6 +115,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
@@ -124,6 +125,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
+	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
@@ -239,6 +241,7 @@ func run(log log.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ inventoryotel.Component,
+	_ haagentmetadata.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
@@ -372,6 +375,7 @@ func getSharedFxOption() fx.Option {
 				AgentVersion: version.AgentVersion,
 			},
 		),
+		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
@@ -380,7 +384,6 @@ func getSharedFxOption() fx.Option {
 		authtokenimpl.Module(),
 		apiimpl.Module(),
 		commonendpoints.Module(),
-		compressionfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -474,6 +477,7 @@ func getSharedFxOption() fx.Option {
 		networkpath.Bundle(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
+		metricscompressorfx.Module(),
 	)
 }
 
