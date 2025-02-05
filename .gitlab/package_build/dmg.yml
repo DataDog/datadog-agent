@@ -158,8 +158,11 @@ new-agent_dmg-x64-a7:
     # Try builder
     - brew list --formula
     - |
+      echo 'Installing cryptography...'
+      brew install cryptography@44.0.0 -fv
+      brew install DataDog/datadog-agent-macos-build/openssl@$OPENSSL_VERSION -fv
       echo 'Installing openssl...'
-      brew install DataDog/datadog-agent-macos-build/openssl@$OPENSSL_VERSION -f
+      brew install DataDog/datadog-agent-macos-build/openssl@$OPENSSL_VERSION -fv
       brew link --overwrite openssl@$OPENSSL_VERSION
     - exit
     - bash .gitlab/package_build/builder_setup.sh
