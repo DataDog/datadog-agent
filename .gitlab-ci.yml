@@ -1227,10 +1227,21 @@ workflow:
   extends: .windows_docker_2022
 
 
+# TODO: Do it within build images
+.update-datadog-ci-amd64:
+  - export CI_UPLOADER_VERSION=2.48.0
+  - export CI_UPLOADER_SHA=5e700c465728fff8313e77c2d5ba1ce19a736168735137e1ddc7c6346ed48208
+  - rm -f /usr/local/bin/datadog-ci
+  - |
+    curl -fsSL https://github.com/DataDog/datadog-ci/releases/download/v${CI_UPLOADER_VERSION}/datadog-ci_linux-x64 --output "/usr/local/bin/datadog-ci"
+    echo "${CI_UPLOADER_SHA} /usr/local/bin/datadog-ci" | sha256sum --check
+    chmod +x /usr/local/bin/datadog-ci
+
 celian:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
+    - !reference [.update-datadog-ci-amd64]
     - datadog-ci trace --name hello echo hello || true
     - datadog-ci trace --name compute bash -c "echo start; sleep 5; echo end" || true
