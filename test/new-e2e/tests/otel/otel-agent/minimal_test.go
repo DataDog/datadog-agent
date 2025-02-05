@@ -92,3 +92,7 @@ func (s *minimalTestSuite) TestOTelFlareFiles() {
 func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
 	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
 }
+
+func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
+	utils.TestCoreAgentConfigCmd(s, minimalFullConfig)
+}

@@ -227,3 +227,15 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 
 	assert.YAMLEq(t, expectedCfg, actualCfg)
 }
+
+func TestCoreAgentConfigCmd(s OTelTestSuite, fullCfg string) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Calling config command in core agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "config"})
+	require.NoError(s.T(), err, "Failed to execute config")
+	s.T().Log("stdout of config command in core agent", stdout)
+	s.T().Log("stderr of config command in core agent", stderr)
+}

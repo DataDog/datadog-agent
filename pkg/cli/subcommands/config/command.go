@@ -7,14 +7,19 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -117,9 +122,41 @@ func showRuntimeConfiguration(_ log.Component, config config.Component, cliParam
 		return err
 	}
 
+	if config.GetBool("otelcollector.enabled") {
+		runtimeConfig = insertOTelCollectorConfig(config.GetString("otelcollector.extension_url"), runtimeConfig, c.HTTPClient())
+	}
+
 	fmt.Println(runtimeConfig)
 
 	return nil
+}
+
+func insertOTelCollectorConfig(extensionURL string, runtimeConfig string, httpClient *http.Client) string {
+	resp, err := apiutil.DoGet(httpClient, extensionURL, apiutil.CloseConnection)
+	if err != nil {
+		return runtimeConfig
+
+	}
+	var extensionResp ddflareextension.Response
+	if err = json.Unmarshal(resp, &extensionResp); err != nil {
+		return runtimeConfig
+	}
+	otelRuntimeCfg := extensionResp.RuntimeConfig
+	var sb strings.Builder
+	for _, cfg := range strings.Split(runtimeConfig, "\n") {
+		sb.WriteString(cfg)
+		sb.WriteString("\n")
+		if cfg == "otelcollector:" {
+			sb.WriteString("  config:")
+			sb.WriteString("\n")
+			for _, otcfg := range strings.Split(otelRuntimeCfg, "\n") {
+				sb.WriteString("    ")
+				sb.WriteString(otcfg)
+				sb.WriteString("\n")
+			}
+		}
+	}
+	return sb.String()
 }
 
 func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliParams *cliParams) error {
