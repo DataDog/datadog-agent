@@ -145,8 +145,8 @@ func (a *registryAuditor) Channel() chan *message.Payload {
 	return a.inputChan
 }
 
-// Channel returns the channel to use to communicate with the auditor or nil
-// if the auditor is currently stopped.
+// GetOffset returns the last committed offset for a given identifier,
+// returns an empty string if it does not exist.
 func (a *registryAuditor) GetOffset(identifier string) string {
 	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
 	if !exists {
