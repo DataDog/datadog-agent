@@ -330,19 +330,23 @@ def compute_gitlab_ci_config(
 
 @task
 def celian(ctx):
-    import time
+    pass
 
-    time.sleep(1)
-    ctx.run('datadog-ci trace --name compute --start')
-    print('Computing something really long to compute...')
-    time.sleep(5)
+    # import time
 
-    ctx.run('datadog-ci trace --name flakiness --start')
-    print('Adding flakiness...')
-    time.sleep(2)
-    print('Added flakiness')
-    ctx.run('datadog-ci trace --name flakiness --end')
+    # ctx.run('datadog-ci trace --name compute bash -c "echo start; sleep 5; echo end"')
 
-    time.sleep(1)
-    print('Finished computing')
-    ctx.run('datadog-ci trace --name compute --start')
+    # time.sleep(1)
+    # ctx.run('datadog-ci trace --name compute --start')
+    # print('Computing something really long to compute...')
+    # time.sleep(5)
+
+    # ctx.run('datadog-ci trace --name flakiness --start')
+    # print('Adding flakiness...')
+    # time.sleep(2)
+    # print('Added flakiness')
+    # ctx.run('datadog-ci trace --name flakiness --end')
+
+    # time.sleep(1)
+    # print('Finished computing')
+    # ctx.run('datadog-ci trace --name compute --start')

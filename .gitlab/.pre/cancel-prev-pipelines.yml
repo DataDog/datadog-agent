@@ -23,5 +23,4 @@ celian:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
-    - pip install -r tasks/requirements.txt
-    - inv -e gitlab.celian
+    - datadog-ci trace --name compute bash -c "echo start; sleep 5; echo end"
