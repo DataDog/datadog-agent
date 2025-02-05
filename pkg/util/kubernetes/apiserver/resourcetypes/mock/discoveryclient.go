@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
+//go:build kubeapiserver && test
 
 // Package mock provides a mock implementation of the Kubernetes discovery client.
 // It is intended for use in unit tests that require a controlled Kubernetes API response.
