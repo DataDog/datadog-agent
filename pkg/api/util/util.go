@@ -108,38 +108,14 @@ func CreateAndSetAuthToken(config model.Reader) error {
 	ctx, cancel := context.WithTimeout(context.Background(), config.GetDuration("auth_init_timeout"))
 	defer cancel()
 
-	var wg sync.WaitGroup
-	errs := make(chan error, 2)
-	var ipccert, ipckey []byte
-
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		var err error
-		token, err = pkgtoken.FetchOrCreateAuthToken(ctx, config)
-		if err != nil {
-			err = fmt.Errorf("error while creating or fetching auth token: %v", err.Error())
-		}
-		errs <- err
-	}()
-
-	go func() {
-		defer wg.Done()
-		var err error
-		ipccert, ipckey, err = cert.FetchOrCreateIPCCert(ctx, config)
-		if err != nil {
-			err = fmt.Errorf("error while creating or fetching IPC cert: %v", err.Error())
-		}
-		errs <- err
-	}()
-
-	for i := 0; i < 2; i++ {
-		err := <-errs
-		if err != nil {
-			cancel()
-			wg.Wait()
-			return err
-		}
+	var err error
+	token, err = pkgtoken.FetchOrCreateAuthToken(ctx, config)
+	if err != nil {
+		err = fmt.Errorf("error while creating or fetching auth token: %v", err.Error())
+	}
+	ipccert, ipckey, err := cert.FetchOrCreateIPCCert(ctx, config)
+	if err != nil {
+		err = fmt.Errorf("error while creating or fetching IPC cert: %v", err.Error())
 	}
 
 	certPool := x509.NewCertPool()
