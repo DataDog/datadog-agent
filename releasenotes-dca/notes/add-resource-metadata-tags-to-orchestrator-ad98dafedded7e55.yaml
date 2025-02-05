@@ -1,0 +1,5 @@
+enhancements:
+  - |
+    Added support for `kubernetesResourcesLabelsAsTags` and `kubernetesResourcesAnnotationsAsTags` in the
+    orchestrator check. Kubernetes resources processed by the orchestrator check can now include labels 
+    and annotations as tags, improving consistency with existing tagging configurations.

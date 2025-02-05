@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"k8s.io/apimachinery/pkg/labels"
 	v1policyinformer "k8s.io/client-go/informers/policy/v1"
 	v1policylister "k8s.io/client-go/listers/policy/v1"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewPodDisruptionBudgetCollectorVersions builds the group of collector versions.
-func NewPodDisruptionBudgetCollectorVersions() collectors.CollectorVersions {
+func NewPodDisruptionBudgetCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewPodDisruptionBudgetCollectorVersion(),
+		NewPodDisruptionBudgetCollectorVersion(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type PodDisruptionBudgetCollector struct {
 
 // NewPodDisruptionBudgetCollectorVersion creates a new collector for the Kubernetes Pod Disruption Budget
 // resource.
-func NewPodDisruptionBudgetCollectorVersion() *PodDisruptionBudgetCollector {
+func NewPodDisruptionBudgetCollectorVersion(metadataAsTags utils.MetadataAsTags) *PodDisruptionBudgetCollector {
+	resourceType := getResourceType(podDisruptionBudgetName, podDisruptionBudgetVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &PodDisruptionBudgetCollector{
 		informer: nil,
 		lister:   nil,
@@ -46,9 +51,11 @@ func NewPodDisruptionBudgetCollectorVersion() *PodDisruptionBudgetCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "poddisruptionbudgets",
+			Name:                      podDisruptionBudgetName,
 			NodeType:                  orchestrator.K8sPodDisruptionBudget,
-			Version:                   "policy/v1",
+			Version:                   podDisruptionBudgetVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PodDisruptionBudgetHandlers)),
 	}
@@ -77,6 +84,11 @@ func (c *PodDisruptionBudgetCollector) Run(rcfg *collectors.CollectorRunConfig) 
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *PodDisruptionBudgetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
@@ -87,7 +99,7 @@ func (c *PodDisruptionBudgetCollector) Run(rcfg *collectors.CollectorRunConfig) 
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

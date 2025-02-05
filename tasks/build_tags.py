@@ -37,9 +37,11 @@ ALL_TAGS = {
     "kubelet",
     "linux_bpf",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
+    "netgo",
     "npm",
     "oracle",
     "orchestrator",
+    'osusergo',
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
@@ -124,38 +126,39 @@ IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
+PROCESS_AGENT_TAGS = {
+    "containerd",
+    "no_dynamic_plugins",
+    "cri",
+    "crio",
+    "datadog.no_waf",
+    "ec2",
+    "docker",
+    "fargateprocess",
+    "kubelet",
+    "netcgo",
+    "podman",
+    "zlib",
+    "zstd",
+}
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
-PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
-    {
-        "containerd",
-        "no_dynamic_plugins",
-        "cri",
-        "crio",
-        "docker",
-        "ec2",
-        "jetson",
-        "kubeapiserver",
-        "kubelet",
-        "orchestrator",
-        "podman",
-        "systemd",
-    }
-)
+PROCESS_AGENT_HEROKU_TAGS = {
+    "datadog.no_waf",
+    "fargateprocess",
+    "netcgo",
+    "zlib",
+    "zstd",
+}
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = {
     "netcgo",
     "datadog.no_waf",
     "docker",
-    "containerd",
-    "no_dynamic_plugins",
-    "kubeapiserver",
-    "kubelet",
-    "podman",
     "zlib",
     "zstd",
+    "kubelet",
     "ec2",
 }
 
@@ -201,6 +204,8 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     }
 )
 
+CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
+
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 
@@ -237,6 +242,7 @@ build_tags = {
         "system-probe": SYSTEM_PROBE_TAGS,
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
+        "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),

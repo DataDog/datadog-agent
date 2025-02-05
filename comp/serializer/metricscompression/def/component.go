@@ -6,7 +6,7 @@
 // Package metricscompression provides the component for metrics compression
 package metricscompression
 
-// team: agent-processing-and-routing
+// team: agent-metrics
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"

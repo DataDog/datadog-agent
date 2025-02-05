@@ -107,6 +107,10 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 			return nil
 		})
 
+	err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true)
+	if err != nil {
+		panic(err)
+	}
 	reg.RegisterFlags(flagSet)
 	return flagSet
 }

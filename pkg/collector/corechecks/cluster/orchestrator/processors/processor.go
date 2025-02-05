@@ -75,6 +75,9 @@ type K8sProcessorContext struct {
 	//nolint:revive // TODO(CAPP) Fix revive linter
 	ApiGroupVersionTag string
 	SystemInfo         *model.SystemInfo
+	ResourceType       string
+	LabelsAsTags       map[string]string
+	AnnotationsAsTags  map[string]string
 }
 
 // ECSProcessorContext holds ECS resource processing attributes

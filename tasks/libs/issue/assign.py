@@ -69,7 +69,7 @@ def guess_from_keywords(issue):
 def simple_match(word):
     pattern_matching = {
         "agent-apm": ['apm', 'java', 'dotnet', 'ruby', 'trace'],
-        "containers": [
+        "container-integrations": [
             'container',
             'pod',
             'kubernetes',
@@ -87,7 +87,8 @@ def simple_match(word):
         "agent-cspm": ['cspm'],
         "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],
         "agent-security": ['security', 'vuln', 'security-agent'],
-        "agent-shared-components": ['fips', 'inventory', 'payload', 'jmx', 'intak', 'gohai'],
+        "agent-runtimes": ['fips', 'payload', 'jmx', 'intake'],
+        "agent-configuration": ['inventory', 'gohai'],
         "fleet": ['fleet', 'fleet-automation'],
         "opentelemetry": ['otel', 'opentelemetry'],
         "windows-agent": ['windows', 'sys32', 'powershell'],
