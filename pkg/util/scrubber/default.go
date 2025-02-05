@@ -151,8 +151,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	tokenReplacer.LastUpdated = defaultVersion
 	snmpReplacer := matchYAMLKey(
-		`(community_string|authKey|privKey|community|authentication_key|privacy_key|Authorization|authorization)`,
-		[]string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
+		`(community_string|auth[Kk]ey|priv[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
+		[]string{"community_string", "authKey", "authkey", "privKey", "privkey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
 		[]byte(`$1 "********"`),
 	)
 	snmpReplacer.LastUpdated = parseVersion("7.53.0") // https://github.com/DataDog/datadog-agent/pull/23515
