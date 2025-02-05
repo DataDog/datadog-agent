@@ -64,7 +64,7 @@ deploy_containers-dca_internal-latest:
   before_script:
     - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
-    - export IMG_BASE_SRC="${SRC_DCA_FIPS}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_BASE_SRC="${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_SOURCES="${IMG_BASE_SRC}-fips-amd64,${IMG_BASE_SRC}-fips-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}-fips"
 
