@@ -161,6 +161,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 		return
 	}
 	startTime := s.TimeNowFn()
+	s.statsdClient.Count(networkPathCollectorMetricPrefix+"conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
 	for _, conn := range conns {
 		if !shouldScheduleNetworkPathForConn(conn) {
 			protocol := convertProtocol(conn.GetType())
@@ -187,12 +188,13 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", pathtest.Hostname, pathtest.Port)
 
+	s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.schedule.count", []string{}, 1) //nolint:errcheck
 	select {
 	case s.pathtestInputChan <- pathtest:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_received", []string{}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.schedule.received", []string{}, 1) //nolint:errcheck
 		return nil
 	default:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_drop_at_reception", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.schedule.drop", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
@@ -343,9 +345,9 @@ func (s *npCollectorImpl) flush() {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		select {
 		case s.pathtestProcessingChan <- ptConf:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_flushed", []string{}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.flush.flushed", []string{}, 1) //nolint:errcheck
 		default:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest_drop_at_flush", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.flush.drop", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
 			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
 		}
 	}
