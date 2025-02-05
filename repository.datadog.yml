@@ -10,10 +10,10 @@ gitlab_jobs_retry_enable: true
 gitlab_check_enable: true
 skip_labels: true
 branches:
-  - /^7\.[0-9]+\.x$/:
+  /^7\.[0-9]+\.x$/:
     github_teams_restrictions:
       - "agent-supply-chain"
-  - /^6\.[0-9]+\.x$/:
+  /^6\.[0-9]+\.x$/:
     github_teams_restrictions:
       - "agent-supply-chain"
 ---
