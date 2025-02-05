@@ -357,8 +357,14 @@ func TestSNMPConfig(t *testing.T) {
 		`authKey: password`,
 		`authKey: "********"`)
 	assertClean(t,
+		`authkey: password`,
+		`authkey: "********"`)
+	assertClean(t,
 		`privKey: password`,
 		`privKey: "********"`)
+	assertClean(t,
+		`privkey: password`,
+		`privkey: "********"`)
 	assertClean(t,
 		`community_string: p@ssw0r)`,
 		`community_string: "********"`)
@@ -380,6 +386,9 @@ func TestSNMPConfig(t *testing.T) {
 	assertClean(t,
 		`   community_string:   'password'   `,
 		`   community_string: "********"`)
+	assertClean(t,
+		`   COMMUNITY_STRING:   'password'   `,
+		`   COMMUNITY_STRING: "********"`)
 	assertClean(t,
 		`
 network_devices:
@@ -668,4 +677,45 @@ log_level: info
 	cleanedString := string(cleaned)
 
 	assert.Equal(t, cleanedConfigFile, cleanedString)
+}
+
+func TestYamlCase(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"password",
+			`a:
+  - PaSsWoRd: mypass`,
+			`a:
+  - PaSsWoRd: '********'`,
+		},
+		{
+			"token",
+			`- TOKEN: tok`,
+			`- TOKEN: '********'`,
+		},
+		{
+			"authorization",
+			`- AUTHORIZATION: auth`,
+			`- AUTHORIZATION: '********'`,
+		},
+		{
+			"community",
+			`- COMMUNITY: comm`,
+			`- COMMUNITY: '********'`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cleaned, err := ScrubYaml([]byte(tc.input))
+			require.NoError(t, err)
+			cleanedString := string(cleaned)
+
+			assert.YAMLEq(t, tc.expected, cleanedString)
+		})
+	}
 }
