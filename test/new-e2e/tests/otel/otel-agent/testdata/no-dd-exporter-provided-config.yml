@@ -70,6 +70,7 @@ exporters:
       cert_file: ""
       cert_pem: '[REDACTED]'
       cipher_suites: []
+      curve_preferences: []
       include_system_ca_certs_pool: false
       insecure: false
       insecure_skip_verify: false
