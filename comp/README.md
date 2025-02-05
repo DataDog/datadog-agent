@@ -309,6 +309,12 @@ send logs.
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
 
+### [comp/metadata/clusteragent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/clusteragent)
+
+*Datadog Team*: container-platform
+
+Package clusteragent is the metadata provider for datadog-cluster-agent process
+
 ### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
 
 *Datadog Team*: ndm-core
