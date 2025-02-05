@@ -1099,8 +1099,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
-	// used to override the acceptable duration in seconds for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
-	config.BindEnvAndSetDefault("auth_init_timeout", 10)
+	// used to override the acceptable duration for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
+	config.BindEnvAndSetDefault("auth_init_timeout", 10*time.Second)
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
