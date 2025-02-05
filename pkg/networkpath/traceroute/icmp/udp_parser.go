@@ -41,7 +41,6 @@ func NewICMPUDPParser() Parser {
 	icmpParser := &UDPParser{}
 	icmpParser.packetParser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpParser.icmpLayer)
 	icmpParser.innerPacketParser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &icmpParser.innerIPLayer, &icmpParser.innerUDPLayer)
-	// TODO: can we ignore unsupported layers?
 	icmpParser.packetParser.IgnoreUnsupported = true
 	icmpParser.innerPacketParser.IgnoreUnsupported = true
 	return icmpParser
