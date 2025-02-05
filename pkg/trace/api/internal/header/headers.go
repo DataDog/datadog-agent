@@ -83,4 +83,8 @@ const (
 	// Any value other than 0, f, F, FALSE, False, false set in this header will cause the agent to send a 429 code to a client
 	// when the payload cannot be submitted.
 	SendRealHTTPStatus = "Datadog-Send-Real-Http-Status"
+
+	// TracerObfuscationVersion specifies the version of obfuscation done at the tracer, if any.
+	// This used to avoid "double obfuscating" data.
+	TracerObfuscationVersion = "Datadog-Obfuscation-Version"
 )

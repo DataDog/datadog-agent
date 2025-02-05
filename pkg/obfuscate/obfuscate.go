@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Version is an incrementing integer to identify this "version" of obfuscation logic. This is used to avoid obfuscation
+// conflicts and ensure that clients of the obfuscator can decide where obfuscation should occur.
+const Version = 1
+
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
