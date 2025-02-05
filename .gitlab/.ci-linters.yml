@@ -93,6 +93,7 @@ job-owners:
     - setup_agent_version
     - single-machine-performance-regression_detector
     - single-machine-performance-regression_detector-otel-vs-oss
+    - single-machine-performance-regression_detector-oss-vs-otel
     - single-machine-performance-regression_detector-otlp-vs-oss
     - single-machine-performance-regression_detector-pr-comment
     - test_install_script
