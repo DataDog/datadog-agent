@@ -148,7 +148,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 // Used to make testing easier
 func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
-	waitTime := time.Duration(60) * time.Second
+	waitTime := time.Duration(cliParams.inactivityTimeout) * time.Second
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), waitTime)
 	common.LoadComponents(nil, nil, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
@@ -166,7 +166,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		}
 		sources, err = ad.CreateSources(integration.Config{
 			Provider:   names.File,
-			LogsConfig: config.Instances[0],
+			LogsConfig: config.LogsConfig,
 		})
 		break
 	}
