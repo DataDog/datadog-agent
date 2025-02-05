@@ -7,8 +7,6 @@
 
 // Package mock provides a mock implementation of the Kubernetes discovery client.
 // It is intended for use in unit tests that require a controlled Kubernetes API response.
-//
-// This package should only be used in test files and should not be imported into production code.
 package mock
 
 import (
