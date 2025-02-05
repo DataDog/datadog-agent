@@ -464,7 +464,7 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"processed_traceroute", []string{}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"pathtest.worker.processed", []string{}, 1) //nolint:errcheck
 		}
 	}
 }
