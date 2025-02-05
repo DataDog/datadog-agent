@@ -37,7 +37,7 @@ def entrypoint(**kwargs):
     gate_name = "static_quality_gate_docker_agent_amd64"
 
     metric_handler.register_gate_tags(
-        "static_quality_gate_docker_agent", gate_name="static_quality_gate_docker_agent", arch="x64", os="docker"
+        gate_name, gate_name=gate_name, arch="x64", os="docker"
     )
 
     metric_handler.register_metric(gate_name, "max_on_wire_size", max_on_wire_size)
