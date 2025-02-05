@@ -269,6 +269,7 @@ func waitForConfigsFromAD(ctx context.Context,
 		default:
 		}
 	}()
+
 	var match func(cfg integration.Config) bool
 	if wildcard {
 		// match all configs

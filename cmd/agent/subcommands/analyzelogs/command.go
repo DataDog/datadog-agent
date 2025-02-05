@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -29,15 +28,10 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -88,14 +82,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot("", "off", true)}),
 				dualTaggerfx.Module(common.DualTaggerParams()),
-				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(defaults.DefaultParams()),
 				autodiscoveryimpl.Module(),
-				fx.Supply(context.Background()),
-				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
-				inventorychecksimpl.Module(),
-				logscompression.Module(),
-				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
 			)
 		},
 	}
