@@ -111,11 +111,11 @@ func CreateAndSetAuthToken(config model.Reader) error {
 	var err error
 	token, err = pkgtoken.FetchOrCreateAuthToken(ctx, config)
 	if err != nil {
-		err = fmt.Errorf("error while creating or fetching auth token: %v", err.Error())
+		return fmt.Errorf("error while creating or fetching auth token: %w", err)
 	}
 	ipccert, ipckey, err := cert.FetchOrCreateIPCCert(ctx, config)
 	if err != nil {
-		err = fmt.Errorf("error while creating or fetching IPC cert: %v", err.Error())
+		return fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
 
 	certPool := x509.NewCertPool()
