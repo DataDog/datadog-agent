@@ -5,7 +5,7 @@
 run_codeql_scan:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
-  stage: codeql_scan
+  stage: source_test
   # rules:
   #   - if: $CI_PIPELINE_SOURCE == "schedule" && $CODE_SCANNING_PIPELINE == "true"
   #     when: always
