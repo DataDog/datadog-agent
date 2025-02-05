@@ -637,8 +637,10 @@ workflow:
     when: never
   - !reference [.except_mergequeue]
 
-.except_release_branch_and_mq:
+.except_release_branch_tagged_commit_and_mq:
   - <<: *if_release_branch
+    when: never
+  - <<: *if_tagged_commit
     when: never
   - !reference [.except_mergequeue]
 
