@@ -69,6 +69,7 @@ fi
 echo
 echo "--- CC ---"
 # TODO: Remove
+rm -rf /tmp/celian
 mkdir -p /tmp/celian/bin /tmp/celian/config
 # echo "Old install dir: $INSTALL_DIR"
 # echo "Old config dir: $CONFIG_DIR"
