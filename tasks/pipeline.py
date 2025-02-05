@@ -918,3 +918,17 @@ def compare_to_itself(ctx):
         ctx.run(f"git checkout {current_branch}", hide=True)
         ctx.run(f"git branch -D {new_branch}", hide=True)
         ctx.run(f"git push origin :{new_branch}", hide=True)
+
+
+@task
+def print_variables(_):
+    print("Printing variables used in gitlab rules")
+    with open(".gitlab-ci.yml") as f:
+        config = f.readlines()
+    variable = re.compile(r"\$([A-Z0-9_]+)")
+    variables = set()
+    for line in config:
+        for var in variable.findall(line):
+            variables.add(var)
+    for var in variables:
+        print(f" - {var}:{os.environ.get(var, 'undefined')}")
