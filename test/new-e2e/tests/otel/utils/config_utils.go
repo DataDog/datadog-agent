@@ -236,6 +236,23 @@ func TestCoreAgentConfigCmd(s OTelTestSuite, fullCfg string) {
 	s.T().Log("Calling config command in core agent")
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "config"})
 	require.NoError(s.T(), err, "Failed to execute config")
-	s.T().Log("stdout of config command in core agent", stdout)
-	s.T().Log("stderr of config command in core agent", stderr)
+	require.Empty(s.T(), stderr)
+	require.NotNil(s.T(), stdout)
+
+	lines := strings.Split(stdout, "\n")
+	for i, line := range lines {
+		if line != "otelcollector:" {
+			continue
+		}
+		// find the line of "otelcollector:", the next line should be "  config:", after it there are otel collector configs
+		for j, otcfgExpected := range strings.Split(fullCfg, "\n") {
+			if otcfgExpected == "" {
+				continue
+			}
+			otcfgActual := strings.TrimSpace(lines[i+2+j])
+			otcfgExpected = strings.TrimSpace(otcfgExpected)
+			assert.Equal(s.T(), otcfgExpected, otcfgActual)
+		}
+		break
+	}
 }

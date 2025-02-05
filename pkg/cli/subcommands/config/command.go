@@ -148,6 +148,9 @@ func insertOTelCollectorConfig(extensionURL string, runtimeConfig string, httpCl
 			sb.WriteString("  config:")
 			sb.WriteString("\n")
 			for _, otcfg := range strings.Split(otelRuntimeCfg, "\n") {
+				if otcfg == "" {
+					continue
+				}
 				sb.WriteString("    ")
 				sb.WriteString(otcfg)
 				sb.WriteString("\n")
