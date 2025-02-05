@@ -8,23 +8,19 @@
 ---
 upgrade:
   - |
-    The auto instrumentation, config, and tags from labels webhooks have been
-    decoupled so that they function independently. These settings will now only
-    apply to the auto instrumentation webhook:
+    The auto instrumentation, config, and tags from labels webhooks have been decoupled to function independently. The following settings will now apply exclusively to the auto instrumentation webhook:
     - `apm_config.instrumentation.enabled`
     - `apm_config.instrumentation.enabled_namespaces`
     - `apm_config.instrumentation.disabled_namespaces`
 
-    These settings will no longer apply to the config or tags from labels
-    webhooks. If you want to maintain the existing behavior, you will need to
-    configure the settings for each webhook separately.
+    These settings will no longer apply to the config or tags from labels webhooks. To maintain the existing behavior, configure these settings separately for each webhook.
 
-    For the config webhook, you can use the following settings:
+    For the config webhook, use the following settings:
     - `admission_controller.inject_config.enabled`
     - `admission_controller.inject_config.enabled_namespaces`
     - `admission_controller.inject_config.disabled_namespaces`
 
-    For the tags from labels webhook, you can use the following settings:
+    For the tags from labels webhook, use the following settings:
     - `admission_controller.inject_tags.enabled`
     - `admission_controller.inject_tags.enabled_namespaces`
     - `admission_controller.inject_tags.disabled_namespaces`
