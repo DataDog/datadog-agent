@@ -54,6 +54,7 @@ type cudaEventConsumerTelemetry struct {
 	eventErrors        telemetry.Counter
 	finalizedProcesses telemetry.Counter
 	missingContainers  telemetry.Counter
+	missingDevices     telemetry.Counter
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
@@ -78,6 +79,7 @@ func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTel
 		eventErrors:        tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
 		finalizedProcesses: tm.NewCounter(subsystem, "finalized_processes", nil, "Number of finalized processes"),
 		missingContainers:  tm.NewCounter(subsystem, "missing_containers", []string{"reason"}, "Number of missing containers"),
+		missingDevices:     tm.NewCounter(subsystem, "missing_devices", nil, "Number of failures to get GPU devices for a stream"),
 	}
 }
 
@@ -264,6 +266,7 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerID)
 	if err != nil {
 		log.Warnf("Error getting GPU device for process %d: %v", pid, err)
+		c.telemetry.missingDevices.Inc()
 	} else {
 		var ret nvml.Return
 		key.gpuUUID, ret = gpuDevice.GetUUID()
