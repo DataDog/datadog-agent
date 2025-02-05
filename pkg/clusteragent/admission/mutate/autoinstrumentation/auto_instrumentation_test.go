@@ -3609,20 +3609,6 @@ func TestShouldInject(t *testing.T) {
 	}
 }
 
-func mustInjector(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Mutator {
-	filter, err := NewFilter(NewFilterConfig(ddConfig))
-	require.NoError(t, err)
-	cfg, err := NewMutatorConfig(ddConfig)
-	require.NoError(t, err)
-	return NewMutator(cfg, filter, wmeta)
-}
-
-func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Webhook {
-	webhook, err := maybeWebhook(wmeta, ddConfig)
-	require.NoError(t, err)
-	return webhook
-}
-
 func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
 	filter, err := NewFilter(NewFilterConfig(ddConfig))
 	if err != nil {

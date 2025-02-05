@@ -64,7 +64,7 @@ func NewMutator(cfg *MutatorConfig, filter mutatecommon.MutationFilter) *Mutator
 //   - DD_AGENT_HOST: the host IP of the node
 //   - DD_ENTITY_ID: the entity ID of the pod
 //   - DD_EXTERNAL_ENV: the External Data Environment Variable
-func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	var injectedConfig, injectedEntity, injectedExternalEnv bool
 	var (
 		agentHostIPEnvVar = corev1.EnvVar{

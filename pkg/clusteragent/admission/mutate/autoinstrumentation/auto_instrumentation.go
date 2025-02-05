@@ -48,9 +48,8 @@ type Webhook struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 
-	wmeta           workloadmeta.Component
-	mutator         mutatecommon.Mutator
-	injectionFilter mutatecommon.MutationFilter
+	wmeta   workloadmeta.Component
+	mutator mutatecommon.Mutator
 
 	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
 	config webhookConfig

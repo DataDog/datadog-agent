@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// MutatorConfig contains the settings for the auto-instrumentation injector.
 type MutatorConfig struct {
 	pinnedLibraries []libInfo
 	version         version // autoinstrumentation logic version
@@ -44,6 +45,7 @@ type MutatorConfig struct {
 	defaultResourceRequirements initResourceRequirementConfiguration
 }
 
+// NewMutatorConfig instantiates the required settings for the auto-instrumentation injector from the datadog config.
 func NewMutatorConfig(datadogConfig config.Component) (*MutatorConfig, error) {
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	libVersions := datadogConfig.GetStringMapString("apm_config.instrumentation.lib_versions")
@@ -78,12 +80,14 @@ func NewMutatorConfig(datadogConfig config.Component) (*MutatorConfig, error) {
 	}, nil
 }
 
+// Mutator satisfies the common.Mutator interface for the auto-instrumentation injector.
 type Mutator struct {
 	config *MutatorConfig
 	filter mutatecommon.MutationFilter
 	wmeta  workloadmeta.Component
 }
 
+// NewMutator creates a new injector interface for the auto-instrumentation injector.
 func NewMutator(config *MutatorConfig, filter mutatecommon.MutationFilter, wmeta workloadmeta.Component) *Mutator {
 	return &Mutator{
 		config: config,
@@ -92,7 +96,9 @@ func NewMutator(config *MutatorConfig, filter mutatecommon.MutationFilter, wmeta
 	}
 }
 
-func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+// MutatePod implements the common.Mutator interface for the auto-instrumentation injector. It injects all of the
+// required tracer libraries into the pod template.
+func (i *Mutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}

@@ -21,7 +21,7 @@ type MockMutator struct {
 	Called       bool
 }
 
-func (m *MockMutator) MutatePod(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+func (m *MockMutator) MutatePod(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	m.Called = true
 	if m.ShoudErr {
 		return false, fmt.Errorf("error")
