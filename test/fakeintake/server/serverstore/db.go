@@ -7,6 +7,7 @@ package serverstore
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -119,6 +120,14 @@ func (s *sqlStore) Close() {
 	s.db.Close()
 	s.stopCh <- struct{}{}
 	os.Remove(s.path)
+}
+
+func (s *sqlStore) SetRecentAPIKey(key string) {
+	// pass
+}
+
+func (s *sqlStore) GetRecentAPIKey() (string, error) {
+	return "", fmt.Errorf("not implemented")
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
