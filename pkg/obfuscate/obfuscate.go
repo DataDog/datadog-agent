@@ -91,6 +91,9 @@ type Config struct {
 	// Redis holds the obfuscation settings for Redis commands.
 	Redis RedisConfig `mapstructure:"redis"`
 
+	// Valkey holds the obfuscation settings for Valkey commands.
+	Valkey ValkeyConfig `mapstructure:"valkey"`
+
 	// Memcached holds the obfuscation settings for Memcached commands.
 	Memcached MemcachedConfig `mapstructure:"memcached"`
 
@@ -228,6 +231,16 @@ type RedisConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 
 	// RemoveAllArgs specifies whether all arguments to a given Redis
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+}
+
+// ValkeyConfig holds the configuration settings for Valkey obfuscation
+type ValkeyConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Valkey
 	// command should be obfuscated.
 	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }

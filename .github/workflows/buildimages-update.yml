@@ -141,7 +141,7 @@ jobs:
           TMP_PR_BODY_PATH: /tmp/pr_body
           GH_TOKEN: ${{ github.token }}
           PR_TITLE: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
-          PR_LABELS: "go-update,team/agent-shared-components"
+          PR_LABELS: "go-update,team/agent-runtimes"
           CURRENT_BUILDIMAGE_TAG: ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }}
           IMAGES_ID: ${{ inputs.images_id }}
           CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}

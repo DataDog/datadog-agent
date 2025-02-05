@@ -668,6 +668,7 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_processing_chan_size", Value: 2, Tags: []string{}, Rate: 1})
 
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }

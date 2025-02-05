@@ -34,6 +34,7 @@ def build(
     static=False,
     fips_mode=False,
     no_strip_binary=False,
+    arch_suffix=False,
 ):
     """
     Build cws-instrumentation
@@ -60,6 +61,9 @@ def build(
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
     agent_bin = BIN_PATH
+    if arch_suffix:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+        agent_bin = f'{agent_bin}.{arch}'
 
     strip_flags = "" if no_strip_binary else "-s -w"
 

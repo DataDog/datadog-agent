@@ -379,13 +379,6 @@ namespace Datadog.CustomActions
                             }
                         });
 
-                var auth = Path.Combine(configFolder, "auth_token");
-                if (File.Exists(auth)) // Delete pre-existing auth token
-                {
-                    File.Delete(auth);
-                    session.Log($"Deleting old {auth}");
-                }
-
                 foreach (var c in configFiles)
                 {
                     var configPath = Path.Combine(configFolder, c.Path);

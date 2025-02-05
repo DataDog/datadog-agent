@@ -7,6 +7,7 @@ import platform
 import re
 import subprocess
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from functools import lru_cache
 
 import requests
@@ -611,6 +612,44 @@ class GithubAPI:
             return 'long review'
         return 'medium review'
 
+    def find_all_teams(self, obj, exclude_teams=None, exclude_permissions=None):
+        """Get all the repositories teams, including the nested ones."""
+        teams = []
+        for team in obj.get_teams():
+            if (
+                exclude_teams
+                and team.name in exclude_teams
+                or exclude_permissions
+                and team.permission in exclude_permissions
+            ):
+                continue
+            teams.append(team)
+            teams.extend(
+                self.find_all_teams(team, exclude_teams=exclude_teams, exclude_permissions=exclude_permissions)
+            )
+        return teams
+
+    def get_committers(self, duration_days=183):
+        """Get the set of committers within the last <duration_days>"""
+        comitters = set()
+        since_date = datetime.now() - timedelta(days=duration_days)
+        for commit in self._repository.get_commits(since=since_date):
+            if commit.author:
+                comitters.add(commit.author.login)
+        return comitters
+
+    def get_reviewers(self, duration_days=183):
+        """Get the set of reviewers within the last <duration_days>"""
+        reviewers = set()
+        since_date = datetime.now() - timedelta(days=duration_days)
+        for pr in self._repository.get_pulls(state="all"):
+            if pr.created_at < since_date:
+                break
+            for review in pr.get_reviews():
+                if review.user:
+                    reviewers.add(review.user.login)
+        return reviewers
+
 
 def get_github_teams(users):
     for user in users:
@@ -641,13 +680,10 @@ def get_user_query(login):
     return query + string_var
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
-
-    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = milestone or str(version)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -679,12 +715,10 @@ Make sure that milestone is open before trying again.""",
     labels = [
         "changelog/no-changelog",
         "qa/no-code-change",
-        "team/agent-delivery",
-        "team/agent-release-management",
     ]
 
-    if changelog_pr:
-        labels.append(f"backport/{get_default_branch()}")
+    if other_labels:
+        labels += other_labels
 
     updated_pr = github.update_pr(
         pull_number=pr.number,
@@ -702,6 +736,19 @@ Make sure that milestone is open before trying again.""",
     print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
 
     return updated_pr.html_url
+
+
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+    milestone_name = milestone or str(version)
+
+    labels = [
+        "team/agent-delivery",
+        "team/agent-release-management",
+    ]
+    if changelog_pr:
+        labels.append(f"backport/{get_default_branch()}")
+
+    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
 
 
 def ask_review_actor(pr):

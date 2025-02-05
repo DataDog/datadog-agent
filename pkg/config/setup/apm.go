@@ -41,6 +41,8 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.remove_stack_traces", false, "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.redis.enabled", true, "DD_APM_OBFUSCATION_REDIS_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.redis.remove_all_args", false, "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS")
+	config.BindEnvAndSetDefault("apm_config.obfuscation.valkey.enabled", true, "DD_APM_OBFUSCATION_VALKEY_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.obfuscation.valkey.remove_all_args", false, "DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.enabled", true, "DD_APM_OBFUSCATION_MEMCACHED_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.keep_command", false, "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.enabled", true, "DD_APM_OBFUSCATION_CACHE_ENABLED")
