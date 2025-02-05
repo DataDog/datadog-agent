@@ -578,7 +578,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ecs_metadata_retry_initial_interval", 100*time.Millisecond)
 	config.BindEnvAndSetDefault("ecs_metadata_retry_max_elapsed_time", 3000*time.Millisecond)
 	config.BindEnvAndSetDefault("ecs_metadata_retry_timeout_factor", 3)
-	config.BindEnvAndSetDefault("ecs_task_collection_enabled", false)
+	config.BindEnvAndSetDefault("ecs_task_collection_enabled", true)
 	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
 	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
 	config.BindEnvAndSetDefault("ecs_task_collection_burst", 60)
