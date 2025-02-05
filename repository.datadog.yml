@@ -12,10 +12,10 @@ skip_labels: true
 branches:
   - /^7\.[0-9]+\.x$/:
     github_teams_restrictions:
-      - "agent-platform"
+      - "agent-supply-chain"
   - /^6\.[0-9]+\.x$/:
     github_teams_restrictions:
-      - "agent-platform"
+      - "agent-supply-chain"
 ---
 schema-version: v1
 kind: buildimpactanalysis
