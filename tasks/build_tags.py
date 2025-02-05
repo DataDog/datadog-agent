@@ -78,7 +78,6 @@ AGENT_TAGS = {
     "kubeapiserver",
     "kubelet",
     "netcgo",
-    "oracle",
     "orchestrator",
     "otlp",
     "podman",
@@ -127,38 +126,39 @@ IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
+PROCESS_AGENT_TAGS = {
+    "containerd",
+    "no_dynamic_plugins",
+    "cri",
+    "crio",
+    "datadog.no_waf",
+    "ec2",
+    "docker",
+    "fargateprocess",
+    "kubelet",
+    "netcgo",
+    "podman",
+    "zlib",
+    "zstd",
+}
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
-PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
-    {
-        "containerd",
-        "no_dynamic_plugins",
-        "cri",
-        "crio",
-        "docker",
-        "ec2",
-        "jetson",
-        "kubeapiserver",
-        "kubelet",
-        "orchestrator",
-        "podman",
-        "systemd",
-    }
-)
+PROCESS_AGENT_HEROKU_TAGS = {
+    "datadog.no_waf",
+    "fargateprocess",
+    "netcgo",
+    "zlib",
+    "zstd",
+}
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = {
     "netcgo",
     "datadog.no_waf",
     "docker",
-    "containerd",
-    "no_dynamic_plugins",
-    "kubeapiserver",
-    "kubelet",
-    "podman",
     "zlib",
     "zstd",
+    "kubelet",
     "ec2",
 }
 
@@ -207,7 +207,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 # CHECKS_AGENT_TAGS lists the tags needed when building the checks agent
 # serverless tag is to ensure we do not include telemetry in the checks agent
-CHECKS_AGENT_TAGS = {"zlib", "zstd", "python", "serverless"}
+CHECKS_AGENT_TAGS = {"zlib", "zstd", "python", "serverless", "oracle"}
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 

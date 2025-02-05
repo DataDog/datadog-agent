@@ -11,14 +11,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
-	"runtime"
-	"runtime/debug"
-
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -49,6 +46,8 @@ import (
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
@@ -223,13 +222,7 @@ func start(
 
 	defer StopAgent(cancel, log)
 
-	go func() {
-		addr := net.JoinHostPort("localhost", "6060")
-		err := http.ListenAndServe(addr, nil)
-		if err != nil {
-			log.Warnf("pprof server: %s", err)
-		}
-	}()
+	startPprof(config, telemetry)
 
 	token := authToken.Get()
 
@@ -256,6 +249,9 @@ func start(
 	// check.InitializeInventoryChecksContext(invChecks)
 
 	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), &mockSenderManager{}, option.None[integrations.Component](), tagger)
+	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
+	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
+	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
 
 	// Start the scheduler
 	go startScheduler(ctx, stream, scheduler, log, config)
@@ -394,3 +390,10 @@ func getAlloc() uint64 {
 	runtime.ReadMemStats(&m)
 	return m.Alloc / 1024
 }
+
+func setupInternalProfiling(_ config.Component) error {
+	return nil
+
+}
+
+func startPprof(_ config.Component, _ telemetry.Component) {}

@@ -46,6 +46,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	haagentmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
@@ -138,6 +139,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostimpl.Module(),
 				inventoryhostimpl.Module(),
 				inventoryotelimpl.Module(),
+				haagentmetadatafx.Module(),
 				resourcesimpl.Module(),
 				authtokenimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
@@ -177,10 +179,18 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 
 	type pprofGetter func(path string) ([]byte, error)
 
-	tcpGet := func(portConfig string) pprofGetter {
-		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt(portConfig))
+	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {
+		endpoint := url.URL{
+			Scheme: "http",
+			Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(pkgconfigsetup.Datadog().GetInt(portConfig))),
+			Path:   "/debug/pprof",
+		}
+		if onHTTPS {
+			endpoint.Scheme = "https"
+		}
+
 		return func(path string) ([]byte, error) {
-			return util.DoGet(c, pprofURL+path, util.LeaveConnectionOpen)
+			return util.DoGet(c, endpoint.String()+path, util.LeaveConnectionOpen)
 		}
 	}
 
@@ -230,15 +240,15 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	}
 
 	agentCollectors := map[string]agentProfileCollector{
-		"core":           serviceProfileCollector(tcpGet("expvar_port"), seconds),
-		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port"), seconds),
+		"core":           serviceProfileCollector(tcpGet("expvar_port", false), seconds),
+		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port", false), seconds),
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("process_config.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("process_config.container_collection.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("process_config.process_collection.enabled") {
 
-		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port"), seconds)
+		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port", false), seconds)
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") {
@@ -251,7 +261,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 			traceCpusec = 4
 		}
 
-		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port"), traceCpusec)
+		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port", true), traceCpusec)
 	}
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {

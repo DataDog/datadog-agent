@@ -52,11 +52,6 @@ var (
 		env: []string{},
 		cwd: "",
 	}
-	procTestService1Repeat = testProc{
-		pid: 101,
-		env: []string{},
-		cwd: "",
-	}
 )
 
 var (
@@ -71,6 +66,7 @@ var (
 		DDServiceInjected:          true,
 		Ports:                      []uint16{8080},
 		APMInstrumentation:         string(apm.None),
+		Type:                       "web_service",
 		RSS:                        100 * 1024 * 1024,
 		CPUCores:                   1.5,
 		CommandLine:                []string{"test-service-1"},
@@ -88,6 +84,7 @@ var (
 		DDServiceInjected:          true,
 		Ports:                      []uint16{8080},
 		APMInstrumentation:         string(apm.None),
+		Type:                       "web_service",
 		RSS:                        200 * 1024 * 1024,
 		CPUCores:                   1.5,
 		CommandLine:                []string{"test-service-1"},
@@ -103,19 +100,8 @@ var (
 		ContainerServiceNameSource: "app",
 		Language:                   "python",
 		Ports:                      []uint16{5000},
+		Type:                       "web_service",
 		CommandLine:                pythonCommandLine,
-		StartTimeMilli:             procLaunchedMilli,
-		ContainerID:                dummyContainerID,
-	}
-	portTCP5432 = model.Service{
-		PID:                        procTestService1Repeat.pid,
-		Name:                       "test-service-1",
-		GeneratedName:              "test-service-1",
-		GeneratedNameSource:        "test-service-1-generated-source",
-		ContainerServiceName:       "test-service-1-container",
-		ContainerServiceNameSource: "service",
-		Ports:                      []uint16{5432},
-		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
 	}
@@ -172,217 +158,27 @@ func Test_linuxImpl(t *testing.T) {
 			name: "basic",
 			checkRun: []*checkRun{
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{StartedServices: []model.Service{
 						portTCP5000,
 						portTCP8080,
 					}},
 					time: calcTime(0),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP5000,
-						portTCP8080,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
+					servicesResp: &model.ServicesResponse{HeartbeatServices: []model.Service{
 						portTCP5000,
 						portTCP8080UpdatedRSS,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP5000,
-					}},
-					time: calcTime(21 * time.Minute),
-				},
-			},
-			wantEvents: []*event{
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        99,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "none",
-						RSSMemory:                  100 * 1024 * 1024,
-						CPUCores:                   1.5,
-						ContainerID:                dummyContainerID,
-					},
-				},
-				{
-					RequestType: "heartbeat-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(20 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        99,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "none",
-						RSSMemory:                  200 * 1024 * 1024,
-						CPUCores:                   1.5,
-						ContainerID:                dummyContainerID,
-					},
-				},
-				{
-					RequestType: "end-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1-generated",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						DDService:                  "test-service-1",
-						ServiceNameSource:          "injected",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(20 * time.Minute).Unix(),
-						Ports:                      []uint16{8080},
-						PID:                        99,
-						CommandLine:                []string{"test-service-1"},
-						APMInstrumentation:         "none",
-						RSSMemory:                  200 * 1024 * 1024,
-						CPUCores:                   1.5,
-						ContainerID:                dummyContainerID,
-					},
-				},
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "python-service",
-						GeneratedServiceName:       "python-service",
-						GeneratedServiceNameSource: "python-service-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "app",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
-						Ports:                      []uint16{5000},
-						PID:                        500,
-						ServiceLanguage:            "python",
-						CommandLine:                pythonCommandLine,
-						ContainerID:                dummyContainerID,
-					},
-				},
-				{
-					RequestType: "heartbeat-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "python-service",
-						GeneratedServiceName:       "python-service",
-						GeneratedServiceNameSource: "python-service-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "app",
-						ServiceType:                "web_service",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(20 * time.Minute).Unix(),
-						Ports:                      []uint16{5000},
-						PID:                        500,
-						ServiceLanguage:            "python",
-						CommandLine:                pythonCommandLine,
-						ContainerID:                dummyContainerID,
-					},
-				},
-			},
-		},
-		{
-			name: "repeated_service_name",
-			checkRun: []*checkRun{
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-						portTCP5432,
-					}},
-					time: calcTime(0),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-						portTCP5432,
-					}},
-					time: calcTime(1 * time.Minute),
-				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-						portTCP5432,
+					servicesResp: &model.ServicesResponse{StoppedServices: []model.Service{
+						portTCP8080UpdatedRSS,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
-				{
-					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP8080,
-					}},
-					time: calcTime(21 * time.Minute),
-				},
 			},
 			wantEvents: []*event{
-				{
-					RequestType: "start-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						ServiceType:                "db",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
-						Ports:                      []uint16{5432},
-						PID:                        101,
-						CommandLine:                []string{"test-service-1"},
-						ContainerID:                dummyContainerID,
-					},
-				},
 				{
 					RequestType: "start-service",
 					APIVersion:  "v2",
@@ -400,7 +196,7 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(1 * time.Minute).Unix(),
+						LastSeen:                   calcTime(0).Unix(),
 						Ports:                      []uint16{8080},
 						PID:                        99,
 						CommandLine:                []string{"test-service-1"},
@@ -416,19 +212,24 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
 						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1",
+						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
 						ContainerServiceName:       "test-service-1-container",
 						ContainerServiceNameSource: "service",
-						ServiceType:                "db",
+						DDService:                  "test-service-1",
+						ServiceNameSource:          "injected",
+						ServiceType:                "web_service",
 						HostName:                   host,
 						Env:                        "",
 						StartTime:                  calcTime(0).Unix(),
 						StartTimeMilli:             calcTime(0).UnixMilli(),
 						LastSeen:                   calcTime(20 * time.Minute).Unix(),
-						Ports:                      []uint16{5432},
-						PID:                        101,
+						Ports:                      []uint16{8080},
+						PID:                        99,
 						CommandLine:                []string{"test-service-1"},
+						APMInstrumentation:         "none",
+						RSSMemory:                  200 * 1024 * 1024,
+						CPUCores:                   1.5,
 						ContainerID:                dummyContainerID,
 					},
 				},
@@ -438,28 +239,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
 						ServiceName:                "test-service-1",
-						GeneratedServiceName:       "test-service-1",
-						GeneratedServiceNameSource: "test-service-1-generated-source",
-						ContainerServiceName:       "test-service-1-container",
-						ContainerServiceNameSource: "service",
-						ServiceType:                "db",
-						HostName:                   host,
-						Env:                        "",
-						StartTime:                  calcTime(0).Unix(),
-						StartTimeMilli:             calcTime(0).UnixMilli(),
-						LastSeen:                   calcTime(20 * time.Minute).Unix(),
-						Ports:                      []uint16{5432},
-						PID:                        101,
-						CommandLine:                []string{"test-service-1"},
-						ContainerID:                dummyContainerID,
-					},
-				},
-				{
-					RequestType: "heartbeat-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
 						ContainerServiceName:       "test-service-1-container",
@@ -476,13 +255,82 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                        99,
 						CommandLine:                []string{"test-service-1"},
 						APMInstrumentation:         "none",
-						RSSMemory:                  100 * 1024 * 1024,
+						RSSMemory:                  200 * 1024 * 1024,
 						CPUCores:                   1.5,
+						ContainerID:                dummyContainerID,
+					},
+				},
+				{
+					RequestType: "start-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion:        "1",
+						ServiceName:                "python-service",
+						GeneratedServiceName:       "python-service",
+						GeneratedServiceNameSource: "python-service-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "app",
+						ServiceType:                "web_service",
+						HostName:                   host,
+						Env:                        "",
+						StartTime:                  calcTime(0).Unix(),
+						StartTimeMilli:             calcTime(0).UnixMilli(),
+						LastSeen:                   calcTime(0).Unix(),
+						Ports:                      []uint16{5000},
+						PID:                        500,
+						ServiceLanguage:            "python",
+						CommandLine:                pythonCommandLine,
+						ContainerID:                dummyContainerID,
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion:        "1",
+						ServiceName:                "python-service",
+						GeneratedServiceName:       "python-service",
+						GeneratedServiceNameSource: "python-service-source",
+						ContainerServiceName:       "test-service-1-container",
+						ContainerServiceNameSource: "app",
+						ServiceType:                "web_service",
+						HostName:                   host,
+						Env:                        "",
+						StartTime:                  calcTime(0).Unix(),
+						StartTimeMilli:             calcTime(0).UnixMilli(),
+						LastSeen:                   calcTime(20 * time.Minute).Unix(),
+						Ports:                      []uint16{5000},
+						PID:                        500,
+						ServiceLanguage:            "python",
+						CommandLine:                pythonCommandLine,
 						ContainerID:                dummyContainerID,
 					},
 				},
 			},
 		},
+	}
+
+	makeServiceResponseWithTime := func(responseTime time.Time, resp *model.ServicesResponse) *model.ServicesResponse {
+		respWithTime := &model.ServicesResponse{
+			StartedServices:   make([]model.Service, 0, len(resp.StartedServices)),
+			StoppedServices:   make([]model.Service, 0, len(resp.StoppedServices)),
+			HeartbeatServices: make([]model.Service, 0, len(resp.HeartbeatServices)),
+		}
+
+		for _, service := range resp.StartedServices {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.StartedServices = append(respWithTime.StartedServices, service)
+		}
+		for _, service := range resp.StoppedServices {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.StoppedServices = append(respWithTime.StoppedServices, service)
+		}
+		for _, service := range resp.HeartbeatServices {
+			service.LastHeartbeat = responseTime.Unix()
+			respWithTime.HeartbeatServices = append(respWithTime.HeartbeatServices, service)
+		}
+
+		return respWithTime
 	}
 
 	for _, tc := range tests {
@@ -514,9 +362,8 @@ func Test_linuxImpl(t *testing.T) {
 
 				// set mocks
 				check.os.(*linuxImpl).getDiscoveryServices = func(_ *http.Client) (*model.ServicesResponse, error) {
-					return cr.servicesResp, nil
+					return makeServiceResponseWithTime(cr.time, cr.servicesResp), nil
 				}
-				check.os.(*linuxImpl).time = mTimer
 				check.sender.hostname = mHostname
 
 				err = check.Run()

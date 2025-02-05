@@ -9,7 +9,6 @@ package command
 import (
 	//nolint:revive // TODO(AML) Fix revive linter
 	_ "expvar"
-	_ "net/http/pprof"
 
 	"github.com/spf13/cobra"
 
