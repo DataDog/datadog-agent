@@ -58,6 +58,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ./comp/otelcol/converter/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ./comp/otelcol/ddflareextension/def/
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl => ./comp/otelcol/ddflareextension/impl/
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def => ./comp/otelcol/ddprofilingextension/def
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ./comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ./comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ./comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ./comp/otelcol/otlp/components/exporter/datadogexporter
@@ -233,7 +235,7 @@ require (
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
-	github.com/google/pprof v0.0.0-20240827171923-fa2c70bbbfe5 // indirect
+	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
 	github.com/gorilla/mux v1.8.1
 	github.com/gosnmp/gosnmp v1.38.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -332,7 +334,7 @@ require (
 	google.golang.org/grpc v1.70.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.36.4
-	gopkg.in/DataDog/dd-trace-go.v1 v1.69.1
+	gopkg.in/DataDog/dd-trace-go.v1 v1.70.3
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -604,6 +606,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/subscriber v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
@@ -676,7 +680,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.57.0-devel.0.20240718200853-81bf3b2e412d
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.59.0-rc.6
+	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
@@ -804,6 +808,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.34.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
+	github.com/DataDog/go-runtime-metrics-internal v0.0.0-20241106155157-194426bbbd59 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.24.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.25.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect

@@ -119,6 +119,9 @@ type httpClient interface {
 }
 
 // NewClient creates a new telemetry client
+// Used in Fleet now (datadog-agent\pkg\fleet\telemetry\telemetry.go)
+// Agentcrashdetect (datadog-agent\comp\checks\agentcrashdetect\agentcrashdetectimpl\agentcrashdetect.go
+// switched to agenttelemetry component usage instead.
 func NewClient(httpClient httpClient, endpoints []*Endpoint, service string, debug bool) Client {
 	info, err := host.Info()
 	if err != nil {

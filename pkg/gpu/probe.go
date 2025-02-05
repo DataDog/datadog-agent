@@ -325,9 +325,11 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 				},
 			},
 		},
-		EbpfConfig:         &cfg.Config,
-		PerformInitialScan: cfg.InitialProcessSync,
-		SharedLibsLibset:   sharedlibraries.LibsetGPU,
+		EbpfConfig:                     &cfg.Config,
+		PerformInitialScan:             cfg.InitialProcessSync,
+		SharedLibsLibset:               sharedlibraries.LibsetGPU,
+		ScanProcessesInterval:          cfg.ScanProcessesInterval,
+		EnablePeriodicScanNewProcesses: true,
 	}
 }
 

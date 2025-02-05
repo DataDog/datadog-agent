@@ -59,7 +59,8 @@ def display_pr_comment(
             with_info = True
         else:
             body_error += f"|{FAIL_CHAR}|{gate['name']}|{getMetric('current_on_disk_size')}|{getMetric('max_on_disk_size')}|{getMetric('current_on_wire_size')}|{getMetric('max_on_wire_size')}|\n"
-            body_error_footer += f"|{gate['name']}|{gate['error_type']}|{gate['message'].replace("\n", "<br>")}|\n"
+            error_message = gate['message'].replace('\n', '<br>')
+            body_error_footer += f"|{gate['name']}|{gate['error_type']}|{error_message}|\n"
             with_error = True
 
     body_error_footer += "\n</details>\n"
@@ -106,8 +107,8 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
-
-    print(f"The following gates are going to run:\n\t- {"\n\t- ".join(gate_list)}")
+    newline_tab = "\n\t"
+    print(f"The following gates are going to run:{newline_tab}- {(newline_tab+'- ').join(gate_list)}")
     final_state = "success"
     gate_states = []
     for gate in gate_list:
