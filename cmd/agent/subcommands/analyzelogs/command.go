@@ -148,7 +148,6 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 // Used to make testing easier
 func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
-	fmt.Println("------------------------------------------------------")
 	waitTime := time.Duration(60) * time.Second
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), waitTime)
@@ -161,20 +160,14 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	}
 	var sources []*sources.LogSource
 	sources = nil
-	fmt.Println("AGENT ANALYZE LOGS ALL CONFIGS ", allConfigs)
 	for _, config := range allConfigs {
 		if config.Name != cliParams.LogConfigPath {
 			continue
 		}
-		fmt.Println("CONFIG IS ???", config)
-		fmt.Println("CONFIG Instances IS ???", config.Instances)
-		fmt.Println("CONFIG LogsConfig IS ???", config.LogsConfig)
 		sources, err = ad.CreateSources(integration.Config{
 			Provider:   names.File,
 			LogsConfig: config.Instances[0],
 		})
-		fmt.Println("SOURCE ERROR?", err)
-		fmt.Println("SOURCES IS???", sources)
 		break
 	}
 
@@ -182,13 +175,11 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		absolutePath := ""
 		wd, err := os.Getwd()
 		if err != nil {
-			fmt.Println("Cannot get working directory")
 			return nil, nil, nil
 		}
 		absolutePath = wd + "/" + cliParams.LogConfigPath
 
 		data, err := os.ReadFile(absolutePath)
-		fmt.Println("HEHEXD", data)
 		if err != nil {
 			fmt.Println("Cannot read file path of logs config")
 			return nil, nil, nil

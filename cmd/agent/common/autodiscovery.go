@@ -269,10 +269,8 @@ func waitForConfigsFromAD(ctx context.Context,
 		default:
 		}
 	}()
-	fmt.Println("wack0")
 	var match func(cfg integration.Config) bool
 	if wildcard {
-		fmt.Println("wack0.5?")
 		// match all configs
 		match = func(integration.Config) bool { return true }
 	} else {
@@ -288,7 +286,6 @@ func waitForConfigsFromAD(ctx context.Context,
 	}
 
 	stopChan := make(chan struct{})
-	fmt.Println("wack2")
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
 	go ac.AddScheduler(adtypes.CheckCmdName, schedulerFunc(func(configs []integration.Config) {
@@ -311,22 +308,18 @@ func waitForConfigsFromAD(ctx context.Context,
 			}
 		}
 		if len(errorList) > 0 {
-			fmt.Println("ERROR LIST?")
 			returnErr = errors.New(utilserror.NewAggregate(errorList).Error())
 			stopChan <- struct{}{}
 		}
 	}), true)
 
 	for wildcard || len(configs) < discoveryMinInstances {
-		fmt.Println("entered for loop")
 		select {
 		case cfg := <-configChan:
 			configs = append(configs, cfg)
 		case <-stopChan:
-			fmt.Println("cancle <-stopChan")
 			return
 		case <-ctx.Done():
-			fmt.Println("cancle <-ctx.Done()")
 			return
 		}
 	}
