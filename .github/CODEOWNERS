@@ -182,6 +182,7 @@
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 /.gitlab/functional_test/regression_detector_otlp_vs_oss.yml     @DataDog/agent-shared-components
 /.gitlab/functional_test/regression_detector_otel_vs_oss.yml @DataDog/agent-shared-components
+/.gitlab/functional_test/regression_detector_oss_vs_otel.yml @DataDog/agent-shared-components
 
 
 /chocolatey/                            @DataDog/windows-agent
