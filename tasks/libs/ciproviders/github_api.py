@@ -702,6 +702,7 @@ Make sure that milestone is open before trying again.""",
         pr_body=body,
         base_branch=base_branch,
         target_branch=target_branch,
+        draft=True,
     )
 
     if not pr:
