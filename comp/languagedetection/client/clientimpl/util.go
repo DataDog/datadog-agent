@@ -10,7 +10,7 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
@@ -28,7 +28,7 @@ func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadm
 	}
 	b[podName] = &podInfo{
 		namespace:     podnamespace,
-		containerInfo: make(langUtil.ContainersLanguages),
+		containerInfo: make(languagemodels.ContainersLanguages),
 		ownerRef:      ownerRef,
 	}
 	return b[podName]
@@ -36,7 +36,7 @@ func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadm
 
 type podInfo struct {
 	namespace     string
-	containerInfo langUtil.ContainersLanguages
+	containerInfo languagemodels.ContainersLanguages
 	ownerRef      *workloadmeta.KubernetesPodOwner
 }
 
@@ -55,10 +55,10 @@ func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 	}
 }
 
-func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) langUtil.LanguageSet {
+func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) languagemodels.LanguageSet {
 	cInfo := p.containerInfo
 
-	container := langUtil.Container{
+	container := languagemodels.Container{
 		Name: containerName,
 		Init: isInitContainer,
 	}
@@ -66,7 +66,7 @@ func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bo
 		return languageSet
 	}
 
-	cInfo[container] = make(langUtil.LanguageSet)
+	cInfo[container] = make(languagemodels.LanguageSet)
 	return cInfo[container]
 }
 

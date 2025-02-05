@@ -26,6 +26,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
+	github.com/DataDog/datadog-agent/pkg/network/payload => ../../pkg/network/payload
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../pkg/networkpath/payload
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/trace => ../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../pkg/util/executable
@@ -280,6 +282,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.0-devel
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/aws/aws-sdk-go v1.55.6
@@ -291,6 +294,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.59.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.6.0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
