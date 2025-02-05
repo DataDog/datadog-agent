@@ -1,6 +1,6 @@
 ---
-# include:
-#   - .gitlab/.pre/include.yml
+include:
+  - .gitlab/.pre/include.yml
 #   - .gitlab/benchmarks/include.yml
 #   - .gitlab/binary_build/include.yml
 #   - .gitlab/check_deploy/check_deploy.yml
@@ -35,7 +35,7 @@
 #   - .gitlab/package_deps_build/package_deps_build.yml
 #   - .gitlab/pkg_metrics/pkg_metrics.yml
 #   - .gitlab/post_rc_build/post_rc_tasks.yml
-#   - .gitlab/setup/setup.yml
+  - .gitlab/setup/setup.yml
 #   - .gitlab/source_test/include.yml
 #   - .gitlab/trigger_release/trigger_release.yml
 
