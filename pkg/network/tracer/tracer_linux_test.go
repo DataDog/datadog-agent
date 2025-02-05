@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -1707,9 +1708,10 @@ func (s *TracerSuite) TestSendfileRegression() {
 		t.Run(family.String(), func(t *testing.T) {
 			t.Run("TCP", func(t *testing.T) {
 				// Start TCP server
-				var rcvd int64
+				var rcvd atomic.Int64
 				server := tracertestutil.NewTCPServerOnAddress("", func(c net.Conn) {
-					rcvd, _ = io.Copy(io.Discard, c)
+					n, _ := io.Copy(io.Discard, c)
+					rcvd.Add(int64(n))
 					c.Close()
 				})
 				server.Network = "tcp" + strings.TrimPrefix(family.String(), "v")
@@ -1720,7 +1722,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				c, err := net.DialTimeout("tcp", server.Address(), time.Second)
 				require.NoError(t, err)
 
-				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd })
+				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd.Load() })
 			})
 			t.Run("UDP", func(t *testing.T) {
 				if family == network.AFINET6 && !cfg.CollectUDPv6Conns {
@@ -1731,11 +1733,11 @@ func (s *TracerSuite) TestSendfileRegression() {
 				}
 
 				// Start UDP server
-				var rcvd int64
+				var rcvd atomic.Int64
 				server := &UDPServer{
 					network: "udp" + strings.TrimPrefix(family.String(), "v"),
 					onMessage: func(_ []byte, n int) []byte {
-						rcvd = rcvd + int64(n)
+						rcvd.Add(int64(n))
 						return nil
 					},
 				}
@@ -1746,7 +1748,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				c, err := net.DialTimeout(server.network, server.address, time.Second)
 				require.NoError(t, err)
 
-				testSendfileServer(t, c.(*net.UDPConn), network.UDP, family, func() int64 { return rcvd })
+				testSendfileServer(t, c.(*net.UDPConn), network.UDP, family, func() int64 { return rcvd.Load() })
 			})
 		})
 	}

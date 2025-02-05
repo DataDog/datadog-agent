@@ -7,6 +7,7 @@ import platform
 import re
 import subprocess
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from functools import lru_cache
 
 import requests
@@ -610,6 +611,44 @@ class GithubAPI:
         ):
             return 'long review'
         return 'medium review'
+
+    def find_all_teams(self, obj, exclude_teams=None, exclude_permissions=None):
+        """Get all the repositories teams, including the nested ones."""
+        teams = []
+        for team in obj.get_teams():
+            if (
+                exclude_teams
+                and team.name in exclude_teams
+                or exclude_permissions
+                and team.permission in exclude_permissions
+            ):
+                continue
+            teams.append(team)
+            teams.extend(
+                self.find_all_teams(team, exclude_teams=exclude_teams, exclude_permissions=exclude_permissions)
+            )
+        return teams
+
+    def get_committers(self, duration_days=183):
+        """Get the set of committers within the last <duration_days>"""
+        comitters = set()
+        since_date = datetime.now() - timedelta(days=duration_days)
+        for commit in self._repository.get_commits(since=since_date):
+            if commit.author:
+                comitters.add(commit.author.login)
+        return comitters
+
+    def get_reviewers(self, duration_days=183):
+        """Get the set of reviewers within the last <duration_days>"""
+        reviewers = set()
+        since_date = datetime.now() - timedelta(days=duration_days)
+        for pr in self._repository.get_pulls(state="all"):
+            if pr.created_at < since_date:
+                break
+            for review in pr.get_reviews():
+                if review.user:
+                    reviewers.add(review.user.login)
+        return reviewers
 
 
 def get_github_teams(users):
