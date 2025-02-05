@@ -1,6 +1,6 @@
 ---
-include:
-  - .gitlab/.pre/include.yml
+# include:
+#   - .gitlab/.pre/include.yml
 #   - .gitlab/benchmarks/include.yml
 #   - .gitlab/binary_build/include.yml
 #   - .gitlab/check_deploy/check_deploy.yml
@@ -35,7 +35,7 @@ include:
 #   - .gitlab/package_deps_build/package_deps_build.yml
 #   - .gitlab/pkg_metrics/pkg_metrics.yml
 #   - .gitlab/post_rc_build/post_rc_tasks.yml
-  - .gitlab/setup/setup.yml
+  # - .gitlab/setup/setup.yml
 #   - .gitlab/source_test/include.yml
 #   - .gitlab/trigger_release/trigger_release.yml
 
@@ -1225,6 +1225,21 @@ workflow:
 # Current default: Windows Server 2022
 .windows_docker_default:
   extends: .windows_docker_2022
+
+
+test_gitlab_configuration:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_gitlab_changes]
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - inv -e linter.gitlab-ci
+    - inv -e linter.job-change-path
+    - inv -e linter.gitlab-change-paths
+    - inv -e linter.ssm-parameters
 
 
 celian:
