@@ -275,6 +275,7 @@ docker_build_cluster_agent_fips_amd64:
     BUILD_CONTEXT: Dockerfiles/cluster-agent
     TAG_SUFFIX: -fips
   before_script:
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
@@ -294,6 +295,7 @@ docker_build_cluster_agent_fips_arm64:
     BUILD_CONTEXT: Dockerfiles/cluster-agent
     TAG_SUFFIX: -fips
   before_script:
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
