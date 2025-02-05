@@ -28,7 +28,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
@@ -97,8 +96,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
-func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) error {
-	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac, wmeta, secretResolver)
+func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
+	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac)
 	if outputChan == nil {
 		return fmt.Errorf("Invalid input")
 	}
@@ -134,7 +133,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 }
 
 // Used to make testing easier
-func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
+func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
 	configSource := sources.NewConfigSources()
 	waitTime := time.Duration(1) * time.Second
 	waitCtx, cancelTimeout := context.WithTimeout(
