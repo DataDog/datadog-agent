@@ -151,6 +151,9 @@ new-agent_dmg-x64-a7:
       - /tmp/celian
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
+  after_script:
+    - brew install awscli -fv
+    - brew install cryptography -fv
   script:
     - set -e
     # - !reference [.vault_login]
@@ -160,7 +163,7 @@ new-agent_dmg-x64-a7:
     - |
       export OPENSSL_VERSION=1.1
       echo 'Installing cryptography...'
-      brew uninstall cryptography -fv
+      brew uninstall awscli cryptography -fv
       brew install cryptography -fv
       echo 'Installing openssl...'
       brew install DataDog/datadog-agent-macos-build/openssl@$OPENSSL_VERSION -fv
