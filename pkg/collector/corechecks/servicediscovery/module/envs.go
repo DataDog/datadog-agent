@@ -45,13 +45,13 @@ func getInjectionMeta(proc *process.Process) (*InjectedProcess, bool) {
 		if err == kernel.ErrMemFdFileNotFound {
 			return nil, false
 		}
-		log.Warnf("failed extracting injected envs: %w", err)
+		log.Warnf("failed extracting injected envs: %s", err)
 		return nil, false
 	}
 
 	var injectedProc InjectedProcess
 	if _, err := injectedProc.UnmarshalMsg(data); err != nil {
-		log.Warnf("error parsing injected process: %w", err)
+		log.Warnf("error parsing injected process: %s", err)
 		return nil, false
 	}
 
