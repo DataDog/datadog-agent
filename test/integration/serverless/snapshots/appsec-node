@@ -10,6 +10,7 @@
             "category": "attack_attempt",
             "crs_id": "942100",
             "cwe": "89",
+            "module": "waf",
             "type": "sql_injection"
           }
         },
@@ -42,6 +43,7 @@
             "category": "attack_attempt",
             "confidence": "1",
             "cwe": "200",
+            "module": "waf",
             "tool_name": "Arachni",
             "type": "attack_tool"
           }
@@ -79,6 +81,7 @@
             "category": "attack_attempt",
             "crs_id": "942100",
             "cwe": "89",
+            "module": "waf",
             "type": "sql_injection"
           }
         },
@@ -111,6 +114,7 @@
             "category": "attack_attempt",
             "confidence": "1",
             "cwe": "200",
+            "module": "waf",
             "tool_name": "Arachni",
             "type": "attack_tool"
           }
