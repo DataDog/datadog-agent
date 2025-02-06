@@ -6,7 +6,7 @@ from invoke import Context, MockContext, Result
 
 from tasks.quality_gates import display_pr_comment
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
-from tasks.static_quality_gates.static_quality_gate_docker_agent_amd64 import calculate_image_on_disk_size
+from tasks.static_quality_gates.lib.docker_agent_lib import calculate_image_on_disk_size
 
 
 class TestQualityGatesPrMessage(unittest.TestCase):
