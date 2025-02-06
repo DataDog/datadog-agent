@@ -262,6 +262,7 @@ func init() {
 			log.Warnf("Error initializing FIPS mode: %v", err)
 		}
 	}
+
 }
 
 func expvarPythonInitErrors() interface{} {
