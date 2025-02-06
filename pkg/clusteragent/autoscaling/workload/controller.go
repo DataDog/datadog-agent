@@ -301,7 +301,8 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	}
 
 	// Update the scaling values based on the staleness of recommendations
-	c.updateScalingValues(podAutoscalerInternal)
+	desiredScalingSource := c.updateScalingValues(podAutoscalerInternal)
+	podAutoscalerInternal.UpdateFromValues(desiredScalingSource)
 
 	// Get autoscaler target
 	targetGVK, targetErr := podAutoscalerInternal.TargetGVK()
@@ -457,12 +458,11 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	return nil
 }
 
-func (c *Controller) updateScalingValues(podAutoscalerInternal model.PodAutoscalerInternal) {
+func (c *Controller) updateScalingValues(podAutoscalerInternal model.PodAutoscalerInternal) datadoghq.DatadogPodAutoscalerValueSource {
 	mainHorizontalScalingValues := podAutoscalerInternal.MainScalingValues().Horizontal
 	if mainHorizontalScalingValues == nil {
 		// Not scaling horizontally, but we still need to update main values
-		podAutoscalerInternal.UpdateFromValues(datadoghq.DatadogPodAutoscalerAutoscalingValueSource)
-		return
+		return datadoghq.DatadogPodAutoscalerAutoscalingValueSource
 	}
 
 	// Check that the last received recommendation is not stale
@@ -472,14 +472,16 @@ func (c *Controller) updateScalingValues(podAutoscalerInternal model.PodAutoscal
 			log.Debugf("Product horizontal scaling values are stale, activating local fallback")
 			c.isFallbackEnabled = true
 		}
-		podAutoscalerInternal.UpdateFromValues(datadoghq.DatadogPodAutoscalerLocalValueSource)
-	} else {
-		if c.isFallbackEnabled {
-			log.Debugf("Product horizontal scaling values are no longer stale, deactivating local fallback")
-			c.isFallbackEnabled = false
-		}
-		podAutoscalerInternal.UpdateFromValues(datadoghq.DatadogPodAutoscalerAutoscalingValueSource)
+		trackLocalFallbackEnabled(1.0, podAutoscalerInternal)
+		return datadoghq.DatadogPodAutoscalerLocalValueSource
 	}
+
+	if c.isFallbackEnabled {
+		log.Debugf("Product horizontal scaling values are no longer stale, deactivating local fallback")
+		c.isFallbackEnabled = false
+	}
+	trackLocalFallbackEnabled(0.0, podAutoscalerInternal)
+	return datadoghq.DatadogPodAutoscalerAutoscalingValueSource
 }
 
 func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
