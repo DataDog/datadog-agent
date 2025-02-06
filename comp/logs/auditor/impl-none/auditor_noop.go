@@ -59,7 +59,7 @@ func (a *NullAuditor) run() {
 		case <-a.channel:
 		// drain the channel, we're not doing anything with the channel
 		case <-a.stopChannel:
-			// TODO(remy): close the message channel
+			close(a.channel)
 			return
 		}
 	}

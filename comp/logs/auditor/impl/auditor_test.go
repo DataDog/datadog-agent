@@ -17,7 +17,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -28,7 +27,7 @@ type AuditorTestSuite struct {
 	testRunPathDir   string
 	testRegistryPath string
 
-	a      auditor.Component
+	a      *registryAuditor
 	source *sources.LogSource
 }
 
@@ -47,7 +46,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 		Log:    logComponent,
 	}
 
-	suite.a = NewAuditor(deps).Comp
+	suite.a = newAuditor(deps)
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
@@ -60,71 +59,67 @@ func (suite *AuditorTestSuite) TestAuditorStartStop() {
 }
 
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
-	auditorObj := suite.a.(*registryAuditor)
-	auditorObj.registry = make(map[string]*RegistryEntry)
-	suite.Equal(0, len(auditorObj.registry))
-	auditorObj.updateRegistry(suite.source.Config.Path, "42", "end", 0)
-	suite.Equal(1, len(auditorObj.registry))
-	suite.Equal("42", auditorObj.registry[suite.source.Config.Path].Offset)
-	suite.Equal("end", auditorObj.registry[suite.source.Config.Path].TailingMode)
-	auditorObj.updateRegistry(suite.source.Config.Path, "43", "beginning", 1)
-	suite.Equal(1, len(auditorObj.registry))
-	suite.Equal("43", auditorObj.registry[suite.source.Config.Path].Offset)
-	suite.Equal("beginning", auditorObj.registry[suite.source.Config.Path].TailingMode)
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.Equal(0, len(suite.a.registry))
+	suite.a.updateRegistry(suite.source.Config.Path, "42", "end", 0)
+	suite.Equal(1, len(suite.a.registry))
+	suite.Equal("42", suite.a.registry[suite.source.Config.Path].Offset)
+	suite.Equal("end", suite.a.registry[suite.source.Config.Path].TailingMode)
+	suite.a.updateRegistry(suite.source.Config.Path, "43", "beginning", 1)
+	suite.Equal(1, len(suite.a.registry))
+	suite.Equal("43", suite.a.registry[suite.source.Config.Path].Offset)
+	suite.Equal("beginning", suite.a.registry[suite.source.Config.Path].TailingMode)
 }
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
-	auditorObj := suite.a.(*registryAuditor)
-	auditorObj.registry = make(map[string]*RegistryEntry)
-	auditorObj.registry[suite.source.Config.Path] = &RegistryEntry{
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
 		Offset:      "42",
 		TailingMode: "end",
 	}
-	suite.NoError(auditorObj.flushRegistry())
+	suite.NoError(suite.a.flushRegistry())
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
 	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0}}}", string(r))
 
-	auditorObj.registry = make(map[string]*RegistryEntry)
-	auditorObj.registry = auditorObj.recoverRegistry()
-	suite.Equal("42", auditorObj.registry[suite.source.Config.Path].Offset)
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.registry = suite.a.recoverRegistry()
+	suite.Equal("42", suite.a.registry[suite.source.Config.Path].Offset)
 }
 
 func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
-	auditorObj := suite.a.(*registryAuditor)
-	auditorObj.registry = make(map[string]*RegistryEntry)
-	auditorObj.registry[suite.source.Config.Path] = &RegistryEntry{
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		Offset: "42",
 	}
 
-	offset := auditorObj.GetOffset(suite.source.Config.Path)
+	offset := suite.a.GetOffset(suite.source.Config.Path)
 	suite.Equal("42", offset)
 
 	othersource := sources.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
-	offset = auditorObj.GetOffset(othersource.Config.Path)
+	offset = suite.a.GetOffset(othersource.Config.Path)
 	suite.Equal("", offset)
 }
 
 func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
-	auditorObj := suite.a.(*registryAuditor)
-	auditorObj.registry = make(map[string]*RegistryEntry)
-	auditorObj.registry[suite.source.Config.Path] = &RegistryEntry{
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
 		Offset:      "42",
 	}
 
 	otherpath := "otherpath"
-	auditorObj.registry[otherpath] = &RegistryEntry{
+	suite.a.registry[otherpath] = &RegistryEntry{
 		LastUpdated: time.Now().UTC(),
 		Offset:      "43",
 	}
-	auditorObj.flushRegistry()
-	suite.Equal(2, len(auditorObj.registry))
+	suite.a.flushRegistry()
+	suite.Equal(2, len(suite.a.registry))
 
-	auditorObj.cleanupRegistry()
-	suite.Equal(1, len(auditorObj.registry))
-	suite.Equal("43", auditorObj.registry[otherpath].Offset)
+	suite.a.cleanupRegistry()
+	suite.Equal(1, len(suite.a.registry))
+	suite.Equal("43", suite.a.registry[otherpath].Offset)
 }
 
 func TestScannerTestSuite(t *testing.T) {

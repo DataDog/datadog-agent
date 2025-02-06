@@ -74,8 +74,8 @@ type Provides struct {
 	Comp auditor.Component
 }
 
-// NewAuditor creates a new auditor component
-func NewAuditor(deps Dependencies) Provides {
+// newAuditor is the public constructor for the auditor
+func newAuditor(deps Dependencies) *registryAuditor {
 	runPath := deps.Config.GetString("logs_config.run_path")
 	// filename := deps.Config.GetString("logs_config.registry_filename")
 	filename := DefaultRegistryFilename
@@ -91,8 +91,15 @@ func NewAuditor(deps Dependencies) Provides {
 		log:                deps.Log,
 	}
 
+	return registryAuditor
+}
+
+// NewProvides creates a new auditor component
+func NewProvides(deps Dependencies) Provides {
+	auditorImpl := newAuditor(deps)
+
 	return Provides{
-		Comp: registryAuditor,
+		Comp: auditorImpl,
 	}
 }
 
