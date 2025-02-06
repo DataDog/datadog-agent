@@ -162,7 +162,6 @@ func findMemFdFilePath(pid int, procRoot string, memFdFileName string) (string, 
 	}
 	fdDir, err := os.Open(fdsPath)
 	if err != nil {
-		// log.Warnf("failed to open %s: %s", fdsPath, err)
 		return "", false
 	}
 	defer fdDir.Close()
