@@ -302,11 +302,12 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelJoins(defaultLabelJoins())
 
 	k.processLabelJoins()
-	k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
+	k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags)
 	k.processLabelsAsTags()
 
-	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(defaultAnnotationsAsTags(), k.instance.AnnotationsAsTags, false)
-	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), k.instance.AnnotationsAsTags, true)
+	// We need to merge the user-defined annotations as tags with the default annotations first
+	mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), defaultAnnotationsAsTags())
+	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(mergedAnnotationsAsTags, k.instance.AnnotationsAsTags)
 	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
@@ -1009,9 +1010,8 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	}
 }
 
-// mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping; shouldTransformResource indicates that the resource name should be modified
-// to the singular form of the resource
-func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string, shouldTransformResource bool) map[string]map[string]string {
+// mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
+func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string) map[string]map[string]string {
 	if instanceMap == nil {
 		instanceMap = make(map[string]map[string]string)
 	}
@@ -1023,9 +1023,8 @@ func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceM
 	}
 
 	for resource, mapping := range extra {
-		if shouldTransformResource {
-			resource = toSingularResourceName(resource)
-		}
+		// modify the resource name to the singular form of the resource
+		resource = toSingularResourceName(resource)
 		_, found := instanceMap[resource]
 		if !found {
 			instanceMap[resource] = make(map[string]string)
