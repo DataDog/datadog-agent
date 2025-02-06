@@ -191,10 +191,10 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 	s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest.count", []string{}, 1) //nolint:errcheck
 	select {
 	case s.pathtestInputChan <- pathtest:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest.received", []string{}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest.processed", []string{}, 1) //nolint:errcheck
 		return nil
 	default:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest.drop", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest.dropped", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
@@ -346,9 +346,9 @@ func (s *npCollectorImpl) flush() {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		select {
 		case s.pathtestProcessingChan <- ptConf:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest.flushed", []string{}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest.processed", []string{}, 1) //nolint:errcheck
 		default:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest.drop", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest.dropped", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
 			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
 		}
 	}
