@@ -221,6 +221,9 @@ def get_build_flags(
     extldflags = ""
     env = {"GO111MODULE": "on"}
 
+    # remove the symbol table, leave dwarf, that will be removed by omnibus anyway
+    ldflags += " -s "
+
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
     else:
