@@ -234,8 +234,6 @@ exclude '\.git*'
 exclude 'bundler\/git'
 
 if linux_target? or windows_target?
-  # the stripper will drop the symbols in a `.debug` folder in the installdir
-  # we want to make sure that directory is not in the main build, while present
-  # in the debug package.
   strip_build windows_target? or !do_package
+  exclude '*\.dbg'
 end
