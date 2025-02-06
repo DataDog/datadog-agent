@@ -149,12 +149,12 @@ class DynamicMockContext:
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
     def tearDown(self):
         try:
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
-        except OSError:
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
+        except OSError as e:
             pass
         try:
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
         except OSError:
             pass
 
