@@ -19,7 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -70,7 +72,6 @@ func CreateTestFile(tempDir string, fileName string, fileContent string) *os.Fil
 
 func TestRunAnalyzeLogs(t *testing.T) {
 	tempDir := "tmp"
-	fmt.Println("wack0")
 	defer os.RemoveAll(tempDir)
 	// Write config content to the temp file
 	logConfig := `=== apm check ===
@@ -89,7 +90,6 @@ Auto-discovery IDs:
 * _container_image
 ===
 `
-	fmt.Println("wack1")
 	// Create a temporary config file
 	tempLogFile := CreateTestFile(tempDir, "wack.log", logConfig)
 	assert.NotNil(t, tempLogFile)
@@ -106,27 +106,25 @@ Auto-discovery IDs:
 `, tempLogFile.Name())
 	tempConfigFile := CreateTestFile(tempDir, "config.yaml", yamlContent)
 	assert.NotNil(t, tempConfigFile)
-	fmt.Println("wack3")
 	defer os.Remove(tempConfigFile.Name())
 	// Write config content to the temp file
-	fmt.Println("wack4")
 	// Create a mock config
 	config := config.NewMock(t)
+	adsched := scheduler.NewController()
 	ac := fxutil.Test[autodiscovery.Mock](t,
-		fx.Supply(autodiscoveryimpl.MockParams{}),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
+		secretsimpl.MockModule(),
 		autodiscoveryimpl.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
 		taggermock.Module(),
 	)
-	fmt.Println("wack5")
 	// Set CLI params
 	cliParams := &CliParams{
 		LogConfigPath:  tempConfigFile.Name(),
 		CoreConfigPath: tempConfigFile.Name(),
 	}
 	outputChan, launcher, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac)
-
 	expectedOutput := []string{
 		"=== apm check ===",
 		"Configuration provider: file",
