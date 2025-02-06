@@ -167,3 +167,6 @@ single_machine_performance*       @DataDog/single-machine-performance
 
 # Dependency Security
 software_composition_analysis*    @DataDog/sdlc-security
+
+# CodeQL
+run_codeql_scan                   @DataDog/sdlc-security
