@@ -155,6 +155,10 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 			Provider:   names.File,
 			LogsConfig: config.LogsConfig,
 		})
+		if err != nil {
+			fmt.Println("Cannot create source")
+			return nil, nil, nil
+		}
 		break
 	}
 
