@@ -11,12 +11,14 @@ import (
 	"context"
 	"time"
 
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -86,6 +88,15 @@ var (
 		"Tracks the changes in autoscaler conditions",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
+
+	// telemetryLocalFallbackEnabled tracks whether local fallback recommendations are being used
+	telemetryLocalFallbackEnabled = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"local_fallback_enabled",
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		"Tracks whether local fallback recommendations are being used",
+		commonOpts,
+	)
 )
 
 func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
@@ -96,6 +107,10 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 			autoscalingStatusConditions.Set(0.0, podAutoscaler.Namespace, podAutoscaler.Name, string(condition.Type), le.JoinLeaderValue)
 		}
 	}
+}
+
+func trackLocalFallbackEnabled(value float64, podAutoscalerInternal model.PodAutoscalerInternal) {
+	telemetryLocalFallbackEnabled.Set(value, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Spec().TargetRef.Name, podAutoscalerInternal.Name(), le.JoinLeaderValue)
 }
 
 func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {
