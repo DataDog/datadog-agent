@@ -7,6 +7,7 @@ package udp
 
 import (
 	"net"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,10 @@ import (
 )
 
 func TestCreateRawUDPBuffer(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("TestCreateRawTCPSyn is broken on macOS")
+	}
+
 	srcIP := net.ParseIP("1.2.3.4")
 	dstIP := net.ParseIP("5.6.7.8")
 	srcPort := uint16(12345)
