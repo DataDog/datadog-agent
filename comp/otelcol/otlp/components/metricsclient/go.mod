@@ -5,7 +5,7 @@ go 1.22.0
 replace github.com/DataDog/datadog-agent/pkg/trace => ../../../../../pkg/trace
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.62.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.62.2-rc.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/otel v1.32.0
