@@ -38,6 +38,7 @@ type (
 func newParser() *parser {
 	tcpParser := &parser{}
 	tcpParser.decodingLayerParser = gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpParser.layer)
+	tcpParser.decodingLayerParser.IgnoreUnsupported = true
 	return tcpParser
 }
 
