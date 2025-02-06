@@ -96,8 +96,9 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType profileType, 
 		return
 	}
 
-	var uid string
 	for event, st := range m {
+		uid := ""
+
 		parts := eventRegexp.FindStringSubmatch(event)
 		if len(parts) > 2 {
 			// only get stats for our pid
