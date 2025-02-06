@@ -11,7 +11,11 @@ import (
 	"context"
 )
 
-// SetupAPMLibraryDotnet installs the .NET APM library.
+const (
+	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
+)
+
+// SetupAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
 func SetupAPMLibraryDotnet(_ context.Context, _ string) error {
 	return nil
 }
@@ -34,4 +38,9 @@ func PromoteAPMLibraryDotnetExperiment(_ context.Context) error {
 // RemoveAPMLibraryDotnet removes the .NET APM library.
 func RemoveAPMLibraryDotnet(_ context.Context) error {
 	return nil
+}
+
+// PreRemoveHookDotnet runs before the garbage collector deletes the package files for a version.
+func PreRemoveHookDotnet(_ context.Context, _ string) (bool, error) {
+	return true, nil
 }
