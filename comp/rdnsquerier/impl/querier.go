@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 type querier interface {
@@ -41,16 +40,6 @@ type query struct {
 	addr                string
 	updateHostnameAsync func(string, error)
 }
-
-var (
-	tlmRDNSQuerierLookupCalls = telemetry.NewCounterWithOpts(
-		"rdnsquerier",
-		"dns_lookups",
-		[]string{},
-		"Tracks number of DNS Lookups.",
-		telemetry.Options{DefaultMetric: true},
-	)
-)
 
 func newQuerier(config *rdnsQuerierConfig, logger log.Component, internalTelemetry *rdnsQuerierTelemetry) querier {
 	return &querierImpl{
@@ -120,7 +109,7 @@ func (q *querierImpl) getHostname(query *query) {
 		query.updateHostnameAsync("", err)
 		return
 	}
-	tlmRDNSQuerierLookupCalls.Inc()
+
 	hostname, err := q.resolver.lookup(query.addr)
 	if err != nil {
 		if dnsErr, ok := err.(*net.DNSError); ok {
