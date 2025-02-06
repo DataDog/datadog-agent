@@ -28,6 +28,6 @@ run_codeql_scan:
     UPLOAD_CONFIGS: -upload_sarif=true
   script:
     - !reference [.retrieve_linux_go_deps]
-    - inv -e agent.build
+    - inv -e agent.build --build-exclude=systemd
     - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
     - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
