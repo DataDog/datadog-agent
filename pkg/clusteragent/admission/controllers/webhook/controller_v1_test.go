@@ -282,8 +282,12 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(false, false, false, mockConfig) },
 			want: func() []admiv1.MutatingWebhook {
 				webhook := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"admission.datadoghq.com/enabled": "true",
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
 					},
 				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
 				return []admiv1.MutatingWebhook{webhook}
@@ -324,8 +328,12 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(false, false, false, mockConfig) },
 			want: func() []admiv1.MutatingWebhook {
 				webhook := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"admission.datadoghq.com/enabled": "true",
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
 					},
 				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
 				return []admiv1.MutatingWebhook{webhook}
@@ -384,13 +392,21 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(false, false, false, mockConfig) },
 			want: func() []admiv1.MutatingWebhook {
 				webhookConfig := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"admission.datadoghq.com/enabled": "true",
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
 					},
 				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
 				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"admission.datadoghq.com/enabled": "true",
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
 					},
 				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
 				return []admiv1.MutatingWebhook{webhookConfig, webhookTags}
@@ -441,13 +457,21 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(false, true, false, mockConfig) },
 			want: func() []admiv1.MutatingWebhook {
 				webhookConfig := webhook("datadog.webhook.agent.config", "/injectconfig", nil, &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"admission.datadoghq.com/enabled": "true",
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
 					},
 				}, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
 				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", nil, &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"admission.datadoghq.com/enabled": "true",
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "admission.datadoghq.com/enabled",
+							Operator: metav1.LabelSelectorOpNotIn,
+							Values:   []string{"false"},
+						},
 					},
 				}, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
 				return []admiv1.MutatingWebhook{webhookConfig, webhookTags}
