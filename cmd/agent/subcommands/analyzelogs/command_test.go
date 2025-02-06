@@ -32,10 +32,11 @@ import (
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"analyze-logs", "path/to/log/config.yaml"},
+		[]string{"analyze-logs", "-t", "5", "path/to/log/config.yaml"},
 		runAnalyzeLogs,
 		func(_ core.BundleParams, cliParams *CliParams) {
 			require.Equal(t, "path/to/log/config.yaml", cliParams.LogConfigPath)
+			require.Equal(t, 5, cliParams.inactivityTimeout)
 			require.Equal(t, defaultCoreConfigPath, cliParams.CoreConfigPath)
 		})
 }
