@@ -8,19 +8,30 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestTargetFilter(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
+		namespaces []workloadmeta.KubernetesMetadata
 		expected   []libInfo
 	}{
 		"a rule without selectors applies as a default": {
@@ -101,6 +112,62 @@ func TestTargetFilter(t *testing.T) {
 			},
 			expected: nil,
 		},
+		"namespace labels are used to match namespaces": {
+			configPath: "testdata/filter.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels:    map[string]string{},
+				},
+			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesMetadata,
+						ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "foo")),
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "foo",
+						Labels: map[string]string{
+							"tracing": "yes",
+							"env":     "prod",
+						},
+					},
+				},
+			},
+			expected: []libInfo{
+				{
+					ctrName: "",
+					lang:    dotnet,
+					image:   "registry/dd-lib-dotnet-init:v1",
+				},
+			},
+		},
+		"misconfigured namespace labels gets no tracers": {
+			configPath: "testdata/filter_no_default.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "bar",
+					Labels:    map[string]string{},
+				},
+			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesMetadata,
+						ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "foo")),
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "foo",
+						Labels: map[string]string{
+							"tracing": "yes",
+							"env":     "prod",
+						},
+					},
+				},
+			},
+			expected: nil,
+		},
 		"unset tracer versions applies all tracers": {
 			configPath: "testdata/filter.yaml",
 			in: &corev1.Pod{
@@ -148,8 +215,23 @@ func TestTargetFilter(t *testing.T) {
 			cfg, err := NewInstrumentationConfig(mockConfig)
 			require.NoError(t, err)
 
+			// Create a mock meta.
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Supply(coreconfig.Params{}),
+				fx.Supply(log.Params{}),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				coreconfig.MockModule(),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			// Add the namespaces.
+			for _, ns := range test.namespaces {
+				wmeta.Set(&ns)
+			}
+
 			// Create the filter.
-			f, err := NewTargetFilter(cfg.Targets, cfg.DisabledNamespaces, "registry")
+			f, err := NewTargetFilter(cfg.Targets, wmeta, cfg.DisabledNamespaces, "registry")
 			require.NoError(t, err)
 
 			// Filter the pod.
