@@ -241,18 +241,32 @@ func TestCoreAgentConfigCmd(s OTelTestSuite, fullCfg string) {
 	require.NotNil(s.T(), stdout)
 
 	lines := strings.Split(stdout, "\n")
-	var sb strings.Builder
+	actualCfgs := []string{}
 	for i, line := range lines {
 		if line != "    connectors:" {
 			continue
 		}
-		// rebuild the otel collector configs from the config cmd output by removing the indentation
-		for j := i; line != "  converter:"; j++ {
+		// extract the otel collector configs from the config cmd output
+		j := i
+		for {
 			line = lines[j]
-			sb.WriteString(line[4:])
-			sb.WriteString("\n")
+			if line == "  converter:" {
+				break
+			}
+			actualCfgs = append(actualCfgs, line)
+			j++
 		}
 		break
 	}
-	assert.Equal(s.T(), fullCfg, sb.String())
+
+	for i, expectedCfg := range strings.Split(fullCfg, "\n") {
+		// double-quotes are replaced with single-quotes in Agent config cmd
+		expectedCfg = strings.ReplaceAll(strings.TrimSpace(expectedCfg), "\"", "")
+		actualCfg := strings.ReplaceAll(strings.TrimSpace(actualCfgs[i]), "'", "")
+		// endpoint is replaced with the fake intake address
+		if expectedCfg == "" || strings.HasPrefix(expectedCfg, "endpoint") {
+			continue
+		}
+		assert.Equal(s.T(), expectedCfg, actualCfg)
+	}
 }
