@@ -62,6 +62,7 @@ type Daemon interface {
 	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	StartExperiment(ctx context.Context, url string) error
+	StartInstallerExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
@@ -347,6 +348,13 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 	}
 	log.Infof("Daemon: Successfully started experiment for package from %s", url)
 	return nil
+}
+
+// StartInstallerExperiment starts an installer experiment with the given package.
+func (d *daemonImpl) StartInstallerExperiment(ctx context.Context, url string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.startInstallerExperiment(ctx, url)
 }
 
 func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (err error) {
