@@ -99,8 +99,8 @@ func (tp *parser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, l
 
 func (t *tcpResponse) Match(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) bool {
 	flagsCheck := (t.SYN && t.ACK) || t.RST
-	sourcePort := uint16(t.SrcPort)
-	destPort := uint16(t.DstPort)
+	sourcePort := t.SrcPort
+	destPort := t.DstPort
 
 	return remoteIP.Equal(t.SrcIP) &&
 		remotePort == sourcePort &&
