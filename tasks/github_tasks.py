@@ -388,6 +388,7 @@ def pr_commenter(
     delete: bool = False,
     force_delete: bool = False,
     echo: bool = False,
+    fail_on_pr_missing: bool = False,
 ):
     """
     Will comment or update current comment posted on the PR with the new data.
@@ -397,6 +398,7 @@ def pr_commenter(
     - delete: If True and the body is empty, will delete the comment.
     - force_delete: Won't throw error if the comment to delete is not found.
     - echo: Print comment content to stdout.
+    - fail_on_pr_missing: If True, will raise an error if the PR is not found. Only a warning is printed otherwise.
 
     Inspired by the pr-commenter binary from <https://github.com/DataDog/devtools>
     """
@@ -413,6 +415,9 @@ def pr_commenter(
     if pr_id is None:
         branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
+        if len(prs) == 0 and not fail_on_pr_missing:
+            print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
+            return
         assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
         pr = prs[0]
     else:
