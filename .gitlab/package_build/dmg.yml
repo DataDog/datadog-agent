@@ -138,18 +138,6 @@ agent_dmg-x64-a7:
 #     # - !reference [.upload_sbom_artifacts]
 
 
-celian:
-  stage: package_build
-  # tags: ["macos:ventura-amd64-test", "specific:true"]
-  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
-  needs: []
-  timeout: 6h
-  script:
-    - set -e
-    - brew list --formula
-    - find /usr -name "libintl*"
-    - find /opt -name "libintl*"
-
 new-agent_dmg-x64-a7:
   stage: package_build
   extends: .macos_gitlab
