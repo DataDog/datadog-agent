@@ -21,8 +21,8 @@
   - when: manual
     allow_failure: true
     variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
 
 # Rule for job that are triggered on_success on RC pipelines
 .on_rc:
