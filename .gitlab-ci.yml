@@ -3,7 +3,7 @@ include:
   - .gitlab/.pre/include.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
-  - /.gitlab/codeql_scan.yml
+  - /.gitlab/codeql_scan/codeql_scan.yml
   - .gitlab/check_deploy/check_deploy.yml
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
