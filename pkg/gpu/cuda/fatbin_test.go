@@ -60,6 +60,10 @@ func TestParseFatbinFromPath(t *testing.T) {
 		}
 
 		require.Greater(t, kernel.KernelSize, uint64(0), "unexpected kernel size for kernel %s, sm=%d", key.Name, key.SmVersion)
+
+		for attr := range kernel.attributes {
+			require.Contains(t, enabledNvInfoAttrs, attr)
+		}
 	}
 
 	// From the Makefile, all the -gencode arch=compute_XX,code=sm_XX flags
@@ -125,6 +129,10 @@ func TestParseBigFatbinFromPath(t *testing.T) {
 		}
 
 		require.Greater(t, kernel.KernelSize, uint64(0), "unexpected kernel size for kernel %s, sm=%d", key.Name, key.SmVersion)
+
+		for attr := range kernel.attributes {
+			require.Contains(t, enabledNvInfoAttrs, attr)
+		}
 	}
 
 	// From the Makefile, all the -gencode arch=compute_XX,code=sm_XX flags
