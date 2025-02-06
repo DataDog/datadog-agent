@@ -335,6 +335,8 @@ func (s *npCollectorImpl) flush() {
 	flushTime := s.TimeNowFn()
 	pathtestsToFlush := s.pathtestStore.Flush()
 
+	flowsContexts := s.pathtestStore.GetContextsCount()
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(pathtestsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	s.statsdClient.Count(networkPathCollectorMetricPrefix+"flush.count", int64(len(pathtestsToFlush)), []string{}, 1) //nolint:errcheck
@@ -352,8 +354,6 @@ func (s *npCollectorImpl) flush() {
 	// keep this metric after the flows are flushed
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1) //nolint:errcheck
 
-	flowsContexts := s.pathtestStore.GetContextsCount()
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 }
 
 // enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.
