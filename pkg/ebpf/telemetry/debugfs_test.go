@@ -8,6 +8,7 @@
 package telemetry
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,4 +44,29 @@ func TestGetProbeStats(t *testing.T) {
 
 	stats = getProbeStats(1, testProfile)
 	require.Empty(t, stats)
+}
+
+func TestEventRegex(t *testing.T) {
+	samples := map[string]KprobeStats{
+		"r_tcp_sendmsg_net_7178":      {Hits: 1111389857, Misses: 0},
+		"r_tcp_sendmsg_http_4256":     {Hits: 549926224, Misses: 0},
+		"p_tcp_sendmsg_security_4256": {Hits: 549925022, Misses: 0},
+		"p_tcp_set_state__4256":       {Hits: 2372974219, Misses: 155370519},
+	}
+
+	uids := map[string]bool{
+		"net":      true,
+		"http":     true,
+		"security": true,
+		"":         true,
+	}
+
+	for event, _ := range samples {
+		parts := eventRegexp.FindStringSubmatch(event)
+		require.Greater(t, len(parts), 3)
+
+		uid := strings.ToLower(parts[2])
+		_, ok := uids[uid]
+		require.True(t, ok)
+	}
 }
