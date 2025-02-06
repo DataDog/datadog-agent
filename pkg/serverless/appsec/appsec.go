@@ -137,7 +137,7 @@ func (a *AppSec) Close() error {
 
 // Monitor runs the security event rules and return the events as a slice
 // The monitored addresses are all persistent addresses
-func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
+func (a *AppSec) Monitor(addresses map[string]any) *httpsec.MonitorResult {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx, err := a.handle.NewContextWithBudget(a.cfg.WafTimeout)
 	if err != nil {
@@ -164,14 +164,20 @@ func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
 		}
 	}
 
+	stats := ctx.Stats()
 	if res.HasEvents() {
-		log.Debugf("appsec: security events found in %s: %v", ctx.Stats().Timers["waf.duration_ext"], res.Events)
+		log.Debugf("appsec: security events found in %s: %v", stats.Timers["waf.duration_ext"], res.Events)
 	}
 	if !a.eventsRateLimiter.Allow() {
 		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.TraceRateLimit)
 		return nil
 	}
-	return &res
+
+	return &httpsec.MonitorResult{
+		Result:      res,
+		Diagnostics: a.handle.Diagnostics(),
+		Stats:       stats,
+	}
 }
 
 // wafHealth is a simple test helper that returns the same thing as `waf.Health`

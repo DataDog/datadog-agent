@@ -31,7 +31,13 @@ import (
 // subprocessor monitoring the given security rules addresses and returning
 // the security events that matched.
 type Monitorer interface {
-	Monitor(addresses map[string]any) *waf.Result
+	Monitor(addresses map[string]any) *MonitorResult
+}
+
+type MonitorResult struct {
+	Result      waf.Result
+	Diagnostics waf.Diagnostics
+	Stats       waf.Stats
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values

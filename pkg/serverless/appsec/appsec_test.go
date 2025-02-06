@@ -79,7 +79,7 @@ func TestMonitor(t *testing.T) {
 		}
 		res := asm.Monitor(addresses)
 		require.NotNil(t, res)
-		require.True(t, res.HasEvents())
+		require.True(t, res.Result.HasEvents())
 	})
 
 	t.Run("api-security", func(t *testing.T) {
@@ -152,8 +152,8 @@ func TestMonitor(t *testing.T) {
 					},
 				})
 				require.NotNil(t, res)
-				require.True(t, res.HasDerivatives())
-				schema, err := json.Marshal(res.Derivatives)
+				require.True(t, res.Result.HasDerivatives())
+				schema, err := json.Marshal(res.Result.Derivatives)
 				require.NoError(t, err)
 				require.Equal(t, tc.schema, string(schema))
 			})

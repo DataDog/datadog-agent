@@ -7,6 +7,7 @@ package httpsec
 
 import (
 	"bytes"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -36,6 +37,8 @@ type ProxyLifecycleProcessor struct {
 	invocationEvent interface{}
 
 	demux aggregator.Demultiplexer
+
+	addRulesMonitoringTags sync.Once
 }
 
 // NewProxyLifecycleProcessor returns a new httpsec proxy processor monitored with the
@@ -273,11 +276,22 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		log.Debug("appsec: missing span tag http.route")
 	}
 
-	if res := lp.appsec.Monitor(ctx.toAddresses()); res.HasEvents() {
-		setSecurityEventsTags(span, res.Events, reqHeaders, nil)
-		chunk.Priority = int32(sampler.PriorityUserKeep)
-		setAPISecurityTags(span, res.Derivatives)
+	res := lp.appsec.Monitor(ctx.toAddresses())
+	setWAFMonitoringTags(span, res)
+	if res != nil {
+		// Ruleset related tags are needed only once as the ruleset data does not change.
+		lp.addRulesMonitoringTags.Do(func() {
+			setRulesMonitoringTags(span, res.Diagnostics)
+			chunk.Priority = int32(sampler.PriorityUserKeep)
+		})
+
+		if res.Result.HasEvents() {
+			setSecurityEventsTags(span, res.Result.Events, reqHeaders, nil)
+			chunk.Priority = int32(sampler.PriorityUserKeep)
+			setAPISecurityTags(span, res.Result.Derivatives)
+		}
 	}
+
 }
 
 // multiOrSingle picks the first non-nil map, and returns the content formatted

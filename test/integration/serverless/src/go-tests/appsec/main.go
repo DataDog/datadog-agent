@@ -11,6 +11,7 @@ import (
 	ddlambda "github.com/DataDog/datadog-lambda-go"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -18,7 +19,7 @@ func main() {
 	tracer.Start()
 	defer tracer.Stop()
 
-	lambda.Start(ddlambda.WrapHandler(handleRequest, nil))
+	lambda.Start(ddlambda.WrapFunction(handleRequest, nil))
 }
 
 func handleRequest(_ context.Context, _ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
