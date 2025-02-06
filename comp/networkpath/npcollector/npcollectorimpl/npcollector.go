@@ -160,7 +160,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 		return
 	}
 	startTime := s.TimeNowFn()
-	s.statsdClient.Count(networkPathCollectorMetricPrefix+"conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
 	for _, conn := range conns {
 		if !shouldScheduleNetworkPathForConn(conn) {
 			protocol := convertProtocol(conn.GetType())
@@ -176,7 +176,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 	}
 
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"schedule.duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
 }
 
 // scheduleOne schedules pathtests.
@@ -439,8 +439,8 @@ func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time
 	checkInterval := ptest.LastFlushInterval()
 	checkDuration := s.TimeNowFn().Sub(startTime)
 
-	s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"check_interval", float64(checkInterval), nil, 1) //nolint:errcheck
-	s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"check_duration", float64(checkDuration), nil, 1) //nolint:errcheck
+	s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.interval", float64(checkInterval), nil, 1) //nolint:errcheck
+	s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.duration", float64(checkDuration), nil, 1) //nolint:errcheck
 }
 
 func (s *npCollectorImpl) startWorkers() {
@@ -461,7 +461,7 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"worker.processed", []string{}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"job.processed", []string{}, 1) //nolint:errcheck
 		}
 	}
 }
