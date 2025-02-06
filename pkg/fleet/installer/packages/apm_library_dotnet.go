@@ -35,3 +35,8 @@ func PromoteAPMLibraryDotnetExperiment(_ context.Context) error {
 func RemoveAPMLibraryDotnet(_ context.Context) error {
 	return nil
 }
+
+// GarbageCollectAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
+func GarbageCollectAPMLibraryDotnet(_ string) (err error) {
+	return nil
+}

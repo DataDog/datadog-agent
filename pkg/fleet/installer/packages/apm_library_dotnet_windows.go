@@ -69,8 +69,7 @@ func StartAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
 
 // StopAPMLibraryDotnetExperiment stops a .NET APM library experiment.
 func StopAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
-	// Register GAC + set env variables old version
-	// Check that GAC registration is idempotent
+	// Re-register GAC + set env variables of stable version
 	var installDir string
 	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
 	if err != nil {
@@ -104,6 +103,17 @@ func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
 		return err
 	}
 	err = dotnetExec.UninstallVersion(ctx, getLibraryPath(installDir))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// GarbageCollectAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
+func GarbageCollectAPMLibraryDotnet(pkgPath string) (err error) {
+	ctx := context.Background()
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgPath))
+	err = dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgPath))
 	if err != nil {
 		return err
 	}
