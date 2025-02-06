@@ -121,7 +121,7 @@
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-delivery
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 
-/.gitlab/codeql_scan/				     @DataDog/sdlc-security
+/.gitlab/source_test/codeql_scan.yml				     @DataDog/sdlc-security
 
 /.gitlab/benchmarks/                                 @DataDog/agent-devx-infra @DataDog/apm-ecosystems-performance @DataDog/agent-apm
 

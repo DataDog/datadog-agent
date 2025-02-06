@@ -9,6 +9,7 @@ run_codeql_scan:
   rules:
     - when: on_success
   needs: ["go_deps"]
+  allow_failure: true # This job should not impact the overall status of the pipeline
   variables:
     ARCH: arm64
     BASE_REF: main
