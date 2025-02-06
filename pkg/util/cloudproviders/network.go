@@ -8,6 +8,8 @@ package cloudproviders
 import (
 	"context"
 	"fmt"
+	"net"
+	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -17,7 +19,8 @@ import (
 )
 
 const (
-	networkIDCacheKey = "networkID"
+	networkIDCacheKey         = "networkID"
+	vpcSubnetsForHostCacheKey = "vpcSubnetsForHost"
 )
 
 // GetNetworkID retrieves the network_id which can be used to improve network
@@ -50,6 +53,23 @@ func GetNetworkID(ctx context.Context) (string, error) {
 				return networkID, nil
 			}
 
-			return "", fmt.Errorf("could not detect network ID: %s", err)
+			return "", fmt.Errorf("could not detect network ID: %w", err)
 		})
+}
+
+// GetVPCSubnetsForHost gets all the subnets in the VPCs this host has network interfaces for
+func GetVPCSubnetsForHost(ctx context.Context) ([]*net.IPNet, error) {
+	var err error
+	return cache.GetWithExpiration[[]*net.IPNet](
+		vpcSubnetsForHostCacheKey,
+		func() ([]*net.IPNet, error) {
+			var subnets []*net.IPNet
+			if subnets, err = ec2.GetVPCSubnetsForHost(ctx); err == nil {
+				return subnets, nil
+			}
+
+			// TODO support GCE, azure
+
+			return nil, fmt.Errorf("could not detect VPC subnets: %w", err)
+		}, 15*time.Minute)
 }

@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"slices"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 )
 
 const (
@@ -155,14 +158,52 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	}
 }
 
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, subnetsToSkip []*net.IPNet) bool {
+	if conn == nil || conn.Direction != model.ConnectionDirection_outgoing {
+		return false
+	}
+	remoteIP := net.ParseIP(conn.Raddr.Ip)
+	if remoteIP.IsLoopback() || conn.IntraHost {
+		return false
+	}
+	if conn.Family != model.ConnectionFamily_v4 {
+		return false
+	}
+	shouldSkipSubnet := slices.ContainsFunc(subnetsToSkip, func(subnet *net.IPNet) bool {
+		return subnet.Contains(remoteIP)
+	})
+	if shouldSkipSubnet {
+		s.statsdClient.Incr("datadog.network_path.collector.skipped_because_subnet", nil, 1) //nolint:errcheck
+		return false
+	}
+	return true
+}
+
+func (s *npCollectorImpl) getSubnetsToSkip() ([]*net.IPNet, error) {
+	if !s.collectorConfigs.disableIntraVPCCollection {
+		return nil, nil
+	}
+
+	subnetsToSkip, err := cloudproviders.GetVPCSubnetsForHost(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
+	}
+	return subnetsToSkip, nil
+}
+
 func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
+		return
+	}
+	subnetsToSkip, err := s.getSubnetsToSkip()
+	if err != nil {
+		s.logger.Errorf("Failed to get subnets to skip: %s", err)
 		return
 	}
 	startTime := s.TimeNowFn()
 	s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
 	for _, conn := range conns {
-		if !shouldScheduleNetworkPathForConn(conn) {
+		if !s.shouldScheduleNetworkPathForConn(conn, subnetsToSkip) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue

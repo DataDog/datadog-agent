@@ -98,3 +98,63 @@ func GetSubnetForHardwareAddr(ctx context.Context, hwAddr net.HardwareAddr) (sub
 	subnet.Cidr = strings.TrimSpace(resp)
 	return
 }
+
+var vpcSubnetFetcher = cachedfetch.Fetcher{
+	Name: "VPC subnets",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		resp, err := getMetadataItem(ctx, imdsNetworkMacs, imdsV2, true)
+		if err != nil {
+			return nil, fmt.Errorf("EC2: GetVPCSubnetsForHost failed to get mac addresses: %w", err)
+		}
+
+		macs := strings.Split(resp, "\n")
+		allSubnets := common.NewStringSet()
+
+		addMAC := func(mac string, endpoint string) error {
+			mac = strings.TrimSuffix(mac, "/")
+			cidrs, err := getMetadataItem(ctx, fmt.Sprintf("%s/%s/%s", imdsNetworkMacs, mac, endpoint), imdsV2, true)
+			if err != nil {
+				return fmt.Errorf("EC2: GetVPCSubnetsForHost failed to get CIDRs for mac %s: %w", mac, err)
+			}
+			cidrList := strings.Split(cidrs, "\n")
+			for _, cidr := range cidrList {
+				allSubnets.Add(cidr)
+			}
+			return nil
+		}
+
+		for _, mac := range macs {
+			if mac == "" {
+				continue
+			}
+			err = addMAC(mac, "vpc-ipv4-cidr-blocks")
+			if err != nil {
+				return nil, err
+			}
+			err = addMAC(mac, "vpc-ipv6-cidr-blocks")
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		var parsedSubnets []*net.IPNet
+		for _, subnet := range allSubnets.GetAll() {
+			_, ipnet, err := net.ParseCIDR(subnet)
+			if err != nil {
+				return nil, err
+			}
+			parsedSubnets = append(parsedSubnets, ipnet)
+		}
+
+		return parsedSubnets, nil
+	},
+}
+
+// GetVPCSubnetsForHost gets all the subnets in the VPCs this host has network interfaces for
+func GetVPCSubnetsForHost(ctx context.Context) ([]*net.IPNet, error) {
+	subnets, err := vpcSubnetFetcher.Fetch(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return subnets.([]*net.IPNet), nil
+}
