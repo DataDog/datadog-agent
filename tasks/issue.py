@@ -113,7 +113,7 @@ def add_reviewers(ctx, pr_id):
                     if ")" in line:
                         break
                     else:
-                        if re.search(dependency, line):
+                        if dependency in line:
                             owners.update(set(search_owners(file, ".github/CODEOWNERS")))
                             break
     # Teams are added by slug, so we need to remove the @DataDog/ prefix
