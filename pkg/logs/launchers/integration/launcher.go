@@ -146,7 +146,7 @@ func (s *Launcher) run() {
 func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
 	sources, err := ad.CreateSources(cfg.Config)
 	if err != nil {
-		ddLog.Errorf("Failed to create source for %q: %v", cfg.Config.Name, err)
+		ddLog.Errorf("Failed to create source for %q (provider: '%s', serviceID: '%s', source: '%s'): %v", cfg.Config.Name, cfg.Config.Provider, cfg.Config.ServiceID, cfg.Config.Source, err)
 		return
 	}
 
