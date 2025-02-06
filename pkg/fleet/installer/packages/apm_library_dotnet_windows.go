@@ -39,7 +39,7 @@ func getLibraryPath(installDir string) string {
 	return filepath.Join(installDir, "library")
 }
 
-// SetupAPMLibraryDotnet installs the .NET APM library.
+// SetupAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
 func SetupAPMLibraryDotnet(ctx context.Context, _ string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "setup_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
@@ -77,8 +77,9 @@ func StartAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
 
 // StopAPMLibraryDotnetExperiment stops a .NET APM library experiment.
 func StopAPMLibraryDotnetExperiment(ctx context.Context) (err error) {
-	// Register GAC + set env variables old version
-	// Check that GAC registration is idempotent
+	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_apm_library_dotnet_experiment")
+	defer func() { span.Finish(err) }()
+	// Re-register GAC + set env variables of stable version
 	var installDir string
 	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
 	if err != nil {
@@ -120,4 +121,19 @@ func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
 		return err
 	}
 	return nil
+}
+
+// PreRemoveHookDotnet runs before the garbage collector deletes the package files for a version.
+// It checks that it's safe to delete it and cleans up the external dependencies of the package.
+func PreRemoveHookDotnet(ctx context.Context, pkgRepositoryPath string) (bool, error) {
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgRepositoryPath))
+	exitCode, err := dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgRepositoryPath))
+	if err != nil {
+		// We only block deletion if we could not delete the native loader files
+		// cf https://github.com/DataDog/dd-trace-dotnet/blob/master/tracer/src/Datadog.FleetInstaller/ReturnCode.cs#L14
+		const errorRemovingNativeLoaderFiles = 2
+		shouldDelete := exitCode != errorRemovingNativeLoaderFiles
+		return shouldDelete, err
+	}
+	return true, nil
 }
