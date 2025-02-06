@@ -47,11 +47,11 @@ func TestGetProbeStats(t *testing.T) {
 }
 
 func TestEventRegex(t *testing.T) {
-	samples := map[string]KprobeStats{
-		"r_tcp_sendmsg_net_7178":      {Hits: 1111389857, Misses: 0},
-		"r_tcp_sendmsg_http_4256":     {Hits: 549926224, Misses: 0},
-		"p_tcp_sendmsg_security_4256": {Hits: 549925022, Misses: 0},
-		"p_tcp_set_state__4256":       {Hits: 2372974219, Misses: 155370519},
+	samples := []string{
+		"r_tcp_sendmsg_net_7178",
+		"r_tcp_sendmsg_http_4256",
+		"p_tcp_sendmsg_security_4256",
+		"p_tcp_set_state__4256",
 	}
 
 	uids := map[string]bool{
@@ -61,7 +61,7 @@ func TestEventRegex(t *testing.T) {
 		"":         true,
 	}
 
-	for event, _ := range samples {
+	for _, event := range samples {
 		parts := eventRegexp.FindStringSubmatch(event)
 		require.Greater(t, len(parts), 3)
 
