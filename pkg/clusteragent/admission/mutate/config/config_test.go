@@ -28,7 +28,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -79,8 +78,10 @@ func TestInjectHostIP(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-	webhook := NewWebhook(wmeta, filter, datadogConfig)
+	filter, err := NewFilter(NewFilterConfig(datadogConfig))
+	require.NoError(t, err)
+	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+	webhook := NewWebhook(wmeta, datadogConfig, mutator)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -92,8 +93,10 @@ func TestInjectService(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-	webhook := NewWebhook(wmeta, filter, datadogConfig)
+	filter, err := NewFilter(NewFilterConfig(datadogConfig))
+	require.NoError(t, err)
+	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+	webhook := NewWebhook(wmeta, datadogConfig, mutator)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -123,8 +126,10 @@ func TestInjectEntityID(t *testing.T) {
 				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
 			)
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-			filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-			webhook := NewWebhook(wmeta, filter, datadogConfig)
+			filter, err := NewFilter(NewFilterConfig(datadogConfig))
+			require.NoError(t, err)
+			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+			webhook := NewWebhook(wmeta, datadogConfig, mutator)
 			injected, err := webhook.inject(pod, "", nil)
 			assert.Nil(t, err)
 			assert.True(t, injected)
@@ -312,8 +317,10 @@ func TestInjectSocket(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-	webhook := NewWebhook(wmeta, filter, datadogConfig)
+	filter, err := NewFilter(NewFilterConfig(datadogConfig))
+	require.NoError(t, err)
+	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+	webhook := NewWebhook(wmeta, datadogConfig, mutator)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -341,8 +348,10 @@ func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
 		}),
 	)
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-	webhook := NewWebhook(wmeta, filter, datadogConfig)
+	filter, err := NewFilter(NewFilterConfig(datadogConfig))
+	require.NoError(t, err)
+	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+	webhook := NewWebhook(wmeta, datadogConfig, mutator)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -438,8 +447,10 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-	filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-	webhook := NewWebhook(wmeta, filter, datadogConfig)
+	filter, err := NewFilter(NewFilterConfig(datadogConfig))
+	require.NoError(t, err)
+	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+	webhook := NewWebhook(wmeta, datadogConfig, mutator)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.True(t, injected)
 	assert.Nil(t, err)
@@ -479,8 +490,10 @@ func TestJSONPatchCorrectness(t *testing.T) {
 				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)
 			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
-			filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-			webhook := NewWebhook(wmeta, filter, datadogConfig)
+			filter, err := NewFilter(NewFilterConfig(datadogConfig))
+			require.NoError(t, err)
+			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+			webhook := NewWebhook(wmeta, datadogConfig, mutator)
 			request := admission.Request{
 				Object:    podJSON,
 				Namespace: "bar",
@@ -511,8 +524,10 @@ func BenchmarkJSONPatch(b *testing.B) {
 
 	wmeta := fxutil.Test[workloadmeta.Component](b, core.MockBundle())
 	datadogConfig := fxutil.Test[config.Component](b, core.MockBundle())
-	filter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-	webhook := NewWebhook(wmeta, filter, datadogConfig)
+	filter, err := NewFilter(NewFilterConfig(datadogConfig))
+	require.NoError(b, err)
+	mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
+	webhook := NewWebhook(wmeta, datadogConfig, mutator)
 	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
 
 	b.ResetTimer()
