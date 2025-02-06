@@ -564,9 +564,10 @@ func New() *AgentConfig {
 
 		GlobalTags: computeGlobalTags(),
 
-		Proxy:         http.ProxyFromEnvironment,
-		OTLPReceiver:  &OTLP{},
-		ContainerTags: noopContainerTagsFunc,
+		Proxy:                     http.ProxyFromEnvironment,
+		OTLPReceiver:              &OTLP{},
+		ContainerTags:             noopContainerTagsFunc,
+		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
@@ -593,6 +594,14 @@ var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defi
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
 	return nil, ErrContainerTagsFuncNotDefined
+}
+
+// ErrContainerIDFromOriginInfoFuncNotDefined is returned when the ContainerIDFromOriginInfo function is not defined.
+var ErrContainerIDFromOriginInfoFuncNotDefined = errors.New("ContainerIDFromOriginInfo function not defined")
+
+// NoopContainerIDFromOriginInfoFunc is used when the ContainerIDFromOriginInfo function is not defined.
+func NoopContainerIDFromOriginInfoFunc(_ origindetection.OriginInfo) (string, error) {
+	return "", ErrContainerIDFromOriginInfoFuncNotDefined
 }
 
 // APIKey returns the first (main) endpoint's API key.
