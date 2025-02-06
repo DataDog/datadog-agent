@@ -111,6 +111,7 @@ Auto-discovery IDs:
 	// Write config content to the temp file
 	// Create a mock config
 	config := config.NewMock(t)
+
 	adsched := scheduler.NewController()
 	ac := fxutil.Test[autodiscovery.Mock](t,
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
@@ -120,6 +121,7 @@ Auto-discovery IDs:
 		core.MockBundle(),
 		taggermock.Module(),
 	)
+
 	// Set CLI params
 	cliParams := &CliParams{
 		LogConfigPath:  tempConfigFile.Name(),
