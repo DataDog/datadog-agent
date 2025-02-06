@@ -25,13 +25,22 @@ import (
 )
 
 const (
-	// DatadogCodeSignatureThumbprint is the thumbprint of the Datadog Code Signing certificate
-	// Valid From: June 2024
-	// Valid To:   June 2026
-	DatadogCodeSignatureThumbprint = `59063C826DAA5B628B5CE8A2B32015019F164BF0`
 	// RegistryKeyPath is the root registry key that the Datadog Agent uses to store some state
 	RegistryKeyPath = "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent"
 )
+
+// getCodeSignatureThumbprints returns the allowed code detached thumbprint used for
+// Windows signing
+func getCodeSignatureThumbprints() map[string]struct{} {
+	return map[string]struct{}{
+		// Non-EV Valid From: May 2023; To: May 2025
+		"B03F29CC07566505A718583E9270A6EE17678742": {},
+		// EV Valid From: Dec 2023; To: Dec 2025
+		"ECAA21456723CB0911183255A683DC01A99392DB": {},
+		// EV Valid From: Jun 2024; To: Jun 2026
+		"59063C826DAA5B628B5CE8A2B32015019F164BF0": {},
+	}
+}
 
 // GetDatadogAgentProductCode returns the product code GUID for the Datadog Agent
 func GetDatadogAgentProductCode(host *components.RemoteHost) (string, error) {
@@ -92,7 +101,7 @@ func HasValidDatadogCodeSignature(host *components.RemoteHost, path string) erro
 	if !sig.Valid() {
 		return fmt.Errorf("signature status is not valid: %s", sig.StatusMessage)
 	}
-	if !strings.EqualFold(sig.SignerCertificate.Thumbprint, DatadogCodeSignatureThumbprint) {
+	if _, ok := getCodeSignatureThumbprints()[strings.ToUpper(sig.SignerCertificate.Thumbprint)]; !ok {
 		return fmt.Errorf("signature thumbprint is not valid: %s", sig.SignerCertificate.Thumbprint)
 	}
 	return nil
