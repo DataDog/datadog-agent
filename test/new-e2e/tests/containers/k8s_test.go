@@ -809,7 +809,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
 				`^team:contp$`,
-				`^mail:team-container-platform@datadoghq.com$`, 
+				`^mail:team-container-platform@datadoghq.com$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
