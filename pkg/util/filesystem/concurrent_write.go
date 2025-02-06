@@ -39,7 +39,7 @@ func FetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, error
 	// Read the artifact
 	content, err := os.ReadFile(location)
 	if err != nil {
-		return zero, fmt.Errorf("unable to read artifact: %s", err.Error())
+		return zero, fmt.Errorf("unable to read artifact: %s", err)
 	}
 
 	// Try to load artifact
@@ -94,16 +94,16 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 		// On windows, it is not possible to remove a file open by another process, so the remove call will succeed only for the last process that locked it
 		if succeed {
 			if err = os.Remove(location + lockSuffix); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				log.Debugf("unable to remove lock file: %v", err.Error())
+				log.Debugf("unable to remove lock file: %v", err)
 			}
 		}
 	}()
 
 	// trying to lock artifact file
-	locked, err := TryLockContext(ctx, fileLock, retryDelay)
+	locked, err := tryLockContext(ctx, fileLock, retryDelay)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return zero, fmt.Errorf("unable to acquire lock in the given time: %v", err.Error())
+			return zero, fmt.Errorf("unable to acquire lock in the given time: %v", err)
 		}
 
 		return zero, fmt.Errorf("an error happened while trying to acquire lock: %v", err)
@@ -134,7 +134,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 
 	createdArtifact, tmpLocation, err := generateTmpArtifact(location, factory, perms)
 	if err != nil {
-		return zero, fmt.Errorf("unable to generate temporary artifact: %v", err.Error())
+		return zero, fmt.Errorf("unable to generate temporary artifact: %v", err)
 	}
 
 	// Move the temporary artifact to its final location, this is an atomic operation
@@ -146,7 +146,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 			log.Warnf("unable to remove temporary artifact: %v", removeErr.Error())
 		}
 
-		return zero, fmt.Errorf("unable to move temporary artifact to its final location: %v", err.Error())
+		return zero, fmt.Errorf("unable to move temporary artifact to its final location: %v", err)
 	}
 
 	// // If everything went well, we can safely remove the lock file
@@ -157,11 +157,11 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	return createdArtifact, nil
 }
 
-// TryLockContext tries to acquire a lock on the provided file.
+// tryLockContext tries to acquire a lock on the provided file.
 // It copy the behavior of flock.TryLock() but retry if the lock have the wrong permissions.
 // This allow the case where a the lock file is created by a different user than the one trying to acquire the lock.
 // and let the opportunity to the other process to set the right permissions in the meantime.
-func TryLockContext(ctx context.Context, lockfile *flock.Flock, retryDelay time.Duration) (bool, error) {
+func tryLockContext(ctx context.Context, lockfile *flock.Flock, retryDelay time.Duration) (bool, error) {
 	for {
 		if ok, err := lockfile.TryLock(); (ok || err != nil) && !errors.Is(err, fs.ErrPermission) {
 			return ok, err
