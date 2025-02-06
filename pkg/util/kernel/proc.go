@@ -127,12 +127,12 @@ func GetProcessMemFdFile(pid int, procRoot string, memFdFileName string, memFdMa
 	}
 	defer file.Close()
 
-	data, err := io.ReadAll(io.LimitReader(file, int64(memFdMaxSize)))
+	data, err := io.ReadAll(io.LimitReader(file, int64(memFdMaxSize+1)))
 	if err != nil {
 		return nil, err
 	}
 
-	if len(data) == memFdMaxSize {
+	if len(data) > memFdMaxSize {
 		return nil, io.ErrShortBuffer
 	}
 
