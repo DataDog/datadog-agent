@@ -23,7 +23,7 @@ static __always_inline void flush(void *ctx) {
 SEC("tracepoint/net/netif_receive_skb")
 int tracepoint__net__netif_receive_skb(void *ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
-    log_debug("tracepoint/net/netif_receive_skb");
+    //log_debug("tracepoint/net/netif_receive_skb");
     flush(ctx);
     return 0;
 }
