@@ -162,7 +162,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 }
 
 func generateConfigWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*configWebhook.Webhook, error) {
-	filter, err := configWebhook.NewFilter(configWebhook.NewFilterConfig(datadogConfig))
+	filter, err := configWebhook.NewFilter(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config filter: %v", err)
 	}
@@ -172,7 +172,7 @@ func generateConfigWebhook(wmeta workloadmeta.Component, datadogConfig config.Co
 }
 
 func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*tagsfromlabels.Webhook, error) {
-	filter, err := tagsfromlabels.NewFilter(tagsfromlabels.NewFilterConfig(datadogConfig))
+	filter, err := tagsfromlabels.NewFilter(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tags from labels filter: %v", err)
 	}
@@ -181,7 +181,7 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 }
 
 func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*autoinstrumentation.Webhook, error) {
-	filter, err := autoinstrumentation.NewFilter(autoinstrumentation.NewFilterConfig(datadogConfig))
+	filter, err := autoinstrumentation.NewFilter(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation filter: %v", err)
 	}

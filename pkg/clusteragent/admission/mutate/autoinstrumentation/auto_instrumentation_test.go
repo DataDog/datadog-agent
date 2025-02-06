@@ -232,7 +232,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.config(c)
 			}
 
-			filter, err := NewFilter(NewFilterConfig(c))
+			filter, err := NewFilter(c)
 			require.NoError(t, err)
 
 			cfg, err := NewMutatorConfig(c)
@@ -593,7 +593,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			c := configmock.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
-			filter, err := NewFilter(NewFilterConfig(c))
+			filter, err := NewFilter(c)
 			require.NoError(t, err)
 			cfg, err := NewMutatorConfig(c)
 			require.NoError(t, err)
@@ -1077,17 +1077,17 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			filter, err := NewFilter(NewFilterConfig(mockConfig))
+			filter, err := NewFilter(mockConfig)
 			require.NoError(t, err)
 			cfg, err := NewMutatorConfig(mockConfig)
 			require.NoError(t, err)
-			injector := NewMutator(cfg, filter, wmeta)
+			mutator := NewMutator(cfg, filter, wmeta)
 
 			if tt.expectedPodEligible != nil {
-				require.Equal(t, *tt.expectedPodEligible, injector.isPodEligible(tt.pod))
+				require.Equal(t, *tt.expectedPodEligible, mutator.isPodEligible(tt.pod))
 			}
 
-			extracted := injector.extractLibInfo(tt.pod)
+			extracted := mutator.extractLibInfo(tt.pod)
 			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
 		})
 	}
@@ -1670,7 +1670,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
 
-			filter, err := NewFilter(NewFilterConfig(conf))
+			filter, err := NewFilter(conf)
 			require.NoError(t, err)
 
 			cfg, err := NewMutatorConfig(conf)
@@ -1683,7 +1683,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			// N.B. this is a bit hacky but consistent.
 			cfg.initSecurityContext = tt.secCtx
 
-			injector := NewMutator(cfg, filter, wmeta)
+			mutator := NewMutator(cfg, filter, wmeta)
 
 			c := tt.lang.libInfo("", tt.image).initContainers(cfg.version)[0]
 			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, cfg.defaultResourceRequirements)
@@ -1692,7 +1692,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.wantSkipInjection {
 				return
 			}
-			c.Mutators = injector.newContainerMutators(requirements)
+			c.Mutators = mutator.newContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {
@@ -3599,18 +3599,18 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			filter, err := NewFilter(NewFilterConfig(mockConfig))
+			filter, err := NewFilter(mockConfig)
 			require.NoError(t, err)
 			cfg, err := NewMutatorConfig(mockConfig)
 			require.NoError(t, err)
-			injector := NewMutator(cfg, filter, wmeta)
-			require.Equal(t, tt.want, injector.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
+			mutator := NewMutator(cfg, filter, wmeta)
+			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
 
 func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
-	filter, err := NewFilter(NewFilterConfig(ddConfig))
+	filter, err := NewFilter(ddConfig)
 	if err != nil {
 		return nil, err
 	}
