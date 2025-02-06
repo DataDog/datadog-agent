@@ -228,6 +228,7 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 	assert.YAMLEq(t, expectedCfg, actualCfg)
 }
 
+// TestCoreAgentConfigCmd tests the output of core agent's config command contains the embedded collector's config
 func TestCoreAgentConfigCmd(s OTelTestSuite, fullCfg string) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
@@ -240,19 +241,18 @@ func TestCoreAgentConfigCmd(s OTelTestSuite, fullCfg string) {
 	require.NotNil(s.T(), stdout)
 
 	lines := strings.Split(stdout, "\n")
+	var sb strings.Builder
 	for i, line := range lines {
-		if line != "otelcollector:" {
+		if line != "    connectors:" {
 			continue
 		}
-		// find the line of "otelcollector:", the next line should be "  config:", after it there are otel collector configs
-		for j, otcfgExpected := range strings.Split(fullCfg, "\n") {
-			if otcfgExpected == "" {
-				continue
-			}
-			otcfgActual := strings.TrimSpace(lines[i+2+j])
-			otcfgExpected = strings.TrimSpace(otcfgExpected)
-			assert.Equal(s.T(), otcfgExpected, otcfgActual)
+		// rebuild the otel collector configs from the config cmd output by removing the indentation
+		for j := i; line != "  converter:"; j++ {
+			line = lines[j]
+			sb.WriteString(line[4:])
+			sb.WriteString("\n")
 		}
 		break
 	}
+	assert.Equal(s.T(), fullCfg, sb.String())
 }
