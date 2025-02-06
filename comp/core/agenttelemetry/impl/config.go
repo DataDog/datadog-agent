@@ -191,6 +191,7 @@ var defaultProfiles = `
         - name: checks.execution_time
           aggregate_tags:
             - check_name
+            - check_loader
         - name: pymem.inuse
     schedule:
       start_after: 30
