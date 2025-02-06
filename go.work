@@ -28,6 +28,7 @@ use (
 	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
+    comp/core/configsync
 	comp/core/telemetry
 	comp/def
 	comp/forwarder/defaultforwarder
