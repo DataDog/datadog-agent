@@ -22,4 +22,5 @@ unit_tests_notify:
     - tests_flavor_iot_deb-x64
     - tests_flavor_dogstatsd_deb-x64
     - tests_flavor_heroku_deb-x64
+    - run_codeql_scan
   allow_failure: true
