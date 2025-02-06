@@ -92,6 +92,7 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	for _, condition := range podAutoscaler.Status.Conditions {
 		if condition.Status == corev1.ConditionTrue {
 			autoscalingStatusConditions.Set(1.0, podAutoscaler.Namespace, podAutoscaler.Name, string(condition.Type), le.JoinLeaderValue)
+		} else {
 			autoscalingStatusConditions.Set(0.0, podAutoscaler.Namespace, podAutoscaler.Name, string(condition.Type), le.JoinLeaderValue)
 		}
 	}
