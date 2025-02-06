@@ -13,6 +13,16 @@
         "depNameTemplate": "buildimages",
         "versioningTemplate": "loose",
         "datasourceTemplate": "custom.buildimages"
+      },
+      {
+        "customType": "regex",
+        "fileMatch": [".protoc-version"],
+        "matchStrings": [
+          "(?<currentValue>[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "protoc",
+        "versioningTemplate": "loose",
+        "datasourceTemplate": "custom.protoc"
       }
     ],
     "customDatasources": {
@@ -20,6 +30,12 @@
         "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-deb_x64/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
+        ]
+      },
+      "protoc": {
+        "defaultRegistryUrlTemplate": "https://api.github.com/repos/protocolbuffers/protobuf/releases",
+        "transformTemplates": [
+          "{\"releases\": $map($.[tag_name,published_at], function($v) { {\"version\": $v[0], \"releaseTimestamp\": $v[1] } }) }"
         ]
       }
     }
