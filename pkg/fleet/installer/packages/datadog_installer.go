@@ -246,3 +246,8 @@ func StopInstallerExperiment(ctx context.Context) error {
 func PromoteInstallerExperiment(ctx context.Context) error {
 	return StopInstallerExperiment(ctx)
 }
+
+// StopAll stops all services
+func StopAll(ctx context.Context) error {
+	return nil
+}

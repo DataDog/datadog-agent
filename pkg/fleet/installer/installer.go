@@ -18,9 +18,10 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -300,7 +301,9 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not set experiment: %w", err),
 		)
 	}
-
+	fmt.Println("Starting experiment")
+	// we don't need the database anymore and need to allow for the promote to use it
+	i.db.Close()
 	return i.startExperiment(ctx, pkg.Name)
 }
 
@@ -344,6 +347,14 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	if runtime.GOOS == "windows" && pkg == packageDatadogInstaller {
+		// Special case for the Windows installer
+		err := packages.StopAll(ctx)
+		if err != nil {
+			return fmt.Errorf("could not stop all packages: %w", err)
+		}
+	}
 
 	repository := i.packages.Get(pkg)
 	err := repository.PromoteExperiment()
