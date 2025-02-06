@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -65,9 +66,12 @@ func (af *AstFiles) LookupSymbol(symbol string) *ast.Object { //nolint:staticche
 	return nil
 }
 
-// GetSpecs gets specs
-func (af *AstFiles) GetSpecs() []ast.Spec {
-	var specs []ast.Spec
+// Parse extract data
+func (af *AstFiles) Parse() ([]ast.Spec, []string) {
+	var (
+		specs   []ast.Spec
+		getters []string
+	)
 
 	for _, file := range af.files {
 		for _, decl := range file.Decls {
@@ -80,7 +84,13 @@ func (af *AstFiles) GetSpecs() []ast.Spec {
 			for _, document := range decl.Doc.List {
 				if strings.Contains(document.Text, "genaccessors") {
 					genaccessors = true
-					break
+				}
+
+				if strings.Contains(document.Text, "gengetter") {
+					els := strings.Split(document.Text, ":")
+					if len(els) > 1 {
+						getters = append(getters, strings.TrimSpace(els[1]))
+					}
 				}
 			}
 
@@ -92,7 +102,7 @@ func (af *AstFiles) GetSpecs() []ast.Spec {
 		}
 	}
 
-	return specs
+	return specs, getters
 }
 
 func origTypeToBasicType(kind string) string {
@@ -163,7 +173,6 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		Alias:        alias,
 		AliasPrefix:  aliasPrefix,
 		GettersOnly:  field.gettersOnly,
-		GenGetters:   field.genGetters,
 		Ref:          field.ref,
 		RestrictedTo: restrictedTo,
 	}
@@ -194,7 +203,6 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			Alias:        alias,
 			AliasPrefix:  aliasPrefix,
 			GettersOnly:  field.gettersOnly,
-			GenGetters:   field.genGetters,
 			Ref:          field.ref,
 			RestrictedTo: restrictedTo,
 		}
@@ -254,7 +262,6 @@ func handleNonEmbedded(module *common.Module, field seclField, aliasPrefix, alia
 
 func addLengthOpField(module *common.Module, alias string, field *common.StructField) *common.StructField {
 	lengthField := *field
-	lengthField.GenGetters = false
 	lengthField.IsLength = true
 	lengthField.Name += ".length"
 	lengthField.OrigType = "int"
@@ -337,7 +344,6 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Alias:            alias,
 		AliasPrefix:      aliasPrefix,
 		GettersOnly:      field.gettersOnly,
-		GenGetters:       field.genGetters,
 		Ref:              field.ref,
 		RestrictedTo:     restrictedTo,
 		ReadOnly:         field.readOnly,
@@ -394,7 +400,6 @@ type seclField struct {
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 	containerStructName    string
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
-	genGetters             bool
 	ref                    string
 	readOnly               bool
 }
@@ -447,8 +452,6 @@ func parseFieldDef(def string) (seclField, error) {
 					case "getters_only":
 						field.gettersOnly = true
 						field.exposedAtEventRootOnly = true
-					case "gen_getters":
-						field.genGetters = true
 					case "readonly":
 						field.readOnly = true
 					}
@@ -754,7 +757,10 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 		module.TargetPkg = path.Clean(path.Join(pkgName, path.Dir(output)))
 	}
 
-	for _, spec := range astFiles.GetSpecs() {
+	specs, getters := astFiles.Parse()
+	module.Getters = getters
+
+	for _, spec := range specs {
 		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, nil, make(map[string]bool))
 	}
 
@@ -1075,6 +1081,10 @@ func isReadOnly(field *common.StructField) bool {
 	return field.IsLength || field.Helper || field.ReadOnly
 }
 
+func genGetter(getters []string, getter string) bool {
+	return slices.Contains(getters, "*") || slices.Contains(getters, getter)
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix":               strings.TrimPrefix,
 	"TrimSuffix":               strings.TrimSuffix,
@@ -1094,6 +1104,7 @@ var funcMap = map[string]interface{}{
 	"GetFieldReflectType":      getFieldReflectType,
 	"GetSetHandler":            getSetHandler,
 	"IsReadOnly":               isReadOnly,
+	"GenGetter":                genGetter,
 }
 
 //go:embed accessors.tmpl

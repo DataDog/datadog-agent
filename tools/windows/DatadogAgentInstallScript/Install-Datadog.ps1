@@ -273,9 +273,11 @@ try {
 }
 catch [ExitCodeException] {
    Show-Error $_.Exception.Message $_.Exception.LastExitCode
+   Exit $_.Exception.LastExitCode
 }
 catch {
    Show-Error $_.Exception.Message $GENERAL_ERROR_CODE
+   Exit $GENERAL_ERROR_CODE
 }
 finally {
    Write-Host "Cleaning up..."

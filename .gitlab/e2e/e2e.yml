@@ -217,6 +217,10 @@ new-e2e-fips-compliance-test:
   variables:
     TARGETS: ./tests/fips-compliance
     TEAM: agent-runtimes
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
+      - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
 
 new-e2e-windows-fips-compliance-test:
   extends: .new_e2e_template
@@ -233,6 +237,7 @@ new-e2e-windows-fips-compliance-test:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestWindowsVM$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersWindowsSuite$"
 
 new-e2e-windows-service-test:
   extends: .new_e2e_template
@@ -324,7 +329,7 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
 
-new-e2e-aml:
+new-e2e-amp:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
@@ -335,11 +340,28 @@ new-e2e-aml:
     - qa_agent_fips_jmx
     - qa_dca
   rules:
-    - !reference [.on_aml_or_e2e_changes]
+    - !reference [.on_amp_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-metrics-logs
-    TEAM: agent-metrics-logs
+    TARGETS: ./tests/agent-metric-pipelines
+    TEAM: agent-metric-pipelines
+
+new-e2e-alp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
+    - qa_agent_jmx
+    - qa_agent_fips_jmx
+    - qa_dca
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
 
 new-e2e-cws:
   extends: .new_e2e_template
@@ -438,7 +460,7 @@ new-e2e-installer-script:
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
-    - qa_installer_script
+    - qa_installer_script_linux
   variables:
     TARGETS: ./tests/installer/script
     TEAM: fleet
@@ -475,6 +497,7 @@ new-e2e-installer-windows:
     - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - qa_installer_script_windows
   before_script:
     # CURRENT_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
@@ -495,6 +518,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentInstalls$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$"
       # install-script
+      - EXTRA_PARAMS: --run "TestInstallScript$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"
