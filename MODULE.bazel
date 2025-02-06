@@ -20,14 +20,18 @@ bazel_dep(
 ## Native dependencies ##
 #########################
 
-toolchains = use_extension("@hermetic_cc_toolchain//toolchain:ext.bzl", "toolchains")
-use_repo(toolchains, "zig_sdk")
+# toolchains = use_extension("@hermetic_cc_toolchain//toolchain:ext.bzl", "toolchains")
+zig = use_extension("@hermetic_cc_toolchain//toolchain:defs.bzl", "toolchains")
+zig.toolchain(version = "0.14.0-dev.3050+d72f3d353")
+# use_repo(toolchains)
+# zig_toolchain = use_repo_rule("@hermetic_cc_toolchain//toolchain:defs.bzl", "toolchains")
+# zig_toolchain(name = "zig_sdk", version = "0.14.0-dev.3050+d72f3d353", url_formats = None)
 
-register_toolchains(
-    # "@zig_sdk//libc_aware/toolchain:linux_amd64_gnu.2.17",
-    # "@zig_sdk//libc_aware/toolchain:linux_arm64_gnu.2.23",
-    "@zig_sdk//toolchain:linux_amd64_gnu.2.17",
-)
+# register_toolchains(
+#     # "@zig_sdk//libc_aware/toolchain:linux_amd64_gnu.2.17",
+#     # "@zig_sdk//libc_aware/toolchain:linux_arm64_gnu.2.23",
+#     "@zig_sdk//toolchain:linux_amd64_gnu.2.17",
+# )
 
 # Make our 3rd parties depencency repositories known
 include("//deps:repos.MODULE.bazel")
