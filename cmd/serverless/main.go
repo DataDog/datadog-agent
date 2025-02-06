@@ -15,6 +15,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	_ "crypto/tls/fipsonly"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
