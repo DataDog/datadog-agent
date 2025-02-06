@@ -247,7 +247,6 @@ func (s *npCollectorImpl) listenPathtests() {
 func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
-	startTime := s.TimeNowFn()
 	cfg := config.Config{
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
@@ -267,8 +266,6 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
-
-	s.sendTelemetry(path, startTime, ptest)
 
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
@@ -435,14 +432,6 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 	return result.Hostname
 }
 
-func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
-	checkInterval := ptest.LastFlushInterval()
-	checkDuration := s.TimeNowFn().Sub(startTime)
-
-	s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.interval", float64(checkInterval), nil, 1) //nolint:errcheck
-	s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.duration", float64(checkDuration), nil, 1) //nolint:errcheck
-}
-
 func (s *npCollectorImpl) startWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
 	for w := 0; w < s.workers; w++ {
@@ -459,9 +448,16 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			return
 		case pathtestCtx := <-s.pathtestProcessingChan:
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
+			startTime := s.TimeNowFn()
+
 			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"job.processed", []string{}, 1) //nolint:errcheck
+
+			checkInterval := pathtestCtx.LastFlushInterval()
+			checkDuration := s.TimeNowFn().Sub(startTime)
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"job.processed", []string{}, 1)                      //nolint:errcheck
+			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.interval", float64(checkInterval), nil, 1) //nolint:errcheck
+			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.duration", float64(checkDuration), nil, 1) //nolint:errcheck
 		}
 	}
 }
