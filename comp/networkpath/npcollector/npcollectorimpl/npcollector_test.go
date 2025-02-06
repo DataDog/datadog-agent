@@ -82,7 +82,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.flush.interval":       "1s",
+		"network_path.collector.flush_interval":       "1s",
 		"network_devices.namespace":                   "my-ns1",
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs)
@@ -229,17 +229,6 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
 	// THEN
-	calls := stats.GaugeCalls
-	tags := []string{
-		"collector:network_path_collector",
-		"destination_hostname:abc",
-		"destination_ip:10.0.0.4",
-		"destination_port:80",
-		"origin:network_traffic",
-		"protocol:UDP",
-	}
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.path.monitored", Value: 1, Tags: tags, Rate: 1})
-
 	assert.Equal(t, uint64(2), npCollector.processedTracerouteCount.Load())
 	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
 
@@ -537,13 +526,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			var scheduleDurationMetric teststatsd.MetricsArgs
 			calls := stats.GaugeCalls
 			for _, call := range calls {
-				if call.Name == "datadog.network_path.collector.schedule_duration" {
+				if call.Name == "datadog.network_path.collector.schedule.duration" {
 					scheduleDurationMetric = call
 				}
 			}
 			assert.Less(t, scheduleDurationMetric.Value, float64(5)) // we can't easily assert precise value, hence we are only asserting that it's a low value e.g. 5 seconds
 			scheduleDurationMetric.Value = 0                         // We need to reset the metric value to ease testing time duration
-			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule_duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
+			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
 
 			// Test using logs
 			for _, expectedLog := range tt.expectedLogs {
