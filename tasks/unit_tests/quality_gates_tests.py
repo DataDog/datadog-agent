@@ -5,8 +5,8 @@ from unittest.mock import ANY, MagicMock, patch
 from invoke import Context, MockContext, Result
 
 from tasks.quality_gates import display_pr_comment
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
 from tasks.static_quality_gates.lib.docker_agent_lib import calculate_image_on_disk_size
+from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
 
 
 class TestQualityGatesPrMessage(unittest.TestCase):
@@ -151,7 +151,7 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
         try:
             os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
             os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
-        except OSError as e:
+        except OSError:
             pass
         try:
             os.remove('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
