@@ -106,10 +106,16 @@ message PolicyStatus {
     repeated RuleStatus Status = 3;
 }
 
+message SECLVariableState {
+    string Name = 1;
+    string Value = 2;
+}
+
 message Status {
     EnvironmentStatus Environment = 1;
     SelfTestsStatus SelfTests = 2;
     repeated PolicyStatus PoliciesStatus = 3;
+    repeated SECLVariableState SECLVariables = 4;
 }
 
 message ConstantFetcherStatus {

@@ -72,6 +72,7 @@ type RuleEngine struct {
 type APIServer interface {
 	ApplyRuleIDs([]rules.RuleID)
 	ApplyPolicyStates([]*monitor.PolicyState)
+	SetSECLVariables(map[string]interface{})
 }
 
 // NewRuleEngine returns a new rule engine
@@ -236,6 +237,9 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-heartbeatTicker.C:
+				// here for now, we can move it to a more appropriate place later
+				e.notifyAPIServerOfSeclVariables()
+
 				tags := []string{
 					fmt.Sprintf("version:%s", version.AgentVersion),
 					fmt.Sprintf("os:%s", runtime.GOOS),
@@ -376,6 +380,19 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
 	e.apiServer.ApplyRuleIDs(ruleIDs)
 	e.apiServer.ApplyPolicyStates(policies)
+}
+
+func (e *RuleEngine) notifyAPIServerOfSeclVariables() {
+	rs := e.currentRuleSet.Load().(*rules.RuleSet)
+	ctx := eval.NewContext(nil)
+	var seclVariables = make(map[string]interface{})
+	for name, value := range rs.GetVariables() {
+		if name == "process.pid" {
+			continue
+		}
+		seclVariables[name] = value.Get(ctx)
+	}
+	e.apiServer.SetSECLVariables(seclVariables)
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {

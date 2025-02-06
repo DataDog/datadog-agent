@@ -26,6 +26,7 @@ var (
 // SECLVariable describes a SECL variable value
 type SECLVariable interface {
 	GetEvaluator() interface{}
+	Get(ctx *Context) interface{}
 }
 
 // MutableVariable is the interface by variables whose value can be changed

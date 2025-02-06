@@ -126,6 +126,7 @@ type APIServer struct {
 	cwsConsumer        *CWSConsumer
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
+	seclVariables      []*api.SECLVariableState
 	msgSender          MsgSender
 	connEstablished    *atomic.Bool
 
@@ -542,6 +543,17 @@ func (a *APIServer) ApplyPolicyStates(policies []*monitor.PolicyState) {
 		}
 
 		a.policiesStatus = append(a.policiesStatus, &entry)
+	}
+}
+
+// SetSECLVariables sets the secl variables for the apiClient
+func (a *APIServer) SetSECLVariables(variables map[string]interface{}) {
+	a.seclVariables = []*api.SECLVariableState{}
+	for k, v := range variables {
+		a.seclVariables = append(a.seclVariables, &api.SECLVariableState{
+			Name:  k,
+			Value: fmt.Sprintf("%v", v),
+		})
 	}
 }
 
