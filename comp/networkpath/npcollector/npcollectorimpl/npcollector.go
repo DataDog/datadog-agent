@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -325,6 +324,7 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 		s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
 
+	// TODO: REFACTOR metric naming ? use . ?
 	s.flush()
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
@@ -332,17 +332,13 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 func (s *npCollectorImpl) flush() {
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
-	flowsContexts := s.pathtestStore.GetContextsCount()
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
-
 	flushTime := s.TimeNowFn()
-	flowsToFlush := s.pathtestStore.Flush()
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+	pathtestsToFlush := s.pathtestStore.Flush()
 
-	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
+	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(pathtestsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
-	s.statsdClient.Count(networkPathCollectorMetricPrefix+"flush.pathtest.count", int64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
-	for _, ptConf := range flowsToFlush {
+	s.statsdClient.Count(networkPathCollectorMetricPrefix+"flush.pathtest.count", int64(len(pathtestsToFlush)), []string{}, 1) //nolint:errcheck
+	for _, ptConf := range pathtestsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		select {
 		case s.pathtestProcessingChan <- ptConf:
@@ -352,7 +348,12 @@ func (s *npCollectorImpl) flush() {
 			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
 		}
 	}
+
+	// keep this metric after the flows are flushed
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1) //nolint:errcheck
+
+	flowsContexts := s.pathtestStore.GetContextsCount()
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 }
 
 // enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.
@@ -437,13 +438,9 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
 	checkInterval := ptest.LastFlushInterval()
 	checkDuration := s.TimeNowFn().Sub(startTime)
-	telemetry.SubmitNetworkPathTelemetry(
-		s.metricSender,
-		path,
-		checkDuration,
-		checkInterval,
-		[]string{},
-	)
+
+	s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"check_interval", float64(checkInterval), nil, 1) //nolint:errcheck
+	s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"check_duration", float64(checkDuration), nil, 1) //nolint:errcheck
 }
 
 func (s *npCollectorImpl) startWorkers() {
