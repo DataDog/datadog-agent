@@ -137,6 +137,19 @@ agent_dmg-x64-a7:
 #     # - inv -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
 #     # - !reference [.upload_sbom_artifacts]
 
+
+celian:
+  stage: package_build
+  # tags: ["macos:ventura-amd64-test", "specific:true"]
+  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
+  needs: []
+  timeout: 6h
+  script:
+    - set -e
+    - brew list --formula
+    - find /usr -name "libintl*"
+    - find /opt -name "libintl*"
+
 new-agent_dmg-x64-a7:
   stage: package_build
   extends: .macos_gitlab
