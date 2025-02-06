@@ -15,7 +15,5 @@ import (
 // NewFilter creates a new MutationFilter from the provided FilterConfig.
 func NewFilter(datadogConfig config.Component) (mutatecommon.MutationFilter, error) {
 	enabled := datadogConfig.GetBool("admission_controller.inject_tags.enabled")
-	enabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_tags.enabled_namespaces")
-	disabledNamespaces := datadogConfig.GetStringSlice("admission_controller.inject_tags.disabled_namespaces")
-	return mutatecommon.NewDefaultFilter(enabled, enabledNamespaces, disabledNamespaces)
+	return mutatecommon.NewDefaultFilter(enabled, nil, nil)
 }
