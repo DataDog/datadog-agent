@@ -16,10 +16,11 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 )
 
 func newDefaultConfig() component.Config {
@@ -156,7 +157,7 @@ func NewExporter(
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
-	consumer := &serializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
+	consumer := &agentSerializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err

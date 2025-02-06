@@ -99,7 +99,7 @@ var statsPayloads = []*pb.ClientStatsPayload{
 }
 
 func TestConsumeAPMStats(t *testing.T) {
-	sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: "http://localhost:1234/v0.6/stats"}
+	sc := agentSerializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: "http://localhost:1234/v0.6/stats"}
 	sc.ConsumeAPMStats(statsPayloads[0])
 	require.Len(t, sc.apmstats, 1)
 	sc.ConsumeAPMStats(statsPayloads[1])
@@ -138,7 +138,7 @@ func TestSendAPMStats(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
+		sc := agentSerializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
 		sc.ConsumeAPMStats(statsPayloads[1])
 		err := sc.Send(&MockSerializer{})
@@ -156,7 +156,7 @@ func TestSendAPMStats(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
+		sc := agentSerializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
 		err := sc.Send(&MockSerializer{})
 		require.ErrorContains(t, err, "HTTP Status code == 500 Internal Server Error")
@@ -174,7 +174,7 @@ func TestSendAPMStats(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
+		sc := agentSerializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
 		err := sc.Send(&MockSerializer{})
 		require.ErrorContains(t, err, "HTTP Status code == 500 Internal Server Error "+strings.Repeat("A", 1024))
