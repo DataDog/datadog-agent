@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
@@ -507,12 +508,11 @@ func (pb *PayloadsBuilder) finishPayload() error {
 
 	// Sort keys of stringTable and update values to position in the sorted list
 	keys := make([]string, 0, len(pb.stringTable))
-	// do this a bunch of times to try to induce a large effect on memory use, to make sure our instrumentation will detect it.
-	// TODO: remove this when we're sure that we're testing the real memory use of the string table.
-	for i := 0; i < 100; i++ {
-		for key := range pb.stringTable {
-			keys = append(keys, key)
-		}
+	for key := range pb.stringTable {
+		// try to expand memory use artificially to make sure testing will catch it
+		// TODO: remove this when we're sure that we're testing the real memory use of the string table.
+		key := strings.Repeat(key, 100)
+		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
