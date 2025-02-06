@@ -226,5 +226,4 @@ if linux_target? or windows_target?
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.
   strip_build windows_target? or !do_package
-  debug_path ".debug"  # the strip symbols will be in here
 end
