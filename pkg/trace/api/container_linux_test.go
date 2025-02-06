@@ -96,7 +96,6 @@ func TestGetContainerID(t *testing.T) {
 	timeFudgeFactor := 24 * time.Hour
 	c := NewCache(timeFudgeFactor)
 	c.Store(time.Now().Add(timeFudgeFactor), strconv.Itoa(containerPID), containerID, nil)
-	c.Store(time.Now().Add(timeFudgeFactor), containerInode, containerID, nil)
 
 	provider := &cgroupIDProvider{
 		procRoot:   "",
@@ -171,28 +170,14 @@ func TestGetContainerID(t *testing.T) {
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
-	t.Run("LocalData header with inode", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "http://example.com", nil)
-		if !assert.NoError(t, err) {
-			t.Fail()
-		}
-		req.Header.Add(header.LocalData, inodePrefix+containerInode)
-		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
-	})
-
 	validLocalDataLists := []string{
 		containerIDPrefix + containerID + "," + containerInode + containerInode,
 		inodePrefix + containerInode + "," + containerIDPrefix + containerID,
 		containerIDPrefix + containerID + "," + inodePrefix,
-		inodePrefix + containerInode + "," + containerIDPrefix,
 		inodePrefix + "," + containerIDPrefix + containerID,
-		containerIDPrefix + "," + inodePrefix + containerInode,
 		containerIDPrefix + containerID + ",",
-		inodePrefix + containerInode + ",",
 		"," + containerIDPrefix + containerID,
-		"," + inodePrefix + containerInode,
 		"," + containerIDPrefix + containerID + ",",
-		"," + inodePrefix + containerInode + ",",
 	}
 	for index, validLocalDataList := range validLocalDataLists {
 		t.Run(fmt.Sprintf("LocalData header as a list (%d/%d)", index, len(validLocalDataLists)), func(t *testing.T) {
