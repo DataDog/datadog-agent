@@ -2826,3 +2826,121 @@ func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
 		t.Skip("TODO: ebpf-less")
 	}
 }
+
+func getHandshakeBuffer(t *testing.T, srvAddr string) []byte {
+	rawConn, err := net.Dial("tcp", srvAddr)
+	require.NoError(t, err)
+	defer rawConn.Close()
+
+	client := tls.Client(rawConn, &tls.Config{InsecureSkipVerify: true})
+	_ = client.Handshake() // Perform the handshake
+
+	response := make([]byte, 1024)
+	n, err := rawConn.Read(response)
+	require.NoError(t, err)
+	return response[:n]
+}
+
+func waitForTracer(t *testing.T, tr *Tracer, srvAddr string) {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		client, err := net.Dial("tcp", srvAddr)
+		require.NoError(collect, err)
+		defer client.Close()
+
+		conns := getConnections(collect, tr)
+		_, found := findConnection(client.LocalAddr(), client.RemoteAddr(), conns)
+		require.True(collect, found)
+	}, time.Second*15, time.Second)
+}
+
+func sendMessage(t *testing.T, conn net.Conn, message []byte) []byte {
+	_, err := conn.Write(message)
+	require.NoError(t, err)
+
+	response := make([]byte, len(message))
+	_, err = conn.Read(response)
+	require.NoError(t, err)
+
+	return response
+}
+
+func (s *TracerSuite) TestRawTLSClient() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	srv := usmtestutil.NewTCPServer("localhost:9999", func(conn net.Conn) {
+		defer conn.Close()
+		_, _ = io.Copy(conn, conn)
+	}, false)
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+	require.NoError(t, srv.Run(done))
+
+	waitForTracer(t, tr, srv.Address())
+	handshake := getHandshakeBuffer(t, srv.Address())
+
+	tr.RemoveClient(clientID)
+	require.NoError(t, tr.RegisterClient(clientID))
+
+	t.Run("TLS then HTTP", func(t *testing.T) {
+		conn, err := net.Dial("tcp", srv.Address())
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sendMessage(t, conn, handshake)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns := getConnections(collect, tr)
+			c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+			require.True(collect, found)
+			assert.True(collect, c.ProtocolStack.Contains(protocols.TLS), "expected TLS protocol")
+		}, time.Second*5, time.Millisecond*200)
+
+		// Now send HTTP traffic, which should not be classified as TLS was already detected
+		sendMessage(t, conn, []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"))
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns := getConnections(collect, tr)
+			c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+			require.True(collect, found)
+			assert.True(collect, c.ProtocolStack.Contains(protocols.TLS), "expected TLS protocol")
+			assert.False(collect, c.ProtocolStack.Contains(protocols.HTTP), "not expected HTTP protocol")
+		}, time.Second*5, time.Millisecond*200)
+	})
+
+	tr.RemoveClient(clientID)
+	require.NoError(t, tr.RegisterClient(clientID))
+
+	t.Run("HTTP then TLS", func(t *testing.T) {
+		conn, err := net.Dial("tcp", srv.Address())
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Now send HTTP traffic, which should not be classified as TLS was already detected
+		sendMessage(t, conn, []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"))
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns := getConnections(collect, tr)
+			c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+			require.True(collect, found)
+			assert.False(collect, c.ProtocolStack.Contains(protocols.TLS), "not expected TLS protocol")
+			assert.True(collect, c.ProtocolStack.Contains(protocols.HTTP), "expected HTTP protocol")
+		}, time.Second*5, time.Millisecond*200)
+
+		sendMessage(t, conn, handshake)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns := getConnections(collect, tr)
+			c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+			require.True(collect, found)
+			assert.False(collect, c.ProtocolStack.Contains(protocols.TLS), "not expected TLS protocol")
+			assert.True(collect, c.ProtocolStack.Contains(protocols.HTTP), "expected HTTP protocol")
+		}, time.Second*5, time.Millisecond*200)
+	})
+}
