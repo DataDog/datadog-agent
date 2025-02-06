@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
@@ -83,7 +82,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.flush_interval":       "1s",
+		"network_path.collector.flush.interval":       "1s",
 		"network_devices.namespace":                   "my-ns1",
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs)
@@ -284,7 +283,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 
 	// THEN
 	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule_duration", Value: 60.0, Tags: nil, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.duration", Value: 60.0, Tags: nil, Rate: 1})
 }
 
 func compactJSON(metadataEvent []byte) []byte {
@@ -596,10 +595,10 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			flushStartTime: MockTimeNow(),
 			flushEndTime:   MockTimeNow().Add(500 * time.Millisecond),
 			notExpectedMetrics: []string{
-				"datadog.network_path.collector.flush_interval",
+				"datadog.network_path.collector.flush.interval",
 			},
 			expectedMetrics: []teststatsd.MetricsArgs{
-				{Name: "datadog.network_path.collector.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.duration", Value: 0.5, Tags: []string{}, Rate: 1},
 			},
 		},
 		{
@@ -609,8 +608,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			lastFlushTime:      MockTimeNow().Add(-2 * time.Minute),
 			notExpectedMetrics: []string{},
 			expectedMetrics: []teststatsd.MetricsArgs{
-				{Name: "datadog.network_path.collector.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
-				{Name: "datadog.network_path.collector.flush_interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
 			},
 		},
 	}
@@ -664,11 +663,10 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 	npCollector.flush()
 
 	// THEN
-	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_processing_chan_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.processing_chan_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.CountCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.flush.count", Value: 2, Tags: []string{}, Rate: 1})
 
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
@@ -693,7 +691,7 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 
 	// THEN
 	assert.Eventually(t, func() bool {
-		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush_interval"]
+		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush.interval"]
 		if calls == nil {
 			return false
 		}
@@ -702,51 +700,6 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 		}
 		return len(calls.Calls) >= 3
 	}, 3*time.Second, 10*time.Millisecond)
-}
-
-func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
-	// GIVEN
-	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.workers":              6,
-	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
-
-	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
-	path := payload.NetworkPath{
-		Origin:      payload.PathOriginNetworkTraffic,
-		Source:      payload.NetworkPathSource{Hostname: "abc"},
-		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
-		Protocol:    payload.ProtocolUDP,
-		Hops: []payload.NetworkPathHop{
-			{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-			{Hostname: "hop_2", IPAddress: "1.1.1.2"},
-		},
-	}
-	ptestCtx := &pathteststore.PathtestContext{
-		Pathtest: &common.Pathtest{Hostname: "10.0.0.2", Port: 80, Protocol: payload.ProtocolUDP},
-	}
-	ptestCtx.SetLastFlushInterval(2 * time.Minute)
-	npCollector.TimeNowFn = MockTimeNow
-	checkStartTime := MockTimeNow().Add(-3 * time.Second)
-
-	// WHEN
-	npCollector.sendTelemetry(path, checkStartTime, ptestCtx)
-
-	// THEN
-	calls := stats.GaugeCalls
-	tags := []string{
-		"collector:network_path_collector",
-		"destination_hostname:abc",
-		"destination_ip:10.0.0.2",
-		"destination_port:80",
-		"origin:network_traffic",
-		"protocol:UDP",
-	}
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_duration", Value: 3, Tags: tags, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_interval", Value: (2 * time.Minute).Seconds(), Tags: tags, Rate: 1})
 }
 
 func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {

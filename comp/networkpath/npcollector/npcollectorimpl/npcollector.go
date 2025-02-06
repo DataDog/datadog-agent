@@ -321,7 +321,6 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 		s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush.interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
 
-	// TODO: REFACTOR metric naming ? use . ?
 	s.flush()
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush.duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
