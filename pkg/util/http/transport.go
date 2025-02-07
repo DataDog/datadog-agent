@@ -133,7 +133,7 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*ht
 	return transport
 }
 
-// CreateH2CTransport creates an *http.Transport for use in the agent
+// CreateH2CTransport creates an *http2.Transport for use in the agent
 func CreateH2CTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*http2.Transport)) *http2.Transport {
 	// It’s OK to reuse the same file for all the http.Transport objects we create
 	// because all the writes to that file are protected by a global mutex.

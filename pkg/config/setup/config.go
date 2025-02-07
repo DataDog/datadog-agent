@@ -1370,6 +1370,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
 	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_force_h2c", false)
 }
 
 func dogstatsd(config pkgconfigmodel.Setup) {

@@ -64,7 +64,7 @@ var (
 	TlmTxDropped = telemetry.NewCounter("transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
 	tlmTxSuccessCount = telemetry.NewCounter("transactions", "success",
-		[]string{"domain", "endpoint"}, "Successful transaction count")
+		[]string{"domain", "endpoint", "proto_version"}, "Successful transaction count")
 	tlmTxSuccessBytes = telemetry.NewCounter("transactions", "success_bytes",
 		[]string{"domain", "endpoint"}, "Successful transaction sizes in bytes")
 	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
@@ -442,7 +442,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, truncateBodyForLog(body))
 	}
 
-	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName)
+	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName, resp.Proto)
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, transactionEndpointName)
 	TransactionsSuccessByEndpoint.Add(transactionEndpointName, 1)
 	transactionsSuccessBytesByEndpoint.Add(transactionEndpointName, int64(t.GetPayloadSize()))
