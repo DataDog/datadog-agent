@@ -229,7 +229,7 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 }
 
 // TestCoreAgentConfigCmd tests the output of core agent's config command contains the embedded collector's config
-func TestCoreAgentConfigCmd(s OTelTestSuite, fullCfg string) {
+func TestCoreAgentConfigCmd(s OTelTestSuite, expectedCfg string) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	agent := getAgentPod(s)
@@ -239,37 +239,6 @@ func TestCoreAgentConfigCmd(s OTelTestSuite, fullCfg string) {
 	require.NoError(s.T(), err, "Failed to execute config")
 	require.Empty(s.T(), stderr)
 	require.NotNil(s.T(), stdout)
-
-	lines := strings.Split(stdout, "\n")
-	actualCfgs := []string{}
-	for i, line := range lines {
-		if line != "    connectors:" {
-			continue
-		}
-		// extract the otel collector configs from the config cmd output
-		j := i
-		for {
-			line = strings.TrimSpace(lines[j])
-			j++
-			if line == "converter:" {
-				break
-			}
-			// endpoint is replaced with the fake intake address in the test, not for comparison
-			if strings.HasPrefix(line, "endpoint") {
-				continue
-			}
-			actualCfgs = append(actualCfgs, line)
-		}
-		break
-	}
-	expectedCfgs := strings.Split(fullCfg, "\n")
-	for i, expectedCfg := range expectedCfgs {
-		// double-quotes are replaced with single-quotes in Agent config cmd
-		expectedCfg = strings.ReplaceAll(strings.TrimSpace(expectedCfg), "\"", "")
-		actualCfg := strings.ReplaceAll(actualCfgs[i], "'", "")
-		if expectedCfg == "" {
-			continue
-		}
-		assert.Equal(s.T(), expectedCfg, actualCfg)
-	}
+	s.T().Log("Full output of config command in core agent\n", stdout)
+	assert.Contains(s.T(), stdout, expectedCfg)
 }
