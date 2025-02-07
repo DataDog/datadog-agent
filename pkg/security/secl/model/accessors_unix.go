@@ -25494,7 +25494,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chdir.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "chdir.file.path.length"}
 	case "chdir.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "chdir.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "chdir.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "chdir.file.rights"}
+		}
+		ev.Chdir.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "chdir.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -25653,7 +25661,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chmod.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "chmod.file.path.length"}
 	case "chmod.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "chmod.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "chmod.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "chmod.file.rights"}
+		}
+		ev.Chmod.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "chmod.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -25833,7 +25849,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chown.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "chown.file.path.length"}
 	case "chown.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "chown.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "chown.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "chown.file.rights"}
+		}
+		ev.Chown.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "chown.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -26075,17 +26099,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exec.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.args"}
+		}
+		ev.Exec.Process.Args = rv
+		return nil
 	case "exec.args_flags":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exec.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.Exec.Process.Argv = append(ev.Exec.Process.Argv, rv)
+		case []string:
+			ev.Exec.Process.Argv = append(ev.Exec.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "exec.args_flags"}
+		}
+		return nil
 	case "exec.args_options":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exec.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.Exec.Process.Argv = append(ev.Exec.Process.Argv, rv)
+		case []string:
+			ev.Exec.Process.Argv = append(ev.Exec.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "exec.args_options"}
+		}
+		return nil
 	case "exec.args_truncated":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -26475,7 +26520,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exec.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "exec.file.rights"}
+		}
+		ev.Exec.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "exec.file.uid":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -26786,7 +26839,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exec.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "exec.interpreter.file.rights"}
+		}
+		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "exec.interpreter.file.uid":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -26949,17 +27014,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exit.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exit.args"}
+		}
+		ev.Exit.Process.Args = rv
+		return nil
 	case "exit.args_flags":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exit.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.Exit.Process.Argv = append(ev.Exit.Process.Argv, rv)
+		case []string:
+			ev.Exit.Process.Argv = append(ev.Exit.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "exit.args_flags"}
+		}
+		return nil
 	case "exit.args_options":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exit.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.Exit.Process.Argv = append(ev.Exit.Process.Argv, rv)
+		case []string:
+			ev.Exit.Process.Argv = append(ev.Exit.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "exit.args_options"}
+		}
+		return nil
 	case "exit.args_truncated":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -27363,7 +27449,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exit.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exit.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "exit.file.rights"}
+		}
+		ev.Exit.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "exit.file.uid":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -27674,7 +27768,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "exit.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exit.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "exit.interpreter.file.rights"}
+		}
+		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "exit.interpreter.file.uid":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -28005,7 +28111,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "link.file.destination.path.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.destination.path.length"}
 	case "link.file.destination.rights":
-		return &eval.ErrFieldReadOnly{Field: "link.file.destination.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "link.file.destination.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "link.file.destination.rights"}
+		}
+		ev.Link.Target.FileFields.Mode = uint16(rv)
+		return nil
 	case "link.file.destination.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -28129,7 +28243,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "link.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.path.length"}
 	case "link.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "link.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "link.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "link.file.rights"}
+		}
+		ev.Link.Source.FileFields.Mode = uint16(rv)
+		return nil
 	case "link.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -28305,7 +28427,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "load_module.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "load_module.file.path.length"}
 	case "load_module.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "load_module.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "load_module.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "load_module.file.rights"}
+		}
+		ev.LoadModule.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "load_module.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -28471,7 +28601,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "mkdir.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "mkdir.file.path.length"}
 	case "mkdir.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "mkdir.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "mkdir.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "mkdir.file.rights"}
+		}
+		ev.Mkdir.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "mkdir.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -28623,7 +28761,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "mmap.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "mmap.file.path.length"}
 	case "mmap.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "mmap.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "mmap.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "mmap.file.rights"}
+		}
+		ev.MMap.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "mmap.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -29155,7 +29301,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "open.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "open.file.path.length"}
 	case "open.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "open.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "open.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "open.file.rights"}
+		}
+		ev.Open.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "open.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -29318,7 +29472,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.ancestors.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.args"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args = rv
+		return nil
 	case "process.ancestors.args_flags":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -29326,7 +29485,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.ancestors.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.args_flags"}
+		}
+		return nil
 	case "process.ancestors.args_options":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -29334,7 +29501,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.ancestors.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.args_options"}
+		}
+		return nil
 	case "process.ancestors.args_truncated":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -29841,7 +30016,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "process.ancestors.file.rights"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "process.ancestors.file.uid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -30230,7 +30413,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "process.ancestors.interpreter.file.rights"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "process.ancestors.interpreter.file.uid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -30436,17 +30631,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.args"}
+		}
+		ev.BaseEvent.ProcessContext.Process.Args = rv
+		return nil
 	case "process.args_flags":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "process.args_flags"}
+		}
+		return nil
 	case "process.args_options":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "process.args_options"}
+		}
+		return nil
 	case "process.args_truncated":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -30836,7 +31052,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "process.file.rights"}
+		}
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "process.file.uid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -31147,7 +31371,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "process.interpreter.file.rights"}
+		}
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "process.interpreter.file.uid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -31213,7 +31449,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.args"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.Args = rv
+		return nil
 	case "process.parent.args_flags":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -31221,7 +31462,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.args_flags"}
+		}
+		return nil
 	case "process.parent.args_options":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -31229,7 +31478,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.args_options"}
+		}
+		return nil
 	case "process.parent.args_truncated":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -31736,7 +31993,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "process.parent.file.rights"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "process.parent.file.uid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -32125,7 +32390,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "process.parent.interpreter.file.rights"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "process.parent.interpreter.file.uid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -32433,7 +32710,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.args"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Args = rv
+		return nil
 	case "ptrace.tracee.ancestors.args_flags":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -32441,7 +32723,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.args_flags"}
+		}
+		return nil
 	case "ptrace.tracee.ancestors.args_options":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -32449,7 +32739,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.args_options"}
+		}
+		return nil
 	case "ptrace.tracee.ancestors.args_truncated":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -32956,7 +33254,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "ptrace.tracee.ancestors.file.rights"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "ptrace.tracee.ancestors.file.uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -33345,7 +33651,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "ptrace.tracee.ancestors.interpreter.file.rights"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -33551,17 +33869,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.args"}
+		}
+		ev.PTrace.Tracee.Process.Args = rv
+		return nil
 	case "ptrace.tracee.args_flags":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Process.Argv = append(ev.PTrace.Tracee.Process.Argv, rv)
+		case []string:
+			ev.PTrace.Tracee.Process.Argv = append(ev.PTrace.Tracee.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.args_flags"}
+		}
+		return nil
 	case "ptrace.tracee.args_options":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Process.Argv = append(ev.PTrace.Tracee.Process.Argv, rv)
+		case []string:
+			ev.PTrace.Tracee.Process.Argv = append(ev.PTrace.Tracee.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.args_options"}
+		}
+		return nil
 	case "ptrace.tracee.args_truncated":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -33951,7 +34290,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "ptrace.tracee.file.rights"}
+		}
+		ev.PTrace.Tracee.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "ptrace.tracee.file.uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -34262,7 +34609,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "ptrace.tracee.interpreter.file.rights"}
+		}
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "ptrace.tracee.interpreter.file.uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -34328,7 +34687,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.args"}
+		}
+		ev.PTrace.Tracee.Parent.Args = rv
+		return nil
 	case "ptrace.tracee.parent.args_flags":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -34336,7 +34700,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Parent.Argv = append(ev.PTrace.Tracee.Parent.Argv, rv)
+		case []string:
+			ev.PTrace.Tracee.Parent.Argv = append(ev.PTrace.Tracee.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.args_flags"}
+		}
+		return nil
 	case "ptrace.tracee.parent.args_options":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -34344,7 +34716,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Parent.Argv = append(ev.PTrace.Tracee.Parent.Argv, rv)
+		case []string:
+			ev.PTrace.Tracee.Parent.Argv = append(ev.PTrace.Tracee.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.args_options"}
+		}
+		return nil
 	case "ptrace.tracee.parent.args_truncated":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -34851,7 +35231,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "ptrace.tracee.parent.file.rights"}
+		}
+		ev.PTrace.Tracee.Parent.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "ptrace.tracee.parent.file.uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -35240,7 +35628,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "ptrace.tracee.parent.interpreter.file.rights"}
+		}
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "ptrace.tracee.parent.interpreter.file.uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -35657,7 +36057,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "removexattr.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "removexattr.file.path.length"}
 	case "removexattr.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "removexattr.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "removexattr.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "removexattr.file.rights"}
+		}
+		ev.RemoveXAttr.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "removexattr.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -35802,7 +36210,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rename.file.destination.path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.path.length"}
 	case "rename.file.destination.rights":
-		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "rename.file.destination.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "rename.file.destination.rights"}
+		}
+		ev.Rename.New.FileFields.Mode = uint16(rv)
+		return nil
 	case "rename.file.destination.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -35926,7 +36342,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rename.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.path.length"}
 	case "rename.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "rename.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "rename.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "rename.file.rights"}
+		}
+		ev.Rename.Old.FileFields.Mode = uint16(rv)
+		return nil
 	case "rename.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -36078,7 +36502,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "rmdir.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "rmdir.file.path.length"}
 	case "rmdir.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "rmdir.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "rmdir.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "rmdir.file.rights"}
+		}
+		ev.Rmdir.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "rmdir.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -36349,7 +36781,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "setxattr.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "setxattr.file.path.length"}
 	case "setxattr.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "setxattr.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setxattr.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setxattr.file.rights"}
+		}
+		ev.SetXAttr.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "setxattr.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -36392,7 +36832,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.args"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Args = rv
+		return nil
 	case "signal.target.ancestors.args_flags":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -36400,7 +36845,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Signal.Target.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Signal.Target.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.args_flags"}
+		}
+		return nil
 	case "signal.target.ancestors.args_options":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -36408,7 +36861,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Signal.Target.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Signal.Target.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.args_options"}
+		}
+		return nil
 	case "signal.target.ancestors.args_truncated":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -36915,7 +37376,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "signal.target.ancestors.file.rights"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "signal.target.ancestors.file.uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -37304,7 +37773,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "signal.target.ancestors.interpreter.file.rights"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "signal.target.ancestors.interpreter.file.uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -37510,17 +37991,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.args"}
+		}
+		ev.Signal.Target.Process.Args = rv
+		return nil
 	case "signal.target.args_flags":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Process.Argv = append(ev.Signal.Target.Process.Argv, rv)
+		case []string:
+			ev.Signal.Target.Process.Argv = append(ev.Signal.Target.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.args_flags"}
+		}
+		return nil
 	case "signal.target.args_options":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Process.Argv = append(ev.Signal.Target.Process.Argv, rv)
+		case []string:
+			ev.Signal.Target.Process.Argv = append(ev.Signal.Target.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.args_options"}
+		}
+		return nil
 	case "signal.target.args_truncated":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -37910,7 +38412,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "signal.target.file.rights"}
+		}
+		ev.Signal.Target.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "signal.target.file.uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -38221,7 +38731,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "signal.target.interpreter.file.rights"}
+		}
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "signal.target.interpreter.file.uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -38287,7 +38809,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.args"}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.args"}
+		}
+		ev.Signal.Target.Parent.Args = rv
+		return nil
 	case "signal.target.parent.args_flags":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -38295,7 +38822,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.args_flags"}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Parent.Argv = append(ev.Signal.Target.Parent.Argv, rv)
+		case []string:
+			ev.Signal.Target.Parent.Argv = append(ev.Signal.Target.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.args_flags"}
+		}
+		return nil
 	case "signal.target.parent.args_options":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -38303,7 +38838,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.args_options"}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Parent.Argv = append(ev.Signal.Target.Parent.Argv, rv)
+		case []string:
+			ev.Signal.Target.Parent.Argv = append(ev.Signal.Target.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.args_options"}
+		}
+		return nil
 	case "signal.target.parent.args_truncated":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -38810,7 +39353,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "signal.target.parent.file.rights"}
+		}
+		ev.Signal.Target.Parent.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "signal.target.parent.file.uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -39199,7 +39750,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.interpreter.file.rights"}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "signal.target.parent.interpreter.file.rights"}
+		}
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
 	case "signal.target.parent.interpreter.file.uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -39609,7 +40172,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "splice.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "splice.file.path.length"}
 	case "splice.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "splice.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "splice.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "splice.file.rights"}
+		}
+		ev.Splice.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "splice.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -39761,7 +40332,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "unlink.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "unlink.file.path.length"}
 	case "unlink.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "unlink.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "unlink.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "unlink.file.rights"}
+		}
+		ev.Unlink.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "unlink.file.uid":
 		rv, ok := value.(int)
 		if !ok {
@@ -39941,7 +40520,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "utimes.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "utimes.file.path.length"}
 	case "utimes.file.rights":
-		return &eval.ErrFieldReadOnly{Field: "utimes.file.rights"}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "utimes.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "utimes.file.rights"}
+		}
+		ev.Utimes.File.FileFields.Mode = uint16(rv)
+		return nil
 	case "utimes.file.uid":
 		rv, ok := value.(int)
 		if !ok {

@@ -43,7 +43,6 @@ import (
 const (
 	pathServices = "/services"
 
-	heartbeatTime = 15 * time.Minute
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
 	// pkg/process/checks/container.go.
@@ -259,8 +258,15 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 // handleServers is the handler for the /services endpoint.
 // Returns the list of currently running services.
-func (s *discovery) handleServices(w http.ResponseWriter, _ *http.Request) {
-	services, err := s.getServices()
+func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	services, err := s.getServices(params)
 	if err != nil {
 		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -725,6 +731,9 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		{"kube_service", nil},
 	}
 
+	// Sort the tags to make the function deterministic
+	slices.Sort(tags)
+
 	for _, tag := range tags {
 		// Get index of separator between name and value
 		sepIndex := strings.IndexRune(tag, ':')
@@ -734,6 +743,11 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		}
 
 		for i := range tagsPriority {
+			if tagsPriority[i].tagValue != nil {
+				// We have seen this tag before, we don't need another value.
+				continue
+			}
+
 			if tag[:sepIndex] != tagsPriority[i].tagName {
 				// Not a tag we care about; we skip it
 				continue
@@ -838,7 +852,7 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 }
 
 // getStatus returns the list of currently running services.
-func (s *discovery) getServices() (*model.ServicesResponse, error) {
+func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -884,7 +898,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		if _, ok := s.runningServices[pid]; ok {
-			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
+			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= params.heartbeatTime {
 				service.LastHeartbeat = now.Unix()
 				response.HeartbeatServices = append(response.HeartbeatServices, *service)
 			}

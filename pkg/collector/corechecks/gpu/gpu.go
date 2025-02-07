@@ -94,22 +94,45 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	// Initialize NVML collectors. if the config parameter doesn't exist or is
+	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	return nil
+}
+
+func (c *Check) ensureInitNVML() error {
+	if c.nvmlLib != nil {
+		return nil
+	}
+
+	// Initialize NVML library. if the config parameter doesn't exist or is
 	// empty string, the default value is used as defined in go-nvml library
 	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
-	c.nvmlLib = nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
-	ret := c.nvmlLib.Init()
+	nvmlLib := nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
+	ret := nvmlLib.Init()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
 	}
 
-	var err error
-	c.collectors, err = nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
+	c.nvmlLib = nvmlLib
+	return nil
+}
+
+// ensureInitCollectors initializes the NVML library and the collectors if they are not already initialized.
+// It returns an error if the initialization fails.
+func (c *Check) ensureInitCollectors() error {
+	if c.collectors != nil {
+		return nil
+	}
+
+	if err := c.ensureInitNVML(); err != nil {
+		return err
+	}
+
+	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
-	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	c.collectors = collectors
 	return nil
 }
 
@@ -212,7 +235,10 @@ func (c *Check) getTagsForKey(key model.StatsKey) []string {
 }
 
 func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
-	var err error
+	err := c.ensureInitCollectors()
+	if err != nil {
+		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
+	}
 
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())

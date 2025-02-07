@@ -299,10 +299,6 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	}
 
 	process := processEvent.Entity.(*workloadmeta.Process)
-	if process.Language == nil || process.Language.Name == "" {
-		c.logger.Debugf("no language detected for process %s", process.ID)
-		return
-	}
 
 	if process.ContainerID == "" {
 		c.logger.Debugf("no container id detected for process %s", process.ID)
@@ -338,8 +334,14 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 		return
 	}
 
-	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
+	podInfo := c.currentBatch.getOrAddPodInfo(pod)
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
+
+	if process.Language == nil || process.Language.Name == "" {
+		c.logger.Debugf("no language detected for process %s", process.ID)
+		return
+	}
+
 	added := containerInfo.Add(process.Language.Name)
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
@@ -371,9 +373,6 @@ func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
 func (c *client) getCurrentBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if len(c.currentBatch) == 0 {
-		return nil
-	}
 	return c.currentBatch.toProto()
 }
 
@@ -384,14 +383,10 @@ func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	batch := make(batch)
 
 	for podName := range c.freshlyUpdatedPods {
-		if containerInfo, ok := c.currentBatch[podName]; ok {
-			batch[podName] = containerInfo
+		if podInfo, ok := c.currentBatch[podName]; ok {
+			batch[podName] = podInfo
 		}
 	}
 
-	if len(batch) > 0 {
-		return batch.toProto()
-	}
-
-	return nil
+	return batch.toProto()
 }
