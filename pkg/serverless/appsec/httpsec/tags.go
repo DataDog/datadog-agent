@@ -18,8 +18,6 @@ import (
 
 	"github.com/DataDog/appsec-internal-go/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 )
 
 // envClientIPHeader is the name of the env var used to specify the IP header to be used for client IP collection.
@@ -98,7 +96,6 @@ func setEventSpanTags(span span, event []any) error {
 	// Set the appsec.event tag needed by the appsec backend
 	span.SetMetaTag("_dd.origin", "appsec")
 	span.SetMetaTag("appsec.event", "true")
-	span.SetMetaTag("_dd.appsec.event_rules.version", "")
 	return nil
 }
 
@@ -190,7 +187,6 @@ func setRulesMonitoringTags(span span, wafDiags waf.Diagnostics) {
 	span.SetMetaTag("_dd.appsec.event_rules.loaded", fmt.Sprintf("%d", len(rInfo.Loaded)))
 	span.SetMetaTag("_dd.appsec.event_rules.error_count", fmt.Sprintf("%d", len(rInfo.Failed)))
 	span.SetMetaTag("_dd.appsec.waf.version", waf.Version())
-	span.SetMetaTag(ext.ManualKeep, "5") // Equivalent to dd-trace-go/internal/samplernames.AppSec
 }
 
 // setWAFMonitoringTags adds the tags related to the monitoring of the WAF performances
