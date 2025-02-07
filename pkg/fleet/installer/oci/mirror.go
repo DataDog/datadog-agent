@@ -39,6 +39,7 @@ func (mt *mirrorTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	clone := req.Clone(req.Context())
 	clone.Host = mt.mirror.Host
 	clone.URL.Scheme = mt.mirror.Scheme
+	clone.URL.Host = mt.mirror.Host
 	if mt.mirror.User != nil {
 		password, _ := mt.mirror.User.Password()
 		clone.SetBasicAuth(mt.mirror.User.Username(), password)
