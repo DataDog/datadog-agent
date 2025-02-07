@@ -12,7 +12,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -66,7 +65,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 		return fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
 	}
 
-	ebpf.AddNameMappings(c.m.Manager, "discovery")
+	ddebpf.AddNameMappings(c.m.Manager, "discovery")
 
 	c.statsMap = statsMap
 
