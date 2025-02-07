@@ -161,6 +161,8 @@ new-agent_dmg-x64-a7:
   script:
     # - set -e
     - set +e
+    - brew uses gettext --installed
+    - brew info gettext
     - brew list --formula
     - brew uses awscli --installed
     - brew info awscli
