@@ -41,7 +41,7 @@ source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 
 # Clean up previous builds
-# TODO
+# TODO: rm?
 # sudo rm -rf /opt/datadog-agent ./vendor ./vendor-new /var/cache/omnibus/src/* ./omnibus/Gemfile.lock
 rm -rf ./opt/datadog-agent ./vendor ./vendor-new ./var/cache/omnibus/src/* ./omnibus/Gemfile.lock
 
@@ -68,7 +68,7 @@ fi
 
 echo
 echo "--- CC ---"
-# TODO: Remove
+# TODO: Remove, do it inside a build dir
 rm -rf /tmp/celian
 mkdir -p /tmp/celian/bin /tmp/celian/config
 # echo "Old install dir: $INSTALL_DIR"
