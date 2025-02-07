@@ -106,6 +106,17 @@ func (cp *configPoller) stream(ch chan struct{}, provider providers.StreamingCon
 			if !changes.IsEmpty() {
 				log.Infof("%v provider: collected %d new configurations, removed %d", provider, len(changes.Schedule), len(changes.Unschedule))
 
+				log.Warnf("ECSDEBUG: provider: %v, collected %d new configurations, removed %d", provider, len(changes.Schedule), len(changes.Unschedule))
+				for _, added := range changes.Schedule {
+					log.Warnf("ECSDEBUG: provider: %+v, added: %+v", provider, added)
+					if added.LogsConfig != nil {
+						log.Warnf("ECSDEBUG: provider: %+v, logsConfig in added: %s", provider, string(added.LogsConfig))
+					}
+				}
+				for _, removed := range changes.Unschedule {
+					log.Warnf("ECSDEBUG: provider: %+v, removed: %+v", provider, removed)
+				}
+
 				ac.processRemovedConfigs(changes.Unschedule)
 
 				for _, added := range changes.Schedule {

@@ -38,8 +38,12 @@ func (tf *factory) defaultSourceAndService(source *sources.LogSource, logWhat co
 		)
 	}
 
-	return defaultSourceAndServiceInner(source, logWhat,
+	sourceName, serviceName = defaultSourceAndServiceInner(source, logWhat,
 		getContainer, getServiceNameFromTags)
+
+	log.Warnf("ECSDEBUG: Default source and service: %s, %s", sourceName, serviceName)
+
+	return sourceName, serviceName
 }
 
 // defaultSourceAndServiceInner implements defaultSourceAndService with function
@@ -62,6 +66,7 @@ func defaultSourceAndServiceInner(
 	}
 
 	if serviceName != "" && sourceName != "" {
+		log.Warnf("ECSDEBUG: Service and source already set")
 		return
 	}
 
@@ -78,6 +83,7 @@ func defaultSourceAndServiceInner(
 	}
 
 	if serviceName != "" && sourceName != "" {
+		log.Warnf("ECSDEBUG: Service and source set using tagger")
 		return
 	}
 

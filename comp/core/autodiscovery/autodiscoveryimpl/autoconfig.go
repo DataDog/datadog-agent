@@ -679,6 +679,7 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 	if len(changes.Unschedule) > 0 {
 		for _, conf := range changes.Unschedule {
 			log.Tracef("Unscheduling %s\n", conf.Dump(false))
+			log.Warnf("ECSDEBUG: Unscheduling %s\n", conf.Dump(false))
 			if telemetryStorePresent {
 				ac.telemetryStore.ScheduledConfigs.Dec(conf.Provider, configType(conf))
 			}
@@ -688,6 +689,7 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 	if len(changes.Schedule) > 0 {
 		for _, conf := range changes.Schedule {
 			log.Tracef("Scheduling %s\n", conf.Dump(false))
+			log.Warnf("ECSDEBUG: Scheduling %s\n", conf.Dump(false))
 			if telemetryStorePresent {
 				ac.telemetryStore.ScheduledConfigs.Inc(conf.Provider, configType(conf))
 			}

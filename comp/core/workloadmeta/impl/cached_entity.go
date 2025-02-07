@@ -40,6 +40,9 @@ func (e *cachedEntity) unset(source wmdef.Source) bool {
 }
 
 func (e *cachedEntity) set(source wmdef.Source, entity wmdef.Entity) (found, changed bool) {
+
+	log.Warnf("ECSDEBUG: setting entity in workloadmeta with source %s and ID :%s", source, entity.GetID())
+
 	old, found := e.sources[source]
 
 	if found && reflect.DeepEqual(old, entity) {

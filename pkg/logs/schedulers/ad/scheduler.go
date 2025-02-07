@@ -71,9 +71,11 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		switch {
 		case s.newSources(config):
 			log.Infof("Received a new logs config: %v", configName(config))
+			log.Warnf("ECSDEBUG: AD logs scheduler received a new logs config with name: %v", configName(config))
 			sources, err := CreateSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
+				log.Warnf("ECSDEBUG: AD logs scheduler received a new INVALID logs config with name: %v", configName(config))
 				continue
 			}
 			for _, source := range sources {

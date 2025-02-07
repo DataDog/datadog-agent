@@ -45,6 +45,7 @@ func NewLogSources() *LogSources {
 // notified.
 func (s *LogSources) AddSource(source *LogSource) {
 	log.Tracef("Adding %s", source.Dump(false))
+	log.Warnf("ECSDEBUG: Adding logs source %s", source.Dump(false))
 	s.mu.Lock()
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {

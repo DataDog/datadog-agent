@@ -85,6 +85,8 @@ func (tf *factory) makeTailer(
 	// depending on the result of useFile, prefer either file logging or socket
 	// logging, but fall back to the opposite.
 
+	log.Warnf("ECSDEBUG: useFile: %v", useFile(source))
+
 	switch useFile(source) {
 	case true:
 		t, err := makeFileTailer(source)
@@ -93,6 +95,7 @@ func (tf *factory) makeTailer(
 		}
 		source.Messages.AddMessage("fileTailerError", "The log file tailer could not be made, falling back to socket")
 		log.Warnf("Could not make file tailer for source %s (falling back to socket): %v", source.Name, err)
+		log.Warnf("ECSDEBUG: Could not make file tailer for source %s (falling back to socket): %v", source.Name, err)
 		return makeSocketTailer(source)
 
 	case false:
@@ -102,6 +105,7 @@ func (tf *factory) makeTailer(
 		}
 		source.Messages.AddMessage("socketTailerError", "The socket tailer could not be made, falling back to file")
 		log.Warnf("Could not make socket tailer for source %s (falling back to file): %v", source.Name, err)
+		log.Warnf("ECSDEBUG: Could not make socket tailer for source %s (falling back to file): %v", source.Name, err)
 		return makeFileTailer(source)
 	}
 	return nil, nil // unreachable

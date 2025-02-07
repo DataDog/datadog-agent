@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -108,10 +109,20 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 	if old, found := l.services[svcID]; found {
 		if svc.Equal(old) {
 			log.Tracef("%s received a duplicated service '%s', ignoring", l.name, svc.GetServiceID())
+			adIdentifiers, err := svc.GetADIdentifiers(context.TODO())
+			if err != nil {
+				log.Warnf("ECSDEBUG: Error getting AD identifiers for service %s: %s", svcID, err)
+			}
+			log.Warnf("ECSDEBUG: listener received a duplicated service with ID '%s' and AD identifiers %v, ignoring", svc.GetServiceID(), adIdentifiers)
 			return
 		}
 
 		log.Tracef("%s received an updated service '%s', removing the old one", l.name, svc.GetServiceID())
+		adIdentifiers, err := svc.GetADIdentifiers(context.TODO())
+		if err != nil {
+			log.Warnf("ECSDEBUG: Error getting AD identifiers for service %s: %s", svcID, err)
+		}
+		log.Warnf("ECSDEBUG: listener received an updated service with ID '%s' and ID identifiers %v, removing the old one", svc.GetServiceID(), adIdentifiers)
 		l.delService <- old
 		if l.telemetryStore != nil {
 			l.telemetryStore.WatchedResources.Dec(l.name, kind)
@@ -119,6 +130,13 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 	}
 
 	l.services[svcID] = svc
+
+	adIdentifiers, err := svc.GetADIdentifiers(context.TODO())
+	if err != nil {
+		log.Warnf("ECSDEBUG: Error getting AD identifiers for service %s: %s", svcID, err)
+	}
+	log.Warnf("ECSDEBUG: listener adds new service with ID: %s and AD identifiers: %v", svcID, adIdentifiers)
+
 	l.newService <- svc
 	if l.telemetryStore != nil {
 		l.telemetryStore.WatchedResources.Inc(l.name, kind)
@@ -239,6 +257,7 @@ func (l *workloadmetaListenerImpl) removeService(svcID string) {
 	}
 
 	delete(l.services, svcID)
+	log.Warnf("ECSDEBUG: listener deletes service with ID: %s", svcID)
 	l.delService <- svc
 	if l.telemetryStore != nil {
 		l.telemetryStore.WatchedResources.Dec(l.name, kindFromSvcID(svcID))
