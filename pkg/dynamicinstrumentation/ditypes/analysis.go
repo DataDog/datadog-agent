@@ -395,3 +395,17 @@ type BPFProgram struct {
 	// Used for bpf code generation
 	Probe *Probe
 }
+
+//nolint:all
+func PrintLocationExpressions(expressions []LocationExpression) {
+	for i := range expressions {
+		fmt.Printf("%s %d %d %d %s %s\n",
+			expressions[i].Opcode.String(),
+			expressions[i].Arg1,
+			expressions[i].Arg2,
+			expressions[i].Arg3,
+			expressions[i].Label,
+			expressions[i].CollectionIdentifier,
+		)
+	}
+}

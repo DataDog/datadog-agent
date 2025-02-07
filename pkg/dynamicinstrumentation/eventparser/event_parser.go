@@ -188,7 +188,8 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		}
 		i += 3
 		if newParam.Size == 0 {
-			if reflect.Kind(newParam.Kind) == reflect.Struct {
+			if reflect.Kind(newParam.Kind) == reflect.Struct ||
+				reflect.Kind(newParam.Kind) == reflect.Slice {
 				goto stackCheck
 			}
 			break
