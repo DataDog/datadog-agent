@@ -688,6 +688,39 @@ func testGetDiagnoses(t *testing.T) {
 	assert.Zero(t, len(diagnoses[1].Remediation))
 }
 
+func testConfigureHA(t *testing.T) {
+	rtloader = newMockRtLoaderPtr()
+	defer func() { rtloader = nil }()
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	c, err := NewPythonFakeCheck(senderManager)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	c.class = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+
+	C.get_check_return = 1
+	C.get_check_check = newMockPyObjectPtr()
+	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"val\": 21}"), "test")
+	assert.Nil(t, err)
+	assert.False(t, c.haEnabled)
+
+	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"val\": 21}"), integration.Data("{\"ha_enabled\": true}"), "test")
+	assert.Nil(t, err)
+	assert.True(t, c.haEnabled)
+
+	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"ha_enabled\": false}"), integration.Data("{\"ha_enabled\": true}"), "test")
+	assert.Nil(t, err)
+	assert.False(t, c.haEnabled)
+
+	err = c.Configure(senderManager, integration.FakeConfigHash, integration.Data("{\"ha_enabled\": true}"), integration.Data("{\"val\": 21}"), "test")
+	assert.Nil(t, err)
+	assert.True(t, c.haEnabled)
+}
+
 // NewPythonFakeCheck create a fake PythonCheck
 func NewPythonFakeCheck(senderManager sender.SenderManager) (*PythonCheck, error) {
 	c, err := NewPythonCheck(senderManager, "fake_check", nil)
