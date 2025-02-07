@@ -7,14 +7,15 @@
 package pathteststore
 
 import (
+	"math"
 	"sync"
 	time "time"
+
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 )
-
-var timeNow = time.Now
 
 // PathtestContext contains Pathtest information and additional flush related data
 type PathtestContext struct {
@@ -36,9 +37,23 @@ func (p *PathtestContext) SetLastFlushInterval(lastFlushInterval time.Duration) 
 	p.lastFlushInterval = lastFlushInterval
 }
 
+// Config is the configuration for the PathtestStore
+type Config struct {
+	// ContextsLimit is the maximum number of contexts to keep in the store
+	ContextsLimit int
+	// TTL is the duration a Pathtest should run from discovery.
+	// If a Pathtest is added again before the TTL expires, the TTL is reset to this duration.
+	TTL time.Duration
+	// Interval defines how frequently pathtests should run
+	Interval time.Duration
+	// MaxPerMinute is a "circuit breaker" config that limits pathtests. 0 is unlimited.
+	MaxPerMinute int
+}
+
 // Store is used to accumulate aggregated contexts
 type Store struct {
-	logger log.Component
+	logger       log.Component
+	statsdClient ddgostatsd.ClientInterface
 
 	contexts map[uint64]*PathtestContext
 
@@ -46,22 +61,20 @@ type Store struct {
 	// are called by different routines.
 	contextsMutex sync.Mutex
 
-	// contextsLimit is the maximum number of contexts to keep in the store
-	contextsLimit int
+	config Config
 
-	// interval defines how frequently pathtests should run
-	interval time.Duration
-
-	// ttl is the duration a Pathtest should run from discovery.
-	// If a Pathtest is added again before the TTL expires, the TTL is reset to this duration.
-	ttl time.Duration
+	// lastFlushTime is the last time the store was flushed, used by MaxPerMinute limiting
+	lastFlushTime time.Time
 
 	// lastContextWarning is the last time a warning was logged about the store being full
 	lastContextWarning time.Time
+
+	// structures needed to ease mocking/testing
+	timeNowFn func() time.Time
 }
 
-func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *PathtestContext {
-	now := timeNow()
+func (f *Store) newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *PathtestContext {
+	now := f.timeNowFn()
 	return &PathtestContext{
 		Pathtest: pt,
 		nextRun:  now,
@@ -70,13 +83,14 @@ func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *Pa
 }
 
 // NewPathtestStore creates a new Store
-func NewPathtestStore(pathtestTTL time.Duration, pathtestInterval time.Duration, contextsLimit int, logger log.Component) *Store {
+func NewPathtestStore(config Config, logger log.Component, statsdClient ddgostatsd.ClientInterface, timeNow func() time.Time) *Store {
 	return &Store{
 		contexts:      make(map[uint64]*PathtestContext),
-		ttl:           pathtestTTL,
-		interval:      pathtestInterval,
-		contextsLimit: contextsLimit,
+		config:        config,
 		logger:        logger,
+		statsdClient:  statsdClient,
+		lastFlushTime: timeNow(),
+		timeNowFn:     timeNow,
 	}
 }
 
@@ -96,25 +110,43 @@ func (f *Store) Flush() []*PathtestContext {
 
 	f.logger.Tracef("f.contexts: %+v", f.contexts)
 
-	var pathtestsToFlush []*PathtestContext
-	for key, ptConfigCtx := range f.contexts {
-		now := timeNow()
+	now := f.timeNowFn()
+	elapsed := now.Sub(f.lastFlushTime)
+	f.lastFlushTime = now
 
+	pathtestBudget := math.MaxInt
+	// scale the pathtest budget based on how many minutes passed since the last flush
+	if f.config.MaxPerMinute > 0 {
+		elapsedMinutes := float64(elapsed) / float64(time.Minute)
+		pathtestBudget = int(elapsedMinutes * float64(f.config.MaxPerMinute))
+	}
+
+	for key, ptConfigCtx := range f.contexts {
 		if ptConfigCtx.runUntil.Before(now) {
 			f.logger.Tracef("Delete Pathtest context (key=%d, runUntil=%s, nextRun=%s)", key, ptConfigCtx.runUntil, ptConfigCtx.nextRun)
 			// delete ptConfigCtx wrapper if it reaches runUntil
 			delete(f.contexts, key)
-			continue
+			if ptConfigCtx.lastFlushTime.IsZero() {
+				f.statsdClient.Incr("networkpath.pathteststore.pathtest_never_run", []string{}, 1) //nolint:errcheck
+			}
 		}
+	}
+
+	var pathtestsToFlush []*PathtestContext
+	for _, ptConfigCtx := range f.contexts {
 		if ptConfigCtx.nextRun.After(now) {
 			continue
+		}
+		if len(pathtestsToFlush) >= pathtestBudget {
+			f.statsdClient.Incr("networkpath.pathteststore.pathtest_budget_exceeded", []string{}, 1) //nolint:errcheck
+			break
 		}
 		if !ptConfigCtx.lastFlushTime.IsZero() {
 			ptConfigCtx.lastFlushInterval = now.Sub(ptConfigCtx.lastFlushTime)
 		}
 		ptConfigCtx.lastFlushTime = now
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx)
-		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.interval)
+		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
 	return pathtestsToFlush
 }
@@ -126,10 +158,10 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	f.contextsMutex.Lock()
 	defer f.contextsMutex.Unlock()
 
-	if len(f.contexts) >= f.contextsLimit {
+	if len(f.contexts) >= f.config.ContextsLimit {
 		// only log if it has been 1 minute since the last warning
 		if time.Since(f.lastContextWarning) >= time.Minute {
-			f.logger.Warnf("Pathteststore is full, maximum set to: %d, dropping pathtest: %+v", f.contextsLimit, pathtestToAdd)
+			f.logger.Warnf("Pathteststore is full, maximum set to: %d, dropping pathtest: %+v", f.config.ContextsLimit, pathtestToAdd)
 			f.lastContextWarning = time.Now()
 		}
 		return
@@ -138,10 +170,10 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	hash := pathtestToAdd.GetHash()
 	pathtestCtx, ok := f.contexts[hash]
 	if !ok {
-		f.contexts[hash] = newPathtestContext(pathtestToAdd, f.ttl)
+		f.contexts[hash] = f.newPathtestContext(pathtestToAdd, f.config.TTL)
 		return
 	}
-	pathtestCtx.runUntil = timeNow().Add(f.ttl)
+	pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
 }
 
 // GetContextsCount returns pathtest contexts count

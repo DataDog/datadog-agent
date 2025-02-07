@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 )
 
 type collectorConfigs struct {
@@ -18,9 +19,7 @@ type collectorConfigs struct {
 	maxTTL                       int
 	pathtestInputChanSize        int
 	pathtestProcessingChanSize   int
-	pathtestContextsLimit        int
-	pathtestTTL                  time.Duration
-	pathtestInterval             time.Duration
+	storeConfig                  pathteststore.Config
 	flushInterval                time.Duration
 	reverseDNSEnabled            bool
 	reverseDNSTimeout            time.Duration
@@ -28,7 +27,6 @@ type collectorConfigs struct {
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
-
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
@@ -36,13 +34,16 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
 		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
 		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
-		pathtestContextsLimit:        agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
-		pathtestTTL:                  agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
-		pathtestInterval:             agentConfig.GetDuration("network_path.collector.pathtest_interval"),
-		flushInterval:                agentConfig.GetDuration("network_path.collector.flush_interval"),
-		reverseDNSEnabled:            agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
-		reverseDNSTimeout:            agentConfig.GetDuration("network_path.collector.reverse_dns_enrichment.timeout") * time.Millisecond,
-		networkDevicesNamespace:      agentConfig.GetString("network_devices.namespace"),
+		storeConfig: pathteststore.Config{
+			ContextsLimit: agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
+			TTL:           agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
+			Interval:      agentConfig.GetDuration("network_path.collector.pathtest_interval"),
+			MaxPerMinute:  agentConfig.GetInt("network_path.collector.pathtest_max_per_minute"),
+		},
+		flushInterval:           agentConfig.GetDuration("network_path.collector.flush_interval"),
+		reverseDNSEnabled:       agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
+		reverseDNSTimeout:       agentConfig.GetDuration("network_path.collector.reverse_dns_enrichment.timeout") * time.Millisecond,
+		networkDevicesNamespace: agentConfig.GetString("network_devices.namespace"),
 	}
 }
 

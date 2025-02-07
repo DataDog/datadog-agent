@@ -91,9 +91,10 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs.maxTTL,
 		collectorConfigs.pathtestInputChanSize,
 		collectorConfigs.pathtestProcessingChanSize,
-		collectorConfigs.pathtestContextsLimit,
-		collectorConfigs.pathtestTTL,
-		collectorConfigs.pathtestInterval,
+		collectorConfigs.storeConfig.ContextsLimit,
+		collectorConfigs.storeConfig.TTL,
+		collectorConfigs.storeConfig.Interval,
+		collectorConfigs.storeConfig.MaxPerMinute,
 		collectorConfigs.flushInterval,
 		collectorConfigs.reverseDNSEnabled,
 		collectorConfigs.reverseDNSTimeout,
@@ -105,7 +106,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		rdnsquerier:      rdnsquerier,
 		logger:           logger,
 
-		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, collectorConfigs.pathtestContextsLimit, logger),
+		// pathtestStore is set in start() after statsd.Client is configured
+		pathtestStore:          nil,
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
@@ -194,6 +196,15 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
+
+func (s *npCollectorImpl) initStatsdClient(statsdClient ddgostatsd.ClientInterface) {
+	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
+	// due to statsd.Client not being configured yet.
+	s.statsdClient = statsdClient
+
+	s.pathtestStore = pathteststore.NewPathtestStore(s.collectorConfigs.storeConfig, s.logger, statsdClient, s.TimeNowFn)
+}
+
 func (s *npCollectorImpl) start() error {
 	if s.running {
 		return errors.New("server already started")
@@ -202,10 +213,8 @@ func (s *npCollectorImpl) start() error {
 
 	s.logger.Info("Start NpCollector")
 
-	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
-	// due to statsd.Client not being configured yet.
-	s.metricSender = metricsender.NewMetricSenderStatsd(statsd.Client)
-	s.statsdClient = statsd.Client
+	s.initStatsdClient(statsd.Client)
+	s.metricSender = metricsender.NewMetricSenderStatsd(s.statsdClient)
 
 	go s.listenPathtests()
 	go s.flushLoop()
