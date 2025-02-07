@@ -102,7 +102,7 @@ func (e *EbpfEvent) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfTx{")
 	output.WriteString("Method: '" + Method(e.Http.Request_method).String() + "', ")
-	output.WriteString("Status Code: '" + Method(e.Http.Response_status_code).String() + "', ")
+	output.WriteString("Status Code: '" + strconv.FormatUint(uint64(e.Http.Response_status_code), 10) + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(e.Http.Tags, 16) + "', ")
 	output.WriteString("Started: " + strconv.FormatUint(e.Http.Request_started, 10) + ", ")
 	output.WriteString("Response Last Seen: " + strconv.FormatUint(e.Http.Response_last_seen, 10) + ", ")
