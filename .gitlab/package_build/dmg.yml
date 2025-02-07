@@ -140,9 +140,10 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  extends: .macos_gitlab
-  tags: ["macos:ventura-amd64-test", "specific:true"]
-  # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
+  # TODO
+  # extends: .macos_gitlab
+  # tags: ["macos:ventura-amd64-test", "specific:true"]
+  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
   artifacts:
@@ -152,12 +153,15 @@ new-agent_dmg-x64-a7:
       - /tmp/celian
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
-  # after_script:
-  #   - brew install awscli -fv || true
-  #   - brew install cryptography -fv || true
+  after_script:
+    - brew install awscli -fv || true
+    - brew install cryptography -fv || true
   script:
-    - set -e
-    - !reference [.vault_login]
+    # - set -e
+    - set +e
+    - brew remove --force --ignore-dependencies --formula awscli -v
+    - exit 1
+    # - !reference [.vault_login]
 
     # # Try builder
     # - brew list --formula
