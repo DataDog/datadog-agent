@@ -182,6 +182,7 @@ core,github.com/DataDog/go-libddwaf/v3/internal/log,Apache-2.0,"Copyright 2016-p
 core,github.com/DataDog/go-libddwaf/v3/internal/support,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v3/internal/unsafe,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v3/timer,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-runtime-metrics-internal/pkg/runtimemetrics,Apache-2.0,"Copyright 2024-2024 Datadog, Inc"
 core,github.com/DataDog/go-sqllexer,MIT,"Copyright (c) 2023 Datadog, Inc"
 core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/DataDog/go-tuf/data,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
@@ -670,7 +671,6 @@ core,github.com/aws/aws-sdk-go/private/protocol/rest,Apache-2.0,"Copyright 2014-
 core,github.com/aws/aws-sdk-go/private/protocol/restjson,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ec2,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/service/ec2/ec2iface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ecs,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/lightsail,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/sso,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -1098,6 +1098,7 @@ core,github.com/go-sql-driver/mysql,MPL-2.0,"Aaron Hopkins <go-sql-driver at die
 core,github.com/go-viper/mapstructure/v2,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/go-viper/mapstructure/v2/internal/errors,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
+core,github.com/gobuffalo/flect,MIT,Copyright (c) 2019 Mark Bates
 core,github.com/gobwas/glob,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/compiler,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/match,MIT,Copyright (c) 2016 Sergey Kamardin
@@ -1144,24 +1145,12 @@ core,github.com/gogo/protobuf/protoc-gen-gogo/descriptor,BSD-3-Clause,"Copyright
 core,github.com/gogo/protobuf/sortkeys,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/gogo/protobuf/types,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/golang-jwt/jwt/v5,MIT,Copyright (c) 2012 Dave Grijalva | Copyright (c) 2021 golang-jwt maintainers
-core,github.com/golang/glog,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/glog/internal/logsink,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/glog/internal/stackdump,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/groupcache/lru,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/mock/gomock,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/descriptor,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/internal/gengogrpc,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/jsonpb,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/proto,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/protoc-gen-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/protoc-gen-go/descriptor,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/protoc-gen-go/plugin,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/ptypes/any,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/ptypes/duration,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/empty,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/ptypes/struct,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/ptypes/timestamp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
-core,github.com/golang/protobuf/ptypes/wrappers,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/snappy,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 core,github.com/google/cel-go/cel,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/checker,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -1296,20 +1285,16 @@ core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,Copyright (c) The g
 core,github.com/grpc-ecosystem/go-grpc-middleware/auth,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-middleware/util/metautils,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/codegenerator,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/internal,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/internal/casing,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc. | Copyright 2010 The Go Authors.  All rights reserved"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/descriptor,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/generator,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/httprule,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/internal/gengateway,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/runtime,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
-core,github.com/grpc-ecosystem/grpc-gateway/utilities,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/casing,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc. | Copyright 2010, 2019 The Go Authors.  All rights reserved"
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/codegenerator,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor/apiconfig,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor/openapiconfig,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/generator,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway/internal/gengateway,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/grpc-ecosystem/grpc-gateway/v2/runtime,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/grpc-ecosystem/grpc-gateway/v2/utilities,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/h2non/filetype,MIT,Copyright (c) Tomas Aparicio
@@ -1380,36 +1365,16 @@ core,github.com/jackc/pgx/v5/pgtype,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/pgxpool,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/puddle/v2,MIT,Copyright (c) 2018 Jack Christensen
 core,github.com/jackc/puddle/v2/internal/genstack,MIT,Copyright (c) 2018 Jack Christensen
-core,github.com/jaegertracing/jaeger/cmd/agent/app/configmanager,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/customtransport,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/cmd/agent/app/httpserver,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/processors,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/servers,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/internal/metrics/otelmetrics,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/model,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/model/converter/json,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/model/converter/thrift/jaeger,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/model/converter/thrift/zipkin,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/model/json,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/pkg/distributedlock,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/pkg/healthcheck,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/pkg/metrics,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/pkg/telemetry,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/proto-gen/api_v2,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage/dependencystore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage/metricstore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage/samplingstore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/storage/spanstore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/thrift-gen/agent,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/thrift-gen/baggage,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/thrift-gen/jaeger,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/thrift-gen/sampling,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/thrift-gen/zipkincore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
 core,github.com/jedisct1/go-minisign,MIT,Copyright (c) 2018-2023 Frank Denis
@@ -1696,7 +1661,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinte
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/attraction,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/clientutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/consumerretry,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/parseutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/textutils,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1723,12 +1687,15 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadata
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/docker,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/k8snode,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/kubeadm,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/openshift,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/system,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1797,6 +1764,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operat
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/transformer/unquote,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/pipeline,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/split,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/tokenlen,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/trim,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1844,6 +1812,8 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourc
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/heroku/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/k8snode,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/k8snode/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/kubeadm,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/kubeadm/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/openshift,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/openshift/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2295,6 +2265,7 @@ core,github.com/tidwall/gjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/match,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
 core,github.com/tidwall/sjson,MIT,Copyright (c) 2016 Josh Baker
+core,github.com/tilinna/clock,MIT,Copyright (c) 2018 Timo Linna
 core,github.com/tinylib/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/gen,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
@@ -2611,9 +2582,10 @@ core,go.opentelemetry.io/collector/service/internal/status,Apache-2.0,Copyright 
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/pipelines,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/service/telemetry/internal/otelinit,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/telemetry/internal/migration,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/bridges/otelzap,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/contrib/config,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/config/v0.2.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/config/v0.3.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2627,6 +2599,9 @@ core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/codes,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/transform,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/transform,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3061,6 +3036,7 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/usersec,Apache-2.0
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/waf,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/constants,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/utils,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/utils/telemetry,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/hostname,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
@@ -4026,9 +4002,12 @@ core,k8s.io/kube-state-metrics/v2/pkg/builder,Apache-2.0,Copyright 2014 The Kube
 core,k8s.io/kube-state-metrics/v2/pkg/builder/types,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/constant,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/customresource,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/customresourcestate,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/discovery,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metric,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metric_generator,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/metricshandler,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/options,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/sharding,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.

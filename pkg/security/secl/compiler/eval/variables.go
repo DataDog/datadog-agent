@@ -16,29 +16,31 @@ import (
 	"github.com/jellydator/ttlcache/v3"
 )
 
+const defaultMaxVariables = 100
+
 var (
 	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
 )
 
-// VariableValue describes a SECL variable value
-type VariableValue interface {
+// SECLVariable describes a SECL variable value
+type SECLVariable interface {
 	GetEvaluator() interface{}
 }
 
-// MutableVariable is the interface implemented by modifiable variables
+// MutableVariable is the interface by variables whose value can be changed
 type MutableVariable interface {
 	Set(ctx *Context, value interface{}) error
 	Append(ctx *Context, value interface{}) error
 }
 
-// Variable describes a SECL variable
-type Variable struct {
+// SettableVariable describes a SECL variable
+type SettableVariable struct {
 	setFnc func(ctx *Context, value interface{}) error
 }
 
 // Set the variable with the specified value
-func (v *Variable) Set(ctx *Context, value interface{}) error {
+func (v *SettableVariable) Set(ctx *Context, value interface{}) error {
 	if v.setFnc == nil {
 		return errors.New("variable is not mutable")
 	}
@@ -47,13 +49,13 @@ func (v *Variable) Set(ctx *Context, value interface{}) error {
 }
 
 // Append a value to the variable
-func (v *Variable) Append(_ *Context, _ interface{}) error {
+func (v *SettableVariable) Append(_ *Context, _ interface{}) error {
 	return errAppendNotSupported
 }
 
 // IntVariable describes an integer variable
 type IntVariable struct {
-	Variable
+	SettableVariable
 	intFnc func(ctx *Context) int
 }
 
@@ -66,10 +68,15 @@ func (i *IntVariable) GetEvaluator() interface{} {
 	}
 }
 
+// Get returns the variable value
+func (i *IntVariable) Get(ctx *Context) interface{} {
+	return i.intFnc(ctx)
+}
+
 // NewIntVariable returns a new integer variable
 func NewIntVariable(intFnc func(ctx *Context) int, setFnc func(ctx *Context, value interface{}) error) *IntVariable {
 	return &IntVariable{
-		Variable: Variable{
+		SettableVariable: SettableVariable{
 			setFnc: setFnc,
 		},
 		intFnc: intFnc,
@@ -78,7 +85,7 @@ func NewIntVariable(intFnc func(ctx *Context) int, setFnc func(ctx *Context, val
 
 // StringVariable describes a string variable
 type StringVariable struct {
-	Variable
+	SettableVariable
 	strFnc func(ctx *Context) string
 }
 
@@ -92,11 +99,16 @@ func (s *StringVariable) GetEvaluator() interface{} {
 	}
 }
 
+// Get returns the variable value
+func (s *StringVariable) Get(ctx *Context) interface{} {
+	return s.strFnc(ctx)
+}
+
 // NewStringVariable returns a new string variable
 func NewStringVariable(strFnc func(ctx *Context) string, setFnc func(ctx *Context, value interface{}) error) *StringVariable {
 	return &StringVariable{
 		strFnc: strFnc,
-		Variable: Variable{
+		SettableVariable: SettableVariable{
 			setFnc: setFnc,
 		},
 	}
@@ -104,8 +116,13 @@ func NewStringVariable(strFnc func(ctx *Context) string, setFnc func(ctx *Contex
 
 // BoolVariable describes a boolean variable
 type BoolVariable struct {
-	Variable
+	SettableVariable
 	boolFnc func(ctx *Context) bool
+}
+
+// Get returns the variable value
+func (b *BoolVariable) Get(ctx *Context) interface{} {
+	return b.boolFnc(ctx)
 }
 
 // GetEvaluator returns the variable SECL evaluator
@@ -121,7 +138,7 @@ func (b *BoolVariable) GetEvaluator() interface{} {
 func NewBoolVariable(boolFnc func(ctx *Context) bool, setFnc func(ctx *Context, value interface{}) error) *BoolVariable {
 	return &BoolVariable{
 		boolFnc: boolFnc,
-		Variable: Variable{
+		SettableVariable: SettableVariable{
 			setFnc: setFnc,
 		},
 	}
@@ -129,7 +146,7 @@ func NewBoolVariable(boolFnc func(ctx *Context) bool, setFnc func(ctx *Context, 
 
 // StringArrayVariable describes a string array variable
 type StringArrayVariable struct {
-	Variable
+	SettableVariable
 	strFnc func(ctx *Context) []string
 }
 
@@ -140,24 +157,36 @@ func (s *StringArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
+// Get returns the variable value
+func (s *StringArrayVariable) Get(ctx *Context) interface{} {
+	return s.strFnc(ctx)
+}
+
 // Set the array values
 func (s *StringArrayVariable) Set(ctx *Context, value interface{}) error {
 	if s, ok := value.(string); ok {
 		value = []string{s}
 	}
-	return s.Variable.Set(ctx, value)
+	return s.SettableVariable.Set(ctx, value)
 }
 
 // Append a value to the array
 func (s *StringArrayVariable) Append(ctx *Context, value interface{}) error {
-	return s.Set(ctx, append(s.strFnc(ctx), value.([]string)...))
+	switch value := value.(type) {
+	case string:
+		return s.Set(ctx, append(s.strFnc(ctx), value))
+	case []string:
+		return s.Set(ctx, append(s.strFnc(ctx), value...))
+	default:
+		return fmt.Errorf("cannot append '%s' to string array", reflect.TypeOf(value).Name())
+	}
 }
 
 // NewStringArrayVariable returns a new string array variable
 func NewStringArrayVariable(strFnc func(ctx *Context) []string, setFnc func(ctx *Context, value interface{}) error) *StringArrayVariable {
 	return &StringArrayVariable{
 		strFnc: strFnc,
-		Variable: Variable{
+		SettableVariable: SettableVariable{
 			setFnc: setFnc,
 		},
 	}
@@ -165,237 +194,43 @@ func NewStringArrayVariable(strFnc func(ctx *Context) []string, setFnc func(ctx 
 
 // IntArrayVariable describes an integer array variable
 type IntArrayVariable struct {
-	Variable
+	SettableVariable
 	intFnc func(ctx *Context) []int
 }
 
 // GetEvaluator returns the variable SECL evaluator
-func (s *IntArrayVariable) GetEvaluator() interface{} {
+func (v *IntArrayVariable) GetEvaluator() interface{} {
 	return &IntArrayEvaluator{
-		EvalFnc: s.intFnc,
+		EvalFnc: v.intFnc,
 	}
+}
+
+// Get returns the variable value
+func (v *IntArrayVariable) Get(ctx *Context) interface{} {
+	return v.intFnc(ctx)
 }
 
 // Set the array values
-func (s *IntArrayVariable) Set(ctx *Context, value interface{}) error {
+func (v *IntArrayVariable) Set(ctx *Context, value interface{}) error {
 	if i, ok := value.(int); ok {
 		value = []int{i}
 	}
-	return s.Variable.Set(ctx, value)
+	return v.SettableVariable.Set(ctx, value)
 }
 
 // Append a value to the array
-func (s *IntArrayVariable) Append(ctx *Context, value interface{}) error {
-	return s.Set(ctx, append(s.intFnc(ctx), value.([]int)...))
+func (v *IntArrayVariable) Append(ctx *Context, value interface{}) error {
+	return v.Set(ctx, append(v.intFnc(ctx), value.([]int)...))
 }
 
 // NewIntArrayVariable returns a new integer array variable
 func NewIntArrayVariable(intFnc func(ctx *Context) []int, setFnc func(ctx *Context, value interface{}) error) *IntArrayVariable {
 	return &IntArrayVariable{
 		intFnc: intFnc,
-		Variable: Variable{
+		SettableVariable: SettableVariable{
 			setFnc: setFnc,
 		},
 	}
-}
-
-// MutableIntVariable describes a mutable integer variable
-type MutableIntVariable struct {
-	Value int
-}
-
-// Set the variable with the specified value
-func (m *MutableIntVariable) Set(_ *Context, value interface{}) error {
-	m.Value = value.(int)
-	return nil
-}
-
-// Append a value to the integer
-func (m *MutableIntVariable) Append(_ *Context, value interface{}) error {
-	switch value := value.(type) {
-	case int:
-		m.Value += value
-	default:
-		return errAppendNotSupported
-	}
-	return nil
-}
-
-// GetEvaluator returns the variable SECL evaluator
-func (m *MutableIntVariable) GetEvaluator() interface{} {
-	return &IntEvaluator{
-		EvalFnc: func(*Context) int {
-			return m.Value
-		},
-	}
-}
-
-// NewMutableIntVariable returns a new mutable integer variable
-func NewMutableIntVariable() *MutableIntVariable {
-	return &MutableIntVariable{}
-}
-
-// MutableBoolVariable describes a mutable boolean variable
-type MutableBoolVariable struct {
-	Value bool
-}
-
-// GetEvaluator returns the variable SECL evaluator
-func (m *MutableBoolVariable) GetEvaluator() interface{} {
-	return &BoolEvaluator{
-		EvalFnc: func(*Context) bool {
-			return m.Value
-		},
-	}
-}
-
-// Set the variable with the specified value
-func (m *MutableBoolVariable) Set(_ *Context, value interface{}) error {
-	m.Value = value.(bool)
-	return nil
-}
-
-// Append a value to the boolean
-func (m *MutableBoolVariable) Append(_ *Context, _ interface{}) error {
-	return errAppendNotSupported
-}
-
-// NewMutableBoolVariable returns a new mutable boolean variable
-func NewMutableBoolVariable() *MutableBoolVariable {
-	return &MutableBoolVariable{}
-}
-
-// MutableStringVariable describes a mutable string variable
-type MutableStringVariable struct {
-	Value string
-}
-
-// GetEvaluator returns the variable SECL evaluator
-func (m *MutableStringVariable) GetEvaluator() interface{} {
-	return &StringEvaluator{
-		ValueType: VariableValueType,
-		EvalFnc: func(_ *Context) string {
-			return m.Value
-		},
-	}
-}
-
-// Append a value to the string
-func (m *MutableStringVariable) Append(_ *Context, value interface{}) error {
-	switch value := value.(type) {
-	case string:
-		m.Value += value
-	default:
-		return errAppendNotSupported
-	}
-	return nil
-}
-
-// Set the variable with the specified value
-func (m *MutableStringVariable) Set(_ *Context, value interface{}) error {
-	m.Value = value.(string)
-	return nil
-}
-
-// NewMutableStringVariable returns a new mutable string variable
-func NewMutableStringVariable() *MutableStringVariable {
-	return &MutableStringVariable{}
-}
-
-// MutableStringArrayVariable describes a mutable string array variable
-type MutableStringArrayVariable struct {
-	LRU *ttlcache.Cache[string, bool]
-}
-
-// Set the variable with the specified value
-func (m *MutableStringArrayVariable) Set(_ *Context, values interface{}) error {
-	if s, ok := values.(string); ok {
-		values = []string{s}
-	}
-
-	for _, v := range values.([]string) {
-		m.LRU.Set(v, true, ttlcache.DefaultTTL)
-	}
-	return nil
-}
-
-// Append a value to the array
-func (m *MutableStringArrayVariable) Append(_ *Context, value interface{}) error {
-	switch value := value.(type) {
-	case string:
-		m.LRU.Set(value, true, ttlcache.DefaultTTL)
-	case []string:
-		for _, v := range value {
-			m.LRU.Set(v, true, ttlcache.DefaultTTL)
-		}
-	default:
-		return errAppendNotSupported
-	}
-	return nil
-}
-
-// GetEvaluator returns the variable SECL evaluator
-func (m *MutableStringArrayVariable) GetEvaluator() interface{} {
-	return &StringArrayEvaluator{
-		EvalFnc: func(*Context) []string {
-			return m.LRU.Keys()
-		},
-	}
-}
-
-// NewMutableStringArrayVariable returns a new mutable string array variable
-func NewMutableStringArrayVariable(size int, ttl time.Duration) *MutableStringArrayVariable {
-	if size == 0 {
-		size = defaultMaxVariables
-	}
-
-	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
-	go lru.Start()
-
-	return &MutableStringArrayVariable{
-		LRU: lru,
-	}
-}
-
-// MutableIntArrayVariable describes a mutable integer array variable
-type MutableIntArrayVariable struct {
-	Values []int
-}
-
-// Set the variable with the specified value
-func (m *MutableIntArrayVariable) Set(_ *Context, values interface{}) error {
-	if i, ok := values.(int); ok {
-		values = []int{i}
-	}
-	m.Values = values.([]int)
-	return nil
-}
-
-// Append a value to the array
-func (m *MutableIntArrayVariable) Append(_ *Context, value interface{}) error {
-	switch value := value.(type) {
-	case int:
-		m.Values = append(m.Values, value)
-	case []int:
-		m.Values = append(m.Values, value...)
-	default:
-		return errAppendNotSupported
-	}
-	return nil
-}
-
-// GetEvaluator returns the variable SECL evaluator
-func (m *MutableIntArrayVariable) GetEvaluator() interface{} {
-	return &IntArrayEvaluator{
-		EvalFnc: func(*Context) []int {
-			return m.Values
-		},
-	}
-}
-
-// NewMutableIntArrayVariable returns a new mutable integer array variable
-func NewMutableIntArrayVariable() *MutableIntArrayVariable {
-	return &MutableIntArrayVariable{}
 }
 
 // ScopedVariable is the interface to be implemented by scoped variable in order to be released
@@ -406,46 +241,29 @@ type ScopedVariable interface {
 // Scoper maps a variable to the entity its scoped to
 type Scoper func(ctx *Context) ScopedVariable
 
-// GlobalVariables holds a set of global variables
-type GlobalVariables struct{}
-
 // VariableOpts holds the options of a variable set
 type VariableOpts struct {
 	Size int
 	TTL  time.Duration
 }
 
-// GetVariable returns new variable of the type of the specified value
-func (v *GlobalVariables) GetVariable(_ string, value interface{}, opts VariableOpts) (VariableValue, error) {
-	switch value := value.(type) {
-	case bool:
-		return NewMutableBoolVariable(), nil
-	case int:
-		return NewMutableIntVariable(), nil
-	case string:
-		return NewMutableStringVariable(), nil
-	case []string:
-		return NewMutableStringArrayVariable(opts.Size, opts.TTL), nil
-	case []int:
-		return NewMutableIntArrayVariable(), nil
-	default:
-		return nil, fmt.Errorf("unsupported value type: %s", reflect.TypeOf(value))
+// NamedVariables holds a set of named variables
+type NamedVariables struct {
+	lru  *ttlcache.Cache[string, interface{}]
+	ttl  time.Duration
+	size int
+}
+
+// NewNamedVariables returns a new set of named variables
+func NewNamedVariables(opts VariableOpts) *NamedVariables {
+	return &NamedVariables{
+		size: opts.Size,
+		ttl:  opts.TTL,
 	}
 }
 
-// Variables holds a set of variables
-type Variables struct {
-	lru *ttlcache.Cache[string, interface{}]
-	ttl time.Duration
-}
-
-// NewVariables returns a new set of variables
-func NewVariables() *Variables {
-	return &Variables{}
-}
-
 // GetBool returns the boolean value of the specified variable
-func (v *Variables) GetBool(name string) bool {
+func (v *NamedVariables) GetBool(name string) bool {
 	var bval bool
 	if item := v.lru.Get(name); item != nil {
 		bval, _ = item.Value().(bool)
@@ -454,7 +272,7 @@ func (v *Variables) GetBool(name string) bool {
 }
 
 // GetInt returns the integer value of the specified variable
-func (v *Variables) GetInt(name string) int {
+func (v *NamedVariables) GetInt(name string) int {
 	var ival int
 	if item := v.lru.Get(name); item != nil {
 		ival, _ = item.Value().(int)
@@ -463,7 +281,7 @@ func (v *Variables) GetInt(name string) int {
 }
 
 // GetString returns the string value of the specified variable
-func (v *Variables) GetString(name string) string {
+func (v *NamedVariables) GetString(name string) string {
 	var sval string
 	if item := v.lru.Get(name); item != nil {
 		sval, _ = item.Value().(string)
@@ -472,7 +290,7 @@ func (v *Variables) GetString(name string) string {
 }
 
 // GetStringArray returns the string array value of the specified variable
-func (v *Variables) GetStringArray(name string) []string {
+func (v *NamedVariables) GetStringArray(name string) []string {
 	var slval []string
 	if item := v.lru.Get(name); item != nil {
 		slval, _ = item.Value().([]string)
@@ -481,7 +299,7 @@ func (v *Variables) GetStringArray(name string) []string {
 }
 
 // GetIntArray returns the integer array value of the specified variable
-func (v *Variables) GetIntArray(name string) []int {
+func (v *NamedVariables) GetIntArray(name string) []int {
 	var ilval []int
 	if item := v.lru.Get(name); item != nil {
 		ilval, _ = item.Value().([]int)
@@ -489,13 +307,24 @@ func (v *Variables) GetIntArray(name string) []int {
 	return ilval
 }
 
-const defaultMaxVariables = 100
+func (v *NamedVariables) newLRU() *ttlcache.Cache[string, interface{}] {
+	maxSize := v.size
+	if maxSize == 0 {
+		maxSize = defaultMaxVariables
+	}
+
+	lru := ttlcache.New(
+		ttlcache.WithCapacity[string, interface{}](uint64(maxSize)),
+		ttlcache.WithTTL[string, interface{}](v.ttl),
+	)
+	return lru
+}
 
 // Set the value of the specified variable
-func (v *Variables) Set(name string, value interface{}) bool {
+func (v *NamedVariables) Set(name string, value interface{}) bool {
 	existed := false
 	if v.lru == nil {
-		v.lru = ttlcache.New(ttlcache.WithCapacity[string, interface{}](uint64(defaultMaxVariables)), ttlcache.WithTTL[string, interface{}](v.ttl))
+		v.lru = v.newLRU()
 		go v.lru.Start()
 	} else {
 		existed = v.lru.Get(name) != nil
@@ -505,10 +334,17 @@ func (v *Variables) Set(name string, value interface{}) bool {
 	return !existed
 }
 
+// Stop the underlying ttl lru
+func (v *NamedVariables) Stop() {
+	if v.lru != nil {
+		v.lru.Stop()
+	}
+}
+
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
 	scoper Scoper
-	vars   map[ScopedVariable]*Variables
+	vars   map[ScopedVariable]*NamedVariables
 }
 
 // Len returns the length of the variable map
@@ -516,9 +352,9 @@ func (v *ScopedVariables) Len() int {
 	return len(v.vars)
 }
 
-// GetVariable returns new variable of the type of the specified value
-func (v *ScopedVariables) GetVariable(name string, value interface{}, _ VariableOpts) (VariableValue, error) {
-	getVariables := func(ctx *Context) *Variables {
+// NewSECLVariable returns new variable of the type of the specified value
+func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
+	getVariables := func(ctx *Context) *NamedVariables {
 		v := v.vars[v.scoper(ctx)]
 		return v
 	}
@@ -533,7 +369,7 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}, _ Variable
 			key.AppendReleaseCallback(func() {
 				v.ReleaseVariable(key)
 			})
-			vars = NewVariables()
+			vars = NewNamedVariables(opts)
 			v.vars[key] = vars
 		}
 		vars.Set(name, value)
@@ -584,13 +420,16 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}, _ Variable
 
 // ReleaseVariable releases a scoped variable
 func (v *ScopedVariables) ReleaseVariable(key ScopedVariable) {
-	delete(v.vars, key)
+	if variables, ok := v.vars[key]; ok {
+		variables.Stop()
+		delete(v.vars, key)
+	}
 }
 
 // NewScopedVariables returns a new set of scope variables
 func NewScopedVariables(scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
 		scoper: scoper,
-		vars:   make(map[ScopedVariable]*Variables),
+		vars:   make(map[ScopedVariable]*NamedVariables),
 	}
 }

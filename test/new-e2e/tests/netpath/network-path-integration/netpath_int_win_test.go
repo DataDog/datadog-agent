@@ -38,11 +38,17 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 
 func (s *windowsNetworkPathIntegrationTestSuite) TestWindowsNetworkPathIntegrationMetrics() {
 	fakeIntake := s.Env().FakeIntake
+	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		assertMetrics(fakeIntake, c, [][]string{
 			testAgentRunningMetricTagsTCP,
 			// TODO: Test UDP once implemented for windows, uncomment line below
 			//testAgentRunningMetricTagsUDP,
 		})
+
+		s.checkDatadogEUTCP(c, hostname)
+		// TODO: Test UDP once implemented for windows, uncomment line below
+		// s.checkGoogleDNSUDP(c, hostname)
+
 	}, 5*time.Minute, 3*time.Second)
 }

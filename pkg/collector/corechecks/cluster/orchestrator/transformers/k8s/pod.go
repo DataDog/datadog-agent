@@ -14,6 +14,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	jsoniter "github.com/json-iterator/go"
@@ -30,7 +33,7 @@ const (
 
 // ExtractPod returns the protobuf model corresponding to a Kubernetes Pod
 // resource.
-func ExtractPod(p *corev1.Pod) *model.Pod {
+func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
 	podModel := model.Pod{
 		Metadata: extractMetadata(&p.ObjectMeta),
 	}
@@ -80,6 +83,9 @@ func ExtractPod(p *corev1.Pod) *model.Pod {
 			PreferredDuringSchedulingIgnoredDuringExecution: convertPreferredSchedulingTerm(p.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution),
 		}
 	}
+
+	pctx := ctx.(*processors.K8sProcessorContext)
+	podModel.Tags = append(podModel.Tags, transformers.RetrieveMetadataTags(p.ObjectMeta.Labels, p.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &podModel
 }
@@ -153,7 +159,11 @@ func extractPodResourceRequirements(containers []corev1.Container, initContainer
 	}
 
 	for _, c := range initContainers {
-		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_initContainer); modelReq != nil {
+		resourceRequirementType := model.ResourceRequirementsType_initContainer
+		if c.RestartPolicy != nil && *c.RestartPolicy == corev1.ContainerRestartPolicyAlways {
+			resourceRequirementType = model.ResourceRequirementsType_nativeSidecar
+		}
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, resourceRequirementType); modelReq != nil {
 			resReq = append(resReq, modelReq)
 		}
 	}

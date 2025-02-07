@@ -16,6 +16,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
@@ -65,6 +66,26 @@ type systemContext struct {
 
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
+
+	// telemetry holds telemetry elements for the context
+	telemetry *contextTelemetry
+
+	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
+	fatbinTelemetry *fatbinTelemetry
+}
+
+// contextTelemetry holds telemetry elements for the context
+type contextTelemetry struct {
+	symbolCacheSize telemetry.Gauge
+	activePIDs      telemetry.Gauge
+}
+
+// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
+type fatbinTelemetry struct {
+	readErrors     telemetry.Counter
+	fatbinPayloads telemetry.Counter
+	kernelsPerFile telemetry.Histogram
+	kernelSizes    telemetry.Histogram
 }
 
 // symbolsEntry embeds cuda.Symbols adding a field for keeping track of the last
@@ -78,7 +99,7 @@ func (e *symbolsEntry) updateLastUsedTime() {
 	e.lastUsedTime = time.Now()
 }
 
-func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component) (*systemContext, error) {
+func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
 	ctx := &systemContext{
 		deviceSmVersions:          make(map[int]int),
 		cudaSymbols:               make(map[string]*symbolsEntry),
@@ -88,6 +109,8 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		visibleDevicesCache:       make(map[int][]nvml.Device),
 		workloadmeta:              wmeta,
+		telemetry:                 newContextTelemetry(tm),
+		fatbinTelemetry:           newfatbinTelemetry(tm),
 	}
 
 	if err := ctx.fillDeviceInfo(); err != nil {
@@ -106,6 +129,26 @@ func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmet
 	}
 
 	return ctx, nil
+}
+
+func newContextTelemetry(tm telemetry.Component) *contextTelemetry {
+	subsystem := gpuTelemetryModule + "__context"
+
+	return &contextTelemetry{
+		symbolCacheSize: tm.NewGauge(subsystem, "symbol_cache_size", nil, "Number of CUDA symbols in the cache"),
+		activePIDs:      tm.NewGauge(subsystem, "active_pids", nil, "Number of active PIDs being monitored"),
+	}
+}
+
+func newfatbinTelemetry(tm telemetry.Component) *fatbinTelemetry {
+	subsystem := gpuTelemetryModule + "__fatbin_parser"
+
+	return &fatbinTelemetry{
+		readErrors:     tm.NewCounter(subsystem, "read_errors", nil, "Number of errors reading fatbin data"),
+		fatbinPayloads: tm.NewCounter(subsystem, "fatbin_payloads", []string{"compression"}, "Number of fatbin payloads read"),
+		kernelsPerFile: tm.NewHistogram(subsystem, "kernels_per_file", nil, "Number of kernels per fatbin file", []float64{5, 10, 50, 100, 500}),
+		kernelSizes:    tm.NewHistogram(subsystem, "kernel_sizes", nil, "Size of kernels in bytes", []float64{100, 1000, 10000, 100000, 1000000, 10000000}),
+	}
 }
 
 func getDeviceSmVersion(device nvml.Device) (int, error) {
@@ -146,12 +189,23 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 
 	data, err := cuda.GetSymbols(path)
 	if err != nil {
+		ctx.fatbinTelemetry.readErrors.Inc()
 		return nil, fmt.Errorf("error getting file data: %w", err)
+	}
+
+	ctx.fatbinTelemetry.fatbinPayloads.Add(float64(data.Fatbin.CompressedPayloads), "compressed")
+	ctx.fatbinTelemetry.fatbinPayloads.Add(float64(data.Fatbin.UncompressedPayloads), "uncompressed")
+	ctx.fatbinTelemetry.kernelsPerFile.Observe(float64(data.Fatbin.NumKernels()))
+
+	for kernel := range data.Fatbin.GetKernels() {
+		ctx.fatbinTelemetry.kernelsPerFile.Observe(float64(kernel.KernelSize))
 	}
 
 	wrapper := &symbolsEntry{Symbols: data}
 	wrapper.updateLastUsedTime()
 	ctx.cudaSymbols[path] = wrapper
+
+	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
 
 	return wrapper, nil
 }
@@ -184,6 +238,7 @@ func (ctx *systemContext) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, erro
 	}
 
 	ctx.pidMaps[pid] = maps
+	ctx.telemetry.activePIDs.Set(float64(len(ctx.pidMaps)))
 	return maps, nil
 }
 
@@ -192,6 +247,8 @@ func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.pidMaps, pid)
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
+
+	ctx.telemetry.activePIDs.Set(float64(len(ctx.pidMaps)))
 }
 
 // cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
@@ -205,6 +262,8 @@ func (ctx *systemContext) cleanupOldEntries() {
 			delete(ctx.cudaSymbols, path)
 		}
 	}
+
+	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
 }
 
 // filterDevicesForContainer filters the available GPU devices for the given
@@ -232,11 +291,14 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 	}
 
 	var filteredDevices []nvml.Device
+	numContainerGPUs := 0
 	for _, resource := range container.AllocatedResources {
 		// Only consider NVIDIA GPUs
 		if resource.Name != nvidiaResourceName {
 			continue
 		}
+
+		numContainerGPUs++
 
 		for _, device := range devices {
 			uuid, ret := device.GetUUID()
@@ -252,12 +314,31 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 		}
 	}
 
-	// We didn't find any devices assigned to the container, report it as an error.
-	if len(filteredDevices) == 0 {
-		return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
+	// Found matching devices, return them
+	if len(filteredDevices) > 0 {
+		return filteredDevices, nil
 	}
 
-	return filteredDevices, nil
+	// We didn't match any devices to the container. This could be caused by
+	// multiple reasons. One option is that the container has no GPUs assigned
+	// to it. This could be a problem in the PodResources API.
+	if numContainerGPUs == 0 {
+		// An special case is when we only have one GPU in the system. In that
+		// case, we don't need the API as there's only one device available, so
+		// return it directly as a fallback
+		if len(devices) == 1 {
+			return devices, nil
+		}
+
+		// If we have more than one GPU, we need to return an error as we can't
+		// determine which device to use.
+		return nil, fmt.Errorf("container %s has no GPUs assigned to it, check whether we have access to the PodResources kubelet API", containerID)
+	}
+
+	// If the container has GPUs assigned to it but we couldn't match it to our
+	// devices, return the error for this case and show the allocated resources
+	// for debugging purposes.
+	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the

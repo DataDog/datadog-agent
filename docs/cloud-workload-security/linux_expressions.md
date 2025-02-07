@@ -38,7 +38,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chown` | File | A file’s owner was changed | 7.27 |
 | `connect` | Network | A connect was executed | 7.60 |
 | `dns` | Network | A DNS request was sent | 7.36 |
-| `exec` | Process | A process was executed or forked | 7.27 |
+| `exec` | Process | A process was executed (does not trigger on fork syscalls). | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
 | `imds` | Network | An IMDS event was captured | 7.55 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
@@ -47,8 +47,9 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `mmap` | Kernel | A mmap command was executed | 7.35 |
 | `mount` | File | [Experimental] A filesystem was mounted | 7.42 |
 | `mprotect` | Kernel | A mprotect command was executed | 7.35 |
+| `network_flow_monitor` | Network | A network monitor event was sent | 7.63 |
 | `open` | File | A file was opened | 7.27 |
-| `packet` | Network | A raw network packet captured | 7.60 |
+| `packet` | Network | A raw network packet was captured | 7.60 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
@@ -563,6 +564,7 @@ A DNS request was sent
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
 | [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
@@ -570,7 +572,7 @@ A DNS request was sent
 
 ### Event `exec`
 
-A process was executed or forked
+A process was executed (does not trigger on fork syscalls).
 
 | Property | Definition |
 | -------- | ------------- |
@@ -769,6 +771,7 @@ An IMDS event was captured
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
 | [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
@@ -946,6 +949,27 @@ A mprotect command was executed
 | [`mprotect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`mprotect.vm_protection`](#mprotect-vm_protection-doc) | initial memory segment protection |
 
+### Event `network_flow_monitor`
+
+A network monitor event was sent
+
+| Property | Definition |
+| -------- | ------------- |
+| [`network_flow_monitor.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network_flow_monitor.flows.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network_flow_monitor.flows.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`network_flow_monitor.flows.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network_flow_monitor.flows.egress.data_size`](#common-networkstats-data_size-doc) | Amount of data transmitted or received |
+| [`network_flow_monitor.flows.egress.packet_count`](#common-networkstats-packet_count-doc) | Count of network packets transmitted or received |
+| [`network_flow_monitor.flows.ingress.data_size`](#common-networkstats-data_size-doc) | Amount of data transmitted or received |
+| [`network_flow_monitor.flows.ingress.packet_count`](#common-networkstats-packet_count-doc) | Count of network packets transmitted or received |
+| [`network_flow_monitor.flows.l3_protocol`](#network_flow_monitor-flows-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network_flow_monitor.flows.l4_protocol`](#network_flow_monitor-flows-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network_flow_monitor.flows.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`network_flow_monitor.flows.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network_flow_monitor.flows.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
+| [`network_flow_monitor.flows.source.port`](#common-ipportcontext-port-doc) | Port number |
+
 ### Event `open`
 
 A file was opened
@@ -981,7 +1005,7 @@ A file was opened
 
 ### Event `packet`
 
-A raw network packet captured
+A raw network packet was captured
 
 | Property | Definition |
 | -------- | ------------- |
@@ -992,6 +1016,7 @@ A raw network packet captured
 | [`packet.filter`](#packet-filter-doc) | pcap filter expression |
 | [`packet.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`packet.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
 | [`packet.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`packet.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`packet.source.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
@@ -1958,6 +1983,15 @@ Definition: Timestamp of the creation of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.data_size` {#common-networkstats-data_size-doc}
+Type: int
+
+Definition: Amount of data transmitted or received
+
+`*.data_size` has 2 possible prefixes:
+`network_flow_monitor.flows.egress` `network_flow_monitor.flows.ingress`
+
+
 ### `*.egid` {#common-credentials-egid-doc}
 Type: int
 
@@ -2143,8 +2177,8 @@ Type: string
 
 Definition: Interface ifname
 
-`*.ifname` has 2 possible prefixes:
-`network.device` `packet.device`
+`*.ifname` has 3 possible prefixes:
+`network.device` `network_flow_monitor.device` `packet.device`
 
 
 ### `*.in_upper_layer` {#common-filefields-in_upper_layer-doc}
@@ -2170,8 +2204,8 @@ Type: IP/CIDR
 
 Definition: IP address
 
-`*.ip` has 7 possible prefixes:
-`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.ip` has 9 possible prefixes:
+`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
 ### `*.is_exec` {#common-process-is_exec-doc}
@@ -2197,8 +2231,8 @@ Type: bool
 
 Definition: Whether the IP address belongs to a public network
 
-`*.is_public` has 7 possible prefixes:
-`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.is_public` has 9 possible prefixes:
+`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
 ### `*.is_thread` {#common-process-is_thread-doc}
@@ -2266,8 +2300,8 @@ Type: int
 
 Definition: Length of the corresponding element
 
-`*.length` has 82 possible prefixes:
-`chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 83 possible prefixes:
+`chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
 ### `*.manager` {#common-cgroupcontext-manager-doc}
@@ -2327,6 +2361,18 @@ exec.file.name == "apt"
 
 Matches the execution of any file named apt.
 
+### `*.network_direction` {#common-networkcontext-network_direction-doc}
+Type: int
+
+Definition: Network direction of the network packet
+
+`*.network_direction` has 2 possible prefixes:
+`network` `packet`
+
+Constants: [Network directions](#network-directions)
+
+
+
 ### `*.package.name` {#common-fileevent-package-name-doc}
 Type: string
 
@@ -2352,6 +2398,15 @@ Definition: [Experimental] Full version of the package that provided this file
 
 `*.package.version` has 39 possible prefixes:
 `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.packet_count` {#common-networkstats-packet_count-doc}
+Type: int
+
+Definition: Count of network packets transmitted or received
+
+`*.packet_count` has 2 possible prefixes:
+`network_flow_monitor.flows.egress` `network_flow_monitor.flows.ingress`
 
 
 ### `*.path` {#common-fileevent-path-doc}
@@ -2394,8 +2449,8 @@ Type: int
 
 Definition: Port number
 
-`*.port` has 7 possible prefixes:
-`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `packet.destination` `packet.source`
+`*.port` has 9 possible prefixes:
+`accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
 ### `*.ppid` {#common-process-ppid-doc}
@@ -3092,6 +3147,26 @@ Definition: initial memory segment protection
 
 
 Constants: [Virtual Memory flags](#virtual-memory-flags)
+
+
+
+### `network_flow_monitor.flows.l3_protocol` {#network_flow_monitor-flows-l3_protocol-doc}
+Type: int
+
+Definition: L3 protocol of the network packet
+
+
+Constants: [L3 protocols](#l3-protocols)
+
+
+
+### `network_flow_monitor.flows.l4_protocol` {#network_flow_monitor-flows-l4_protocol-doc}
+Type: int
+
+Definition: L4 protocol of the network packet
+
+
+Constants: [L4 protocols](#l4-protocols)
 
 
 
@@ -4279,6 +4354,14 @@ Network Address Family constants are the supported network address families.
 | `AF_SMC` | all |
 | `AF_XDP` | all |
 | `AF_MAX` | all |
+
+### `Network directions` {#network-directions}
+Network directions are the supported directions of network packets.
+
+| Name | Architectures |
+| ---- |---------------|
+| `INGRESS` | all |
+| `EGRESS` | all |
 
 ### `Open flags` {#open-flags}
 Open flags are the supported flags for the open syscall.

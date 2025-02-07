@@ -21,6 +21,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,20 +64,27 @@ type TracerSuite struct {
 	suite.Suite
 }
 
+func SupportedNetworkBuildModes() []ebpftest.BuildMode {
+	modes := ebpftest.SupportedBuildModes()
+	if !slices.Contains(modes, ebpftest.Ebpfless) {
+		modes = append(modes, ebpftest.Ebpfless)
+	}
+	return modes
+}
+
 func TestTracerSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, ebpftest.SupportedBuildModes(), "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, SupportedNetworkBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(TracerSuite))
 	})
 }
 
-func isFentry() bool {
-	return ebpftest.GetBuildMode() == ebpftest.Fentry
-}
-
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
-	if isFentry() {
+	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
 
@@ -168,22 +176,22 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 				break
 			}
 		}
-		c.Close()
+		testutil.GracefulCloseTCP(c)
 	})
 	t.Cleanup(server.Shutdown)
 	err := server.Run()
 	require.NoError(t, err)
 
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
-	defer c.Close()
+	defer testutil.GracefulCloseTCP(c)
 
 	// Connect to server 10 times
 	wg := new(errgroup.Group)
 	for i := 0; i < 10; i++ {
 		wg.Go(func() error {
 			// Write clientMessageSize to server, and read response
-			if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+			if _, err := c.Write(genPayload(clientMessageSize)); err != nil {
 				return err
 			}
 
@@ -233,7 +241,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 
 	// Write clientMessageSize to server, and read response
@@ -297,12 +305,12 @@ func (s *TracerSuite) TestTCPOverIPv6() {
 			r := bufio.NewReader(c)
 			r.ReadBytes(byte('\n'))
 			c.Write(genPayload(serverMessageSize))
-			c.Close()
+			testutil.GracefulCloseTCP(c)
 		}
 	}()
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp6", ln.Addr().String(), 50*time.Millisecond)
+	c, err := testutil.DialTCP("tcp6", ln.Addr().String())
 	require.NoError(t, err)
 
 	// Write clientMessageSize to server, and read response
@@ -346,17 +354,18 @@ func (s *TracerSuite) TestTCPCollectionDisabled() {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
-		c.Close()
+		testutil.GracefulCloseTCP(c)
 	})
 
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testutil.GracefulCloseTCP(c)
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
@@ -390,7 +399,7 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	<-processedChan
 	c.Close()
@@ -402,13 +411,15 @@ func (s *TracerSuite) TestTCPConnsReported() {
 		// Test
 		connections := getConnections(collect, tr)
 
-		if forward == nil {
-			// Server-side
-			forward, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		// Server-side
+		newForward, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+		if newForward != nil {
+			forward = newForward
 		}
-		if reverse == nil {
-			// Client-side
-			reverse, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		// Client-side
+		newReverse, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		if newReverse != nil {
+			reverse = newReverse
 		}
 
 		require.NotNil(collect, forward)
@@ -823,7 +834,7 @@ func benchEchoTCP(size int) func(b *testing.B) {
 		for {
 			buf, err := r.ReadBytes(byte('\n'))
 			if err == io.EOF {
-				c.Close()
+				testutil.GracefulCloseTCP(c)
 				return
 			}
 			c.Write(buf)
@@ -835,11 +846,11 @@ func benchEchoTCP(size int) func(b *testing.B) {
 		b.Cleanup(server.Shutdown)
 		require.NoError(b, server.Run())
 
-		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+		c, err := server.Dial()
 		if err != nil {
 			b.Fatal(err)
 		}
-		defer c.Close()
+		defer testutil.GracefulCloseTCP(c)
 		r := bufio.NewReader(c)
 
 		b.ResetTimer()
@@ -862,7 +873,7 @@ func benchSendTCP(size int) func(b *testing.B) {
 		for { // Drop all payloads received
 			_, err := r.Discard(r.Buffered() + 1)
 			if err == io.EOF {
-				c.Close()
+				testutil.GracefulCloseTCP(c)
 				return
 			}
 		}
@@ -873,11 +884,11 @@ func benchSendTCP(size int) func(b *testing.B) {
 		b.Cleanup(server.Shutdown)
 		require.NoError(b, server.Run())
 
-		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+		c, err := server.Dial()
 		if err != nil {
 			b.Fatal(err)
 		}
-		defer c.Close()
+		defer testutil.GracefulCloseTCP(c)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ { // Send-heavy workload
@@ -1136,7 +1147,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 	t.Logf("laddr=%s raddr=%s", laddr, raddr)
@@ -1456,8 +1467,7 @@ func BenchmarkGetActiveConnections(b *testing.B) {
 	cfg := testConfig()
 	tr := setupTracer(b, cfg)
 	server := testutil.NewTCPServer(func(c net.Conn) {
-		io.Copy(io.Discard, c)
-		c.Close()
+		testutil.GracefulCloseTCP(c)
 	})
 	b.Cleanup(server.Shutdown)
 	require.NoError(b, server.Run())
@@ -1466,7 +1476,7 @@ func BenchmarkGetActiveConnections(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+		c, err := server.Dial()
 		require.NoError(b, err)
 		laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 		c.Write([]byte("hello"))
@@ -1476,7 +1486,7 @@ func BenchmarkGetActiveConnections(b *testing.B) {
 		require.True(b, ok)
 		assert.Equal(b, uint32(1), conn.Last.TCPEstablished)
 		assert.Equal(b, uint32(0), conn.Last.TCPClosed)
-		c.Close()
+		testutil.GracefulCloseTCP(c)
 
 		// Wait for the connection to be sent from the perf buffer
 		require.Eventually(b, func() bool {

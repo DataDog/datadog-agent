@@ -1,0 +1,32 @@
+<div class="stat">
+  <span class="stat_title">OTel Agent</span>
+  <span class="stat_data">
+    {{- with .otelAgent -}}
+      {{- if .error }}
+        Not running or unreachable on {{.url}}.
+        Error: {{.error}}<br>
+      {{- else}}
+        Status: Running<br>
+        {{if .agentVersion}}Agent Version: {{.agentVersion}}<br>{{end}}
+        {{if .collectorVersion}}Collector Version: {{.collectorVersion}}<br>{{end}}
+        <span class="stat_subtitle">Receiver</span>
+        <span class="stat_subdata">
+          Spans Accepted: {{.receiver.spans}}
+          {{- if gt .receiver.refused_spans 0.0}}, WARNING: Refused spans: {{.receiver.refused_spans}}{{end}}
+          Metric Points Accepted: {{.receiver.metrics}}
+          {{- if gt .receiver.refused_metrics 0.0}}, WARNING: Refused metric points: {{.receiver.refused_metrics}}{{end}}
+          Log Records Accepted: {{.receiver.logs}}
+          {{- if gt .receiver.refused_logs 0.0}}, WARNING: Refused log records: {{.receiver.refused_logs}}{{end}}
+        <span class="stat_subtitle">Exporter</span>
+        <span class="stat_subdata">
+          Spans Sent: {{.exporter.spans}}
+          {{- if gt .exporter.failed_spans 0.0}}, WARNING: Send failed spans: {{.exporter.failed_spans}}{{end}}
+          Metric Points Sent: {{.exporter.metrics}}
+          {{- if gt .exporter.failed_metrics 0.0}}, WARNING: Send failed metrics: {{.exporter.failed_metrics}}{{end}}
+          Log Records Sent: {{.exporter.logs}}
+          {{- if gt .exporter.failed_logs 0.0}}, WARNING: Send failed logs: {{.exporter.failed_logs}}{{end}}
+        </span>
+      {{- end }}
+    {{ end }}
+  </span>
+</div>

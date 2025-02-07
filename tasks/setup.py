@@ -168,16 +168,27 @@ def update_python_dependencies(ctx) -> Generator[SetupResult]:
         yield SetupResult(f"Update Python dependencies from {requirement_file}", Status.OK)
 
 
-def enable_pre_commit(ctx) -> SetupResult:
+@task
+def pre_commit(ctx, interactive=True):
+    """Will set up pre-commit hooks.
+
+    Note:
+        pre-commit hooks will be uninstalled / cleaned before being installed.
+    """
+
     print(color_message("Enabling pre-commit...", Color.BLUE))
 
     status = Status.OK
     message = ""
 
     if not ctx.run("pre-commit --version", hide=True, warn=True).ok:
-        return SetupResult(
-            "Enable pre-commit", Status.FAIL, "Please install pre-commit first: https://pre-commit.com/#installation."
-        )
+        message = "Please install pre-commit binary first: https://pre-commit.com/#installation."
+        status = Status.FAIL
+
+        if interactive:
+            raise Exit(code=1, message=f'{color_message("Error:", Color.RED)} {message}')
+
+        return Status.FAIL, message
 
     try:
         # Some dd-hooks can mess up with pre-commit
@@ -209,10 +220,23 @@ def enable_pre_commit(ctx) -> SetupResult:
 
     # Uninstall in case someone switch from one config to the other
     ctx.run("pre-commit uninstall", hide=True)
+    ctx.run("pre-commit clean", hide=True)
     ctx.run(f"pre-commit install --config {config_file}", hide=True)
 
     if hooks_path:
         ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
+
+    if interactive:
+        if message:
+            print(f'{color_message("Warning:", Color.ORANGE)} {message}')
+
+        print(color_message("Pre-commit installed and enabled.", Color.GREEN))
+
+    return status, message
+
+
+def enable_pre_commit(ctx) -> SetupResult:
+    status, message = pre_commit(ctx, interactive=False)
 
     return SetupResult("Enable pre-commit", status, message)
 

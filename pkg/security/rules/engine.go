@@ -339,6 +339,10 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		return err
 	}
 
+	if currentRuleSet := e.currentRuleSet.Load(); currentRuleSet != nil {
+		currentRuleSet.(*rules.RuleSet).Release()
+	}
+
 	e.currentRuleSet.Store(rs)
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
@@ -502,6 +506,8 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 				switch eventType {
 				case model.RawPacketEventType.String():
 					enabled[eventType] = e.probe.IsNetworkRawPacketEnabled()
+				case model.NetworkFlowMonitorEventType.String():
+					enabled[eventType] = e.probe.IsNetworkFlowMonitorEnabled()
 				default:
 					enabled[eventType] = true
 				}

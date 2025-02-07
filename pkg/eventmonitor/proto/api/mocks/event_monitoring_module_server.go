@@ -4,6 +4,8 @@ package mocks
 
 import (
 	api "github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
+	grpc "google.golang.org/grpc"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -13,7 +15,7 @@ type EventMonitoringModuleServer struct {
 }
 
 // GetProcessEvents provides a mock function with given fields: _a0, _a1
-func (_m *EventMonitoringModuleServer) GetProcessEvents(_a0 *api.GetProcessEventParams, _a1 api.EventMonitoringModule_GetProcessEventsServer) error {
+func (_m *EventMonitoringModuleServer) GetProcessEvents(_a0 *api.GetProcessEventParams, _a1 grpc.ServerStreamingServer[api.ProcessEventMessage]) error {
 	ret := _m.Called(_a0, _a1)
 
 	if len(ret) == 0 {
@@ -21,7 +23,7 @@ func (_m *EventMonitoringModuleServer) GetProcessEvents(_a0 *api.GetProcessEvent
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*api.GetProcessEventParams, api.EventMonitoringModule_GetProcessEventsServer) error); ok {
+	if rf, ok := ret.Get(0).(func(*api.GetProcessEventParams, grpc.ServerStreamingServer[api.ProcessEventMessage]) error); ok {
 		r0 = rf(_a0, _a1)
 	} else {
 		r0 = ret.Error(0)

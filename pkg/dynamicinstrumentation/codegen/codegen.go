@@ -76,18 +76,17 @@ func generateHeaderText(param *ditypes.Parameter, out io.Writer) error {
 		return generateSliceHeader(param, out)
 	} else if reflect.Kind(param.Kind) == reflect.String {
 		return generateStringHeader(param, out)
-	} else { //nolint:revive // TODO
-		tmplt, err := resolveHeaderTemplate(param)
-		if err != nil {
-			return err
-		}
-		err = tmplt.Execute(out, param)
-		if err != nil {
-			return err
-		}
-		if len(param.ParameterPieces) != 0 {
-			return generateHeadersText(param.ParameterPieces, out)
-		}
+	}
+	template, err := resolveHeaderTemplate(param)
+	if err != nil {
+		return err
+	}
+	err = template.Execute(out, param)
+	if err != nil {
+		return err
+	}
+	if len(param.ParameterPieces) != 0 {
+		return generateHeadersText(param.ParameterPieces, out)
 	}
 	return nil
 }
@@ -182,17 +181,16 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 }
 
 func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
-	if slice == nil {
-		return errors.New("nil slice parameter when generating header code")
-	}
-	if len(slice.ParameterPieces) != 3 {
-		return fmt.Errorf("invalid slice parameter when generating header code: %d fields", len(slice.ParameterPieces))
-	}
-
 	// Slices are defined with an "array" pointer as piece 0, which is a pointer to the actual
 	// type, which is defined as piece 0 under that.
-	if len(slice.ParameterPieces) != 3 &&
-		len(slice.ParameterPieces[0].ParameterPieces) != 1 {
+
+	// Validate entire data structure is valid and not nil before accessing
+	if slice == nil ||
+		len(slice.ParameterPieces) != 3 ||
+		slice.ParameterPieces[0] == nil ||
+		slice.ParameterPieces[1] == nil ||
+		len(slice.ParameterPieces[0].ParameterPieces) != 1 ||
+		slice.ParameterPieces[0].ParameterPieces[0] == nil {
 		return errors.New("malformed slice type")
 	}
 
@@ -203,7 +201,7 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	lenHeaderBuf.Write([]byte("// Capture length of slice:"))
 	err := generateHeaderText(slice.ParameterPieces[0].ParameterPieces[0], typeHeaderBuf)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not generate header text for underlying slice element type: %w", err)
 	}
 	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{slice.ParameterPieces[1]}, lenHeaderBuf)
 	if err != nil {
@@ -217,7 +215,7 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 
 	sliceTemplate, err := resolveHeaderTemplate(slice)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not resolve header for slice type: %w", err)
 	}
 
 	err = sliceTemplate.Execute(out, w)
