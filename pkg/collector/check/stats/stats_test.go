@@ -20,15 +20,17 @@ import (
 
 // Mock Check implementation used for testing
 type mockCheck struct {
-	cfgSource string
-	id        checkid.ID
-	stringVal string
-	version   string
-	interval  time.Duration
+	cfgSource  string
+	loaderName string
+	id         checkid.ID
+	stringVal  string
+	version    string
+	interval   time.Duration
 }
 
 // Mock Check interface implementation
 func (mc *mockCheck) ConfigSource() string    { return mc.cfgSource }
+func (mc *mockCheck) Loader() string          { return mc.loaderName }
 func (mc *mockCheck) ID() checkid.ID          { return mc.id }
 func (mc *mockCheck) String() string          { return mc.stringVal }
 func (mc *mockCheck) Version() string         { return mc.version }
@@ -36,21 +38,23 @@ func (mc *mockCheck) Interval() time.Duration { return mc.interval }
 
 func newMockCheck() StatsCheck {
 	return &mockCheck{
-		cfgSource: "checkConfigSrc",
-		id:        "checkID",
-		stringVal: "checkString",
-		version:   "checkVersion",
-		interval:  15 * time.Second,
+		cfgSource:  "checkConfigSrc",
+		id:         "checkID",
+		stringVal:  "checkString",
+		loaderName: "mockLoader",
+		version:    "checkVersion",
+		interval:   15 * time.Second,
 	}
 }
 
 func newMockCheckWithInterval(interval time.Duration) StatsCheck {
 	return &mockCheck{
-		cfgSource: "checkConfigSrc",
-		id:        "checkID",
-		stringVal: "checkString",
-		version:   "checkVersion",
-		interval:  interval,
+		cfgSource:  "checkConfigSrc",
+		id:         "checkID",
+		stringVal:  "checkString",
+		loaderName: "mockloader",
+		version:    "checkVersion",
+		interval:   interval,
 	}
 }
 
@@ -71,6 +75,7 @@ func TestNewStats(t *testing.T) {
 
 	assert.Equal(t, stats.CheckID, checkid.ID("checkID"))
 	assert.Equal(t, stats.CheckName, "checkString")
+	assert.Equal(t, stats.CheckLoader, "mockLoader")
 	assert.Equal(t, stats.CheckVersion, "checkVersion")
 	assert.Equal(t, stats.CheckVersion, "checkVersion")
 	assert.Equal(t, stats.CheckConfigSource, "checkConfigSrc")

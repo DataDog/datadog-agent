@@ -28,13 +28,12 @@ import (
 )
 
 var detectorsWithPrivilege = []languagemodels.Detector{
+	detectors.NewInjectorDetector(),
 	detectors.NewGoDetector(),
 	detectors.NewDotnetDetector(),
 }
 
-var (
-	permissionDeniedWarningOnce = sync.Once{}
-)
+var permissionDeniedWarningOnce = sync.Once{}
 
 func handleDetectorError(err error) {
 	if os.IsPermission(err) {

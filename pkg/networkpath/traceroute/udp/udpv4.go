@@ -80,7 +80,10 @@ func (u *UDPv4) createRawUDPBuffer(sourceIP net.IP, sourcePort uint16, destIP ne
 		SrcPort: layers.UDPPort(sourcePort),
 		DstPort: layers.UDPPort(destPort),
 	}
-	udpPaylod := []byte("NSMNC\x00\x00\x00")
+	udpPayload := []byte("NSMNC\x00\x00\x00")
+	id := uint16(ttl) + destPort
+	udpPayload[6] = byte((id >> 8) & 0xff)
+	udpPayload[7] = byte(id & 0xff)
 
 	// TODO: compute checksum before serialization so we
 	// can set ID field of the IP header to detect NATs just
@@ -102,7 +105,7 @@ func (u *UDPv4) createRawUDPBuffer(sourceIP net.IP, sourcePort uint16, destIP ne
 	err = gopacket.SerializeLayers(u.buffer, opts,
 		ipLayer,
 		udpLayer,
-		gopacket.Payload(udpPaylod),
+		gopacket.Payload(udpPayload),
 	)
 	if err != nil {
 		return nil, nil, 0, 0, fmt.Errorf("failed to serialize packet: %w", err)

@@ -7,6 +7,7 @@
 package statusimpl
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
@@ -27,7 +29,8 @@ var templatesFS embed.FS
 
 // Requires defines the dependencies of the status component.
 type Requires struct {
-	Config config.Component
+	Config    config.Component
+	Authtoken authtoken.Component
 }
 
 // Provides contains components provided by status constructor.
@@ -39,6 +42,7 @@ type Provides struct {
 type statusProvider struct {
 	Config         config.Component
 	client         *http.Client
+	authToken      authtoken.Component
 	receiverStatus map[string]interface{}
 	exporterStatus map[string]interface{}
 }
@@ -65,8 +69,9 @@ type prometheusRuntimeConfig struct {
 // NewComponent creates a new status component.
 func NewComponent(reqs Requires) Provides {
 	comp := statusProvider{
-		Config: reqs.Config,
-		client: apiutil.GetClient(false),
+		Config:    reqs.Config,
+		client:    apiutil.GetClient(false),
+		authToken: reqs.Authtoken,
 		receiverStatus: map[string]interface{}{
 			"spans":           0.0,
 			"metrics":         0.0,
@@ -98,6 +103,16 @@ func (s statusProvider) Name() string {
 // Section return the section
 func (s statusProvider) Section() string {
 	return "OTel Agent"
+}
+
+// GetStatus returns the OTel Agent status in string form
+func (s statusProvider) GetStatus() (string, error) {
+	buf := new(bytes.Buffer)
+	err := s.Text(false, buf)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 func (s statusProvider) getStatusInfo() map[string]interface{} {
@@ -172,7 +187,11 @@ func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
 
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionURL := s.Config.GetString("otelcollector.extension_url")
-	resp, err := apiutil.DoGet(s.client, extensionURL, apiutil.CloseConnection)
+	options := apiutil.ReqOptions{
+		Conn:      apiutil.CloseConnection,
+		Authtoken: s.authToken.Get(),
+	}
+	resp, err := apiutil.DoGetWithOptions(s.client, extensionURL, &options)
 	if err != nil {
 		return map[string]interface{}{
 			"url":   extensionURL,
