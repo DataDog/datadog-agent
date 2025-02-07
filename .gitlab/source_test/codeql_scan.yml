@@ -26,8 +26,11 @@ run_codeql_scan:
     DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=go,python,javascript --quiet
     SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
     UPLOAD_CONFIGS: -upload_sarif=true
+    CODEQL_BUNDLE_URL: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.17.5/codeql-bundle-linux64.tar.gz
   script:
     - !reference [.retrieve_linux_go_deps]
     - inv -e agent.build --build-exclude=systemd
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
+    - curl -L $CODEQL_BUNDLE_URL > /tmp/codeql.tar.gz && tar -zxf /tmp/codeql.tar.gz -C /usr/local \ && rm /tmp/codeql.tar.gz
     - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
