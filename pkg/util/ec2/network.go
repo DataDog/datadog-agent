@@ -137,24 +137,11 @@ var vpcSubnetFetcher = cachedfetch.Fetcher{
 			}
 		}
 
-		var parsedSubnets []*net.IPNet
-		for _, subnet := range allSubnets.GetAll() {
-			_, ipnet, err := net.ParseCIDR(subnet)
-			if err != nil {
-				return nil, err
-			}
-			parsedSubnets = append(parsedSubnets, ipnet)
-		}
-
-		return parsedSubnets, nil
+		return allSubnets.GetAll(), nil
 	},
 }
 
 // GetVPCSubnetsForHost gets all the subnets in the VPCs this host has network interfaces for
-func GetVPCSubnetsForHost(ctx context.Context) ([]*net.IPNet, error) {
-	subnets, err := vpcSubnetFetcher.Fetch(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return subnets.([]*net.IPNet), nil
+func GetVPCSubnetsForHost(ctx context.Context) ([]string, error) {
+	return vpcSubnetFetcher.FetchStringSlice(ctx)
 }
