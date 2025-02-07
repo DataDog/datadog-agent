@@ -154,6 +154,8 @@ new-agent_dmg-x64-a7:
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   after_script:
+    - brew reinstall libidn2 -fv || true
+    - brew link --overwrite libidn2 || true
     - brew reinstall awscli -fv || true
     - brew link --overwrite awscli || true
     - which aws || true
@@ -161,6 +163,9 @@ new-agent_dmg-x64-a7:
   script:
     # - set -e
     - set +e
+    - brew tap
+    - which datadog-agent
+    - brew remove --force --ignore-dependencies --formula libidn2 -v
     - brew uses gettext --installed
     - brew info gettext
     - brew list --formula
