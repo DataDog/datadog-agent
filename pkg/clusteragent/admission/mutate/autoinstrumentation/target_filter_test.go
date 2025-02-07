@@ -8,7 +8,6 @@
 package autoinstrumentation
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -218,10 +217,8 @@ func TestTargetFilter(t *testing.T) {
 			// Create a mock meta.
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(coreconfig.Params{}),
-				fx.Supply(log.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				coreconfig.MockModule(),
-				fx.Supply(context.Background()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
