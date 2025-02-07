@@ -1,4 +1,5 @@
 import os
+import sys
 
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_byte_input
@@ -25,7 +26,7 @@ def calculate_image_on_disk_size(ctx, url):
     if image_tar_gz:
         total_size += int(ctx.run(f"tar -xf {image_tar_gz} --to-stdout | wc -c").stdout)
     else:
-        print(color_message("[WARN] No tar.gz file found inside of the image", "orange"))
+        print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
 
     return total_size
 
