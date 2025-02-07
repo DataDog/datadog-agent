@@ -40,23 +40,23 @@ func (mc *mockCheck) IsHAEnabled() bool       { return mc.isHAEnabled }
 
 func newMockCheck() StatsCheck {
 	return &mockCheck{
-		cfgSource: "checkConfigSrc",
-		id:        "checkID",
-		stringVal: "checkString",
+		cfgSource:  "checkConfigSrc",
+		id:         "checkID",
+		stringVal:  "checkString",
 		loaderName: "mockLoader",
-		version:   "checkVersion",
-		interval:  15 * time.Second,
+		version:    "checkVersion",
+		interval:   15 * time.Second,
 	}
 }
 
 func newMockCheckWithInterval(interval time.Duration) StatsCheck {
 	return &mockCheck{
-		cfgSource: "checkConfigSrc",
-		id:        "checkID",
-		stringVal: "checkString",
-		loaderName: "mockLoader",
-		version:   "checkVersion",
-		interval:  interval,
+		cfgSource:   "checkConfigSrc",
+		id:          "checkID",
+		stringVal:   "checkString",
+		loaderName:  "mockLoader",
+		version:     "checkVersion",
+		interval:    interval,
 		isHAEnabled: false,
 	}
 }
