@@ -184,10 +184,13 @@ func (s *npCollectorImpl) getSubnetsToSkip() ([]*net.IPNet, error) {
 		return nil, nil
 	}
 
-	subnetsToSkip, err := cloudproviders.GetVPCSubnetsForHost(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	subnetsToSkip, err := cloudproviders.GetVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
 	}
+
 	return subnetsToSkip, nil
 }
 
