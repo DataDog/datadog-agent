@@ -7,7 +7,9 @@
 package util
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
@@ -85,6 +87,8 @@ func SetAuthToken(config model.Reader) error {
 		Certificates: []tls.Certificate{tlsCert},
 	}
 
+	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
+	printAuthSignature(token, ipccert, ipckey)
 	initSource = setAuthToken
 
 	return nil
@@ -135,6 +139,8 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		Certificates: []tls.Certificate{tlsCert},
 	}
 
+	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
+	printAuthSignature(token, ipccert, ipckey)
 	initSource = createAndSetAuthToken
 
 	return nil
@@ -312,4 +318,18 @@ func generateSelfSignedCert() (tls.Config, error) {
 	return tls.Config{
 		Certificates: []tls.Certificate{rootTLSCert},
 	}, nil
+}
+
+// printAuthSignature computes and logs the authentication signature for the given token and IPC certificate/key.
+// It uses SHA-256 to hash the concatenation of the token, IPC certificate, and IPC key.
+func printAuthSignature(token string, ipccert, ipckey []byte) {
+	h := sha256.New()
+
+	_, err := h.Write(bytes.Join([][]byte{[]byte(token), ipccert, ipckey}, []byte{}))
+	if err != nil {
+		log.Debugf("error while computing auth signature: %v", err)
+	}
+
+	sign := h.Sum(nil)
+	log.Debugf("successfully loaded the IPC auth primitives (%.8x)", sign)
 }

@@ -149,9 +149,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 		return zero, fmt.Errorf("unable to move temporary artifact to its final location: %v", err)
 	}
 
-	// // If everything went well, we can safely remove the lock file
-	// // This will unlock the other process waiting for the lock
-	// // letting them check if the artifact is already created
+	log.Debugf("successfully created artifact %v", location)
 
 	succeed = true
 	return createdArtifact, nil
