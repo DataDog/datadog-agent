@@ -40,8 +40,6 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
         repo_mock.pipelines.get.return_value.ref = "test"
         repo_mock.pipelines.get.return_value.source = "push"
-        repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
-        repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T06:59:48.396Z"
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
         with patch.dict('os.environ', {}, clear=True):
@@ -61,8 +59,6 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
         repo_mock.pipelines.get.return_value.ref = "test"
         repo_mock.pipelines.get.return_value.source = "push"
-        repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
-        repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T06:59:48.396Z"
 
         failed = FailedJobs()
         failed.add_failed_job(
@@ -218,8 +214,6 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.pipelines.get.return_value.ref = "test"
         repo_mock.pipelines.get.return_value.source = "push"
-        repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
-        repo_mock.pipelines.get.return_value.finished_at = None
 
         with patch.dict('os.environ', {}, clear=True):
             notify.send_message(MockContext(), "42", dry_run=True)
@@ -242,12 +236,9 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.pipelines.get.return_value.ref = "test"
         repo_mock.pipelines.get.return_value.source = "push"
-        repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
-        repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T08:21:48.396Z"
 
         notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("rocket" in print_mock.mock_calls[0].args[0])
-        self.assertTrue("[:hourglass: 142 min]" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
         repo_mock.jobs.get.assert_called()
@@ -265,13 +256,10 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.pipelines.get.return_value.ref = "test"
         repo_mock.pipelines.get.return_value.source = "api"
-        repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
-        repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T06:59:48.396Z"
 
         with patch.dict('os.environ', {}, clear=True):
             notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("arrow_forward" in print_mock.mock_calls[0].args[0])
-        self.assertTrue("[:hourglass: 60 min]" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
         repo_mock.jobs.get.assert_called()
@@ -290,12 +278,9 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.artifact.return_value = b"{}"
         repo_mock.pipelines.get.return_value.ref = "test"
         repo_mock.pipelines.get.return_value.source = "pipeline"
-        repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
-        repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T06:41:48.396Z"
 
         notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("arrow_forward" in print_mock.mock_calls[0].args[0])
-        self.assertTrue("[:hourglass: 42 min]" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
         list_mock.assert_called()
         repo_mock.jobs.get.assert_called()
