@@ -10,10 +10,10 @@ package packages
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
@@ -23,18 +23,40 @@ import (
 const (
 	appArmorAbstractionDir       = "/etc/apparmor.d/abstractions/"
 	appArmorBaseProfile          = "/etc/apparmor.d/abstractions/base"
-	appArmorConfigPath           = appArmorBaseProfile + ".d"
-	appArmorBaseDIncludeIfExists = "include if exists <abstractions/base.d>"
-	appArmorBaseDInclude         = "include <abstractions/base.d>"
+	appArmorDatadogDir           = appArmorAbstractionDir + "datadog.d/"
+	appArmorInjectorProfilePath  = appArmorDatadogDir + "injector"
+	appArmorBaseDIncludeIfExists = "include if exists <abstractions/datadog.d>"
 	appArmorProfile              = `/opt/datadog-packages/** rix,
 /proc/@{pid}/** rix,
 /run/datadog/apm.socket rw,`
 )
 
-var datadogProfilePath = filepath.Join(appArmorConfigPath, "datadog")
+func findAndReplaceAllInFile(filename string, needle string, replaceWith string) error {
+	haystack, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
 
-// ValidateBaseProfileIncludesBaseD verfies that a profile contains an include path to base.d
-func ValidateBaseProfileIncludesBaseD(filename string) error {
+	haystack = []byte(strings.ReplaceAll(string(haystack), needle, replaceWith))
+
+	if err = os.WriteFile(filename, haystack, 0); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func unpatchBaseProfileWithDatadogInclude(filename string) error {
+
+	// make sure base profile exists before we continue
+	if _, err := os.Stat(filename); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+
+	return findAndReplaceAllInFile(filename, "\n"+appArmorBaseDIncludeIfExists, "")
+}
+
+func patchBaseProfileWithDatadogInclude(filename string) error {
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_RDWR, 0)
 	if err != nil {
 		return err
@@ -45,8 +67,7 @@ func ValidateBaseProfileIncludesBaseD(filename string) error {
 	// we'll be going through the whole base profile looking for a sign indicating this version
 	// supports the base.d extra profiles if it exists we'll return true
 	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, appArmorBaseDInclude) || strings.Contains(line, appArmorBaseDIncludeIfExists) {
+		if strings.Contains(scanner.Text(), appArmorBaseDIncludeIfExists) {
 			return nil
 		}
 	}
@@ -55,9 +76,15 @@ func ValidateBaseProfileIncludesBaseD(filename string) error {
 		return err
 	}
 
-	if _, err = file.WriteString("\n" + appArmorBaseDInclude + "\n"); err != nil {
+	// add a new line
+	if _, err = file.WriteString("\n" + appArmorBaseDIncludeIfExists); err != nil {
 		return err
 	}
+
+	if err = file.Sync(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -67,27 +94,33 @@ func setupAppArmor(ctx context.Context) (err error) {
 		// no-op if apparmor is not installed
 		return nil
 	}
+
+	// make sure base profile exists before we continue
+	if _, err := os.Stat(appArmorBaseProfile); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+
 	span, _ := telemetry.StartSpanFromContext(ctx, "setup_app_armor")
 	defer func() { span.Finish(err) }()
 
 	// first make sure base.d exists before we add it to the base profile
 	// minimize the chance for a race
-	if err = os.MkdirAll(appArmorConfigPath, 0755); err != nil {
-		return fmt.Errorf("failed to create %s: %w", appArmorConfigPath, err)
+	if err = os.MkdirAll(appArmorDatadogDir, 0755); err != nil {
+		return fmt.Errorf("failed to create %s: %w", appArmorDatadogDir, err)
 	}
 	// unfortunately this isn't an atomic change. All files in that directory can be interpreted
 	// and I did not implement finding a safe directory to write to in the same partition, to run an atomic move.
 	// This shouldn't be a problem as we reload app armor right after writing the file.
-	if err = os.WriteFile(datadogProfilePath, []byte(appArmorProfile), 0644); err != nil {
+	if err = os.WriteFile(appArmorInjectorProfilePath, []byte(appArmorProfile), 0644); err != nil {
 		return err
 	}
 
-	if err = ValidateBaseProfileIncludesBaseD(appArmorBaseProfile); err != nil {
+	if err = patchBaseProfileWithDatadogInclude(appArmorBaseProfile); err != nil {
 		return fmt.Errorf("failed validate %s contains an include to base.d: %w", appArmorBaseProfile, err)
 	}
 
 	if err = reloadAppArmor(); err != nil {
-		if rollbackErr := os.Remove(datadogProfilePath); rollbackErr != nil {
+		if rollbackErr := os.Remove(appArmorInjectorProfilePath); rollbackErr != nil {
 			log.Warnf("failed to remove apparmor profile: %v", rollbackErr)
 		}
 		return err
@@ -96,7 +129,7 @@ func setupAppArmor(ctx context.Context) (err error) {
 }
 
 func removeAppArmor(ctx context.Context) (err error) {
-	_, err = os.Stat(datadogProfilePath)
+	_, err = os.Stat(appArmorInjectorProfilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -105,7 +138,13 @@ func removeAppArmor(ctx context.Context) (err error) {
 	}
 	span, _ := telemetry.StartSpanFromContext(ctx, "remove_app_armor")
 	defer span.Finish(err)
-	if err = os.Remove(datadogProfilePath); err != nil {
+
+	// first unpatch and then delete the profile
+	if err = unpatchBaseProfileWithDatadogInclude(appArmorBaseProfile); err != nil {
+		return err
+	}
+
+	if err = os.Remove(appArmorInjectorProfilePath); err != nil {
 		return err
 	}
 	return reloadAppArmor()
