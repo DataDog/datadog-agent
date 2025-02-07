@@ -1,0 +1,8 @@
+init_config:
+  loader: core
+  use_device_id_as_hostname: true
+  ha_enabled: true
+instances:
+  - ip_address: 'snmp-device-10001'
+    community_string: public
+    port: 1161
