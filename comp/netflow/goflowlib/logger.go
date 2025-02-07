@@ -9,6 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
+// GoflowLoggerAdapter is used to implement goflow's logging interface from our logger
+// https://github.com/netsampler/goflow2/blob/v1/utils/utils.go#L41-L51
 type GoflowLoggerAdapter struct {
 	log.Component
 }
