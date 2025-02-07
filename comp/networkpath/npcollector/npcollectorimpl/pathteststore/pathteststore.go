@@ -118,6 +118,9 @@ func (f *Store) Flush() []*PathtestContext {
 	// scale the pathtest budget based on how many minutes passed since the last flush
 	if f.config.MaxPerMinute > 0 {
 		elapsedMinutes := float64(elapsed) / float64(time.Minute)
+		// if channels are blocked, rarely a long time can pass between flushes.
+		// clamp the elapsed time to 1 minute to avoid a huge budget
+		elapsedMinutes = math.Min(elapsedMinutes, 1.0)
 		pathtestBudget = int(elapsedMinutes * float64(f.config.MaxPerMinute))
 	}
 
