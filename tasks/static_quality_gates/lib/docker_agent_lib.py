@@ -23,7 +23,7 @@ def calculate_image_on_disk_size(ctx, url):
         else:
             print(f"  - {line}")
     if image_tar_gz:
-        total_size += int(ctx.run(f"tar -xf {image_tar_gz} --to-stdout | wc -c").stdout)
+        total_size += int(ctx.run(f"tar -xf {image_tar_gz} --to-stdout | wc -c", hide=True).stdout)
     else:
         print(color_message("[WARN] No tar.gz file found inside of the image", "orange"))
 
