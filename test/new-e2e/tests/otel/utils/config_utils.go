@@ -227,3 +227,43 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 
 	assert.YAMLEq(t, expectedCfg, actualCfg)
 }
+
+// TestCoreAgentStatusCmd tests the core agent status command contains the OTel Agent status as expected
+func TestCoreAgentStatusCmd(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Calling status command in core agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "status", "otel agent"})
+	require.NoError(s.T(), err, "Failed to execute config")
+	require.Empty(s.T(), stderr)
+	validateStatus(s.T(), stdout)
+}
+
+// TestOTelAgentStatusCmd tests the OTel Agent status subcommand returns as expected
+func TestOTelAgentStatusCmd(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Calling status command in otel agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "otel-agent", []string{"otel-agent", "status"})
+	require.NoError(s.T(), err, "Failed to execute config")
+	require.Empty(s.T(), stderr)
+	validateStatus(s.T(), stdout)
+}
+
+func validateStatus(t *testing.T, status string) {
+	require.NotNil(t, status)
+	require.Contains(t, status, "OTel Agent")
+	require.Contains(t, status, "Status: Running")
+	require.Contains(t, status, "Agent Version:")
+	require.Contains(t, status, "Collector Version:")
+	require.Contains(t, status, "Spans Accepted:")
+	require.Contains(t, status, "Metric Points Accepted:")
+	require.Contains(t, status, "Log Records Accepted:")
+	require.Contains(t, status, "Spans Sent:")
+	require.Contains(t, status, "Metric Points Sent:")
+	require.Contains(t, status, "Log Records Sent:")
+}
