@@ -7,8 +7,10 @@ package cloudproviders
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -57,19 +59,39 @@ func GetNetworkID(ctx context.Context) (string, error) {
 		})
 }
 
+func getVPCSubnetsForHost(ctx context.Context) ([]string, error) {
+	subnets, ec2err := ec2.GetVPCSubnetsForHost(ctx)
+	if ec2err == nil {
+		return subnets, nil
+	}
+
+	// TODO support GCE, azure
+
+	return nil, fmt.Errorf("could not detect VPC subnets: %w", errors.Join(ec2err))
+}
+
 // GetVPCSubnetsForHost gets all the subnets in the VPCs this host has network interfaces for
 func GetVPCSubnetsForHost(ctx context.Context) ([]*net.IPNet, error) {
-	var err error
 	return cache.GetWithExpiration[[]*net.IPNet](
 		vpcSubnetsForHostCacheKey,
 		func() ([]*net.IPNet, error) {
-			var subnets []*net.IPNet
-			if subnets, err = ec2.GetVPCSubnetsForHost(ctx); err == nil {
-				return subnets, nil
+			subnets, err := getVPCSubnetsForHost(ctx)
+			if err != nil {
+				return nil, err
+			}
+			log.DebugFunc(func() string {
+				return fmt.Sprintf("GetVPCSubnetsForHost: found VPC subnets: %s", strings.Join(subnets, ", "))
+			})
+
+			var parsedSubnets []*net.IPNet
+			for _, subnet := range subnets {
+				_, ipnet, err := net.ParseCIDR(subnet)
+				if err != nil {
+					return nil, err
+				}
+				parsedSubnets = append(parsedSubnets, ipnet)
 			}
 
-			// TODO support GCE, azure
-
-			return nil, fmt.Errorf("could not detect VPC subnets: %w", err)
+			return parsedSubnets, nil
 		}, 15*time.Minute)
 }
