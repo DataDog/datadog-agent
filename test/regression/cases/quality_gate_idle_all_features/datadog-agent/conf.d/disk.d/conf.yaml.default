@@ -1,0 +1,254 @@
+## All options defined here are available to all instances.
+#
+init_config:
+
+    ## @param file_system_global_exclude - list of strings - optional
+    ## Instruct the check to always add these patterns to `file_system_exclude`.
+    ##
+    ## WARNING: Overriding these defaults could negatively impact your system or
+    ## the performance of the check.
+    #
+    # file_system_global_exclude:
+    #   - iso9660$
+    #   - tracefs$
+
+    ## @param device_global_exclude - list of strings - optional
+    ## Instruct the check to always add these patterns to `device_exclude`.
+    ##
+    ## WARNING: Overriding these defaults could negatively impact your system or
+    ## the performance of the check.
+    #
+    # device_global_exclude: []
+
+    ## @param mount_point_global_exclude - list of strings - optional
+    ## Instruct the check to always add these patterns to `mount_point_exclude`.
+    ##
+    ## WARNING: Overriding these defaults could negatively impact your system or
+    ## the performance of the check.
+    #
+    # mount_point_global_exclude:
+    #   - (/host)?/proc/sys/fs/binfmt_misc$
+
+    ## @param service - string - optional
+    ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+    ##
+    ## Additionally, this sets the default `service` for every log source.
+    #
+    # service: <SERVICE>
+
+## Every instance is scheduled independently of the others.
+#
+instances:
+
+    ## @param use_mount - boolean - optional - default: false
+    ## If enabled, metrics are tagged using mount points (for example `device:/`) instead of volumes
+    ## (for example `device:/dev/disk1s5`).
+    #
+  - use_mount: false
+
+    ## @param all_partitions - boolean - optional - default: false
+    ## Instruct the check to collect from partitions even without device names.
+    ## Setting `use_mount` to true is strongly recommended in this case.
+    #
+    # all_partitions: false
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check emitted by this instance.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param service - string - optional
+    ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+    ##
+    ## Overrides any `service` defined in the `init_config` section.
+    #
+    # service: <SERVICE>
+
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
+
+    ## @param empty_default_hostname - boolean - optional - default: false
+    ## This forces the check to send metrics with no hostname.
+    ##
+    ## This is useful for cluster-level checks.
+    #
+    # empty_default_hostname: false
+
+    ## @param metric_patterns - mapping - optional
+    ## A mapping of metrics to include or exclude, with each entry being a regular expression.
+    ##
+    ## Metrics defined in `exclude` will take precedence in case of overlap.
+    #
+    # metric_patterns:
+    #   include:
+    #   - <INCLUDE_REGEX>
+    #   exclude:
+    #   - <EXCLUDE_REGEX>
+
+    ## @param file_system_include - list of strings - optional
+    ## Instruct the check to only collect from matching file systems.
+    ##
+    ## Character casing is ignored. For convenience, the regular expressions
+    ## start matching from the beginning and therefore to match anywhere you
+    ## must prepend `.*`. For exact matches append `$`.
+    #
+    # file_system_include:
+    #   - ext[34]$
+    #   - ntfs$
+
+    ## @param file_system_exclude - list of strings - optional
+    ## Instruct the check to not collect from matching file systems.
+    ##
+    ## Character casing is ignored. For convenience, the regular expressions
+    ## start matching from the beginning and therefore to match anywhere you
+    ## must prepend `.*`. For exact matches append `$`.
+    ##
+    ## Devices from pseudo or memory-based file systems can be excluded by disabling the
+    ## `include_all_devices` option.
+    ##
+    ## When conflicts arise, this will override `file_system_include`.
+    #
+    # file_system_exclude:
+    #   - tmpfs$
+    #   - rootfs$
+    #   - autofs$
+
+    ## @param device_include - list of strings - optional
+    ## Instruct the check to only collect from matching devices.
+    ##
+    ## Character casing is ignored on Windows. For convenience, the regular
+    ## expressions start matching from the beginning and therefore to match
+    ## anywhere you must prepend `.*`. For exact matches append `$`.
+    #
+    # device_include:
+    #   - /dev/sda[1-3]
+    #   - 'C:'
+
+    ## @param device_exclude - list of strings - optional
+    ## Instruct the check to not collect from matching devices.
+    ##
+    ## Character casing is ignored on Windows. For convenience, the regular
+    ## expressions start matching from the beginning and therefore to match
+    ## anywhere you must prepend `.*`. For exact matches append `$`.
+    ##
+    ## When conflicts arise, this will override `device_include`.
+    #
+    # device_exclude:
+    #   - /dev/sde
+    #   - '[FJ]:'
+
+    ## @param mount_point_include - list of strings - optional
+    ## Instruct the check to only collect from matching mount points.
+    ##
+    ## Character casing is ignored on Windows. For convenience, the regular
+    ## expressions start matching from the beginning and therefore to match
+    ## anywhere you must prepend `.*`. For exact matches append `$`.
+    #
+    # mount_point_include:
+    #   - /dev/sda[1-3]
+    #   - 'C:'
+
+    ## @param mount_point_exclude - list of strings - optional
+    ## Instruct the check to not collect from matching mount points.
+    ##
+    ## Character casing is ignored on Windows. For convenience, the regular
+    ## expressions start matching from the beginning and therefore to match
+    ## anywhere you must prepend `.*`. For exact matches append `$`.
+    #
+    # mount_point_exclude:
+    #   - /proc/sys/fs/binfmt_misc
+    #   - /dev/sde
+    #   - '[FJ]:'
+
+    ## @param include_all_devices - boolean - optional - default: true
+    ## Instruct the check to collect from all devices, including non-physical devices.
+    ## Set this to false to exclude pseudo, memory, duplicate or inaccessible file systems.
+    ##
+    ## For more fine-grained control, use the inclusion and exclusion options.
+    #
+    # include_all_devices: true
+
+    ## @param service_check_rw - boolean - optional - default: false
+    ## Instruct the check to notify based on partition state.
+    ##
+    ## read-write -> OK
+    ## read-only  -> CRITICAL
+    ## other      -> UNKNOWN
+    #
+    # service_check_rw: false
+
+    ## @param tag_by_filesystem - boolean - optional - default: false
+    ## Instruct the check to tag all disks with their file system e.g. filesystem:ntfs.
+    #
+    # tag_by_filesystem: false
+
+    ## @param tag_by_label - boolean - optional - default: true
+    ## Instruct the check to tag all the metrics with disk label if there is one.
+    ## Works on Linux only.
+    #
+    # tag_by_label: true
+
+    ## @param blkid_cache_file - string - optional
+    ## Instruct the check to read the labels from the blkid cache file instead of `blkid` executable.
+    ## This parameter is used only if `tag_by_label` is true. It is incompatible with `use_lsblk`.
+    ## Works on Linux only.
+    #
+    # blkid_cache_file: /run/blkid/blkid.tab
+
+    ## @param use_lsblk - boolean - optional - default: false
+    ## Instruct the check to read the labels from the `lsblk` executable instead of `blkid` executable.
+    ## This parameter is used only if `tag_by_label` is true. It is incompatible with `blkid_cache_file`.
+    ## Works on Linux only.
+    #
+    # use_lsblk: false
+
+    ## @param device_tag_re - mapping - optional
+    ## Instruct the check to apply additional tags to matching
+    ## devices (or mount points if `use_mount` is true).
+    ##
+    ## Character casing is ignored on Windows. Multiple comma-separated
+    ## tags are supported. You must properly quote the string if the
+    ## pattern contains special characters e.g. colons.
+    #
+    # device_tag_re:
+    #   /san/.*: device_type:san
+    #   /dev/sda3: role:db,disk_size:large
+    #   'c:': volume:boot
+
+    ## @param min_disk_size - number - optional - default: 0
+    ## Exclude devices with a total disk size less than a minimum value (in MiB)
+    #
+    # min_disk_size: 0
+
+    ## @param timeout - integer - optional - default: 5
+    ## Timeout of the disk query in seconds
+    #
+    # timeout: 5
+
+    ## @param create_mounts - list of mappings - optional
+    ## On Windows, instruct the check to create one or more network
+    ## mounts, and have the check collect metrics for the mounted devices.
+    ##
+    ## Uses the provided username and password (if provided and necessary)
+    ## to create an SMB or NFS mount. If `type` is not specified, then
+    ## the operating system will choose the best available network filesystem
+    ## based on the other parameters. If `type` is specified, then any type
+    ## other than `nfs` will default to an SMB file share.
+    #
+    # create_mounts:
+    #   - mountpoint: 's:'
+    #     user: auser
+    #     password: somepassword
+    #     host: smbserver
+    #     share: space
+    #   - mountpoint: 'n:'
+    #     host: nfsserver
+    #     share: /mnt/nfs_share
+    #     type: nfs
