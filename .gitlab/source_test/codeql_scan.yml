@@ -39,4 +39,7 @@ run_codeql_scan:
     - export CGO_CFLAGS="-I${PWD}/rtloader/include -I${PWD}/rtloader/common"
     - echo "CGO_LDFLAGS=${CGO_LDFLAGS}"
     - echo "CGO_CFLAGS=${CGO_CFLAGS}"
-    - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS --command="invoke install-tools && invoke deps && invoke agent.build --build-exclude=systemd"
+    - invoke install-tools
+    - invoke deps
+    - invoke agent.build --build-exclude=systemd
+    - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
