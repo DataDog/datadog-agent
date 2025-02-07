@@ -64,12 +64,11 @@ func TestFlushAndClear(t *testing.T) {
 	requireSerie(require, seriesCollection[3], 400, 7)
 }
 
-func requireSerie(require *require.Assertions, series []*Serie, contextKey ckey.ContextKey, expectedValues ...float64) {
+func requireSerie(require *require.Assertions, series []SerieData, contextKey ckey.ContextKey, expectedValues ...float64) {
 	require.Len(series, len(expectedValues))
 	for i, serie := range series {
 		require.Equal(contextKey, serie.ContextKey)
-		require.Len(serie.Points, 1)
-		require.Equal(expectedValues[i], serie.Points[0].Value)
+		require.Equal(expectedValues[i], serie.Point.Value)
 	}
 }
 
