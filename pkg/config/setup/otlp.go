@@ -72,7 +72,7 @@ func setupOTLPEnvironmentVariables(config pkgconfigmodel.Setup) {
 	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
 	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
-	config.BindEnv("otlp_config.traces.ignore_missing_datadog_fields")
+	config.BindEnvAndSetDefault("otlp_config.traces.ignore_missing_datadog_fields", false)
 	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 
