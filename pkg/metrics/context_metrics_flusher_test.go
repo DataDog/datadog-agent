@@ -81,11 +81,11 @@ func addMetricSample(contextMetrics ContextMetrics, contextKey int, value float6
 	contextMetrics.AddSample(ckey.ContextKey(contextKey), &mSample, 1, 10, nil, c)
 }
 
-func flushAndClear(require *require.Assertions, flusher *ContextMetricsFlusher) [][]*Serie {
-	var seriesCollection [][]*Serie
-	flusher.FlushAndClear(func(s []*Serie) {
+func flushAndClear(require *require.Assertions, flusher *ContextMetricsFlusher) [][]SerieData {
+	var seriesCollection [][]SerieData
+	flusher.FlushAndClear(func(s []SerieData) {
 		// Clone `s` as it is reused at each call
-		series := make([]*Serie, len(s))
+		series := make([]SerieData, len(s))
 		copy(series, s)
 		seriesCollection = append(seriesCollection, series)
 	})

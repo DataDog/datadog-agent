@@ -149,14 +149,20 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 			continue
 		}
-		serie.Name = context.Name + serie.NameSuffix
-		serie.Tags = context.Tags()
-		serie.Host = context.Host
-		serie.NoIndex = context.noIndex
-		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
-		serie.Source = context.source
+		actualSerie := &metrics.Serie{
+			Points:     []metrics.Point{serie.Point},
+			MType:      serie.MType,
+			NameSuffix: serie.NameSuffix,
 
-		cs.series = append(cs.series, serie)
+			Name:           context.Name + serie.NameSuffix,
+			Tags:           context.Tags(),
+			Host:           context.Host,
+			NoIndex:        context.noIndex,
+			SourceTypeName: checksSourceTypeName, // this source type is required for metrics coming from the checks
+			Source:         context.source,
+		}
+
+		cs.series = append(cs.series, actualSerie)
 	}
 }
 

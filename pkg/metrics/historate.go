@@ -35,9 +35,9 @@ func (h *Historate) addSample(sample *MetricSample, timestamp float64) {
 	h.previousSample, h.previousTimestamp = sample.Value, timestamp
 }
 
-func (h *Historate) flush(timestamp float64) ([]*Serie, error) {
+func (h *Historate) flush(timestamp float64) ([]SerieData, error) {
 	if !h.sampled {
-		return []*Serie{}, NoSerieError{}
+		return nil, NoSerieError{}
 	}
 
 	h.previousSample, h.previousTimestamp, h.sampled = 0.0, 0, false
