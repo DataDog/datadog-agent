@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -162,73 +161,16 @@ type webhookConfig struct {
 	// isEnabled is the flag to enable the autoinstrumentation webhook
 	isEnabled bool
 	endpoint  string
-	version   version // autoinstrumentation logic version
-
-	// optional features
-	languageDetectionEnabled          bool
-	languageDetectionReportingEnabled bool
-	injectAutoDetectedLibraries       bool
-	// keep pointers to bool to differentiate between unset and false
-	// for backward compatibility with the previous implementation.
-	// TODO: remove the pointers when the backward compatibility is not needed anymore.
-	asmEnabled       *bool
-	iastEnabled      *bool
-	asmScaEnabled    *bool
-	profilingEnabled *string
-
-	// configuration for the libraries init-containers to inject.
-	containerRegistry           string
-	injectorImageTag            string
-	injectionFilter             mutatecommon.InjectionFilter
-	pinnedLibraries             []libInfo
-	initSecurityContext         *corev1.SecurityContext
-	defaultResourceRequirements initResourceRequirementConfiguration
 }
 
 type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
 
 // retrieveConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config
-func retrieveConfig(datadogConfig config.Component, injectionFilter mutatecommon.InjectionFilter) (webhookConfig, error) {
-	webhookConfig := webhookConfig{
+func retrieveConfig(datadogConfig config.Component) webhookConfig {
+	return webhookConfig{
 		isEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
 		endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
-
-		languageDetectionEnabled:          datadogConfig.GetBool("language_detection.enabled"),
-		languageDetectionReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
-		injectAutoDetectedLibraries:       datadogConfig.GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
-
-		asmEnabled:       getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled"),
-		iastEnabled:      getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled"),
-		asmScaEnabled:    getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled"),
-		profilingEnabled: getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled"),
-
-		containerRegistry: mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry"),
-		injectionFilter:   injectionFilter,
 	}
-
-	instCfg, err := NewInstrumentationConfig(datadogConfig)
-	if err != nil {
-		return webhookConfig, err
-	}
-
-	webhookConfig.pinnedLibraries = getPinnedLibraries(instCfg.LibVersions, webhookConfig.containerRegistry)
-	webhookConfig.injectorImageTag = instCfg.InjectorImageTag
-
-	if webhookConfig.version, err = instrumentationVersion(instCfg.Version); err != nil {
-		return webhookConfig, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
-	}
-
-	webhookConfig.initSecurityContext, err = parseInitSecurityContext(datadogConfig)
-	if err != nil {
-		return webhookConfig, fmt.Errorf("unable to parse init-container's SecurityContext from configuration: %w", err)
-	}
-
-	webhookConfig.defaultResourceRequirements, err = initDefaultResources(datadogConfig)
-	if err != nil {
-		return webhookConfig, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
-	}
-
-	return webhookConfig, nil
 }
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config

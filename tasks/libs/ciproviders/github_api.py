@@ -680,7 +680,7 @@ def get_user_query(login):
     return query + string_var
 
 
-def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None):
+def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
@@ -699,7 +699,7 @@ Make sure that milestone is open before trying again.""",
 
     pr = github.create_pr(
         pr_title=title,
-        pr_body="",
+        pr_body=body,
         base_branch=base_branch,
         target_branch=target_branch,
     )

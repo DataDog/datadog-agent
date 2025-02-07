@@ -341,6 +341,7 @@ func (s *npCollectorImpl) flush() {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		s.pathtestProcessingChan <- ptConf
 	}
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1) //nolint:errcheck
 }
 
 // enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.

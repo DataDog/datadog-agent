@@ -1016,7 +1016,7 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // EventUnmarshalBinary unmarshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 48 {
+	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1033,7 +1033,9 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 	adlc.Rate = binary.NativeEndian.Uint16(data[40:42])
 	// 2 bytes of padding
 	adlc.Paused = binary.NativeEndian.Uint32(data[44:48])
-	return 48, nil
+	adlc.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint32(data[48:52]))
+	// +4 bytes of padding
+	return 56, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
