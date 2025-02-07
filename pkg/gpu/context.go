@@ -291,11 +291,14 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 	}
 
 	var filteredDevices []nvml.Device
+	numContainerGPUs := 0
 	for _, resource := range container.AllocatedResources {
 		// Only consider NVIDIA GPUs
 		if resource.Name != nvidiaResourceName {
 			continue
 		}
+
+		numContainerGPUs++
 
 		for _, device := range devices {
 			uuid, ret := device.GetUUID()
@@ -311,8 +314,23 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 		}
 	}
 
-	// We didn't find any devices assigned to the container, report it as an error.
+	// We didn't match any devices to the container. This could be caused by multiple reasons:
 	if len(filteredDevices) == 0 {
+		// The container has no GPUs assigned to it. This could be a problem in the PodResources API.
+		if numContainerGPUs == 0 {
+			// An special case is when we only have one GPU in the system. In that case, we don't
+			// need the API as there's only one device available, so return it directly as a fallback
+			if len(devices) == 1 {
+				return devices, nil
+			}
+
+			// If we have more than one GPU, we need to return an error as we can't determine which
+			// device to use.
+			return nil, fmt.Errorf("container %s has no GPUs assigned to it, check whether we have access to the PodResources kubelet API", containerID)
+		}
+
+		// In this case, the container has GPUs assigned to it but we couldn't match it to our devices. Return the error for this case
+		// and show the allocated resources for debugging purposes.
 		return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
 	}
 
