@@ -20,7 +20,6 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -205,8 +204,6 @@ func TestGetContainerID(t *testing.T) {
 		})
 	}
 
-	// Test invalid LocalData headers
-	provider.containerIDFromOriginInfo = config.NoopContainerIDFromOriginInfoFunc
 	invalidLocalDataLists := []string{
 		"",
 		",",
