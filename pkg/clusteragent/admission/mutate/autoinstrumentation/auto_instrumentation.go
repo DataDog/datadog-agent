@@ -56,14 +56,14 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, injector mutatecommon.Mutator) (*Webhook, error) {
+func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, mutator mutatecommon.Mutator) (*Webhook, error) {
 	config := retrieveConfig(datadogConfig)
 	webhook := &Webhook{
 		name:            webhookName,
 		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
-		mutator:         injector,
+		mutator:         mutator,
 		wmeta:           wmeta,
 		config:          config,
 	}

@@ -19,11 +19,7 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
 		pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("admission_controller.inject_tags.enabled") ||
-		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 ||
-		len(pkgconfigsetup.Datadog().GetStringSlice("admission_controller.inject_config.enabled_namespaces")) > 0 ||
-		len(pkgconfigsetup.Datadog().GetStringSlice("admission_controller.inject_tags.enabled_namespaces")) > 0 {
+		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
 		// Accept all, ignore pods if they're explicitly filtered-out
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
