@@ -202,16 +202,20 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	}()
 
 	select {
-	case <-done:
-		// wait for the Transaction process to be over
+	//case <-done:
+	// wait for the Transaction process to be over
 	case <-w.stopChan:
 		// cancel current Transaction if we need to stop the worker
 		cancel()
 		w.requeue(t)
 		<-done // We still need to wait for the process func to return
 		return fmt.Errorf("Worker was requested to stop")
+
+	default:
+		// Don't block
 	}
-	cancel()
+	//cancel()
+
 	return nil
 }
 
