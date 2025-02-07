@@ -187,15 +187,6 @@ var defaultProfiles = `
   profiles:
   - name: checks
     metric:
-      exclude:
-        zero_metric: true
-        tags:
-          - check_name:cpu
-          - check_name:memory
-          - check_name:uptime
-          - check_name:network
-          - check_name:io
-          - check_name:file_handle
       metrics:
         - name: checks.execution_time
           aggregate_tags:
