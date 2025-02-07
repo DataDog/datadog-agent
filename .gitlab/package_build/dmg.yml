@@ -154,13 +154,19 @@ new-agent_dmg-x64-a7:
   # before_script:
   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
   after_script:
-    - brew install awscli -fv || true
+    - brew reinstall awscli -fv || true
     - brew link --overwrite awscli || true
+    - which aws || true
     # - brew install cryptography -fv || true
   script:
     # - set -e
     - set +e
-    - sudo brew remove --force --ignore-dependencies --formula awscli -v
+    - which aws
+    - brew unlink awscli -nv
+    - brew unlink awscli -v
+    - which aws
+    - brew remove --force --ignore-dependencies --formula awscli -v
+    - which aws
     - exit 1
     # - !reference [.vault_login]
 
