@@ -60,6 +60,7 @@ typedef struct {
 typedef struct {
     void *ctx;
     void *buf;
+    __u64 read_started;
 } ssl_read_args_t;
 
 typedef struct {
@@ -71,6 +72,7 @@ typedef struct {
     void *ctx;
     void *buf;
     size_t *size_out_param;
+    __u64 read_started;
 } ssl_read_ex_args_t;
 
 typedef struct {
