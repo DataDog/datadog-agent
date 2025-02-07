@@ -163,7 +163,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 // and let the opportunity to the other process to set the right permissions in the meantime.
 func tryLockContext(ctx context.Context, lockfile *flock.Flock, retryDelay time.Duration) (bool, error) {
 	for {
-		if ok, err := lockfile.TryLock(); (ok || err != nil) && !errors.Is(err, fs.ErrPermission) {
+		if ok, err := lockfile.TryLock(); ok || (err != nil && !errors.Is(err, fs.ErrPermission)) {
 			return ok, err
 		}
 
