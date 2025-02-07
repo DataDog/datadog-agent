@@ -6,7 +6,7 @@
 // Package profiler provides a flare folder containing the output of various agent's pprof servers
 package profiler
 
-// team: agent-shared-components
+// team: agent-configuration
 
 import flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 

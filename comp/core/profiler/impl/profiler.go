@@ -54,7 +54,7 @@ type profiler struct {
 	sysProbeCfg       sysprobeconfig.Component
 }
 
-// Gathers and returns pprof server output for a variety of agent services.
+// ReadProfileData gathers and returns pprof server output for a variety of agent services.
 //
 // Will always attempt to read the pprof of core-agent and security-agent, and will optionally try to read information for
 // process-agent, trace-agent, and system-probe if those systems are detected as enabled.

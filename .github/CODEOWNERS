@@ -319,6 +319,7 @@
 /comp/core/configsync @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
+/comp/core/profiler @DataDog/agent-configuration
 /comp/core/secrets @DataDog/agent-configuration
 /comp/core/settings @DataDog/agent-configuration
 /comp/core/status @DataDog/agent-configuration

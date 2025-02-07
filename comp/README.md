@@ -169,6 +169,8 @@ doesn't exist or doesn't contain a PID for a running process.
 
 ### [comp/core/profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/profiler)
 
+*Datadog Team*: agent-configuration
+
 Package profiler provides a flare folder containing the output of various agent's pprof servers
 
 ### [comp/core/remoteagentregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagentregistry)
