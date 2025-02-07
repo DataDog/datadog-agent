@@ -11,7 +11,6 @@ import (
 	ddlambda "github.com/DataDog/datadog-lambda-go"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 

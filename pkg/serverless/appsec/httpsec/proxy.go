@@ -38,7 +38,7 @@ type ProxyLifecycleProcessor struct {
 
 	demux aggregator.Demultiplexer
 
-	addRulesMonitoringTags sync.Once
+	addRulesMonitoringTagsOnce sync.Once
 }
 
 // NewProxyLifecycleProcessor returns a new httpsec proxy processor monitored with the
@@ -277,18 +277,19 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	}
 
 	res := lp.appsec.Monitor(ctx.toAddresses())
-	setWAFMonitoringTags(span, res)
 	if res != nil {
+		setWAFMonitoringTags(span, res)
+
 		// Ruleset related tags are needed only once as the ruleset data does not change.
-		lp.addRulesMonitoringTags.Do(func() {
+		lp.addRulesMonitoringTagsOnce.Do(func() {
 			setRulesMonitoringTags(span, res.Diagnostics)
 			chunk.Priority = int32(sampler.PriorityUserKeep)
 		})
 
 		if res.Result.HasEvents() {
 			setSecurityEventsTags(span, res.Result.Events, reqHeaders, nil)
-			chunk.Priority = int32(sampler.PriorityUserKeep)
 			setAPISecurityTags(span, res.Result.Derivatives)
+			chunk.Priority = int32(sampler.PriorityUserKeep)
 		}
 	}
 

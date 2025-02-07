@@ -2,8 +2,6 @@ module lambda-time
 
 go 1.22.0
 
-toolchain go1.23.5
-
 require (
 	github.com/DataDog/datadog-lambda-go v1.11.1-0.20231030204701-7ec92619787d
 	github.com/aws/aws-lambda-go v1.37.0

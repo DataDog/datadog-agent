@@ -19,6 +19,7 @@ import (
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/limiter"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
@@ -137,6 +138,8 @@ func (a *AppSec) Close() error {
 
 // Monitor runs the security event rules and return the events as a slice
 // The monitored addresses are all persistent addresses
+//
+// This function always returns nil when an error occurs.
 func (a *AppSec) Monitor(addresses map[string]any) *httpsec.MonitorResult {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx, err := a.handle.NewContextWithBudget(a.cfg.WafTimeout)

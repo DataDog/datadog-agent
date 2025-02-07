@@ -22,9 +22,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	waf "github.com/DataDog/go-libddwaf/v3"
 	json "github.com/json-iterator/go"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation
@@ -34,6 +35,9 @@ type Monitorer interface {
 	Monitor(addresses map[string]any) *MonitorResult
 }
 
+// MonitorResult contains the result of a Monitor call including
+// the WAF Result itself, the configuration of the WAF (Diagnostics)
+// and the Metrics (Stats) of the WAF call.
 type MonitorResult struct {
 	Result      waf.Result
 	Diagnostics waf.Diagnostics

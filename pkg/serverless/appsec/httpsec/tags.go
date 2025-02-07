@@ -17,6 +17,7 @@ import (
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/httpsec"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -85,9 +86,9 @@ func setAppSecEnabledTags(span span) {
 }
 
 // setEventSpanTags sets the security event span tags into the service entry span.
-func setEventSpanTags(span span, event []any) error {
+func setEventSpanTags(span span, events []any) error {
 	// Set the appsec event span tag
-	val, err := makeEventsTagValue(event)
+	val, err := makeEventsTagValue(events)
 	if err != nil {
 		return err
 	}
@@ -112,8 +113,8 @@ func makeEventsTagValue(events []any) (json.RawMessage, error) {
 }
 
 // setSecurityEventsTags sets the AppSec-specific span tags when security events were found.
-func setSecurityEventsTags(span span, event []any, headers, respHeaders map[string][]string) {
-	if err := setEventSpanTags(span, event); err != nil {
+func setSecurityEventsTags(span span, events []any, headers, respHeaders map[string][]string) {
+	if err := setEventSpanTags(span, events); err != nil {
 		log.Errorf("appsec: unexpected error while creating the appsec event tags: %v", err)
 		return
 	}
