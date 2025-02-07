@@ -697,6 +697,7 @@ type ActivityDumpLoadConfig struct {
 	EndTimestampRaw      uint64
 	Rate                 uint16 // max number of events per sec
 	Paused               uint32
+	CGroupFlags          containerutils.CGroupFlags
 }
 
 // NetworkDeviceContext represents the network device context of a network event
