@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -63,6 +64,17 @@ type PythonCheck struct {
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+}
+
+var allSettingsOnce sync.Once
+var allSettings []byte
+var allSettingsErr error
+
+func getAllSettings() ([]byte, error) {
+	allSettingsOnce.Do(func() {
+		allSettings, allSettingsErr = yaml.Marshal(pkgconfigsetup.Datadog().AllSettings())
+	})
+	return allSettings, allSettingsErr
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -313,8 +325,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, rtLoaderError)
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
-		allSettings := pkgconfigsetup.Datadog().AllSettings()
-		agentConfig, err := yaml.Marshal(allSettings)
+		agentConfig, err := getAllSettings()
 		if err != nil {
 			log.Errorf("error serializing agent config: %s", err)
 			return err
