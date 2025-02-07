@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -79,9 +78,6 @@ func GetVPCSubnetsForHost(ctx context.Context) ([]*net.IPNet, error) {
 			if err != nil {
 				return nil, err
 			}
-			log.DebugFunc(func() string {
-				return fmt.Sprintf("GetVPCSubnetsForHost: found VPC subnets: %s", strings.Join(subnets, ", "))
-			})
 
 			var parsedSubnets []*net.IPNet
 			for _, subnet := range subnets {
