@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type packageName string
@@ -724,6 +725,13 @@ func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) 
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
+func (s *upgradeScenarioSuite) startInstallerExperiment(pkg packageName, version string) (string, error) {
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+	cmd := fmt.Sprintf("sudo datadog-installer daemon start-installer-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
+	s.T().Logf("Running start command: %s", cmd)
+	return s.Env().RemoteHost.Execute(cmd)
+}
+
 func (s *upgradeScenarioSuite) mustStartExperiment(pkg packageName, version string) string {
 	output, err := s.startExperiment(pkg, version)
 	require.NoError(s.T(), err, "Failed to start experiment: v%s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
@@ -1057,7 +1065,7 @@ func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
 	timestamp := s.host.LastJournaldTimestamp()
 	// Can't check the error status of the command, because it gets terminated by design
 	// We check the unit history instead
-	s.startExperiment(datadogInstaller, previousInstallerImageVersion)
+	s.startInstallerExperiment(datadogInstaller, previousInstallerImageVersion)
 	s.assertSuccessfulInstallerStartExperiment(timestamp, previousInstallerImageVersion)
 
 	// Change the catalog of the experiment installer
