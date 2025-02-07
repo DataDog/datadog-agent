@@ -281,7 +281,8 @@ def get_last_release_tag(ctx, repo, pattern):
             code=1,
         )
 
-    release_pattern = re.compile(r'^.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?(\^{})?$')
+    major = 6 if is_agent6(ctx) else 7
+    release_pattern = re.compile(rf'^.*{major}' + r'\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?(\^{})?$')
     tags_without_suffix = [
         line for line in tags.splitlines() if not line.endswith("^{}") and release_pattern.match(line)
     ]
