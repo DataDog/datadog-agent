@@ -32,5 +32,5 @@ run_codeql_scan:
     - inv -e agent.build --build-exclude=systemd
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
-    - curl -L $CODEQL_BUNDLE_URL > /tmp/codeql.tar.gz && tar -zxf /tmp/codeql.tar.gz -C /usr/local \ && rm /tmp/codeql.tar.gz
+    - curl -L $CODEQL_BUNDLE_URL -o /tmp/codeql.tar.gz && tar -zxf /tmp/codeql.tar.gz -C /usr/local && rm /tmp/codeql.tar.gz
     - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
