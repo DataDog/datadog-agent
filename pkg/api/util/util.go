@@ -124,6 +124,17 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		return fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
 
+	h := sha256.New()
+
+	_, err = h.Write(bytes.Join([][]byte{[]byte(token), ipccert, ipckey}, []byte{}))
+	if err != nil {
+		log.Errorf("error while hashing authtoken, cert and key: %v", err)
+	}
+
+	bs := h.Sum(nil)
+
+	log.Infof("auth hash: %x", bs)
+
 	certPool := x509.NewCertPool()
 	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
 		return fmt.Errorf("Unable to generate certPool from PERM IPC cert")
