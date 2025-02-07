@@ -20,10 +20,10 @@ import (
 	"time"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -69,6 +70,8 @@ const (
 	gnutlsRecordSendRetprobe    = "uretprobe__gnutls_record_send"
 	gnutlsByeProbe              = "uprobe__gnutls_bye"
 	gnutlsDeinitProbe           = "uprobe__gnutls_deinit"
+	sslReadArgs                 = "ssl_read_args"
+	sslReadExArgs               = "ssl_read_ex_args"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -424,6 +427,11 @@ type sslProgram struct {
 	watcher       *sharedlibraries.Watcher
 	istioMonitor  *istioMonitor
 	nodeJSMonitor *nodeJSMonitor
+	// readArgsMapCleaner is the map cleaner that removes stale entries from the kernel map 'ssl_read_args'.
+	// The map may contain stale entries if the process was interrupted mid-read and didn't reach uretprobe.
+	readArgsMapCleaner *ddebpf.MapCleaner[http.SslReadKey, http.SslReadArgs]
+	// readExArgsMapCleaner is the map cleaner that removes stale entries from the kernel map 'ssl_read_ex_args'.
+	readExArgsMapCleaner *ddebpf.MapCleaner[http.SslReadKey, http.SslReadExArgs]
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
@@ -506,9 +514,13 @@ func (o *sslProgram) PreStart(*manager.Manager) error {
 	return nil
 }
 
-// PostStart is a no-op.
-func (o *sslProgram) PostStart(*manager.Manager) error {
-	return nil
+// PostStart starts maps cleaner.
+func (o *sslProgram) PostStart(mgr *manager.Manager) error {
+	err := o.setupReadArgsMapCleaner(mgr)
+	if err != nil {
+		return err
+	}
+	return o.setupReadExArgsMapCleaner(mgr)
 }
 
 // Stop stops the program.
@@ -516,6 +528,8 @@ func (o *sslProgram) Stop(*manager.Manager) {
 	o.watcher.Stop()
 	o.istioMonitor.Stop()
 	o.nodeJSMonitor.Stop()
+	o.readArgsMapCleaner.Stop()
+	o.readExArgsMapCleaner.Stop()
 }
 
 // DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
@@ -777,4 +791,60 @@ func getUID(lib utils.PathIdentifier) string {
 // IsBuildModeSupported returns always true, as tls module is supported by all modes.
 func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+func (o *sslProgram) setupReadArgsMapCleaner(mgr *manager.Manager) error {
+	argsMap, _, err := mgr.GetMap(sslReadArgs)
+	if err != nil {
+		return fmt.Errorf("getting map %q error: %s", argsMap, err)
+	}
+	mapCleaner, err := ddebpf.NewMapCleaner[http.SslReadKey, http.SslReadArgs](argsMap, protocols.DefaultMapCleanerBatchSize, sslReadArgs, "usm_monitor")
+	if err != nil {
+		return fmt.Errorf("creating ssl_read_args map cleaner error: %s", err)
+	}
+
+	ttl := uint64(o.cfg.SSLMapCleanerInterval.Nanoseconds())
+	mapCleaner.Clean(o.cfg.SSLMapCleanerInterval,
+		func() bool {
+			num, err := ebpfcheck.HashMapNumberOfEntries(argsMap)
+			if err != nil || num == 0 {
+				return false
+			}
+			return true
+		},
+		nil,
+		func(_ int64, _ http.SslReadKey, val http.SslReadArgs) bool {
+			return val.Started > ttl
+		})
+
+	o.readArgsMapCleaner = mapCleaner
+	return nil
+}
+
+func (o *sslProgram) setupReadExArgsMapCleaner(mgr *manager.Manager) error {
+	exArgsMap, _, err := mgr.GetMap(sslReadExArgs)
+	if err != nil {
+		return fmt.Errorf("getting map %q error: %s", exArgsMap, err)
+	}
+	mapCleaner, err := ddebpf.NewMapCleaner[http.SslReadKey, http.SslReadExArgs](exArgsMap, protocols.DefaultMapCleanerBatchSize, sslReadExArgs, "usm_monitor")
+	if err != nil {
+		return fmt.Errorf("creating ssl_read_ex_args map cleaner error: %s", err)
+	}
+
+	ttl := uint64(o.cfg.SSLMapCleanerInterval.Nanoseconds())
+	mapCleaner.Clean(o.cfg.SSLMapCleanerInterval,
+		func() bool {
+			num, err := ebpfcheck.HashMapNumberOfEntries(exArgsMap)
+			if err != nil || num == 0 {
+				return false
+			}
+			return true
+		},
+		nil,
+		func(_ int64, _ http.SslReadKey, val http.SslReadExArgs) bool {
+			return val.Read_started > ttl
+		})
+
+	o.readExArgsMapCleaner = mapCleaner
+	return nil
 }
