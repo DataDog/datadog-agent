@@ -7,6 +7,8 @@
 package sender
 
 import (
+	"bytes"
+	"io"
 	"sync"
 	"time"
 
@@ -166,15 +168,28 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 }
 
 func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan chan *message.Payload) {
-	serializedMessage := s.serializer.Serialize(messages)
-	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", s.pipelineName, len(messages), len(serializedMessage), float64(len(serializedMessage))/float64(len(messages)))
+	var encodedPayload bytes.Buffer
+	compressor := s.compression.NewStreamCompressor(&encodedPayload)
+	if compressor == nil {
+		compressor = &compression.NoopStreamCompressor{Writer: &encodedPayload}
+	}
 
-	encodedPayload, err := s.compression.Compress(serializedMessage)
-	if err != nil {
+	wc := newWriterWithCounter(compressor)
+
+	if err := s.serializer.Serialize(messages, wc); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		s.utilization.Stop()
 		return
 	}
+
+	if err := compressor.Close(); err != nil {
+		log.Warn("Encoding failed - dropping payload", err)
+		s.utilization.Stop()
+		return
+	}
+
+	unencodedSize := wc.getWrittenBytes()
+	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", s.pipelineName, len(messages), unencodedSize, float64(unencodedSize)/float64(len(messages)))
 
 	if s.serverless {
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
@@ -183,12 +198,34 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 
 	p := &message.Payload{
 		Messages:      messages,
-		Encoded:       encodedPayload,
+		Encoded:       encodedPayload.Bytes(),
 		Encoding:      s.compression.ContentEncoding(),
-		UnencodedSize: len(serializedMessage),
+		UnencodedSize: unencodedSize,
 	}
 	s.utilization.Stop()
 	outputChan <- p
 	s.pipelineMonitor.ReportComponentEgress(p, "strategy")
 	s.pipelineMonitor.ReportComponentIngress(p, "sender")
+}
+
+// writerCounter is a simple io.Writer that counts the number of bytes written to it
+type writerCounter struct {
+	io.Writer
+	counter int
+}
+
+func newWriterWithCounter(w io.Writer) *writerCounter {
+	return &writerCounter{Writer: w}
+}
+
+// Write writes the given bytes and increments the counter
+func (wc *writerCounter) Write(b []byte) (int, error) {
+	n, err := wc.Writer.Write(b)
+	wc.counter += n
+	return n, err
+}
+
+// getWrittenBytes returns the number of bytes written to the writer
+func (wc *writerCounter) getWrittenBytes() int {
+	return wc.counter
 }
