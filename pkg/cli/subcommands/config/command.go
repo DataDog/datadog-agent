@@ -122,7 +122,10 @@ func showRuntimeConfiguration(_ log.Component, config config.Component, cliParam
 	}
 
 	if config.GetBool("otelcollector.enabled") {
-		runtimeConfig = insertOTelCollectorConfig(config.GetString("otelcollector.extension_url"), runtimeConfig, c.HTTPClient())
+		runtimeConfig, err = insertOTelCollectorConfig(config.GetString("otelcollector.extension_url"), runtimeConfig, c.HTTPClient())
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Println(runtimeConfig)
@@ -130,14 +133,14 @@ func showRuntimeConfiguration(_ log.Component, config config.Component, cliParam
 	return nil
 }
 
-func insertOTelCollectorConfig(extensionURL string, runtimeConfig string, httpClient *http.Client) string {
+func insertOTelCollectorConfig(extensionURL string, runtimeConfig string, httpClient *http.Client) (string, error) {
 	resp, err := util.DoGet(httpClient, extensionURL, util.CloseConnection)
 	if err != nil {
-		return runtimeConfig
+		return runtimeConfig, err
 	}
 	var extensionResp ddflareextension.Response
 	if err = json.Unmarshal(resp, &extensionResp); err != nil {
-		return runtimeConfig
+		return runtimeConfig, err
 	}
 	otelRuntimeCfg := extensionResp.RuntimeConfig
 	var sb strings.Builder
@@ -157,7 +160,7 @@ func insertOTelCollectorConfig(extensionURL string, runtimeConfig string, httpCl
 			}
 		}
 	}
-	return sb.String()
+	return sb.String(), nil
 }
 
 func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliParams *cliParams) error {
