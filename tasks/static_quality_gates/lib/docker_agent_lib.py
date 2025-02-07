@@ -10,7 +10,7 @@ def calculate_image_on_disk_size(ctx, url):
     # The downloaded image contains some metadata files and another tar.gz file. We are computing the sum of
     # these metadata files and the uncompressed size of the tar.gz inside of output.tar.
     ctx.run("tar -xf output.tar")
-    image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'").stdout.splitlines()
+    image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'", hide=True).stdout.splitlines()
     total_size = 0
     image_tar_gz = None
     print("Image on disk content :")
