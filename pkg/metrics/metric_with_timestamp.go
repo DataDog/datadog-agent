@@ -20,20 +20,22 @@ func (mt *MetricWithTimestamp) addSample(sample *MetricSample, timestamp float64
 	mt.points = append(mt.points, Point{Ts: timestamp, Value: sample.Value})
 }
 
-func (mt *MetricWithTimestamp) flush(_ float64) ([]*Serie, error) {
+func (mt *MetricWithTimestamp) flush(_ float64) ([]SerieData, error) {
 	points := mt.points
 	mt.points = nil
 
 	if len(points) == 0 {
-		return []*Serie{}, NoSerieError{}
+		return nil, NoSerieError{}
 	}
 
-	return []*Serie{
-		{
-			Points: points,
-			MType:  mt.apiType,
-		},
-	}, nil
+	series := make([]SerieData, 0, len(points))
+	for _, point := range points {
+		series = append(series, SerieData{
+			Point: point,
+			MType: mt.apiType,
+		})
+	}
+	return series, nil
 }
 
 func (mt *MetricWithTimestamp) isStateful() bool {
