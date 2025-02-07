@@ -39,15 +39,14 @@ func (mt *mirrorTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	clone := req.Clone(req.Context())
 	clone.Host = mt.mirror.Host
 	clone.URL.Scheme = mt.mirror.Scheme
-	clone.URL.Host = mt.mirror.Host
-	clone.URL.User = mt.mirror.User
+	if mt.mirror.User != nil {
+		password, _ := mt.mirror.User.Password()
+		clone.SetBasicAuth(mt.mirror.User.Username(), password)
+	}
 	var err error
 	if mt.mirror.Path != "" {
 		clone.URL.Path = mt.mirror.JoinPath(clone.URL.Path).Path
 	}
-	fmt.Println(clone.URL)
-	fmt.Println(clone.URL.User.Username())
-	fmt.Println(clone.URL.User.Password())
 
 	// Some mirrors have special logic for this path. Since this path only purpose in the OCI spec
 	// is to check if the registry is an OCI registry, we can safely return a 200 OK.
