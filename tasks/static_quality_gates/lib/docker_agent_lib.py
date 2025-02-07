@@ -13,13 +13,15 @@ def calculate_image_on_disk_size(ctx, url):
     image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'").stdout.splitlines()
     total_size = 0
     image_tar_gz = None
+    print("Image on disk content :")
     for k, line in enumerate(image_content):
         if k % 2 == 0:
             if "tar.gz" in image_content[k + 1]:
                 image_tar_gz = image_content[k + 1]
             else:
                 total_size += int(line)
-
+        else:
+            print(f"  - {line}")
     if image_tar_gz:
         total_size += int(ctx.run(f"tar -xf {image_tar_gz} --to-stdout | wc -c").stdout)
 
