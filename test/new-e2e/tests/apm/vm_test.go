@@ -419,7 +419,7 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 
 	s.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewSecretClient(s.T(), s.Env().RemoteHost, rootDir)
+	secretClient := secretsutils.NewClient(s.T(), s.Env().RemoteHost, rootDir)
 	secretClient.SetSecret("api_key", apiKey1)
 
 	extraconfig := fmt.Sprintf(`
@@ -441,7 +441,7 @@ agent_ipc:
 		vmProvisionerOpts(
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
-				secretsutils.WithUnixSecretSetupScript(secretResolverPath, true),
+				secretsutils.WithUnixSetupScript(secretResolverPath, true),
 				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 			),
 		)...),
