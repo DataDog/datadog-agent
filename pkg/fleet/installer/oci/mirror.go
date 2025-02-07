@@ -36,6 +36,10 @@ func newMirrorTransport(transport http.RoundTripper, mirror string) (*mirrorTran
 
 // RoundTrip modifies the request to point to the mirror URL before sending it.
 func (mt *mirrorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Avoid mirroring potential redirects requested by the mirror.
+	if req.Response != nil {
+		return mt.transport.RoundTrip(req)
+	}
 	clone := req.Clone(req.Context())
 	clone.Host = mt.mirror.Host
 	clone.URL.Scheme = mt.mirror.Scheme
