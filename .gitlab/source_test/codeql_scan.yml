@@ -33,4 +33,10 @@ run_codeql_scan:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
     - curl -L $CODEQL_BUNDLE_URL -o /tmp/codeql.tar.gz && tar -zxf /tmp/codeql.tar.gz -C /usr/local && rm /tmp/codeql.tar.gz
-    - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS
+    - echo "CGO_LDFLAGS=${CGO_LDFLAGS}"
+    - echo "CGO_CFLAGS=${CGO_CFLAGS}"
+    - export CGO_LDFLAGS="-L${PWD}/rtloader/build/rtloader -ldl"
+    - export CGO_CFLAGS="-I${PWD}/rtloader/include -I${PWD}/rtloader/common"
+    - echo "CGO_LDFLAGS=${CGO_LDFLAGS}"
+    - echo "CGO_CFLAGS=${CGO_CFLAGS}"
+    - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS --command="invoke install-tools && invoke deps && invoke agent.build --build-exclude=systemd"
