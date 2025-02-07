@@ -161,6 +161,9 @@ new-agent_dmg-x64-a7:
   script:
     # - set -e
     - set +e
+    - brew list --formula
+    - brew uses awscli --installed
+    - brew info awscli
     - which aws
     - brew unlink awscli -nv
     - brew unlink awscli -v
