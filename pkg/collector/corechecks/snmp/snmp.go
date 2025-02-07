@@ -196,6 +196,11 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return c.singleDeviceCk.GetDiagnoses(), nil
 }
 
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
+}
+
 // Factory creates a new check factory
 func Factory(agentConfig config.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {

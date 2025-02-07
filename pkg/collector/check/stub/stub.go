@@ -73,3 +73,6 @@ func (c *StubCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) { return nil, 
 
 // IsHAEnabled returns false
 func (c *StubCheck) IsHAEnabled() bool { return false }
+
+// IsHASupported returns false
+func (c *StubCheck) IsHASupported() bool { return false }

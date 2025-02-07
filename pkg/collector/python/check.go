@@ -419,6 +419,11 @@ func (c *PythonCheck) IsHAEnabled() bool {
 	return c.haEnabled
 }
 
+// IsHASupported returns if the check is compatible with High Availability
+func (c *PythonCheck) IsHASupported() bool {
+	return false
+}
+
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
 // by the PythonCheck.
 func pythonCheckFinalizer(c *PythonCheck) {

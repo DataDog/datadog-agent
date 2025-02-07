@@ -290,6 +290,11 @@ func (c *CiscoSdwanCheck) Interval() time.Duration {
 	return c.interval
 }
 
+// IsHASupported returns true if the check supports HA
+func (c *CiscoSdwanCheck) IsHASupported() bool {
+	return true
+}
+
 func boolPointer(b bool) *bool {
 	return &b
 }

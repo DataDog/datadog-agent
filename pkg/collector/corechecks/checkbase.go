@@ -153,6 +153,9 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 
 		if commonOptions.HAEnabled != nil {
 			c.haEnabled = *commonOptions.HAEnabled
+			if c.haEnabled && !c.IsHASupported() {
+				return fmt.Errorf("High Availability is enabled for check %s but this integration does not support it", string(c.ID()))
+			}
 		}
 
 		c.source = source
@@ -294,4 +297,9 @@ func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 // IsHAEnabled returns if High Availability is enabled for this check
 func (c *CheckBase) IsHAEnabled() bool {
 	return c.haEnabled
+}
+
+// IsHASupported returns if the check is compatible with High Availability
+func (c *CheckBase) IsHASupported() bool {
+	return false
 }
