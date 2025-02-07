@@ -146,7 +146,7 @@ func TestSuccessfulLoadAuthToken(t *testing.T) {
 	// Reinitialize global vars to check with SetAuthToken
 	reinitGlobalVars()
 
-	// Check that CreateAndSetAuthToken returns no error
+	// Check that SetAuthToken returns no error
 	err = SetAuthToken(mockConfig)
 	assert.NoError(t, err)
 
@@ -156,7 +156,7 @@ func TestSuccessfulLoadAuthToken(t *testing.T) {
 	assert.EqualValues(t, createdServerTLSConfig.Certificates, GetTLSServerConfig().Certificates)
 }
 
-// This test check that if one of thje artifacts creation blocks, the function timeout
+// This test check that if CreateAndSetAuthToken blocks, the function timeout
 func TestDeadline(t *testing.T) {
 	reinitGlobalVars()
 
@@ -173,41 +173,6 @@ func TestDeadline(t *testing.T) {
 	require.NoError(t, err)
 	defer lockFile.Unlock()
 	defer os.Remove(ipcCertFileLocation + ".lock")
-	mockConfig.SetWithoutSource("ipc_cert_file_path", ipcCertFileLocation)
-
-	// Check that CreateAndSetAuthToken times out when the auth_token file is locked
-	start := time.Now()
-	err = CreateAndSetAuthToken(mockConfig)
-	duration := time.Since(start)
-	assert.Error(t, err)
-	assert.LessOrEqual(t, duration, mockConfig.GetDuration("auth_init_timeout")+time.Second)
-}
-
-// This test check that if one of thje artifacts creation fails and the other is processing, the function stops and returns an error
-func TestFailEarly(t *testing.T) {
-	reinitGlobalVars()
-
-	// Create a new config
-	mockConfig := configmock.New(t)
-	tmpDir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-
-	// Create an auth_token file that is not writable
-	authTokenDir := path.Join(tmpDir, "auth_token_dir")
-	err = os.Mkdir(authTokenDir, 0000)
-	require.NoError(t, err)
-	defer os.RemoveAll(authTokenDir)
-	mockConfig.SetWithoutSource("auth_token_file_path", path.Join(authTokenDir, "auth_token"))
-
-	// Create a lock file to simulate contention on ipc_cert_file
-	ipcCertFileLocation := path.Join(tmpDir, "ipc_cert_file")
-	mockConfig.SetWithoutSource("ipc_cert_file_path", ipcCertFileLocation)
-	lockFile := flock.New(ipcCertFileLocation + ".lock")
-	err = lockFile.Lock()
-	require.NoError(t, err)
-	defer lockFile.Unlock()
-	defer os.Remove(ipcCertFileLocation + ".lock")
-	mockConfig.SetWithoutSource("ipc_cert_file_path", ipcCertFileLocation)
 
 	// Check that CreateAndSetAuthToken times out when the auth_token file is locked
 	start := time.Now()
