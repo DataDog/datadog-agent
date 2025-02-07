@@ -70,7 +70,7 @@ def check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, m
         raise AssertionError(error_message)
 
 
-def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, **kwargs):
+def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent", **kwargs):
     arguments = argument_extractor(
         kwargs, max_on_wire_size=read_byte_input, max_on_disk_size=read_byte_input, ctx=None, metricHandler=None
     )
@@ -93,7 +93,7 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, **kwargs):
                 "orange",
             )
         )
-    url = f"registry.ddbuild.io/ci/datadog-agent/agent:v{pipeline_id}-{commit_sha}-7{'-jmx' if jmx else ''}-{arch}"
+    url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}-7{'-jmx' if jmx else ''}-{arch}"
     # Fetch the on wire and on disk size of the image from the url
     image_on_wire_size, image_on_disk_size = get_image_url_size(ctx, metric_handler, gate_name, url)
     # Check if the docker image is within acceptable bounds
