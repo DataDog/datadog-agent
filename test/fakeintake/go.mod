@@ -11,7 +11,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.141
+	github.com/DataDog/agent-payload/v5 v5.0.143
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3

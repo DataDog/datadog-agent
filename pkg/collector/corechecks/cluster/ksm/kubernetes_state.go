@@ -286,6 +286,8 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	maps.Copy(k.metricNamesMapper, customresources.GetCustomMetricNamesMapper(k.instance.CustomResource.Spec.Resources))
 
+	metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
+
 	// Retrieve cluster name
 	k.getClusterName()
 
@@ -300,9 +302,12 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelJoins(defaultLabelJoins())
 
 	k.processLabelJoins()
+	k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags)
 	k.processLabelsAsTags()
 
-	k.mergeAnnotationsAsTags(defaultAnnotationsAsTags())
+	// We need to merge the user-defined annotations as tags with the default annotations first
+	mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), defaultAnnotationsAsTags())
+	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(mergedAnnotationsAsTags, k.instance.AnnotationsAsTags)
 	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
@@ -353,16 +358,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		builder.WithKubeClient(apiServerClient.InformerCl)
 	}
 
-	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
-	// Equivalent to configuring --metric-annotations-allowlist.
-	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
-		// Any annotation can be used for label joins.
-		allowedAnnotations[collector] = []string{"*"}
-	}
-
-	builder.WithAllowAnnotations(allowedAnnotations)
-
 	// Prepare watched namespaces
 	namespaces := k.instance.Namespaces
 
@@ -402,6 +397,16 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
+
+	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
+	// Equivalent to configuring --metric-annotations-allowlist.
+	allowedAnnotations := map[string][]string{}
+	for _, collector := range collectors {
+		// Any annotation can be used for label joins.
+		allowedAnnotations[collector] = []string{"*"}
+	}
+
+	builder.WithAllowAnnotations(allowedAnnotations)
 
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
@@ -810,33 +815,6 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfigWithoutLabelsMap
 	}
 }
 
-// mergeAnnotationsAsTags adds extra annotations as tags to the configured mapping.
-// User-defined annotations as tags are prioritized.
-func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
-	if k.instance.AnnotationsAsTags == nil {
-		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
-	}
-	// In the case of a misconfiguration issue, the value could be explicitly set to nil
-	for resource, mapping := range k.instance.AnnotationsAsTags {
-		if mapping == nil {
-			delete(k.instance.AnnotationsAsTags, resource)
-		}
-	}
-	for resource, mapping := range extra {
-		_, found := k.instance.AnnotationsAsTags[resource]
-		if !found {
-			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
-			k.instance.AnnotationsAsTags[resource] = mapping
-			continue
-		}
-		for key, value := range mapping {
-			if _, found := k.instance.AnnotationsAsTags[resource][key]; !found {
-				k.instance.AnnotationsAsTags[resource][key] = value
-			}
-		}
-	}
-}
-
 func (k *KSMCheck) processLabelJoins() {
 	k.instance.labelJoins = make(map[string]*joinsConfig)
 	for metric, joinConf := range k.instance.LabelJoins {
@@ -1032,6 +1010,37 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	}
 }
 
+// mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
+func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string) map[string]map[string]string {
+	if instanceMap == nil {
+		instanceMap = make(map[string]map[string]string)
+	}
+	// In the case of a misconfiguration issue, the value could be explicitly set to nil
+	for resource, mapping := range instanceMap {
+		if mapping == nil {
+			delete(instanceMap, resource)
+		}
+	}
+
+	for resource, mapping := range extra {
+		// modify the resource name to the singular form of the resource
+		resource = toSingularResourceName(resource)
+		_, found := instanceMap[resource]
+		if !found {
+			instanceMap[resource] = make(map[string]string)
+			instanceMap[resource] = mapping
+			continue
+		}
+		for key, value := range mapping {
+			if _, found := instanceMap[resource][key]; !found {
+				instanceMap[resource][key] = value
+			}
+		}
+	}
+
+	return instanceMap
+}
+
 // resourceNameFromMetric returns the resource name based on the metric name
 // It relies on the conventional KSM naming format kube_<resource>_suffix
 // returns an empty string otherwise
@@ -1158,4 +1167,10 @@ func labelsMapperOverride(metricName string) map[string]string {
 func toSnakeCase(s string) string {
 	snake := matchAllCap.ReplaceAllString(s, "${1}_${2}")
 	return strings.ToLower(snake)
+}
+
+func toSingularResourceName(s string) string {
+	// Expected input in the form of: resourceTypePlural.apiGroup
+	resourceType := strings.Split(s, ".")[0]
+	return strings.TrimSuffix(resourceType, "s")
 }

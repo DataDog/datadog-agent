@@ -44,6 +44,7 @@ func NewICMPTCPParser() Parser {
 	icmpParser.packetParser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpParser.icmpLayer, &icmpParser.innerPayload)
 	icmpParser.innerPacketParser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &icmpParser.innerIPLayer, &icmpParser.innerTCPLayer)
 	icmpParser.packetParser.IgnoreUnsupported = true
+	icmpParser.innerPacketParser.IgnoreUnsupported = true
 	return icmpParser
 }
 

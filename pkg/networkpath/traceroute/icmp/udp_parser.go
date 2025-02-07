@@ -25,7 +25,6 @@ type (
 		innerIPLayer  layers.IPv4
 		innerUDPLayer layers.UDP
 		innerTCPLayer layers.TCP
-		innerPayload  gopacket.Payload
 		// packetParser is parser for the ICMP segment of the packet
 		packetParser *gopacket.DecodingLayerParser
 		// innerPacketParser is necessary for ICMP packets
@@ -43,6 +42,7 @@ func NewICMPUDPParser() Parser {
 	icmpParser.packetParser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpParser.icmpLayer)
 	icmpParser.innerPacketParser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &icmpParser.innerIPLayer, &icmpParser.innerUDPLayer)
 	icmpParser.packetParser.IgnoreUnsupported = true
+	icmpParser.innerPacketParser.IgnoreUnsupported = true
 	return icmpParser
 }
 
@@ -73,7 +73,6 @@ func (p *UDPParser) Parse(header *ipv4.Header, payload []byte) (*Response, error
 	p.innerIPLayer = layers.IPv4{}
 	p.innerTCPLayer = layers.TCP{}
 	p.innerUDPLayer = layers.UDP{}
-	p.innerPayload = gopacket.Payload{}
 
 	p.icmpResponse = &Response{} // ensure we get a fresh ICMPResponse each run
 	p.icmpResponse.SrcIP = header.Src

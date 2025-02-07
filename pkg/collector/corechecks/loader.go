@@ -25,6 +25,9 @@ type CheckFactory func() check.Check
 // Catalog keeps track of Go checks by name
 var catalog = make(map[string]CheckFactory)
 
+// GoCheckLoaderName is the name of the Go loader
+const GoCheckLoaderName string = "core"
+
 // RegisterCheck adds a check to the catalog
 func RegisterCheck(name string, checkFactory option.Option[func() check.Check]) {
 	if v, ok := checkFactory.Get(); ok {
@@ -51,8 +54,8 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 }
 
 // Name return returns Go loader name
-func (gl *GoCheckLoader) Name() string {
-	return "core"
+func (*GoCheckLoader) Name() string {
+	return GoCheckLoaderName
 }
 
 // Load returns a Go check

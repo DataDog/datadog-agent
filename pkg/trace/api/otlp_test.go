@@ -697,58 +697,85 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 }
 
 func TestCreateChunks(t *testing.T) {
-	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
-		testCreateChunk(false, t)
-	})
-
-	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
-		testCreateChunk(true, t)
-	})
-}
-
-func testCreateChunk(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	cfg := NewTestConfig(t)
-	if !enableReceiveResourceSpansV2 {
-		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	tests := []struct {
+		enableReceiveResourceSpansV2 bool
+		probabilisticSamplerEnabled  bool
+	}{
+		{
+			enableReceiveResourceSpansV2: false,
+			probabilisticSamplerEnabled:  false,
+		},
+		{
+			enableReceiveResourceSpansV2: true,
+			probabilisticSamplerEnabled:  false,
+		},
+		{
+			enableReceiveResourceSpansV2: false,
+			probabilisticSamplerEnabled:  true,
+		},
+		{
+			enableReceiveResourceSpansV2: true,
+			probabilisticSamplerEnabled:  true,
+		},
 	}
-	cfg.OTLPReceiver.ProbabilisticSampling = 50
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-	const (
-		traceID1 = 123           // sampled by 50% rate
-		traceID2 = 1237892138897 // not sampled by 50% rate
-		traceID3 = 1237892138898 // not sampled by 50% rate
-	)
-	traces := map[uint64]pb.Trace{
-		traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
-		traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
-		traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
-	}
-	priorities := map[uint64]sampler.SamplingPriority{
-		traceID3: sampler.PriorityUserKeep,
-	}
-	chunks := o.createChunks(traces, priorities)
-	var found int
-	for _, c := range chunks {
-		id := c.Spans[0].TraceID
-		require.ElementsMatch(t, c.Spans, traces[id])
-		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
-		switch id {
-		case traceID1:
-			//nolint:revive // TODO(OTEL) Fix revive linter
-			found += 1
-			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(1), c.Priority)
-		case traceID2:
-			found += 2
-			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(0), c.Priority)
-		case traceID3:
-			found += 3
-			require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(2), c.Priority)
+	for _, tt := range tests {
+		var names []string
+		if tt.enableReceiveResourceSpansV2 {
+			names = append(names, "ReceiveResourceSpansV2")
+		} else {
+			names = append(names, "ReceiveResourceSpansV1")
 		}
+		if tt.probabilisticSamplerEnabled {
+			names = append(names, "ProbabilisticSamplerEnabled")
+		} else {
+			names = append(names, "ProbabilisticSamplerDisabled")
+		}
+		t.Run(strings.Join(names, " "), func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			if !tt.enableReceiveResourceSpansV2 {
+				cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+			}
+			cfg.OTLPReceiver.ProbabilisticSampling = 50
+			cfg.ProbabilisticSamplerEnabled = tt.probabilisticSamplerEnabled
+			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			const (
+				traceID1 = 123           // sampled by 50% rate
+				traceID2 = 1237892138897 // not sampled by 50% rate
+				traceID3 = 1237892138898 // not sampled by 50% rate
+			)
+			traces := map[uint64]pb.Trace{
+				traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
+				traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
+				traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
+			}
+			priorities := map[uint64]sampler.SamplingPriority{
+				traceID3: sampler.PriorityUserKeep,
+			}
+			chunks := o.createChunks(traces, priorities)
+			require.Len(t, chunks, len(traces))
+			for _, c := range chunks {
+				if tt.probabilisticSamplerEnabled {
+					require.Emptyf(t, c.Spans[0].Meta["_dd.p.dm"], "decision maker must be empty")
+					require.Equalf(t, int32(sampler.PriorityNone), c.Priority, "priority must be none")
+				} else {
+					id := c.Spans[0].TraceID
+					require.ElementsMatch(t, c.Spans, traces[id])
+					require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
+					switch id {
+					case traceID1:
+						require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"], "traceID1: dm must be -9")
+						require.Equal(t, int32(1), c.Priority, "traceID1: priority must be 1")
+					case traceID2:
+						require.Empty(t, c.Spans[0].Meta["_dd.p.dm"], "traceID2: dm must be empty")
+						require.Equal(t, int32(0), c.Priority, "traceID2: priority must be 0")
+					case traceID3:
+						require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"], "traceID3: dm must be -4")
+						require.Equal(t, int32(2), c.Priority, "traceID3: priority must be 2")
+					}
+				}
+			}
+		})
 	}
-	require.Equal(t, 6, found)
 }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
