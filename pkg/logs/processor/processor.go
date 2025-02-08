@@ -277,7 +277,9 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				return false
 			}
 		case config.MaskSequences:
-			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+			if rule.Regex.Match(content) {
+				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+			}
 		}
 	}
 
