@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1106,7 +1105,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := tracertestutil.DialTCP("tcp", server.Address())
+	c, err := testutil.DialTCP("tcp", server.Address())
 	require.NoError(t, err)
 
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
@@ -1305,7 +1304,7 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 
 	// try to connect to a port where no server is accepting connections
 	srvAddr := "127.0.0.1:9998"
-	conn, err := tracertestutil.DialTCP("tcp", srvAddr)
+	conn, err := testutil.DialTCP("tcp", srvAddr)
 	if err == nil {
 		conn.Close() // If the connection unexpectedly succeeds, close it immediately.
 		require.Fail(t, "expected connection to be refused, but it succeeded")
@@ -1351,7 +1350,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithData() {
 	t.Cleanup(srv.Shutdown)
 
 	serverAddr := srv.Address()
-	c, err := tracertestutil.DialTCP("tcp", serverAddr)
+	c, err := testutil.DialTCP("tcp", serverAddr)
 	require.NoError(t, err, "could not connect to server: ", err)
 
 	// Write to the server and expect a reset
@@ -1404,7 +1403,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 	t.Cleanup(srv.Shutdown)
 
 	serverAddr := srv.Address()
-	c, err := tracertestutil.DialTCP("tcp", serverAddr)
+	c, err := testutil.DialTCP("tcp", serverAddr)
 	require.NoError(t, err, "could not connect to server: ", err)
 
 	// Wait briefly to give the server time to close the connection
