@@ -67,7 +67,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -129,17 +128,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				pidimpl.Module(),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
-					profilingGoRoutines := commonsettings.NewProfilingGoroutines()
-					profilingGoRoutines.ConfigPrefix = configPrefix
+					// profilingGoRoutines := commonsettings.NewProfilingGoroutines()
+					// profilingGoRoutines.ConfigPrefix = configPrefix
 
 					return settings.Params{
 						Settings: map[string]settings.RuntimeSetting{
-							"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
-							"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
-							"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
-							"internal_profiling_goroutines":   profilingGoRoutines,
+							"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+							// "runtime_mutex_profile_fraction": &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
+							// "runtime_block_profile_rate":     &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
+							// "internal_profiling_goroutines":   profilingGoRoutines,
 							commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
-							"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix},
+							// "internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix},
 						},
 						Config: sysprobeconfig,
 					}
@@ -298,17 +297,17 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		}),
 		systemprobeloggerfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
-			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
-			profilingGoRoutines.ConfigPrefix = configPrefix
+			// profilingGoRoutines := commonsettings.NewProfilingGoroutines()
+			// profilingGoRoutines.ConfigPrefix = configPrefix
 
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
-					"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
-					"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
-					"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
-					"internal_profiling_goroutines":   profilingGoRoutines,
+					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+					// "runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
+					// "runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
+					// "internal_profiling_goroutines":   profilingGoRoutines,
 					commonsettings.MaxDumpSizeConfKey: &commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey},
-					"internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix},
+					// "internal_profiling":              &commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix},
 				},
 				Config: sysprobeconfig,
 			}
@@ -398,7 +397,7 @@ func stopSystemProbe() {
 			pkglog.Errorf("error shutting down expvar server: %s", err)
 		}
 	}
-	profiling.Stop()
+	// profiling.Stop()
 	if common.MemoryMonitor != nil {
 		common.MemoryMonitor.Stop()
 	}

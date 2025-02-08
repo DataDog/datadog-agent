@@ -67,9 +67,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type cliParams struct {
@@ -308,9 +306,9 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
-	if err := setupInternalProfiling(config); err != nil {
-		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
-	}
+	// if err := setupInternalProfiling(config); err != nil {
+	// 	return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
+	// }
 
 	log.Infof("Datadog Security Agent is now running.")
 
@@ -345,46 +343,46 @@ func StopAgent(log log.Component) {
 	log.Info("See ya!")
 }
 
-func setupInternalProfiling(config config.Component) error {
-	if config.GetBool(secAgentKey("internal_profiling.enabled")) {
-		cfgSite := config.GetString(secAgentKey("internal_profiling.site"))
-		cfgURL := config.GetString(secAgentKey("internal_profiling.profile_dd_url"))
+// func setupInternalProfiling(config config.Component) error {
+// 	if config.GetBool(secAgentKey("internal_profiling.enabled")) {
+// 		cfgSite := config.GetString(secAgentKey("internal_profiling.site"))
+// 		cfgURL := config.GetString(secAgentKey("internal_profiling.profile_dd_url"))
 
-		// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
-		var site string
-		if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
-			site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
-		} else {
-			site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
-			if cfgURL != "" {
-				site = cfgURL
-			}
-		}
+// 		// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
+// 		var site string
+// 		if traceAgentURL := os.Getenv("TRACE_AGENT_URL"); len(traceAgentURL) > 0 {
+// 			site = fmt.Sprintf(profiling.ProfilingLocalURLTemplate, traceAgentURL)
+// 		} else {
+// 			site = fmt.Sprintf(profiling.ProfilingURLTemplate, cfgSite)
+// 			if cfgURL != "" {
+// 				site = cfgURL
+// 			}
+// 		}
 
-		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
-		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
+// 		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
+// 		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
 
-		profSettings := profiling.Settings{
-			ProfilingURL:         site,
-			Env:                  config.GetString(secAgentKey("internal_profiling.env")),
-			Service:              "security-agent",
-			Period:               config.GetDuration(secAgentKey("internal_profiling.period")),
-			CPUDuration:          config.GetDuration(secAgentKey("internal_profiling.cpu_duration")),
-			MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
-			BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
-			WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
-			WithBlockProfile:     config.GetBool(secAgentKey("internal_profiling.enable_block_profiling")),
-			WithMutexProfile:     config.GetBool(secAgentKey("internal_profiling.enable_mutex_profiling")),
-			WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
-			Socket:               config.GetString(secAgentKey("internal_profiling.unix_socket")),
-			Tags:                 tags,
-		}
+// 		profSettings := profiling.Settings{
+// 			ProfilingURL:         site,
+// 			Env:                  config.GetString(secAgentKey("internal_profiling.env")),
+// 			Service:              "security-agent",
+// 			Period:               config.GetDuration(secAgentKey("internal_profiling.period")),
+// 			CPUDuration:          config.GetDuration(secAgentKey("internal_profiling.cpu_duration")),
+// 			MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
+// 			BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
+// 			WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
+// 			WithBlockProfile:     config.GetBool(secAgentKey("internal_profiling.enable_block_profiling")),
+// 			WithMutexProfile:     config.GetBool(secAgentKey("internal_profiling.enable_mutex_profiling")),
+// 			WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
+// 			Socket:               config.GetString(secAgentKey("internal_profiling.unix_socket")),
+// 			Tags:                 tags,
+// 		}
 
-		return profiling.Start(profSettings)
-	}
+// 		return profiling.Start(profSettings)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func secAgentKey(sub string) string {
 	return fmt.Sprintf("security_agent.%s", sub)

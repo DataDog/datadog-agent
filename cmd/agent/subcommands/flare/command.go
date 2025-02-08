@@ -55,7 +55,6 @@ import (
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -346,31 +345,31 @@ func makeFlare(flareComp flare.Component,
 		}
 	}
 
-	if cliParams.profiling >= 30 {
-		c, err := common.NewSettingsClient()
-		if err != nil {
-			return fmt.Errorf("failed to initialize settings client: %w", err)
-		}
+	// if cliParams.profiling >= 30 {
+	// 	c, err := common.NewSettingsClient()
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to initialize settings client: %w", err)
+	// 	}
 
-		profilingOpts := settings.ProfilingOpts{
-			ProfileMutex:         cliParams.profileMutex,
-			ProfileMutexFraction: cliParams.profileMutexFraction,
-			ProfileBlocking:      cliParams.profileBlocking,
-			ProfileBlockingRate:  cliParams.profileBlockingRate,
-		}
+	// profilingOpts := settings.ProfilingOpts{
+	// 	ProfileMutex:         cliParams.profileMutex,
+	// 	ProfileMutexFraction: cliParams.profileMutexFraction,
+	// 	ProfileBlocking:      cliParams.profileBlocking,
+	// 	ProfileBlockingRate:  cliParams.profileBlockingRate,
+	// }
 
-		err = settings.ExecWithRuntimeProfilingSettings(func() {
-			if profile, err = readProfileData(cliParams.profiling); err != nil {
-				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
-			}
-		}, profilingOpts, c)
-		if err != nil {
-			return err
-		}
-	} else if cliParams.profiling != -1 {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.profiling)))
-		return err
-	}
+	// 	err = settings.ExecWithRuntimeProfilingSettings(func() {
+	// 		if profile, err = readProfileData(cliParams.profiling); err != nil {
+	// 			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
+	// 		}
+	// 	}, profilingOpts, c)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// } else if cliParams.profiling != -1 {
+	// 	fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.profiling)))
+	// 	return err
+	// }
 
 	if streamLogParams.Duration > 0 {
 		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))

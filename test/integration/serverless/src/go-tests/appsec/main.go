@@ -5,27 +5,23 @@
 
 package main
 
-import (
-	"context"
-
-	ddlambda "github.com/DataDog/datadog-lambda-go"
-	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-)
+// ddlambda "github.com/DataDog/datadog-lambda-go"
+// "github.com/aws/aws-lambda-go/events"
+// "github.com/aws/aws-lambda-go/lambda"
+// "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 func main() {
-	tracer.Start()
-	defer tracer.Stop()
+	// tracer.Start()
+	// defer tracer.Stop()
 
-	lambda.Start(ddlambda.WrapHandler(handleRequest, nil))
+	// lambda.Start(ddlambda.WrapHandler(handleRequest, nil))
 }
 
-func handleRequest(_ context.Context, _ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	response := events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Body:       "ok",
-		Headers:    map[string]string{"Content-Encoding": "text/plain"},
-	}
-	return response, nil
-}
+// func handleRequest(_ context.Context, _ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+// 	response := events.APIGatewayProxyResponse{
+// 		StatusCode: 200,
+// 		Body:       "ok",
+// 		Headers:    map[string]string{"Content-Encoding": "text/plain"},
+// 	}
+// 	return response, nil
+// }

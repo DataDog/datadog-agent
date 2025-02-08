@@ -162,31 +162,31 @@ func run(cliParams *cliParams, _ config.Component) error {
 		logFile = defaultpaths.DCALogFile
 	}
 
-	if cliParams.profiling >= 30 {
-		settingsClient, err := newSettingsClient()
-		if err != nil {
-			return fmt.Errorf("failed to initialize settings client: %v", err)
-		}
+	// if cliParams.profiling >= 30 {
+	// 	settingsClient, err := newSettingsClient()
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to initialize settings client: %v", err)
+	// 	}
 
-		profilingOpts := settings.ProfilingOpts{
-			ProfileMutex:         cliParams.profileMutex,
-			ProfileMutexFraction: cliParams.profileMutexFraction,
-			ProfileBlocking:      cliParams.profileBlocking,
-			ProfileBlockingRate:  cliParams.profileBlockingRate,
-		}
+	// 	profilingOpts := settings.ProfilingOpts{
+	// 		ProfileMutex:         cliParams.profileMutex,
+	// 		ProfileMutexFraction: cliParams.profileMutexFraction,
+	// 		ProfileBlocking:      cliParams.profileBlocking,
+	// 		ProfileBlockingRate:  cliParams.profileBlockingRate,
+	// 	}
 
-		e = settings.ExecWithRuntimeProfilingSettings(func() {
-			if profile, e = readProfileData(cliParams.profiling); e != nil {
-				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", e)))
-			}
-		}, profilingOpts, settingsClient)
-		if e != nil {
-			return e
-		}
-	} else if cliParams.profiling != -1 {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.profiling)))
-		return nil
-	}
+	// 	e = settings.ExecWithRuntimeProfilingSettings(func() {
+	// 		if profile, e = readProfileData(cliParams.profiling); e != nil {
+	// 			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", e)))
+	// 		}
+	// 	}, profilingOpts, settingsClient)
+	// 	if e != nil {
+	// 		return e
+	// 	}
+	// } else if cliParams.profiling != -1 {
+	// 	fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.profiling)))
+	// 	return nil
+	// }
 
 	if e = util.SetAuthToken(pkgconfigsetup.Datadog()); e != nil {
 		return e

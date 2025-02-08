@@ -228,11 +228,11 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
-					"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
-					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
-					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
-					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
-					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
+					"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+					// "runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+					// "runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+					// "internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					// "internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
 				},
 				Config: c,
 			}

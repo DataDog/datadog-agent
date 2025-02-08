@@ -187,11 +187,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(c config.Component) settings.Params {
 					return settings.Params{
 						Settings: map[string]settings.RuntimeSetting{
-							"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
-							"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
-							"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
-							"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
-							"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"),
+							"log_level": commonsettings.NewLogLevelRuntimeSetting(),
+							// "runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+							// "runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+							// "internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+							// "internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"),
 						},
 						Config: c,
 					}
