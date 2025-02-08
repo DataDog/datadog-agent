@@ -46,9 +46,6 @@ func (m *InventorychecksMock) Set(instanceID string, key string, value interface
 // Refresh is a empty method for the inventorychecks mock
 func (m *InventorychecksMock) Refresh() {}
 
-// GetAsJSON returns an hardcoded empty JSON dict
-func (m *InventorychecksMock) GetAsJSON() ([]byte, error) { return []byte("{}"), nil }
-
 // GetInstanceMetadata returns all the metadata set for an instanceID using the Set method
 func (m *InventorychecksMock) GetInstanceMetadata(instanceID string) map[string]interface{} {
 	if metadata, found := m.metadata[instanceID]; found {
