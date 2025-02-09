@@ -225,16 +225,21 @@ build do
   command "#{python} -m pip check"
 
   # Removing tests that don't need to be shipped in the embedded folder
-  if windows_target?
-    delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
-    delete "#{python_3_embedded}/Lib/site-packages/openstack/tests/"
-    delete "#{python_3_embedded}/Lib/site-packages/psutil/tests/"
-    delete "#{python_3_embedded}/Lib/site-packages/test/" # cm-client
-  else
-    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/Cryptodome/SelfTest/"
-    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/openstack/tests/"
-    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/psutil/tests/"
-    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/test/" # cm-client
+  test_folders = [
+    'Cryptodome/SelfTest',
+    'openstack/tests',
+    'psutil/tests',
+    'test', # cm-client
+    'securesystemslib/_vendor/ed25519/test_data',
+    'setuptools/tests',
+    'supervisor/tests',
+  ]
+  test_folders.each do |test_folder|
+    if windows_target?
+      delete "#{python_3_embedded}/Lib/site-packages/#{test_folder}/"
+    else
+      delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/#{test_folder}/"
+    end
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
