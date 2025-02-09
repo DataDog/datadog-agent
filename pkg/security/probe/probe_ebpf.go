@@ -12,8 +12,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"math"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -745,8 +748,30 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 	return read, nil
 }
 
+func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
+	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.Default)
+
+	for _, layer := range packet.Layers() {
+		switch layer := layer.(type) {
+		case *layers.DNS:
+			for _, answer := range layer.Answers {
+				if answer.Type == layers.DNSTypeCNAME {
+					p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
+				} else {
+					ip, ok := netip.AddrFromSlice(answer.IP)
+					if ok {
+						p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
+					} else {
+						seclog.Errorf("DNS response with an invalid IP received: %v", ip)
+					}
+				}
+			}
+		}
+	}
+}
+
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkFlowMonitorEventType
+	return eventType == model.DNSResponseEventType || eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.RawPacketEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType || eventType == model.NetworkFlowMonitorEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -957,6 +982,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
 		}
+		return
+	case model.DNSResponseEventType:
+		p.unmarshalDNSResponse(data[offset:])
 		return
 	}
 
@@ -1292,6 +1320,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			return
 		}
+
 	case model.IMDSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
@@ -1322,6 +1351,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		ip, ok := netip.AddrFromSlice(event.Accept.Addr.IPNet.IP)
+		if ok {
+			event.Accept.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
+		}
+
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1332,6 +1366,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode connect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		ip, ok := netip.AddrFromSlice(event.Connect.Addr.IPNet.IP)
+		if ok {
+			event.Connect.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
+		}
+
 	case model.SyscallsEventType:
 		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))

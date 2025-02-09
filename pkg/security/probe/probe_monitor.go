@@ -117,6 +117,10 @@ func (m *EBPFMonitors) SendStats() error {
 				return fmt.Errorf("failed to send hash_resolver stats: %w", err)
 			}
 		}
+
+		if err := resolvers.DNSResolver.SendStats(); err != nil {
+			return fmt.Errorf("failed to send process_resolver stats: %w", err)
+		}
 	}
 
 	if err := m.eventStreamMonitor.SendStats(); err != nil {
