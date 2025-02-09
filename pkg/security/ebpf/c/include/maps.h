@@ -51,6 +51,7 @@ BPF_HASH_MAP(auid_approvers, u32, struct event_mask_filter_t, 128)
 BPF_HASH_MAP(auid_range_approvers, u32, struct u32_range_filter_t, EVENT_MAX)
 BPF_HASH_MAP(active_flows_spin_locks, u32, struct active_flows_spin_lock_t, 1) // max entry will be overridden at runtime
 BPF_HASH_MAP(inode_file, u64, struct file_t, 32)
+BPF_HASH_MAP(dns_responses_sent_to_userspace, u16, u64, 1024)
 
 BPF_HASH_MAP_FLAGS(active_flows, u32, struct active_flows_t, 1, BPF_F_NO_PREALLOC) // max entry will be overridden at runtime
 BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PREALLOC) // max entries will be overridden at runtime
@@ -101,6 +102,7 @@ BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_bb, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(is_discarded_by_inode_gen, struct is_discarded_by_inode_t, 1)
 BPF_PERCPU_ARRAY_MAP(dns_event, struct dns_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(dns_response_event, struct dns_response_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(imds_event, struct imds_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(packets, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, struct selinux_write_buffer_t, 1)

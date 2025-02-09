@@ -174,6 +174,10 @@ type EBPFProbe struct {
 	// snapshot
 	ruleSetVersion    uint64
 	playSnapShotState *atomic.Bool
+
+	// metrics
+	DNSResponsesFilteredOnKernelMetric atomic.Int64
+	DNSResponsesReceived               atomic.Int64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -721,6 +725,21 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	tags := []string{
+		metrics.CacheTag,
+		metrics.SegmentResolutionTag,
+	}
+
+	num := p.DNSResponsesFilteredOnKernelMetric.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricRepeatedDNSResponsesFilteredOnKernel, num, tags, 1.0); err != nil {
+		seclog.Tracef("couldn't set MetricRepeatedDNSResponsesFilteredOnKernel metric: %s", err)
+	}
+
+	num = p.DNSResponsesReceived.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricDNSResponseReceived, num, tags, 1.0); err != nil {
+		seclog.Tracef("couldn't set MetricDNSResponseReceived metric: %s", err)
+	}
+
 	return p.monitors.SendStats()
 }
 
@@ -748,6 +767,10 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 var dnsLayer = new(layers.DNS)
 
 func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
+	if !p.config.Probe.DNSResolutionEnabled {
+		return
+	}
+
 	if err := dnsLayer.DecodeFromBytes(data, gopacket.NilDecodeFeedback); err != nil {
 		// this is currently pretty common, so only trace log it for now
 		if seclog.DefaultLogger.IsTracing() {
@@ -985,6 +1008,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	case model.DNSResponseEventType:
 		p.unmarshalDNSResponse(data[offset:])
+		p.DNSResponsesReceived.Inc()
+		return
+	case model.DNSResponseEventsNotSentType:
+		p.DNSResponsesFilteredOnKernelMetric.Inc()
 		return
 	}
 
