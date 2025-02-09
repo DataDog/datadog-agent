@@ -174,6 +174,10 @@ type EBPFProbe struct {
 	// snapshot
 	ruleSetVersion    uint64
 	playSnapShotState *atomic.Bool
+
+	// metrics
+	DNSResponsesFilteredOnKernelMetric atomic.Int64
+	DNSResponsesReceived               atomic.Int64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -721,6 +725,21 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	tags := []string{
+		metrics.CacheTag,
+		metrics.SegmentResolutionTag,
+	}
+
+	num := p.DNSResponsesFilteredOnKernelMetric.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricRepeatedDNSResponsesFilteredOnKernel, num, tags, 1.0); err != nil {
+		seclog.Tracef("couldn't set MetricRepeatedDNSResponsesFilteredOnKernel metric: %s", err)
+	}
+
+	num = p.DNSResponsesReceived.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricDNSResponseReceived, num, tags, 1.0); err != nil {
+		seclog.Tracef("couldn't set MetricDNSResponseReceived metric: %s", err)
+	}
+
 	return p.monitors.SendStats()
 }
 
@@ -986,6 +1005,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	case model.DNSResponseEventType:
 		p.unmarshalDNSResponse(data[offset:])
+		p.DNSResponsesReceived.Inc()
+		return
+	case model.DNSResponseEventsNotSentType:
+		p.DNSResponsesFilteredOnKernelMetric.Inc()
 		return
 	}
 
