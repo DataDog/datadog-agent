@@ -98,6 +98,16 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "accept.addr.hostname":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Accept.Hostnames
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "accept.addr.ip":
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
@@ -144,6 +154,16 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Bind.AddrFamily)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "bind.addr.hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Bind.Hostname
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1130,6 +1150,16 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Connect.AddrFamily)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "connect.addr.hostname":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Connect.Hostnames
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -20813,11 +20843,13 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
 		"accept.addr.family",
+		"accept.addr.hostname",
 		"accept.addr.ip",
 		"accept.addr.is_public",
 		"accept.addr.port",
 		"accept.retval",
 		"bind.addr.family",
+		"bind.addr.hostname",
 		"bind.addr.ip",
 		"bind.addr.is_public",
 		"bind.addr.port",
@@ -20915,6 +20947,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.syscall.path",
 		"chown.syscall.uid",
 		"connect.addr.family",
+		"connect.addr.hostname",
 		"connect.addr.ip",
 		"connect.addr.is_public",
 		"connect.addr.port",
@@ -22274,6 +22307,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	switch field {
 	case "accept.addr.family":
 		return "accept", reflect.Int, nil
+	case "accept.addr.hostname":
+		return "accept", reflect.String, nil
 	case "accept.addr.ip":
 		return "accept", reflect.Struct, nil
 	case "accept.addr.is_public":
@@ -22284,6 +22319,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "accept", reflect.Int, nil
 	case "bind.addr.family":
 		return "bind", reflect.Int, nil
+	case "bind.addr.hostname":
+		return "bind", reflect.String, nil
 	case "bind.addr.ip":
 		return "bind", reflect.Struct, nil
 	case "bind.addr.is_public":
@@ -22478,6 +22515,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "chown", reflect.Int, nil
 	case "connect.addr.family":
 		return "connect", reflect.Int, nil
+	case "connect.addr.hostname":
+		return "connect", reflect.String, nil
 	case "connect.addr.ip":
 		return "connect", reflect.Struct, nil
 	case "connect.addr.is_public":
@@ -25179,6 +25218,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Accept.AddrFamily = uint16(rv)
 		return nil
+	case "accept.addr.hostname":
+		switch rv := value.(type) {
+		case string:
+			ev.Accept.Hostnames = append(ev.Accept.Hostnames, rv)
+		case []string:
+			ev.Accept.Hostnames = append(ev.Accept.Hostnames, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "accept.addr.hostname"}
+		}
+		return nil
 	case "accept.addr.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
@@ -25219,6 +25268,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "bind.addr.family"}
 		}
 		ev.Bind.AddrFamily = uint16(rv)
+		return nil
+	case "bind.addr.hostname":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "bind.addr.hostname"}
+		}
+		ev.Bind.Hostname = rv
 		return nil
 	case "bind.addr.ip":
 		rv, ok := value.(net.IPNet)
@@ -25909,6 +25965,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "connect.addr.family"}
 		}
 		ev.Connect.AddrFamily = uint16(rv)
+		return nil
+	case "connect.addr.hostname":
+		switch rv := value.(type) {
+		case string:
+			ev.Connect.Hostnames = append(ev.Connect.Hostnames, rv)
+		case []string:
+			ev.Connect.Hostnames = append(ev.Connect.Hostnames, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "connect.addr.hostname"}
+		}
 		return nil
 	case "connect.addr.ip":
 		rv, ok := value.(net.IPNet)

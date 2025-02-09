@@ -89,6 +89,8 @@ const (
 	TCDNSRequestParserKey
 	// TCIMDSRequestParserKey is the key to the IMDS request program
 	TCIMDSRequestParserKey
+	// TCDNSResponseKey is the key to the DNS response program
+	TCDNSResponseKey
 )
 
 const (

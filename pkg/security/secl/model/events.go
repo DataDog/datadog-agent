@@ -79,6 +79,8 @@ const (
 	CgroupTracingEventType
 	// DNSEventType DNS event
 	DNSEventType
+	// DNSResponseEventType DNS Response event
+	DNSResponseEventType
 	// NetDeviceEventType is sent for events on net devices
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
