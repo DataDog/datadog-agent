@@ -200,7 +200,7 @@ build do
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
       conf_files = ["conf.yaml.example", "conf.yaml.default", "metrics.yaml", "auto_conf.yaml"]
       conf_files.each do |filename|
-        src = windows_safe_path(check_dir,"datadog_checks", check, "data", filename)
+        src = windows_safe_path(check_dir, "datadog_checks", check, "data", filename)
         dest = check_conf_dir
         if File.exist?(src) and !File.exist?(windows_safe_path(dest, filename))
           FileUtils.mkdir_p(dest)
@@ -221,13 +221,6 @@ build do
         folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
         if File.exist? folder_path
           FileUtils.cp_r folder_path, "#{check_conf_dir}/"
-        end
-
-        # Drop the example files from the installed packages since they are copied in /etc/datadog-agent/conf.d and not used here
-        if windows_target?
-          delete "#{python_3_embedded}/Lib/site-packages/datadog_checks/#{check}/data/#{profile_folder}"
-        else
-          delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/datadog_checks/#{check}/data/#{profile_folder}"
         end
       end
     end
