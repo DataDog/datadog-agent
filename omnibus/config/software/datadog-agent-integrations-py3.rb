@@ -237,6 +237,13 @@ build do
     delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/test/" # cm-client
   end
 
+  unless windows_target?
+    block do
+      # setuptools come from supervisor and ddtrace
+      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{python_version}/site-packages/setuptools/*.exe"))
+    end
+  end
+
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
