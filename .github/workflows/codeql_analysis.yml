@@ -35,6 +35,39 @@ jobs:
           cache: "pip"
       - run: pip3 install -r requirements.txt
 
+      # Cache for Go modules
+      - name: Cache Go modules
+        if: matrix.language == 'go'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      # Cache for Python packages
+      - name: Cache Python packages
+        if: matrix.language == 'python'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Cache for npm dependencies
+      - name: Cache npm dependencies
+        if: matrix.language == 'javascript'
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+
       - name: Setup env variables
         run: |
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
@@ -48,6 +81,8 @@ jobs:
         uses: github/codeql-action/init@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9
         with:
           languages: ${{ matrix.language }}
+          ram: 4096
+          threads: 2
           config: |
             paths-ignore:
               - rtloader/build/rtloader/CMakeFiles/datadog-agent-rtloader.dir
