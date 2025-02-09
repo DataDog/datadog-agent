@@ -1215,7 +1215,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error
 		return nil, errors.New("No activity dump manager")
 	}
 
-	ad := dump.NewActivityDump(adm)
+	ad := dump.NewActivityDump(adm, 0)
 	if ad == nil {
 		return nil, errors.New("Creation of new activity dump fails")
 	}
