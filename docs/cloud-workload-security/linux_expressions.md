@@ -391,6 +391,7 @@ An accept was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`accept.addr.family`](#accept-addr-family-doc) | Address family |
+| [`accept.addr.hostname`](#accept-addr-hostname-doc) | Address hostname (if available) |
 | [`accept.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`accept.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`accept.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -403,6 +404,7 @@ A bind was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`bind.addr.family`](#bind-addr-family-doc) | Address family |
+| [`bind.addr.hostname`](#bind-addr-hostname-doc) | Address hostname (if available) |
 | [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`bind.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -539,6 +541,7 @@ A connect was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`connect.addr.family`](#connect-addr-family-doc) | Address family |
+| [`connect.addr.hostname`](#connect-addr-hostname-doc) | Address hostname (if available) |
 | [`connect.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`connect.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`connect.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -2574,10 +2577,24 @@ Definition: Address family
 
 
 
+### `accept.addr.hostname` {#accept-addr-hostname-doc}
+Type: string
+
+Definition: Address hostname (if available)
+
+
+
 ### `bind.addr.family` {#bind-addr-family-doc}
 Type: int
 
 Definition: Address family
+
+
+
+### `bind.addr.hostname` {#bind-addr-hostname-doc}
+Type: string
+
+Definition: Address hostname (if available)
 
 
 
@@ -2773,6 +2790,13 @@ Definition: UID argument of the syscall
 Type: int
 
 Definition: Address family
+
+
+
+### `connect.addr.hostname` {#connect-addr-hostname-doc}
+Type: string
+
+Definition: Address hostname (if available)
 
 
 
