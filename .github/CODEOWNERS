@@ -43,7 +43,7 @@
 /repository.datadog.yml                 @DataDog/agent-devx-infra
 /generate_tools.go                      @DataDog/agent-devx-infra
 /service.datadog.yaml                   @DataDog/agent-delivery
-/static-analysis.datadog.yml            @DataDog/software-integrity-and-trust @DataDog/sdlc-security @DataDog/agent-devx-infra
+/static-analysis.datadog.yml            @DataDog/sdlc-security @DataDog/agent-devx-infra
 
 /modules.yml                            @DataDog/agent-runtimes
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
@@ -94,6 +94,7 @@
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx-infra
 /.gitlab/binary_build/linux.yml                      @DataDog/agent-devx-infra @DataDog/agent-delivery
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx-infra
+/.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-delivery
 /.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery @DataDog/container-ecosystems
 /.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-devx-infra @DataDog/agent-metric-pipelines
 /.gitlab/integration_test/include.yml                @DataDog/agent-devx-infra
@@ -435,7 +436,7 @@
 /pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations @DataDog/agent-configuration
 /pkg/config/setup/security_agent.go             @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/remote/                     @DataDog/remote-config
-/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust @DataDog/sdlc-security
+/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/sdlc-security
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
@@ -588,6 +589,8 @@
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/ebpf_verifier/                   @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
+/tasks/quality_gates.py                 @DataDog/agent-delivery
+/tasks/static_quality_gates/            @DataDog/agent-delivery
 /tasks/rtloader.py                      @DataDog/agent-metric-pipelines
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sds.py                           @DataDog/agent-log-pipelines
@@ -650,6 +653,7 @@
 /test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
 /test/new-e2e/tests/gpu                       @Datadog/ebpf-platform
 /test/otel/                                   @DataDog/opentelemetry @DataDog/opentelemetry-agent
+/test/static/                                 @DataDog/agent-delivery
 /test/system/                                 @DataDog/agent-runtimes
 /test/system/dogstatsd/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm

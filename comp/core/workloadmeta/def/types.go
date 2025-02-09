@@ -469,14 +469,23 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID    string
-	Name  string
-	Image ContainerImage
+	ID        string
+	Name      string
+	Image     ContainerImage
+	Resources ContainerResources
 }
 
 // String returns a string representation of OrchestratorContainer.
-func (o OrchestratorContainer) String(_ bool) string {
-	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
+func (o OrchestratorContainer) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", o.Name)
+	_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
+		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
+		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+	}
+	return sb.String()
 }
 
 // ECSContainer is a reference to a container running in ECS

@@ -412,9 +412,17 @@ Package converter defines the otel agent converter component.
 
 Package ddflareextension defines the OpenTelemetry Extension component.
 
+### [comp/otelcol/ddprofilingextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension)
+
+Package ddprofilingextension defines the otel agent ddprofilingextension component.
+
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
 Package logsagentpipeline contains logs agent pipeline component
+
+### [comp/otelcol/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/status)
+
+Package status implements the core status component information provider interface
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 

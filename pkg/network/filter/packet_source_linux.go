@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sync"
 	"syscall"
 	"time"
 
@@ -50,7 +51,10 @@ type AFPacketSource struct {
 	// store AFPacketInfo used to visit packets to avoid malloc on a per-packet basis
 	afPacketInfo *AFPacketInfo
 
-	exit chan struct{}
+	// pcapMu is used to synchronize access to afpacket.TPacket.
+	// Consumers use a read lock, and Close() uses an exclusive lock.
+	pcapMu sync.RWMutex
+	exit   chan struct{}
 }
 
 // AFPacketInfo holds information about a packet
@@ -181,6 +185,8 @@ func visitPackets(p zeroCopyPacketReader, visit AFPacketVisitor) error {
 
 // VisitPackets starts reading packets from the source
 func (p *AFPacketSource) VisitPackets(visit AFPacketVisitor) error {
+	p.pcapMu.RLock()
+	defer p.pcapMu.RUnlock()
 	return visitPackets(p, visit)
 }
 
@@ -191,11 +197,20 @@ func (p *AFPacketSource) LayerType() gopacket.LayerType {
 
 // Close stops packet reading
 func (p *AFPacketSource) Close() {
+	// signal the consumers to close which have read locks
 	close(p.exit)
+	p.TPacket.Stop()
+
+	// get an exclusive lock now that we told the poll routines to exit
+	p.pcapMu.Lock()
+	defer p.pcapMu.Unlock()
 	p.TPacket.Close()
 }
 
 func (p *AFPacketSource) pollStats() {
+	p.pcapMu.RLock()
+	defer p.pcapMu.RUnlock()
+
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 

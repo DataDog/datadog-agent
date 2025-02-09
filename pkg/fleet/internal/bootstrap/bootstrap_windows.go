@@ -43,7 +43,7 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
 	}
-	return cmd.Install(ctx, url, nil)
+	return cmd.ForceInstall(ctx, url, nil)
 }
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.

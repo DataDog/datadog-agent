@@ -137,6 +137,16 @@ func TestClientSend(t *testing.T) {
 			Kind: "replicaset",
 			ID:   "dummyid",
 		},
+		containers: map[languagemodels.Container]struct{}{
+			{
+				Name: "java-cont",
+				Init: false,
+			}: {},
+			{
+				Name: "go-cont",
+				Init: true,
+			}: {},
+		},
 	}
 	podName := "nginx"
 	client.currentBatch[podName] = podInfo
@@ -191,6 +201,16 @@ func TestClientSendFreshPods(t *testing.T) {
 			Kind: "replicaset",
 			ID:   "dummyid",
 		},
+		containers: map[languagemodels.Container]struct{}{
+			{
+				Name: "java-cont",
+				Init: false,
+			}: {},
+			{
+				Name: "go-cont",
+				Init: true,
+			}: {},
+		},
 	}
 	podName := "nginx"
 	client.currentBatch[podName] = podInfo
@@ -223,6 +243,33 @@ func TestClientSendFreshPods(t *testing.T) {
 	assert.Equal(t, expectedFreshData, freshData)
 	// make sure we didn't touch the current batch
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
+}
+
+func TestClientSendContainerWithoutLanguage(t *testing.T) {
+	client, respCh := newTestClient(t)
+	containers := languagemodels.ContainersLanguages{
+		languagemodels.Container{
+			Name: "undetectedable-language-container",
+			Init: false,
+		}: languagemodels.LanguageSet{},
+	}
+
+	podInfo := &podInfo{
+		namespace:     "default",
+		containerInfo: containers,
+		ownerRef: &workloadmeta.KubernetesPodOwner{
+			Name: "dummyrs",
+			Kind: "replicaset",
+			ID:   "dummyid",
+		},
+	}
+	podName := "nginx"
+	client.currentBatch[podName] = podInfo
+
+	// No event should be sent for pod with unsupported languages
+	assert.Nil(t, client.currentBatch.toProto())
+	client.send(context.Background(), client.currentBatch.toProto())
+	assert.Empty(t, respCh)
 }
 
 func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
@@ -379,6 +426,12 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 					Name: "nginx-replicaset-name",
 					Kind: "replicaset",
 				},
+				containers: map[languagemodels.Container]struct{}{
+					{
+						Name: "nginx-cont-name",
+						Init: false,
+					}: {},
+				},
 			},
 		},
 		client.currentBatch,
@@ -399,6 +452,160 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 	client.handleEvent(unsetPodEventBundle)
 	assert.Empty(t, client.currentBatch)
 	assert.Empty(t, client.freshlyUpdatedPods)
+}
+
+// This test checks that the client does not send over the language information
+// for a pod if we don't have the detected language information for all the containers
+func TestClientProcessEvent_IncompleteContainerProcessInfo(t *testing.T) {
+	client, _ := newTestClient(t)
+
+	container1 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id1",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name1",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	container2 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id2",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name2",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "nginx-pod-name",
+			Namespace: "nginx-pod-namespace",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   container1.ID,
+				Name: container1.Name,
+			},
+			{
+				ID:   container2.ID,
+				Name: container2.Name,
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "nginx-replicaset-id",
+				Name: "nginx-replicaset-name",
+				Kind: "replicaset",
+			},
+		},
+	}
+
+	process1 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "123",
+		},
+		Language: &languagemodels.Language{
+			Name: "java",
+		},
+		ContainerID: container1.ID,
+	}
+
+	process2 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "1234",
+		},
+		Language: &languagemodels.Language{
+			Name: "go",
+		},
+		ContainerID: container2.ID,
+	}
+
+	eventBundle1 := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Entity: process1,
+				Type:   workloadmeta.EventTypeSet,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	eventBundle2 := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Entity: process2,
+				Type:   workloadmeta.EventTypeSet,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	collectorEvents1 := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: pod,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container1,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process1,
+		},
+	}
+
+	collectorEvents2 := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container2,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process2,
+		},
+	}
+
+	// Pod is scheduled and the init container process starts and is collected
+	client.store.Notify(collectorEvents1)
+	client.handleEvent(eventBundle1)
+
+	assert.NotEmpty(t, client.currentBatch)
+	assert.Empty(t, client.processesWithoutPod)
+	assert.Equal(t, client.freshlyUpdatedPods, map[string]struct{}{"nginx-pod-name": {}})
+	// The pod's container process info is not complete yet, so we don't not send anything
+	assert.Empty(t, client.getFreshBatchProto())
+	assert.False(t, client.currentBatch[pod.Name].hasCompleteLanguageInfo())
+
+	// Container process starts and is collected
+	client.store.Notify(collectorEvents2)
+	client.handleEvent(eventBundle2)
+
+	// The pod's container process info is complete now, so we would send the data
+	assert.NotEmpty(t, client.getFreshBatchProto())
+	assert.True(t, client.currentBatch[pod.Name].hasCompleteLanguageInfo())
 }
 
 func TestClientProcessEvent_PodMissing(t *testing.T) {
@@ -568,6 +775,12 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 					Name: "nginx-replicaset-name",
 					Kind: "replicaset",
 				},
+				containers: map[languagemodels.Container]struct{}{
+					{
+						Name: "nginx-cont-name",
+						Init: false,
+					}: {},
+				},
 			},
 		},
 		client.currentBatch,
@@ -588,6 +801,250 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	client.handleEvent(unsetPodEventBundle)
 	assert.Empty(t, client.currentBatch)
 	assert.Empty(t, client.freshlyUpdatedPods)
+}
+
+// This test checks that the client does send over the language information
+// including in cases where no language is detected on some of the container processes
+func TestClientProcessEvent_PartialContainersWithUnsupportedLang(t *testing.T) {
+	client, _ := newTestClient(t)
+
+	container1 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id1",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name1",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+	container2 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id2",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name2",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "nginx-pod-name",
+			Namespace: "nginx-pod-namespace",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   container1.ID,
+				Name: container1.Name,
+			},
+			{
+				ID:   container2.ID,
+				Name: container2.Name,
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "nginx-replicaset-id",
+				Name: "nginx-replicaset-name",
+				Kind: "replicaset",
+			},
+		},
+	}
+
+	process1 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "123",
+		},
+		Language: &languagemodels.Language{
+			Name: "",
+		},
+		ContainerID: container1.ID,
+	}
+	process2 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "1234",
+		},
+		Language:    nil,
+		ContainerID: container1.ID,
+	}
+	process3 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "12345",
+		},
+		Language: &languagemodels.Language{
+			Name: "java",
+		},
+		ContainerID: container2.ID,
+	}
+
+	eventBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Entity: process1,
+				Type:   workloadmeta.EventTypeSet,
+			},
+			{
+				Entity: process2,
+				Type:   workloadmeta.EventTypeSet,
+			},
+			{
+				Entity: process3,
+				Type:   workloadmeta.EventTypeSet,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	collectorEvents := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: pod,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container1,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container2,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process1,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process2,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process3,
+		},
+	}
+
+	client.store.Notify(collectorEvents)
+	client.handleEvent(eventBundle)
+
+	assert.NotEmpty(t, client.currentBatch)
+	assert.Empty(t, client.processesWithoutPod)
+	assert.Equal(t, map[string]struct{}{"nginx-pod-name": {}}, client.freshlyUpdatedPods)
+
+	// Ensure that the client sends the data even if we receive a container and its processes
+	// but no language is detected one some of the containers
+	assert.NotEmpty(t, client.getFreshBatchProto())
+	assert.NotEmpty(t, client.getCurrentBatchProto())
+	assert.True(t, client.currentBatch[pod.Name].hasCompleteLanguageInfo())
+}
+
+func TestClientProcessEvent_ContainerWithUnsupportedLang(t *testing.T) {
+	client, _ := newTestClient(t)
+
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-cont-id",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "nginx-cont-name",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "123",
+		},
+		ContainerID: container.ID,
+		// Process check failed to detect the language
+		Language: &languagemodels.Language{Name: ""},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "nginx-pod-id",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "nginx-pod-name",
+			Namespace: "nginx-pod-namespace",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   container.ID,
+				Name: container.Name,
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "nginx-replicaset-id",
+				Name: "nginx-replicaset-name",
+				Kind: "replicaset",
+			},
+		},
+	}
+
+	eventBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Entity: process,
+				Type:   workloadmeta.EventTypeSet,
+			},
+		},
+		Ch: make(chan struct{}),
+	}
+
+	collectorEvents := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: pod,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process,
+		},
+	}
+
+	client.store.Notify(collectorEvents)
+	client.handleEvent(eventBundle)
+
+	assert.NotEmpty(t, client.currentBatch)
+	assert.Empty(t, client.processesWithoutPod)
+	assert.Empty(t, client.freshlyUpdatedPods)
+
+	assert.Empty(t, client.getFreshBatchProto())
+	assert.Empty(t, client.getCurrentBatchProto())
 }
 
 func TestGetContainerInfoFromPod(t *testing.T) {

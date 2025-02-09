@@ -21,20 +21,21 @@ const (
 	configRetrieverStoreID string = "cr"
 )
 
-// Subinterface of rcclient.Component to allow mocking
-type rcClient interface {
+// RcClient is a subinterface of rcclient.Component to allow mocking
+type RcClient interface {
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
-// configRetriever is responsible for retrieving remote objects (Autoscaling .Spec and values)
-type configRetriever struct {
+// ConfigRetriever is responsible for retrieving remote objects (Autoscaling .Spec and values)
+type ConfigRetriever struct {
 	store    *store
 	isLeader func() bool
 	clock    clock.Clock
 }
 
-func newConfigRetriever(store *store, isLeader func() bool, rcClient rcClient) (*configRetriever, error) {
-	cr := &configRetriever{
+// NewConfigRetriever creates a new ConfigRetriever
+func NewConfigRetriever(store *store, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
+	cr := &ConfigRetriever{
 		store:    store,
 		isLeader: isLeader,
 		clock:    clock.RealClock{},
@@ -56,7 +57,7 @@ func newConfigRetriever(store *store, isLeader func() bool, rcClient rcClient) (
 	return cr, nil
 }
 
-func (cr *configRetriever) autoscalerUpdateCallback(
+func (cr *ConfigRetriever) autoscalerUpdateCallback(
 	timestamp time.Time,
 	update map[string]state.RawConfig,
 	applyStateCallback func(string, state.ApplyStatus),
