@@ -123,4 +123,47 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
     return ACT_OK;
 }
 
+SEC("classifier/dns_response")
+int classifier_dns_response(struct __sk_buff *skb) {
+    struct packet_t *pkt = get_packet();
+
+    if (pkt == NULL) {
+        // should never happen
+        return ACT_OK;
+    }
+
+    int len = pkt->payload_len;
+
+    if (len > DNS_MAX_LENGTH) {
+        len = DNS_MAX_LENGTH;
+    }
+
+    struct dns_response_event_t evt = {0};
+
+    if (bpf_skb_load_bytes(skb, pkt->offset, &evt.header, sizeof(evt.header)) < 0) {
+        return ACT_OK;
+    }
+    pkt->offset += sizeof(evt.header);
+
+    if(!evt.header.flags.as_bits_and_pieces.qr) {
+        return ACT_OK;
+    }
+
+    int remaining_bytes = len - sizeof(struct dnshdr);
+
+    if (remaining_bytes <= 0 || pkt->offset <= 0 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
+        return ACT_OK;
+    }
+
+    long err = bpf_skb_load_bytes(skb, pkt->offset, evt.data, remaining_bytes);
+
+    if (err < 0) {
+        return ACT_OK;
+    }
+
+    send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, &evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
+
+    return ACT_OK;
+}
+
 #endif
