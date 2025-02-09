@@ -114,6 +114,13 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 		}
 	}
 
+	for _, groupResource := range resourcesForAPMConfig(cfg) {
+		requestedResource := groupResourceToGVRString(groupResource)
+		if requestedResource != "" {
+			res = append(res, requestedResource)
+		}
+	}
+
 	return res
 }
 
@@ -144,6 +151,34 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 	}
 
 	return resources
+}
+
+// resourcesForAPMConfig returns the list of resources to collect metadata from
+// for the auto instrumentation configuration. Namespaces are collected in order
+// to utilize namespace labels for target based configuration.
+func resourcesForAPMConfig(cfg config.Reader) []string {
+	// If APM is not enabled, we don't need to collect any resources for the
+	// auto instrumentation configuration.
+	apmEnabled := cfg.GetBool("apm_config.instrumentation.enabled")
+	if !apmEnabled {
+		return nil
+	}
+
+	// Targets is a custom struct type, so we unmarshal it into an interface
+	// slice to avoid the import while still being able to check if it's empty.
+	targets := []interface{}{}
+	err := cfg.UnmarshalKey("apm_config.instrumentation.targets", &targets)
+	if err != nil {
+		log.Errorf("failed to unmarshal apm_config.instrumentation.targets: %v", err)
+		return nil
+	}
+
+	// If there are no targets, we don't need to collect any resources.
+	if len(targets) == 0 {
+		return nil
+	}
+
+	return []string{"namespaces"}
 }
 
 type collector struct {

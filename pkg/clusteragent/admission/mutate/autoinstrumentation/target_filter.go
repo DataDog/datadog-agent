@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // TargetFilter filters pods based on a set of targeting rules.
@@ -110,7 +111,13 @@ func (f *TargetFilter) filter(pod *corev1.Pod) []libInfo {
 	// Check if the pod matches any of the targets. The first match wins.
 	for _, target := range f.targets {
 		// Check the pod namespace against the namespace selector.
-		if !target.matchesNamespaceSelector(pod.Namespace) {
+		matches, err := target.matchesNamespaceSelector(pod.Namespace)
+		if err != nil {
+			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %w", err)
+			return nil
+
+		}
+		if !matches {
 			continue
 		}
 
@@ -127,29 +134,28 @@ func (f *TargetFilter) filter(pod *corev1.Pod) []libInfo {
 	return nil
 }
 
-func (t targetInternal) matchesNamespaceSelector(namespace string) bool {
+func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
 	// If we are using the namespace selector, check if the namespace matches the selector.
 	if t.useNamespaceSelector {
-		// Get the namespace metadata. At the time of writing, this method will only return an error if the namespace
-		// does not exist, in which case we return false for this selector.
+		// Get the namespace metadata.
 		id := util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace)
-		meta, _ := t.wmeta.GetKubernetesMetadata(id)
-		if meta == nil {
-			return false
+		ns, err := t.wmeta.GetKubernetesMetadata(id)
+		if err != nil {
+			return false, fmt.Errorf("could not get kubernetes namespace to match against for %s: %w", namespace, err)
 		}
 
 		// Check if the namespace labels match the selector.
-		return t.nameSpaceSelector.Matches(labels.Set(meta.EntityMeta.Labels))
+		return t.nameSpaceSelector.Matches(labels.Set(ns.EntityMeta.Labels)), nil
 	}
 
 	// If there are no match names, we match all namespaces.
 	if len(t.enabledNamespaces) == 0 {
-		return true
+		return true, nil
 	}
 
 	// Check if the pod namespace is in the match names.
 	_, ok := t.enabledNamespaces[namespace]
-	return ok
+	return ok, nil
 }
 
 func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {

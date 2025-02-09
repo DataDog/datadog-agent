@@ -43,6 +43,9 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("default", nil),
+			},
 			expected: []libInfo{
 				{
 					ctrName: "",
@@ -61,6 +64,9 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("default", nil),
+			},
 			expected: nil,
 		},
 		"a single service example matches rule": {
@@ -72,6 +78,9 @@ func TestTargetFilter(t *testing.T) {
 						"app": "billing-service",
 					},
 				},
+			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("billing-service", nil),
 			},
 			expected: []libInfo{
 				{
@@ -91,6 +100,9 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
 			expected: []libInfo{
 				{
 					ctrName: "",
@@ -109,6 +121,9 @@ func TestTargetFilter(t *testing.T) {
 					},
 				},
 			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("infra", nil),
+			},
 			expected: nil,
 		},
 		"namespace labels are used to match namespaces": {
@@ -120,19 +135,10 @@ func TestTargetFilter(t *testing.T) {
 				},
 			},
 			namespaces: []workloadmeta.KubernetesMetadata{
-				{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindKubernetesMetadata,
-						ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "foo")),
-					},
-					EntityMeta: workloadmeta.EntityMeta{
-						Name: "foo",
-						Labels: map[string]string{
-							"tracing": "yes",
-							"env":     "prod",
-						},
-					},
-				},
+				newTestNamespace("foo", map[string]string{
+					"tracing": "yes",
+					"env":     "prod",
+				}),
 			},
 			expected: []libInfo{
 				{
@@ -151,18 +157,19 @@ func TestTargetFilter(t *testing.T) {
 				},
 			},
 			namespaces: []workloadmeta.KubernetesMetadata{
-				{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindKubernetesMetadata,
-						ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "foo")),
-					},
-					EntityMeta: workloadmeta.EntityMeta{
-						Name: "foo",
-						Labels: map[string]string{
-							"tracing": "yes",
-							"env":     "prod",
-						},
-					},
+				newTestNamespace("foo", map[string]string{
+					"tracing": "yes",
+					"env":     "prod",
+				}),
+			},
+			expected: nil,
+		},
+		"missing namespace in store gets no tracers": {
+			configPath: "testdata/filter.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels:    map[string]string{},
 				},
 			},
 			expected: nil,
@@ -176,6 +183,9 @@ func TestTargetFilter(t *testing.T) {
 						"language": "unknown",
 					},
 				},
+			},
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
 			},
 			expected: []libInfo{
 				{
@@ -237,5 +247,18 @@ func TestTargetFilter(t *testing.T) {
 			// Validate the output.
 			require.Equal(t, test.expected, actual)
 		})
+	}
+}
+
+func newTestNamespace(name string, labels map[string]string) workloadmeta.KubernetesMetadata {
+	return workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", name)),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   name,
+			Labels: labels,
+		},
 	}
 }
