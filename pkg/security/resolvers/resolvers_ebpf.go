@@ -11,6 +11,7 @@ package resolvers
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 	"os"
 	"sort"
 
@@ -63,6 +64,7 @@ type EBPFResolvers struct {
 	HashResolver         *hash.Resolver
 	UserSessionsResolver *usersessions.Resolver
 	SyscallCtxResolver   *syscallctx.Resolver
+	DNSResolver          *dns.Resolver
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
@@ -149,6 +151,14 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		envVarsResolver = envvars.NewEnvVarsResolver(config.Probe)
 	}
 
+	var dnsResolver *dns.Resolver
+	if config.Probe.DNSResolutionEnabled {
+		dnsResolver, err = dns.NewDNSResolver(config.Probe, statsdClient)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
 		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
 	if err != nil {
@@ -181,6 +191,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		HashResolver:         hashResolver,
 		UserSessionsResolver: userSessionsResolver,
 		SyscallCtxResolver:   syscallctx.NewResolver(),
+		DNSResolver:          dnsResolver,
 	}
 
 	return resolvers, nil

@@ -79,6 +79,10 @@ const (
 	CgroupTracingEventType
 	// DNSEventType DNS event
 	DNSEventType
+	// DNSResponseEventType DNS Response event
+	DNSResponseEventType
+	// DNSResponseEventsNotSentType DNS Response event not sent by the kernel to userspace
+	DNSResponseEventsNotSentType
 	// NetDeviceEventType is sent for events on net devices
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
@@ -269,6 +273,8 @@ func (t EventType) String() string {
 		return "cgroup_write"
 	case SysCtlEventType:
 		return "sysctl"
+	case DNSResponseEventType:
+		return "dns_response"
 	default:
 		return "unknown"
 	}

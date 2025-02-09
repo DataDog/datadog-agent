@@ -6,6 +6,9 @@
 #include "helpers/network/router.h"
 #include "perf_ring.h"
 
+// 5 Minutes. Maybe reduce?
+#define DNS_ENTRY_TIMEOUT_NS (5ULL * 60 * 1000 * 1000 * 1000)
+
 __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, struct packet_t *pkt, struct dns_event_t *evt) {
     u16 qname_length = 0;
     u8 end_of_name = 0;
@@ -119,6 +122,66 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
     if (!is_dns_request_parsing_done(skb, pkt)) {
         bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST_PARSER);
     }
+
+    return ACT_OK;
+}
+
+SEC("classifier/dns_response")
+int classifier_dns_response(struct __sk_buff *skb) {
+    struct packet_t *pkt = get_packet();
+
+    if (pkt == NULL) {
+        // should never happen
+        return ACT_OK;
+    }
+
+    int len = pkt->payload_len;
+
+    if (len > DNS_MAX_LENGTH) {
+        len = DNS_MAX_LENGTH;
+    }
+
+    struct dns_response_event_t * evt = reset_dns_response_event();
+
+    if (evt == NULL) {
+       // should never happen
+       return ACT_OK;
+    }
+
+    if (bpf_skb_load_bytes(skb, pkt->offset, &evt->header, sizeof(evt->header)) < 0) {
+        return ACT_OK;
+    }
+
+    pkt->offset += sizeof(evt->header);
+
+    if(!evt->header.flags.as_bits_and_pieces.qr) {
+        return ACT_OK;
+    }
+
+    int remaining_bytes = len - sizeof(struct dnshdr);
+
+    if (remaining_bytes <= 0 || pkt->offset <= 0 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
+        return ACT_OK;
+    }
+
+    long err = bpf_skb_load_bytes(skb, pkt->offset, evt->data, remaining_bytes);
+
+    if (err < 0) {
+        return ACT_OK;
+    }
+
+    u64 current_timestamp = bpf_ktime_get_ns();
+    u64 * stored_timestamp = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &evt->header.id);
+
+    if (stored_timestamp != NULL &&  *stored_timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
+        struct kevent_t evt;
+        evt.type = EVENT_DNS_RESPONSE_EVENTS_NOT_SENT;
+        send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_EVENTS_NOT_SENT, &evt, sizeof(evt));
+        return ACT_OK;
+    }
+
+    bpf_map_update_elem(&dns_responses_sent_to_userspace, &evt->header.id, &current_timestamp, BPF_ANY);
+    send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
 
     return ACT_OK;
 }

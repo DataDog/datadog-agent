@@ -478,6 +478,13 @@ func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *DNSResponseEventsNotSent) UnmarshalBinary(data []byte) int {
+	e.ResponseEventsNotSent = binary.NativeEndian.Uint64(data[0:8])
+
+	return 8
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChdirEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 }

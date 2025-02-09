@@ -136,15 +136,16 @@ type Event struct {
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
 
 	// internal usage
-	Umount           UmountEvent           `field:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
-	MountReleased    MountReleasedEvent    `field:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-"`
-	CgroupWrite      CgroupWriteEvent      `field:"-"`
-	NetDevice        NetDeviceEvent        `field:"-"`
-	VethPair         VethPairEvent         `field:"-"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	Umount                   UmountEvent              `field:"-"`
+	InvalidateDentry         InvalidateDentryEvent    `field:"-"`
+	ArgsEnvs                 ArgsEnvsEvent            `field:"-"`
+	MountReleased            MountReleasedEvent       `field:"-"`
+	CgroupTracing            CgroupTracingEvent       `field:"-"`
+	CgroupWrite              CgroupWriteEvent         `field:"-"`
+	NetDevice                NetDeviceEvent           `field:"-"`
+	VethPair                 VethPairEvent            `field:"-"`
+	UnshareMountNS           UnshareMountNSEvent      `field:"-"`
+	DNSEventResponsesNotSent DNSResponseEventsNotSent `field:"-"`
 }
 
 var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
@@ -165,6 +166,11 @@ type CGroupContext struct {
 	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
 	CGroupFile    PathKey                    `field:"file"`
 	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+}
+
+// DNSResponseEventsNotSent holds events that weren't sent from the kernel to the backend
+type DNSResponseEventsNotSent struct {
+	ResponseEventsNotSent uint64
 }
 
 // Merge two cgroup context
@@ -772,17 +778,19 @@ type BindEvent struct {
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Connection address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr       IPPortContext `field:"addr"`          // Connection address
+	Hostnames  []string      `field:"addr.hostname"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`   // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`      // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Connection address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Addr       IPPortContext `field:"addr"`          // Connection address
+	Hostnames  []string      `field:"addr.hostname"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`   // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device
