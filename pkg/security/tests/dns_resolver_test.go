@@ -86,4 +86,50 @@ func TestDNSResolver(t *testing.T) {
 
 		assert.Greater(t, attempts, 0)
 	})
+
+	// Makes a DNS query for hosts with known CNAMES and check if they're all resolved correctly
+	t.Run("cnames-correctly-processed", func(t *testing.T) {
+		hostname := "www.bbc.co.uk"
+		ipAddresses, err := net.LookupIP(hostname)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert.GreaterOrEqual(t, len(ipAddresses), 1, "Expected at least one IP address for www.bbc.co.uk")
+
+		expectedCNAMEs := []string{
+			"www.bbc.co.uk.pri.bbc.co.uk",
+			"bbc.map.fastly.net",
+		}
+
+		allCnamesResolved := func(list []string) bool {
+			for _, cname := range expectedCNAMEs {
+				if !slices.Contains(list, cname) {
+					return false
+				}
+			}
+			return true
+		}
+
+		for _, ip := range ipAddresses {
+			nip, ok := netip.AddrFromSlice(ip)
+			if !ok {
+				t.Fatalf("Couldn't get IP address for host %s", ip)
+			}
+
+			// This test contains a 1 second backoff, and tries 10 times until it fails
+			attempts := 10
+			for ; attempts != 0; attempts-- {
+				list := p.Resolvers.DNSResolver.HostListFromIP(nip)
+				if slices.Contains(list, hostname) && allCnamesResolved(list) {
+					break
+				}
+				time.Sleep(1 * time.Second)
+			}
+
+			if attempts == 0 {
+				t.Fatal("Number of attempts exceeded")
+			}
+		}
+	})
 }
