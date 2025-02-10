@@ -9,7 +9,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -26,11 +25,6 @@ import (
 
 // cgroupV1BaseController is the name of the cgroup controller used to parse /proc/<pid>/cgroup
 const cgroupV1BaseController = "memory"
-
-// readerCacheExpiration determines the duration for which the cgroups data is cached in the cgroups reader.
-// This value needs to be large enough to reduce latency and I/O load.
-// It also needs to be small enough to catch the first traces of new containers.
-const readerCacheExpiration = 2 * time.Second
 
 type ucredKey struct{}
 
@@ -132,79 +126,60 @@ type cgroupIDProvider struct {
 	containerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error)
 }
 
-// GetContainerID returns the container ID.
-// The Container ID can come from either http headers or the context:
-// * Local Data header
-// * Datadog-Container-ID header
-// * Looks for a PID in the ctx which is used to search cgroups for a container ID.
+// GetContainerID retrieves the container ID associated with the given request.
+//
+// The container ID can be determined from multiple sources in the following order:
+//  1. **Local Data Header** (`LocalData`): If present, it is parsed to extract the container ID or inode.
+//     If an inode is found instead of a container ID, it is resolved to a container ID.
+//  2. **Datadog-Container-ID Header**: A deprecated fallback used for backward compatibility.
+//  3. **Process Context (PID)**: If no container ID is found in headers, the function attempts
+//     to resolve it using the PID from the provided context, checking cgroups.
+//  4. **External Data Header** (`ExternalData`): If present, it is parsed as an additional source.
+//
+// If none of the direct methods return a valid container ID, an attempt is made to generate one
+// based on the collected OriginInfo.
 func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
 	originInfo := origindetection.OriginInfo{ProductOrigin: origindetection.ProductOriginAPM}
 
-	// Retrieve container ID from Local Data header
-	if localDataString := h.Get(header.LocalData); localDataString != "" {
+	// Parse LocalData from the headers.
+	if localData := h.Get(header.LocalData); localData != "" {
 		var err error
-		originInfo.LocalData, err = origindetection.ParseLocalData(localDataString)
+		originInfo.LocalData, err = origindetection.ParseLocalData(localData)
 		if err != nil {
-			log.Errorf("Could not parse local data (%s): %v", localDataString, err)
+			log.Errorf("Could not parse local data (%s): %v", localData, err)
 		}
 
 		if originInfo.LocalData.ContainerID != "" {
 			return originInfo.LocalData.ContainerID
-		} else if originInfo.LocalData.Inode != 0 {
-			return c.resolveContainerIDFromInode(strconv.FormatUint(originInfo.LocalData.Inode, 10))
 		}
 	}
 
 	// Retrieve container ID from Datadog-Container-ID header.
-	// Deprecated in favor of Local Data header. This is kept for backward compatibility with older libraries.
+	// Deprecated in favor of LocalData header. This is kept for backward compatibility with older libraries.
 	if containerIDFromHeader := h.Get(header.ContainerID); containerIDFromHeader != "" {
 		return containerIDFromHeader
 	}
 
-	// Retrieve the container-id from the pid in its context
+	// Retrieve the container-id from the pid in its context.
 	if containerID := c.resolveContainerIDFromContext(ctx); containerID != "" {
 		return containerID
 	}
 
-	// Retrieve container ID from External Data header
+	// Parse ExternalData from the headers.
 	if externalData := h.Get(header.ExternalData); externalData != "" {
-		return c.resolveContainerIDFromExternalData(externalData)
-	}
-
-	return ""
-}
-
-// resolveContainerIDFromInode returns the container ID for the given cgroupv2 inode.
-func (c *cgroupIDProvider) resolveContainerIDFromInode(inodeString string) string {
-	containerID, err := c.getCachedContainerID(inodeString, func() (string, error) {
-		// Parse the cgroupv2 inode as a uint64.
-		inode, err := strconv.ParseUint(inodeString, 10, 64)
+		var err error
+		originInfo.ExternalData, err = origindetection.ParseExternalData(externalData)
 		if err != nil {
-			return "", fmt.Errorf("could not parse cgroupv2 inode: %s: %v", inodeString, err)
+			log.Errorf("Could not parse external data (%s): %v", externalData, err)
 		}
-
-		// Get the container ID from the cgroupv2 inode.
-		cgroup := c.reader.GetCgroupByInode(inode)
-		if cgroup == nil {
-			err := c.reader.RefreshCgroups(readerCacheExpiration)
-			if err != nil {
-				return "", fmt.Errorf("containerID not found from inode %d and unable to refresh cgroups, err: %w", inode, err)
-			}
-
-			cgroup = c.reader.GetCgroupByInode(inode)
-			if cgroup == nil {
-				return "", fmt.Errorf("containerID not found from inode %d, err: %w", inode, err)
-			}
-		}
-
-		return cgroup.Identifier(), nil
-	})
-	if err != nil {
-		log.Debugf("Could not get container ID from cgroupv2 inode: %s: %v", inodeString, err)
-		return ""
 	}
 
-	return containerID
+	// Generate container ID from OriginInfo.
+	generatedContainerID, err := c.containerIDFromOriginInfo(originInfo)
+	if err != nil {
+		log.Errorf("Could not generate container ID from OriginInfo: %+v, err: %v", originInfo, err)
+	}
+	return generatedContainerID
 }
 
 // resolveContainerIDFromContext returns the container ID for the given context.
@@ -249,27 +224,6 @@ func (c *cgroupIDProvider) getCachedContainerID(key string, retrievalFunc func()
 
 	c.cache.Store(currentTime, key, val, nil)
 	return val, nil
-}
-
-// resolveContainerIDFromExternalData returns the container ID for the given External Data.
-func (c *cgroupIDProvider) resolveContainerIDFromExternalData(rawExternalData string) string {
-	var generatedContainerID string
-
-	externalData, err := origindetection.ParseExternalData(rawExternalData)
-	if err != nil {
-		log.Errorf("Could not parse external data (%s): %v", rawExternalData, err)
-		return ""
-	}
-	generatedContainerID, err = c.containerIDFromOriginInfo(origindetection.OriginInfo{
-		ExternalData:  externalData,
-		ProductOrigin: origindetection.ProductOriginAPM,
-	})
-	if err != nil {
-		log.Errorf("Could not generate container ID from external data (%s): %v", rawExternalData, err)
-		return ""
-	}
-
-	return generatedContainerID
 }
 
 // The below cache is copied from /pkg/util/containers/v2/metrics/provider/cache.go. It is not
