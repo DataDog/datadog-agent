@@ -204,7 +204,6 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	}()
 
 	select {
-	//case <-done:
 	// wait for the Transaction process to be over
 	case <-w.stopChan:
 		// cancel current Transaction if we need to stop the worker
@@ -216,7 +215,6 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	default:
 		// Don't block
 	}
-	//cancel()
 
 	return nil
 }
