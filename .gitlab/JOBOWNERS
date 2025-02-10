@@ -14,7 +14,7 @@ build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
 
 # Deps fetch
-fetch_openjdk                        @DataDog/agent-metrics-logs
+fetch_openjdk                        @DataDog/agent-metric-pipelines
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
@@ -27,7 +27,7 @@ prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 protobuf_test                           @DataDog/multiple
 
 # Send count metrics about Golang dependencies
-golang_deps_send_count_metrics       @DataDog/agent-shared-components
+golang_deps_send_count_metrics       @DataDog/agent-runtimes
 # Golang dependency diff generation
 golang_deps_diff                     @DataDog/ebpf-platform
 golang_deps_commenter                @DataDog/ebpf-platform
@@ -126,8 +126,8 @@ deploy_containers*                     @Datadog/agent-delivery
 deploy_containers-cws-instrumentation* @DataDog/agent-security
 
 # Trigger release
-trigger_manual_prod_release            @DataDog/agent-delivery
-trigger_auto_staging_release           @DataDog/agent-delivery
+trigger_manual_prod_release*            @DataDog/agent-delivery
+trigger_auto_staging_release*           @DataDog/agent-delivery
 generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Integration test
@@ -140,6 +140,7 @@ docker_integration_tests      @DataDog/container-integrations
 
 # Functional test
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
+static_quality_gates                           @DataDog/agent-delivery
 oracle*                                        @DataDog/database-monitoring
 
 # E2E
@@ -165,4 +166,4 @@ pull_test_dockers*                @DataDog/universal-service-monitoring
 single_machine_performance*       @DataDog/single-machine-performance
 
 # Dependency Security
-software_composition_analysis*    @DataDog/software-integrity-and-trust
+software_composition_analysis*    @DataDog/sdlc-security

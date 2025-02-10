@@ -44,6 +44,7 @@ import (
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -53,6 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -60,7 +62,19 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
-func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider) {
+var mockedTime = time.Date(2024, 12, 1, 12, 12, 12, 2, time.UTC)
+
+func findService(pid int, services []model.Service) *model.Service {
+	for _, s := range services {
+		if s.PID == pid {
+			return &s
+		}
+	}
+
+	return nil
+}
+
+func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCollectorFactory) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
 	t.Helper()
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
@@ -71,6 +85,8 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 	tagger := taggermock.SetupFakeTagger(t)
 	mockCtrl := gomock.NewController(t)
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+
+	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
 
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
@@ -83,9 +99,9 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 		Name:             config.DiscoveryModule,
 		ConfigNamespaces: []string{"discovery"},
 		Fn: func(*types.Config, module.FactoryDependencies) (module.Module, error) {
-			module := newDiscovery(mockContainerProvider)
+			module := newDiscoveryWithNetwork(mockContainerProvider, mTimeProvider, getNetworkCollector)
 			module.config.cpuUsageUpdateDelay = time.Second
-
+			module.config.networkStatsPeriod = time.Second
 			return module, nil
 		},
 		NeedsEBPF: func() bool {
@@ -97,13 +113,24 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return srv.URL, mockContainerProvider
+	return srv.URL, mockContainerProvider, mTimeProvider
 }
 
-func getServices(t require.TestingT, url string) []model.Service {
+func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
+	t.Helper()
+	return setupDiscoveryModuleWithNetwork(t, newNetworkCollector)
+}
+
+func getServicesWithParams(t require.TestingT, url string, params *params) *model.ServicesResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathServices
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	require.NoError(t, err)
+
+	if params != nil {
+		qp := req.URL.Query()
+		params.updateQuery(qp)
+		req.URL.RawQuery = qp.Encode()
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -112,19 +139,12 @@ func getServices(t require.TestingT, url string) []model.Service {
 	res := &model.ServicesResponse{}
 	err = json.NewDecoder(resp.Body).Decode(res)
 	require.NoError(t, err)
-	require.NotEmpty(t, res)
 
-	return res.Services
+	return res
 }
 
-func getServicesMap(t require.TestingT, url string) map[int]model.Service {
-	services := getServices(t, url)
-	servicesMap := make(map[int]model.Service)
-	for _, service := range services {
-		servicesMap[service.PID] = service
-	}
-
-	return servicesMap
+func getServices(t require.TestingT, url string) *model.ServicesResponse {
+	return getServicesWithParams(t, url, nil)
 }
 
 func startTCPServer(t *testing.T, proto string, address string) (*os.File, *net.TCPAddr) {
@@ -199,14 +219,15 @@ func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
 
 // Check that we get (only) listening processes for all expected protocols.
 func TestBasic(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPIDs []int
 	var unexpectedPIDs []int
 	expectedPorts := make(map[int]int)
 
-	var startTCP = func(proto string) {
+	startTCP := func(proto string) {
 		f, server := startTCPServer(t, proto, "")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
@@ -217,7 +238,7 @@ func TestBasic(t *testing.T) {
 		unexpectedPIDs = append(unexpectedPIDs, cmd.Process.Pid)
 	}
 
-	var startUDP = func(proto string) {
+	startUDP := func(proto string) {
 		f, server := startUDPServer(t, proto, ":8083")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
@@ -233,33 +254,36 @@ func TestBasic(t *testing.T) {
 	startUDP("udp4")
 	startUDP("udp6")
 
+	seen := make(map[int]model.Service)
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		portMap := getServicesMap(collect, url)
+		resp := getServices(collect, url)
+		for _, s := range resp.StartedServices {
+			seen[s.PID] = s
+		}
+
 		for _, pid := range expectedPIDs {
-			assert.Contains(collect, portMap, pid)
+			require.Contains(collect, seen, pid)
+			require.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
+			require.Equal(collect, seen[pid].LastHeartbeat, mockedTime.Unix())
+			assertStat(collect, seen[pid])
 		}
 		for _, pid := range unexpectedPIDs {
-			assert.NotContains(collect, portMap, pid)
+			assert.NotContains(collect, seen, pid)
 		}
 	}, 30*time.Second, 100*time.Millisecond)
-
-	serviceMap := getServicesMap(t, url)
-	for _, pid := range expectedPIDs {
-		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
-		assertStat(t, serviceMap[pid])
-	}
 }
 
 // Check that we get all listening ports for a process
 func TestPorts(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPorts []uint16
 	var unexpectedPorts []uint16
 
-	var startTCP = func(proto string) {
+	startTCP := func(proto string) {
 		serverf, server := startTCPServer(t, proto, "")
 		t.Cleanup(func() { serverf.Close() })
 		clientf, client := startTCPClient(t, proto, server)
@@ -269,7 +293,7 @@ func TestPorts(t *testing.T) {
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
 	}
 
-	var startUDP = func(proto string) {
+	startUDP := func(proto string) {
 		serverf, server := startUDPServer(t, proto, ":8083")
 		t.Cleanup(func() { _ = serverf.Close() })
 		clientf, client := startUDPClient(t, proto, server)
@@ -290,12 +314,16 @@ func TestPorts(t *testing.T) {
 
 	expectedPortsMap := make(map[uint16]struct{}, len(expectedPorts))
 
-	serviceMap := getServicesMap(t, url)
 	pid := os.Getpid()
-	require.Contains(t, serviceMap, pid)
+	// Firt call will not return anything, as all services will be potentials.
+	_ = getServices(t, url)
+	resp := getServices(t, url)
+	startEvent := findService(pid, resp.StartedServices)
+	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
+
 	for _, port := range expectedPorts {
 		expectedPortsMap[port] = struct{}{}
-		assert.Contains(t, serviceMap[pid].Ports, port)
+		assert.Contains(t, startEvent.Ports, port)
 	}
 	for _, port := range unexpectedPorts {
 		// An unexpected port number can also be expected since UDP and TCP and
@@ -305,17 +333,18 @@ func TestPorts(t *testing.T) {
 			continue
 		}
 
-		assert.NotContains(t, serviceMap[pid].Ports, port)
+		assert.NotContains(t, startEvent.Ports, port)
 	}
 }
 
 func TestPortsLimits(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPorts []int
 
-	var openPort = func(address string) {
+	openPort := func(address string) {
 		serverf, server := startTCPServer(t, "tcp4", address)
 		t.Cleanup(func() { serverf.Close() })
 
@@ -332,21 +361,26 @@ func TestPortsLimits(t *testing.T) {
 
 	slices.Sort(expectedPorts)
 
-	serviceMap := getServicesMap(t, url)
 	pid := os.Getpid()
-	require.Contains(t, serviceMap, pid)
-	ports := serviceMap[pid].Ports
-	assert.Contains(t, ports, uint16(8081))
-	assert.Contains(t, ports, uint16(8082))
-	assert.Len(t, ports, maxNumberOfPorts)
+
+	// Firt call will not return anything, as all services will be potentials.
+	_ = getServices(t, url)
+	resp := getServices(t, url)
+	startEvent := findService(pid, resp.StartedServices)
+	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
+
+	assert.Contains(t, startEvent.Ports, uint16(8081))
+	assert.Contains(t, startEvent.Ports, uint16(8082))
+	assert.Len(t, startEvent.Ports, maxNumberOfPorts)
 	for i := 0; i < maxNumberOfPorts-2; i++ {
-		assert.Contains(t, ports, uint16(expectedPorts[i]))
+		assert.Contains(t, startEvent.Ports, uint16(expectedPorts[i]))
 	}
 }
 
 func TestServiceName(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
@@ -373,21 +407,125 @@ func TestServiceName(t *testing.T) {
 	pid := cmd.Process.Pid
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		portMap := getServicesMap(collect, url)
-		assert.Contains(collect, portMap, pid)
+		resp := getServices(collect, url)
+		startEvent := findService(pid, resp.StartedServices)
+		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+
 		// Non-ASCII character removed due to normalization.
-		assert.Equal(collect, "foo_bar", portMap[pid].DDService)
-		assert.Equal(collect, portMap[pid].DDService, portMap[pid].Name)
-		assert.Equal(collect, "sleep", portMap[pid].GeneratedName)
-		assert.Equal(collect, string(usm.CommandLine), portMap[pid].GeneratedNameSource)
-		assert.False(collect, portMap[pid].DDServiceInjected)
-		assert.Equal(collect, portMap[pid].ContainerID, "")
+		assert.Equal(collect, "foo_bar", startEvent.DDService)
+		assert.Equal(collect, startEvent.DDService, startEvent.Name)
+		assert.Equal(collect, "sleep", startEvent.GeneratedName)
+		assert.Equal(collect, string(usm.CommandLine), startEvent.GeneratedNameSource)
+		assert.False(collect, startEvent.DDServiceInjected)
+		assert.Equal(collect, startEvent.ContainerID, "")
+		assert.Equal(collect, startEvent.LastHeartbeat, mockedTime.Unix())
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
+func TestServiceLifetime(t *testing.T) {
+	startService := func() (*exec.Cmd, context.CancelFunc) {
+		listener, err := net.Listen("tcp", "")
+		require.NoError(t, err)
+		f, err := listener.(*net.TCPListener).File()
+		listener.Close()
+
+		// Disable close-on-exec so that the sleep gets it
+		require.NoError(t, err)
+		t.Cleanup(func() { f.Close() })
+		disableCloseOnExec(t, f)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(func() { cancel() })
+
+		cmd := exec.CommandContext(ctx, "sleep", "1000")
+		cmd.Dir = "/tmp/"
+		cmd.Env = append(cmd.Env, "DD_SERVICE=foo_bar")
+		err = cmd.Start()
+		require.NoError(t, err)
+		f.Close()
+
+		return cmd, cancel
+	}
+
+	checkService := func(t assert.TestingT, service *model.Service, expectedTime time.Time) {
+		// Non-ASCII character removed due to normalization.
+		assert.Equal(t, "foo_bar", service.DDService)
+		assert.Equal(t, service.DDService, service.Name)
+		assert.Equal(t, "sleep", service.GeneratedName)
+		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
+		assert.False(t, service.DDServiceInjected)
+		assert.Equal(t, service.ContainerID, "")
+		assert.Equal(t, service.LastHeartbeat, expectedTime.Unix())
+	}
+
+	stopService := func(cmd *exec.Cmd, cancel context.CancelFunc) {
+		cancel()
+		_ = cmd.Wait()
+	}
+
+	t.Run("stop", func(t *testing.T) {
+		url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+		mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+		mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
+		// Start the service and check we found it.
+		cmd, cancel := startService()
+		pid := cmd.Process.Pid
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			resp := getServices(collect, url)
+			startEvent := findService(pid, resp.StartedServices)
+			require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+			checkService(collect, startEvent, mockedTime)
+		}, 30*time.Second, 100*time.Millisecond)
+
+		// Stop the service, and look for the stop event.
+		stopService(cmd, cancel)
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			resp := getServices(collect, url)
+			stopEvent := findService(pid, resp.StoppedServices)
+			t.Logf("stopped service: %+v", resp.StoppedServices)
+			require.NotNilf(collect, stopEvent, "could not find stop event for pid %v", pid)
+			checkService(collect, stopEvent, mockedTime)
+		}, 30*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("heartbeat", func(t *testing.T) {
+		url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+		mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+
+		startEventSeen := false
+
+		mTimeProvider.EXPECT().Now().DoAndReturn(func() time.Time {
+			if !startEventSeen {
+				return mockedTime
+			}
+
+			return mockedTime.Add(heartbeatTime)
+		}).AnyTimes()
+
+		cmd, cancel := startService()
+		t.Cleanup(cancel)
+
+		pid := cmd.Process.Pid
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			resp := getServices(collect, url)
+			startEvent := findService(pid, resp.StartedServices)
+			require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+			checkService(collect, startEvent, mockedTime)
+		}, 30*time.Second, 100*time.Millisecond)
+
+		startEventSeen = true
+		resp := getServices(t, url)
+		heartbeatEvent := findService(pid, resp.HeartbeatServices)
+		require.NotNilf(t, heartbeatEvent, "could not find hearteat event for pid %v", pid)
+		checkService(t, heartbeatEvent, mockedTime.Add(heartbeatTime))
+	})
+}
+
 func TestInjectedServiceName(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	createEnvsMemfd(t, []string{
 		"OTHER_ENV=test",
@@ -401,21 +539,27 @@ func TestInjectedServiceName(t *testing.T) {
 	t.Cleanup(func() { listener.Close() })
 
 	pid := os.Getpid()
-	portMap := getServicesMap(t, url)
-	require.Contains(t, portMap, pid)
-	require.Equal(t, "injected-service-name", portMap[pid].DDService)
-	require.Equal(t, portMap[pid].DDService, portMap[pid].Name)
+
+	// Firt call will not return anything, as all services will be potentials.
+	_ = getServices(t, url)
+	resp := getServices(t, url)
+	startEvent := findService(pid, resp.StartedServices)
+	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
+
+	require.Equal(t, "injected-service-name", startEvent.DDService)
+	require.Equal(t, startEvent.DDService, startEvent.Name)
 	// The GeneratedName can vary depending on how the tests are run, so don't
 	// assert for a specific value.
-	require.NotEmpty(t, portMap[pid].GeneratedName)
-	require.NotEmpty(t, portMap[pid].GeneratedNameSource)
-	require.NotEqual(t, portMap[pid].DDService, portMap[pid].GeneratedName)
-	assert.True(t, portMap[pid].DDServiceInjected)
+	require.NotEmpty(t, startEvent.GeneratedName)
+	require.NotEmpty(t, startEvent.GeneratedNameSource)
+	require.NotEqual(t, startEvent.DDService, startEvent.GeneratedName)
+	assert.True(t, startEvent.DDServiceInjected)
 }
 
 func TestAPMInstrumentationInjected(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	createEnvsMemfd(t, []string{
 		"DD_INJECTION_ENABLED=service_name,tracer",
@@ -426,9 +570,14 @@ func TestAPMInstrumentationInjected(t *testing.T) {
 	t.Cleanup(func() { listener.Close() })
 
 	pid := os.Getpid()
-	portMap := getServicesMap(t, url)
-	require.Contains(t, portMap, pid)
-	require.Equal(t, string(apm.Injected), portMap[pid].APMInstrumentation)
+
+	// Firt call will not return anything, as all services will be potentials.
+	_ = getServices(t, url)
+	resp := getServices(t, url)
+	startEvent := findService(pid, resp.StartedServices)
+	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid)
+
+	require.Equal(t, string(apm.Injected), startEvent.APMInstrumentation)
 }
 
 func makeAlias(t *testing.T, alias string, serverBin string) string {
@@ -479,7 +628,7 @@ func TestPythonFromBashScript(t *testing.T) {
 
 func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []string, validator func(service model.Service) bool) {
 	// Changing permissions
-	require.NoError(t, os.Chmod(script, 0755))
+	require.NoError(t, os.Chmod(script, 0o755))
 
 	commandLineArgs := append(commandWrapper, script)
 	cmd := exec.Command(commandLineArgs[0], commandLineArgs[1:]...)
@@ -511,13 +660,16 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
 	pid := int(proc.Pid)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(collect, url)
-		assert.Contains(collect, svcMap, pid)
-		assert.True(collect, validator(svcMap[pid]))
+		resp := getServices(collect, url)
+		startEvent := findService(pid, resp.StartedServices)
+		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+		assert.True(collect, validator(*startEvent))
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -552,8 +704,9 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 	}
 
 	serverDir := buildFakeServer(t)
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -568,13 +721,21 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 
 			pid := cmd.Process.Pid
 
+			proc, err := process.NewProcess(int32(pid))
+			require.NoError(t, err, "could not create gopsutil process handle")
+
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				portMap := getServicesMap(collect, url)
-				assert.Contains(collect, portMap, pid)
-				assert.Equal(collect, string(test.language), portMap[pid].Language)
-				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
-				assertStat(collect, portMap[pid])
-				assertCPU(collect, url, pid)
+				resp := getServices(collect, url)
+				startEvent := findService(pid, resp.StartedServices)
+				require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+
+				referenceValue, err := proc.Percent(0)
+				require.NoError(t, err, "could not get gopsutil cpu usage value")
+
+				assert.Equal(collect, string(test.language), startEvent.Language)
+				assert.Equal(collect, string(apm.Provided), startEvent.APMInstrumentation)
+				assertStat(collect, *startEvent)
+				assert.InDelta(collect, referenceValue, startEvent.CPUCores*100, 10)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -615,27 +776,11 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	assert.InDelta(t, uint64(createTimeMs), svc.StartTimeMilli, 10000)
 }
 
-func assertCPU(t require.TestingT, url string, pid int) {
-	proc, err := process.NewProcess(int32(pid))
-	require.NoError(t, err, "could not create gopsutil process handle")
-
-	// Compare CPU usage measurement over an interval.
-	_ = getServicesMap(t, url)
-	referenceValue, err := proc.Percent(1 * time.Second)
-	require.NoError(t, err, "could not get gopsutil cpu usage value")
-
-	// Calling getServicesMap a second time us the CPU usage percentage since the last call, which should be close to gopsutil value.
-	portMap := getServicesMap(t, url)
-	assert.Contains(t, portMap, pid)
-	// gopsutil reports a percentage, while we are reporting a float between 0 and $(nproc),
-	// so we convert our value to a percentage.
-	assert.InDelta(t, referenceValue, portMap[pid].CPUCores*100, 10)
-}
-
 func TestCommandLineSanitization(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -652,9 +797,10 @@ func TestCommandLineSanitization(t *testing.T) {
 	pid := cmd.Process.Pid
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(collect, url)
-		assert.Contains(collect, svcMap, pid)
-		assert.Equal(collect, sanitizedCommandLine, svcMap[pid].CommandLine)
+		resp := getServices(collect, url)
+		startEvent := findService(pid, resp.StartedServices)
+		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+		assert.Equal(collect, sanitizedCommandLine, startEvent.CommandLine)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -666,20 +812,31 @@ func TestNodeDocker(t *testing.T) {
 	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
 	require.NoError(t, err)
 
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+
 	pid := int(nodeJSPID)
 
+	proc, err := process.NewProcess(int32(pid))
+	require.NoError(t, err, "could not create gopsutil process handle")
+
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		svcMap := getServicesMap(collect, url)
-		assert.Contains(collect, svcMap, pid)
+		resp := getServices(collect, url)
+		startEvent := findService(pid, resp.StartedServices)
+		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+
+		referenceValue, err := proc.Percent(0)
+		require.NoError(collect, err, "could not get gopsutil cpu usage value")
+
 		// test@... changed to test_... due to normalization.
-		assert.Equal(collect, "test_nodejs-https-server", svcMap[pid].GeneratedName)
-		assert.Equal(collect, string(usm.Nodejs), svcMap[pid].GeneratedNameSource)
-		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
-		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
-		assertStat(collect, svcMap[pid])
-		assertCPU(collect, url, pid)
+		assert.Equal(collect, "test_nodejs-https-server", startEvent.GeneratedName)
+		assert.Equal(collect, string(usm.Nodejs), startEvent.GeneratedNameSource)
+		assert.Equal(collect, startEvent.GeneratedName, startEvent.Name)
+		assert.Equal(collect, "provided", startEvent.APMInstrumentation)
+		assert.Equal(collect, "web_service", startEvent.Type)
+		assertStat(collect, *startEvent)
+		assert.InDelta(collect, referenceValue, startEvent.CPUCores*100, 10)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -725,16 +882,20 @@ func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 			cmd, err := fileopener.OpenFromProcess(t, fake, test.lib)
 			require.NoError(t, err)
 
-			url, mockContainerProvider := setupDiscoveryModule(t)
-			mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+			url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+			mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+			mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 			pid := cmd.Process.Pid
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				portMap := getServicesMap(collect, url)
-				assert.Contains(collect, portMap, pid)
-				assert.Equal(collect, string(test.language), portMap[pid].Language)
-				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
-				assertStat(collect, portMap[pid])
+				resp := getServices(collect, url)
+
+				// Start event assert
+				startEvent := findService(pid, resp.StartedServices)
+				require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
+				assert.Equal(collect, string(test.language), startEvent.Language)
+				assert.Equal(collect, string(apm.Provided), startEvent.APMInstrumentation)
+				assertStat(collect, *startEvent)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -742,8 +903,9 @@ func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 
 // Check that we can get listening processes in other namespaces.
 func TestNamespaces(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).AnyTimes()
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	// Needed when changing namespaces
 	runtime.LockOSThread()
@@ -787,23 +949,25 @@ func TestNamespaces(t *testing.T) {
 
 	netns.Set(origNs)
 
+	seen := make(map[int]model.Service)
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		portMap := getServicesMap(collect, url)
+		resp := getServices(collect, url)
+		for _, s := range resp.StartedServices {
+			seen[s.PID] = s
+		}
+
 		for _, pid := range pids {
-			assert.Contains(collect, portMap, pid)
+			require.Contains(collect, seen, pid)
+			assert.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
 		}
 	}, 30*time.Second, 100*time.Millisecond)
-
-	serviceMap := getServicesMap(t, url)
-	for _, pid := range pids {
-		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
-	}
 }
 
 // Check that we are able to find services inside Docker containers.
 func TestDocker(t *testing.T) {
-	url, mockContainerProvider := setupDiscoveryModule(t)
+	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
+	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)
@@ -832,7 +996,7 @@ func TestDocker(t *testing.T) {
 				pid1111 = process.PID
 				mockContainerProvider.
 					EXPECT().
-					GetContainers(containerCacheValidatity, nil).
+					GetContainers(containerCacheValidity, nil).
 					Return(
 						[]*agentPayload.Container{
 							{Id: "dummyCID", Tags: []string{
@@ -844,7 +1008,8 @@ func TestDocker(t *testing.T) {
 						nil,
 						map[int]string{
 							pid1111: "dummyCID",
-						}, nil)
+						}, nil).
+					AnyTimes()
 
 				break
 			}
@@ -852,16 +1017,29 @@ func TestDocker(t *testing.T) {
 		assert.NotZero(collect, pid1111)
 	}, time.Second*10, time.Millisecond*20)
 
-	portMap := getServicesMap(t, url)
+	// First endpoint call will not contain any events, because the service is
+	// still consider a potential service. The second call will have the events.
+	_ = getServices(t, url)
+	resp := getServices(t, url)
 
-	require.Contains(t, portMap, pid1111)
-	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
-	require.Contains(t, portMap[pid1111].ContainerID, "dummyCID")
-	require.Contains(t, portMap[pid1111].Name, "http.server")
-	require.Contains(t, portMap[pid1111].GeneratedName, "http.server")
-	require.Contains(t, portMap[pid1111].GeneratedNameSource, string(usm.CommandLine))
-	require.Contains(t, portMap[pid1111].ContainerServiceName, "foo_from_app_tag")
-	require.Contains(t, portMap[pid1111].ContainerServiceNameSource, "app")
+	// Assert events
+	startEvent := findService(pid1111, resp.StartedServices)
+	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid1111)
+	require.Contains(t, startEvent.Ports, uint16(1234))
+	require.Contains(t, startEvent.ContainerID, "dummyCID")
+	require.Contains(t, startEvent.Name, "http.server")
+	require.Contains(t, startEvent.GeneratedName, "http.server")
+	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
+	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
+	require.Contains(t, startEvent.ContainerServiceNameSource, "app")
+	require.Contains(t, startEvent.Type, "web_service")
+	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
+}
+
+func newDiscovery(containerProvider proccontainers.ContainerProvider, tp timeProvider) *discovery {
+	return newDiscoveryWithNetwork(containerProvider, tp, func(_ *discoveryConfig) (networkCollector, error) {
+		return nil, nil
+	})
 }
 
 // Check that the cache is cleaned when procceses die.
@@ -870,8 +1048,8 @@ func TestCache(t *testing.T) {
 
 	mockCtrl := gomock.NewController(t)
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidatity, nil).MinTimes(1)
-	discovery := newDiscovery(mockContainerProvider)
+	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).MinTimes(1)
+	discovery := newDiscovery(mockContainerProvider, realTime{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -898,7 +1076,7 @@ func TestCache(t *testing.T) {
 	f.Close()
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		_, err = discovery.getServices()
+		_, err = discovery.getServices(defaultParams())
 		require.NoError(collect, err)
 
 		for _, cmd := range cmds {
@@ -918,7 +1096,7 @@ func TestCache(t *testing.T) {
 		cmd.Wait()
 	}
 
-	_, err = discovery.getServices()
+	_, err = discovery.getServices(defaultParams())
 	require.NoError(t, err)
 
 	for _, cmd := range cmds {
@@ -1042,6 +1220,16 @@ func TestTagsPriority(t *testing.T) {
 			"service",
 			"my_service",
 		},
+		{
+			"multiple tags",
+			[]string{
+				"service:foo",
+				"service:bar",
+				"other:tag",
+			},
+			"service",
+			"bar",
+		},
 	}
 
 	for _, c := range cases {
@@ -1140,7 +1328,8 @@ func BenchmarkOldGetSockets(b *testing.B) {
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
 func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P,
-	family network.ConnectionFamily, ctype network.ConnectionType, state uint64) {
+	family network.ConnectionFamily, ctype network.ConnectionType, state uint64,
+) {
 	for _, sock := range sockets {
 		if sock.St != state {
 			continue

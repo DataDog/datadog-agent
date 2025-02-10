@@ -102,6 +102,11 @@ func TestRawPacket(t *testing.T) {
 	testDestIP := "192.168.172.171"
 	testUDPDestPort := uint16(12345)
 
+	_, expectedIPNet, err := net.ParseCIDR(testDestIP + "/32")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// create dummy interface
 	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testDestIP+"/32")
 	if err != nil {
@@ -142,10 +147,6 @@ func TestRawPacket(t *testing.T) {
 			assert.Equal(t, "packet", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule_raw_packet_udp4")
 			assertFieldEqual(t, event, "packet.l3_protocol", int(model.EthPIP))
-			_, expectedIPNet, err := net.ParseCIDR(testDestIP + "/32")
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "packet.destination.ip", *expectedIPNet)
 			assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoUDP))
 			assertFieldEqual(t, event, "packet.destination.port", int(testUDPDestPort))

@@ -47,6 +47,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err er
 		span.SetTag("http.errors", err.Error())
 		return res, err
 	}
+	span.SetTag("aws_pop", res.Header.Get("X-Amz-Cf-Pop"))
 	span.SetTag("http.status_code", strconv.Itoa(res.StatusCode))
 	if res.StatusCode >= 400 {
 		span.SetTag("http.errors", res.Status)

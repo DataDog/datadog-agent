@@ -53,8 +53,9 @@ func mandatoryMetricTagRegexes() []*regexp.Regexp {
 // TestGPUSuite runs tests for the VM interface to ensure its implementation is correct.
 // Not to be run in parallel, as some tests wait until the checks are available.
 func TestGPUSuite(t *testing.T) {
-	// incident-33572
-	flake.Mark(t)
+	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
+	// we are not able to debug from the logs. We mark the test as flaky in that case only.
+	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
 	provParams := getDefaultProvisionerParams()
 
 	// Append our vectorAdd image for testing

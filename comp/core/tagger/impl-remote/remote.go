@@ -289,9 +289,9 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
 func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 200 * time.Millisecond
-	expBackoff.MaxInterval = 1 * time.Second
-	expBackoff.MaxElapsedTime = 15 * time.Second
+	expBackoff.InitialInterval = 50 * time.Millisecond
+	expBackoff.MaxInterval = 200 * time.Millisecond
+	expBackoff.MaxElapsedTime = 500 * time.Millisecond
 
 	err = backoff.Retry(func() error {
 		select {
@@ -318,8 +318,14 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 		)
 		defer queryCancel()
 
-		// Call the gRPC method to get the container ID from the origin info
+		// Call the gRPC method to get the container ID from the OriginInfo.
 		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+			LocalData: &pb.GenerateContainerIDFromOriginInfoRequest_LocalData{
+				ProcessID:   &originInfo.LocalData.ProcessID,
+				ContainerID: &originInfo.LocalData.ContainerID,
+				Inode:       &originInfo.LocalData.Inode,
+				PodUID:      &originInfo.LocalData.PodUID,
+			},
 			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
 				Init:          &originInfo.ExternalData.Init,
 				ContainerName: &originInfo.ExternalData.ContainerName,
