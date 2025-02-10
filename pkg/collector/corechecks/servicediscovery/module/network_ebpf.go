@@ -22,7 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const statsMapName = "network_stats"
+const (
+	statsMapName = "network_stats"
+	moduleName   = "discovery"
+)
 
 type eBPFNetworkCollector struct {
 	m        *ddebpf.Manager
@@ -36,13 +39,13 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 	}
 
 	probes := []*manager.Probe{
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "discovery"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "discovery"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: moduleName}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: moduleName}},
 	}
 
 	if kprobeconfig.HasTCPSendPage(kv) {
 		probes = append(probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendpage", UID: "discovery"}})
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendpage", UID: moduleName}})
 	}
 
 	c.m = ddebpf.NewManagerWithDefault(&manager.Manager{
@@ -50,7 +53,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 		Maps: []*manager.Map{
 			{Name: statsMapName},
 		},
-	}, "discovery")
+	}, moduleName)
 
 	if err := c.m.InitWithOptions(buf, &options); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -65,7 +68,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 		return fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
 	}
 
-	ddebpf.AddNameMappings(c.m.Manager, "discovery")
+	ddebpf.AddNameMappings(c.m.Manager, moduleName)
 
 	c.statsMap = statsMap
 
@@ -127,11 +130,11 @@ func newNetworkCollector(cfg *discoveryConfig) (networkCollector, error) {
 			return nil, fmt.Errorf("error loading CO-RE %w", err)
 		}
 
-		log.Warnf("discovery: error loading CO-RE, falling back to runtime compiled: %v", err)
+		log.Warnf("%s: error loading CO-RE, falling back to runtime compiled: %v", moduleName, err)
 	}
 
 	if !cfg.EnableRuntimeCompiler {
-		return nil, fmt.Errorf("discovery: cannot compile probe")
+		return nil, fmt.Errorf("%s: cannot compile probe", moduleName)
 	}
 
 	err := collector.initRuntimeCompiled(cfg)
