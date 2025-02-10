@@ -88,7 +88,10 @@ func SetupInstaller(_ context.Context) error {
 	}
 	defer stable.Close()
 
-	stable.SetRecoveryActions(stableRecoveryOptions, 0)
+	err = stable.SetRecoveryActions(stableRecoveryOptions, 0)
+	if err != nil {
+		return fmt.Errorf("failed to set recovery actions: %w", err)
+	}
 
 	err = stable.Start()
 	if err != nil {
