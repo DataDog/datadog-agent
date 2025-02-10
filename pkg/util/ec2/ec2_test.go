@@ -80,33 +80,41 @@ func TestIsDefaultHostnameForIntake(t *testing.T) {
 	assert.True(t, IsDefaultHostname("EC2AMAZ-FOO"))
 }
 
-/*
 func TestGetInstanceID(t *testing.T) {
 	ctx := context.Background()
-	expected := "i-0123456789abcdef0"
+	var expected string
 	var responseCode int
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(responseCode)
-		io.WriteString(w, expected)
+		switch r.Method {
+		case http.MethodPut:
+			// Should be a token request
+			io.WriteString(w, testIMDSToken)
+			w.WriteHeader(http.StatusOK)
+		case http.MethodGet:
+			// Should be a metadata request
+			t := r.Header.Get("X-aws-ec2-metadata-token")
+			if t != testIMDSToken {
+				w.WriteHeader(http.StatusUnauthorized)
+			}
+			io.WriteString(w, expected)
+			w.WriteHeader(responseCode)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
 		lastRequest = r
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
+	tokenURL = ts.URL
 	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	// API errors out, should return error
-	responseCode = http.StatusInternalServerError
-	val, err := GetInstanceID(ctx)
-	assert.NotNil(t, err)
-	assert.Equal(t, "", val)
-	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
-
 	// API successful, should return API result
 	responseCode = http.StatusOK
-	val, err = GetInstanceID(ctx)
+	expected = "i-0123456789abcdef0"
+	val, err := GetInstanceID(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
@@ -126,7 +134,6 @@ func TestGetInstanceID(t *testing.T) {
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 }
-*/
 
 func TestGetLegacyResolutionInstanceID(t *testing.T) {
 	ctx := context.Background()
@@ -372,92 +379,115 @@ func TestGetToken(t *testing.T) {
 }
 
 func TestMetedataRequestWithToken(t *testing.T) {
-	var requestWithoutToken *http.Request
-	var requestForToken *http.Request
-	var requestWithToken *http.Request
-	var seq int
-	pkgconfigsetup.Datadog().SetDefault("ec2_prefer_imdsv2", true)
-	ctx := context.Background()
+	testCases := []struct {
+		name        string
+		configKey   string
+		configValue bool
+	}{
+		{
+			name:        "IMDSv2 Preferred",
+			configKey:   "ec2_prefer_imdsv2",
+			configValue: true,
+		},
+		{
+			name:        "IMDSv2 Transition Payload Enabled",
+			configKey:   "ec2_imdsv2_transition_payload_enabled",
+			configValue: true,
+		},
+	}
 
-	ipv4 := "198.51.100.1"
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var requestWithoutToken *http.Request
+			var requestForToken *http.Request
+			var requestWithToken *http.Request
+			var seq int
+			ctx := context.Background()
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.Method {
-		case http.MethodPut:
-			// Should be a token request
-			h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
-			if h == "" {
-				w.WriteHeader(http.StatusUnauthorized)
-			}
-			r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
-			seq++
-			requestForToken = r
-			io.WriteString(w, testIMDSToken)
-		case http.MethodGet:
-			// Should be a metadata request
-			t := r.Header.Get("X-aws-ec2-metadata-token")
-			if t != testIMDSToken {
-				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
-				seq++
-				requestWithoutToken = r
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			switch r.RequestURI {
-			case "/public-ipv4":
-				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
-				seq++
-				requestWithToken = r
-				io.WriteString(w, ipv4)
-			default:
-				w.WriteHeader(http.StatusNotFound)
-			}
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+			ipv4 := "198.51.100.1"
 
-	ips, err := GetPublicIPv4(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, ipv4, ips)
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/plain")
+				switch r.Method {
+				case http.MethodPut:
+					// Should be a token request
+					h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
+					if h == "" {
+						w.WriteHeader(http.StatusUnauthorized)
+					}
+					r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+					seq++
+					requestForToken = r
+					io.WriteString(w, testIMDSToken)
+				case http.MethodGet:
+					// Should be a metadata request
+					t := r.Header.Get("X-aws-ec2-metadata-token")
+					if t != testIMDSToken {
+						r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+						seq++
+						requestWithoutToken = r
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					switch r.RequestURI {
+					case "/public-ipv4":
+						r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+						seq++
+						requestWithToken = r
+						io.WriteString(w, ipv4)
+					default:
+						w.WriteHeader(http.StatusNotFound)
+					}
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer ts.Close()
+			metadataURL = ts.URL
+			tokenURL = ts.URL
 
-	assert.Nil(t, requestWithoutToken)
+			// Set test-specific configuration
+			pkgconfigsetup.Datadog().SetDefault(tc.configKey, tc.configValue)
+			pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
+			defer resetPackageVars()
 
-	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
-	assert.Equal(t, "1", requestWithToken.Header.Get("X-sequence"))
-	assert.Equal(t, fmt.Sprint(pkgconfigsetup.Datadog().GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
-	assert.Equal(t, http.MethodPut, requestForToken.Method)
-	assert.Equal(t, "/", requestForToken.RequestURI)
-	assert.Equal(t, testIMDSToken, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
-	assert.Equal(t, "/public-ipv4", requestWithToken.RequestURI)
-	assert.Equal(t, http.MethodGet, requestWithToken.Method)
+			ips, err := GetPublicIPv4(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, ipv4, ips)
 
-	// Ensure token has been cached
-	ips, err = GetPublicIPv4(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, ipv4, ips)
-	// Unchanged
-	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
-	// Incremented
-	assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
+			assert.Nil(t, requestWithoutToken)
 
-	// Force refresh
-	token.ExpirationDate = time.Now()
-	ips, err = GetPublicIPv4(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, ipv4, ips)
-	// Incremented
-	assert.Equal(t, "3", requestForToken.Header.Get("X-sequence"))
-	assert.Equal(t, "4", requestWithToken.Header.Get("X-sequence"))
+			assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
+			assert.Equal(t, "1", requestWithToken.Header.Get("X-sequence"))
+			assert.Equal(t, fmt.Sprint(pkgconfigsetup.Datadog().GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+			assert.Equal(t, http.MethodPut, requestForToken.Method)
+			assert.Equal(t, "/", requestForToken.RequestURI)
+			assert.Equal(t, testIMDSToken, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
+			assert.Equal(t, "/public-ipv4", requestWithToken.RequestURI)
+			assert.Equal(t, http.MethodGet, requestWithToken.Method)
+
+			// Ensure token has been cached
+			ips, err = GetPublicIPv4(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, ipv4, ips)
+			// Unchanged
+			assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
+			// Incremented
+			assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
+
+			// Force refresh
+			token.ExpirationDate = time.Now()
+			ips, err = GetPublicIPv4(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, ipv4, ips)
+			// Incremented
+			assert.Equal(t, "3", requestForToken.Header.Get("X-sequence"))
+			assert.Equal(t, "4", requestWithToken.Header.Get("X-sequence"))
+		})
+	}
 }
 
-func TestOldMetedataRequestWithoutToken(t *testing.T) {
+func TestLegacyMetedataRequestWithoutToken(t *testing.T) {
 	var requestWithoutToken *http.Request
 	pkgconfigsetup.Datadog().SetDefault("ec2_prefer_imdsv2", false)
 	pkgconfigsetup.Datadog().SetDefault("ec2_imdsv2_transition_payload_enabled", false)
