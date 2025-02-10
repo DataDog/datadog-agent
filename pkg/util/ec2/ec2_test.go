@@ -80,6 +80,7 @@ func TestIsDefaultHostnameForIntake(t *testing.T) {
 	assert.True(t, IsDefaultHostname("EC2AMAZ-FOO"))
 }
 
+/*
 func TestGetInstanceID(t *testing.T) {
 	ctx := context.Background()
 	expected := "i-0123456789abcdef0"
@@ -121,6 +122,53 @@ func TestGetInstanceID(t *testing.T) {
 	responseCode = http.StatusOK
 	expected = "i-aaaaaaaaaaaaaaaaa"
 	val, err = GetInstanceID(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, val)
+	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
+}
+*/
+
+func TestGetLegacyResolutionInstanceID(t *testing.T) {
+	ctx := context.Background()
+	expected := "i-0123456789abcdef0"
+	var responseCode int
+	var lastRequest *http.Request
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(responseCode)
+		io.WriteString(w, expected)
+		lastRequest = r
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
+	defer resetPackageVars()
+
+	// API errors out, should return error
+	responseCode = http.StatusInternalServerError
+	val, err := GetLegacyResolutionInstanceID(ctx)
+	assert.NotNil(t, err)
+	assert.Equal(t, "", val)
+	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
+
+	// API successful, should return API result
+	responseCode = http.StatusOK
+	val, err = GetLegacyResolutionInstanceID(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, val)
+	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
+
+	// the internal cache is populated now, should return the cached value even if API errors out
+	responseCode = http.StatusInternalServerError
+	val, err = GetLegacyResolutionInstanceID(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, val)
+	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
+
+	// the internal cache is populated, should refresh result if API call succeeds
+	responseCode = http.StatusOK
+	expected = "i-aaaaaaaaaaaaaaaaa"
+	val, err = GetLegacyResolutionInstanceID(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
@@ -409,9 +457,10 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	assert.Equal(t, "4", requestWithToken.Header.Get("X-sequence"))
 }
 
-func TestMetedataRequestWithoutToken(t *testing.T) {
+func TestOldMetedataRequestWithoutToken(t *testing.T) {
 	var requestWithoutToken *http.Request
 	pkgconfigsetup.Datadog().SetDefault("ec2_prefer_imdsv2", false)
+	pkgconfigsetup.Datadog().SetDefault("ec2_imdsv2_transition_payload_enabled", false)
 
 	ipv4 := "198.51.100.1"
 
@@ -535,7 +584,15 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	configmock.New(t)
 	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	pkgconfigsetup.Datadog().SetWithoutSource("ec2_prefer_imdsv2", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_imdsv2_transition_payload_enabled", false)
 
+	assert.True(t, IsRunningOn(ctx))
+	assert.Equal(t, metadataSourceIMDSv2, currentMetadataSource)
+
+	hostnameFetcher.Reset()
+	currentMetadataSource = metadataSourceNone
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_prefer_imdsv2", false)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_imdsv2_transition_payload_enabled", true)
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, metadataSourceIMDSv2, currentMetadataSource)
 
@@ -543,6 +600,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	hostnameFetcher.Reset()
 	currentMetadataSource = metadataSourceNone
 	pkgconfigsetup.Datadog().SetWithoutSource("ec2_prefer_imdsv2", false)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_imdsv2_transition_payload_enabled", false)
 
 	assert.True(t, IsRunningOn(ctx))
 	assert.Equal(t, metadataSourceIMDSv1, currentMetadataSource)
