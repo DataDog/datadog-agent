@@ -438,7 +438,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 			return nil, fmt.Errorf("rc client not initialized, cannot use rc profiles")
 		}
 		if len(initConfig.Profiles) > 0 {
-			return nil, fmt.Errorf("cannot provide profiles in config when use_remote_config_profiles is set")
+			// We don't support merging inline profiles with profiles fetched via remote
+			// config - this would create too much potential for confusing scenarios where
+			// different agents with the same remote config setup disagree on what common
+			// profiles look like.
+			log.Warnf("SNMP init config contains %d inline profile(s); these will be "+
+				"ignored because use_remote_config_profiles is set", len(initConfig.Profiles))
 		}
 		c.ProfileProvider, err = profile.NewRCProvider(rcClient)
 	} else {
