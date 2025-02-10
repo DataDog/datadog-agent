@@ -17,8 +17,6 @@ type Component interface {
 	Set(instanceID string, key string, value interface{})
 	// GetInstanceMetadata returns metadata for a specific check instance
 	GetInstanceMetadata(instanceID string) map[string]interface{}
-	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
-	GetAsJSON() ([]byte, error)
 	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
 	Refresh()
 }

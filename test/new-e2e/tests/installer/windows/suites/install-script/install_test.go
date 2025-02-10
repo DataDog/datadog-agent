@@ -14,7 +14,7 @@ import (
 )
 
 type testInstallScriptSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 }
 
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
@@ -43,10 +43,10 @@ func (s *testInstallScriptSuite) InstallLastStable() {
 	// Arrange
 
 	// Act
-	output, err := s.Installer().RunInstallScript(map[string]string{
+	output, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
 		"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT": s.StableAgentVersion().PackageVersion(),
 		"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":        "install.datadoghq.com",
-	})
+	}))
 
 	// Assert
 	if s.NoError(err) {

@@ -488,7 +488,10 @@ func (c *Client) verifyOrg() error {
 		}
 		checkOrgID := configPathMeta.Source != rdata.SourceEmployee
 		if checkOrgID && configPathMeta.OrgID != c.orgID {
-			return fmt.Errorf("director target '%s' does not have the correct orgID", targetPath)
+			return fmt.Errorf(
+				"director target '%s' does not have the correct orgID. %d != %d",
+				targetPath, configPathMeta.OrgID, c.orgID,
+			)
 		}
 	}
 	return nil
