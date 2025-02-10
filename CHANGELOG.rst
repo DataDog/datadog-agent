@@ -43,6 +43,8 @@ Bug Fixes
 
 - On Windows, ensures the ipc_perm.pem file's permissions are updated during installation.
 
+- Disables fentry by default in event stream.
+
 
 .. _Release Notes_7.62.1:
 
