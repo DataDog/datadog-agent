@@ -639,6 +639,19 @@ func (suite *EndpointsTestSuite) TestMainApiKeyRotation() {
 	suite.Equal("5678", http.GetAPIKey())
 }
 
+func (suite *EndpointsTestSuite) TestLogCompressionKind() {
+	suite.config.SetWithoutSource("logs_config.compression_kind", "gzip")
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.Equal(logsConfig.compressionKind(), "gzip")
+
+	suite.config.SetWithoutSource("logs_config.compression_kind", "zstd")
+	suite.Equal(logsConfig.compressionKind(), "zstd")
+
+	// Invalid compression should fall back to the default log agent compression kind
+	suite.config.SetWithoutSource("logs_config.compression_kind", "notgzip")
+	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+}
+
 func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 	suite.config.SetWithoutSource("api_key", "abcd")
 	suite.config.SetWithoutSource("logs_config.api_key", "1234")
