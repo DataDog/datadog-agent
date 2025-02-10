@@ -21,6 +21,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
+var stableRecoveryOptions = []mgr.RecoveryAction{
+	{
+		Type:  mgr.ServiceRestart,
+		Delay: 1 * time.Minute,
+	},
+	{
+		Type:  mgr.ServiceRestart,
+		Delay: 1 * time.Minute,
+	},
+	{
+		Type:  mgr.ServiceRestart,
+		Delay: 1 * time.Minute,
+	},
+}
+
 // PrepareInstaller prepares the installer
 func PrepareInstaller(_ context.Context) error {
 	return nil
@@ -72,6 +87,8 @@ func SetupInstaller(_ context.Context) error {
 		return fmt.Errorf("failed to create service: %w", err)
 	}
 	defer stable.Close()
+
+	stable.SetRecoveryActions(stableRecoveryOptions, 0)
 
 	err = stable.Start()
 	if err != nil {
