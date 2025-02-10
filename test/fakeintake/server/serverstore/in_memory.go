@@ -57,6 +57,8 @@ func (s *inMemoryStore) GetRecentAPIKey() (string, error) {
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
 func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time) error {
+	// Set the recent APIKey first, to avoid deadlocking
+	s.SetRecentAPIKey(apiKey)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	rawPayload := api.Payload{
@@ -68,7 +70,6 @@ func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, 
 	}
 	s.rawPayloads[route] = append(s.rawPayloads[route], rawPayload)
 	s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))
-	s.SetRecentAPIKey(apiKey)
 	return nil
 }
 
