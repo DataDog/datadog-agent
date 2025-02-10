@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TargetFilter filters pods based on a set of targeting rules.
@@ -113,7 +113,7 @@ func (f *TargetFilter) filter(pod *corev1.Pod) []libInfo {
 		// Check the pod namespace against the namespace selector.
 		matches, err := target.matchesNamespaceSelector(pod.Namespace)
 		if err != nil {
-			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %w", err)
+			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
 			return nil
 
 		}
