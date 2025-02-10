@@ -50,6 +50,10 @@ type eventPayload struct {
 	RSSMemory                  uint64   `json:"rss_memory"`
 	CPUCores                   float64  `json:"cpu_cores"`
 	ContainerID                string   `json:"container_id"`
+	RxBytes                    uint64   `json:"rx_bytes"`
+	TxBytes                    uint64   `json:"tx_bytes"`
+	RxBps                      float64  `json:"rx_bps"`
+	TxBps                      float64  `json:"tx_bps"`
 }
 
 type event struct {
@@ -102,6 +106,10 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 			RSSMemory:                  service.RSS,
 			CPUCores:                   service.CPUCores,
 			ContainerID:                service.ContainerID,
+			RxBytes:                    service.RxBytes,
+			TxBytes:                    service.TxBytes,
+			RxBps:                      service.RxBps,
+			TxBps:                      service.TxBps,
 		},
 	}
 }
