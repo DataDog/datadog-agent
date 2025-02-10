@@ -43,7 +43,6 @@ import (
 const (
 	pathServices = "/services"
 
-	heartbeatTime = 15 * time.Minute
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
 	// pkg/process/checks/container.go.
@@ -59,6 +58,7 @@ type serviceInfo struct {
 	name                       string
 	generatedName              string
 	generatedNameSource        string
+	additionalGeneratedNames   []string
 	containerServiceName       string
 	containerServiceNameSource string
 	ddServiceName              string
@@ -88,6 +88,7 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.Name = i.name
 	out.GeneratedName = i.generatedName
 	out.GeneratedNameSource = i.generatedNameSource
+	out.AdditionalGeneratedNames = i.additionalGeneratedNames
 	out.ContainerServiceName = i.containerServiceName
 	out.ContainerServiceNameSource = i.containerServiceNameSource
 	out.DDService = i.ddServiceName
@@ -215,6 +216,9 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
 	services := make([]model.Service, 0)
 
 	procRoot := kernel.ProcFSRoot()
@@ -256,8 +260,15 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 // handleServers is the handler for the /services endpoint.
 // Returns the list of currently running services.
-func (s *discovery) handleServices(w http.ResponseWriter, _ *http.Request) {
-	services, err := s.getServices()
+func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	services, err := s.getServices(params)
 	if err != nil {
 		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -461,17 +472,11 @@ type parsingContext struct {
 
 // addIgnoredPid store excluded pid.
 func (s *discovery) addIgnoredPid(pid int32) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
 	s.ignorePids[pid] = struct{}{}
 }
 
 // shouldIgnorePid returns true if process should be excluded from handling.
 func (s *discovery) shouldIgnorePid(pid int32) bool {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
 	_, found := s.ignorePids[pid]
 	return found
 }
@@ -535,15 +540,16 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	}
 
 	return &serviceInfo{
-		name:                name,
-		generatedName:       nameMeta.Name,
-		generatedNameSource: string(nameMeta.Source),
-		ddServiceName:       nameMeta.DDService,
-		language:            lang,
-		apmInstrumentation:  apmInstrumentation,
-		ddServiceInjected:   nameMeta.DDServiceInjected,
-		cmdLine:             sanitizeCmdLine(s.scrubber, cmdline),
-		startTimeMilli:      uint64(createTime),
+		name:                     name,
+		generatedName:            nameMeta.Name,
+		generatedNameSource:      string(nameMeta.Source),
+		additionalGeneratedNames: nameMeta.AdditionalNames,
+		ddServiceName:            nameMeta.DDService,
+		language:                 lang,
+		apmInstrumentation:       apmInstrumentation,
+		ddServiceInjected:        nameMeta.DDServiceInjected,
+		cmdLine:                  sanitizeCmdLine(s.scrubber, cmdline),
+		startTimeMilli:           uint64(createTime),
 	}, nil
 }
 
@@ -622,9 +628,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	var info *serviceInfo
-	s.mux.RLock()
 	cached, ok := s.cache[pid]
-	s.mux.RUnlock()
 	if ok {
 		info = cached
 	} else {
@@ -633,9 +637,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 			return nil
 		}
 
-		s.mux.Lock()
 		s.cache[pid] = info
-		s.mux.Unlock()
 	}
 
 	if s.shouldIgnoreService(info.name) {
@@ -732,6 +734,9 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		{"kube_service", nil},
 	}
 
+	// Sort the tags to make the function deterministic
+	slices.Sort(tags)
+
 	for _, tag := range tags {
 		// Get index of separator between name and value
 		sepIndex := strings.IndexRune(tag, ':')
@@ -741,6 +746,11 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		}
 
 		for i := range tagsPriority {
+			if tagsPriority[i].tagValue != nil {
+				// We have seen this tag before, we don't need another value.
+				continue
+			}
+
 			if tag[:sepIndex] != tagsPriority[i].tagName {
 				// Not a tag we care about; we skip it
 				continue
@@ -787,7 +797,6 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 	service.ContainerServiceNameSource = tagName
 	service.CheckedContainerData = true
 
-	s.mux.Lock()
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
 		serviceInfo.containerServiceName = serviceName
@@ -795,7 +804,6 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		serviceInfo.checkedContainerData = true
 		serviceInfo.containerID = id
 	}
-	s.mux.Unlock()
 }
 
 func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
@@ -847,7 +855,10 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 }
 
 // getStatus returns the list of currently running services.
-func (s *discovery) getServices() (*model.ServicesResponse, error) {
+func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
 	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
@@ -890,7 +901,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		if _, ok := s.runningServices[pid]; ok {
-			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
+			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= params.heartbeatTime {
 				service.LastHeartbeat = now.Unix()
 				response.HeartbeatServices = append(response.HeartbeatServices, *service)
 			}
@@ -912,9 +923,6 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		s.potentialServices.add(pid)
 		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
-
-	s.mux.Lock()
-	defer s.mux.Unlock()
 
 	s.updateCacheInfo(response, now)
 	s.handleStoppedServices(response, alivePids)

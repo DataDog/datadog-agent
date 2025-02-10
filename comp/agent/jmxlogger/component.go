@@ -6,7 +6,7 @@
 // Package jmxlogger implements the logger for JMX.
 package jmxlogger
 
-// team: agent-metrics
+// team: agent-metric-pipelines
 
 // Component is the component type.
 type Component interface {

@@ -1,0 +1,21 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: "localhost:4318"
+      grpc:
+        endpoint: "localhost:4317"
+
+exporters:
+  datadog:
+    api:
+      key: "abc"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]
+  telemetry:
+    metrics:
+      address: 127.0.0.1:8888

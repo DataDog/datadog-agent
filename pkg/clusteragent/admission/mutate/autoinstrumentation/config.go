@@ -13,9 +13,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,6 +45,105 @@ type InstrumentationConfig struct {
 	// InjectorImageTag is the tag of the image to use for the auto instrumentation injector library. Full config key:
 	// apm_config.instrumentation.injector_image_tag
 	InjectorImageTag string `mapstructure:"injector_image_tag"`
+	// Targets is a list of targets to apply the auto instrumentation to. The first target that matches the pod will be
+	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
+	// apm_config.instrumentation.targets
+	Targets []Target `mapstructure:"targets"`
+}
+
+// Target is a rule to apply the auto instrumentation to a specific workload using the pod and namespace selectors.
+// Full config key: apm_config.instrumentation.targets to get the list of targets.
+type Target struct {
+	// Name is the name of the target. It will be appended to the pod annotations to identify the target that was used.
+	// Full config key: apm_config.instrumentation.targets[].name
+	Name string `mapstructure:"name"`
+	// PodSelector is the pod selector to match the pods to apply the auto instrumentation to. It will be used in
+	// conjunction with the NamespaceSelector to match the pods. Full config key:
+	// apm_config.instrumentation.targets[].selector
+	PodSelector PodSelector `mapstructure:"podSelector"`
+	// NamespaceSelector is the namespace selector to match the namespaces to apply the auto instrumentation to. It will
+	// be used in conjunction with the Selector to match the pods. Full config key:
+	// apm_config.instrumentation.targets[].namespaceSelector
+	NamespaceSelector NamespaceSelector `mapstructure:"namespaceSelector"`
+	// TracerVersions is a map of tracer versions to inject for workloads that match the target. The key is the tracer
+	// name and the value is the version to inject. Full config key:
+	// apm_config.instrumentation.targets[].ddTraceVersions
+	TracerVersions map[string]string `mapstructure:"ddTraceVersions"`
+}
+
+// PodSelector is a reconstruction of the metav1.LabelSelector struct to be able to unmarshal the configuration. It
+// can be converted to a metav1.LabelSelector using the AsLabelSelector method. Full config key:
+// apm_config.instrumentation.targets[].selector
+type PodSelector struct {
+	// MatchLabels is a map of key-value pairs to match the labels of the pod. The labels and expressions are ANDed.
+	// Full config key: apm_config.instrumentation.targets[].podSelector.matchLabels
+	MatchLabels map[string]string `mapstructure:"matchLabels"`
+	// MatchExpressions is a list of label selector requirements to match the labels of the pod. The labels and
+	// expressions are ANDed. Full config key: apm_config.instrumentation.targets[].podSelector.matchExpressions
+	MatchExpressions []SelectorMatchExpression `mapstructure:"matchExpressions"`
+}
+
+// AsLabelSelector converts the PodSelector to a labels.Selector. It returns an error if the conversion fails.
+func (p PodSelector) AsLabelSelector() (labels.Selector, error) {
+	labelSelector := &metav1.LabelSelector{
+		MatchLabels:      p.MatchLabels,
+		MatchExpressions: make([]metav1.LabelSelectorRequirement, len(p.MatchExpressions)),
+	}
+	for i, expr := range p.MatchExpressions {
+		labelSelector.MatchExpressions[i] = metav1.LabelSelectorRequirement{
+			Key:      expr.Key,
+			Operator: expr.Operator,
+			Values:   expr.Values,
+		}
+	}
+
+	return metav1.LabelSelectorAsSelector(labelSelector)
+}
+
+// SelectorMatchExpression is a reconstruction of the metav1.LabelSelectorRequirement struct to be able to unmarshal
+// the configuration.
+type SelectorMatchExpression struct {
+	// Key is the key of the label to match.
+	Key string `mapstructure:"key"`
+	// Operator is the operator to use to match the label. Valid values are In, NotIn, Exists, DoesNotExist.
+	Operator metav1.LabelSelectorOperator `mapstructure:"operator"`
+	// Values is a list of values to match the label against. If the operator is Exists or DoesNotExist, the values
+	// should be empty. If the operator is In or NotIn, the values should be non-empty.
+	Values []string `mapstructure:"values"`
+}
+
+// NamespaceSelector is a struct to store the configuration for the namespace selector. It can be used to match the
+// namespaces to apply the auto instrumentation to. Full config key:
+// apm_config.instrumentation.targets[].namespaceSelector
+type NamespaceSelector struct {
+	// MatchNames is a list of namespace names to match. If empty, all namespaces are matched. Full config key:
+	// apm_config.instrumentation.targets[].namespaceSelector.matchNames
+	MatchNames []string `mapstructure:"matchNames"`
+	// MatchLabels is a map of key-value pairs to match the labels of the namespace. The labels and expressions are
+	// ANDed. This cannot be used with MatchNames. Full config key:
+	// apm_config.instrumentation.targets[].namespaceSelector.matchLabels
+	MatchLabels map[string]string `mapstructure:"matchLabels"`
+	// MatchExpressions is a list of label selector requirements to match the labels of the namespace. The labels and
+	// expressions are ANDed. This cannot be used with MatchNames. Full config key:
+	// apm_config.instrumentation.targets[].selector.matchExpressions
+	MatchExpressions []SelectorMatchExpression `mapstructure:"matchExpressions"`
+}
+
+// AsLabelSelector converts the NamespaceSelector to a labels.Selector. It returns an error if the conversion fails.
+func (n NamespaceSelector) AsLabelSelector() (labels.Selector, error) {
+	labelSelector := &metav1.LabelSelector{
+		MatchLabels:      n.MatchLabels,
+		MatchExpressions: make([]metav1.LabelSelectorRequirement, len(n.MatchExpressions)),
+	}
+	for i, expr := range n.MatchExpressions {
+		labelSelector.MatchExpressions[i] = metav1.LabelSelectorRequirement{
+			Key:      expr.Key,
+			Operator: expr.Operator,
+			Values:   expr.Values,
+		}
+	}
+
+	return metav1.LabelSelectorAsSelector(labelSelector)
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the
@@ -60,6 +160,23 @@ func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationC
 		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces are mutually exclusive and cannot be set together")
 	}
 
+	// Ensure both enabled namespaces and targets are not set together.
+	if len(cfg.EnabledNamespaces) > 0 && len(cfg.Targets) > 0 {
+		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.targets are mutually exclusive and cannot be set together")
+	}
+
+	// Ensure both library versions and targets are not set together.
+	if len(cfg.LibVersions) > 0 && len(cfg.Targets) > 0 {
+		return nil, fmt.Errorf("apm.instrumentation.lib_versions and apm.instrumentation.targets are mutually exclusive and cannot be set together")
+	}
+
+	// Ensure both namespace names and labels are not set together.
+	for _, target := range cfg.Targets {
+		if len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
+			return nil, fmt.Errorf("apm.instrumentation.targets[].namespaceSelector.matchNames and apm.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
+		}
+	}
+
 	return cfg, nil
 }
 
@@ -73,73 +190,16 @@ type webhookConfig struct {
 	// isEnabled is the flag to enable the autoinstrumentation webhook
 	isEnabled bool
 	endpoint  string
-	version   version // autoinstrumentation logic version
-
-	// optional features
-	languageDetectionEnabled          bool
-	languageDetectionReportingEnabled bool
-	injectAutoDetectedLibraries       bool
-	// keep pointers to bool to differentiate between unset and false
-	// for backward compatibility with the previous implementation.
-	// TODO: remove the pointers when the backward compatibility is not needed anymore.
-	asmEnabled       *bool
-	iastEnabled      *bool
-	asmScaEnabled    *bool
-	profilingEnabled *string
-
-	// configuration for the libraries init-containers to inject.
-	containerRegistry           string
-	injectorImageTag            string
-	injectionFilter             mutatecommon.InjectionFilter
-	pinnedLibraries             []libInfo
-	initSecurityContext         *corev1.SecurityContext
-	defaultResourceRequirements initResourceRequirementConfiguration
 }
 
 type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
 
 // retrieveConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config
-func retrieveConfig(datadogConfig config.Component, injectionFilter mutatecommon.InjectionFilter) (webhookConfig, error) {
-	webhookConfig := webhookConfig{
+func retrieveConfig(datadogConfig config.Component) webhookConfig {
+	return webhookConfig{
 		isEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
 		endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
-
-		languageDetectionEnabled:          datadogConfig.GetBool("language_detection.enabled"),
-		languageDetectionReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
-		injectAutoDetectedLibraries:       datadogConfig.GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
-
-		asmEnabled:       getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled"),
-		iastEnabled:      getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled"),
-		asmScaEnabled:    getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled"),
-		profilingEnabled: getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled"),
-
-		containerRegistry: mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry"),
-		injectionFilter:   injectionFilter,
 	}
-
-	instCfg, err := NewInstrumentationConfig(datadogConfig)
-	if err != nil {
-		return webhookConfig, err
-	}
-
-	webhookConfig.pinnedLibraries = getPinnedLibraries(instCfg.LibVersions, webhookConfig.containerRegistry)
-	webhookConfig.injectorImageTag = instCfg.InjectorImageTag
-
-	if webhookConfig.version, err = instrumentationVersion(instCfg.Version); err != nil {
-		return webhookConfig, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
-	}
-
-	webhookConfig.initSecurityContext, err = parseInitSecurityContext(datadogConfig)
-	if err != nil {
-		return webhookConfig, fmt.Errorf("unable to parse init-container's SecurityContext from configuration: %w", err)
-	}
-
-	webhookConfig.defaultResourceRequirements, err = initDefaultResources(datadogConfig)
-	if err != nil {
-		return webhookConfig, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
-	}
-
-	return webhookConfig, nil
 }
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config

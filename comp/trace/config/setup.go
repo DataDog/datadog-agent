@@ -214,7 +214,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	prevEnv := c.DefaultEnv
-	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
+	c.DefaultEnv = traceutil.NormalizeTagValue(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
@@ -441,6 +441,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
 	c.Obfuscation.Redis.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled")
 	c.Obfuscation.Redis.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args")
+	c.Obfuscation.Valkey.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled")
+	c.Obfuscation.Valkey.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args")
 	c.Obfuscation.CreditCards.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.enabled")
 	c.Obfuscation.CreditCards.Luhn = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn")
 	c.Obfuscation.CreditCards.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.credit_cards.keep_values")
