@@ -30,6 +30,42 @@ instances:
     #
     # collect_ethtool_stats: false
 
+    ## @param conntrack_path - string - optional - default: None
+    ## Linux only.
+    ## The location of the conntrack executable in order to get the stats from conntrack -S.
+    ## It will be run with sudo by default, so an entry needs to be added to the sudoers file.
+    ## By default, these metrics will not be sent.
+    #
+    # conntrack_path: None
+
+    ## @param use_sudo_conntrack - boolean - optional - default: true
+    ## Set to false to disable sudo when running `conntrack -S`
+    ## (`sudo` isn't normally available in containers)
+    #
+    # use_sudo_conntrack: true
+
+    ## @param whitelist_conntrack_metrics - []string - optional - default: ["max", "count"]
+    ## Linux only.
+    ## Names of the conntrack metrics to whitelist for monitoring. The metric value is in the file
+    ## /${proc}/sys/net/netfilter/nf_conntrack_${metric_name}.
+    ## By default the agent collects only max and count.
+    ## Regex expressions for the project names are supported.
+    ## Blacklist takes precedence over whitelist in case of overlap.
+    #
+    # whitelist_conntrack_metrics:
+    #  - max
+    #  - count
+
+    ## @param blacklist_conntrack_metrics - []string - optional - default: []
+    ## Linux only.
+    ## Names of the conntrack metrics to blacklist for monitoring. The metric value is in the file
+    ## /${proc}/sys/net/netfilter/nf_conntrack_${metric_name}.
+    ## If set, whitelist default value is reset to [].
+    ## Regex expressions for the project names are supported.
+    ## Blacklist takes precedence over whitelist in case of overlap.
+    #
+    # blacklist_conntrack_metrics: []
+
     ## @param combine_connection_states - boolean - optional - default: true
     ## Set to false to prevent combination of connection states.
     ## By default, states like fin_wait_1 and fin_wait_2 are combined

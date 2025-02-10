@@ -13,6 +13,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -104,6 +107,8 @@ var (
 	ethtoolObject = ethtool.Ethtool{}
 	getDrvInfo    = ethtoolObject.DriverInfo
 	getStats      = ethtoolObject.Stats
+
+	runCommandFunction = runCommand
 )
 
 // NetworkCheck represent a network check
@@ -121,7 +126,12 @@ type networkInstanceConfig struct {
 	CollectEthtoolStats      bool `yaml:"collect_ethtool_stats"`
 }
 
-type networkInitConfig struct{}
+type networkInitConfig struct {
+	ConntrackPath             string   `yaml:"conntrack_path"`
+	UseSudoConntrack          bool     `yaml:"use_sudo_conntrack"`
+	BlacklistConntrackMetrics []string `yaml:"blacklist_conntrack_metrics"`
+	WhitelistConntrackMetrics []string `yaml:"whitelist_conntrack_metrics"`
+}
 
 type networkConfig struct {
 	instance networkInstanceConfig
@@ -133,6 +143,7 @@ type networkStats interface {
 	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
 	NetstatTCPExtCounters() (map[string]int64, error)
+	GetProcPath() string
 }
 
 type defaultNetworkStats struct {
@@ -153,6 +164,10 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 
 func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 	return netstatTCPExtCounters(n.procPath)
+}
+
+func (n defaultNetworkStats) GetProcPath() string {
+	return n.procPath
 }
 
 // Run executes the check
@@ -223,6 +238,12 @@ func (c *NetworkCheck) Run() error {
 		}
 		submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping, connectionsStats)
 	}
+
+	setProcPath := c.net.GetProcPath()
+	log.Debug(c.config)
+	log.Debug(c.config.instance)
+	log.Debug(c.config.initConf)
+	collectConntrackMetrics(sender, c.config.initConf.ConntrackPath, c.config.initConf.UseSudoConntrack, setProcPath, c.config.initConf.BlacklistConntrackMetrics, c.config.initConf.WhitelistConntrackMetrics)
 
 	sender.Commit()
 	return nil
@@ -481,6 +502,103 @@ func netstatTCPExtCounters(procfsPath string) (map[string]int64, error) {
 		}
 	}
 	return counters, nil
+}
+
+func readIntFile(filePath string) (int, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return 0, err
+	}
+	value, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
+}
+
+func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
+	cmd := []string{conntrackPath, "-S"}
+	if useSudoConntrack {
+		cmd = append([]string{"sudo"}, cmd...)
+	}
+
+	output, err := runCommandFunction(cmd)
+	if err != nil {
+		log.Debugf("Couldn't use %s to get conntrack stats: %v", conntrackPath, err)
+		return
+	}
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		cols := strings.Fields(line)
+		cpuNum := strings.Split(cols[0], "=")[1]
+		cpuTag := []string{"cpu:" + cpuNum}
+		cols = cols[1:]
+
+		for _, cell := range cols {
+			parts := strings.Split(cell, "=")
+			if len(parts) != 2 {
+				continue
+			}
+			metric, valueStr := parts[0], parts[1]
+			valueFloat, err := strconv.ParseFloat(valueStr, 64)
+			if err != nil {
+				log.Debugf("Error converting value %s for metric %s: %v", valueStr, metric, err)
+				continue
+			}
+			sender.MonotonicCount("system.net.conntrack."+metric, valueFloat, "", cpuTag)
+		}
+	}
+}
+
+func runCommand(cmd []string) (string, error) {
+	execCmd := exec.Command(cmd[0], cmd[1:]...)
+	var out bytes.Buffer
+	execCmd.Stdout = &out
+	err := execCmd.Run()
+	if err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
+func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
+	if conntrackPath != "None" {
+		addConntrackStatsMetrics(sender, conntrackPath, useSudo)
+		conntrackFilesLocation := procfsPath + "/sys/net/netfilter"
+
+		var availableFiles []string
+		files, err := os.ReadDir(conntrackFilesLocation)
+		if err != nil {
+			log.Debugf("Unable to list files in %s: %v", conntrackFilesLocation, err)
+		} else {
+			for _, file := range files {
+				if file.Type().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
+					availableFiles = append(availableFiles, strings.TrimPrefix(file.Name(), "nf_conntrack_"))
+				}
+			}
+		}
+		for _, metricName := range availableFiles {
+			if len(blacklistConntrackMetrics) > 0 {
+				if contains(blacklistConntrackMetrics, metricName) {
+					continue
+				}
+			} else {
+				if !contains(whitelistConntrackMetrics, metricName) {
+					continue
+				}
+			}
+			metricFileLocation := filepath.Join(conntrackFilesLocation, "nf_conntrack_"+metricName)
+			value, err := readIntFile(metricFileLocation)
+			if err != nil {
+				log.Debugf("Error reading %s: %v", metricFileLocation, err)
+			}
+			sender.Rate("system.net.conntrack."+metricName, float64(value), "", []string{})
+		}
+	}
 }
 
 // Configure configures the network checks
