@@ -38,16 +38,16 @@ type targetInternal struct {
 
 // NewTargetFilter creates a new TargetFilter from a list of targets and disabled namespaces. We convert the targets
 // to a more efficient internal format for quick lookups.
-func NewTargetFilter(targets []Target, wmeta workloadmeta.Component, disabledNamespaces []string, containerRegistry string) (*TargetFilter, error) {
+func NewTargetFilter(config *Config, wmeta workloadmeta.Component) (*TargetFilter, error) {
 	// Create a map of disabled namespaces for quick lookups.
-	disabledNamespacesMap := make(map[string]bool, len(disabledNamespaces))
-	for _, ns := range disabledNamespaces {
+	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces))
+	for _, ns := range config.Instrumentation.DisabledNamespaces {
 		disabledNamespacesMap[ns] = true
 	}
 
 	// Convert the targets to internal format.
-	internalTargets := make([]targetInternal, len(targets))
-	for i, t := range targets {
+	internalTargets := make([]targetInternal, len(config.Instrumentation.Targets))
+	for i, t := range config.Instrumentation.Targets {
 		// Convert the pod selector to a label selector.
 		podSelector, err := t.PodSelector.AsLabelSelector()
 		if err != nil {
@@ -78,9 +78,9 @@ func NewTargetFilter(targets []Target, wmeta workloadmeta.Component, disabledNam
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
 		var libVersions []libInfo
 		if len(t.TracerVersions) == 0 {
-			libVersions = getAllLatestDefaultLibraries(containerRegistry)
+			libVersions = getAllLatestDefaultLibraries(config.containerRegistry)
 		} else {
-			libVersions = getPinnedLibraries(t.TracerVersions, containerRegistry)
+			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry)
 		}
 
 		// Store the target in the internal format.

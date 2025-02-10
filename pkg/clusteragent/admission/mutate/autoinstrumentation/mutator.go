@@ -24,75 +24,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// MutatorConfig contains the settings for the auto-instrumentation injector.
-type MutatorConfig struct {
-	pinnedLibraries []libInfo
-	version         version // autoinstrumentation logic version
-
-	// precomputed mutators for the security and profiling products
-	securityClientLibraryPodMutators  []podMutator
-	profilingClientLibraryPodMutators []podMutator
-
-	// optional features
-	languageDetectionEnabled          bool
-	languageDetectionReportingEnabled bool
-	injectAutoDetectedLibraries       bool
-
-	// configuration for the libraries init-containers to inject.
-	containerRegistry           string
-	injectorImageTag            string
-	initSecurityContext         *corev1.SecurityContext
-	defaultResourceRequirements initResourceRequirementConfiguration
-}
-
-// NewMutatorConfig instantiates the required settings for the auto-instrumentation injector from the datadog config.
-func NewMutatorConfig(datadogConfig config.Component) (*MutatorConfig, error) {
-	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
-	libVersions := datadogConfig.GetStringMapString("apm_config.instrumentation.lib_versions")
-
-	version, err := instrumentationVersion(datadogConfig.GetString("apm_config.instrumentation.version"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
-	}
-
-	initSecurityContext, err := parseInitSecurityContext(datadogConfig)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse init-container's SecurityContext from configuration: %w", err)
-	}
-
-	defaultResourceRequirements, err := initDefaultResources(datadogConfig)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
-	}
-
-	return &MutatorConfig{
-		securityClientLibraryPodMutators:  securityClientLibraryConfigMutators(datadogConfig),
-		profilingClientLibraryPodMutators: profilingClientLibraryConfigMutators(datadogConfig),
-		pinnedLibraries:                   getPinnedLibraries(libVersions, containerRegistry),
-		containerRegistry:                 containerRegistry,
-		languageDetectionEnabled:          datadogConfig.GetBool("language_detection.enabled"),
-		languageDetectionReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
-		injectAutoDetectedLibraries:       datadogConfig.GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
-		injectorImageTag:                  datadogConfig.GetString("apm_config.instrumentation.injector_image_tag"),
-		initSecurityContext:               initSecurityContext,
-		defaultResourceRequirements:       defaultResourceRequirements,
-		version:                           version,
-	}, nil
-}
-
 // Mutator satisfies the common.Mutator interface for the auto-instrumentation injector.
 type Mutator struct {
-	config *MutatorConfig
-	filter mutatecommon.MutationFilter
-	wmeta  workloadmeta.Component
+	config          *Config
+	filter          mutatecommon.MutationFilter
+	wmeta           workloadmeta.Component
+	pinnedLibraries []libInfo
 }
 
 // NewMutator creates a new injector interface for the auto-instrumentation injector.
-func NewMutator(config *MutatorConfig, filter mutatecommon.MutationFilter, wmeta workloadmeta.Component) *Mutator {
+func NewMutator(config *Config, filter mutatecommon.MutationFilter, wmeta workloadmeta.Component) *Mutator {
+	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry)
 	return &Mutator{
-		config: config,
-		filter: filter,
-		wmeta:  wmeta,
+		config:          config,
+		filter:          filter,
+		wmeta:           wmeta,
+		pinnedLibraries: pinnedLibraries,
 	}
 }
 
@@ -241,7 +188,7 @@ func (m *Mutator) newInjector(startTime time.Time, pod *corev1.Pod, opts ...inje
 		opts = append(opts, opt)
 	}
 
-	return newInjector(startTime, m.config.containerRegistry, m.config.injectorImageTag, opts...).
+	return newInjector(startTime, m.config.containerRegistry, m.config.Instrumentation.InjectorImageTag, opts...).
 		podMutator(m.config.version)
 }
 
@@ -264,8 +211,8 @@ func (m *Mutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	// we prefer to use these and not override their behavior.
 	//
 	// N.B. this is empty if auto-instrumentation is disabled.
-	if len(m.config.pinnedLibraries) > 0 {
-		return extracted.withLibs(m.config.pinnedLibraries)
+	if len(m.pinnedLibraries) > 0 {
+		return extracted.withLibs(m.pinnedLibraries)
 	}
 
 	// if the language_detection injection is enabled
@@ -346,14 +293,14 @@ func (m *Mutator) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 // The languages information is available in workloadmeta-store
 // and attached on the pod's owner.
 func (m *Mutator) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguageDetection {
-	if !m.config.languageDetectionEnabled ||
-		!m.config.languageDetectionReportingEnabled {
+	if !m.config.LanguageDetection.Enabled ||
+		!m.config.LanguageDetection.ReportingEnabled {
 		return nil
 	}
 
 	return &libInfoLanguageDetection{
 		libs:             m.getAutoDetectedLibraries(pod),
-		injectionEnabled: m.config.injectAutoDetectedLibraries,
+		injectionEnabled: m.config.LanguageDetection.InjectDetected,
 	}
 }
 

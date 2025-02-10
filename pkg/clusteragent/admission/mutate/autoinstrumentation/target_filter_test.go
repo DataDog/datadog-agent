@@ -221,7 +221,8 @@ func TestTargetFilter(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			cfg, err := NewInstrumentationConfig(mockConfig)
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
 			// Create a mock meta.
@@ -238,7 +239,7 @@ func TestTargetFilter(t *testing.T) {
 			}
 
 			// Create the filter.
-			f, err := NewTargetFilter(cfg.Targets, wmeta, cfg.DisabledNamespaces, "registry")
+			f, err := NewTargetFilter(config, wmeta)
 			require.NoError(t, err)
 
 			// Filter the pod.

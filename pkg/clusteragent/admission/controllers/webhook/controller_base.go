@@ -181,13 +181,14 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 }
 
 func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*autoinstrumentation.Webhook, error) {
-	filter, err := autoinstrumentation.NewFilter(datadogConfig)
+	config, err := autoinstrumentation.NewConfig(datadogConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
+	}
+
+	filter, err := autoinstrumentation.NewFilter(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation filter: %v", err)
-	}
-	apmMutatorCfg, err := autoinstrumentation.NewMutatorConfig(datadogConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation mutator config: %v", err)
 	}
 
 	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
@@ -196,9 +197,9 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 	mutator := mutatecommon.NewMutators(
 		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter),
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), filter),
-		autoinstrumentation.NewMutator(apmMutatorCfg, filter, wmeta),
+		autoinstrumentation.NewMutator(config, filter, wmeta),
 	)
-	return autoinstrumentation.NewWebhook(wmeta, datadogConfig, mutator)
+	return autoinstrumentation.NewWebhook(config, wmeta, mutator)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.
