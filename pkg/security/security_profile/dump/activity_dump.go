@@ -128,11 +128,12 @@ type SyscallPolicy struct {
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
-func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate int, start time.Time, resolver *stime.Resolver) *model.ActivityDumpLoadConfig {
+func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate uint16, start time.Time, flags containerutils.CGroupFlags, resolver *stime.Resolver) *model.ActivityDumpLoadConfig {
 	adlc := &model.ActivityDumpLoadConfig{
 		TracedEventTypes: evt,
 		Timeout:          timeout,
-		Rate:             uint32(rate),
+		Rate:             uint16(rate),
+		CGroupFlags:      flags,
 	}
 	if resolver != nil {
 		adlc.StartTimestampRaw = uint64(resolver.ComputeMonotonicTimestamp(start))
@@ -158,7 +159,7 @@ func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer) *ActivityDum
 type WithDumpOption func(ad *ActivityDump)
 
 // NewActivityDump returns a new instance of an ActivityDump
-func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
+func NewActivityDump(adm *ActivityDumpManager, cgroupFlags containerutils.CGroupFlags, options ...WithDumpOption) *ActivityDump {
 	ad := NewEmptyActivityDump(adm.pathsReducer)
 	now := time.Now()
 	ad.Metadata = mtdt.Metadata{
@@ -183,6 +184,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
 		adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		now,
+		cgroupFlags,
 		adm.resolvers.TimeResolver,
 	)
 	ad.LoadConfigCookie = utils.NewCookie()
@@ -224,7 +226,8 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		DifferentiateArgs: metadata.GetDifferentiateArgs(),
 		ContainerID:       containerutils.ContainerID(metadata.GetContainerID()),
 		CGroupContext: model.CGroupContext{
-			CGroupID: containerutils.CGroupID(metadata.GetCGroupID()),
+			CGroupID:      containerutils.CGroupID(metadata.GetCGroupID()),
+			CGroupManager: metadata.GetCGroupManager(),
 		},
 		Start: startTime,
 		End:   startTime.Add(timeout),
@@ -237,6 +240,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		0,
 		0,
 		startTime,
+		0,
 		nil,
 	)
 	ad.DNSNames = utils.NewStringKeys(msg.GetDNSNames())
@@ -667,6 +671,8 @@ func (ad *ActivityDump) resolveTags() error {
 		}
 	}
 
+	ad.Tags = append(ad.Tags, "cgroup_manager:"+containerutils.CGroupManager(ad.Metadata.CGroupContext.CGroupFlags&containerutils.CGroupManagerMask).String())
+
 	return nil
 }
 
@@ -697,6 +703,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			DifferentiateArgs: ad.Metadata.DifferentiateArgs,
 			ContainerID:       string(ad.Metadata.ContainerID),
 			CGroupID:          string(ad.Metadata.CGroupContext.CGroupID),
+			CGroupManager:     containerutils.CGroupManager(ad.Metadata.CGroupContext.CGroupFlags & containerutils.CGroupManagerMask).String(),
 			Start:             ad.Metadata.Start.Format(time.RFC822),
 			Timeout:           ad.LoadConfig.Timeout.String(),
 			Size:              ad.Metadata.Size,
@@ -710,6 +717,9 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			FileNodesCount:    ad.ActivityTree.Stats.FileNodes,
 			DNSNodesCount:     ad.ActivityTree.Stats.DNSNodes,
 			SocketNodesCount:  ad.ActivityTree.Stats.SocketNodes,
+			IMDSNodesCount:    ad.ActivityTree.Stats.IMDSNodes,
+			SyscallNodesCount: ad.ActivityTree.Stats.SyscallNodes,
+			FlowNodesCount:    ad.ActivityTree.Stats.FlowNodes,
 			ApproximateSize:   ad.ActivityTree.Stats.ApproximateSize(),
 		}
 	}

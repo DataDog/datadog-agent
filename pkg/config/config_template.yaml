@@ -1230,6 +1230,15 @@ api_key:
   ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
   #         remove_all_args: false
   #
+  #     valkey:
+  ##        @param DD_APM_OBFUSCATION_VALKEY_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "valkey". Enabled by default.
+  #         enabled: true
+  #
+  ##        @param DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS - boolean - optional
+  ##        When true, replaces all arguments of a valkey command with a single "?". Disabled by default.
+  #         remove_all_args: false
+  #
   ##    @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
   ##    Enables removing stack traces to replace them with "?". Disabled by default.
   #     remove_stack_traces: false
@@ -1269,6 +1278,15 @@ api_key:
   ##        The maximum size of the cache in bytes. The maximum allowed resource length is 5000.
   ##        Datadog stores a minimum of 1000 queries (5000000 / 5000) by default.
   #         max_size: 5000000
+
+  ## @sql_obfuscation_mode - string - optional - default: ""
+  ## @env DD_APM_SQL_OBFUSCATION_MODE - string - optional - default: ""
+  ## Obfuscator mode for SQL queries.
+  ## Leave empty to use the default obfuscator.
+  ## Set to "obfuscate_only" to obfuscate the query with the new `sqllexer` obfuscator.
+  ## If you use DBM, set to "obfuscate_and_normalize" to obfuscate and normalize the query for better APM/DBM correlation.
+  #
+  # sql_obfuscation_mode: ""
 
   ## @param filter_tags - object - optional
   ## @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
@@ -1383,7 +1401,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -3296,12 +3314,12 @@ api_key:
 #
 # ecs_metadata_timeout: 500
 
-## @param ecs_task_collection_enabled - boolean - optional - default: false
-## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: false
+## @param ecs_task_collection_enabled - boolean - optional - default: true
+## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: true
 ## The Agent can collect detailed task information from the metadata API exposed by the ECS Agent,
 ## which is used for the orchestrator ECS check.
 #
-# ecs_task_collection_enabled: false
+# ecs_task_collection_enabled: true
 
 {{ end -}}
 {{- if .CRI }}
@@ -4455,6 +4473,8 @@ api_key:
     # probabilistic_sampler:
       ## @param sampling_percentage - number - optional - default: 100
       ## @env DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - number - optional - default: 100
+      ## If `apm_config.probabilistic_sampler.enabled` is enabled, this config is ignored, `apm_config.probabilistic_sampler.enabled.sampling_percentage`
+      ## is used instead.
       ## Percentage of traces to ingest (0 100]. Invalid values (<= 0 || > 100) are disconsidered and the default is used.
       ## If incoming spans have a sampling.priority set by the user, it will be followed and the sampling percentage will
       ## be overridden.

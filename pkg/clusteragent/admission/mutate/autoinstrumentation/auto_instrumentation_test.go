@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -232,11 +232,14 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.config(c)
 			}
 
-			webhook := mustWebhook(t, wmeta, c)
-			require.Equal(t, instrumentationV2, webhook.config.version)
-			require.True(t, webhook.config.version.usesInjector())
+			filter, err := NewFilter(c)
+			require.NoError(t, err)
 
-			webhook.config.initSecurityContext = tt.expectedSecurityContext
+			cfg, err := NewMutatorConfig(c)
+			require.NoError(t, err)
+			require.Equal(t, instrumentationV2, cfg.version)
+			require.True(t, cfg.version.usesInjector())
+			cfg.initSecurityContext = tt.expectedSecurityContext
 
 			if tt.libInfo.source == libInfoSourceNone {
 				tt.libInfo.source = libInfoSourceSingleStepInstrumentation
@@ -246,8 +249,8 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			err := webhook.injectAutoInstruConfig(tt.pod, tt.libInfo)
-
+			injector := NewMutator(cfg, filter, wmeta)
+			err = injector.injectAutoInstruConfig(tt.pod, tt.libInfo)
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
 			} else {
@@ -340,7 +343,6 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				Name:      volumeName,
 				MountPath: "/opt/datadog-packages/datadog-apm-inject",
 				SubPath:   "opt/datadog-packages/datadog-apm-inject",
-				ReadOnly:  true,
 			}, mounts[0], "expected first container volume mount to be the injector")
 			require.Equal(t, corev1.VolumeMount{
 				Name:      etcVolume.Name,
@@ -591,8 +593,13 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			c := configmock.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
-			webhook := mustWebhook(t, wmeta, c)
-			err := webhook.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
+			filter, err := NewFilter(c)
+			require.NoError(t, err)
+			cfg, err := NewMutatorConfig(c)
+			require.NoError(t, err)
+			injector := NewMutator(cfg, filter, wmeta)
+
+			err = injector.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
 				libs:   tt.libsToInject,
 				source: libInfoSourceLibInjection,
 			})
@@ -653,27 +660,35 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 }
 
 func TestExtractLibInfo(t *testing.T) {
+	defaultLibImageVersions := map[string]string{
+		"java":   "registry/dd-lib-java-init:v1",
+		"js":     "registry/dd-lib-js-init:v5",
+		"python": "registry/dd-lib-python-init:v2",
+		"dotnet": "registry/dd-lib-dotnet-init:v3",
+		"ruby":   "registry/dd-lib-ruby-init:v2",
+	}
+
 	// TODO: Add new entry when a new language is supported
 	allLatestDefaultLibs := []libInfo{
 		{
 			lang:  "java",
-			image: "registry/dd-lib-java-init:v1",
+			image: defaultLibImageVersions["java"],
 		},
 		{
 			lang:  "js",
-			image: "registry/dd-lib-js-init:v5",
+			image: defaultLibImageVersions["js"],
 		},
 		{
 			lang:  "python",
-			image: "registry/dd-lib-python-init:v2",
+			image: defaultLibImageVersions["python"],
 		},
 		{
 			lang:  "dotnet",
-			image: "registry/dd-lib-dotnet-init:v3",
+			image: defaultLibImageVersions["dotnet"],
 		},
 		{
 			lang:  "ruby",
-			image: "registry/dd-lib-ruby-init:v2",
+			image: defaultLibImageVersions["ruby"],
 		},
 	}
 
@@ -689,6 +704,17 @@ func TestExtractLibInfo(t *testing.T) {
 		{
 			name:              "java",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
+			},
+		},
+		{
+			name:              "java with default version",
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "default"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -963,6 +989,21 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
+			name:              "single step instrumentation with default java version",
+			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: defaultLibImageVersions["java"],
+				},
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "default"})
+			},
+		},
+		{
 			name:              "single step instrumentation with pinned java and python versions",
 			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
@@ -1036,13 +1077,17 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			webhook := mustWebhook(t, wmeta, mockConfig)
+			filter, err := NewFilter(mockConfig)
+			require.NoError(t, err)
+			cfg, err := NewMutatorConfig(mockConfig)
+			require.NoError(t, err)
+			mutator := NewMutator(cfg, filter, wmeta)
 
 			if tt.expectedPodEligible != nil {
-				require.Equal(t, *tt.expectedPodEligible, webhook.isPodEligible(tt.pod))
+				require.Equal(t, *tt.expectedPodEligible, mutator.isPodEligible(tt.pod))
 			}
 
-			extracted := webhook.extractLibInfo(tt.pod)
+			extracted := mutator.extractLibInfo(tt.pod)
 			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
 		})
 	}
@@ -1624,26 +1669,30 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.mem != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
-			filter, _ := NewInjectionFilter(conf)
-			wh, err := NewWebhook(wmeta, conf, filter)
+
+			filter, err := NewFilter(conf)
+			require.NoError(t, err)
+
+			cfg, err := NewMutatorConfig(conf)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if err != nil {
 				return
 			}
-
 			// N.B. this is a bit hacky but consistent.
-			wh.config.initSecurityContext = tt.secCtx
+			cfg.initSecurityContext = tt.secCtx
 
-			c := tt.lang.libInfo("", tt.image).initContainers(wh.config.version)[0]
-			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, wh.config.defaultResourceRequirements)
+			mutator := NewMutator(cfg, filter, wmeta)
+
+			c := tt.lang.libInfo("", tt.image).initContainers(cfg.version)[0]
+			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, cfg.defaultResourceRequirements)
 			require.Equal(t, tt.wantSkipInjection, injectionDecision.skipInjection)
 			require.Equal(t, tt.resourceRequireAnnotation, injectionDecision.message)
 			if tt.wantSkipInjection {
 				return
 			}
-			c.Mutators = wh.newContainerMutators(requirements)
+			c.Mutators = mutator.newContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {
@@ -3294,8 +3343,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			filter, _ := NewInjectionFilter(mockConfig)
-			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, mockConfig, filter)
+			webhook, errInitAPMInstrumentation := maybeWebhook(wmeta, mockConfig)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
@@ -3551,23 +3599,40 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			webhook := mustWebhook(t, wmeta, mockConfig)
-			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
+			filter, err := NewFilter(mockConfig)
+			require.NoError(t, err)
+			cfg, err := NewMutatorConfig(mockConfig)
+			require.NoError(t, err)
+			mutator := NewMutator(cfg, filter, wmeta)
+			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
 
-func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Webhook {
-	filter, _ := NewInjectionFilter(ddConfig)
-	webhook, err := NewWebhook(wmeta, ddConfig, filter)
-	require.NoError(t, err)
-	return webhook
+func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
+	filter, err := NewFilter(ddConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := NewMutatorConfig(ddConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	injector := NewMutator(cfg, filter, wmeta)
+	webhook, err := NewWebhook(wmeta, ddConfig, injector)
+	if err != nil {
+		return nil, err
+	}
+
+	return webhook, nil
 }
 
-func languageSetOf(languages ...string) util.LanguageSet {
-	set := util.LanguageSet{}
+func languageSetOf(languages ...string) languagemodels.LanguageSet {
+	set := languagemodels.LanguageSet{}
 	for _, l := range languages {
-		_ = set.Add(util.Language(l))
+		_ = set.Add(languagemodels.LanguageName(l))
 	}
 	return set
 }

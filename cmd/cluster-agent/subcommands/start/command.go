@@ -59,12 +59,15 @@ import (
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
@@ -137,7 +140,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
-				compressionfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
@@ -204,6 +206,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
 				}),
 				haagentfx.Module(),
+				logscompressionfx.Module(),
+				metricscompressionfx.Module(),
 			)
 		},
 	}
@@ -226,6 +230,7 @@ func start(log log.Component,
 	logReceiver option.Option[integrations.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
+	compression logscompression.Component,
 	datadogConfig config.Component,
 ) error {
 	stopCh := make(chan struct{})
@@ -266,8 +271,10 @@ func start(log log.Component,
 		}
 	}()
 
-	// Setup the leader forwarder for language detection and cluster checks
-	if config.GetBool("cluster_checks.enabled") || (config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) {
+	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
+	if config.GetBool("cluster_checks.enabled") ||
+		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
+		config.GetBool("autoscaling.failover.enabled") {
 		apidca.NewGlobalLeaderForwarder(
 			config.GetInt("cluster_agent.cmd_port"),
 			config.GetInt("cluster_agent.max_connections"),
@@ -426,7 +433,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, clusterID, apiCl, rcClient, wmeta, demultiplexer); err != nil {
+		if adapter, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, apiCl, rcClient, wmeta, demultiplexer); err != nil {
 			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
 		} else {
 			pa = adapter
@@ -439,7 +446,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

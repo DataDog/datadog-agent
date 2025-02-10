@@ -500,6 +500,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_cluster_name:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
+				`^org:agent-org$`,
+				`^team:contp$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^sub-team:contint$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -791,18 +795,62 @@ func (suite *k8sSuite) TestCPU() {
 }
 
 func (suite *k8sSuite) TestKSM() {
+	// Test VPA metrics for nginx
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.vpa.count",
+			Tags: []string{
+				"^kube_namespace:workload-nginx$",
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^kube_namespace:workload-(?:nginx|redis)$`,
+				`^kube_namespace:workload-nginx$`,
+				`^org:agent-org$`,
+				`^team:contp$`,
+				`^mail:team-container-platform@datadoghq.com$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
+			},
+		},
+	})
+
+	// Test VPA metrics for redis
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state.vpa.count",
+			Tags: []string{
+				"^kube_namespace:workload-redis$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_namespace:workload-redis$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 1,
+				Min: 1,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state_customresource.ddm_value",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^customresource_group:datadoghq.com$`,
+				`^customresource_version:v1alpha1$`,
+				`^customresource_kind:DatadogMetric`,
+				`^cr_type:ddm$`,
+				`^ddm_namespace:workload-(?:nginx|redis)$`,
+				`^ddm_name:(?:nginx|redis)$`,
 			},
 		},
 	})
@@ -919,10 +967,44 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	// by the Cluster Agent so that we can be sure that in the next restart the
 	// libraries for the detected language are injected
 	if languageShouldBeAutoDetected {
+
+		suite.Require().EventuallyWithTf(func(_ *assert.CollectT) {
+			appPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-mutated-lib-injection").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", name).String(),
+				Limit:         1,
+			})
+
+			suite.Require().NoError(err)
+			suite.Require().Len(appPod.Items, 1)
+
+			nodeName := appPod.Items[0].Spec.NodeName
+
+			agentPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+				FieldSelector: fields.OneTermEqualSelector("spec.nodeName", nodeName).String(),
+				Limit:         1,
+			})
+
+			suite.Require().NoError(err)
+			suite.Require().Len(agentPod.Items, 1)
+
+			stdout, _, err := suite.podExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
+			suite.Require().NoError(err)
+			suite.Contains(stdout, "Language: python")
+			if suite.T().Failed() {
+				suite.T().Log(stdout)
+			}
+		}, 5*time.Minute, 10*time.Second, "Language python was never detected by node agent.")
+
 		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 			if !assert.NoError(c, err) {
+				c.Errorf("deployment with name %s in namespace %s not found", name, namespace)
 				return
+			}
+
+			if deployment.Status.AvailableReplicas == 0 {
+				c.Errorf("deployment with name %s in namespace %s has 0 available replicas", name, namespace)
 			}
 
 			detectedLangsLabelIsSet := false

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 from collections import defaultdict
 
 import yaml
@@ -23,14 +24,24 @@ class TestWasher:
         self,
         test_output_json_file="module_test_output.json",
         flaky_test_indicator=FLAKY_TEST_INDICATOR,
-        flakes_file_path="flakes.yaml",
+        flakes_file_paths: list[str] | None = None,
     ):
+        """Used to deduce which tests are flaky using the resulting test output and the flaky configurations.
+
+        Args:
+            - flakes_file_paths: Paths to flake configuration files that will be merged. ["flakes.yaml"] by default
+        """
+
         self.test_output_json_file = test_output_json_file
         self.flaky_test_indicator = flaky_test_indicator
-        self.flakes_file_path = flakes_file_path
+        self.flakes_file_paths = flakes_file_paths or ["flakes.yaml"]
         self.known_flaky_tests = defaultdict(set)
+        # flaky_log_patterns[package][test] = [pattern1, pattern2...]
+        self.flaky_log_patterns = defaultdict(lambda: defaultdict(list))
+        # Top level `on-log` used to have a pattern for every test
+        self.flaky_log_main_patterns = []
 
-        self.parse_flaky_file()
+        self.parse_flaky_files()
 
     def get_non_flaky_failing_tests(self, failing_tests: dict, flaky_marked_tests: dict):
         """
@@ -64,16 +75,39 @@ class TestWasher:
                 known_flakes[package] = tests
         return known_flakes
 
-    def parse_flaky_file(self):
+    def parse_flaky_files(self):
         """
-        Parse the flakes.yaml file and add the tests listed there to the kown flaky tests list
+        Parse the flakes.yaml like files and add the tests listed there to the known flaky tests list / the flaky log patterns to the flaky log patterns list
         """
-        with open(self.flakes_file_path) as f:
-            flakes = yaml.safe_load(f)
+        reserved_keywords = ("on-log",)
+
+        for path in self.flakes_file_paths:
+            with open(path) as f:
+                flakes = yaml.safe_load(f)
+
             if not flakes:
-                return
+                continue
+
+            # Add the tests to the known flaky tests list
             for package, tests in flakes.items():
-                self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].update(set(tests))
+                if package in reserved_keywords:
+                    continue
+
+                for test in tests:
+                    if 'on-log' in test:
+                        patterns = test['on-log']
+                        if isinstance(patterns, str):
+                            patterns = [patterns]
+                        self.flaky_log_patterns[f"github.com/DataDog/datadog-agent/{package}"][test['test']] += patterns
+                    else:
+                        # If there is no `on-log`, we consider it as a known flaky test right away
+                        self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].add(test['test'])
+
+            # on-log patterns at the top level
+            main_patterns = flakes.get('on-log', [])
+            if isinstance(main_patterns, str):
+                main_patterns = [main_patterns]
+            self.flaky_log_main_patterns += main_patterns
 
     def parse_test_results(self, module_path: str) -> tuple[dict, dict]:
         failing_tests = defaultdict(set)
@@ -89,9 +123,33 @@ class TestWasher:
                 if test_result["Action"] == "success":
                     if test_result["Test"] in failing_tests[test_result["Package"]]:
                         failing_tests[test_result["Package"]].remove(test_result["Test"])
-                if "Output" in test_result and self.flaky_test_indicator in test_result["Output"]:
+                # Tests that have a go routine that panicked does not have an Action field with the result of the test, let's try to catch them from their Output
+                if "Output" in test_result and "panic:" in test_result["Output"]:
+                    failing_tests[test_result["Package"]].add(test_result["Test"])
+
+                if "Output" in test_result and self.is_flaky_from_log(
+                    test_result["Package"], test_result["Test"], test_result["Output"]
+                ):
                     flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
         return failing_tests, flaky_marked_tests
+
+    def is_flaky_from_log(self, package: str, test: str, log: str) -> bool:
+        """Returns whether the test is flaky based on the log output."""
+
+        if self.flaky_test_indicator in log:
+            return True
+
+        # Check if the log contains any of the flaky patterns
+        patterns = self.flaky_log_main_patterns
+
+        if test in self.flaky_log_patterns[package]:
+            patterns += self.flaky_log_patterns[package][test]
+
+        for pattern in patterns:
+            if re.search(pattern, log, re.IGNORECASE):
+                return True
+
+        return False
 
     def process_module_results(self, module_results: list[ModuleTestResult]):
         """
@@ -159,26 +217,37 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
                 continue
             kept_job[job] = job_details
 
-    deps_job = copy.deepcopy(config["go_e2e_deps"])
-
-    # Remove needs, rules, extends and retry from the jobs
-    for job in [deps_job] + list(kept_job.values()):
+    # Remove rules, extends and retry from the jobs, update needs to point to parent pipeline
+    for job in list(kept_job.values()):
         _clean_job(job)
 
     new_jobs = {}
-    new_jobs["go_e2e_deps"] = deps_job
     new_jobs['variables'] = copy.deepcopy(config['variables'])
     new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
-    new_jobs['stages'] = [deps_job["stage"]] + [f'flake-finder-{i}' for i in range(n)]
+    new_jobs['variables']['PARENT_COMMIT_SHORT_SHA'] = 'undefined'
+    new_jobs['stages'] = [f'flake-finder-{i}' for i in range(n)]
 
     # Create n jobs with the same configuration
     for job in kept_job:
         for i in range(n):
             new_job = copy.deepcopy(kept_job[job])
             new_job["stage"] = f"flake-finder-{i}"
-            new_job["dependencies"] = ["go_e2e_deps"]
             if 'variables' in new_job:
+                # Variables that reference the parent pipeline should be updated
+                for key, value in new_job['variables'].items():
+                    new_value = value
+                    if not isinstance(value, str):
+                        continue
+                    if "CI_PIPELINE_ID" in value:
+                        new_value = new_value.replace("CI_PIPELINE_ID", "PARENT_PIPELINE_ID")
+                    if "CI_COMMIT_SHA" in value:
+                        new_value = new_value.replace("CI_COMMIT_SHA", "PARENT_COMMIT_SHA")
+                    if "CI_COMMIT_SHORT_SHA" in value:
+                        new_value = new_value.replace("CI_COMMIT_SHORT_SHA", "PARENT_COMMIT_SHORT_SHA")
+
+                    new_job['variables'][key] = new_value
+
                 if (
                     'E2E_PIPELINE_ID' in new_job['variables']
                     and new_job['variables']['E2E_PIPELINE_ID'] == "$CI_PIPELINE_ID"
@@ -192,7 +261,8 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
                 if 'E2E_PRE_INITIALIZED' in new_job['variables']:
                     del new_job['variables']['E2E_PRE_INITIALIZED']
             new_job["rules"] = [{"when": "always"}]
-            new_job["needs"] = ["go_e2e_deps"]
+            if i > 0:
+                new_job["needs"].append(f"{job}-{i - 1}")
             new_jobs[f"{job}-{i}"] = new_job
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:
@@ -206,7 +276,36 @@ def _clean_job(job):
     """
     Remove the needs, rules, extends and retry from the job
     """
-    for step in ('needs', 'rules', 'extends', 'retry'):
+    for step in ('rules', 'extends', 'retry'):
         if step in job:
             del job[step]
+
+    if 'needs' in job:
+        job["needs"] = _add_parent_pipeline(job["needs"])
     return job
+
+
+def _add_parent_pipeline(needs):
+    """
+    Add the parent pipeline to the need, only for the jobs that are not the artifacts deploy jobs.
+    """
+
+    deps_to_keep = [
+        "tests_windows_secagent_x64",
+        "tests_windows_sysprobe_x64",
+        "go_e2e_deps",
+    ]  # Needs that should be kept on jobs, because the e2e test actually needs the artifact from these jobs
+
+    new_needs = []
+    for need in needs:
+        if isinstance(need, str):
+            if need not in deps_to_keep:
+                continue
+            new_needs.append({"pipeline": "$PARENT_PIPELINE_ID", "job": need})
+        elif isinstance(need, dict):
+            if "job" in need and need["job"] not in deps_to_keep:
+                continue
+            new_needs.append({**need, "pipeline": "$PARENT_PIPELINE_ID"})
+        elif isinstance(need, list):
+            new_needs.extend(_add_parent_pipeline(need))
+    return new_needs

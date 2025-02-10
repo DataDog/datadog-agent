@@ -258,7 +258,6 @@ func (t *remoteTagger) LegacyTag(entity string, cardinality types.TagCardinality
 }
 
 // GenerateContainerIDFromOriginInfo returns a container ID for the given Origin Info.
-// This function currently only uses the External Data from the Origin Info to generate the container ID.
 func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	fail := true
 	defer func() {
@@ -269,15 +268,10 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 		}
 	}()
 
-	// Generate cache key
-	initPrefix := ""
-	if originInfo.ExternalData.Init {
-		initPrefix = "i/"
-	}
 	key := cache.BuildAgentKey(
 		"remoteTagger",
-		"cid",
-		initPrefix+originInfo.ExternalData.PodUID+"/"+originInfo.ExternalData.ContainerName,
+		"originInfo",
+		origindetection.OriginInfoString(originInfo),
 	)
 
 	cachedContainerID, err := cache.GetWithExpiration(key, func() (containerID string, err error) {
@@ -295,9 +289,9 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
 func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 200 * time.Millisecond
-	expBackoff.MaxInterval = 1 * time.Second
-	expBackoff.MaxElapsedTime = 15 * time.Second
+	expBackoff.InitialInterval = 50 * time.Millisecond
+	expBackoff.MaxInterval = 200 * time.Millisecond
+	expBackoff.MaxElapsedTime = 500 * time.Millisecond
 
 	err = backoff.Retry(func() error {
 		select {

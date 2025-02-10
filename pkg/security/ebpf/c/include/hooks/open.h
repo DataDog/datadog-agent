@@ -309,7 +309,7 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
 
 HOOK_EXIT("io_openat2")
 int rethook_io_openat2(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 2);
+    int retval = CTX_PARMRET(ctx);
     return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
@@ -357,6 +357,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     };
 
     fill_file(syscall->open.dentry, &event.file);
+
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
         entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);

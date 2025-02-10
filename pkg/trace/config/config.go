@@ -110,6 +110,10 @@ type ObfuscationConfig struct {
 	// for spans of type "redis".
 	Redis obfuscate.RedisConfig `mapstructure:"redis"`
 
+	// Valkey holds the configuration for obfuscating the "valkey.raw_command" tag
+	// for spans of type "valkey".
+	Valkey obfuscate.ValkeyConfig `mapstructure:"valkey"`
+
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
 	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
@@ -121,8 +125,15 @@ type ObfuscationConfig struct {
 	Cache obfuscate.CacheConfig `mapstructure:"cache"`
 }
 
-func obfuscationMode(enabled bool) obfuscate.ObfuscationMode {
-	if enabled {
+func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.ObfuscationMode {
+	if conf.SQLObfuscationMode != "" {
+		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) || conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
+			return obfuscate.ObfuscationMode(conf.SQLObfuscationMode)
+		}
+		log.Warnf("Invalid SQL obfuscator mode %s, falling back to default", conf.SQLObfuscationMode)
+		return ""
+	}
+	if sqllexerEnabled {
 		return obfuscate.ObfuscateOnly
 	}
 	return ""
@@ -136,7 +147,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  obfuscationMode(conf.HasFeature("sqllexer")),
+			ObfuscationMode:  obfuscationMode(conf, conf.HasFeature("sqllexer")),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
@@ -145,6 +156,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		SQLExecPlanNormalize: o.SQLExecPlanNormalize,
 		HTTP:                 o.HTTP,
 		Redis:                o.Redis,
+		Valkey:               o.Valkey,
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
 		Logger:               new(debugLogger),
@@ -356,6 +368,8 @@ type AgentConfig struct {
 	MaxSenderRetries int
 	// HTTP client used in writer connections. If nil, default client values will be used.
 	HTTPClientFunc func() *http.Client `json:"-"`
+	// HTTP Transport used in writer connections. If nil, default transport values will be used.
+	HTTPTransportFunc func() *http.Transport `json:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -395,6 +409,9 @@ type AgentConfig struct {
 
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
+
+	// SQLObfuscationMode holds obfuscator mode.
+	SQLObfuscationMode string
 
 	// MaxResourceLen the maximum length the resource can have
 	MaxResourceLen int
@@ -542,6 +559,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation:                 &ObfuscationConfig{},
+		SQLObfuscationMode:          "",
 		MaxResourceLen:              5000,
 
 		GlobalTags: computeGlobalTags(),
@@ -611,6 +629,9 @@ func (c *AgentConfig) NewHTTPClient() *ResetClient {
 // NewHTTPTransport returns a new http.Transport to be used for outgoing connections to
 // the Datadog API.
 func (c *AgentConfig) NewHTTPTransport() *http.Transport {
+	if c.HTTPTransportFunc != nil {
+		return c.HTTPTransportFunc()
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
 		// below field values are from http.DefaultTransport (go1.12)

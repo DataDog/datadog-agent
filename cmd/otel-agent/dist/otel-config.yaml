@@ -24,7 +24,7 @@ receivers:
     config:
       scrape_configs:
       - job_name: 'otel-collector'
-        scrape_interval: 10s
+        scrape_interval: 60s
         static_configs:
         - targets: ['0.0.0.0:8888']
         metric_relabel_configs:
@@ -37,8 +37,8 @@ exporters:
       span_name_as_resource_name: true
     hostname: "otelcol-docker"
     api:
-      key: ${DD_API_KEY}
-      site: ${DD_SITE}
+      key: ${env:DD_API_KEY}
+      site: ${env:DD_SITE}
 processors:
   infraattributes:
   batch:

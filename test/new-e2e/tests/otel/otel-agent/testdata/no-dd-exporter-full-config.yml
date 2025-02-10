@@ -7,6 +7,8 @@ exporters:
       site: datadoghq.com
     auth: null
     compression: ""
+    compression_params:
+      level: 0
     cookies: null
     disable_keep_alives: false
     endpoint: ""
@@ -56,6 +58,7 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
+      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
@@ -67,6 +70,7 @@ exporters:
       cert_file: ""
       cert_pem: '[REDACTED]'
       cipher_suites: []
+      curve_preferences: []
       include_system_ca_certs_pool: false
       insecure: false
       insecure_skip_verify: false
@@ -77,14 +81,14 @@ exporters:
       reload_interval: 0s
       server_name_override: ""
     traces:
-      compute_stats_by_span_kind: false
+      compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       dialer:
         timeout: 0s
       ignore_resources: []
-      peer_service_aggregation: false
+      peer_service_aggregation: true
       peer_tags: []
-      peer_tags_aggregation: false
+      peer_tags_aggregation: true
       span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 0
@@ -200,7 +204,7 @@ receivers:
         job_name: datadog-agent
         metrics_path: /metrics
         scheme: http
-        scrape_interval: 10s
+        scrape_interval: 1m
         scrape_protocols:
         - OpenMetricsText1.0.0
         - OpenMetricsText0.0.1
@@ -270,10 +274,14 @@ service:
       readers:
       - pull:
           exporter:
-            additionalproperties: null
             prometheus:
               host: localhost
               port: 8888
+              with_resource_constant_labels:
+                included: []
+              without_scope_info: true
+              without_type_suffix: true
+              without_units: true
     resource: {}
     traces:
       level: Basic

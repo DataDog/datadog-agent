@@ -22,7 +22,7 @@ import (
 
 func TestFilterDevicesForContainer(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock)
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock, testutil.GetTelemetryMock(t))
 	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
 
@@ -46,8 +46,25 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		},
 	}
 
+	containerIDNoGpu := "abcdef2"
+	containerNoGpu := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerIDNoGpu,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerIDNoGpu,
+		},
+		AllocatedResources: nil,
+	}
+
 	wmetaMock.Set(container)
 	storeContainer, err := wmetaMock.GetContainer(containerID)
+	require.NoError(t, err, "container should be found in the store")
+	require.NotNil(t, storeContainer, "container should be found in the store")
+
+	wmetaMock.Set(containerNoGpu)
+	storeContainer, err = wmetaMock.GetContainer(containerIDNoGpu)
 	require.NoError(t, err, "container should be found in the store")
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
@@ -68,6 +85,19 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
 		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices[deviceIndex:deviceIndex+1])
+	})
+
+	t.Run("ContainerWithNoGPUs", func(t *testing.T) {
+		_, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerIDNoGpu)
+		require.Error(t, err, "expected an error when filtering a container with no GPUs")
+	})
+
+	t.Run("ContainerWithNoGPUsButOnlyOneDeviceInSystem", func(t *testing.T) {
+		sysDevices := sysCtx.gpuDevices[:1]
+		filtered, err := sysCtx.filterDevicesForContainer(sysDevices, containerIDNoGpu)
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		testutil.RequireDeviceListsEqual(t, filtered, sysDevices)
 	})
 }
 
@@ -92,7 +122,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	})
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock)
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock, testutil.GetTelemetryMock(t))
 	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
 

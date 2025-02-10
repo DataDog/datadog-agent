@@ -13,7 +13,7 @@ import (
 
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -64,7 +64,7 @@ func (server *apiServer) startCMDServer(
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		configService:    server.rcService,
 		configServiceMRF: server.rcServiceMRF,
-		taggerServer:     taggerserver.NewServer(server.taggerComp, maxEventSize),
+		taggerServer:     taggerserver.NewServer(server.taggerComp, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
 		taggerComp:       server.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer:  workloadmetaServer.NewServer(server.wmeta),
@@ -73,6 +73,7 @@ func (server *apiServer) startCMDServer(
 		pidMap:              server.pidMap,
 		remoteAgentRegistry: server.remoteAgentRegistry,
 		autodiscovery:       server.autoConfig,
+		configComp:          cfg,
 	})
 
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(server.authToken.GetTLSClientConfig()))}

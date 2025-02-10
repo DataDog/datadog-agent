@@ -326,8 +326,57 @@ func (k *Version) HaveMmapableMaps() bool {
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
+// https://github.com/torvalds/linux/commit/457f44363a8894135c85b7a9afd2bd8196db24ab
 func (k *Version) HaveRingBuffers() bool {
 	return features.HaveMapType(ebpf.RingBuf) == nil
+}
+
+// HasNoPreallocMapsInPerfEvent returns true if the kernel supports using non-preallocated maps in perf_event programs
+// See https://github.com/torvalds/linux/commit/274052a2b0ab9f380ce22b19ff80a99b99ecb198
+func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
+	return k.Code >= Kernel6_1
+}
+
+// HasSKStorage returns true if the kernel supports SK_STORAGE maps
+// See https://github.com/torvalds/linux/commit/6ac99e8f23d4b10258406ca0dd7bffca5f31da9d
+func (k *Version) HasSKStorage() bool {
+	if features.HaveMapType(ebpf.SkStorage) == nil {
+		return true
+	}
+
+	return k.Code != 0 && k.Code > Kernel5_2
+}
+
+// HasSKStorageInTracingPrograms returns true if the kernel supports SK_STORAGE maps in tracing programs
+// See https://github.com/torvalds/linux/commit/8e4597c627fb48f361e2a5b012202cb1b6cbcd5e
+func (k *Version) HasSKStorageInTracingPrograms() bool {
+	if !k.HasSKStorage() {
+		return false
+	}
+
+	if !k.HaveFentrySupport() {
+		return false
+	}
+
+	if features.HaveProgramHelper(ebpf.Tracing, asm.FnSkStorageGet) == nil {
+		return true
+	}
+	return k.Code != 0 && k.Code > Kernel5_11
+}
+
+// IsMapValuesToMapHelpersAllowed returns true if the kernel supports passing map values to map helpers
+// See https://github.com/torvalds/linux/commit/d71962f3e627b5941804036755c844fabfb65ff5
+func (k *Version) IsMapValuesToMapHelpersAllowed() bool {
+	return k.Code != 0 && k.Code > Kernel4_18
+}
+
+// HasBPFForEachMapElemHelper returns true if the kernel support the bpf_for_each_map_elem helper
+// See https://github.com/torvalds/linux/commit/69c087ba6225b574afb6e505b72cb75242a3d844
+func (k *Version) HasBPFForEachMapElemHelper() bool {
+	if features.HaveProgramHelper(ebpf.PerfEvent, asm.FnForEachMapElem) == nil {
+		return true
+	}
+	return k.Code != 0 && k.Code > Kernel5_13
 }
 
 // HavePIDLinkStruct returns whether the kernel uses the pid_link struct, which was removed in 4.19

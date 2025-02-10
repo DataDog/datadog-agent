@@ -10,13 +10,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -69,8 +68,23 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 }
 
 // Install installs a package.
-func (i *InstallerExec) Install(ctx context.Context, url string, _ []string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install", url)
+func (i *InstallerExec) Install(ctx context.Context, url string, args []string) (err error) {
+	var cmdLineArgs = []string{url}
+	if len(args) > 0 {
+		cmdLineArgs = append(cmdLineArgs, "--install_args", strings.Join(args, ","))
+	}
+	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// ForceInstall installs a package, even if it's already installed.
+func (i *InstallerExec) ForceInstall(ctx context.Context, url string, args []string) (err error) {
+	var cmdLineArgs = []string{url, "--force"}
+	if len(args) > 0 {
+		cmdLineArgs = append(cmdLineArgs, "--install_args", strings.Join(args, ","))
+	}
+	cmd := i.newInstallerCmd(ctx, "install", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
@@ -109,8 +123,8 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 }
 
 // InstallConfigExperiment installs an experiment.
-func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, url string, version string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", url, version)
+func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) (err error) {
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg, version, string(rawConfig))
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

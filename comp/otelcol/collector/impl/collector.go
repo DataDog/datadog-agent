@@ -30,11 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
+	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -119,12 +119,9 @@ func newConfigProviderSettings(uris []string, converter confmap.Converter, enhan
 				httpsprovider.NewFactory(),
 			},
 			ConverterFactories: converterFactories,
+			DefaultScheme:      "env",
 		},
 	}
-}
-
-func generateID(group, resource, namespace, name string) string {
-	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
 }
 
 func addFactories(reqs Requires, factories otelcol.Factories) {
@@ -133,13 +130,14 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	} else {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 	}
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
+	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.115.0",
+	Version:     "v0.119.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }

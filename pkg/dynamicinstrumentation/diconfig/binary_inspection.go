@@ -106,7 +106,7 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 
 		if current.Kind == uint(reflect.Struct) || current.Kind == uint(reflect.Slice) {
 			for _, structField := range current.ParameterPieces {
-				if structField.Name == "" || current.Type == "" {
+				if structField == nil || structField.Name == "" || current.Type == "" {
 					// these can be blank in anonymous types or embedded fields
 					// of builtin types. bininspect has no ability to find offsets
 					// in these cases and we're best off skipping them.

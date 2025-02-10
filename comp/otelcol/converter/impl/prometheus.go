@@ -19,7 +19,7 @@ var (
 			"scrape_configs": []any{
 				map[string]any{
 					"job_name":        "datadog-agent",
-					"scrape_interval": "10s",
+					"scrape_interval": "60s",
 					"static_configs": []any{
 						map[string]any{
 							"targets": []any{"0.0.0.0:8888"},
@@ -95,7 +95,7 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 					}
 					staticConfigSlice, ok := staticConfig.([]any)
 					if !ok {
-						return
+						continue
 					}
 					for _, staticConfig := range staticConfigSlice {
 						staticConfigMap, ok := staticConfig.(map[string]any)

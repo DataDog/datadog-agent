@@ -25,12 +25,13 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component) error {
+func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component, compression logscompression.Component) error {
 	conn, err := server.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return err
@@ -38,7 +39,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 
 	mux := gorilla.NewRouter()
 
-	err = module.Register(cfg, mux, modules.All, wmeta, tagger, telemetry)
+	err = module.Register(cfg, mux, modules.All, wmeta, tagger, telemetry, compression)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
@@ -59,6 +60,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 
 	if runtime.GOOS == "linux" {
 		mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)
+		mux.HandleFunc("/debug/dmesg", debug.HandleLinuxDmesg)
 		mux.HandleFunc("/debug/selinux_sestatus", debug.HandleSelinuxSestatus)
 		mux.HandleFunc("/debug/selinux_semodule_list", debug.HandleSelinuxSemoduleList)
 	}

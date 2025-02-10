@@ -58,7 +58,7 @@ func (h *ClusterRoleBindingHandlers) BuildMessageBody(ctx processors.ProcessorCo
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleBindingHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*rbacv1.ClusterRoleBinding)
-	return k8sTransformers.ExtractClusterRoleBinding(r)
+	return k8sTransformers.ExtractClusterRoleBinding(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

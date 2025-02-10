@@ -56,7 +56,16 @@ type Reader interface {
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
 
+	// IsSet return true if a non nil values is found in the configuration, including defaults. This is legacy
+	// behavior from viper and don't answer the need to know if something was set by the user (see IsConfigured for
+	// this).
+	//
+	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
 	IsSet(key string) bool
+	// IsConfigured returns true if a setting exists, has a value and doesn't come from the defaults (ie: was
+	// configured by the user). If a setting is configured by the user with the same value than the defaults this
+	// method will still return true as it tests the source of a setting not its value.
+	IsConfigured(key string) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error

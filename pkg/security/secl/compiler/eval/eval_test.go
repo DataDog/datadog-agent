@@ -26,7 +26,7 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 		LegacyFields: legacyFields,
 	}
 
-	variables := map[string]VariableValue{
+	variables := map[string]SECLVariable{
 		"pid": NewIntVariable(func(_ *Context) int {
 			return os.Getpid()
 		}, nil),
@@ -39,15 +39,13 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 }
 
 func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
-	rule := NewRule("id1", expr, opts)
-
 	pc := ast.NewParsingContext(false)
-
-	if err := rule.Parse(pc); err != nil {
+	rule, err := NewRule("id1", expr, pc, opts)
+	if err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
 	}
 
-	if err := rule.GenEvaluator(model, pc); err != nil {
+	if err := rule.GenEvaluator(model); err != nil {
 		return rule, fmt.Errorf("compilation error: %v", err)
 	}
 
@@ -481,7 +479,7 @@ func TestPartial(t *testing.T) {
 		},
 	}
 
-	variables := make(map[string]VariableValue)
+	variables := make(map[string]SECLVariable)
 	variables["var"] = NewBoolVariable(
 		func(_ *Context) bool {
 			return false
@@ -1561,8 +1559,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	pc := ast.NewParsingContext(false)
-	if err := rule.GenEvaluator(model, pc); err != nil {
+	if err := rule.GenEvaluator(model); err != nil {
 		b.Fatal(err)
 	}
 

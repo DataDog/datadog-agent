@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/spf13/cast"
@@ -41,6 +42,7 @@ type RuleSetListener interface {
 // RuleSet holds a list of rules, grouped in bucket. An event can be evaluated
 // against it. If the rule matches, the listeners for this rule set are notified
 type RuleSet struct {
+	model.Releasable
 	opts             *Opts
 	evalOpts         *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
@@ -52,7 +54,7 @@ type RuleSet struct {
 	fakeEventCtor    func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
-	globalVariables  eval.GlobalVariables
+	globalVariables  VariableProvider
 	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
@@ -121,6 +123,10 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMa
 	case pMacro.Def.Expression != "" && len(pMacro.Def.Values) > 0:
 		return nil, &ErrMacroLoad{Macro: pMacro, Err: errors.New("only one of 'expression' and 'values' can be defined")}
 	case pMacro.Def.Expression != "":
+		if strings.Contains(pMacro.Def.Expression, "fim.write.file.") {
+			return nil, &ErrMacroLoad{Macro: pMacro, Err: errors.New("macro expression cannot contain 'fim.write.file.' event types")}
+		}
+
 		if macro, err = eval.NewMacro(pMacro.Def.ID, pMacro.Def.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Macro: pMacro, Err: err}
 		}
@@ -222,7 +228,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 				}
 
-				var variable eval.VariableValue
+				var variable eval.SECLVariable
 				var variableProvider VariableProvider
 
 				if actionDef.Set.Scope != "" {
@@ -238,12 +244,12 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 					variableProvider = rs.scopedVariables[actionDef.Set.Scope]
 				} else {
-					variableProvider = &rs.globalVariables
+					variableProvider = rs.globalVariables
 				}
 
 				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size}
 
-				variable, err := variableProvider.GetVariable(actionDef.Set.Name, variableValue, opts)
+				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(actionDef.Set.Value), actionDef.Set.Name, err))
 					continue
@@ -292,19 +298,19 @@ func (rs *RuleSet) isActionAvailable(eventType eval.EventType, action *Action) b
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (*eval.Rule, error) {
+func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategory, error) {
 	if pRule.Def.Disabled {
-		return nil, nil
+		return "", nil
 	}
 
 	for _, id := range rs.opts.ReservedRuleIDs {
 		if id == pRule.Def.ID {
-			return nil, &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
+			return "", &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
 		}
 	}
 
 	if _, exists := rs.rules[pRule.Def.ID]; exists {
-		return nil, &ErrRuleLoad{Rule: pRule, Err: ErrDefinitionIDConflict}
+		return "", &ErrRuleLoad{Rule: pRule, Err: ErrDefinitionIDConflict}
 	}
 
 	var tags []string
@@ -312,48 +318,67 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 		tags = append(tags, k+":"+v)
 	}
 
+	expandedRules := expandFim(pRule.Def.ID, pRule.Def.GroupID, pRule.Def.Expression)
+
+	categories := make([]model.EventCategory, 0)
+	for _, er := range expandedRules {
+		category, err := rs.innerAddExpandedRule(parsingContext, pRule, er, tags)
+		if err != nil {
+			return "", err
+		}
+		categories = append(categories, category)
+	}
+	categories = slices.Compact(categories)
+	if len(categories) != 1 {
+		return "", &ErrRuleLoad{Rule: pRule, Err: ErrMultipleEventCategories}
+	}
+	return categories[0], nil
+}
+
+func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategory, error) {
+	evalRule, err := eval.NewRule(exRule.id, exRule.expr, parsingContext, rs.evalOpts, tags...)
+	if err != nil {
+		return "", &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
+	}
+
 	rule := &Rule{
 		PolicyRule: pRule,
-		Rule:       eval.NewRule(pRule.Def.ID, pRule.Def.Expression, rs.evalOpts, tags...),
+		Rule:       evalRule,
 	}
 
-	if err := rule.Parse(parsingContext); err != nil {
-		return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
-	}
-
-	if err := rule.GenEvaluator(rs.model, parsingContext); err != nil {
-		return nil, &ErrRuleLoad{Rule: pRule, Err: err}
+	if err := rule.GenEvaluator(rs.model); err != nil {
+		return "", &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
 	eventType, err := GetRuleEventType(rule.Rule)
 	if err != nil {
-		return nil, &ErrRuleLoad{Rule: pRule, Err: err}
+		return "", &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
 	// validate event context against event type
 	for _, field := range rule.GetFields() {
 		restrictions := rs.model.GetFieldRestrictions(field)
 		if len(restrictions) > 0 && !slices.Contains(restrictions, eventType) {
-			return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
+			return "", &ErrRuleLoad{Rule: pRule, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
 		}
 	}
 
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
 		if enabled, exists := rs.opts.EventTypeEnabled[eventType]; !exists || !enabled {
-			return nil, &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
+			return "", &ErrRuleLoad{Rule: pRule, Err: ErrEventTypeNotEnabled}
 		}
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
 		if !rs.isActionAvailable(eventType, action) {
-			return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
+			return "", &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
 		}
 
 		// compile action filter
 		if action.Def.Filter != nil {
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
-				return nil, &ErrRuleLoad{Rule: pRule, Err: err}
+				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 
@@ -361,7 +386,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 			if _, found := rs.fieldEvaluators[action.Def.Set.Field]; !found {
 				evaluator, err := rs.model.GetEvaluator(action.Def.Set.Field, "")
 				if err != nil {
-					return nil, err
+					return "", err
 				}
 				rs.fieldEvaluators[action.Def.Set.Field] = evaluator
 			}
@@ -375,7 +400,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	}
 
 	if err := bucket.AddRule(rule); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
@@ -383,7 +408,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	rs.rules[pRule.Def.ID] = rule
 
-	return rule.Rule, nil
+	return model.GetEventTypeCategory(eventType), nil
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
@@ -811,6 +836,11 @@ func (rs *RuleSet) newFakeEvent() eval.Event {
 	return model.NewFakeEvent()
 }
 
+// Release the rule set
+func (rs *RuleSet) Release() {
+	rs.CallReleaseCallback()
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
@@ -823,7 +853,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		evalOpts.WithVariableStore(&eval.VariableStore{})
 	}
 
-	return &RuleSet{
+	ruleset := &RuleSet{
 		model:            model,
 		eventCtor:        eventCtor,
 		opts:             opts,
@@ -835,4 +865,10 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
 	}
+
+	ruleset.globalVariables = eval.NewScopedVariables(func(_ *eval.Context) eval.ScopedVariable {
+		return ruleset
+	})
+
+	return ruleset
 }
