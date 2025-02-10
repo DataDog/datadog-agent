@@ -3,5 +3,5 @@ from tasks.static_quality_gates.lib.package_agent_lib import generic_docker_agen
 
 def entrypoint(**kwargs):
     generic_docker_agent_quality_gate(
-        "static_quality_gate_agent_deb_amd64", "amd64", "debian", "datadog-agent", **kwargs
+        "static_quality_gate_iot_agent_rpm_amd64", "amd64", "centos", "iot-agent", **kwargs
     )
