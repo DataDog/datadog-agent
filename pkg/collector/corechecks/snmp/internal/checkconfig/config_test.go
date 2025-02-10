@@ -6,6 +6,10 @@
 package checkconfig
 
 import (
+	"encoding/json"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
@@ -1823,4 +1827,150 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedTags, tt.config.GetStaticTags())
 		})
 	}
+}
+
+// This type mocks rcclient.Component
+type mockRCClient struct {
+	subscribed bool
+	err        error
+	profiles   map[string]state.RawConfig
+}
+
+func makeMockClient(profiles []profiledefinition.ProfileDefinition) (*mockRCClient, error) {
+	update := make(map[string]state.RawConfig)
+	for _, profile := range profiles {
+		bytes, err := json.Marshal(profiledefinition.DeviceProfileRcConfig{Profile: profile})
+		if err != nil {
+			return nil, err
+		}
+		update[profile.Name] = state.RawConfig{
+			Config: bytes,
+		}
+	}
+	return &mockRCClient{
+		subscribed: false,
+		err:        nil,
+		profiles:   update,
+	}, nil
+}
+
+func (m *mockRCClient) SubscribeAgentTask() {}
+
+// noop
+func (m *mockRCClient) applyStateCallback(string, state.ApplyStatus) {}
+
+func (m *mockRCClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig,
+	applyStateCallback func(string, state.ApplyStatus))) {
+	if product != state.ProductNDMDeviceProfilesCustom {
+		m.err = fmt.Errorf("unexpected subscription to %v", product)
+		return
+	}
+	if m.subscribed {
+		m.err = fmt.Errorf("double subscription to ProductNDMDeviceProfilesCustom")
+		return
+	}
+	m.subscribed = true
+	fn(m.profiles, m.applyStateCallback)
+}
+
+func TestExplicitRCConfig(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+profile: profile1`)
+	// language=yaml
+	rawInitConfig := []byte(`use_remote_config_profiles: true`)
+	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
+		{
+			Name: "profile1",
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.7.1.0",
+					Name: "IAmACounter32",
+				}},
+			},
+		},
+	})
+	defer profile.ResetRCProvider()
+	require.NoError(t, err)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
+	require.NoError(t, err)
+	assert.True(t, client.subscribed)
+	profile, err := config.BuildProfile("")
+	require.NoError(t, err)
+	assert.Equal(t, profile.Name, "profile1")
+	metrics := []profiledefinition.MetricsConfig{
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.7.1.0", Name: "IAmACounter32"}},
+	}
+	assert.Equal(t, profile.Metrics, metrics)
+}
+
+func TestDynamicRCConfig(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
+	// language=yaml
+	rawInitConfig := []byte(`use_remote_config_profiles: true`)
+	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
+		{
+			Name:         "profile1",
+			SysObjectIDs: []string{"1.2.3.4.*"},
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.7.1.0",
+					Name: "IAmACounter32",
+				}},
+			},
+		},
+	})
+	defer profile.ResetRCProvider()
+	require.NoError(t, err)
+
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
+	require.NoError(t, err)
+	assert.True(t, client.subscribed)
+	profile, err := config.BuildProfile("1.2.3.4.5.6")
+	require.NoError(t, err)
+	assert.Equal(t, profile.Name, "profile1")
+	metrics := []profiledefinition.MetricsConfig{
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.7.1.0", Name: "IAmACounter32"}},
+	}
+	assert.Equal(t, profile.Metrics, metrics)
+}
+
+func TestRCConflict(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
+	// language=yaml
+	rawInitConfig := []byte(`use_remote_config_profiles: true`)
+	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
+		{
+			Name:         "profile1",
+			SysObjectIDs: []string{"1.2.3.4.*"},
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.7.1.0",
+					Name: "IAmACounter32",
+				}},
+			},
+		}, {
+			Name:         "profile2",
+			SysObjectIDs: []string{"1.2.3.4.*"},
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.7.1.0",
+					Name: "IAmACounter32",
+				}},
+			},
+		},
+	})
+	defer profile.ResetRCProvider()
+	require.NoError(t, err)
+
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
+	require.NoError(t, err)
+	assert.True(t, client.subscribed)
+	_, err = config.BuildProfile("1.2.3.4.5.6")
+	require.ErrorContains(t, err, "profile \"profile2\" has the same sysObjectID (1.2.3.4.*) as \"profile1\"")
 }

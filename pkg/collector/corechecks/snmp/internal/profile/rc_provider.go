@@ -22,6 +22,14 @@ var rcSingleton *UpdatableProvider
 var rcOnce sync.Once
 var rcError error
 
+// ResetRCProvider destroys the singleton instance. This should only be used in tests.
+// TODO Turn this back into a proper Component so that we can mock it instead of using a singleton.
+func ResetRCProvider() {
+	rcSingleton = nil
+	rcOnce = sync.Once{}
+	rcError = nil
+}
+
 // NewRCProvider returns a profile provider that subscribes to remote
 // configuration and receives profile updates from the backend. Multiple calls
 // will return the same singleton object.
