@@ -9,4 +9,4 @@
 enhancements:
   - |
     - Add logging for log compression configuration.
-    - The agent now validates the log compression setting and falls back to the default compression if an invalid option is provided.
+    - The Agent now validates the log compression setting and falls back to the default compression if an invalid option is provided.
