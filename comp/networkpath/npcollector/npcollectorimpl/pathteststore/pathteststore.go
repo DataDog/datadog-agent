@@ -137,6 +137,7 @@ func (f *Store) Flush() []*PathtestContext {
 	now := f.timeNowFn()
 	f.lastFlushTime = now
 
+	var pathtestsToFlush []*PathtestContext
 	for key, ptConfigCtx := range f.contexts {
 		if ptConfigCtx.runUntil.Before(now) {
 			f.logger.Tracef("Delete Pathtest context (key=%d, runUntil=%s, nextRun=%s)", key, ptConfigCtx.runUntil, ptConfigCtx.nextRun)
@@ -145,17 +146,10 @@ func (f *Store) Flush() []*PathtestContext {
 			if ptConfigCtx.lastFlushTime.IsZero() {
 				f.statsdClient.Incr(networkPathStoreMetricPrefix+"pathtest_never_run", []string{}, 1) //nolint:errcheck
 			}
-		}
-	}
-
-	var pathtestsToFlush []*PathtestContext
-	for _, ptConfigCtx := range f.contexts {
-		if ptConfigCtx.nextRun.After(now) {
 			continue
 		}
-		if !f.rateLimiter.AllowN(now, 1) {
-			f.statsdClient.Incr(networkPathStoreMetricPrefix+"pathtest_budget_exceeded", []string{}, 1) //nolint:errcheck
-			break
+		if ptConfigCtx.nextRun.After(now) || !f.rateLimiter.AllowN(now, 1) {
+			continue
 		}
 		if !ptConfigCtx.lastFlushTime.IsZero() {
 			ptConfigCtx.lastFlushInterval = now.Sub(ptConfigCtx.lastFlushTime)
@@ -164,6 +158,9 @@ func (f *Store) Flush() []*PathtestContext {
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx)
 		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
+
+	f.statsdClient.Gauge(networkPathStoreMetricPrefix+"ratelimiter_tokens", f.rateLimiter.Tokens(), []string{}, 1) //nolint:errcheck
+
 	return pathtestsToFlush
 }
 
