@@ -100,7 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
 	outputChan, launchers, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac)
 	if err != nil {
-		fmt.Sprintf("Unable to run command: %s", err)
+		fmt.Println(err)
 		return err
 	}
 
