@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
@@ -95,7 +94,6 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	app.RequireStart()
 
 	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	assert.True(t, npCollector.running)
 
@@ -244,7 +242,6 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 
 	stats := &teststatsd.Client{}
 	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	conns := []*model.Connection{
 		{
@@ -739,7 +736,6 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 
 	stats := &teststatsd.Client{}
 	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -791,7 +787,6 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	_, npCollector = newTestNpCollector(t, agentConfigs)
 
 	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -824,7 +819,6 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 
 	stats := &teststatsd.Client{}
 	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	// WHEN
 	path := payload.NetworkPath{
@@ -848,7 +842,6 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 
 	stats := &teststatsd.Client{}
 	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	tts := []struct {
 		description string

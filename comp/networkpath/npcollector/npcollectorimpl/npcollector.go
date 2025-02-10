@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -44,7 +43,6 @@ type npCollectorImpl struct {
 	// Deps
 	epForwarder  eventplatform.Forwarder
 	logger       log.Component
-	metricSender metricsender.MetricSender
 	statsdClient ddgostatsd.ClientInterface
 	rdnsquerier  rdnsquerier.Component
 
@@ -207,7 +205,6 @@ func (s *npCollectorImpl) start() error {
 
 	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
 	// due to statsd.Client not being configured yet.
-	s.metricSender = metricsender.NewMetricSenderStatsd(statsd.Client)
 	s.statsdClient = statsd.Client
 
 	go s.listenPathtests()
