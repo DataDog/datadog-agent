@@ -356,7 +356,6 @@ if __name__ == '__main__':
 
         print(normalize(args.logs, args.type, args.stage, args.accountid))
     except Exception as e:
-        print(e)
         err: dict[str, str | list[str]] = {
             "error": "normalization raised exception",
         }
