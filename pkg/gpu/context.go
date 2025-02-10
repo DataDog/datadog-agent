@@ -187,7 +187,12 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 		return data, nil
 	}
 
-	data, err := cuda.GetSymbols(path)
+	wantedSmVersions := make(map[uint32]struct{})
+	for _, smVersion := range ctx.deviceSmVersions {
+		wantedSmVersions[uint32(smVersion)] = struct{}{}
+	}
+
+	data, err := cuda.GetSymbols(path, wantedSmVersions)
 	if err != nil {
 		ctx.fatbinTelemetry.readErrors.Inc()
 		return nil, fmt.Errorf("error getting file data: %w", err)
