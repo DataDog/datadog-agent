@@ -77,12 +77,6 @@ var grpcStatusMap = map[string]codes.Code{
 }
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
-	/*
-		if _, ok := metrics["rpc.grpc.status_code"]; ok || meta["rpc.grpc.status_code"] != "" {
-			return extractGRPCStatus(meta, metrics)
-		}
-	*/
-
 	code, ok := metrics[traceutil.TagStatusCode]
 	if ok {
 		// only 7.39.0+, for lesser versions, always use Meta
@@ -161,90 +155,36 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	}
 }
 
-// extractGRPCStatusCodeFromMeta function for translation
-// stats are processed in concentrator.go, go to aggregation.go for aggregatoin
 func getGRPCStatusCode(statsd statsd.ClientInterface, meta map[string]string, metrics map[string]float64) uint32 {
-	code, ok := metrics["rpc.grpc.status_code"] // Expected value: Integer or string of code message
-	if ok {
-		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:rpc.grpc.status_code"}, 1)
+	// List of possible keys to check in order
+	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
-		return uint32(code)
-	}
-	strC := meta["rpc.grpc.status_code"]
-
-	if strC != "" {
-		c, err := strconv.ParseUint(strC, 10, 32)
-		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:rpc.grpc.status_code"}, 1)
-		if err != nil { // Check for string of code message
-			codeStr, exists := grpcStatusMap[strings.ToUpper(strC)]
-			if !exists {
-				log.Debugf("Invalid status code %s. Using 0.", strC)
-				return 0
-			}
-			c := codes.Code(codeStr)
-			statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:rpc.grpc.status_code"}, 1)
-			return uint32(c)
-
-
+	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
+		if code, ok := metrics[key]; ok {
+			statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:" + key}, 1)
+			return uint32(code)
 		}
-		return uint32(c)
 	}
 
-	code, ok = metrics["grpc.code"] // Expected value: String of integer
-	if ok {
-		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:grpc.code"}, 1)
-		return uint32(code)
-	}
-	strC = meta["grpc.code"]
-	if strC != "" {
-		c, err := strconv.ParseUint(strC, 10, 32)
-		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:grpc.code"}, 1)
-		if err != nil {
+	for _, key := range metaKeys {
+		if strC, exists := meta[key]; exists && strC != "" {
+			c, err := strconv.ParseUint(strC, 10, 32)
+			statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:" + key}, 1)
+			if err == nil {
+				return uint32(c)
+			}
+
+			// If not integer, check for valid gRPC status string
+			if codeStr, found := grpcStatusMap[strings.ToUpper(strC)]; found {
+				statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:" + key}, 1)
+				return uint32(codes.Code(codeStr))
+			}
+
 			log.Debugf("Invalid status code %s. Using 0.", strC)
 			return 0
 		}
-		return uint32(c)
 	}
 
-	code, ok = metrics["rpc.grpc.status.code"] // Expected value: string of code message
-	if ok {
-		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:rpc.grpc.status.code"}, 1)
-		return uint32(code)
-	}
-	strC = meta["rpc.grpc.status.code"]
-	if strC != "" {
-		code, exists := grpcStatusMap[strings.ToUpper(strC)]
-		if (!exists) {
-			log.Debugf("Invalid status code %s. Using 0.", strC)
-			return 0
-		}
-		c := codes.Code(code)
-		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:rpc.grpc.status.code"}, 1)
-		return uint32(c)
-	}
-
-	code, ok = metrics["grpc.status.code"] // Expected value: Integer or string of code message
-	if ok {
-		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:grpc.status.code"}, 1)
-		return uint32(code)
-	}
-	strC = meta["grpc.status.code"]
-	if strC != "" {
-		c, err := strconv.ParseUint(strC, 10, 32)
-		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:grpc.status.code"}, 1)
-		if err != nil {
-			codeStr, exists := grpcStatusMap[strings.ToUpper(strC)]
-			if !exists {
-				log.Debugf("Invalid status code %s. Using 0.", strC)
-				return 0
-			}
-			c := codes.Code(codeStr)
-			statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:grpc.status.code"}, 1)
-			return uint32(c)
-
-		}
-		return uint32(c)
-	}
-	log.Debugf("Invalid status code %s. Using 0.", strC)
+	log.Debugf("Invalid status code %s. Using 0.")
 	return 0
 }
