@@ -98,9 +98,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
 func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
-	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac)
-	if outputChan == nil {
-		return fmt.Errorf("Invalid input")
+	outputChan, launchers, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac)
+	if err != nil {
+		fmt.Sprintf("Unable to run command: %s", err)
+		return err
 	}
 
 	// Set up an inactivity timeout
@@ -134,7 +135,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 }
 
 // Used to make testing easier
-func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
+func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider, error) {
 	configSource := sources.NewConfigSources()
 	waitTime := time.Duration(1) * time.Second
 	waitCtx, cancelTimeout := context.WithTimeout(
@@ -144,7 +145,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
 	cancelTimeout()
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil, nil, err
 	}
 	var sources []*sources.LogSource
 	sources = nil
@@ -158,7 +159,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		})
 		if err != nil {
 			fmt.Println("Cannot create source")
-			return nil, nil, nil
+			return nil, nil, nil, err
 		}
 		break
 	}
@@ -167,13 +168,13 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		absolutePath := ""
 		wd, err := os.Getwd()
 		if err != nil {
-			return nil, nil, nil
+			return nil, nil, nil, err
 		}
 		absolutePath = filepath.Join(wd, cliParams.LogConfigPath)
 		data, err := os.ReadFile(absolutePath)
 		if err != nil {
 			fmt.Println("Cannot read file path of logs config")
-			return nil, nil, nil
+			return nil, nil, nil, err
 		}
 		sources, err = ad.CreateSources(integration.Config{
 			Provider:   names.File,
@@ -181,7 +182,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		})
 		if err != nil {
 			fmt.Println("Cannot create source")
-			return nil, nil, nil
+			return nil, nil, nil, err
 		}
 	}
 
