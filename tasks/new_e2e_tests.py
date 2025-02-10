@@ -329,12 +329,6 @@ def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, 
         A list of (package name, test name, logs) tuples
     """
 
-    # def is_parent(parent: list[str], child: list[str]) -> bool:
-    #     for i in range(len(parent)):
-    #         if parent[i] != child[i]:
-    #             return False
-    #     return True
-
     # Used to preserve order
     test_order = {}
     tests = defaultdict(list)
@@ -362,53 +356,10 @@ def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, 
 
                 tests[test_key].append(output)
 
-        for test, log in tests.items():
-            print()
-            print(f'-------------- {test} -------------')
-            print(''.join(log))
-
         # Rebuild order
         return sorted(
             [(package, name, logs) for (package, name), logs in tests.items()], key=lambda x: test_order[x[:2]]
         )
-
-        # all_lines = f.readlines()
-
-        # print('\n'.join(all_lines))
-        # print()
-
-        # # Initalize logs_per_test with all test names
-        # for line in all_lines:
-        #     json_line = json.loads(line)
-        #     if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
-        #         continue
-        #     splitted_test = json_line["Test"].split("/")
-        #     if len(splitted_test) < test_depth:
-        #         continue
-        #     if json_line["Package"] not in logs_per_test:
-        #         logs_per_test[json_line["Package"]] = {}
-
-        #     test_name = splitted_test[: min(test_depth, len(splitted_test))]
-        #     logs_per_test[json_line["Package"]]["/".join(test_name)] = []
-
-        # for line in all_lines:
-        #     json_line = json.loads(line)
-        #     if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
-        #         continue
-
-        #     if "===" in json_line["Output"]:  # Ignore these lines that are produced when running test concurrently
-        #         continue
-
-        #     splitted_test = json_line["Test"].split("/")
-
-        #     if len(splitted_test) < test_depth:  # Append logs to all children tests
-        #         for test_name in logs_per_test[json_line["Package"]]:
-        #             if is_parent(splitted_test, test_name.split("/")):
-        #                 logs_per_test[json_line["Package"]][test_name].append(json_line["Output"])
-        #         continue
-
-        #     logs_per_test[json_line["Package"]]["/".join(splitted_test[:test_depth])].append(json_line["Output"])
-    # return logs_per_test
 
 
 def write_result_to_log_files(logs_per_test, log_folder, test_depth=1):
