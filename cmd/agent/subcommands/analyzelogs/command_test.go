@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,11 +33,11 @@ import (
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"analyze-logs", "-t", "5", "path/to/log/config.yaml"},
+		[]string{"analyze-logs", "-t", "5s", "path/to/log/config.yaml"},
 		runAnalyzeLogs,
 		func(_ core.BundleParams, cliParams *CliParams) {
 			require.Equal(t, "path/to/log/config.yaml", cliParams.LogConfigPath)
-			require.Equal(t, 5, cliParams.inactivityTimeout)
+			require.Equal(t, time.Duration(5)*time.Second, cliParams.inactivityTimeout)
 			require.Equal(t, defaultCoreConfigPath, cliParams.CoreConfigPath)
 		})
 }
@@ -127,7 +128,8 @@ Auto-discovery IDs:
 		LogConfigPath:  tempConfigFile.Name(),
 		CoreConfigPath: tempConfigFile.Name(),
 	}
-	outputChan, launcher, pipelineProvider := runAnalyzeLogsHelper(cliParams, config, ac)
+	outputChan, launcher, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac)
+	assert.Nil(t, err)
 	expectedOutput := []string{
 		"=== apm check ===",
 		"Configuration provider: file",
