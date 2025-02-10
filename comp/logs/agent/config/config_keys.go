@@ -116,7 +116,7 @@ func (l *LogsConfigKeys) compressionKind() string {
 		log.Debugf("Logs agent is using: %s compression", compressionKind)
 		return compressionKind
 	default:
-		log.Warnf("Invalid compression kind: %s, falling back to default compression", compressionKind)
+		log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
 		return pkgconfigsetup.DefaultLogCompressionKind
 	}
 }

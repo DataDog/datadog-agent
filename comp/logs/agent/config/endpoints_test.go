@@ -647,6 +647,9 @@ func (suite *EndpointsTestSuite) TestLogCompressionKind() {
 	suite.config.SetWithoutSource("logs_config.compression_kind", "zstd")
 	suite.Equal(logsConfig.compressionKind(), "zstd")
 
+	suite.config.SetWithoutSource("logs_config.compression_kind", "")
+	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+
 	// Invalid compression should fall back to the default log agent compression kind
 	suite.config.SetWithoutSource("logs_config.compression_kind", "notgzip")
 	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
