@@ -16,7 +16,7 @@ import "C"
 
 const (
 	maxHTTP2Path        = C.HTTP2_MAX_PATH_LEN
-	http2PathBuckets    = C.HTTP2_TELEMETRY_PATH_BUCKETS
+	PathBucketsCount    = C.HTTP2_TELEMETRY_PATH_BUCKETS
 	MaxTelemetryPathLen = C.HTTP2_TELEMETRY_MAX_PATH_LEN
 	PathBucketSize      = C.HTTP2_TELEMETRY_PATH_BUCKETS_SIZE
 	// The kernel limit per page in the per-cpu array of the http2 terminated connections map.
