@@ -35,6 +35,7 @@ const (
 type Config struct {
 	OtelSource    string
 	LogSourceName string
+	QueueSettings exporterhelper.QueueConfig
 }
 
 type factory struct {
@@ -52,6 +53,7 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 			return &Config{
 				OtelSource:    otelSource,
 				LogSourceName: LogSourceName,
+				QueueSettings: exporterhelper.NewDefaultQueueConfig(),
 			}
 		},
 		exp.WithLogs(f.createLogsExporter, stability),
@@ -88,7 +90,7 @@ func (f *factory) createLogsExporter(
 		exporter.ConsumeLogs,
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0 * time.Second}),
 		exporterhelper.WithRetry(configretry.NewDefaultBackOffConfig()),
-		exporterhelper.WithQueue(exporterhelper.NewDefaultQueueConfig()),
+		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithShutdown(func(context.Context) error {
 			cancel()
 			return nil
