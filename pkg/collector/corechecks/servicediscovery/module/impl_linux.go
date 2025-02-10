@@ -58,6 +58,7 @@ type serviceInfo struct {
 	name                       string
 	generatedName              string
 	generatedNameSource        string
+	additionalGeneratedNames   []string
 	containerServiceName       string
 	containerServiceNameSource string
 	ddServiceName              string
@@ -92,6 +93,7 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.Name = i.name
 	out.GeneratedName = i.generatedName
 	out.GeneratedNameSource = i.generatedNameSource
+	out.AdditionalGeneratedNames = i.additionalGeneratedNames
 	out.ContainerServiceName = i.containerServiceName
 	out.ContainerServiceNameSource = i.containerServiceNameSource
 	out.DDService = i.ddServiceName
@@ -575,15 +577,16 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	}
 
 	return &serviceInfo{
-		name:                name,
-		generatedName:       nameMeta.Name,
-		generatedNameSource: string(nameMeta.Source),
-		ddServiceName:       nameMeta.DDService,
-		language:            lang,
-		apmInstrumentation:  apmInstrumentation,
-		ddServiceInjected:   nameMeta.DDServiceInjected,
-		cmdLine:             sanitizeCmdLine(s.scrubber, cmdline),
-		startTimeMilli:      uint64(createTime),
+		name:                     name,
+		generatedName:            nameMeta.Name,
+		generatedNameSource:      string(nameMeta.Source),
+		additionalGeneratedNames: nameMeta.AdditionalNames,
+		ddServiceName:            nameMeta.DDService,
+		language:                 lang,
+		apmInstrumentation:       apmInstrumentation,
+		ddServiceInjected:        nameMeta.DDServiceInjected,
+		cmdLine:                  sanitizeCmdLine(s.scrubber, cmdline),
+		startTimeMilli:           uint64(createTime),
 	}, nil
 }
 

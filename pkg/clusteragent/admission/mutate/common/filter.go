@@ -37,9 +37,9 @@ type DefaultFilter struct {
 	err     error
 }
 
-// NewDefaulFilter constructs the default mutation filter from the enabled flag and the list of enabled and disabled
+// NewDefaultFilter constructs the default mutation filter from the enabled flag and the list of enabled and disabled
 // namespaces.
-func NewDefaulFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (*DefaultFilter, error) {
+func NewDefaultFilter(enabled bool, enabledNamespaces []string, disabledNamespaces []string) (*DefaultFilter, error) {
 	filter, err := makeNamespaceFilter(enabledNamespaces, disabledNamespaces)
 	return &DefaultFilter{
 		enabled: enabled,
