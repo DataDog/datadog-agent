@@ -8,77 +8,45 @@ package cuda
 import (
 	"debug/elf"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
 	"unsafe"
 )
 
-type formatError struct {
-	off int64
-	msg string
-	val any
+// stringBufferSize is the size of the reusable buffer used to read strings from ELF sections
+const stringBufferSize = 256
+
+// errorUnsupported is returned when an unsupported section is found, which indicates we should skip that section
+var errorUnsupported = fmt.Errorf("unsupported section parsing")
+
+// lazySectionReader is a lazy reader for ELF sections, with reduced number of allocations.
+// It's oriented around an iterator pattern, where only one section is read (and allocated) at a time.
+type lazySectionReader struct {
+	reader              io.ReaderAt
+	err                 error
+	stringBuffer        []byte
+	sectionHeaderBuffer []byte
+	currentSection      *elfSection
 }
 
-func (e *formatError) Error() string {
-	msg := e.msg
-	if e.val != nil {
-		msg += fmt.Sprintf(" '%v' ", e.val)
+// newLazySectionReader a new lazySectionReader instance.
+func newLazySectionReader(reader io.ReaderAt) *lazySectionReader {
+	return &lazySectionReader{
+		reader:         reader,
+		stringBuffer:   make([]byte, stringBufferSize),
+		currentSection: new(elfSection),
 	}
-	msg += fmt.Sprintf("in record at byte %#x", e.off)
-	return msg
 }
 
-// sliceCap is like SliceCapWithSize but using generics.
-func sliceCap[E any](c uint64) int {
-	var v E
-	size := uint64(unsafe.Sizeof(v))
-	return sliceCapWithSize(size, c)
+func (l *lazySectionReader) Err() error {
+	return l.err
 }
 
-// chunk is an arbitrary limit on how much memory we are willing
-// to allocate without concern.
-const chunk = 10 << 20 // 1
-
-// sliceCapWithSize returns the capacity to use when allocating a slice.
-// After the slice is allocated with the capacity, it should be
-// built using append. This will avoid allocating too much memory
-// if the capacity is large and incorrect.
-//
-// A negative result means that the value is always too big.
-func sliceCapWithSize(size, c uint64) int {
-	if int64(c) < 0 || c != uint64(int(c)) {
-		return -1
-	}
-	if size > 0 && c > (1<<64-1)/size {
-		return -1
-	}
-	if c*size > chunk {
-		c = chunk / size
-		if c == 0 {
-			c = 1
-		}
-	}
-	return int(c)
-}
-
-type elfSection struct {
-	elf.SectionHeader
-
-	reader     *io.SectionReader
-	nameOffset uint32
-}
-
-type lazyElfSections struct {
-	reader io.ReaderAt
-	err    error
-}
-
-func newLazyElfSections(reader io.ReaderAt) *lazyElfSections {
-	return &lazyElfSections{reader: reader}
-}
-
-func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
+// Iterate reads the ELF sections and yields them one by one. After iterating
+// through all sections, the error field l.err is set if an error occurred.
+func (l *lazySectionReader) Iterate() iter.Seq[*elfSection] {
 	sr := io.NewSectionReader(l.reader, 0, 1<<63-1)
 
 	// Read and decode ELF identifier
@@ -88,7 +56,7 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 		return nil
 	}
 	if ident[0] != '\x7f' || ident[1] != 'E' || ident[2] != 'L' || ident[3] != 'F' {
-		l.err = &formatError{0, "bad magic number", ident[0:4]}
+		l.err = fmt.Errorf("bad magic number %v", ident[0:4])
 		return nil
 	}
 
@@ -98,7 +66,7 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 	case elf.ELFCLASS64:
 		// ok
 	default:
-		l.err = &formatError{0, "unknown ELF class", cls}
+		l.err = fmt.Errorf("unknown ELF class: %v", cls)
 		return nil
 	}
 
@@ -110,13 +78,13 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 	case elf.ELFDATA2MSB:
 		bo = binary.BigEndian
 	default:
-		l.err = &formatError{0, "unknown ELF data encoding", data}
+		l.err = fmt.Errorf("unknown data encoding %v", data)
 		return nil
 	}
 
 	version := elf.Version(ident[elf.EI_VERSION])
 	if version != elf.EV_CURRENT {
-		l.err = &formatError{0, "unknown ELF version", version}
+		l.err = fmt.Errorf("unknown ELF version %v", version)
 		return nil
 	}
 
@@ -134,7 +102,7 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 			return nil
 		}
 		if v := elf.Version(bo.Uint32(data[unsafe.Offsetof(hdr.Version):])); v != version {
-			l.err = &formatError{0, "mismatched ELF version", v}
+			l.err = fmt.Errorf("mismatched ELF version: %v", v)
 			return nil
 		}
 		phoff = int64(bo.Uint32(data[unsafe.Offsetof(hdr.Phoff):]))
@@ -152,7 +120,7 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 			return nil
 		}
 		if v := elf.Version(bo.Uint32(data[unsafe.Offsetof(hdr.Version):])); v != version {
-			l.err = &formatError{0, "mismatched ELF version", v}
+			l.err = fmt.Errorf("mismatched ELF version: %v", v)
 			return nil
 		}
 		phoff = int64(bo.Uint64(data[unsafe.Offsetof(hdr.Phoff):]))
@@ -165,21 +133,21 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 	}
 
 	if shoff < 0 {
-		l.err = &formatError{0, "invalid shoff", shoff}
+		l.err = fmt.Errorf("invalid shoff: %v", shoff)
 		return nil
 	}
 	if phoff < 0 {
-		l.err = &formatError{0, "invalid phoff", phoff}
+		l.err = fmt.Errorf("invalid phoff: %v", phoff)
 		return nil
 	}
 
 	if shoff == 0 && shnum != 0 {
-		l.err = &formatError{0, "invalid ELF shnum for shoff=0", shnum}
+		l.err = fmt.Errorf("invalid ELF shnum for shoff=0: %v", shnum)
 		return nil
 	}
 
 	if shnum > 0 && shstrndx >= shnum {
-		l.err = &formatError{0, "invalid ELF shstrndx", shstrndx}
+		l.err = fmt.Errorf("invalid ELF shstrndx: %v", shstrndx)
 		return nil
 	}
 
@@ -193,7 +161,7 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 		wantShentsize = 4*4 + 6*8
 	}
 	if phnum > 0 && phentsize < wantPhentsize {
-		l.err = &formatError{0, "invalid ELF phentsize", phentsize}
+		l.err = fmt.Errorf("invalid ELF phentsize: %v", phentsize)
 		return nil
 	}
 
@@ -225,12 +193,12 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 			link = sh.Link
 		}
 		if elf.SectionType(typ) != elf.SHT_NULL {
-			l.err = &formatError{shoff, "invalid type of the initial section", elf.SectionType(typ)}
+			l.err = fmt.Errorf("invalid type of the initial section at offset %d: %v", shoff, elf.SectionType(typ))
 			return nil
 		}
 
 		if shnum < int(elf.SHN_LORESERVE) {
-			l.err = &formatError{shoff, "invalid ELF shnum contained in sh_size", shnum}
+			l.err = fmt.Errorf("invalid ELF shnum contained in sh_size at offset %d: %v", shoff, shnum)
 			return nil
 		}
 
@@ -242,36 +210,36 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 		if shstrndx == int(elf.SHN_XINDEX) {
 			shstrndx = int(link)
 			if shstrndx < int(elf.SHN_LORESERVE) {
-				l.err = &formatError{shoff, "invalid ELF shstrndx contained in sh_link", shstrndx}
+				l.err = fmt.Errorf("invalid ELF shstrndx contained in sh_link at offset %d: %v", shoff, shstrndx)
 				return nil
 			}
 		}
 	}
 
 	if shnum > 0 && shentsize < wantShentsize {
-		l.err = &formatError{0, "invalid ELF shentsize", shentsize}
+		l.err = fmt.Errorf("invalid ELF shentsize: %v", shentsize)
 		return nil
 	}
 
-	// Read section headers
-	c := sliceCap[elf.Section](uint64(shnum))
-	if c < 0 {
-		l.err = &formatError{0, "too many sections", shnum}
-		return nil
-	}
+	// allocate the buffer for the section header, only once
+	l.sectionHeaderBuffer = make([]byte, shentsize)
 
 	var nameSection *elfSection
 	var err error
 	if shstrndx > 0 {
 		sectOffset := shoff + int64(shstrndx)*int64(shentsize)
-		nameSection, err = l.readSection(sr, cls, bo, sectOffset, int64(shentsize))
+		err = l.readSection(sr, cls, bo, sectOffset, int64(shentsize))
 		if err != nil {
-			l.err = &formatError{sectOffset, "cannot parse names section: %w", err}
+			l.err = fmt.Errorf("cannot parse names section at offset %d: %w", sectOffset, err)
 			return nil
 		}
 
+		// allocate a new currentSection to avoid overwriting the nameSection
+		nameSection = l.currentSection
+		l.currentSection = new(elfSection)
+
 		if nameSection.Type != elf.SHT_STRTAB {
-			l.err = &formatError{sectOffset, "invalid ELF section name string table type", nameSection.Type}
+			l.err = fmt.Errorf("invalid ELF section name string table type at offset %d: %v", sectOffset, nameSection.Type)
 			return nil
 		}
 	}
@@ -279,97 +247,126 @@ func (l *lazyElfSections) iterate() iter.Seq[*elfSection] {
 	return func(yield func(*elfSection) bool) {
 		for i := 0; i < shnum; i++ {
 			off := shoff + int64(i)*int64(shentsize)
-			var sect *elfSection
-			sect, err = l.readSection(sr, cls, bo, off, int64(shentsize))
+			err = l.readSection(sr, cls, bo, off, int64(shentsize))
 			if err != nil {
-				l.err = err
+				if errors.Is(err, errorUnsupported) {
+					continue // Skip unsupported sections
+				}
+
+				l.err = fmt.Errorf("cannot read section at offset %d: %w", off, err)
 				return
 			}
 
 			if nameSection != nil {
 				var ok bool
-				sect.Name, ok = getString(nameSection.reader, int64(sect.nameOffset))
+				l.currentSection.nameBytes, ok = l.getString(nameSection.Reader(), int64(l.currentSection.nameOffset))
 				if !ok {
-					l.err = &formatError{off, "bad section name index", sect.nameOffset}
+					l.err = fmt.Errorf("bad section name index at offset=%d: %v", shoff, l.currentSection.nameOffset)
 					return
 				}
 			}
 
-			if !yield(sect) {
+			if !yield(l.currentSection) {
 				return
 			}
 		}
 	}
 }
 
-func (l *lazyElfSections) readSection(reader io.ReaderAt, cls elf.Class, bo binary.ByteOrder, offset int64, size int64) (*elfSection, error) {
-	shdata := make([]byte, size)
-	if _, err := reader.ReadAt(shdata, offset); err != nil {
-		return nil, err
+func (l *lazySectionReader) readSection(reader io.ReaderAt, cls elf.Class, bo binary.ByteOrder, offset int64, size int64) error {
+	if _, err := reader.ReadAt(l.sectionHeaderBuffer, offset); err != nil {
+		return err
 	}
 
-	s := new(elfSection)
 	switch cls {
 	case elf.ELFCLASS32:
 		var sh elf.Section32
-		s.nameOffset = bo.Uint32(shdata[unsafe.Offsetof(sh.Name):])
-		s.SectionHeader = elf.SectionHeader{
-			Type:      elf.SectionType(bo.Uint32(shdata[unsafe.Offsetof(sh.Type):])),
-			Flags:     elf.SectionFlag(bo.Uint32(shdata[unsafe.Offsetof(sh.Flags):])),
-			Addr:      uint64(bo.Uint32(shdata[unsafe.Offsetof(sh.Addr):])),
-			Offset:    uint64(bo.Uint32(shdata[unsafe.Offsetof(sh.Off):])),
-			FileSize:  uint64(bo.Uint32(shdata[unsafe.Offsetof(sh.Size):])),
-			Link:      bo.Uint32(shdata[unsafe.Offsetof(sh.Link):]),
-			Info:      bo.Uint32(shdata[unsafe.Offsetof(sh.Info):]),
-			Addralign: uint64(bo.Uint32(shdata[unsafe.Offsetof(sh.Addralign):])),
-			Entsize:   uint64(bo.Uint32(shdata[unsafe.Offsetof(sh.Entsize):])),
+		l.currentSection.nameOffset = bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Name):])
+		l.currentSection.SectionHeader = elf.SectionHeader{
+			Type:      elf.SectionType(bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Type):])),
+			Flags:     elf.SectionFlag(bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Flags):])),
+			Addr:      uint64(bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Addr):])),
+			Offset:    uint64(bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Off):])),
+			FileSize:  uint64(bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Size):])),
+			Link:      bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Link):]),
+			Info:      bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Info):]),
+			Addralign: uint64(bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Addralign):])),
+			Entsize:   uint64(bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Entsize):])),
 		}
 	case elf.ELFCLASS64:
 		var sh elf.Section64
-		s.nameOffset = bo.Uint32(shdata[unsafe.Offsetof(sh.Name):])
-		s.SectionHeader = elf.SectionHeader{
-			Type:      elf.SectionType(bo.Uint32(shdata[unsafe.Offsetof(sh.Type):])),
-			Flags:     elf.SectionFlag(bo.Uint64(shdata[unsafe.Offsetof(sh.Flags):])),
-			Offset:    bo.Uint64(shdata[unsafe.Offsetof(sh.Off):]),
-			FileSize:  bo.Uint64(shdata[unsafe.Offsetof(sh.Size):]),
-			Addr:      bo.Uint64(shdata[unsafe.Offsetof(sh.Addr):]),
-			Link:      bo.Uint32(shdata[unsafe.Offsetof(sh.Link):]),
-			Info:      bo.Uint32(shdata[unsafe.Offsetof(sh.Info):]),
-			Addralign: bo.Uint64(shdata[unsafe.Offsetof(sh.Addralign):]),
-			Entsize:   bo.Uint64(shdata[unsafe.Offsetof(sh.Entsize):]),
+		l.currentSection.nameOffset = bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Name):])
+		l.currentSection.SectionHeader = elf.SectionHeader{
+			Type:      elf.SectionType(bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Type):])),
+			Flags:     elf.SectionFlag(bo.Uint64(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Flags):])),
+			Offset:    bo.Uint64(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Off):]),
+			FileSize:  bo.Uint64(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Size):]),
+			Addr:      bo.Uint64(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Addr):]),
+			Link:      bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Link):]),
+			Info:      bo.Uint32(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Info):]),
+			Addralign: bo.Uint64(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Addralign):]),
+			Entsize:   bo.Uint64(l.sectionHeaderBuffer[unsafe.Offsetof(sh.Entsize):]),
 		}
 	}
-	if int64(s.Offset) < 0 {
-		return nil, &formatError{offset, "invalid section offset", int64(s.Offset)}
+	if int64(l.currentSection.Offset) < 0 {
+		return fmt.Errorf("invalid section offset at offset=%d: %v", offset, int64(l.currentSection.Offset))
 	}
-	if int64(s.FileSize) < 0 {
-		return nil, &formatError{offset, "invalid section size", int64(s.FileSize)}
+	if int64(l.currentSection.FileSize) < 0 {
+		return fmt.Errorf("invalid section size at offset=%d: %v", offset, int64(l.currentSection.FileSize))
 	}
-	s.reader = io.NewSectionReader(reader, int64(s.Offset), int64(s.FileSize))
+	l.currentSection.fileReader = reader
 
-	if s.Flags&elf.SHF_COMPRESSED == 0 {
-		s.Size = s.FileSize
-	} else {
+	if l.currentSection.Flags&elf.SHF_COMPRESSED != 0 {
 		// Ignore compressed sections
-		return nil, nil
+		return errorUnsupported
 	}
 
-	return s, nil
+	l.currentSection.Size = l.currentSection.FileSize
+
+	return nil
 }
 
-func getString(reader *io.SectionReader, start int64) (string, bool) {
-	var data []byte
-	var b [1]byte
+func (l *lazySectionReader) getString(reader *io.SectionReader, start int64) ([]byte, bool) {
+	dstOffset := 0
+	srcOffset := start
 
-	for ; ; start++ {
-		if _, err := reader.ReadAt(b[:], int64(start)); err != nil {
-			return "", false
+	for ; srcOffset-start < stringBufferSize; srcOffset++ {
+		if _, err := reader.ReadAt(l.stringBuffer[dstOffset:dstOffset+1], int64(srcOffset)); err != nil {
+			return nil, false
 		}
-		if b[0] == 0 {
+		if l.stringBuffer[dstOffset] == 0 {
 			break
 		}
-		data = append(data, b[0])
+		dstOffset++
 	}
 
-	return string(data), true
+	return l.stringBuffer[:dstOffset], true
+}
+
+// elfSection represents an ELF section, with the header and name.
+// Note that the name in the SectionHeader is not filled, one should use the nameBytes field.
+type elfSection struct {
+	elf.SectionHeader
+
+	// fileReader holds a reader for the entire ELF file, used to read the section data
+	// without allocating a reader if it's not needed
+	fileReader io.ReaderAt
+
+	// sectReader is the reader for the section data, initialized lazily
+	sectReader *io.SectionReader
+
+	nameOffset uint32
+	nameBytes  []byte
+}
+
+func (s *elfSection) Reader() *io.SectionReader {
+	if s.sectReader == nil {
+		s.sectReader = io.NewSectionReader(s.fileReader, int64(s.Offset), int64(s.FileSize))
+	}
+
+	return s.sectReader
+}
+
+func (s *elfSection) Name() string {
+	return string(s.nameBytes)
 }

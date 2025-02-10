@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"strings"
 )
 
 // CubinKernelKey is the key to identify a kernel in a fatbin
@@ -131,22 +130,28 @@ type nvInfoItem struct {
 
 type sectionParserFunc func(*elfSection, string) error
 
+type sectionParser struct {
+	prefix []byte
+	funct  sectionParserFunc
+}
+
 // cubinParser is a helper struct to parse the cubin ELF sections
 type cubinParser struct {
-	kernels            map[string]*CubinKernel
-	sectPrefixToParser map[string]sectionParserFunc
+	kernels        map[string]*CubinKernel
+	sectionParsers []sectionParser
 }
 
 func newCubinParser() *cubinParser {
 	cp := &cubinParser{
-		kernels:            make(map[string]*CubinKernel),
-		sectPrefixToParser: make(map[string]sectionParserFunc),
+		kernels: make(map[string]*CubinKernel),
 	}
 
-	cp.sectPrefixToParser[".nv.info"] = cp.parseNvInfoSection
-	cp.sectPrefixToParser[".text"] = cp.parseTextSection
-	cp.sectPrefixToParser[".nv.shared"] = cp.parseSharedMemSection
-	cp.sectPrefixToParser[".nv.constant"] = cp.parseConstantMemSection
+	cp.sectionParsers = []sectionParser{
+		{prefix: []byte(".nv.info"), funct: cp.parseNvInfoSection},
+		{prefix: []byte(".text"), funct: cp.parseTextSection},
+		{prefix: []byte(".nv.shared"), funct: cp.parseSharedMemSection},
+		{prefix: []byte(".nv.constant"), funct: cp.parseConstantMemSection},
+	}
 
 	return cp
 }
@@ -170,27 +175,29 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 	}
 	data[elfVersionOffset] = 1
 
-	lazyReader := newLazyElfSections(bytes.NewReader(data))
+	lazyReader := newLazySectionReader(bytes.NewReader(data))
 
 	// Iterate through all the sections, parse all the ones we know how to parse
-	for sect := range lazyReader.iterate() {
-		for prefix, parser := range cp.sectPrefixToParser {
-			prefixWithDot := prefix + "."
-
-			if !strings.HasPrefix(sect.Name, prefix) {
+	for sect := range lazyReader.Iterate() {
+		for _, parser := range cp.sectionParsers {
+			if !bytes.HasPrefix(sect.nameBytes, parser.prefix) {
 				continue
 			}
 
 			var kernelName string
-			if strings.HasPrefix(sect.Name, prefixWithDot) {
-				kernelName = strings.TrimPrefix(sect.Name, prefixWithDot)
+			if len(sect.nameBytes) > len(parser.prefix) && sect.nameBytes[len(parser.prefix)] == '.' {
+				kernelName = string(sect.nameBytes[len(parser.prefix)+1:])
 			}
 
-			err := parser(sect, kernelName)
+			err := parser.funct(sect, kernelName)
 			if err != nil {
-				return fmt.Errorf("failed to parse section %s: %w", sect.Name, err)
+				return fmt.Errorf("failed to parse section %s: %w", sect.Name(), err)
 			}
 		}
+	}
+
+	if err := lazyReader.Err(); err != nil {
+		return fmt.Errorf("failed to read ELF sections: %w", err)
 	}
 
 	return nil
@@ -209,7 +216,7 @@ func (cp *cubinParser) parseNvInfoSection(sect *elfSection, kernelName string) e
 	}
 
 	items := make(map[nvInfoAttr]nvInfoParsedItem)
-	buffer := sect.reader
+	buffer := sect.Reader()
 
 	for {
 		var item nvInfoItem
@@ -293,7 +300,7 @@ var constantSectNameRegex = regexp.MustCompile(`\.nv\.constant\d\.(.*)`)
 func (cp *cubinParser) parseConstantMemSection(sect *elfSection, _ string) error {
 	// Constant memory sections are named .nv.constantX.Y where X is the constant memory index and Y is the name
 	// so we have to do some custom parsing
-	match := constantSectNameRegex.FindStringSubmatch(sect.Name)
+	match := constantSectNameRegex.FindSubmatch(sect.nameBytes)
 	if match == nil {
 		// Not a constant memory section. We might be missing the kernel name, for example, which happens
 		// on some binaries. In that case just ignore the section
@@ -301,7 +308,7 @@ func (cp *cubinParser) parseConstantMemSection(sect *elfSection, _ string) error
 	}
 
 	kernelName := match[1]
-	kernel := cp.getOrCreateKernel(kernelName)
+	kernel := cp.getOrCreateKernel(string(kernelName))
 	kernel.ConstantMem += sect.Size
 
 	return nil
