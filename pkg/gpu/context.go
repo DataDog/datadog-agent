@@ -192,6 +192,8 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 		wantedSmVersions[uint32(smVersion)] = struct{}{}
 	}
 
+	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, wantedSmVersions)
+
 	data, err := cuda.GetSymbols(path, wantedSmVersions)
 	if err != nil {
 		ctx.fatbinTelemetry.readErrors.Inc()
