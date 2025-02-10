@@ -68,6 +68,11 @@ func (i *IntVariable) GetEvaluator() interface{} {
 	}
 }
 
+// Get returns the variable value
+func (i *IntVariable) Get(ctx *Context) interface{} {
+	return i.intFnc(ctx)
+}
+
 // NewIntVariable returns a new integer variable
 func NewIntVariable(intFnc func(ctx *Context) int, setFnc func(ctx *Context, value interface{}) error) *IntVariable {
 	return &IntVariable{
@@ -92,6 +97,11 @@ func (s *StringVariable) GetEvaluator() interface{} {
 			return s.strFnc(ctx)
 		},
 	}
+}
+
+// Get returns the variable value
+func (s *StringVariable) Get(ctx *Context) interface{} {
+	return s.strFnc(ctx)
 }
 
 // NewStringVariable returns a new string variable
@@ -119,6 +129,11 @@ func (b *BoolVariable) GetEvaluator() interface{} {
 	}
 }
 
+// Get returns the variable value
+func (b *BoolVariable) Get(ctx *Context) interface{} {
+	return b.boolFnc(ctx)
+}
+
 // NewBoolVariable returns a new boolean variable
 func NewBoolVariable(boolFnc func(ctx *Context) bool, setFnc func(ctx *Context, value interface{}) error) *BoolVariable {
 	return &BoolVariable{
@@ -140,6 +155,11 @@ func (s *StringArrayVariable) GetEvaluator() interface{} {
 	return &StringArrayEvaluator{
 		EvalFnc: s.strFnc,
 	}
+}
+
+// Get returns the variable value
+func (s *StringArrayVariable) Get(ctx *Context) interface{} {
+	return s.strFnc(ctx)
 }
 
 // Set the array values
@@ -172,18 +192,23 @@ type IntArrayVariable struct {
 }
 
 // GetEvaluator returns the variable SECL evaluator
-func (s *IntArrayVariable) GetEvaluator() interface{} {
+func (v *IntArrayVariable) GetEvaluator() interface{} {
 	return &IntArrayEvaluator{
-		EvalFnc: s.intFnc,
+		EvalFnc: v.intFnc,
 	}
 }
 
+// Get returns the variable value
+func (v *IntArrayVariable) Get(ctx *Context) interface{} {
+	return v.intFnc(ctx)
+}
+
 // Set the array values
-func (s *IntArrayVariable) Set(ctx *Context, value interface{}) error {
+func (v *IntArrayVariable) Set(ctx *Context, value interface{}) error {
 	if i, ok := value.(int); ok {
 		value = []int{i}
 	}
-	return s.SettableVariable.Set(ctx, value)
+	return v.SettableVariable.Set(ctx, value)
 }
 
 // Append a value to the array
@@ -204,6 +229,11 @@ func NewIntArrayVariable(intFnc func(ctx *Context) []int, setFnc func(ctx *Conte
 // MutableIntVariable describes a mutable integer variable
 type MutableIntVariable struct {
 	Value int
+}
+
+// Get returns the variable value
+func (m *MutableIntVariable) Get() interface{} {
+	return m.Value
 }
 
 // Set the variable with the specified value
@@ -251,6 +281,11 @@ func NewMutableIntVariable() *MutableIntVariable {
 	return &MutableIntVariable{}
 }
 
+// Get returns the variable value
+func (m *MutableBoolVariable) Get() interface{} {
+	return m.Value
+}
+
 // Set the variable with the specified value
 func (m *MutableBoolVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(bool)
@@ -282,6 +317,11 @@ func (m *MutableStringVariable) GetEvaluator() interface{} {
 	}
 }
 
+// Get returns the variable value
+func (m *MutableStringVariable) Get() interface{} {
+	return m.Value
+}
+
 // Append a value to the string
 func (m *MutableStringVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
@@ -307,6 +347,11 @@ func NewMutableStringVariable() *MutableStringVariable {
 // MutableStringArrayVariable describes a mutable string array variable
 type MutableStringArrayVariable struct {
 	LRU *ttlcache.Cache[string, bool]
+}
+
+// Get returns the variable value
+func (m *MutableStringArrayVariable) Get() interface{} {
+	return m.LRU
 }
 
 // Set the variable with the specified value
@@ -362,6 +407,11 @@ func NewMutableStringArrayVariable(size int, ttl time.Duration) *MutableStringAr
 // MutableIntArrayVariable describes a mutable integer array variable
 type MutableIntArrayVariable struct {
 	LRU *ttlcache.Cache[int, bool]
+}
+
+// Get returns the variable value
+func (m *MutableIntArrayVariable) Get() interface{} {
+	return m.LRU
 }
 
 // Set the variable with the specified value
@@ -432,6 +482,7 @@ type VariableOpts struct {
 	TTL  time.Duration
 }
 
+// NewGlobalVariables returns a new set of global variables
 func NewGlobalVariables() *GlobalVariables {
 	return &GlobalVariables{}
 }

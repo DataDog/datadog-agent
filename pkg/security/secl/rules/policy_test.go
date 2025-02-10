@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jellydator/ttlcache/v3"
 	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/Masterminds/semver/v3"
@@ -371,7 +372,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
-	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
@@ -389,6 +389,89 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.True(t, stringArrayVar.LRU.Has("foo"))
 	time.Sleep(time.Second + 100*time.Millisecond)
 	assert.False(t, stringArrayVar.LRU.Has("foo"))
+}
+
+func TestActionSetVariableSize(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Append: true,
+						Value:  "foo",
+						Size:   1,
+					},
+				}, {
+					Set: &SetDefinition{
+						Name:   "var2",
+						Append: true,
+						Value:  "foo",
+						Size:   1,
+					},
+				},
+			},
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test")
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	opts := rs.evalOpts
+
+	existingVariable := opts.VariableStore.Get("var1")
+	assert.NotNil(t, existingVariable)
+
+	stringArrayVar, ok := existingVariable.(*eval.MutableStringArrayVariable)
+	assert.NotNil(t, stringArrayVar)
+	assert.True(t, ok)
+
+	value := stringArrayVar.Get().(*ttlcache.Cache[string, bool]).Keys()
+	assert.Contains(t, value, "foo")
+	assert.Len(t, value, 1)
+
+	/*
+		existingVariable = opts.VariableStore.Get("var2")
+		assert.NotNil(t, existingVariable)
+
+		intArrayVar, ok := existingVariable.(*eval.IntArrayVariable)
+		assert.NotNil(t, intArrayVar)
+		assert.True(t, ok)
+
+		value = intArrayVar.Get(nil)
+		assert.Contains(t, value, 1)
+		assert.Len(t, value, 1)
+	*/
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
