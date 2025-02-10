@@ -152,18 +152,39 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 }
 
 func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.LogSource, error) {
-	data, err := resolveFileConfig(cliParams)
+	sources, err := resolveFileConfig(cliParams)
 	if err == nil {
-		sources, err := ad.CreateSources(integration.Config{
-			Provider:   names.File,
-			LogsConfig: data,
-		})
-		if err != nil {
-			return nil, err
-		}
 		return sources, nil
 	}
 
+	sources, err = resolveCheckConfig(ac, cliParams)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid file config path or check name")
+	}
+	return sources, nil
+}
+
+func resolveFileConfig(cliParams *CliParams) ([]*sources.LogSource, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	absolutePath := filepath.Join(wd, cliParams.LogConfigPath)
+	data, err := os.ReadFile(absolutePath)
+	if err != nil {
+		return nil, err
+	}
+	sources, err := ad.CreateSources(integration.Config{
+		Provider:   names.File,
+		LogsConfig: data,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sources, nil
+}
+
+func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.LogSource, error) {
 	waitTime := time.Duration(1) * time.Second
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), waitTime)
@@ -188,17 +209,4 @@ func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.Lo
 		return sources, nil
 	}
 	return nil, fmt.Errorf("Cannot get source")
-}
-
-func resolveFileConfig(cliParams *CliParams) ([]byte, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	absolutePath := filepath.Join(wd, cliParams.LogConfigPath)
-	data, err := os.ReadFile(absolutePath)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
 }
