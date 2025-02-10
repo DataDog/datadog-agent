@@ -15,12 +15,13 @@ class TestE2ETesting(unittest.TestCase):
 
         # Failing / flaky, successful / non flaky
         self.assertEqual(p.call_count, 2)
-        args1 = p.call_args_list[0][0][0][0]
-        args2 = p.call_args_list[1][0][0][0]
-        args3 = p.call_args_list[1][0][0][1]
-        self.assertEqual(args1[1], "TestGetPayload")
-        self.assertEqual(args2[1], "TestGetPayloadContainerized")
-        self.assertEqual(args3[1], "TestGetPayloadContainerizedWithDocker0")
+        args1 = p.call_args_list[0][0][0]
+        args2 = p.call_args_list[1][0][0]
+        self.assertEqual({name for (_, name) in args1.keys()}, {"TestGetPayload"})
+        self.assertEqual(
+            {name for (_, name) in args2.keys()},
+            {"TestGetPayloadContainerized", "TestGetPayloadContainerizedWithDocker0"},
+        )
 
     @patch("tasks.new_e2e_tests.pretty_print_test_logs")
     @patch("tasks.libs.common.utils.running_in_ci", new=MagicMock(return_value=True))
@@ -32,9 +33,17 @@ class TestE2ETesting(unittest.TestCase):
 
         # Failing / flaky, successful / non flaky
         self.assertEqual(p.call_count, 2)
-        args1 = p.call_args_list[0][0][0][0]
-        args2 = p.call_args_list[1][0][0][0]
-        args3 = p.call_args_list[1][0][0][1]
-        self.assertEqual(args1[1], "TestGetPayload")
-        self.assertEqual(args2[1], "TestFilterDev")
-        self.assertEqual(args3[1], "TestGetTimeout")
+        args1 = p.call_args_list[0][0][0]
+        args2 = p.call_args_list[1][0][0]
+        self.assertEqual({name for (_, name) in args1.keys()}, {"TestGetPayload"})
+        self.assertEqual(
+            {name for (_, name) in args2.keys()},
+            {
+                "TestFilterDev",
+                "TestAsJSON",
+                "TestCollectInfo",
+                "TestGetTimeout",
+                "TestGetPayloadContainerized",
+                "TestGetPayloadContainerizedWithDocker0",
+            },
+        )
