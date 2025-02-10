@@ -1,10 +1,11 @@
 package command
-
 import (
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+    "path/filepath"
+    "os"
     "testing"
     "github.com/spf13/cobra"
-    "os"
-    "path/filepath"
 )
 
 
@@ -18,17 +19,9 @@ func TestGetDefaultCoreBundleParams_ValidGlobalParams_ReturnsExpectedBundleParam
 
     bundleParams := GetDefaultCoreBundleParams(globalParams)
 
-    if bundleParams.ConfigParams.ConfFilePath != globalParams.ConfFilePath {
-        t.Errorf("Expected ConfFilePath to be %v, got %v", globalParams.ConfFilePath, bundleParams.ConfigParams.ConfFilePath)
-    }
-
-    if len(bundleParams.ConfigParams.ExtraConfFilePath) != len(globalParams.ExtraConfFilePath) {
-        t.Errorf("Expected ExtraConfFilePath length to be %v, got %v", len(globalParams.ExtraConfFilePath), len(bundleParams.ConfigParams.ExtraConfFilePath))
-    }
-
-    if bundleParams.ConfigParams.FleetPoliciesDirPath != globalParams.FleetPoliciesDirPath {
-        t.Errorf("Expected FleetPoliciesDirPath to be %v, got %v", globalParams.FleetPoliciesDirPath, bundleParams.ConfigParams.FleetPoliciesDirPath)
-    }
+    assert.Equal(t, globalParams.ConfFilePath, bundleParams.ConfigParams.ConfFilePath, "ConfFilePath mismatch")
+    assert.Len(t, bundleParams.ConfigParams.ExtraConfFilePath, len(globalParams.ExtraConfFilePath), "ExtraConfFilePath length mismatch")
+    assert.Equal(t, globalParams.FleetPoliciesDirPath, bundleParams.ConfigParams.FleetPoliciesDirPath, "FleetPoliciesDirPath mismatch")
 }
 
 // Test generated using Keploy
@@ -39,20 +32,12 @@ func TestLogLevelDefaultOff_RegisterAndValue_ReturnsExpectedValue(t *testing.T) 
     logLevel.Register(cmd)
 
     flag := cmd.PersistentFlags().Lookup("log_level")
-    if flag == nil {
-        t.Fatalf("Expected 'log_level' flag to be registered")
-    }
+    require.NotNil(t, flag, "Expected 'log_level' flag to be registered")
+    assert.Equal(t, "off", flag.DefValue, "Default log_level value mismatch")
 
-    if flag.DefValue != "off" {
-        t.Errorf("Expected default value of 'log_level' to be 'off', got %v", flag.DefValue)
-    }
-
-    cmd.PersistentFlags().Set("log_level", "debug")
-    if logLevel.Value() != "debug" {
-        t.Errorf("Expected log level value to be 'debug', got %v", logLevel.Value())
-    }
+    require.NoError(t, cmd.PersistentFlags().Set("log_level", "debug"))
+    assert.Equal(t, "debug", logLevel.Value(), "Log level value mismatch")
 }
-
 
 // Test generated using Keploy
 func TestMakeCommand_ValidSubcommandFactories_CreatesExpectedCommand(t *testing.T) {
@@ -71,24 +56,11 @@ func TestMakeCommand_ValidSubcommandFactories_CreatesExpectedCommand(t *testing.
 
     rootCmd := MakeCommand([]SubcommandFactory{subcommandFactory})
 
-    if rootCmd.Use != filepath.Base(os.Args[0]) {
-        t.Errorf("Expected root command Use to be %v, got %v", filepath.Base(os.Args[0]), rootCmd.Use)
-    }
-
-    if rootCmd.PersistentFlags().Lookup("cfgpath") == nil {
-        t.Errorf("Expected persistent flag 'cfgpath' to be defined")
-    }
-
-    if len(rootCmd.Commands()) != 2 {
-        t.Errorf("Expected 2 subcommands, got %v", len(rootCmd.Commands()))
-    }
-
-    if rootCmd.Commands()[0].Use != "subcommand1" {
-        t.Errorf("Expected first subcommand to be 'subcommand1', got %v", rootCmd.Commands()[0].Use)
-    }
-
-    if rootCmd.Commands()[1].Use != "subcommand2" {
-        t.Errorf("Expected second subcommand to be 'subcommand2', got %v", rootCmd.Commands()[1].Use)
-    }
+    assert.Equal(t, filepath.Base(os.Args[0]), rootCmd.Use, "Root command Use mismatch")
+    require.NotNil(t, rootCmd.PersistentFlags().Lookup("cfgpath"), "Expected persistent flag 'cfgpath' to be defined")
+    
+    assert.Len(t, rootCmd.Commands(), 2, "Subcommands count mismatch")
+    assert.Equal(t, "subcommand1", rootCmd.Commands()[0].Use, "First subcommand mismatch")
+    assert.Equal(t, "subcommand2", rootCmd.Commands()[1].Use, "Second subcommand mismatch")
 }
 

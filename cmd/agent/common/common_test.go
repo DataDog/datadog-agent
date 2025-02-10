@@ -3,6 +3,8 @@ package common
 import (
     "testing"
     "net/http"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
 )
 
 
@@ -13,13 +15,8 @@ func TestGetVersion_WritesCorrectJSONResponse(t *testing.T) {
 
     GetVersion(mockWriter, mockRequest)
 
-    if mockWriter.Header().Get("Content-Type") != "application/json" {
-        t.Errorf("Expected Content-Type to be application/json, got %s", mockWriter.Header().Get("Content-Type"))
-    }
-
-    if len(mockWriter.body) == 0 {
-        t.Errorf("Expected response body to be non-empty")
-    }
+    assert.Equal(t, "application/json", mockWriter.Header().Get("Content-Type"), "Content-Type mismatch")
+    assert.NotEmpty(t, mockWriter.body, "Expected response body to be non-empty")
 }
 
 type mockResponseWriter struct {
@@ -45,12 +42,7 @@ func (m *mockResponseWriter) WriteHeader(statusCode int) {}
 func TestNewSettingsClient_ReturnsValidClient(t *testing.T) {
     client, err := NewSettingsClient()
 
-    if err != nil {
-        t.Errorf("Expected no error, got %v", err)
-    }
-
-    if client == nil {
-        t.Errorf("Expected a valid settings.Client, got nil")
-    }
+    require.NoError(t, err, "Expected no error")
+    assert.NotNil(t, client, "Expected a valid settings.Client")
 }
 

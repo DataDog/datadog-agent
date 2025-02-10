@@ -2,6 +2,7 @@ package common
 
 import (
     "testing"
+    "github.com/stretchr/testify/assert"
     "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
@@ -13,12 +14,8 @@ func TestFilterInstances_EmptyInstances(t *testing.T) {
     validFilter := "name == 'validInstance'"
 
     filteredInstances, errors := filterInstances(instances, validFilter)
-    if len(filteredInstances) != 0 {
-        t.Errorf("Expected no instances, got: %v", filteredInstances)
-    }
-    if len(errors) != 0 {
-        t.Errorf("Expected no errors, got: %v", errors)
-    }
+    assert.Empty(t, filteredInstances, "Expected no instances")
+    assert.Empty(t, errors, "Expected no errors")
 }
 
 // Test generated using Keploy
@@ -30,11 +27,6 @@ func TestFilterInstances_InvalidYAMLInstance(t *testing.T) {
     validFilter := "name == 'validInstance'"
 
     filteredInstances, errors := filterInstances(instances, validFilter)
-    if len(errors) == 0 {
-        t.Errorf("Expected errors due to invalid YAML, got none")
-    }
-    if len(filteredInstances) != 0 {
-        t.Errorf("Expected no instances due to invalid YAML, got: %v", filteredInstances)
-    }
+    assert.NotEmpty(t, errors, "Expected errors due to invalid YAML")
+    assert.Empty(t, filteredInstances, "Expected no instances due to invalid YAML")
 }
-
