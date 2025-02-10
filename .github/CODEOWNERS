@@ -79,7 +79,6 @@
 /.gitlab/e2e/*                                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /.gitlab/e2e_testing_deploy/*                        @DataDog/agent-devx-loops @DataDog/agent-devx-infra
 /.gitlab/e2e_install_packages/*                      @DataDog/agent-delivery @DataDog/container-ecosystems
-/.gitlab/e2e_pre_test/*                              @DataDog/agent-devx-infra @DataDog/agent-devx-loops
 /.gitlab/kernel_matrix_testing/*                     @DataDog/agent-devx-infra @DataDog/ebpf-platform
 /.gitlab/lint/*                                      @DataDog/agent-devx-infra
 /.gitlab/maintenance_jobs/*                          @DataDog/agent-devx-infra @DataDog/agent-devx-loops
