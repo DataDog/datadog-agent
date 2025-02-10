@@ -34,9 +34,9 @@ type ProbeResponse struct {
 
 // TracerouteDriver is an implementation of traceroute send+receive of packets
 type TracerouteDriver interface {
-	// Send a traceroute packet with a specific TTL
+	// SendProbe sends a traceroute packet with a specific TTL
 	SendProbe(ttl uint8) error
-	// Poll to get a traceroute response with a timeout
+	// ReceiveProbe polls to get a traceroute response with a timeout
 	ReceiveProbe(timeout time.Duration) (*ProbeResponse, error)
 }
 
@@ -102,7 +102,7 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 			}
 
 			probe, err := t.ReceiveProbe(p.PollFrequency)
-			if err == ErrReceiveProbeNoPkt {
+			if errors.Is(err, ErrReceiveProbeNoPkt) {
 				continue
 			}
 			if err != nil {
@@ -112,7 +112,7 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 				return fmt.Errorf("ReceiveProbe() returned nil without an error (this indicates a bug in the TracerouteDriver)")
 			}
 			if probe.TTL < p.MinTTL || probe.TTL > p.MaxTTL {
-				return fmt.Errorf("received an invalid TTL (expected TTL in [%d, %d]): %d", probe.TTL, p.MinTTL, p.MaxTTL)
+				return fmt.Errorf("received an invalid TTL (expected TTL in [%d, %d]): %d", p.MinTTL, p.MaxTTL, probe.TTL)
 			}
 
 			results[probe.TTL-p.MinTTL] = probe
