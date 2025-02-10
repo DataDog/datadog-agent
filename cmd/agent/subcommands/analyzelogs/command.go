@@ -147,43 +147,9 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	var sources []*sources.LogSource
-	sources = nil
-	for _, config := range allConfigs {
-		if config.Name != cliParams.LogConfigPath {
-			continue
-		}
-		sources, err = ad.CreateSources(integration.Config{
-			Provider:   names.File,
-			LogsConfig: config.LogsConfig,
-		})
-		if err != nil {
-			fmt.Println("Cannot create source")
-			return nil, nil, nil, err
-		}
-		break
-	}
-
-	if sources == nil {
-		absolutePath := ""
-		wd, err := os.Getwd()
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		absolutePath = filepath.Join(wd, cliParams.LogConfigPath)
-		data, err := os.ReadFile(absolutePath)
-		if err != nil {
-			fmt.Println("Cannot read file path of logs config")
-			return nil, nil, nil, err
-		}
-		sources, err = ad.CreateSources(integration.Config{
-			Provider:   names.File,
-			LogsConfig: data,
-		})
-		if err != nil {
-			fmt.Println("Cannot create source")
-			return nil, nil, nil, err
-		}
+	sources, err := getSources(allConfigs, cliParams)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	for _, source := range sources {
@@ -193,4 +159,39 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		configSource.AddSource(source)
 	}
 	return agentimpl.SetUpLaunchers(config, configSource)
+}
+
+func getSources(allConfigs []integration.Config, cliParams *CliParams) ([]*sources.LogSource, error) {
+	for _, config := range allConfigs {
+		if config.Name != cliParams.LogConfigPath {
+			continue
+		}
+		sources, err := ad.CreateSources(integration.Config{
+			Provider:   names.File,
+			LogsConfig: config.LogsConfig,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return sources, nil
+	}
+
+	absolutePath := ""
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	absolutePath = filepath.Join(wd, cliParams.LogConfigPath)
+	data, err := os.ReadFile(absolutePath)
+	if err != nil {
+		return nil, err
+	}
+	sources, err := ad.CreateSources(integration.Config{
+		Provider:   names.File,
+		LogsConfig: data,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sources, nil
 }
