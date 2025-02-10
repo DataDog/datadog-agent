@@ -12,12 +12,12 @@ import (
 )
 
 func TestNewAcErrorStats(t *testing.T) {
-	s := newAcErrorStats()
+	s := newErrorStats()
 	assert.Len(t, s.config, 0)
 }
 
 func TestSetConfigError(t *testing.T) {
-	s := newAcErrorStats()
+	s := newErrorStats()
 	name := "foo.yaml"
 	s.setConfigError(name, "anError")
 	s.setConfigError(name, "anotherError")
@@ -27,7 +27,7 @@ func TestSetConfigError(t *testing.T) {
 }
 
 func TestRemoveConfigError(t *testing.T) {
-	s := newAcErrorStats()
+	s := newErrorStats()
 	name := "foo.yaml"
 	s.setConfigError(name, "anError")
 	s.removeConfigError(name)
@@ -35,7 +35,7 @@ func TestRemoveConfigError(t *testing.T) {
 }
 
 func TestGetConfigErrors(t *testing.T) {
-	s := newAcErrorStats()
+	s := newErrorStats()
 	name := "foo.yaml"
 	s.setConfigError(name, "anError")
 	err := s.getConfigErrors()

@@ -434,7 +434,7 @@ func run(
 
 	// something happened while getting the check(s), display some info.
 	if len(cs) == 0 {
-		for check, error := range autodiscoveryimpl.GetConfigErrors() {
+		for check, error := range ac.GetConfigErrors() {
 			if cliParams.checkName == check {
 				fmt.Fprintf(color.Output, "\n%s: invalid config for %s: %s\n", color.RedString("Error"), color.YellowString(check), error)
 			}
@@ -447,7 +447,7 @@ func run(
 				}
 			}
 		}
-		for check, warnings := range autodiscoveryimpl.GetResolveWarnings() {
+		for check, warnings := range ac.GetResolveWarnings() {
 			if cliParams.checkName == check {
 				fmt.Fprintf(color.Output, "\n%s: could not resolve %s config:\n", color.YellowString("Warning"), color.YellowString(check))
 				for _, warning := range warnings {

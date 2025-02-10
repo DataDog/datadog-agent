@@ -13,36 +13,35 @@ import (
 )
 
 var (
-	acErrors   = expvar.NewMap("autoconfig")
-	errorStats = newAcErrorStats()
+	acErrors = expvar.NewMap("autoconfig")
 )
 
-func setupAcErrors() {
+func setupExpvarErrors(au *AutoConfig) {
 	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
-		return errorStats.getConfigErrors()
+		return au.errorStats.getConfigErrors()
 	}))
 	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
-		return errorStats.getResolveWarnings()
+		return au.errorStats.getResolveWarnings()
 	}))
 }
 
 // loaderErrorStats holds the error objects
-type acErrorStats struct {
+type errorStats struct {
 	config  map[string]string   // config file name -> error
 	resolve map[string][]string // config file name -> errors
 	m       sync.RWMutex
 }
 
-// newAcErrorStats returns an instance holding autoconfig errors stats
-func newAcErrorStats() *acErrorStats {
-	return &acErrorStats{
+// newErrorStats returns an instance holding autoconfig errors stats
+func newErrorStats() *errorStats {
+	return &errorStats{
 		config:  make(map[string]string),
 		resolve: make(map[string][]string),
 	}
 }
 
 // setConfigError will safely set the error for a check configuration file
-func (es *acErrorStats) setConfigError(checkName string, err string) {
+func (es *errorStats) setConfigError(checkName string, err string) {
 	es.m.Lock()
 	defer es.m.Unlock()
 
@@ -50,7 +49,7 @@ func (es *acErrorStats) setConfigError(checkName string, err string) {
 }
 
 // removeConfigErrors removes the errors for a check config file
-func (es *acErrorStats) removeConfigError(checkName string) {
+func (es *errorStats) removeConfigError(checkName string) {
 	es.m.Lock()
 	defer es.m.Unlock()
 
@@ -58,7 +57,7 @@ func (es *acErrorStats) removeConfigError(checkName string) {
 }
 
 // getConfigErrors will safely get the errors a check config file
-func (es *acErrorStats) getConfigErrors() map[string]string {
+func (es *errorStats) getConfigErrors() map[string]string {
 	es.m.RLock()
 	defer es.m.RUnlock()
 
@@ -71,7 +70,7 @@ func (es *acErrorStats) getConfigErrors() map[string]string {
 }
 
 // setResolveWarning will safely set the error for a check configuration file
-func (es *acErrorStats) setResolveWarning(checkName string, err string) {
+func (es *errorStats) setResolveWarning(checkName string, err string) {
 	es.m.Lock()
 	defer es.m.Unlock()
 
@@ -79,7 +78,7 @@ func (es *acErrorStats) setResolveWarning(checkName string, err string) {
 }
 
 // removeResolveWarnings removes the errors for a check config file
-func (es *acErrorStats) removeResolveWarnings(checkName string) {
+func (es *errorStats) removeResolveWarnings(checkName string) {
 	es.m.Lock()
 	defer es.m.Unlock()
 
@@ -87,19 +86,9 @@ func (es *acErrorStats) removeResolveWarnings(checkName string) {
 }
 
 // getResolveWarnings will safely get the errors a check config file
-func (es *acErrorStats) getResolveWarnings() map[string][]string {
+func (es *errorStats) getResolveWarnings() map[string][]string {
 	es.m.RLock()
 	defer es.m.RUnlock()
 
 	return deepcopy.Copy(es.resolve).(map[string][]string)
-}
-
-// GetConfigErrors gets the config errors
-func GetConfigErrors() map[string]string {
-	return errorStats.getConfigErrors()
-}
-
-// GetResolveWarnings get the resolve warnings/errors
-func GetResolveWarnings() map[string][]string {
-	return errorStats.getResolveWarnings()
 }

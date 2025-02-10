@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core"
+	autodiscovernoop "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -104,7 +105,9 @@ func (suite *CollectorTestSuite) SetupTest() {
 		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
-		})))
+		}),
+		autodiscovernoop.Module(),
+	))
 	suite.c.start(context.TODO())
 }
 

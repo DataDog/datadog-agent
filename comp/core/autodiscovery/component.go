@@ -36,6 +36,8 @@ type Component interface {
 	GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet
 	GetProviderCatalog() map[string]providers.ConfigProviderFactory
 	GetTelemetryStore() *telemetry.Store
+	GetConfigErrors() map[string]string
+	GetResolveWarnings() map[string][]string
 	// TODO (component): deprecate start/stop methods
 	Start()
 	Stop()

@@ -543,7 +543,7 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver)
+			return newReconcilingConfigManager(&mockResolver, newErrorStats())
 		}},
 	})
 }

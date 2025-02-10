@@ -20,6 +20,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -49,19 +50,21 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc      fx.Lifecycle
-	Config  config.Component
-	Log     log.Component
-	HaAgent haagent.Component
+	Lc            fx.Lifecycle
+	Config        config.Component
+	Log           log.Component
+	HaAgent       haagent.Component
+	Autodiscovery autodiscovery.Component
 
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
 }
 
 type collectorImpl struct {
-	log     log.Component
-	config  config.Component
-	haAgent haagent.Component
+	log           log.Component
+	config        config.Component
+	haAgent       haagent.Component
+	autodiscovery autodiscovery.Component
 
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]
@@ -130,6 +133,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		checkInstances:     int64(0),
 		cancelCheckTimeout: deps.Config.GetDuration("check_cancel_timeout"),
 		createdAt:          time.Now(),
+		autodiscovery:      deps.Autodiscovery,
 	}
 
 	pkgCollector.InitPython(common.GetPythonPaths()...)
