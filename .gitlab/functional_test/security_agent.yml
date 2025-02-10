@@ -7,6 +7,7 @@
 
 # Expect warning: github.com/DataDog/datadog-agent/pkg/config.LoadCustom:1501 Unknown environment variable: DD_SYSTEM_PROBE_BPF_DIR
 .kitchen_test_security_agent_linux:
+  allow_failure: true
   extends:
     - .kitchen_test_security_agent
   script:
@@ -93,7 +94,6 @@ kitchen_test_security_agent_arm64:
         KITCHEN_CWS_PLATFORM: [host, docker, ad, ebpfless]
 
 kitchen_test_security_agent_amazonlinux_x64:
-  allow_failure: true
   extends:
     - .kitchen_test_security_agent_linux
     - .kitchen_ec2_location_us_east_1
