@@ -13,8 +13,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/viper"
-
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -61,7 +60,7 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	}
 
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
-	var e viper.ConfigFileNotFoundError
+	var e model.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {

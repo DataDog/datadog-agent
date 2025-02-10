@@ -20,8 +20,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -127,8 +127,8 @@ func testEmitAgentTelemetry(t *testing.T) {
 }
 
 func testObfuscaterConfig(t *testing.T) {
-	pkgconfigmodel.CleanOverride(t)
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	pkgconfigsetup.CleanOverride(t)
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	pkgconfigsetup.InitConfig(conf)
 	o := lazyInitObfuscator()
 	o.Stop()
