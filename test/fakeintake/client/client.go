@@ -405,6 +405,19 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 	return nil
 }
 
+// GetLastAPIKey returns the last apiKey sent with a payload to the intake
+func (c *Client) GetLastAPIKey() (string, error) {
+	resp, err := http.Get(fmt.Sprintf("%s/debug/lastAPIKey", c.fakeIntakeURL))
+	if err != nil {
+		return "", err
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(body)), nil
+}
+
 func (c *Client) getMetric(name string) ([]*aggregator.MetricSeries, error) {
 	err := c.getMetrics()
 	if err != nil {
