@@ -9,7 +9,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -26,11 +25,6 @@ import (
 
 // cgroupV1BaseController is the name of the cgroup controller used to parse /proc/<pid>/cgroup
 const cgroupV1BaseController = "memory"
-
-// readerCacheExpiration determines the duration for which the cgroups data is cached in the cgroups reader.
-// This value needs to be large enough to reduce latency and I/O load.
-// It also needs to be small enough to catch the first traces of new containers.
-const readerCacheExpiration = 2 * time.Second
 
 type ucredKey struct{}
 
@@ -157,8 +151,6 @@ func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) st
 
 		if originInfo.LocalData.ContainerID != "" {
 			return originInfo.LocalData.ContainerID
-		} else if originInfo.LocalData.Inode != 0 {
-			return c.resolveContainerIDFromInode(strconv.FormatUint(originInfo.LocalData.Inode, 10))
 		}
 	}
 
@@ -188,39 +180,6 @@ func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) st
 		log.Errorf("Could not generate container ID from OriginInfo: %+v, err: %v", originInfo, err)
 	}
 	return generatedContainerID
-}
-
-// resolveContainerIDFromInode returns the container ID for the given cgroupv2 inode.
-func (c *cgroupIDProvider) resolveContainerIDFromInode(inodeString string) string {
-	containerID, err := c.getCachedContainerID(inodeString, func() (string, error) {
-		// Parse the cgroupv2 inode as a uint64.
-		inode, err := strconv.ParseUint(inodeString, 10, 64)
-		if err != nil {
-			return "", fmt.Errorf("could not parse cgroupv2 inode: %s: %v", inodeString, err)
-		}
-
-		// Get the container ID from the cgroupv2 inode.
-		cgroup := c.reader.GetCgroupByInode(inode)
-		if cgroup == nil {
-			err := c.reader.RefreshCgroups(readerCacheExpiration)
-			if err != nil {
-				return "", fmt.Errorf("containerID not found from inode %d and unable to refresh cgroups, err: %w", inode, err)
-			}
-
-			cgroup = c.reader.GetCgroupByInode(inode)
-			if cgroup == nil {
-				return "", fmt.Errorf("containerID not found from inode %d, err: %w", inode, err)
-			}
-		}
-
-		return cgroup.Identifier(), nil
-	})
-	if err != nil {
-		log.Debugf("Could not get container ID from cgroupv2 inode: %s: %v", inodeString, err)
-		return ""
-	}
-
-	return containerID
 }
 
 // resolveContainerIDFromContext returns the container ID for the given context.
