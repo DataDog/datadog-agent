@@ -26,8 +26,20 @@ if (Test-Path $omnibusOutput\$packageName) {
 # datadog-package takes a folder as input and will package everything in that, so copy the msi to its own folder
 Remove-Item -Recurse -Force C:\oci-pkg -ErrorAction SilentlyContinue
 New-Item -ItemType Directory C:\oci-pkg | Out-Null
-Copy-Item (Get-ChildItem $omnibusOutput\${package}-${version}-x86_64.msi).FullName -Destination C:\oci-pkg\${package}-${version}-x86_64.msi
 
+# if we are building the installer we need to copy exe
+if ($package -eq "datadog-installer") {
+    $binDir = "$(Get-Location)\bin\installer\"
+    New-Item -ItemType Directory C:\oci-pkg\bin | Out-Null
+    New-Item -ItemType Directory C:\oci-pkg\bin\installer | Out-Null
+    # copy raw .exe 
+    Copy-Item (Get-ChildItem $binDir\installer.exe).FullName -Destination C:\oci-pkg\bin\installer\installer.exe
+
+}
+# else we move the MSI for the agent or other package into the OCI package
+else {
+    Copy-Item (Get-ChildItem $omnibusOutput\${package}-${version}-x86_64.msi).FullName -Destination C:\oci-pkg\${package}-${version}-x86_64.msi
+}
 # The argument --archive-path ".\omnibus\pkg\datadog-agent-${version}.tar.gz" is currently broken and has no effects
 & C:\tools\datadog-package.exe create --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg
 if ($LASTEXITCODE -ne 0) {
