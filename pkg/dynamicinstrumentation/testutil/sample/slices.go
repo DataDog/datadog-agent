@@ -45,6 +45,10 @@ func test_struct_slice(xs []structWithNoStrings) {}
 func test_string_slice(s []string) {}
 
 //nolint:all
+//go:noinline
+func test_nil_slice(s []bool) {}
+
+//nolint:all
 func ExecuteSliceFuncs() {
 	originalSlice := []int{1, 2, 3}
 	expandSlice(originalSlice)
@@ -60,4 +64,6 @@ func ExecuteSliceFuncs() {
 		{7, 8, 9},
 	})
 	test_empty_slice([]uint{})
+
+	test_nil_slice(nil)
 }
