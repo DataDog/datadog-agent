@@ -244,6 +244,23 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
+	// Do not use fentry if the kernel has the tasks_rcu_exit_srcu lock, might cause a deadlock when system-probe exists
+	// This is fixed by https://github.com/torvalds/linux/commit/1612160b91272f5b1596f499584d6064bf5be794
+	const tasksRCUExitDeadLockSymbol = "tasks_rcu_exit_srcu"
+	missingSymbols, err := ddebpf.VerifyKernelFuncs(tasksRCUExitDeadLockSymbol)
+	if err != nil {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but failed to verify kernel lock symbol, falling back to kprobe mode")
+		return
+	}
+
+	// VerifyKernelFuncs returns the missing symbols
+	if _, ok := missingSymbols[tasksRCUExitDeadLockSymbol]; !ok {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but lock responsible for deadlock was found in kernel symbols, falling back to kprobe mode")
+		return
+	}
+
 	p.useFentry = true
 }
 
