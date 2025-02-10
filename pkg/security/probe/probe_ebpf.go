@@ -423,7 +423,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if err := p.initEBPFManager(); err != nil {
-		if !p.config.Probe.EventStreamUseKprobeFallback {
+		if !p.useFentry || !p.config.Probe.EventStreamUseKprobeFallback {
 			return err
 		}
 
