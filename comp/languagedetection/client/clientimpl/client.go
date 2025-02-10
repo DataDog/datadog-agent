@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -58,7 +59,7 @@ type dependencies struct {
 
 // languageDetectionClient defines the method to send a message to the Cluster-Agent
 type languageDetectionClient interface {
-	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
+	PostLanguageMetadata(ctx context.Context, queryData []byte) error
 }
 
 // client sends language information to the Cluster-Agent
@@ -264,7 +265,12 @@ func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRe
 		c.langDetectionCl = dcaClient
 	}
 	t := time.Now()
-	err := c.langDetectionCl.PostLanguageMetadata(ctx, data)
+	queryBody, err := proto.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	err = c.langDetectionCl.PostLanguageMetadata(ctx, queryBody)
 	if err != nil {
 		c.telemetry.Requests.Inc(statusError)
 		return err

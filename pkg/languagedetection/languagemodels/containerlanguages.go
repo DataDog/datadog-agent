@@ -10,8 +10,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 ////////////////////////////////
@@ -50,29 +48,6 @@ func NewInitContainer(containerName string) *Container {
 
 // ContainersLanguages handles mapping containers to language sets
 type ContainersLanguages map[Container]LanguageSet
-
-// ToProto returns two proto messages ContainerLanguageDetails
-// The first one contains standard containers
-// The second one contains init containers
-func (c ContainersLanguages) ToProto() (containersDetailsProto, initContainersDetailsProto []*pbgo.ContainerLanguageDetails) {
-	containersDetailsProto = make([]*pbgo.ContainerLanguageDetails, 0, len(c))
-	initContainersDetailsProto = make([]*pbgo.ContainerLanguageDetails, 0, len(c))
-	for container, languageSet := range c {
-		if container.Init {
-			initContainersDetailsProto = append(initContainersDetailsProto, &pbgo.ContainerLanguageDetails{
-				ContainerName: container.Name,
-				Languages:     languageSet.ToProto(),
-			})
-		} else {
-			containersDetailsProto = append(containersDetailsProto, &pbgo.ContainerLanguageDetails{
-				ContainerName: container.Name,
-				Languages:     languageSet.ToProto(),
-			})
-		}
-
-	}
-	return containersDetailsProto, initContainersDetailsProto
-}
 
 // ToAnnotations converts the containers languages to language annotations
 func (c ContainersLanguages) ToAnnotations() map[string]string {
