@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -119,18 +118,18 @@ type NetworkCheck struct {
 }
 
 type networkInstanceConfig struct {
-	CollectConnectionState   bool     `yaml:"collect_connection_state"`
-	ExcludedInterfaces       []string `yaml:"excluded_interfaces"`
-	ExcludedInterfaceRe      string   `yaml:"excluded_interface_re"`
-	ExcludedInterfacePattern *regexp.Regexp
-	CollectEthtoolStats      bool `yaml:"collect_ethtool_stats"`
-}
-
-type networkInitConfig struct {
+	CollectConnectionState    bool     `yaml:"collect_connection_state"`
+	ExcludedInterfaces        []string `yaml:"excluded_interfaces"`
+	ExcludedInterfaceRe       string   `yaml:"excluded_interface_re"`
+	ExcludedInterfacePattern  *regexp.Regexp
+	CollectEthtoolStats       bool     `yaml:"collect_ethtool_stats"`
 	ConntrackPath             string   `yaml:"conntrack_path"`
 	UseSudoConntrack          bool     `yaml:"use_sudo_conntrack"`
 	BlacklistConntrackMetrics []string `yaml:"blacklist_conntrack_metrics"`
 	WhitelistConntrackMetrics []string `yaml:"whitelist_conntrack_metrics"`
+}
+
+type networkInitConfig struct {
 }
 
 type networkConfig struct {
@@ -240,10 +239,7 @@ func (c *NetworkCheck) Run() error {
 	}
 
 	setProcPath := c.net.GetProcPath()
-	log.Debug(c.config)
-	log.Debug(c.config.instance)
-	log.Debug(c.config.initConf)
-	collectConntrackMetrics(sender, c.config.initConf.ConntrackPath, c.config.initConf.UseSudoConntrack, setProcPath, c.config.initConf.BlacklistConntrackMetrics, c.config.initConf.WhitelistConntrackMetrics)
+	collectConntrackMetrics(sender, c.config.instance.ConntrackPath, c.config.instance.UseSudoConntrack, setProcPath, c.config.instance.BlacklistConntrackMetrics, c.config.instance.WhitelistConntrackMetrics)
 
 	sender.Commit()
 	return nil
@@ -321,7 +317,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 
 		for metricName, metricValue := range keyValuePairing {
 			metricName := fmt.Sprintf("system.net.%s", metricName)
-			sender.Rate(metricName, float64(metricValue), "", tags)
+			sender.MonotonicCount(metricName, float64(metricValue), "", tags)
 		}
 	}
 
@@ -504,8 +500,8 @@ func netstatTCPExtCounters(procfsPath string) (map[string]int64, error) {
 	return counters, nil
 }
 
-func readIntFile(filePath string) (int, error) {
-	data, err := os.ReadFile(filePath)
+func readIntFile(filePath string, fs afero.Fs) (int, error) {
+	data, err := afero.ReadFile(fs, filePath)
 	if err != nil {
 		return 0, err
 	}
@@ -569,14 +565,14 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 	if conntrackPath != "None" {
 		addConntrackStatsMetrics(sender, conntrackPath, useSudo)
 		conntrackFilesLocation := procfsPath + "/sys/net/netfilter"
-
 		var availableFiles []string
-		files, err := os.ReadDir(conntrackFilesLocation)
+		fs := filesystem
+		files, err := afero.ReadDir(fs, conntrackFilesLocation)
 		if err != nil {
 			log.Debugf("Unable to list files in %s: %v", conntrackFilesLocation, err)
 		} else {
 			for _, file := range files {
-				if file.Type().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
+				if file.Mode().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
 					availableFiles = append(availableFiles, strings.TrimPrefix(file.Name(), "nf_conntrack_"))
 				}
 			}
@@ -586,17 +582,21 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 				if contains(blacklistConntrackMetrics, metricName) {
 					continue
 				}
-			} else {
+			} else if len(whitelistConntrackMetrics) > 0 {
 				if !contains(whitelistConntrackMetrics, metricName) {
+					continue
+				}
+			} else {
+				if !contains([]string{"max", "count"}, metricName) {
 					continue
 				}
 			}
 			metricFileLocation := filepath.Join(conntrackFilesLocation, "nf_conntrack_"+metricName)
-			value, err := readIntFile(metricFileLocation)
+			value, err := readIntFile(metricFileLocation, fs)
 			if err != nil {
 				log.Debugf("Error reading %s: %v", metricFileLocation, err)
 			}
-			sender.Rate("system.net.conntrack."+metricName, float64(value), "", []string{})
+			sender.Gauge("system.net.conntrack."+metricName, float64(value), "", []string{})
 		}
 	}
 }
