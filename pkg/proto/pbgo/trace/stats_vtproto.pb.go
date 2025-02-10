@@ -330,6 +330,13 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.GRPCStatusCode != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.GRPCStatusCode))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x90
+	}
 	if m.IsTraceRoot != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IsTraceRoot))
 		i--
@@ -634,6 +641,9 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 	}
 	if m.IsTraceRoot != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.IsTraceRoot))
+	}
+	if m.GRPCStatusCode != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.GRPCStatusCode))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1941,6 +1951,25 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.IsTraceRoot |= Trilean(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 18:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GRPCStatusCode", wireType)
+			}
+			m.GRPCStatusCode = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.GRPCStatusCode |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

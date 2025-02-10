@@ -339,6 +339,7 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 		Type:           aggrKey.Type,
 		Synthetics:     aggrKey.Synthetics,
 		IsTraceRoot:    aggrKey.IsTraceRoot,
+		GRPCStatusCode: aggrKey.GRPCStatusCode,
 		PeerTags:       stats.peerTags,
 		TopLevelHits:   stats.topLevelHits,
 		Hits:           stats.hits,
@@ -369,6 +370,7 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 		Type:        b.Type,
 		Synthetics:  b.Synthetics,
 		StatusCode:  b.HTTPStatusCode,
+		GRPCStatusCode: b.GRPCStatusCode,
 		IsTraceRoot: b.IsTraceRoot,
 	}
 	if tags := b.GetPeerTags(); len(tags) > 0 {

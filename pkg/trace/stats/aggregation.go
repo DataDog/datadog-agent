@@ -7,14 +7,17 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"hash/fnv"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -31,15 +34,16 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service      string
-	Name         string
-	Resource     string
-	Type         string
-	SpanKind     string
-	StatusCode   uint32
-	Synthetics   bool
-	PeerTagsHash uint64
-	IsTraceRoot  pb.Trilean
+	Service        string
+	Name           string
+	Resource       string
+	Type           string
+	SpanKind       string
+	StatusCode     uint32
+	Synthetics     bool
+	PeerTagsHash   uint64
+	IsTraceRoot    pb.Trilean
+	GRPCStatusCode uint32
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -52,7 +56,33 @@ type PayloadAggregationKey struct {
 	ImageTag     string
 }
 
+var grpcStatusMap = map[string]codes.Code{
+	"OK":                  codes.OK,
+	"CANCELLED":           codes.Canceled,
+	"UNKNOWN":             codes.Unknown,
+	"INVALID_ARGUMENT":    codes.InvalidArgument,
+	"DEADLINE_EXCEEDED":   codes.DeadlineExceeded,
+	"NOT_FOUND":           codes.NotFound,
+	"ALREADY_EXISTS":      codes.AlreadyExists,
+	"PERMISSION_DENIED":   codes.PermissionDenied,
+	"UNAUTHENTICATED":     codes.Unauthenticated,
+	"RESOURCE_EXHAUSTED":  codes.ResourceExhausted,
+	"FAILED_PRECONDITION": codes.FailedPrecondition,
+	"ABORTED":             codes.Aborted,
+	"OUT_OF_RANGE":        codes.OutOfRange,
+	"UNIMPLEMENTED":       codes.Unimplemented,
+	"INTERNAL":            codes.Internal,
+	"UNAVAILABLE":         codes.Unavailable,
+	"DATA_LOSS":           codes.DataLoss,
+}
+
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
+	/*
+		if _, ok := metrics["rpc.grpc.status_code"]; ok || meta["rpc.grpc.status_code"] != "" {
+			return extractGRPCStatus(meta, metrics)
+		}
+	*/
+
 	code, ok := metrics[traceutil.TagStatusCode]
 	if ok {
 		// only 7.39.0+, for lesser versions, always use Meta
@@ -82,15 +112,16 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:     s.resource,
-			Service:      s.service,
-			Name:         s.name,
-			SpanKind:     s.spanKind,
-			Type:         s.typ,
-			StatusCode:   s.statusCode,
-			Synthetics:   synthetics,
-			IsTraceRoot:  isTraceRoot,
-			PeerTagsHash: peerTagsHash(s.matchingPeerTags),
+			Resource:       s.resource,
+			Service:        s.service,
+			Name:           s.name,
+			SpanKind:       s.spanKind,
+			Type:           s.typ,
+			StatusCode:     s.statusCode,
+			Synthetics:     synthetics,
+			IsTraceRoot:    isTraceRoot,
+			GRPCStatusCode: s.grpcStatusCode,
+			PeerTagsHash:   peerTagsHash(s.matchingPeerTags),
 		},
 	}
 	return agg
@@ -117,14 +148,103 @@ func peerTagsHash(tags []string) uint64 {
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:     g.Resource,
-			Service:      g.Service,
-			Name:         g.Name,
-			SpanKind:     g.SpanKind,
-			StatusCode:   g.HTTPStatusCode,
-			Synthetics:   g.Synthetics,
-			PeerTagsHash: peerTagsHash(g.PeerTags),
-			IsTraceRoot:  g.IsTraceRoot,
+			Resource:       g.Resource,
+			Service:        g.Service,
+			Name:           g.Name,
+			SpanKind:       g.SpanKind,
+			StatusCode:     g.HTTPStatusCode,
+			Synthetics:     g.Synthetics,
+			PeerTagsHash:   peerTagsHash(g.PeerTags),
+			IsTraceRoot:    g.IsTraceRoot,
+			GRPCStatusCode: g.GRPCStatusCode,
 		},
 	}
+}
+
+// extractGRPCStatusCodeFromMeta function for translation
+// stats are processed in concentrator.go, go to aggregation.go for aggregatoin
+func getGRPCStatusCode(statsd statsd.ClientInterface, meta map[string]string, metrics map[string]float64) uint32 {
+	code, ok := metrics["rpc.grpc.status_code"] // Expected value: Integer or string of code message
+	if ok {
+		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:rpc.grpc.status_code"}, 1)
+
+		return uint32(code)
+	}
+	strC := meta["rpc.grpc.status_code"]
+
+	if strC != "" {
+		c, err := strconv.ParseUint(strC, 10, 32)
+		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:rpc.grpc.status_code"}, 1)
+		if err != nil { // Check for string of code message
+			codeStr, exists := grpcStatusMap[strings.ToUpper(strC)]
+			if !exists {
+				log.Debugf("Invalid status code %s. Using 0.", strC)
+				return 0
+			}
+			c := codes.Code(codeStr)
+			statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:rpc.grpc.status_code"}, 1)
+			return uint32(c)
+
+
+		}
+		return uint32(c)
+	}
+
+	code, ok = metrics["grpc.code"] // Expected value: String of integer
+	if ok {
+		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:grpc.code"}, 1)
+		return uint32(code)
+	}
+	strC = meta["grpc.code"]
+	if strC != "" {
+		c, err := strconv.ParseUint(strC, 10, 32)
+		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:grpc.code"}, 1)
+		if err != nil {
+			log.Debugf("Invalid status code %s. Using 0.", strC)
+			return 0
+		}
+		return uint32(c)
+	}
+
+	code, ok = metrics["rpc.grpc.status.code"] // Expected value: string of code message
+	if ok {
+		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:rpc.grpc.status.code"}, 1)
+		return uint32(code)
+	}
+	strC = meta["rpc.grpc.status.code"]
+	if strC != "" {
+		code, exists := grpcStatusMap[strings.ToUpper(strC)]
+		if (!exists) {
+			log.Debugf("Invalid status code %s. Using 0.", strC)
+			return 0
+		}
+		c := codes.Code(code)
+		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:rpc.grpc.status.code"}, 1)
+		return uint32(c)
+	}
+
+	code, ok = metrics["grpc.status.code"] // Expected value: Integer or string of code message
+	if ok {
+		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:grpc.status.code"}, 1)
+		return uint32(code)
+	}
+	strC = meta["grpc.status.code"]
+	if strC != "" {
+		c, err := strconv.ParseUint(strC, 10, 32)
+		statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:grpc.status.code"}, 1)
+		if err != nil {
+			codeStr, exists := grpcStatusMap[strings.ToUpper(strC)]
+			if !exists {
+				log.Debugf("Invalid status code %s. Using 0.", strC)
+				return 0
+			}
+			c := codes.Code(codeStr)
+			statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:grpc.status.code"}, 1)
+			return uint32(c)
+
+		}
+		return uint32(c)
+	}
+	log.Debugf("Invalid status code %s. Using 0.", strC)
+	return 0
 }
