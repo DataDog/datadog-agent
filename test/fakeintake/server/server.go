@@ -356,6 +356,11 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	apiKey := fi.extractDatadogAPIKey(req)
+	if apiKey != "" {
+		fi.store.SetRecentAPIKey(apiKey)
+	}
+
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
 
 	switch req.Method {
@@ -441,15 +446,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	}
 	contentType := req.Header.Get("Content-Type")
 
-	//
-	apiKey := ""
-	for h, val := range req.Header {
-		if strings.ToLower(h) == "dd-api-key" {
-			apiKey = val[0]
-			continue
-		}
-	}
-
+	apiKey := fi.extractDatadogAPIKey(req)
 	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, fi.clock.Now().UTC())
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
@@ -466,15 +463,28 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	return fmt.Errorf("no POST response found for path %s", req.URL.Path)
 }
 
-func (fi *Server) handleGetLastAPIKey(w http.ResponseWriter, req *http.Request) {
-	apiKey, err := fi.store.MostRecentPayloadAPIKey("/intake/")
+func (fi *Server) extractDatadogAPIKey(req *http.Request) string {
+	apiKey := req.URL.Query().Get("api_key")
+	if apiKey != "" {
+		return apiKey
+	}
+	for hname, hval := range req.Header {
+		if strings.ToLower(hname) == "dd-api-key" {
+			return hval[0]
+		}
+	}
+	return ""
+}
+
+func (fi *Server) handleGetLastAPIKey(w http.ResponseWriter, _req *http.Request) {
+	apiKey, err := fi.store.GetRecentAPIKey()
 	if err != nil {
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
 		return
 	}
 	writeHTTPResponse(w, httpResponse{
-		contentType: "application/text",
+		contentType: "text/plain",
 		statusCode:  http.StatusOK,
 		body:        []byte(apiKey),
 	})

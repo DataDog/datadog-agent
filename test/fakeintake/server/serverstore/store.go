@@ -22,8 +22,10 @@ import (
 type Store interface {
 	// AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
 	AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time) error
-	// MostRecentPayloadAPIKey gets the apikey from the most recent payload at the given route
-	MostRecentPayloadAPIKey(route string) (string, error)
+	// SetRecentAPIKey sets the most recent API Key
+	SetRecentAPIKey(apiKey string)
+	// GetRecentAPIKey gets the most recent API Keys
+	GetRecentAPIKey() (string, error)
 	// CleanUpPayloadsOlderThan removes payloads older than the given time
 	CleanUpPayloadsOlderThan(time.Time)
 	// GetRawPayloads returns all raw payloads for a given route
@@ -64,6 +66,7 @@ func GetJSONPayloads(store Store, route string) ([]api.ParsedPayload, error) {
 		}
 		parsedPayloads = append(parsedPayloads, api.ParsedPayload{
 			Timestamp: payload.Timestamp,
+			APIKey:    payload.APIKey,
 			Data:      parsedPayload,
 			Encoding:  payload.Encoding,
 		})
