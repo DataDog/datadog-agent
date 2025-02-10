@@ -614,7 +614,7 @@ workflow:
 # for stable branches in case of failure in any previous job
 .on_deploy_stable_on_failure:
   - <<: *if_deploy_stable
-  - when: on_failure
+    when: on_failure
 
 .except_deploy:
   - <<: *if_deploy
