@@ -37,8 +37,10 @@ import (
 )
 
 const (
-	maxSelftestRetry = 3
-	selftestDelay    = 5 * time.Second
+	// selftest
+	selftestMaxRetry   = 20
+	selftestStartAfter = 30 * time.Second
+	selftestDelay      = 15 * time.Second
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -194,9 +196,9 @@ func (c *CWSConsumer) Start() error {
 
 	// we can now wait for self test events
 	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
-		seclog.Debugf("self-test results : success : %v, failed : %v, retry %d/%d", success, fails, c.selfTestRetry.Load()+1, maxSelftestRetry)
+		seclog.Debugf("self-test results : success : %v, failed : %v, try %d/%d", success, fails, c.selfTestRetry.Load()+1, selftestMaxRetry)
 
-		if len(fails) > 0 && c.selfTestRetry.Load() < maxSelftestRetry {
+		if len(fails) > 0 && c.selfTestRetry.Load() < selftestMaxRetry {
 			c.selfTestRetry.Inc()
 
 			time.Sleep(selftestDelay)
@@ -233,7 +235,7 @@ func (c *CWSConsumer) PostProbeStart() error {
 			select {
 			case <-c.ctx.Done():
 
-			case <-time.After(15 * time.Second):
+			case <-time.After(selftestStartAfter):
 				if _, err := c.RunSelfTest(false); err != nil {
 					seclog.Warnf("failed to run self test: %s", err)
 				}
