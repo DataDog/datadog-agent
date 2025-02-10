@@ -15,31 +15,6 @@ Prelude
 Released on: 2025-02-10
 Pinned to datadog-agent v7.62.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7622>`_.
 
-.. _Release Notes_7.62.2_Enhancement Notes:
-
-Enhancement Notes
------------------
-
-- The Datadog Cluster Agent admission controller agent sidecar injection now sets up
-  Agent sidecars to run with securityContext of `readOnlyRootFilesystem:false` by default.
-  Advanced users can customize the securityContext through clusterAgent.admissionController.agentSidecarInjection.profiles.
-
-
-.. _Release Notes_7.62.2_Bug Fixes:
-
-Bug Fixes
----------
-
-- Fix issue where annotations as tags were not showing up properly
-  when certain resource collectors were enabled.
-
-- Include `gpu_vendor` pod tags on the Datadog Cluster Agent when
-  enabling datadog.clusterTagger.collectKubernetesTags.
-
-- When the Datadog Cluster Agent injects the Datadog Agent as a sidecar
-  on a Job, the agent will now exit when the main Job completes.
-
-
 .. _Release Notes_7.60.1:
 
 7.62.1
