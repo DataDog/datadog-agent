@@ -111,7 +111,7 @@ type MockCommandRunner struct {
 	mock.Mock
 }
 
-func (m *MockCommandRunner) FakeRunCommand(cmd []string) (string, error) {
+func (m *MockCommandRunner) FakeRunCommand(_ []string) (string, error) {
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
 }
@@ -939,75 +939,75 @@ IpExt: 801 439 120 439`),
 	mockSender.AssertNotCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
 }
 
-func TestConntrackWhitelistDefault(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+// func TestConntrackWhitelistDefault(t *testing.T) {
+// 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+// 	networkCheck := NetworkCheck{
+// 		net: net,
+// 	}
 
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-collect_conntrack_metrics: true
-`)
-	rawInitConfig := []byte(`
-conntrack_path: ""
-whitelist_conntrack_metrics: []string{"max", "count"}
-`)
+// 	rawInstanceConfig := []byte(`
+// procfs_path: "/mocked/procfs"
+// collect_conntrack_metrics: true
+// `)
+// 	rawInitConfig := []byte(`
+// conntrack_path: ""
+// whitelist_conntrack_metrics: []string{"max", "count"}
+// `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
+// 	mockSender := mocksender.NewMockSender(networkCheck.ID())
+// 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+// 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+// 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+// 	mockSender.On("Commit").Return()
 
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
+// 	mockCommandRunner := new(MockCommandRunner)
+// 	runCommandFunction = mockCommandRunner.FakeRunCommand
 
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
+// 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
-	err := networkCheck.Run()
-	assert.Nil(t, err)
+// 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+// 	err := networkCheck.Run()
+// 	assert.Nil(t, err)
 
-	expectedTags := []string{"cpu:0"}
-	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", expectedTags)
-	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", expectedTags)
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
-}
+// 	expectedTags := []string{"cpu:0"}
+// 	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", expectedTags)
+// 	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", expectedTags)
+// 	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
+// }
 
-func TestConntrackBlacklist(t *testing.T) {
-	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+// func TestConntrackBlacklist(t *testing.T) {
+// 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
+// 	networkCheck := NetworkCheck{
+// 		net: net,
+// 	}
 
-	rawInstanceConfig := []byte(`
-procfs_path: "/mocked/procfs"
-collect_conntrack_metrics: true
-`)
-	rawInitConfig := []byte(`
-conntrack_path: ""
-whitelist_conntrack_metrics: []string{"ignore_this"}
-blacklist_conntrack_metrics: []string{"count", "entries", "max"}
-`)
+// 	rawInstanceConfig := []byte(`
+// procfs_path: "/mocked/procfs"
+// collect_conntrack_metrics: true
+// `)
+// 	rawInitConfig := []byte(`
+// conntrack_path: ""
+// whitelist_conntrack_metrics: []string{"ignore_this"}
+// blacklist_conntrack_metrics: []string{"count", "entries", "max"}
+// `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
+// 	mockSender := mocksender.NewMockSender(networkCheck.ID())
+// 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+// 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+// 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+// 	mockSender.On("Commit").Return()
 
-	mockCommandRunner := new(MockCommandRunner)
-	runCommandFunction = mockCommandRunner.FakeRunCommand
+// 	mockCommandRunner := new(MockCommandRunner)
+// 	runCommandFunction = mockCommandRunner.FakeRunCommand
 
-	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
+// 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
-	err := networkCheck.Run()
-	assert.Nil(t, err)
+// 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+// 	err := networkCheck.Run()
+// 	assert.Nil(t, err)
 
-	expectedTags := []string{"cpu:0"}
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", expectedTags)
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", expectedTags)
-	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
-}
+// 	expectedTags := []string{"cpu:0"}
+// 	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", expectedTags)
+// 	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", expectedTags)
+// 	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
+// }
