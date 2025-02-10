@@ -125,8 +125,8 @@ deploy_containers*                     @Datadog/agent-delivery
 deploy_containers-cws-instrumentation* @DataDog/agent-security
 
 # Trigger release
-trigger_manual_prod_release            @DataDog/agent-delivery
-trigger_auto_staging_release           @DataDog/agent-delivery
+trigger_manual_prod_release*            @DataDog/agent-delivery
+trigger_auto_staging_release*           @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent
