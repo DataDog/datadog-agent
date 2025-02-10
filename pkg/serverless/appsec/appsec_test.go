@@ -80,6 +80,15 @@ func TestMonitor(t *testing.T) {
 		res := asm.Monitor(addresses)
 		require.NotNil(t, res)
 		require.True(t, res.Result.HasEvents())
+
+		require.NotZero(t, res.Diagnostics)
+		require.Equal(t, res.Diagnostics.Version, "1.13.3") // TODO Not sure if this check is useful as we would need to change if for every upgrade of AppSec Rules
+		require.NotNil(t, res.Diagnostics.Rules)
+		require.Len(t, res.Diagnostics.Rules.Failed, 0)
+		require.EqualValues(t, 0, res.Stats.TimeoutCount)
+		require.EqualValues(t, 0, res.Stats.TimeoutRASPCount)
+
+		require.NotEqualValues(t, 0, res.Stats.Timers["waf.duration_ext"])
 	})
 
 	t.Run("api-security", func(t *testing.T) {
