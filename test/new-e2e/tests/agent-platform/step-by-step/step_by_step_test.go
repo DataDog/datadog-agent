@@ -292,11 +292,6 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
-		_, err = VMclient.Host.Execute(fmt.Sprintf("sudo zypper --non-interactive install %s", *flavorName))
-		if err != nil {
-			t.Logf("Failed to install %s, trying to register the cloud guest and install the package again", *flavorName)
-			ExecuteWithoutError(t, VMclient, "sudo registercloudguest --force-new")
-			ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
-		}
+		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-refresh install %s", *flavorName)
 	})
 }
