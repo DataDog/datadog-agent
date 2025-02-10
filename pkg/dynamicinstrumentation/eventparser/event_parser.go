@@ -173,7 +173,8 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 	stack := newParamStack()
 	i := 0
 	for {
-		if len(b) < 3 {
+		if len(b) < i+3 {
+			log.Tracef("could not parse type definition, ran out of buffer while parsing")
 			return nil
 		}
 
@@ -188,11 +189,9 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		}
 		i += 3
 		if newParam.Size == 0 {
-			if reflect.Kind(newParam.Kind) == reflect.Struct ||
-				reflect.Kind(newParam.Kind) == reflect.Slice {
+			if reflect.Kind(newParam.Kind) == reflect.Struct {
 				goto stackCheck
 			}
-			break
 		}
 		if isTypeWithHeader(newParam.Kind) {
 			stack.push(newParam)
@@ -210,18 +209,22 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 			// top.Size is the length of the slice.
 			// We copy+append the type of the slice so we have the correct
 			// number of slice elements to parse values into.
-			if top.Size == 0 {
-				top.Fields = []*ditypes.Param{}
-			} else if top.Size > 1 {
-				for q := 1; q < int(top.Size); q++ {
-					sliceElementTypeCopy := &ditypes.Param{}
-					deepCopyParam(sliceElementTypeCopy, top.Fields[0])
-					top.Fields = append(top.Fields, sliceElementTypeCopy)
-				}
+			// There's a special implicit logic for top.Size == 0 in which
+			// case we want the field for the underlying type just for
+			// displaying context to user, but we're not expecting to
+			// populate it with parsed values.
+
+			if len(top.Fields) > 0 {
+				top.Type = fmt.Sprintf("[]%s", top.Fields[0].Type)
+			}
+			for q := 1; q < int(top.Size); q++ {
+				sliceElementTypeCopy := &ditypes.Param{}
+				deepCopyParam(sliceElementTypeCopy, top.Fields[0])
+				top.Fields = append(top.Fields, sliceElementTypeCopy)
 			}
 		}
-
 		if len(top.Fields) == int(top.Size) ||
+			(reflect.Kind(top.Kind) == reflect.Slice && top.Size == 0) ||
 			(reflect.Kind(top.Kind) == reflect.Pointer && len(top.Fields) == 1) {
 			newParam = stack.pop()
 			goto stackCheck
