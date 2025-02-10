@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"reflect"
@@ -334,26 +335,61 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 var (
 	// pathExceedingMaxSize is path with size 166, which is exceeding the maximum path size in the kernel (HTTP2_MAX_PATH_LEN).
 	pathExceedingMaxSize = "X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph"
-
-	http2UniquePaths = []string{
-		// size 82 bucket 0
-		"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
-		// size 127 bucket 1
-		"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9",
-		// size 137, bucket 2
-		"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4l",
-		// size 147, bucket 3
-		"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1",
-		// size 158, bucket 4
-		"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1x",
-		// size 166, bucket 5
-		pathExceedingMaxSize,
-		// size 172, bucket 6
-		"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jse",
-		// size 247, bucket 7
-		"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
-	}
 )
+
+// generateRandomString creates a random ASCII string of a given size, ensuring it starts with '/'
+func generateRandomString(size int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	if size == 0 {
+		return "/"
+	}
+
+	result := make([]byte, size)
+	result[0] = '/' // Ensure the first character is '/'
+
+	for i := 1; i < size; i++ {
+		result[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(result)
+}
+
+// generateHuffmanEncodedString ensures the encoded output is exactly 'length' bytes.
+// Since there's no direct way to control the output size of Huffman encoding, we need to guess what input
+// string will produce the desired output size.
+func generateHuffmanEncodedString(targetLength int) ([]byte, string) {
+	estimate := targetLength
+	var encoded []byte
+	var original string
+
+	for {
+		original = generateRandomString(estimate)
+		encoded = hpack.AppendHuffmanString(nil, original)
+
+		if len(encoded) == targetLength {
+			break
+		} else if len(encoded) > targetLength {
+			estimate-- // Reduce input size if output is too long
+		} else {
+			estimate++ // Increase input size if output is too short
+		}
+	}
+
+	return encoded, original
+}
+
+// TestEncode meant to verify the correctness of generateHuffmanEncodedString function.
+func TestEncode(t *testing.T) {
+	for i := 1; i < 500; i++ {
+		encoded, original := generateHuffmanEncodedString(i)
+		require.Len(t, encoded, i)
+		require.True(t, strings.HasPrefix(original, "/"))
+		decoded, err := hpack.HuffmanDecodeToString(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, original, decoded)
+	}
+}
 
 func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t := s.T()
@@ -381,9 +417,15 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 			name: "Fill each bucket",
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
-				for _, path := range http2UniquePaths {
+				lengths := make([]int, usmhttp2.PathBucketsCount+1)
+				for i := 0; i < len(lengths); i++ {
+					lengths[i] = usmhttp2.MaxTelemetryPathLen + i*usmhttp2.PathBucketSize
+				}
+				for _, length := range lengths {
+					enc, original := generateHuffmanEncodedString(length)
+					require.Len(t, enc, length)
 					client := clients[getClientsIndex(1, clientsCount)]
-					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
+					req, err := client.Post(http2SrvAddr+original, "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
 					_ = req.Body.Close()
 				}

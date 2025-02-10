@@ -31,8 +31,10 @@ func parseStackTrace(procInfo *ditypes.ProcessInfo, rawProgramCounters []uint64)
 		}
 
 		funcInfo, err := pcToLine(procInfo, rawProgramCounters[i])
-		if err != nil {
-			return stackTrace, fmt.Errorf("could not resolve pc to function info: %w", err)
+		if err != nil && len(stackTrace) == 0 {
+			return stackTrace, fmt.Errorf("no stack trace: %w", err)
+		} else if err != nil {
+			return stackTrace, nil
 		}
 		stackFrame := ditypes.StackFrame{Function: funcInfo.fn, FileName: funcInfo.file, Line: int(funcInfo.line)}
 		stackTrace = append(stackTrace, stackFrame)
