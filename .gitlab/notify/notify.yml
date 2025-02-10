@@ -64,7 +64,6 @@ notify_github:
     - job: "deploy_deb_testing-a7_x64"
       optional: true
   dependencies: []
-  allow_failure: true
   script:
     - !reference [.setup_agent_github_app]
     # Python 3.12 changes default behavior how packages are installed.
