@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"

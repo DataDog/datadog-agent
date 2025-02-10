@@ -57,6 +57,7 @@ ALL_TAGS = {
     "zstd",
     "test",  # used for unit-tests
     "goexperiment.systemcrypto",  # used for FIPS mode
+    "checks_agent",  # used for configuring the checks agent config model
 }
 
 ### Tag inclusion lists
@@ -208,7 +209,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 # CHECKS_AGENT_TAGS lists the tags needed when building the checks agent
 # serverless tag is to ensure we do not include telemetry in the checks agent
-CHECKS_AGENT_TAGS = {"zlib", "zstd", "python", "oracle"}
+CHECKS_AGENT_TAGS = {"zlib", "zstd", "python", "checks_agent"}
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
