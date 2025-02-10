@@ -46,7 +46,7 @@ func buildAndSubscribeRCProvider(rcClient rcclient.Component) (*UpdatableProvide
 	provider.Update(userProfiles, defaultProfiles, time.Now())
 
 	// Subscribe to the RC client
-	log.Debug("Subscribing to remote config profiles")
+	log.Info("Subscribing to remote config for device profiles")
 	rcClient.Subscribe(state.ProductNDMDeviceProfilesCustom, makeOnUpdate(provider))
 
 	return provider, nil
@@ -88,7 +88,7 @@ func unpackRawConfigs(update map[string]state.RawConfig) (ProfileConfigMap, map[
 // receives new profiles.
 func makeOnUpdate(up *UpdatableProvider) func(map[string]state.RawConfig, func(string, state.ApplyStatus)) {
 	onUpdate := func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		log.Debugf("Received %d profiles via remote configuration", len(update))
+		log.Infof("Received %d device profiles via remote configuration", len(update))
 		userProfiles, errors := unpackRawConfigs(update)
 		// update is a dict of ALL current custom profiles, so we replace the existing set entirely.
 		up.Update(userProfiles, up.defaultProfiles, time.Now())
