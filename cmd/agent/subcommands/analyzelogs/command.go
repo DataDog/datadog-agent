@@ -55,7 +55,7 @@ type CliParams struct {
 	CoreConfigPath string
 
 	// inactivityTimeout represents the time in seconds that the program will wait for new logs before exiting
-	inactivityTimeout int
+	inactivityTimeout time.Duration
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -87,11 +87,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-
+	defaultInactivityTimeout := time.Duration(1) * time.Second
 	// Add flag for core config (optional)
 	cmd.Flags().StringVarP(&cliParams.CoreConfigPath, "core-config", "C", defaultCoreConfigPath, "Path to the core configuration file (optional)")
 	// Add flag for inactivity timeout (optional)
-	cmd.Flags().IntVarP(&cliParams.inactivityTimeout, "inactivity-timeout", "t", 1, "Time (seconds) that the program will wait for new logs before exiting (optional)")
+	cmd.Flags().DurationVarP(&cliParams.inactivityTimeout, "inactivity-timeout", "t", defaultInactivityTimeout, "Time that the program will wait for new logs before exiting (optional)")
 
 	return []*cobra.Command{cmd}
 }
@@ -104,7 +104,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 	}
 
 	// Set up an inactivity timeout
-	inactivityTimeout := time.Duration(cliParams.inactivityTimeout) * time.Second
+	inactivityTimeout := cliParams.inactivityTimeout
 	idleTimer := time.NewTimer(inactivityTimeout)
 
 	for {
