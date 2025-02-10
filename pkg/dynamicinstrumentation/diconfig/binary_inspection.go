@@ -46,6 +46,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	if err != nil {
 		return fmt.Errorf("could not open elf file %w", err)
 	}
+	defer elfFile.Close()
 
 	dwarfData, ok := bininspect.HasDwarfInfo(elfFile)
 	if !ok || dwarfData == nil {
