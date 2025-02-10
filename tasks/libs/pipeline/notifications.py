@@ -4,14 +4,12 @@ import json
 import os
 import pathlib
 import re
-import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
 
 import gitlab
 import yaml
 from gitlab.v4.objects import ProjectCommit, ProjectJob, ProjectPipeline
-from invoke.context import Context
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.owners.parsing import read_owners
@@ -167,18 +165,6 @@ def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCo
 
     return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
 {enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
-
-
-def send_slack_message(recipient, message):
-    subprocess.run(["postmessage", recipient, message], check=True)
-
-
-def email_to_slackid(ctx: Context, email: str) -> str:
-    slackid = ctx.run(f"echo '{email}' | email2slackid", hide=True, warn=True).stdout.strip()
-
-    assert slackid != '', 'Email not found'
-
-    return slackid
 
 
 def warn_new_commits(release_managers, team, branch, next_rc):
