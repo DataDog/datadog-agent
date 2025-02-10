@@ -22,21 +22,38 @@ import (
 )
 
 type connectionState struct {
-	tcpState connStatus
+	// lastUpdateEpoch contains the last timestamp this connection sent/received a packet
+	// TODO find a way to combine this with ConnectionStats.lastUpdateEpoch
+	// This exists because connections in pendingConns don't have a ConnectionStats object yet.
+	// Can we make all connections in TCPProcessor have a ConnectionStats no matter what, and
+	// filter them out in GetConnections?
+	lastUpdateEpoch uint64
+	// rttTracker is used to track round trip times
+	rttTracker rttTracker
 
-	// hasSentPacket is whether anything has been sent outgoing (aka whether maxSeqSent exists)
-	hasSentPacket bool
 	// maxSeqSent is the latest outgoing tcp.Seq if hasSentPacket==true
 	maxSeqSent uint32
 
-	// hasLocalAck is whether there have been outgoing ACK's
-	hasLocalAck bool
 	// lastLocalAck is the latest outgoing tcp.Ack if hasLocalAck
 	lastLocalAck uint32
-	// hasRemoteAck is whether there have been incoming ACK's
-	hasRemoteAck bool
 	// lastRemoteAck is the latest incoming tcp.Ack if hasRemoteAck
 	lastRemoteAck uint32
+
+	// localFinSeq is the tcp.Seq number for the outgoing FIN (including any payload length)
+	localFinSeq uint32
+	// remoteFinSeq is the tcp.Seq number for the incoming FIN (including any payload length)
+	remoteFinSeq uint32
+
+	tcpState connStatus
+	// connDirection has the direction of the connection, if we saw the SYN packet
+	connDirection network.ConnectionDirection
+
+	// hasSentPacket is whether anything has been sent outgoing (aka whether maxSeqSent exists)
+	hasSentPacket bool
+	// hasLocalAck is whether there have been outgoing ACK's
+	hasLocalAck bool
+	// hasRemoteAck is whether there have been incoming ACK's
+	hasRemoteAck bool
 
 	// localSynState is the status of the outgoing SYN handshake
 	localSynState synState
@@ -47,23 +64,6 @@ type connectionState struct {
 	hasLocalFin bool
 	// hasRemoteFin is whether the incoming side has FIN'd
 	hasRemoteFin bool
-	// localFinSeq is the tcp.Seq number for the outgoing FIN (including any payload length)
-	localFinSeq uint32
-	// remoteFinSeq is the tcp.Seq number for the incoming FIN (including any payload length)
-	remoteFinSeq uint32
-
-	// rttTracker is used to track round trip times
-	rttTracker rttTracker
-
-	// lastUpdateEpoch contains the last timestamp this connection sent/received a packet
-	// TODO find a way to combine this with ConnectionStats.lastUpdateEpoch
-	// This exists because connections in pendingConns don't have a ConnectionStats object yet.
-	// Can we make all connections in TCPProcessor have a ConnectionStats no matter what, and
-	// filter them out in GetConnections?
-	lastUpdateEpoch uint64
-
-	// connDirection has the direction of the connection, if we saw the SYN packet
-	connDirection network.ConnectionDirection
 }
 
 func (st *connectionState) hasMissedHandshake() bool {

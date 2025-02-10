@@ -7,14 +7,18 @@
 package pathteststore
 
 import (
-	"math"
 	"sync"
 	time "time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"golang.org/x/time/rate"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+)
+
+const (
+	networkPathStoreMetricPrefix = "datadog.network_path.store."
 )
 
 // PathtestContext contains Pathtest information and additional flush related data
@@ -48,6 +52,8 @@ type Config struct {
 	Interval time.Duration
 	// MaxPerMinute is a "circuit breaker" config that limits pathtests. 0 is unlimited.
 	MaxPerMinute int
+	// MaxBurstDuration is how long pathtest "budget" can build up in the rate limiter
+	MaxBurstDuration time.Duration
 }
 
 // Store is used to accumulate aggregated contexts
@@ -69,6 +75,9 @@ type Store struct {
 	// lastContextWarning is the last time a warning was logged about the store being full
 	lastContextWarning time.Time
 
+	// rateLimiter is used to limit the number of pathtests that can be flushed per minute
+	rateLimiter *rate.Limiter
+
 	// structures needed to ease mocking/testing
 	timeNowFn func() time.Time
 }
@@ -82,6 +91,20 @@ func (f *Store) newPathtestContext(pt *common.Pathtest, runUntilDuration time.Du
 	}
 }
 
+func (c Config) rateLimiter() *rate.Limiter {
+	if c.MaxPerMinute <= 0 {
+		return rate.NewLimiter(rate.Inf, 0)
+	}
+
+	maxPerMinute := float64(c.MaxPerMinute)
+	perSecondRate := rate.Limit(maxPerMinute / 60)
+
+	minutesOfBurst := float64(c.MaxBurstDuration) / float64(time.Minute)
+	maxBurst := int(maxPerMinute * minutesOfBurst)
+
+	return rate.NewLimiter(perSecondRate, maxBurst)
+}
+
 // NewPathtestStore creates a new Store
 func NewPathtestStore(config Config, logger log.Component, statsdClient ddgostatsd.ClientInterface, timeNow func() time.Time) *Store {
 	return &Store{
@@ -90,6 +113,7 @@ func NewPathtestStore(config Config, logger log.Component, statsdClient ddgostat
 		logger:        logger,
 		statsdClient:  statsdClient,
 		lastFlushTime: timeNow(),
+		rateLimiter:   config.rateLimiter(),
 		timeNowFn:     timeNow,
 	}
 }
@@ -111,18 +135,7 @@ func (f *Store) Flush() []*PathtestContext {
 	f.logger.Tracef("f.contexts: %+v", f.contexts)
 
 	now := f.timeNowFn()
-	elapsed := now.Sub(f.lastFlushTime)
 	f.lastFlushTime = now
-
-	pathtestBudget := math.MaxInt
-	// scale the pathtest budget based on how many minutes passed since the last flush
-	if f.config.MaxPerMinute > 0 {
-		elapsedMinutes := float64(elapsed) / float64(time.Minute)
-		// if channels are blocked, rarely a long time can pass between flushes.
-		// clamp the elapsed time to 1 minute to avoid a huge budget
-		elapsedMinutes = math.Min(elapsedMinutes, 1.0)
-		pathtestBudget = int(elapsedMinutes * float64(f.config.MaxPerMinute))
-	}
 
 	for key, ptConfigCtx := range f.contexts {
 		if ptConfigCtx.runUntil.Before(now) {
@@ -130,7 +143,7 @@ func (f *Store) Flush() []*PathtestContext {
 			// delete ptConfigCtx wrapper if it reaches runUntil
 			delete(f.contexts, key)
 			if ptConfigCtx.lastFlushTime.IsZero() {
-				f.statsdClient.Incr("networkpath.pathteststore.pathtest_never_run", []string{}, 1) //nolint:errcheck
+				f.statsdClient.Incr(networkPathStoreMetricPrefix+"pathtest_never_run", []string{}, 1) //nolint:errcheck
 			}
 		}
 	}
@@ -140,8 +153,8 @@ func (f *Store) Flush() []*PathtestContext {
 		if ptConfigCtx.nextRun.After(now) {
 			continue
 		}
-		if len(pathtestsToFlush) >= pathtestBudget {
-			f.statsdClient.Incr("networkpath.pathteststore.pathtest_budget_exceeded", []string{}, 1) //nolint:errcheck
+		if !f.rateLimiter.AllowN(now, 1) {
+			f.statsdClient.Incr(networkPathStoreMetricPrefix+"pathtest_budget_exceeded", []string{}, 1) //nolint:errcheck
 			break
 		}
 		if !ptConfigCtx.lastFlushTime.IsZero() {

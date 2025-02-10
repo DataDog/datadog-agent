@@ -246,22 +246,27 @@ type rateLimitTestStep struct {
 
 func Test_pathtestStore_rate_limit_circuit_breaker(t *testing.T) {
 	testcases := []struct {
-		name         string
-		maxPerMinute int
-		sequence     []rateLimitTestStep
+		name             string
+		maxPerMinute     int
+		maxBurstDuration time.Duration
+		sequence         []rateLimitTestStep
 	}{
 		{
-			name:         "no rate limit",
-			maxPerMinute: 0,
+			name:             "no rate limit",
+			maxPerMinute:     0,
+			maxBurstDuration: 30 * time.Second,
 			sequence: []rateLimitTestStep{
 				{timestep: 10 * time.Second, addCount: 1, expectedFlushCount: 1},
 				{timestep: 10 * time.Second, addCount: 20, expectedFlushCount: 20},
 			},
 		},
 		{
-			name:         "burst with rate limit",
-			maxPerMinute: 60,
+			name:             "burst with rate limit",
+			maxPerMinute:     60,
+			maxBurstDuration: 30 * time.Second,
 			sequence: []rateLimitTestStep{
+				// drain the burst first
+				{timestep: 10 * time.Second, addCount: 30, expectedFlushCount: 30},
 				{timestep: 10 * time.Second, addCount: 30, expectedFlushCount: 10},
 				{timestep: 10 * time.Second, addCount: 0, expectedFlushCount: 10},
 				{timestep: 10 * time.Second, addCount: 0, expectedFlushCount: 10},
@@ -269,8 +274,9 @@ func Test_pathtestStore_rate_limit_circuit_breaker(t *testing.T) {
 			},
 		},
 		{
-			name:         "underneath rate limit",
-			maxPerMinute: 60,
+			name:             "underneath rate limit",
+			maxPerMinute:     60,
+			maxBurstDuration: time.Minute,
 			sequence: []rateLimitTestStep{
 				{timestep: 10 * time.Second, addCount: 1, expectedFlushCount: 1},
 				{timestep: 10 * time.Second, addCount: 2, expectedFlushCount: 2},
@@ -279,9 +285,12 @@ func Test_pathtestStore_rate_limit_circuit_breaker(t *testing.T) {
 			},
 		},
 		{
-			name:         "slight bump over the limit gets flushed in the next one",
-			maxPerMinute: 60,
+			name:             "slight bump over the limit gets flushed in the next one",
+			maxPerMinute:     60,
+			maxBurstDuration: 10 * time.Second,
 			sequence: []rateLimitTestStep{
+				// drain the burst first
+				{timestep: 10 * time.Second, addCount: 10, expectedFlushCount: 10},
 				{timestep: 10 * time.Second, addCount: 1, expectedFlushCount: 1},
 				{timestep: 10 * time.Second, addCount: 12, expectedFlushCount: 10},
 				{timestep: 10 * time.Second, addCount: 3, expectedFlushCount: 3 + 2},
@@ -289,17 +298,21 @@ func Test_pathtestStore_rate_limit_circuit_breaker(t *testing.T) {
 			},
 		},
 		{
-			name:         "big rate limit, quick timestep",
-			maxPerMinute: 600,
+			name:             "big rate limit, quick timestep",
+			maxPerMinute:     600,
+			maxBurstDuration: 1 * time.Second,
 			sequence: []rateLimitTestStep{
+				// drain the burst first
+				{timestep: 10 * time.Second, addCount: 10, expectedFlushCount: 10},
 				{timestep: 1 * time.Second, addCount: 15, expectedFlushCount: 10},
 				{timestep: 1 * time.Second, addCount: 0, expectedFlushCount: 5},
 				{timestep: 1 * time.Second, addCount: 0, expectedFlushCount: 0},
 			},
 		},
 		{
-			name:         "past unused budget doesn't cause a spike",
-			maxPerMinute: 60,
+			name:             "past unused budget doesn't cause a spike",
+			maxPerMinute:     60,
+			maxBurstDuration: 10 * time.Second,
 			sequence: []rateLimitTestStep{
 				{timestep: 10 * time.Second, addCount: 0, expectedFlushCount: 0},
 				{timestep: 10 * time.Second, addCount: 20, expectedFlushCount: 10},
@@ -321,7 +334,8 @@ func Test_pathtestStore_rate_limit_circuit_breaker(t *testing.T) {
 				TTL:      10 * time.Minute,
 				Interval: 10 * time.Minute,
 				// set by the test case
-				MaxPerMinute: tc.maxPerMinute,
+				MaxPerMinute:     tc.maxPerMinute,
+				MaxBurstDuration: tc.maxBurstDuration,
 			}
 
 			now := time.Now()

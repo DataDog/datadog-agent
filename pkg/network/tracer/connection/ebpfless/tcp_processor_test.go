@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 
@@ -277,6 +278,7 @@ var lowerSeq uint32 = 2134452051
 var higherSeq uint32 = 2973263073
 
 func TestBasicHandshake(t *testing.T) {
+	println("SIZE: ", unsafe.Sizeof(connectionState{}))
 	t.Run("localSeq lt remoteSeq", func(t *testing.T) {
 		pb := newPacketBuilder(lowerSeq, higherSeq)
 		testBasicHandshake(t, pb)
