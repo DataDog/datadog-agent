@@ -8,5 +8,4 @@
 ---
 enhancements:
   - |
-    Implements V1 of the analyze logs subcommand. Adds a flag for setting the inactivity timeout, adds support for "check name". 
-
+    Adds a flag for setting the inactivity timeout and adds support for "check name" for the analyze logs subcommand
