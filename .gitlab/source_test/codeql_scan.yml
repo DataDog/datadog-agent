@@ -20,7 +20,7 @@ run_codeql_scan:
     KUBERNETES_MEMORY_LIMIT: 64Gi
     GITHUB_APP_PRIVATE_KEY_NAME: csec.codescanning.githubapp.privatekey
     CODEQL: /usr/local/codeql/codeql
-    CODEQL_DB: /tmp/dd-source.codeql
+    CODEQL_DB: /tmp/datadog-agent.codeql
     PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/custom.qls
     GO_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/golang/codeql-suites/dd-source.qls
     DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=go,python,javascript --quiet
@@ -38,4 +38,14 @@ run_codeql_scan:
     - export CGO_CFLAGS="-I${PWD}/rtloader/include -I${PWD}/rtloader/common"
     - echo "CGO_LDFLAGS=${CGO_LDFLAGS}"
     - echo "CGO_CFLAGS=${CGO_CFLAGS}"
+    # Todo: Add CPP
     - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS --command="inv -e agent.build --build-exclude=systemd"
+    - $CODEQL database analyze "$CODEQL_DB"/go "$GO_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="go" --output="/tmp/go.sarif"
+    - $CODEQL database analyze "$CODEQL_DB"/javascript codeql/javascript-queries $SCAN_CONFIGS --sarif-category="javascript" --output="/tmp/javascript.sarif"
+    - $CODEQL database analyze "$CODEQL_DB"/python "$PYTHON_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif"
+  artifacts:
+    paths:
+      - /tmp/go.sarif
+      - /tmp/javascript.sarif
+      - /tmp/python.sarif
+
