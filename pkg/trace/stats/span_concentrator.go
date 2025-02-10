@@ -14,7 +14,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // SpanConcentratorConfig exposes configuration options for a SpanConcentrator
@@ -112,7 +111,7 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 
 // NewStatSpanFromPB is a helper version of NewStatSpan that builds a StatSpan from a pb.Span.
 func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (statSpan *StatSpan, ok bool) {
-	return sc.NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags, &statsd.Client{})
+	return sc.NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags)
 }
 
 // NewStatSpan builds a StatSpan from the required fields for stats calculation
@@ -127,7 +126,6 @@ func (sc *SpanConcentrator) NewStatSpan(
 	meta map[string]string,
 	metrics map[string]float64,
 	peerTags []string,
-	statsd statsd.ClientInterface,
 ) (statSpan *StatSpan, ok bool) {
 	if meta == nil {
 		meta = make(map[string]string)
@@ -157,7 +155,7 @@ func (sc *SpanConcentrator) NewStatSpan(
 		isTopLevel:       isTopLevel,
 		matchingPeerTags: matchingPeerTags(meta, peerTags),
 
-		grpcStatusCode: getGRPCStatusCode(statsd, meta, metrics),
+		grpcStatusCode: getGRPCStatusCode(meta, metrics),
 	}, true
 }
 

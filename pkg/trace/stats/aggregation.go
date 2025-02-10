@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -155,13 +154,12 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	}
 }
 
-func getGRPCStatusCode(statsd statsd.ClientInterface, meta map[string]string, metrics map[string]float64) uint32 {
+func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 	// List of possible keys to check in order
 	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
 	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
 		if code, ok := metrics[key]; ok {
-			statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:metrics", "fieldname:" + key}, 1)
 			return uint32(code)
 		}
 	}
@@ -169,14 +167,12 @@ func getGRPCStatusCode(statsd statsd.ClientInterface, meta map[string]string, me
 	for _, key := range metaKeys {
 		if strC, exists := meta[key]; exists && strC != "" {
 			c, err := strconv.ParseUint(strC, 10, 32)
-			statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:" + key}, 1)
 			if err == nil {
 				return uint32(c)
 			}
 
 			// If not integer, check for valid gRPC status string
 			if codeStr, found := grpcStatusMap[strings.ToUpper(strC)]; found {
-				statsd.Count("dd.agent.apm.grpcstatusmetrics", 1, []string{"src:meta", "fieldname:" + key}, 1)
 				return uint32(codes.Code(codeStr))
 			}
 
