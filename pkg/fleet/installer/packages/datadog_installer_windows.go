@@ -28,17 +28,6 @@ func PrepareInstaller(_ context.Context) error {
 
 // SetupInstaller installs and starts the installer
 func SetupInstaller(_ context.Context) error {
-	rootPath := ""
-	_, err := os.Stat(paths.RootTmpDir)
-	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
-	if os.IsExist(err) {
-		rootPath = paths.RootTmpDir
-	}
-	_, err = os.MkdirTemp(rootPath, "datadog-installer")
-	if err != nil {
-		return err
-	}
-
 	fmt.Println("Creating the installer service")
 	// create installer service
 	m, err := mgr.Connect()
@@ -51,16 +40,24 @@ func SetupInstaller(_ context.Context) error {
 	stable, err := m.OpenService("Datadog Installer")
 	if err == nil {
 		// service already exists
+		err = stable.Delete()
+		if err != nil {
+			return fmt.Errorf("failed to delete service: %w", err)
+		}
 		stable.Close()
-		return fmt.Errorf("service already exists")
+		fmt.Println("Service already exists ... deleting")
 	}
 
 	// remove the experment service if it already exists
 	exp, err := m.OpenService("Datadog Installer Experiment")
 	if err == nil {
 		// service already exists
+		err = exp.Delete()
+		if err != nil {
+			return fmt.Errorf("failed to delete service: %w", err)
+		}
 		exp.Close()
-		return fmt.Errorf("service already exists")
+		fmt.Println("Service already exists ... deleting")
 	}
 
 	// create the installer service
