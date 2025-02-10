@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
@@ -168,8 +169,7 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 		if err != nil {
 			return nil, nil, nil
 		}
-		absolutePath = wd + "/" + cliParams.LogConfigPath
-
+		absolutePath = filepath.Join(wd, cliParams.LogConfigPath)
 		data, err := os.ReadFile(absolutePath)
 		if err != nil {
 			fmt.Println("Cannot read file path of logs config")
