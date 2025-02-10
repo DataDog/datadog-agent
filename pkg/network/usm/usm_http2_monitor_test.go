@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"reflect"
@@ -354,6 +355,60 @@ var (
 		"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
 	}
 )
+
+// generateRandomString creates a random ASCII string of a given size, ensuring it starts with '/'
+func generateRandomString(size int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	if size == 0 {
+		return "/"
+	}
+
+	result := make([]byte, size)
+	result[0] = '/' // Ensure the first character is '/'
+
+	for i := 1; i < size; i++ {
+		result[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(result)
+}
+
+// generateHuffmanEncodedString ensures the encoded output is exactly 'length' bytes.
+// Since there's no direct way to control the output size of Huffman encoding, we need to guess what input
+// string will produce the desired output size.
+func generateHuffmanEncodedString(targetLength int) ([]byte, string) {
+	estimate := targetLength
+	var encoded []byte
+	var original string
+
+	for {
+		original = generateRandomString(estimate)
+		encoded = hpack.AppendHuffmanString(nil, original)
+
+		if len(encoded) == targetLength {
+			break
+		} else if len(encoded) > targetLength {
+			estimate-- // Reduce input size if output is too long
+		} else {
+			estimate++ // Increase input size if output is too short
+		}
+	}
+
+	return encoded, original
+}
+
+// TestEncode meant to verify the correctness of generateHuffmanEncodedString function.
+func TestEncode(t *testing.T) {
+	for i := 1; i < 500; i++ {
+		encoded, original := generateHuffmanEncodedString(i)
+		require.Len(t, encoded, i)
+		require.True(t, strings.HasPrefix(original, "/"))
+		decoded, err := hpack.HuffmanDecodeToString(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, original, decoded)
+	}
+}
 
 func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t := s.T()
