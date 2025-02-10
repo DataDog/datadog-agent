@@ -454,9 +454,9 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 
 			checkInterval := pathtestCtx.LastFlushInterval()
 			checkDuration := s.TimeNowFn().Sub(startTime)
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"job.processed", []string{}, 1)                      //nolint:errcheck
-			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.interval", float64(checkInterval), nil, 1) //nolint:errcheck
-			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.duration", float64(checkDuration), nil, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"job.processed", []string{}, 1)                               //nolint:errcheck
+			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.pathtest_interval", float64(checkInterval), nil, 1) //nolint:errcheck
+			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.duration", float64(checkDuration), nil, 1)          //nolint:errcheck
 		}
 	}
 }
