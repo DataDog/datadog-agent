@@ -137,17 +137,7 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscov
 // Used to make testing easier
 func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider, error) {
 	configSource := sources.NewConfigSources()
-	waitTime := time.Duration(1) * time.Second
-	waitCtx, cancelTimeout := context.WithTimeout(
-		context.Background(), waitTime)
-	common.LoadComponents(nil, nil, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
-	ac.LoadAndRun(context.Background())
-	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
-	cancelTimeout()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	sources, err := getSources(allConfigs, cliParams)
+	sources, err := getSources(ac, cliParams)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -161,7 +151,29 @@ func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac auto
 	return agentimpl.SetUpLaunchers(config, configSource)
 }
 
-func getSources(allConfigs []integration.Config, cliParams *CliParams) ([]*sources.LogSource, error) {
+func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.LogSource, error) {
+	data, err := resolveFileConfig(cliParams)
+	if err == nil {
+		sources, err := ad.CreateSources(integration.Config{
+			Provider:   names.File,
+			LogsConfig: data,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return sources, nil
+	}
+
+	waitTime := time.Duration(1) * time.Second
+	waitCtx, cancelTimeout := context.WithTimeout(
+		context.Background(), waitTime)
+	common.LoadComponents(nil, nil, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	ac.LoadAndRun(context.Background())
+	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
+	cancelTimeout()
+	if err != nil {
+		return nil, err
+	}
 	for _, config := range allConfigs {
 		if config.Name != cliParams.LogConfigPath {
 			continue
@@ -175,23 +187,18 @@ func getSources(allConfigs []integration.Config, cliParams *CliParams) ([]*sourc
 		}
 		return sources, nil
 	}
+	return nil, fmt.Errorf("Cannot get source")
+}
 
-	absolutePath := ""
+func resolveFileConfig(cliParams *CliParams) ([]byte, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	absolutePath = filepath.Join(wd, cliParams.LogConfigPath)
+	absolutePath := filepath.Join(wd, cliParams.LogConfigPath)
 	data, err := os.ReadFile(absolutePath)
 	if err != nil {
 		return nil, err
 	}
-	sources, err := ad.CreateSources(integration.Config{
-		Provider:   names.File,
-		LogsConfig: data,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return sources, nil
+	return data, nil
 }
