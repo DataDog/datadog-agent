@@ -166,6 +166,9 @@ func resourcesForAPMConfig(cfg config.Reader) []string {
 
 	// Targets is a custom struct type, so we unmarshal it into an interface
 	// slice to avoid the import while still being able to check if it's empty.
+	// For simplicity, we enable the namespace collection if there are any
+	// targets defined and do not check if the targets actually require
+	// namespace labels.
 	targets := []interface{}{}
 	err := cfg.UnmarshalKey("apm_config.instrumentation.targets", &targets)
 	if err != nil {
