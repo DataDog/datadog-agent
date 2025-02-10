@@ -342,7 +342,7 @@ func (s *npCollectorImpl) flush() {
 		case s.pathtestProcessingChan <- ptConf:
 			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.processed", []string{}, 1) //nolint:errcheck
 		default:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.drop", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.dropped", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
 			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
 		}
 	}
