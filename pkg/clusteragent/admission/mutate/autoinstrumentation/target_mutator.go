@@ -18,27 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TargetFilter filters pods based on a set of targeting rules.
-type TargetFilter struct {
+// TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
+type TargetMutator struct {
 	targets            []targetInternal
 	disabledNamespaces map[string]bool
 }
 
-// targetInternal is the struct we use to convert the config based target into
-// something more performant to check against.
-type targetInternal struct {
-	name                 string
-	podSelector          labels.Selector
-	nameSpaceSelector    labels.Selector
-	useNamespaceSelector bool
-	enabledNamespaces    map[string]bool
-	libVersions          []libInfo
-	wmeta                workloadmeta.Component
-}
-
-// NewTargetFilter creates a new TargetFilter from a list of targets and disabled namespaces. We convert the targets
-// to a more efficient internal format for quick lookups.
-func NewTargetFilter(config *Config, wmeta workloadmeta.Component) (*TargetFilter, error) {
+// NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
+// efficient internal format for quick lookups.
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMutator, error) {
 	// Create a map of disabled namespaces for quick lookups.
 	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces))
 	for _, ns := range config.Instrumentation.DisabledNamespaces {
@@ -95,21 +83,33 @@ func NewTargetFilter(config *Config, wmeta workloadmeta.Component) (*TargetFilte
 		}
 	}
 
-	return &TargetFilter{
+	return &TargetMutator{
 		targets:            internalTargets,
 		disabledNamespaces: disabledNamespacesMap,
 	}, nil
 }
 
+// targetInternal is the struct we use to convert the config based target into
+// something more performant to check against.
+type targetInternal struct {
+	name                 string
+	podSelector          labels.Selector
+	nameSpaceSelector    labels.Selector
+	useNamespaceSelector bool
+	enabledNamespaces    map[string]bool
+	libVersions          []libInfo
+	wmeta                workloadmeta.Component
+}
+
 // filter filters a pod based on the targets. It returns the list of libraries to inject.
-func (f *TargetFilter) filter(pod *corev1.Pod) []libInfo {
+func (m *TargetMutator) filter(pod *corev1.Pod) []libInfo {
 	// If the namespace is disabled, we don't need to check the targets.
-	if _, ok := f.disabledNamespaces[pod.Namespace]; ok {
+	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
 	}
 
 	// Check if the pod matches any of the targets. The first match wins.
-	for _, target := range f.targets {
+	for _, target := range m.targets {
 		// Check the pod namespace against the namespace selector.
 		matches, err := target.matchesNamespaceSelector(pod.Namespace)
 		if err != nil {

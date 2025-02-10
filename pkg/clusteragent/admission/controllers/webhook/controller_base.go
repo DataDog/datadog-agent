@@ -197,7 +197,7 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 	mutator := mutatecommon.NewMutators(
 		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter),
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), filter),
-		autoinstrumentation.NewMutator(config, filter, wmeta),
+		autoinstrumentation.NewNamespaceMutator(config, filter, wmeta),
 	)
 	return autoinstrumentation.NewWebhook(config, wmeta, mutator)
 }

@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestTargetFilter(t *testing.T) {
+func TestTargetMutator(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
@@ -238,8 +238,8 @@ func TestTargetFilter(t *testing.T) {
 				wmeta.Set(&ns)
 			}
 
-			// Create the filter.
-			f, err := NewTargetFilter(config, wmeta)
+			// Create the mutator.
+			f, err := NewTargetMutator(config, wmeta)
 			require.NoError(t, err)
 
 			// Filter the pod.

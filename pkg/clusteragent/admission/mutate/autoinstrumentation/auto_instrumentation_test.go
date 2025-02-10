@@ -250,7 +250,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			injector := NewMutator(config, filter, wmeta)
+			injector := NewNamespaceMutator(config, filter, wmeta)
 			err = injector.injectAutoInstruConfig(tt.pod, tt.libInfo)
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
@@ -598,7 +598,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			require.NoError(t, err)
 			filter, err := NewFilter(config)
 			require.NoError(t, err)
-			injector := NewMutator(config, filter, wmeta)
+			injector := NewNamespaceMutator(config, filter, wmeta)
 
 			err = injector.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
 				libs:   tt.libsToInject,
@@ -1082,7 +1082,7 @@ func TestExtractLibInfo(t *testing.T) {
 			require.NoError(t, err)
 			filter, err := NewFilter(config)
 			require.NoError(t, err)
-			mutator := NewMutator(config, filter, wmeta)
+			mutator := NewNamespaceMutator(config, filter, wmeta)
 
 			if tt.expectedPodEligible != nil {
 				require.Equal(t, *tt.expectedPodEligible, mutator.isPodEligible(tt.pod))
@@ -1684,7 +1684,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			filter, err := NewFilter(config)
 			require.NoError(t, err)
 
-			mutator := NewMutator(config, filter, wmeta)
+			mutator := NewNamespaceMutator(config, filter, wmeta)
 
 			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
 			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, config.defaultResourceRequirements)
@@ -3604,7 +3604,7 @@ func TestShouldInject(t *testing.T) {
 			require.NoError(t, err)
 			filter, err := NewFilter(config)
 			require.NoError(t, err)
-			mutator := NewMutator(config, filter, wmeta)
+			mutator := NewNamespaceMutator(config, filter, wmeta)
 			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
@@ -3621,7 +3621,7 @@ func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Web
 		return nil, err
 	}
 
-	injector := NewMutator(config, filter, wmeta)
+	injector := NewNamespaceMutator(config, filter, wmeta)
 	webhook, err := NewWebhook(config, wmeta, injector)
 	if err != nil {
 		return nil, err
