@@ -12,6 +12,7 @@ type Service struct {
 	Name                       string   `json:"name"`
 	GeneratedName              string   `json:"generated_name"`
 	GeneratedNameSource        string   `json:"generated_name_source"`
+	AdditionalGeneratedNames   []string `json:"additional_generated_names"`
 	ContainerServiceName       string   `json:"container_service_name"`
 	ContainerServiceNameSource string   `json:"container_service_name_source"`
 	DDService                  string   `json:"dd_service"`
