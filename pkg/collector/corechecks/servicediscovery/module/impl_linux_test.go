@@ -74,7 +74,7 @@ func findService(pid int, services []model.Service) *model.Service {
 	return nil
 }
 
-func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCollectorCreator) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
+func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCollectorFactory) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
 	t.Helper()
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,

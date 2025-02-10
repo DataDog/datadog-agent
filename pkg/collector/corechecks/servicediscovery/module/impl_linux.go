@@ -179,9 +179,9 @@ type discovery struct {
 	network           networkCollector
 }
 
-type networkCollectorCreator func(cfg *discoveryConfig) (networkCollector, error)
+type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
 
-func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider, tp timeProvider, getNetworkCollector networkCollectorCreator) *discovery {
+func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
 	cfg := newConfig()
 
 	var network networkCollector
