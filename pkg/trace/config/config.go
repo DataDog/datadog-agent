@@ -38,6 +38,9 @@ type Endpoint struct {
 	// NoProxy will be set to true when the proxy setting for the trace API endpoint
 	// needs to be ignored (e.g. it is part of the "no_proxy" list in the yaml settings).
 	NoProxy bool
+
+	// IsMRF determines whether this is a Multi-Region Failover endpoint.
+	IsMRF bool `mapstructure:"-" json:"-"`
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
@@ -485,6 +488,10 @@ type AgentConfig struct {
 	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
 	// Function will be nil if in an environment without an auth token
 	GetAgentAuthToken func() string `json:"-"`
+
+	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
+	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
+	IsMRFEnabled func() bool `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

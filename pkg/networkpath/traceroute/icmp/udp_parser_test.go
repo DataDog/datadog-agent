@@ -26,7 +26,7 @@ func TestUDPMatch(t *testing.T) {
 	dstPort := uint16(443)
 	checksum := uint16(576) // calculated field
 	mockHeader := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
-	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
+	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
 	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolUDP)
 	innerUDPLayer := testutils.CreateMockUDPLayer(srcPort, dstPort, checksum)
 	icmpBytes := testutils.CreateMockICMPWithUDPPacket(nil, icmpLayer, innerIPv4Layer, innerUDPLayer)
@@ -103,7 +103,7 @@ func TestUDPMatch(t *testing.T) {
 
 func TestUDPParse(t *testing.T) {
 	ipv4Header := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
-	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
+	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
 	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolUDP)
 	innerUDPLayer := testutils.CreateMockUDPLayer(12345, 443, 28394)
 

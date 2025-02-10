@@ -54,6 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -73,7 +74,7 @@ func findService(pid int, services []model.Service) *model.Service {
 	return nil
 }
 
-func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
+func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCollectorFactory) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
 	t.Helper()
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
@@ -98,9 +99,9 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 		Name:             config.DiscoveryModule,
 		ConfigNamespaces: []string{"discovery"},
 		Fn: func(*types.Config, module.FactoryDependencies) (module.Module, error) {
-			module := newDiscovery(mockContainerProvider, mTimeProvider)
+			module := newDiscoveryWithNetwork(mockContainerProvider, mTimeProvider, getNetworkCollector)
 			module.config.cpuUsageUpdateDelay = time.Second
-
+			module.config.networkStatsPeriod = time.Second
 			return module, nil
 		},
 		NeedsEBPF: func() bool {
@@ -115,10 +116,21 @@ func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContai
 	return srv.URL, mockContainerProvider, mTimeProvider
 }
 
-func getServices(t require.TestingT, url string) *model.ServicesResponse {
+func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
+	t.Helper()
+	return setupDiscoveryModuleWithNetwork(t, newNetworkCollector)
+}
+
+func getServicesWithParams(t require.TestingT, url string, params *params) *model.ServicesResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathServices
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	require.NoError(t, err)
+
+	if params != nil {
+		qp := req.URL.Query()
+		params.updateQuery(qp)
+		req.URL.RawQuery = qp.Encode()
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -129,6 +141,10 @@ func getServices(t require.TestingT, url string) *model.ServicesResponse {
 	require.NoError(t, err)
 
 	return res
+}
+
+func getServices(t require.TestingT, url string) *model.ServicesResponse {
+	return getServicesWithParams(t, url, nil)
 }
 
 func startTCPServer(t *testing.T, proto string, address string) (*os.File, *net.TCPAddr) {
@@ -247,7 +263,7 @@ func TestBasic(t *testing.T) {
 		}
 
 		for _, pid := range expectedPIDs {
-			assert.Contains(collect, seen, pid)
+			require.Contains(collect, seen, pid)
 			require.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
 			require.Equal(collect, seen[pid].LastHeartbeat, mockedTime.Unix())
 			assertStat(collect, seen[pid])
@@ -1020,6 +1036,12 @@ func TestDocker(t *testing.T) {
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }
 
+func newDiscovery(containerProvider proccontainers.ContainerProvider, tp timeProvider) *discovery {
+	return newDiscoveryWithNetwork(containerProvider, tp, func(_ *discoveryConfig) (networkCollector, error) {
+		return nil, nil
+	})
+}
+
 // Check that the cache is cleaned when procceses die.
 func TestCache(t *testing.T) {
 	var err error
@@ -1054,7 +1076,7 @@ func TestCache(t *testing.T) {
 	f.Close()
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		_, err = discovery.getServices()
+		_, err = discovery.getServices(defaultParams())
 		require.NoError(collect, err)
 
 		for _, cmd := range cmds {
@@ -1074,7 +1096,7 @@ func TestCache(t *testing.T) {
 		cmd.Wait()
 	}
 
-	_, err = discovery.getServices()
+	_, err = discovery.getServices(defaultParams())
 	require.NoError(t, err)
 
 	for _, cmd := range cmds {

@@ -76,11 +76,11 @@ type Target struct {
 // apm_config.instrumentation.targets[].selector
 type PodSelector struct {
 	// MatchLabels is a map of key-value pairs to match the labels of the pod. The labels and expressions are ANDed.
-	// Full config key: apm_config.instrumentation.targets[].selector.matchLabels
+	// Full config key: apm_config.instrumentation.targets[].podSelector.matchLabels
 	MatchLabels map[string]string `mapstructure:"matchLabels"`
 	// MatchExpressions is a list of label selector requirements to match the labels of the pod. The labels and
-	// expressions are ANDed. Full config key: apm_config.instrumentation.targets[].selector.matchExpressions
-	MatchExpressions []PodSelectorMatchExpression `mapstructure:"matchExpressions"`
+	// expressions are ANDed. Full config key: apm_config.instrumentation.targets[].podSelector.matchExpressions
+	MatchExpressions []SelectorMatchExpression `mapstructure:"matchExpressions"`
 }
 
 // AsLabelSelector converts the PodSelector to a labels.Selector. It returns an error if the conversion fails.
@@ -100,18 +100,15 @@ func (p PodSelector) AsLabelSelector() (labels.Selector, error) {
 	return metav1.LabelSelectorAsSelector(labelSelector)
 }
 
-// PodSelectorMatchExpression is a reconstruction of the metav1.LabelSelectorRequirement struct to be able to unmarshal
-// the configuration. Full config key: apm_config.instrumentation.targets[].selector.matchExpressions
-type PodSelectorMatchExpression struct {
-	// Key is the key of the label to match. Full config key:
-	// apm_config.instrumentation.targets[].selector.matchExpressions[].key
+// SelectorMatchExpression is a reconstruction of the metav1.LabelSelectorRequirement struct to be able to unmarshal
+// the configuration.
+type SelectorMatchExpression struct {
+	// Key is the key of the label to match.
 	Key string `mapstructure:"key"`
-	// Operator is the operator to use to match the label. Valid values are In, NotIn, Exists, DoesNotExist. Full config
-	// key: apm_config.instrumentation.targets[].selector.matchExpressions[].operator
+	// Operator is the operator to use to match the label. Valid values are In, NotIn, Exists, DoesNotExist.
 	Operator metav1.LabelSelectorOperator `mapstructure:"operator"`
 	// Values is a list of values to match the label against. If the operator is Exists or DoesNotExist, the values
-	// should be empty. If the operator is In or NotIn, the values should be non-empty. Full config key:
-	// apm_config.instrumentation.targets[].selector.matchExpressions[].values
+	// should be empty. If the operator is In or NotIn, the values should be non-empty.
 	Values []string `mapstructure:"values"`
 }
 
@@ -122,6 +119,31 @@ type NamespaceSelector struct {
 	// MatchNames is a list of namespace names to match. If empty, all namespaces are matched. Full config key:
 	// apm_config.instrumentation.targets[].namespaceSelector.matchNames
 	MatchNames []string `mapstructure:"matchNames"`
+	// MatchLabels is a map of key-value pairs to match the labels of the namespace. The labels and expressions are
+	// ANDed. This cannot be used with MatchNames. Full config key:
+	// apm_config.instrumentation.targets[].namespaceSelector.matchLabels
+	MatchLabels map[string]string `mapstructure:"matchLabels"`
+	// MatchExpressions is a list of label selector requirements to match the labels of the namespace. The labels and
+	// expressions are ANDed. This cannot be used with MatchNames. Full config key:
+	// apm_config.instrumentation.targets[].selector.matchExpressions
+	MatchExpressions []SelectorMatchExpression `mapstructure:"matchExpressions"`
+}
+
+// AsLabelSelector converts the NamespaceSelector to a labels.Selector. It returns an error if the conversion fails.
+func (n NamespaceSelector) AsLabelSelector() (labels.Selector, error) {
+	labelSelector := &metav1.LabelSelector{
+		MatchLabels:      n.MatchLabels,
+		MatchExpressions: make([]metav1.LabelSelectorRequirement, len(n.MatchExpressions)),
+	}
+	for i, expr := range n.MatchExpressions {
+		labelSelector.MatchExpressions[i] = metav1.LabelSelectorRequirement{
+			Key:      expr.Key,
+			Operator: expr.Operator,
+			Values:   expr.Values,
+		}
+	}
+
+	return metav1.LabelSelectorAsSelector(labelSelector)
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the
@@ -146,6 +168,13 @@ func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationC
 	// Ensure both library versions and targets are not set together.
 	if len(cfg.LibVersions) > 0 && len(cfg.Targets) > 0 {
 		return nil, fmt.Errorf("apm.instrumentation.lib_versions and apm.instrumentation.targets are mutually exclusive and cannot be set together")
+	}
+
+	// Ensure both namespace names and labels are not set together.
+	for _, target := range cfg.Targets {
+		if len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
+			return nil, fmt.Errorf("apm.instrumentation.targets[].namespaceSelector.matchNames and apm.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
+		}
 	}
 
 	return cfg, nil
