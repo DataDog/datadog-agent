@@ -42,7 +42,6 @@ type RuleSetListener interface {
 // RuleSet holds a list of rules, grouped in bucket. An event can be evaluated
 // against it. If the rule matches, the listeners for this rule set are notified
 type RuleSet struct {
-	model.Releasable
 	opts             *Opts
 	evalOpts         *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
@@ -54,7 +53,7 @@ type RuleSet struct {
 	fakeEventCtor    func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
-	globalVariables  VariableProvider
+	globalVariables  *eval.GlobalVariables
 	scopedVariables  map[Scope]VariableProvider
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
@@ -836,11 +835,6 @@ func (rs *RuleSet) newFakeEvent() eval.Event {
 	return model.NewFakeEvent()
 }
 
-// Release the rule set
-func (rs *RuleSet) Release() {
-	rs.CallReleaseCallback()
-}
-
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
@@ -853,7 +847,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		evalOpts.WithVariableStore(&eval.VariableStore{})
 	}
 
-	ruleset := &RuleSet{
+	return &RuleSet{
 		model:            model,
 		eventCtor:        eventCtor,
 		opts:             opts,
@@ -864,11 +858,6 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		pool:             eval.NewContextPool(),
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
+		globalVariables:  eval.NewGlobalVariables(),
 	}
-
-	ruleset.globalVariables = eval.NewScopedVariables(func(_ *eval.Context) eval.ScopedVariable {
-		return ruleset
-	})
-
-	return ruleset
 }

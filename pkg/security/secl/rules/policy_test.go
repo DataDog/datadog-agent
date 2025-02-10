@@ -382,15 +382,13 @@ func TestActionSetVariableTTL(t *testing.T) {
 	existingVariable := opts.VariableStore.Get("var1")
 	assert.NotNil(t, existingVariable)
 
-	stringArrayVar, ok := existingVariable.(*eval.StringArrayVariable)
+	stringArrayVar, ok := existingVariable.(*eval.MutableStringArrayVariable)
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
 
-	assert.Contains(t, stringArrayVar.Get(nil), "foo")
+	assert.True(t, stringArrayVar.LRU.Has("foo"))
 	time.Sleep(time.Second + 100*time.Millisecond)
-	assert.NotContains(t, stringArrayVar.Get(nil), "foo")
-
-	rs.Release()
+	assert.False(t, stringArrayVar.LRU.Has("foo"))
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
