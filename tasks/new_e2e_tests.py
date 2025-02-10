@@ -469,10 +469,14 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
 
         # Split flaky / non flaky tests
         for package, test_name, logs in logs_per_test:
+            # The name of the parent / nth parent if test_depth is lower than the test name depth
+            group_name = '/'.join(test_name.split('/')[:test_depth])
+
             package_flaky = all_known_flakes.get(package, set())
             package_failing = failing_tests.get(package, set())
-            state = test_name in package_failing, test_name in package_flaky
-            categorized_logs[state].append((package, '/'.join(test_name.split('/')[:test_depth]), logs))
+            # Flaky if the parent is flaky as well
+            state = test_name in package_failing, test_name in package_flaky or group_name in package_flaky
+            categorized_logs[state].append((package, group_name, logs))
 
         for failing, flaky in [TestState.FAILED, TestState.FLAKY_FAILED, TestState.SUCCESS, TestState.FLAKY_SUCCESS]:
             logs_to_print = categorized_logs[failing, flaky]
