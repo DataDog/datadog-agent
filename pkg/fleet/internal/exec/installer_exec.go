@@ -53,7 +53,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	i.newInstallerCmdPlatform(cmd)
+	cmd = i.newInstallerCmdPlatform(cmd)
 	return &installerCmd{
 		Cmd:  cmd,
 		span: span,
@@ -99,7 +99,7 @@ func (i *InstallerExec) Purge(_ context.Context) {
 func (i *InstallerExec) InstallExperiment(ctx context.Context, url string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "install-experiment", url)
 	defer func() { cmd.span.Finish(err) }()
-	return cmd.Start()
+	return cmd.Run()
 }
 
 // RemoveExperiment removes an experiment.

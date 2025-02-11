@@ -13,10 +13,11 @@ import (
 	"os/exec"
 )
 
-func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) {
+func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 	// os.Interrupt is not support on Windows
 	// It gives " run failed: exec: canceling Cmd: not supported by windows"
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
+	return cmd
 }

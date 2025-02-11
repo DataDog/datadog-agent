@@ -93,11 +93,6 @@ func SetupInstaller(_ context.Context) error {
 		return fmt.Errorf("failed to set recovery actions: %w", err)
 	}
 
-	err = stable.Start()
-	if err != nil {
-		return fmt.Errorf("failed to start service: %w", err)
-	}
-
 	// create experiment service
 	fmt.Println("Creating the installer experiment service")
 	exp, err = m.CreateService("Datadog Installer Experiment", paths.ExperimentInstallerPath, mgr.Config{
@@ -108,13 +103,26 @@ func SetupInstaller(_ context.Context) error {
 		ServiceStartName: "LocalSystem",
 	}, "run")
 	if err != nil {
+		// delete the stable installer
+		_ = stable.Delete()
 		return fmt.Errorf("failed to create service: %w", err)
 	}
 	defer exp.Close()
 
+	err = stable.Start()
+	if err != nil {
+		// delete both services on failure to start
+		// as there was a failure and we should rollback
+		_ = stable.Delete()
+		_ = exp.Delete()
+		return fmt.Errorf("failed to start service: %w", err)
+	}
+
 	return nil
 }
 
+// stopService stops the service by name
+// has a 30 second timeout to stop the service
 func stopService(name string) error {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -148,6 +156,7 @@ func stopService(name string) error {
 	return nil
 }
 
+// startService starts the service by name
 func startService(name string) error {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -226,6 +235,9 @@ func StartInstallerExperiment(_ context.Context) error {
 	// make sure the stable installer starts
 	timeout = time.Now().Add(5 * time.Minute)
 	status, err = watchServiceStatus("Datadog Installer", timeout, svc.Running)
+	if err != nil {
+		return fmt.Errorf("failed to watch service status: %w", err)
+	}
 	if !status {
 		// the stable installer never started which means we need to start it ourselves
 		// this means the experiment probably crashed
@@ -302,6 +314,10 @@ func StopInstallerExperiment(_ context.Context) error {
 // PromoteInstallerExperiment promotes the installer experiment
 func PromoteInstallerExperiment(_ context.Context) error {
 	// start the stable installer
+	// here the files have already been switched
+	// so we just need to start the stable installer
+	// the promote code will call the StopAll function below to stop the experiment installer before
+	// switching the files
 	if err := startService("Datadog Installer"); err != nil {
 		return fmt.Errorf("failed to start stable installer: %w", err)
 	}
@@ -312,10 +328,31 @@ func PromoteInstallerExperiment(_ context.Context) error {
 // StopAll stops all installers so the stable and experiment can be switched
 func StopAll(_ context.Context) error {
 	// stop the stable installer
+	// service might not be stopped if the experiment is running
+	// so we ignore the error
 	_ = stopService("Datadog Installer")
 
 	// stop the experiment installer
+	// service might not be stopped if the stable is running
+	// so we ignore the error
 	_ = stopService("Datadog Installer Experiment")
+
+	// assert that both services are stopped
+	status, err := watchServiceStatus("Datadog Installer", time.Now().Add(30*time.Second), svc.Stopped)
+	if err != nil {
+		return fmt.Errorf("failed to watch service status: %w", err)
+	}
+	if !status {
+		return fmt.Errorf("failed to stop stable installer")
+	}
+
+	status, err = watchServiceStatus("Datadog Installer Experiment", time.Now().Add(30*time.Second), svc.Stopped)
+	if err != nil {
+		return fmt.Errorf("failed to watch service status: %w", err)
+	}
+	if !status {
+		return fmt.Errorf("failed to stop experiment installer")
+	}
 
 	return nil
 }

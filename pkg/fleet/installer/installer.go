@@ -350,6 +350,8 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 
 	if runtime.GOOS == "windows" && pkg == packageDatadogInstaller {
 		// Special case for the Windows installer
+		// can't switch the files while the service is running
+		// so we stop all services first
 		err := packages.StopAll(ctx)
 		if err != nil {
 			return fmt.Errorf("could not stop all packages: %w", err)
