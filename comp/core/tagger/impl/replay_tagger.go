@@ -26,8 +26,7 @@ type replayTagger struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	telemetryTicker *time.Ticker
-	telemetryStore  *telemetry.Store
+	telemetryStore *telemetry.Store
 }
 
 func newReplayTagger(telemetryStore *telemetry.Store) tagger.ReplayTagger {
@@ -40,8 +39,6 @@ func newReplayTagger(telemetryStore *telemetry.Store) tagger.ReplayTagger {
 // Start starts the connection to the replay tagger and starts watching for
 // events.
 func (t *replayTagger) Start(ctx context.Context) error {
-	t.telemetryTicker = time.NewTicker(1 * time.Minute)
-
 	t.ctx, t.cancel = context.WithCancel(ctx)
 
 	return nil
@@ -50,8 +47,6 @@ func (t *replayTagger) Start(ctx context.Context) error {
 // Stop closes the connection to the replay tagger and stops event collection.
 func (t *replayTagger) Stop() error {
 	t.cancel()
-
-	t.telemetryTicker.Stop()
 
 	log.Info("replay tagger stopped successfully")
 
