@@ -437,13 +437,6 @@ func (p *EBPFProbe) Init() error {
 		}
 	}
 
-	if p.isRuntimeDiscarded {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
-			Name:  "runtime_discarded",
-			Value: uint64(1),
-		})
-	}
-
 	p.inodeDiscarders = newInodeDiscarders(p.Erpc, p.Resolvers.DentryResolver)
 
 	if err := p.Resolvers.Start(p.ctx); err != nil {
@@ -2129,6 +2122,14 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 				Value: utils.BoolTouint64(true),
 			},
 		)
+	}
+
+	// mostly used for testing purpose
+	if p.isRuntimeDiscarded {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  "runtime_discarded",
+			Value: uint64(1),
+		})
 	}
 }
 
