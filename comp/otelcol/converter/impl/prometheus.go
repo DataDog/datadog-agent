@@ -59,67 +59,68 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 	// in pipeline with DD exporter. If so, remove from datadog exporter map.
 	if receivers, ok := stringMapConf["receivers"]; ok {
 		receiversMap, ok := receivers.(map[string]any)
-		if !ok {
-			return
-		}
-		for receiver, receiverConfig := range receiversMap {
-			if componentName(receiver) == comp.Name {
-				receiverConfigMap, ok := receiverConfig.(map[string]any)
-				if !ok {
-					return
-				}
-				prometheusConfig, ok := receiverConfigMap["config"]
-				if !ok {
-					continue
-				}
-				prometheusConfigMap, ok := prometheusConfig.(map[string]any)
-				if !ok {
-					return
-				}
-				prometheusScrapeConfigs, ok := prometheusConfigMap["scrape_configs"]
-				if !ok {
-					continue
-				}
-				prometheusScrapeConfigsSlice, ok := prometheusScrapeConfigs.([]any)
-				if !ok {
-					return
-				}
-				for _, scrapeConfig := range prometheusScrapeConfigsSlice {
-					scrapeConfigMap, ok := scrapeConfig.(map[string]any)
+		if ok {
+			// Only check if ok. If !ok, this means receivers section is empty, and it will be created in call to 
+			// addComponentToConfig further down. 
+			for receiver, receiverConfig := range receiversMap {
+				if componentName(receiver) == comp.Name {
+					receiverConfigMap, ok := receiverConfig.(map[string]any)
 					if !ok {
 						return
 					}
-					staticConfig, ok := scrapeConfigMap["static_configs"]
+					prometheusConfig, ok := receiverConfigMap["config"]
 					if !ok {
 						continue
 					}
-					staticConfigSlice, ok := staticConfig.([]any)
+					prometheusConfigMap, ok := prometheusConfig.(map[string]any)
+					if !ok {
+						return
+					}
+					prometheusScrapeConfigs, ok := prometheusConfigMap["scrape_configs"]
 					if !ok {
 						continue
 					}
-					for _, staticConfig := range staticConfigSlice {
-						staticConfigMap, ok := staticConfig.(map[string]any)
+					prometheusScrapeConfigsSlice, ok := prometheusScrapeConfigs.([]any)
+					if !ok {
+						return
+					}
+					for _, scrapeConfig := range prometheusScrapeConfigsSlice {
+						scrapeConfigMap, ok := scrapeConfig.(map[string]any)
 						if !ok {
 							return
 						}
-						targets, ok := staticConfigMap["targets"]
+						staticConfig, ok := scrapeConfigMap["static_configs"]
 						if !ok {
 							continue
 						}
-						targetsSlice, ok := targets.([]any)
+						staticConfigSlice, ok := staticConfig.([]any)
 						if !ok {
-							return
+							continue
 						}
-						for _, target := range targetsSlice {
-							targetString, ok := target.(string)
+						for _, staticConfig := range staticConfigSlice {
+							staticConfigMap, ok := staticConfig.(map[string]any)
 							if !ok {
 								return
 							}
-							if targetString == internalMetricsAddress {
-								if ddExporters := receiverInPipelineWithDatadogExporter(conf, receiver); ddExporters != nil {
-									scrapeConfigMap["job_name"] = "datadog-agent"
-									for _, ddExporter := range ddExporters {
-										delete(datadogExportersMap, ddExporter)
+							targets, ok := staticConfigMap["targets"]
+							if !ok {
+								continue
+							}
+							targetsSlice, ok := targets.([]any)
+							if !ok {
+								return
+							}
+							for _, target := range targetsSlice {
+								targetString, ok := target.(string)
+								if !ok {
+									return
+								}
+								if targetString == internalMetricsAddress {
+									if ddExporters := receiverInPipelineWithDatadogExporter(conf, receiver); ddExporters != nil {
+										scrapeConfigMap["job_name"] = "datadog-agent"
+										for _, ddExporter := range ddExporters {
+											delete(datadogExportersMap, ddExporter)
+										}
 									}
 								}
 							}

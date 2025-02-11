@@ -63,7 +63,10 @@ func addComponentToConfig(conf *confmap.Conf, comp component) {
 	if present {
 		componentsMap, ok := components.(map[string]any)
 		if !ok {
-			return
+			// components map is nil. It is defined but section is empty.
+			// need to create map manually
+			stringMapConf[comp.Type] = make(map[string]any)
+			componentsMap = stringMapConf[comp.Type].(map[string]any)
 		}
 		componentsMap[comp.EnhancedName] = comp.Config
 	} else {
