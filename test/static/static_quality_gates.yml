@@ -1,0 +1,36 @@
+static_quality_gate_agent_deb_amd64:
+  max_on_wire_size: "214.3 MiB"
+  max_on_disk_size: "858.45 MiB"
+
+static_quality_gate_docker_agent_amd64:
+  max_on_wire_size: "321.56 MiB"
+  max_on_disk_size: "942.69 MiB"
+
+static_quality_gate_docker_agent_arm64:
+  max_on_wire_size: "351.22 MiB"
+  max_on_disk_size: "952.69 MiB"
+
+static_quality_gate_docker_agent_jmx_amd64:
+  max_on_wire_size: "395.8 MiB"
+  max_on_disk_size: "1137.37 MiB"
+
+static_quality_gate_docker_agent_jmx_arm64:
+  max_on_wire_size: "375.5 MiB"
+  max_on_disk_size: "1137.74 MiB"
+
+static_quality_gate_docker_dogstatsd_amd64:
+  max_on_wire_size: "28.29 MiB"
+  max_on_disk_size: "57.88 MiB"
+
+static_quality_gate_docker_dogstatsd_arm64:
+  max_on_wire_size: "27.06 MiB"
+  max_on_disk_size: "56.27 MiB"
+
+static_quality_gate_docker_cluster_agent_amd64:
+  max_on_wire_size: "117.28 MiB"
+  max_on_disk_size: "277.7 MiB"
+
+static_quality_gate_docker_cluster_agent_arm64:
+  max_on_wire_size: "112.12 MiB"
+  max_on_disk_size: "293.73 MiB"
+

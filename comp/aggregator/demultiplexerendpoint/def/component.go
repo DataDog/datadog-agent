@@ -6,7 +6,7 @@
 // Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 package demultiplexerendpoint
 
-// team: agent-metrics
+// team: agent-metric-pipelines
 
 // Component is the component type.
 type Component interface {

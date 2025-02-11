@@ -2,6 +2,93 @@
 Release Notes
 =============
 
+.. _Release Notes_7.62.2:
+
+7.62.2
+======
+
+.. _Release Notes_7.62.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-02-10
+Pinned to datadog-agent v7.62.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7622>`_.
+
+
+.. _Release Notes_7.62.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix issue where annotations as tags were not showing up properly
+  when certain resource collectors were enabled.
+
+
+.. _Release Notes_7.62.1:
+
+7.62.1
+======
+
+.. _Release Notes_7.62.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-02-03
+Pinned to datadog-agent v7.62.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7621>`_.
+
+.. _Release Notes_7.62.0:
+
+7.62.0
+======
+
+.. _Release Notes_7.62.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-01-29
+Pinned to datadog-agent v7.62.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7620>`_.
+
+.. _Release Notes_7.62.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added support for EndpointSlices in the metadata controller. This feature,
+  enabled by setting `kubernetesUseEndpointSlices` to `true`, resolves limitations
+  of Endpoints resources, particularly for services with more than 1000 addresses.
+  Must add `endpointslices` to DCA cluster role.
+
+- The `kubernetes_state_core` check now collects only metadata for configmaps,
+  reducing memory, CPU, and network usage in the Cluster Agent while preserving
+  full metric functionality.
+
+- The Datadog Cluster Agent admission controller agent sidecar injection now sets up
+  Agent sidecars to run with securityContext of `readOnlyRootFilesystem:false` by default.
+  Advanced users can customize the securityContext via clusterAgent.admissionController.agentSidecarInjection.profiles.
+
+
+.. _Release Notes_7.62.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Resolved a bug where `kube_service` tags were not properly deleted when a
+  service's ties to pods on a specific node were removed but the service itself
+  was not deleted.
+
+- Add mapping for apiservices and customresourcedefinitions to KSM check to
+  prevent errors on startup with discovering resources.
+
+- Include `gpu_vendor` pod tags on the Datadog Cluster Agent when
+  enabling datadog.clusterTagger.collectKubernetesTags.
+
+- When the Datadog Cluster Agent injects the Datadog Agent as a sidecar
+  on a Job, the agent will now exit when the main Job completes.
+
+
 .. _Release Notes_7.61.0:
 
 7.61.0

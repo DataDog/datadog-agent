@@ -283,6 +283,9 @@ func TestDefaultSeries(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerMock.SetupFakeTagger(t)
 
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("config_id", "config123")
+
 	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 	mockHaAgent.SetEnabled(true)
 	mockHaAgent.SetState(haagent.Active)
@@ -306,14 +309,14 @@ func TestDefaultSeries(t *testing.T) {
 	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "config_id:config123"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"agent_state:standby"}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"config_id:config123", "ha_agent_state:standby"}),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
@@ -580,6 +583,7 @@ func TestTags(t *testing.T) {
 		globalTags              func(types.TagCardinality) ([]string, error)
 		withVersion             bool
 		haAgentEnabled          bool
+		configID                string
 		want                    []string
 	}{
 		{
@@ -650,6 +654,7 @@ func TestTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			mockConfig.SetWithoutSource("config_id", tt.configID)
 
 			taggerComponent := taggerMock.SetupFakeTagger(t)
 
@@ -660,6 +665,36 @@ func TestTags(t *testing.T) {
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
+		})
+	}
+}
+
+func TestConfigIDTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		configID string
+		want     []string
+	}{
+		{
+			name: "without config_id",
+			want: []string{},
+		},
+		{
+			name:     "with config_id",
+			configID: "my-config",
+			want:     []string{"config_id:my-config"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("config_id", tt.configID)
+
+			taggerComponent := taggerMock.SetupFakeTagger(t)
+			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second)
+			assert.ElementsMatch(t, tt.want, agg.configIDTags())
 		})
 	}
 }

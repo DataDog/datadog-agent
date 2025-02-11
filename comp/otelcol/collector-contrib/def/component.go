@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 )
 
-// team: opentelemetry
+// team: opentelemetry opentelemetry-agent
 
 // Component is the interface for the collector-contrib
 type Component interface {
