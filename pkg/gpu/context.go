@@ -192,7 +192,7 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 		return data, nil
 	}
 
-	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, wantedSmVersions)
+	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, ctx.smVersionSet)
 
 	data, err := cuda.GetSymbols(path, ctx.smVersionSet)
 	if err != nil {
