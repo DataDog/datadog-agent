@@ -21,11 +21,7 @@ import (
 )
 
 type replayTagger struct {
-	store *tagstore.TagStore
-
-	ctx    context.Context
-	cancel context.CancelFunc
-
+	store          *tagstore.TagStore
 	telemetryStore *telemetry.Store
 }
 
@@ -36,20 +32,13 @@ func newReplayTagger(telemetryStore *telemetry.Store) tagger.ReplayTagger {
 	}
 }
 
-// Start starts the connection to the replay tagger and starts watching for
-// events.
-func (t *replayTagger) Start(ctx context.Context) error {
-	t.ctx, t.cancel = context.WithCancel(ctx)
-
+// Start does nothing in the replay tagger.
+func (t *replayTagger) Start(_ context.Context) error {
 	return nil
 }
 
-// Stop closes the connection to the replay tagger and stops event collection.
+// Stop does nothing in the replay tagger.
 func (t *replayTagger) Stop() error {
-	t.cancel()
-
-	log.Info("replay tagger stopped successfully")
-
 	return nil
 }
 
@@ -96,12 +85,7 @@ func (t *replayTagger) AccumulateTagsFor(entityID types.EntityID, cardinality ty
 
 // Standard returns the standard tags for a given entity.
 func (t *replayTagger) Standard(entityID types.EntityID) ([]string, error) {
-	tags, err := t.store.LookupStandard(entityID)
-	if err != nil {
-		return []string{}, err
-	}
-
-	return tags, nil
+	return t.store.LookupStandard(entityID)
 }
 
 // List returns all the entities currently stored by the tagger.
