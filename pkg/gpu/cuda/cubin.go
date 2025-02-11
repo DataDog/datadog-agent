@@ -16,6 +16,8 @@ import (
 	"regexp"
 )
 
+const maxCudaKernelNameLength = 256
+
 // CubinKernelKey is the key to identify a kernel in a fatbin
 type CubinKernelKey struct {
 	Name      string
@@ -128,7 +130,7 @@ type nvInfoItem struct {
 	Attr   nvInfoAttr
 }
 
-type sectionParserFunc func(*elfSection, string) error
+type sectionParserFunc func(*elfSection, []byte) error
 
 type sectionParser struct {
 	prefix []byte
@@ -137,13 +139,16 @@ type sectionParser struct {
 
 // cubinParser is a helper struct to parse the cubin ELF sections
 type cubinParser struct {
-	kernels        map[string]*CubinKernel
+	// kernels is the internal index for the parsed kernels for this cubin file.
+	// The key is the kernel name as a byte array to avoid string allocations on lookup,
+	// as in some situations we are parsing a lot of kernels.
+	kernels        map[[maxCudaKernelNameLength]byte]*CubinKernel
 	sectionParsers []sectionParser
 }
 
 func newCubinParser() *cubinParser {
 	cp := &cubinParser{
-		kernels: make(map[string]*CubinKernel),
+		kernels: make(map[[maxCudaKernelNameLength]byte]*CubinKernel),
 	}
 
 	cp.sectionParsers = []sectionParser{
@@ -156,13 +161,16 @@ func newCubinParser() *cubinParser {
 	return cp
 }
 
-func (cp *cubinParser) getOrCreateKernel(name string) *CubinKernel {
-	if _, ok := cp.kernels[name]; !ok {
-		cp.kernels[name] = &CubinKernel{
-			Name: name,
+func (cp *cubinParser) getOrCreateKernel(name []byte) *CubinKernel {
+	var nameStr [maxCudaKernelNameLength]byte
+	copy(nameStr[:], name)
+
+	if _, ok := cp.kernels[nameStr]; !ok {
+		cp.kernels[nameStr] = &CubinKernel{
+			Name: string(name),
 		}
 	}
-	return cp.kernels[name]
+	return cp.kernels[nameStr]
 }
 
 const elfVersionOffset = 20
@@ -184,9 +192,9 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 				continue
 			}
 
-			var kernelName string
+			var kernelName []byte
 			if len(sect.nameBytes) > len(parser.prefix) && sect.nameBytes[len(parser.prefix)] == '.' {
-				kernelName = string(sect.nameBytes[len(parser.prefix)+1:])
+				kernelName = sect.nameBytes[len(parser.prefix)+1:]
 			}
 
 			err := parser.funct(sect, kernelName)
@@ -209,9 +217,10 @@ type nvInfoParsedItem struct {
 	value []byte
 }
 
-func (cp *cubinParser) parseNvInfoSection(sect *elfSection, kernelName string) error {
-	if len(enabledNvInfoAttrs) == 0 {
+func (cp *cubinParser) parseNvInfoSection(sect *elfSection, kernelName []byte) error {
+	if len(enabledNvInfoAttrs) == 0 || len(kernelName) == 0 {
 		// if there are no enabled attributes, we don't need to parse the section
+		// same if there's no kernel name
 		return nil
 	}
 
@@ -265,15 +274,13 @@ func (cp *cubinParser) parseNvInfoSection(sect *elfSection, kernelName string) e
 		items[item.Attr] = parsedItem
 	}
 
-	if kernelName != "" {
-		cp.getOrCreateKernel(kernelName).attributes = items
-	}
+	cp.getOrCreateKernel(kernelName).attributes = items
 
 	return nil
 }
 
-func (cp *cubinParser) parseTextSection(sect *elfSection, kernelName string) error {
-	if kernelName == "" {
+func (cp *cubinParser) parseTextSection(sect *elfSection, kernelName []byte) error {
+	if len(kernelName) == 0 {
 		return nil
 	}
 
@@ -284,8 +291,8 @@ func (cp *cubinParser) parseTextSection(sect *elfSection, kernelName string) err
 	return nil
 }
 
-func (cp *cubinParser) parseSharedMemSection(sect *elfSection, kernelName string) error {
-	if kernelName == "" {
+func (cp *cubinParser) parseSharedMemSection(sect *elfSection, kernelName []byte) error {
+	if len(kernelName) == 0 {
 		return nil
 	}
 
@@ -297,7 +304,7 @@ func (cp *cubinParser) parseSharedMemSection(sect *elfSection, kernelName string
 
 var constantSectNameRegex = regexp.MustCompile(`\.nv\.constant\d\.(.*)`)
 
-func (cp *cubinParser) parseConstantMemSection(sect *elfSection, _ string) error {
+func (cp *cubinParser) parseConstantMemSection(sect *elfSection, _ []byte) error {
 	// Constant memory sections are named .nv.constantX.Y where X is the constant memory index and Y is the name
 	// so we have to do some custom parsing
 	match := constantSectNameRegex.FindSubmatch(sect.nameBytes)
@@ -308,7 +315,7 @@ func (cp *cubinParser) parseConstantMemSection(sect *elfSection, _ string) error
 	}
 
 	kernelName := match[1]
-	kernel := cp.getOrCreateKernel(string(kernelName))
+	kernel := cp.getOrCreateKernel(kernelName)
 	kernel.ConstantMem += sect.Size
 
 	return nil
