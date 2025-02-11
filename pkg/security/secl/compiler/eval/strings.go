@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 // StringCmpOpts defines options to apply during string comparison
@@ -123,7 +125,7 @@ type RegexpStringMatcher struct {
 	re *regexp.Regexp
 }
 
-var stringBigOrRe = regexp.MustCompile(`^(?:\.\*)?\(([a-zA-Z_|]+)\)(?:\.\*)?$`)
+var stringBigOrRe = lazyregexp.New(`^(?:\.\*)?\(([a-zA-Z_|]+)\)(?:\.\*)?$`)
 
 // Compile a regular expression based pattern
 func (r *RegexpStringMatcher) Compile(pattern string, caseInsensitive bool) error {

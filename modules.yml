@@ -255,6 +255,7 @@ modules:
     used_by_otel: true
   pkg/util/json:
     used_by_otel: true
+  pkg/util/lazyregexp: default
   pkg/util/log:
     used_by_otel: true
   pkg/util/log/setup:
