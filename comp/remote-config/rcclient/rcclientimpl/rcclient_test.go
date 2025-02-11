@@ -75,7 +75,7 @@ type MockComponentImplMrf struct {
 
 	logs    *bool
 	metrics *bool
-	traces  *bool
+	apm     *bool
 }
 
 func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface{}, _ model.Source) error {
@@ -89,8 +89,8 @@ func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface
 		m.metrics = &v
 	case "multi_region_failover.failover_logs":
 		m.logs = &v
-	case "multi_region_failover.failover_traces":
-		m.traces = &v
+	case "multi_region_failover.failover_apm":
+		m.apm = &v
 	default:
 		return &settings.SettingNotFoundError{Name: setting}
 	}
@@ -270,6 +270,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	allInactive := state.RawConfig{Config: []byte(`{"name": "none"}`)}
 	noLogs := state.RawConfig{Config: []byte(`{"name": "nologs", "failover_logs": false}`)}
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
+	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
 
 	structRC := rc.(rcClient)
 
@@ -290,10 +291,11 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 		"datadog/2/AGENT_FAILOVER/none/configname":       allInactive,
 		"datadog/2/AGENT_FAILOVER/nologs/configname":     noLogs,
 		"datadog/2/AGENT_FAILOVER/yesmetrics/configname": activeMetrics,
+		"datadog/2/AGENT_FAILOVER/yesapm/configname":     activeAPM,
 	}, applyEmpty)
 
 	cmpntSettings := structRC.settingsComponent.(*MockComponentImplMrf)
 	assert.True(t, *cmpntSettings.metrics)
 	assert.False(t, *cmpntSettings.logs)
-	assert.Nil(t, cmpntSettings.traces)
+	assert.True(t, *cmpntSettings.apm)
 }
