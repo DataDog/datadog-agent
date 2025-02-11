@@ -20,6 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,7 +39,7 @@ type systemContext struct {
 	deviceSmVersions map[int]int
 
 	// cudaSymbols maps each executable file path to its Fatbin file data
-	cudaSymbols map[string]*symbolsEntry
+	cudaSymbols map[symbolFileIdentifier]*symbolsEntry
 
 	// pidMaps maps each process ID to its memory maps
 	pidMaps map[int][]*procfs.ProcMap
@@ -74,6 +75,13 @@ type systemContext struct {
 	fatbinTelemetry *fatbinTelemetry
 }
 
+// symbolFileIdentifier holds the inode and file size of a symbol file, which we use to avoid
+// parsing the same file multiple times when it has different paths (e.g., symlinks in /proc/PID/root)
+type symbolFileIdentifier struct {
+	inode    int
+	fileSize int64
+}
+
 // contextTelemetry holds telemetry elements for the context
 type contextTelemetry struct {
 	symbolCacheSize telemetry.Gauge
@@ -102,7 +110,7 @@ func (e *symbolsEntry) updateLastUsedTime() {
 func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
 	ctx := &systemContext{
 		deviceSmVersions:          make(map[int]int),
-		cudaSymbols:               make(map[string]*symbolsEntry),
+		cudaSymbols:               make(map[symbolFileIdentifier]*symbolsEntry),
 		pidMaps:                   make(map[int][]*procfs.ProcMap),
 		nvmlLib:                   nvmlLib,
 		procRoot:                  procRoot,
@@ -181,8 +189,23 @@ func (ctx *systemContext) fillDeviceInfo() error {
 	return nil
 }
 
+func buildSymbolFileIdentifier(path string) (symbolFileIdentifier, error) {
+	stat, err := utils.UnixStat(path)
+	if err != nil {
+		return symbolFileIdentifier{}, fmt.Errorf("error getting file info: %w", err)
+	}
+
+	return symbolFileIdentifier{inode: int(stat.Ino), fileSize: stat.Size}, nil
+}
+
 func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
-	if data, ok := ctx.cudaSymbols[path]; ok {
+	fileIdent, err := buildSymbolFileIdentifier(path)
+	if err != nil {
+		// an error means we cannot access the file, so returning makes sense as we will fail later anyways
+		return nil, fmt.Errorf("error building symbol file identifier: %w", err)
+	}
+
+	if data, ok := ctx.cudaSymbols[fileIdent]; ok {
 		data.updateLastUsedTime()
 		return data, nil
 	}
@@ -203,7 +226,7 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 
 	wrapper := &symbolsEntry{Symbols: data}
 	wrapper.updateLastUsedTime()
-	ctx.cudaSymbols[path] = wrapper
+	ctx.cudaSymbols[fileIdent] = wrapper
 
 	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
 

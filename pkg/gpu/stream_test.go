@@ -350,7 +350,10 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 		ConstantMem: constantMem,
 	})
 
-	sysCtx.cudaSymbols[procBinPath] = &symbolsEntry{
+	procBinIdent, err := buildSymbolFileIdentifier(procBinPath)
+	require.NoError(t, err)
+
+	sysCtx.cudaSymbols[procBinIdent] = &symbolsEntry{
 		Symbols: &cuda.Symbols{
 			SymbolTable: map[uint64]string{kernAddress: kernName},
 			Fatbin:      fatbin,
