@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -384,15 +385,34 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 
 func (e *RuleEngine) notifyAPIServerOfSeclVariables() {
 	rs := e.currentRuleSet.Load().(*rules.RuleSet)
-	ctx := eval.NewContext(nil)
+	var ctx *eval.Context
 	var seclVariables = make(map[string]interface{})
 	for name, value := range rs.GetVariables() {
-		if name == "process.pid" {
-			continue
+
+		if strings.HasPrefix(name, "process.") {
+			p, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
+			if !ok {
+				continue
+			}
+			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+				entry.Retain()
+				defer entry.Release()
+				event := p.NewEvent()
+				event.ProcessCacheEntry = entry
+				ctx = eval.NewContext(event)
+				name = strings.Replace(name, "process.", fmt.Sprintf("process_%d.", entry.Pid), 1)
+				seclVariables[name] = value.Get(ctx)
+			})
+		} else if strings.HasPrefix(name, "container.") {
+			continue // skip container variables for now
+		} else { // global variables
+			ctx = eval.NewContext(nil)
+			seclVariables[name] = value.Get(ctx)
 		}
-		seclVariables[name] = value.Get(ctx)
+
 	}
 	e.apiServer.SetSECLVariables(seclVariables)
+
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {

@@ -356,6 +356,9 @@ func (v *ScopedVariables) Len() int {
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
 	getVariables := func(ctx *Context) *NamedVariables {
+		for k, v := range v.vars {
+			fmt.Println("k: ", k, "v: ", v)
+		}
 		v := v.vars[v.scoper(ctx)]
 		return v
 	}
@@ -395,6 +398,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 	case string:
 		return NewStringVariable(func(ctx *Context) string {
 			if vars := getVariables(ctx); vars != nil {
+				fmt.Println("vars.GetString(name): ", vars.GetString(name))
 				return vars.GetString(name)
 			}
 			return ""

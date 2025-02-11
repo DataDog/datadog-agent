@@ -7,9 +7,16 @@
 package process
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
+
+type Resolver struct {
+	sync.RWMutex
+	entryCache map[uint32]*model.ProcessCacheEntry
+}
 
 // Pool defines a pool for process entry allocations
 type Pool struct {
@@ -25,6 +32,16 @@ func (p *Pool) Get() *model.ProcessCacheEntry {
 func (p *Pool) Put(pce *model.ProcessCacheEntry) {
 	pce.Reset()
 	p.pool.Put(pce)
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
+	}
 }
 
 // NewProcessCacheEntryPool returns a new Pool
