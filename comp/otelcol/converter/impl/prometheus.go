@@ -60,8 +60,8 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 	if receivers, ok := stringMapConf["receivers"]; ok {
 		receiversMap, ok := receivers.(map[string]any)
 		if ok {
-			// Only check if ok. If !ok, this means receivers section is empty, and it will be created in call to 
-			// addComponentToConfig further down. 
+			// Only check if ok. If !ok, this means receivers section is empty, and it will be created in call to
+			// addComponentToConfig further down.
 			for receiver, receiverConfig := range receiversMap {
 				if componentName(receiver) == comp.Name {
 					receiverConfigMap, ok := receiverConfig.(map[string]any)
