@@ -138,7 +138,24 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@ns:metric0",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("DatadogMetric is invalid, err: %v", fmt.Errorf("Some error")),
+			expectedError:           fmt.Errorf("Some error"),
+		},
+		{
+			desc: "Test DatadogMetric is invalid, no error",
+			storeContent: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "ns/metric0",
+						DataTime: defaultUpdateTime,
+						Valid:    false,
+						Value:    42.0,
+					},
+					query: "query-metric0",
+				},
+			},
+			queryMetricName:         "datadogmetric@ns:metric0",
+			expectedExternalMetrics: nil,
+			expectedError:           fmt.Errorf("DatadogMetric is invalid, missing error details"),
 		},
 		{
 			desc: "Test DatadogMetric not found",

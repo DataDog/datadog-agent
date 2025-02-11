@@ -74,7 +74,6 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		// We only update active DatadogMetrics
 		// We split metrics in two slices, those with errors and those without.
 		// Query first slice one by one, other as batch.
-
 		var validDatadogMetrics, errDatadogMetrics []model.DatadogMetricInternal
 
 		mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
@@ -84,8 +83,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 
 			// Batch together queries with no error and queries with rate limit errors
 			// Splitting rate limit errors off from the batch only makes the problem worse
-			var rateLimitErr *RateLimitError
-			if datadogMetric.Error == nil || errors.As(datadogMetric.Error, &rateLimitErr) {
+			if datadogMetric.Error == nil || errors.Is(datadogMetric.Error, autoscalers.RateLimitExceededError) {
 				validDatadogMetrics = append(validDatadogMetrics, datadogMetric)
 			} else {
 				errDatadogMetrics = append(errDatadogMetrics, datadogMetric)
@@ -119,20 +117,11 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 
 	queriesByTimeWindow := getBatchedQueriesByTimeWindow(datadogMetrics)
 	resultsByTimeWindow := make(map[time.Duration]map[string]autoscalers.Point)
-	globalError := false
-	rateLimitError := false
 
 	for timeWindow, queries := range queriesByTimeWindow {
 		log.Debugf("Starting refreshing external metrics with: %d queries (window: %d)", len(queries), timeWindow)
 
-		results, err := mr.processor.QueryExternalMetric(queries, timeWindow)
-		// Check for global failure
-		if len(results) == 0 && err != nil {
-			globalError = true
-			rateLimitError = autoscalers.IsRateLimitError(err)
-			log.Errorf("Unable to fetch external metrics: %v", err)
-		}
-
+		results := mr.processor.QueryExternalMetric(queries, timeWindow)
 		resultsByTimeWindow[timeWindow] = results
 	}
 
@@ -165,35 +154,24 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 					datadogMetricFromStore.Error = nil
 				} else {
 					datadogMetricFromStore.Valid = false
-					datadogMetricFromStore.Error = NewInvalidMetricOutdatedError(query)
+					datadogMetricFromStore.Error = newOutdatedQueryError(query)
 				}
 			} else {
+				// Set DatadogMetric as invalid
 				datadogMetricFromStore.Valid = false
-				if mr.splitBatchBackoffOnErrors {
+
+				// If we are splitting batch backoff on errors, we only increment retries for non rate limit errors
+				if mr.splitBatchBackoffOnErrors && !errors.Is(queryResult.Error, autoscalers.RateLimitExceededError) {
 					incrementRetries(datadogMetricFromStore)
-					datadogMetricFromStore.Error = NewInvalidMetricErrorWithRetries(queryResult.Error, query, datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
-				} else {
-					datadogMetricFromStore.Error = NewInvalidMetricError(queryResult.Error, query)
 				}
+
+				// Set the user visible error
+				datadogMetricFromStore.Error = convertExternalCallError(queryResult.Error, query, datadogMetricFromStore.RetryAfter)
 			}
 		} else {
+			// This should never happen as `QueryExternalMetric` is generating a results for all queries even on API error
 			datadogMetricFromStore.Valid = false
-			if globalError {
-				// Don't need to increment retries on rate limit regardless of whether splitting batches is enabled since rate limits are not split
-				if rateLimitError {
-					datadogMetricFromStore.Error = NewRateLimitError()
-				} else if mr.splitBatchBackoffOnErrors {
-					incrementRetries(datadogMetricFromStore)
-					datadogMetricFromStore.Error = NewInvalidMetricGlobalErrorWithRetries(len(datadogMetrics), datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
-				} else {
-					datadogMetricFromStore.Error = NewInvalidMetricGlobalError()
-				}
-			} else {
-				// This should never happen as `QueryExternalMetric` is filling all missing series
-				// if no global error.
-				datadogMetricFromStore.Error = NewInvalidMetricNotFoundError(query)
-				log.Error(datadogMetricFromStore.Error)
-			}
+			datadogMetricFromStore.Error = newMissingResultQueryError(query)
 		}
 
 		datadogMetricFromStore.UpdateTime = currentTime

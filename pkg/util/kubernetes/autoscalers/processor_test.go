@@ -310,27 +310,6 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			err:        nil,
 			timeout:    false,
 		},
-		{
-			desc: "several batches, one error",
-			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
-				MetricName: "foo",
-				Labels:     map[string]string{"foo": "bar"},
-			}),
-			out: []datadog.Series{
-				{
-					Metric: &metricName,
-					Points: []datadog.DataPoint{
-						makePoints(1531492452000, 12),
-						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
-						makePoints(0, 27),
-					},
-					Scope: pointer.Ptr("foo:bar"),
-				},
-			},
-			batchCalls: 5,
-			err:        fmt.Errorf("networking Error, timeout"),
-			timeout:    true,
-		},
 	}
 	var result struct {
 		bc int
@@ -367,10 +346,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			})
 			p := &Processor{datadogClient: datadogClientComp}
 
-			_, err := p.QueryExternalMetric(tt.in, GetDefaultTimeWindow())
-			if err != nil || tt.err != nil {
-				assert.Contains(t, err.Error(), tt.err.Error())
-			}
+			_ = p.QueryExternalMetric(tt.in, GetDefaultTimeWindow())
 			assert.Equal(t, tt.batchCalls, res.bc)
 		})
 	}
@@ -545,27 +521,6 @@ func TestGetKey(t *testing.T) {
 	}
 }
 
-func TestInvalidate(t *testing.T) {
-	eml := map[string]custommetrics.ExternalMetricValue{
-		"foo": {
-			MetricName: "foo",
-			Valid:      false,
-			Timestamp:  12,
-		},
-		"bar": {
-			MetricName: "bar",
-			Valid:      true,
-			Timestamp:  1300,
-		},
-	}
-
-	invalid := invalidate(eml)
-	for _, e := range invalid {
-		require.False(t, e.Valid)
-		require.WithinDuration(t, time.Now(), time.Unix(e.Timestamp, 0), 5*time.Second)
-	}
-}
-
 func TestUpdateRateLimiting(t *testing.T) {
 	type Results struct {
 		Limit     float64
@@ -644,10 +599,7 @@ func TestUpdateRateLimiting(t *testing.T) {
 			})
 			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
 
-			err := hpaCl.updateRateLimitingMetrics()
-			if err != nil {
-				assert.EqualError(t, tt.error, err.Error())
-			}
+			hpaCl.updateRateLimitingMetrics()
 			key := strings.Join([]string{queryEndpoint, le.JoinLeaderValue}, ",")
 			assert.Equal(t, rateLimitsLimit.(*mockGauge).values[key], tt.results.Limit)
 			assert.Equal(t, rateLimitsReset.(*mockGauge).values[key], tt.results.Reset)
