@@ -52,4 +52,6 @@ func TestLazySectionReader(t *testing.T) {
 		require.Equal(t, origSect.Name, sect.Name(), "Name mismatch in section number %d", i)
 		i++
 	}
+
+	require.Equal(t, len(sectsByIndex), i, "Mismatch in number of sections")
 }
