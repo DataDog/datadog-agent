@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -38,7 +37,7 @@ import (
 
 const (
 	// selftest
-	selftestMaxRetry   = 20
+	selftestMaxRetry   = 25 // more than 5 minutes so that we can get host tags
 	selftestStartAfter = 30 * time.Second
 	selftestDelay      = 15 * time.Second
 )
@@ -61,7 +60,7 @@ type CWSConsumer struct {
 	grpcServer    *GRPCServer
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
-	selfTestRetry *atomic.Int32
+	selfTestCount int
 	reloader      ReloaderInterface
 	crtelemetry   *telemetry.ContainersRunningTelemetry
 }
@@ -106,7 +105,6 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, cfg.SocketPath),
 		selfTester:    selfTester,
-		selfTestRetry: atomic.NewInt32(0),
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
 	}
@@ -196,11 +194,11 @@ func (c *CWSConsumer) Start() error {
 
 	// we can now wait for self test events
 	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
-		seclog.Debugf("self-test results : success : %v, failed : %v, try %d/%d", success, fails, c.selfTestRetry.Load()+1, selftestMaxRetry)
+		c.selfTestCount++
 
-		if len(fails) > 0 && c.selfTestRetry.Load() < selftestMaxRetry {
-			c.selfTestRetry.Inc()
+		seclog.Debugf("self-test results : success : %v, failed : %v, try %d/%d", success, fails, c.selfTestCount, selftestMaxRetry)
 
+		if len(fails) > 0 && c.selfTestCount < selftestMaxRetry {
 			time.Sleep(selftestDelay)
 
 			if _, err := c.RunSelfTest(false); err != nil {
@@ -209,7 +207,7 @@ func (c *CWSConsumer) Start() error {
 			return
 		}
 
-		if c.config.SelfTestSendReport {
+		if c.config.SelfTestSendReport && (len(fails) == 0 || c.selfTestCount == selftestMaxRetry) {
 			c.reportSelfTest(success, fails, testEvents)
 		}
 	}
