@@ -81,6 +81,7 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, versi
 						Hits:           hits,
 						Errors:         errors,
 						Duration:       duration,
+						GRPCStatusCode: k.GRPCStatusCode,
 					},
 				},
 			},
@@ -754,6 +755,7 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 			SpanKind:       b.GetSpanKind(),
 			PeerTags:       b.GetPeerTags(),
 			IsTraceRoot:    b.GetIsTraceRoot(),
+			GRPCStatusCode: b.GetGRPCStatusCode(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))
