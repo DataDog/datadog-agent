@@ -1,7 +1,9 @@
+import os
 import unittest
+from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
-from tasks.new_e2e_tests import post_process_output, pretty_print_logs
+from tasks.new_e2e_tests import post_process_output, pretty_print_logs, write_result_to_log_files
 
 
 class TestE2ETesting(unittest.TestCase):
@@ -83,3 +85,31 @@ class TestE2ETesting(unittest.TestCase):
         self.assertEqual(
             {name for (_, name) in args2.keys()}, {"TestParentFlaky", "TestParentFlaky/Child", "TestParent/Child2"}
         )
+
+
+class TestWriteResultToLogFiles(unittest.TestCase):
+    def test_depth1(self):
+        logs_per_test = [
+            ('mypackage', 'garfield', ['line1', 'line2']),
+            ('mypackage', 'bd/tomtom', ['line0', 'line1']),
+            ('mypackage', 'bd/nana', ['line10', 'line11']),
+        ]
+
+        with TemporaryDirectory() as tmpdir:
+            write_result_to_log_files(logs_per_test, tmpdir, test_depth=1)
+
+            files = set(os.listdir(tmpdir))
+            self.assertSetEqual(files, {'mypackage.garfield.log', 'mypackage.bd.log'})
+
+    def test_depth2(self):
+        logs_per_test = [
+            ('mypackage', 'garfield', ['line1', 'line2']),
+            ('mypackage', 'bd/tomtom', ['line0', 'line1']),
+            ('mypackage', 'bd/nana', ['line10', 'line11']),
+        ]
+
+        with TemporaryDirectory() as tmpdir:
+            write_result_to_log_files(logs_per_test, tmpdir, test_depth=2)
+
+            files = set(os.listdir(tmpdir))
+            self.assertSetEqual(files, {'mypackage.garfield.log', 'mypackage.bd_tomtom.log', 'mypackage.bd_nana.log'})
