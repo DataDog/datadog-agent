@@ -147,3 +147,60 @@ Line3`,
 		})
 	}
 }
+
+func BenchmarkEncodeInner(b *testing.B) {
+	tests := []struct {
+		name  string
+		input jsonPayload
+	}{
+		{
+			name:  "empty payload",
+			input: jsonPayload{},
+		},
+		{
+			name: "all fields populated",
+			input: jsonPayload{
+				Message:   "message",
+				Status:    "INFO",
+				Timestamp: 100,
+				Hostname:  "host",
+				Service:   "service",
+				Source:    "source",
+				Tags:      "foo:bar,baz:bing",
+			},
+		},
+		{
+			name: "emjois in fields",
+			input: jsonPayload{
+				Message:   "message 🌔",
+				Status:    "INFO",
+				Timestamp: 100,
+				Hostname:  "host🌗",
+				Service:   "service🌗",
+				Source:    "source🌗",
+				Tags:      "foo:bar,baz:bing,🌗:🌔",
+			},
+		},
+		{
+			name: "escape sequences in message",
+			input: jsonPayload{
+				Message:   "Line1\nLine2\n\tIndented \"quoted\" text",
+				Status:    "WARN",
+				Timestamp: 100,
+				Hostname:  "host",
+				Service:   "service",
+				Source:    "source",
+				Tags:      "foo:bar,baz:bing",
+			},
+		},
+	}
+
+	// Run the benchmark for each test scenario.
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_, _ = encodeInner(tt.input)
+			}
+		})
+	}
+}
