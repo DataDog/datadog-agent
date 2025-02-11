@@ -38,6 +38,9 @@ type systemContext struct {
 	// deviceSmVersions maps each device index to its SM (Compute architecture) version
 	deviceSmVersions map[int]int
 
+	// smVersionSet is a set of all the seen SM versions, to filter kernels to parse
+	smVersionSet map[uint32]struct{}
+
 	// cudaSymbols maps each executable file path to its Fatbin file data
 	cudaSymbols map[symbolFileIdentifier]*symbolsEntry
 
@@ -111,6 +114,7 @@ func (e *symbolsEntry) updateLastUsedTime() {
 func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
 	ctx := &systemContext{
 		deviceSmVersions:          make(map[int]int),
+		smVersionSet:              make(map[uint32]struct{}),
 		cudaSymbols:               make(map[symbolFileIdentifier]*symbolsEntry),
 		pidMaps:                   make(map[int][]*procfs.ProcMap),
 		nvmlLib:                   nvmlLib,
@@ -184,6 +188,7 @@ func (ctx *systemContext) fillDeviceInfo() error {
 			return err
 		}
 		ctx.deviceSmVersions[i] = smVersion
+		ctx.smVersionSet[uint32(smVersion)] = struct{}{}
 
 		ctx.gpuDevices = append(ctx.gpuDevices, dev)
 	}
@@ -211,7 +216,9 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 		return data, nil
 	}
 
-	data, err := cuda.GetSymbols(path)
+	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, ctx.smVersionSet)
+
+	data, err := cuda.GetSymbols(path, ctx.smVersionSet)
 	if err != nil {
 		ctx.fatbinTelemetry.readErrors.Inc()
 		return nil, fmt.Errorf("error getting file data: %w", err)
