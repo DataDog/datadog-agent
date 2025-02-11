@@ -1,8 +1,7 @@
-go 1.23.3
-
-toolchain go1.23.5
+go 1.23.5
 
 use (
+
 	.
 	comp/api/api/def
 	comp/api/authtoken
@@ -75,6 +74,7 @@ use (
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
+	pkg/config/viperconfig
 	pkg/errors
 	pkg/fips
 	pkg/gohai
