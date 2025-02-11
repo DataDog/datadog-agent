@@ -34,24 +34,19 @@ func TestLazySectionReader(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { elfFile.Close() })
 
-	sectsByIndex := make(map[int]*safeelf.Section)
-	for i, sect := range elfFile.Sections {
-		sectsByIndex[i] = sect
-	}
-
 	// Read using the lazy reader now
 	reader := newLazySectionReader(f)
 
 	i := 0 // canot use the enumerator index as this is a range-over iterator, not a regular slice
 	for sect := range reader.Iterate() {
-		require.Greater(t, len(sectsByIndex), i)
+		require.Greater(t, len(elfFile.Sections), i)
 
-		origSect := sectsByIndex[i]
+		origSect := elfFile.Sections[i]
 		require.Equal(t, origSect.Offset, sect.Offset, "Offset mismatch in section number %d", i)
 		require.Equal(t, origSect.Size, sect.Size, "Size mismatch in section number %d", i)
 		require.Equal(t, origSect.Name, sect.Name(), "Name mismatch in section number %d", i)
 		i++
 	}
 
-	require.Equal(t, len(sectsByIndex), i, "Mismatch in number of sections")
+	require.Equal(t, len(elfFile.Sections), i, "Mismatch in number of sections")
 }
