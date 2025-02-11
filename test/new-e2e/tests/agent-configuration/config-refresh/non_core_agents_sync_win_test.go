@@ -21,7 +21,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type configRefreshWindowsSuite struct {
@@ -42,7 +42,7 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, rootDir)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
 	secretClient.SetSecret("api_key", apiKey1)
 
 	templateVars := map[string]interface{}{
@@ -63,7 +63,7 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 		agentparams.WithSecurityAgentConfig(securityAgentConfig),
 		agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 	}
-	agentOptions = append(agentOptions, secrets.WithWindowsSecretSetupScript(secretResolverPath, true)...)
+	agentOptions = append(agentOptions, secretsutils.WithWindowsSetupScript(secretResolverPath, true)...)
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(

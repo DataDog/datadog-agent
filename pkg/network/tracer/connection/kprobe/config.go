@@ -21,11 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// HasTCPSendPage checks if the kernel has the tcp_sendpage function.
 // After kernel 6.5.0, tcp_sendpage and udp_sendpage are removed.
 // We used to only check for kv < 6.5.0 here - however, OpenSUSE 15.6 backported
 // this change into 6.4.0 to pick up a CVE so the version number is not reliable.
 // Instead, we directly check if the function exists.
-func hasTCPSendPage(kv kernel.Version) bool {
+func HasTCPSendPage(kv kernel.Version) bool {
 	missing, err := ebpf.VerifyKernelFuncs("tcp_sendpage")
 	if err == nil {
 		return len(missing) == 0
@@ -57,7 +58,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		return nil, err
 	}
 
-	hasSendPage := hasTCPSendPage(kv)
+	hasSendPage := HasTCPSendPage(kv)
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		if ClassificationSupported(c) {

@@ -12,6 +12,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TargetFilter filters pods based on a set of targeting rules.
@@ -23,15 +27,18 @@ type TargetFilter struct {
 // targetInternal is the struct we use to convert the config based target into
 // something more performant to check against.
 type targetInternal struct {
-	name              string
-	podSelector       labels.Selector
-	enabledNamespaces map[string]bool
-	libVersions       []libInfo
+	name                 string
+	podSelector          labels.Selector
+	nameSpaceSelector    labels.Selector
+	useNamespaceSelector bool
+	enabledNamespaces    map[string]bool
+	libVersions          []libInfo
+	wmeta                workloadmeta.Component
 }
 
 // NewTargetFilter creates a new TargetFilter from a list of targets and disabled namespaces. We convert the targets
 // to a more efficient internal format for quick lookups.
-func NewTargetFilter(targets []Target, disabledNamespaces []string, containerRegistry string) (*TargetFilter, error) {
+func NewTargetFilter(targets []Target, wmeta workloadmeta.Component, disabledNamespaces []string, containerRegistry string) (*TargetFilter, error) {
 	// Create a map of disabled namespaces for quick lookups.
 	disabledNamespacesMap := make(map[string]bool, len(disabledNamespaces))
 	for _, ns := range disabledNamespaces {
@@ -47,10 +54,25 @@ func NewTargetFilter(targets []Target, disabledNamespaces []string, containerReg
 			return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
 		}
 
+		// Determine if we should use the namespace selector or if we should use enabledNamespaces.
+		useNamespaceSelector := len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
+
+		// Convert the namespace selector to a label selector.
+		var namespaceSelector labels.Selector
+		if useNamespaceSelector {
+			namespaceSelector, err = t.NamespaceSelector.AsLabelSelector()
+			if err != nil {
+				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+			}
+		}
+
 		// Create a map of enabled namespaces for quick lookups.
-		enabledNamespaces := make(map[string]bool, len(t.NamespaceSelector.MatchNames))
-		for _, ns := range t.NamespaceSelector.MatchNames {
-			enabledNamespaces[ns] = true
+		var enabledNamespaces map[string]bool
+		if !useNamespaceSelector {
+			enabledNamespaces = make(map[string]bool, len(t.NamespaceSelector.MatchNames))
+			for _, ns := range t.NamespaceSelector.MatchNames {
+				enabledNamespaces[ns] = true
+			}
 		}
 
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
@@ -63,10 +85,13 @@ func NewTargetFilter(targets []Target, disabledNamespaces []string, containerReg
 
 		// Store the target in the internal format.
 		internalTargets[i] = targetInternal{
-			name:              t.Name,
-			podSelector:       podSelector,
-			enabledNamespaces: enabledNamespaces,
-			libVersions:       libVersions,
+			name:                 t.Name,
+			podSelector:          podSelector,
+			useNamespaceSelector: useNamespaceSelector,
+			nameSpaceSelector:    namespaceSelector,
+			wmeta:                wmeta,
+			enabledNamespaces:    enabledNamespaces,
+			libVersions:          libVersions,
 		}
 	}
 
@@ -86,12 +111,18 @@ func (f *TargetFilter) filter(pod *corev1.Pod) []libInfo {
 	// Check if the pod matches any of the targets. The first match wins.
 	for _, target := range f.targets {
 		// Check the pod namespace against the namespace selector.
-		if !matchesNamespaceSelector(pod, target.enabledNamespaces) {
+		matches, err := target.matchesNamespaceSelector(pod.Namespace)
+		if err != nil {
+			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
+			return nil
+
+		}
+		if !matches {
 			continue
 		}
 
 		// Check the pod labels against the pod selector.
-		if !target.podSelector.Matches(labels.Set(pod.Labels)) {
+		if !target.matchesPodSelector(pod.Labels) {
 			continue
 		}
 
@@ -103,13 +134,30 @@ func (f *TargetFilter) filter(pod *corev1.Pod) []libInfo {
 	return nil
 }
 
-func matchesNamespaceSelector(pod *corev1.Pod, enabledNamespaces map[string]bool) bool {
-	// If there are no match names, the selector matches all namespaces.
-	if len(enabledNamespaces) == 0 {
-		return true
+func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
+	// If we are using the namespace selector, check if the namespace matches the selector.
+	if t.useNamespaceSelector {
+		// Get the namespace metadata.
+		id := util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace)
+		ns, err := t.wmeta.GetKubernetesMetadata(id)
+		if err != nil {
+			return false, fmt.Errorf("could not get kubernetes namespace to match against for %s: %w", namespace, err)
+		}
+
+		// Check if the namespace labels match the selector.
+		return t.nameSpaceSelector.Matches(labels.Set(ns.EntityMeta.Labels)), nil
+	}
+
+	// If there are no match names, we match all namespaces.
+	if len(t.enabledNamespaces) == 0 {
+		return true, nil
 	}
 
 	// Check if the pod namespace is in the match names.
-	_, ok := enabledNamespaces[pod.Namespace]
-	return ok
+	_, ok := t.enabledNamespaces[namespace]
+	return ok, nil
+}
+
+func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
+	return t.podSelector.Matches(labels.Set(podLabels))
 }

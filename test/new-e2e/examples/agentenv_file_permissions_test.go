@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type filePermissionsTestSuite struct {
@@ -90,8 +90,8 @@ func (v *filePermissionsTestSuite) TestUserGroupPermissions() {
 
 func (v *filePermissionsTestSuite) TestSecretsPermissions() {
 	files := []agentparams.Option{
-		agentparams.WithFileWithPermissions("/tmp/secrets", "typical secret config", false, secrets.WithUnixSecretPermissions(false)),
-		agentparams.WithFileWithPermissions(`/tmp/secrets_root_group`, "secret config for security agent", false, secrets.WithUnixSecretPermissions(true)),
+		secretsutils.WithUnixSetupScript("/tmp/secrets", false),
+		secretsutils.WithUnixSetupScript("/tmp/secrets_root_group", true),
 	}
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(files...)))
