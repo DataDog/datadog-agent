@@ -250,8 +250,8 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			injector := NewNamespaceMutator(config, filter, wmeta)
-			err = injector.injectAutoInstruConfig(tt.pod, tt.libInfo)
+			mutator := NewNamespaceMutator(config, filter, wmeta)
+			err = mutator.core.injectTracers(tt.pod, tt.libInfo)
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
 			} else {
@@ -598,9 +598,9 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			require.NoError(t, err)
 			filter, err := NewFilter(config)
 			require.NoError(t, err)
-			injector := NewNamespaceMutator(config, filter, wmeta)
+			mutator := NewNamespaceMutator(config, filter, wmeta)
 
-			err = injector.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
+			err = mutator.core.injectTracers(tt.pod, extractedPodLibInfo{
 				libs:   tt.libsToInject,
 				source: libInfoSourceLibInjection,
 			})
@@ -1693,7 +1693,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.wantSkipInjection {
 				return
 			}
-			c.Mutators = mutator.newContainerMutators(requirements)
+			c.Mutators = mutator.core.newContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {

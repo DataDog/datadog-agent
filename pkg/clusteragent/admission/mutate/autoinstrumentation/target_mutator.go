@@ -8,28 +8,42 @@
 package autoinstrumentation
 
 import (
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
 type TargetMutator struct {
-	targets            []targetInternal
-	disabledNamespaces map[string]bool
+	core                              *mutatorCore
+	targets                           []targetInternal
+	disabledNamespaces                map[string]bool
+	securityClientLibraryPodMutators  []podMutator
+	profilingClientLibraryPodMutators []podMutator
+	containerRegistry                 string
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups.
 func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMutator, error) {
+	// Determine default disabled namespaces.
+	defaultDisabled := mutatecommon.DefaultDisabledNamespaces()
+
 	// Create a map of disabled namespaces for quick lookups.
-	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces))
+	disabledNamespacesMap := make(map[string]bool, len(config.Instrumentation.DisabledNamespaces)+len(defaultDisabled))
 	for _, ns := range config.Instrumentation.DisabledNamespaces {
+		disabledNamespacesMap[ns] = true
+	}
+	for _, ns := range defaultDisabled {
 		disabledNamespacesMap[ns] = true
 	}
 
@@ -83,10 +97,102 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 		}
 	}
 
-	return &TargetMutator{
-		targets:            internalTargets,
-		disabledNamespaces: disabledNamespacesMap,
-	}, nil
+	m := &TargetMutator{
+		targets:                           internalTargets,
+		disabledNamespaces:                disabledNamespacesMap,
+		securityClientLibraryPodMutators:  config.securityClientLibraryPodMutators,
+		profilingClientLibraryPodMutators: config.profilingClientLibraryPodMutators,
+		containerRegistry:                 config.containerRegistry,
+	}
+
+	// Create the core mutator. This is a bit gross. The target mutator is also the filter which we are passing in.
+	core := newMutatorCore(config, wmeta, m)
+	m.core = core
+
+	return m, nil
+}
+
+// MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
+func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+	// Sanitize input.
+	if pod == nil {
+		return false, errors.New(metrics.InvalidInput)
+	}
+	if pod.Namespace == "" {
+		pod.Namespace = ns
+	}
+
+	// If the namespace is disabled, we should not mutate the pod.
+	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
+		return false, nil
+	}
+
+	// The admission can be re-run for the same pod. Fast return if we injected the library already.
+	for _, lang := range supportedLanguages {
+		if containsInitContainer(pod, initContainerName(lang)) {
+			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
+			return false, nil
+		}
+	}
+
+	// Get the libraries to inject. If there are no libraries to inject, we should not mutate the pod.
+	libraries := m.getLibraries(pod)
+	if len(libraries) == 0 {
+		return false, nil
+	}
+	extracted := m.core.initExtractedLibInfo(pod).withLibs(libraries)
+
+	// Add the configuration for the security client library.
+	for _, mutator := range m.securityClientLibraryPodMutators {
+		if err := mutator.mutatePod(pod); err != nil {
+			return false, fmt.Errorf("error mutating pod for security client: %w", err)
+		}
+	}
+
+	// Add the configuration for profiling.
+	for _, mutator := range m.profilingClientLibraryPodMutators {
+		if err := mutator.mutatePod(pod); err != nil {
+			return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
+		}
+	}
+
+	// Inject the libraries.
+	err := m.core.injectTracers(pod, extracted)
+	if err != nil {
+		return false, fmt.Errorf("error injecting libraries: %w", err)
+	}
+
+	return true, nil
+}
+
+// ShouldMutatePod checks if a pod is mutable. This is used by other mutators to determine if they should mutate a pod.
+func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
+	return len(m.getLibraries(pod)) > 0
+}
+
+// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
+func (m *TargetMutator) IsNamespaceEligible(namespace string) bool {
+	// If the namespace is disabled, we don't need to check the targets.
+	if _, ok := m.disabledNamespaces[namespace]; ok {
+		return false
+	}
+
+	// Check if the namespace matches any of the targets.
+	for _, target := range m.targets {
+		matches, err := target.matchesNamespaceSelector(namespace)
+		if err != nil {
+			log.Errorf("error encountered matching targets, aborting all together to avoid inaccurate match: %v", err)
+			return false
+
+		}
+		if matches {
+			log.Debugf("Namespace %q matched target %q", namespace, target.name)
+			return true
+		}
+	}
+
+	// No target matched.
+	return false
 }
 
 // targetInternal is the struct we use to convert the config based target into
@@ -101,8 +207,27 @@ type targetInternal struct {
 	wmeta                workloadmeta.Component
 }
 
-// filter filters a pod based on the targets. It returns the list of libraries to inject.
-func (m *TargetMutator) filter(pod *corev1.Pod) []libInfo {
+// getLibraries determines which tracing libraries to use given a pod. It returns the list of tracing libraries to
+// inject.
+func (m *TargetMutator) getLibraries(pod *corev1.Pod) []libInfo {
+	// If the pod has explicit tracer libraries defined as annotations, they take precedence.
+	libraries := m.getAnnotationLibraries(pod)
+	if len(libraries) > 0 {
+		return libraries
+	}
+
+	// If there are no annotations, check if the pod matches any of the targets.
+	return m.getTargetLibraries(pod)
+}
+
+// getAnnotationLibraries determines which tracing libraries to use given a pod's annotations. It returns the list of
+// tracing libraries to inject.
+func (m *TargetMutator) getAnnotationLibraries(pod *corev1.Pod) []libInfo {
+	return extractLibrariesFromAnnotations(pod, m.containerRegistry)
+}
+
+// getTargetLibraries filters a pod based on the targets. It returns the list of libraries to inject.
+func (m *TargetMutator) getTargetLibraries(pod *corev1.Pod) []libInfo {
 	// If the namespace is disabled, we don't need to check the targets.
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
@@ -125,6 +250,8 @@ func (m *TargetMutator) filter(pod *corev1.Pod) []libInfo {
 		if !target.matchesPodSelector(pod.Labels) {
 			continue
 		}
+
+		log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), target.name)
 
 		// If the namespace and pod selector match, return the libraries to inject.
 		return target.libVersions

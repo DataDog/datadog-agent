@@ -30,6 +30,7 @@ type NamespaceMutator struct {
 	filter          mutatecommon.MutationFilter
 	wmeta           workloadmeta.Component
 	pinnedLibraries []libInfo
+	core            *mutatorCore
 }
 
 // NewNamespaceMutator creates a new injector interface for the auto-instrumentation injector.
@@ -40,6 +41,7 @@ func NewNamespaceMutator(config *Config, filter mutatecommon.MutationFilter, wme
 		filter:          filter,
 		wmeta:           wmeta,
 		pinnedLibraries: pinnedLibraries,
+		core:            newMutatorCore(config, wmeta, filter),
 	}
 }
 
@@ -83,7 +85,7 @@ func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Inter
 		}
 	}
 
-	if err := m.injectAutoInstruConfig(pod, extractedLibInfo); err != nil {
+	if err := m.core.injectTracers(pod, extractedLibInfo); err != nil {
 		log.Errorf("failed to inject auto instrumentation configurations: %v", err)
 		return false, errors.New(metrics.ConfigInjectionError)
 	}
@@ -91,7 +93,21 @@ func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Inter
 	return true, nil
 }
 
-func (m *NamespaceMutator) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLibInfo) error {
+type mutatorCore struct {
+	config *Config
+	wmeta  workloadmeta.Component
+	filter mutatecommon.MutationFilter
+}
+
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter) *mutatorCore {
+	return &mutatorCore{
+		config: config,
+		wmeta:  wmeta,
+		filter: filter,
+	}
+}
+
+func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
 	}
@@ -166,14 +182,14 @@ func (m *NamespaceMutator) injectAutoInstruConfig(pod *corev1.Pod, config extrac
 	return lastError
 }
 
-func (m *NamespaceMutator) newContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
+func (m *mutatorCore) newContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
 	return containerMutators{
 		containerResourceRequirements{requirements},
 		containerSecurityContext{m.config.initSecurityContext},
 	}
 }
 
-func (m *NamespaceMutator) newInjector(startTime time.Time, pod *corev1.Pod, opts ...injectorOption) podMutator {
+func (m *mutatorCore) newInjector(startTime time.Time, pod *corev1.Pod, opts ...injectorOption) podMutator {
 	for _, e := range []annotationExtractor[injectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
@@ -200,9 +216,9 @@ func (m *NamespaceMutator) isPodEligible(pod *corev1.Pod) bool {
 // extractLibInfo metadata about what library information we should be
 // injecting into the pod and where it came from.
 func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
-	extracted := m.initExtractedLibInfo(pod)
+	extracted := m.core.initExtractedLibInfo(pod)
 
-	libs := m.extractLibrariesFromAnnotations(pod)
+	libs := extractLibrariesFromAnnotations(pod, m.config.containerRegistry)
 	if len(libs) > 0 {
 		return extracted.withLibs(libs)
 	}
@@ -242,7 +258,7 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	return extractedPodLibInfo{}
 }
 
-func (m *NamespaceMutator) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
+func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
 	var (
 		libList        []libInfo
 		extractLibInfo = func(e annotationExtractor[libInfo]) {
@@ -259,17 +275,17 @@ func (m *NamespaceMutator) extractLibrariesFromAnnotations(pod *corev1.Pod) []li
 
 	for _, l := range supportedLanguages {
 		extractLibInfo(l.customLibAnnotationExtractor())
-		extractLibInfo(l.libVersionAnnotationExtractor(m.config.containerRegistry))
+		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
 		for _, ctr := range pod.Spec.Containers {
 			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, m.config.containerRegistry))
+			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry))
 		}
 	}
 
 	return libList
 }
 
-func (m *NamespaceMutator) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
+func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	// it's possible to get here without single step being enabled, and the pod having
 	// annotations on it to opt it into pod mutation, we disambiguate those two cases.
 	var (
@@ -292,7 +308,7 @@ func (m *NamespaceMutator) initExtractedLibInfo(pod *corev1.Pod) extractedPodLib
 //
 // The languages information is available in workloadmeta-store
 // and attached on the pod's owner.
-func (m *NamespaceMutator) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguageDetection {
+func (m *mutatorCore) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguageDetection {
 	if !m.config.LanguageDetection.Enabled ||
 		!m.config.LanguageDetection.ReportingEnabled {
 		return nil
@@ -307,7 +323,7 @@ func (m *NamespaceMutator) getLibrariesLanguageDetection(pod *corev1.Pod) *libIn
 // getAutoDetectedLibraries constructs the libraries to be injected if the languages
 // were stored in workloadmeta store based on owner annotations
 // (for example: Deployment, DaemonSet, StatefulSet).
-func (m *NamespaceMutator) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
+func (m *mutatorCore) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 	ownerName, ownerKind, found := getOwnerNameAndKind(pod)
 	if !found {
 		return nil
