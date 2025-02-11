@@ -12,6 +12,7 @@ import (
 	"math"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/prometheus/procfs"
 
@@ -121,6 +122,8 @@ func newStreamHandler(pid uint32, containerID string, sysCtx *systemContext) *St
 	}
 }
 
+var logLimitErrorAttach = log.NewLogLimit(10, 10*time.Minute)
+
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	enrichedLaunch := &enrichedKernelLaunch{
 		CudaKernelLaunch: *event, // Copy events, as the memory can be overwritten in the ring buffer after the function returns
@@ -128,7 +131,9 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 	err := sh.tryAttachKernelData(enrichedLaunch)
 	if err != nil {
-		log.Warnf("Error attaching kernel data: %v", err)
+		if logLimitErrorAttach.ShouldLog() {
+			log.Warnf("Error attaching kernel data: %v", err)
+		}
 	}
 
 	sh.kernelLaunches = append(sh.kernelLaunches, *enrichedLaunch)
