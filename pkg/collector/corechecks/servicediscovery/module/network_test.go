@@ -315,6 +315,9 @@ func TestNetworkStats(t *testing.T) {
 
 	mTimeProvider.EXPECT().Now().Return(now).AnyTimes()
 	mock.EXPECT().removePid(uint32(pid)).Return(nil).Times(1)
+	mock.EXPECT().removePid(gomock.Not(uint32(pid))).AnyTimes()
 	r := getServicesWithParams(t, url, &params)
 	t.Log(r.StoppedServices)
+
+	mock.EXPECT().close().Times(1)
 }
