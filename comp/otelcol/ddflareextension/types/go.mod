@@ -1,3 +1,3 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types
 
-go 1.22.0
+go 1.23.0
