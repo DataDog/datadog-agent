@@ -281,7 +281,17 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) *StreamHandler {
 	key := c.getStreamKey(header)
 	if _, ok := c.streamHandlers[key]; !ok {
-		c.streamHandlers[key] = newStreamHandler(key.pid, key.containerID, c.sysCtx)
+		smVersion, ok := c.sysCtx.deviceSmVersions[key.gpuUUID]
+		if !ok {
+			if key.gpuUUID != "" {
+				// Only warn when we have a device, otherwise it's expected to not find the SM version
+				// if the device UUID is empty
+				log.Warnf("SM version not found for device %s, using default", key.gpuUUID)
+			}
+			smVersion = c.sysCtx.defaultSmVersion
+		}
+
+		c.streamHandlers[key] = newStreamHandler(key.pid, key.containerID, smVersion, c.sysCtx)
 		c.telemetry.activeHandlers.Set(float64(len(c.streamHandlers)))
 	}
 

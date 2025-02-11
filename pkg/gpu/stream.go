@@ -33,6 +33,7 @@ type StreamHandler struct {
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
 	containerID    string
+	smVersion      uint32 // The SM version of the GPU this stream is running on, for kernel data attaching
 }
 
 // enrichedKernelLaunch is a kernel launch event with the kernel data attached.
@@ -113,12 +114,13 @@ type kernelSpan struct {
 	avgMemoryUsage map[memAllocType]uint64
 }
 
-func newStreamHandler(pid uint32, containerID string, sysCtx *systemContext) *StreamHandler {
+func newStreamHandler(pid uint32, containerID string, smVersion uint32, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 		pid:            pid,
 		sysCtx:         sysCtx,
 		containerID:    containerID,
+		smVersion:      smVersion,
 	}
 }
 
@@ -132,7 +134,7 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	err := sh.tryAttachKernelData(enrichedLaunch)
 	if err != nil {
 		if logLimitErrorAttach.ShouldLog() {
-			log.Warnf("Error attaching kernel data: %v", err)
+			log.Warnf("Error attaching kernel data for PID %d: %v", sh.pid, err)
 		}
 	}
 
@@ -161,7 +163,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 
 	entry := findEntryInMaps(maps, uintptr(event.Kernel_addr))
 	if entry == nil {
-		return fmt.Errorf("could not find entry for kernel address 0x%x", event.Kernel_addr)
+		return fmt.Errorf("could not find memory maps entry for kernel address 0x%x", event.Kernel_addr)
 	}
 
 	offsetInFile := uint64(int64(event.Kernel_addr) - int64(entry.StartAddr) + entry.Offset)
@@ -169,17 +171,17 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 	binaryPath := path.Join(sh.sysCtx.procRoot, strconv.Itoa(int(sh.pid)), "root", entry.Pathname)
 	fileData, err := sh.sysCtx.getCudaSymbols(binaryPath)
 	if err != nil {
-		return fmt.Errorf("error getting file data: %w", err)
+		return fmt.Errorf("error getting file %s data: %w", binaryPath, err)
 	}
 
 	symbol, ok := fileData.SymbolTable[offsetInFile]
 	if !ok {
-		return fmt.Errorf("could not find symbol for address 0x%x", event.Kernel_addr)
+		return fmt.Errorf("could not find symbol for address 0x%x in file %s", event.Kernel_addr, binaryPath)
 	}
 
-	kern := fileData.Fatbin.GetKernel(symbol, uint32(sh.sysCtx.deviceSmVersions[0]))
+	kern := fileData.Fatbin.GetKernel(symbol, sh.smVersion)
 	if kern == nil {
-		return fmt.Errorf("could not find kernel for symbol %s", symbol)
+		return fmt.Errorf("could not find kernel for symbol %s in file %s", symbol, binaryPath)
 	}
 
 	event.kernel = kern
