@@ -6,6 +6,8 @@
 package cuda
 
 import (
+	//nolint:depguard
+	// we need the original elf package for all the types/consts
 	"debug/elf"
 	"encoding/binary"
 	"errors"
@@ -171,7 +173,7 @@ func (l *lazySectionReader) Iterate() iter.Seq[*elfSection] {
 	// header at index 0.
 	if shoff > 0 && shnum == 0 {
 		var typ, link uint32
-		sr.Seek(shoff, io.SeekStart)
+		_, _ = sr.Seek(shoff, io.SeekStart)
 		switch cls {
 		case elf.ELFCLASS32:
 			sh := new(elf.Section32)
@@ -228,7 +230,7 @@ func (l *lazySectionReader) Iterate() iter.Seq[*elfSection] {
 	var err error
 	if shstrndx > 0 {
 		sectOffset := shoff + int64(shstrndx)*int64(shentsize)
-		err = l.readSection(sr, cls, bo, sectOffset, int64(shentsize))
+		err = l.readSection(sr, cls, bo, sectOffset)
 		if err != nil {
 			l.err = fmt.Errorf("cannot parse names section at offset %d: %w", sectOffset, err)
 			return nil
@@ -247,7 +249,7 @@ func (l *lazySectionReader) Iterate() iter.Seq[*elfSection] {
 	return func(yield func(*elfSection) bool) {
 		for i := 0; i < shnum; i++ {
 			off := shoff + int64(i)*int64(shentsize)
-			err = l.readSection(sr, cls, bo, off, int64(shentsize))
+			err = l.readSection(sr, cls, bo, off)
 			if err != nil {
 				if errors.Is(err, errorUnsupported) {
 					continue // Skip unsupported sections
@@ -273,7 +275,9 @@ func (l *lazySectionReader) Iterate() iter.Seq[*elfSection] {
 	}
 }
 
-func (l *lazySectionReader) readSection(reader io.ReaderAt, cls elf.Class, bo binary.ByteOrder, offset int64, size int64) error {
+func (l *lazySectionReader) readSection(reader io.ReaderAt, cls elf.Class, bo binary.ByteOrder, offset int64) error {
+	// sectionHeaderBuffer is already allocated with the correct size based on the header size
+	// attribute of the ELF file, so we can reuse it for every section.
 	if _, err := reader.ReadAt(l.sectionHeaderBuffer, offset); err != nil {
 		return err
 	}

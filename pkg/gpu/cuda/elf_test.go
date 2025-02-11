@@ -6,7 +6,6 @@
 package cuda
 
 import (
-	"debug/elf"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func TestLazySectionReader(t *testing.T) {
@@ -30,11 +30,11 @@ func TestLazySectionReader(t *testing.T) {
 	t.Cleanup(func() { f.Close() })
 
 	// Read using the regular ELF reader first
-	elfFile, err := elf.NewFile(f)
+	elfFile, err := safeelf.NewFile(f)
 	require.NoError(t, err)
 	t.Cleanup(func() { elfFile.Close() })
 
-	sectsByIndex := make(map[int]*elf.Section)
+	sectsByIndex := make(map[int]*safeelf.Section)
 	for i, sect := range elfFile.Sections {
 		sectsByIndex[i] = sect
 	}
