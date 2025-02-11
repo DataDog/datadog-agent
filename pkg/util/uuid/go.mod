@@ -12,14 +12,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/shirou/gopsutil/v4 v4.24.12
-	golang.org/x/sys v0.29.0
+	golang.org/x/sys v0.30.0
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
-	github.com/ebitengine/purego v0.8.1 // indirect
+	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240226150601-1dcf7310316a // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
