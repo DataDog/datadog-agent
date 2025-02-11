@@ -15,7 +15,12 @@ import (
 )
 
 var BlkidCommand = func() (string, error) {
-	return "", nil
+	cmd := exec.Command("blkid", []string{}...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err := cmd.Run()
+	return out.String(), err
 }
 
 var NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
