@@ -112,6 +112,7 @@ type checkInstanceCfg struct {
 	JavaOptions      string `yaml:"java_options,omitempty"`
 	ToolsJarPath     string `yaml:"tools_jar_path,omitempty"`
 	ProcessNameRegex string `yaml:"process_name_regex,omitempty"`
+	HAEnabled        bool   `yaml:"ha_enabled,omitempty"`
 }
 
 type checkInitCfg struct {
@@ -119,6 +120,7 @@ type checkInitCfg struct {
 	ToolsJarPath   string   `yaml:"tools_jar_path,omitempty"`
 	JavaBinPath    string   `yaml:"java_bin_path,omitempty"`
 	JavaOptions    string   `yaml:"java_options,omitempty"`
+	HAEnabled      bool     `yaml:"ha_enabled,omitempty"`
 }
 
 func NewJMXFetch(logger jmxlogger.Component) *JMXFetch {
@@ -478,6 +480,9 @@ func (j *JMXFetch) ConfigureFromInitConfig(initConfig integration.Data) error {
 			j.JavaCustomJarPaths = initConf.CustomJarPaths
 		}
 	}
+	if initConf.HAEnabled {
+		return fmt.Errorf("High Availability mode is not supported in JMXFetch")
+	}
 
 	return nil
 }
@@ -507,6 +512,9 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 		if instanceConf.ToolsJarPath != "" {
 			j.JavaToolsJarPath = instanceConf.ToolsJarPath
 		}
+	}
+	if instanceConf.HAEnabled {
+		return fmt.Errorf("High Availability mode is not supported in JMXFetch")
 	}
 
 	return nil

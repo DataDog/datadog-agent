@@ -65,3 +65,18 @@ func TestConflictingInstanceInitJavaOptions(t *testing.T) {
 	require.Contains(t, j.JavaOptions, "Xmx200m")
 	require.NotContains(t, j.JavaOptions, "Xmx444m")
 }
+
+func TestCheckHAIsNotSupported(t *testing.T) {
+	j := NewJMXFetch(nil)
+
+	var configOne integration.Data = integration.Data("{\"ha_enabled\": true}")
+	var configTwo integration.Data = integration.Data("{\"ha_enabled\": true}")
+
+	err := j.ConfigureFromInitConfig(configOne)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "High Availability mode is not supported in JMXFetch")
+
+	err = j.ConfigureFromInstance(configTwo)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "High Availability mode is not supported in JMXFetch")
+}
