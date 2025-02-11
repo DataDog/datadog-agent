@@ -88,9 +88,10 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs.maxTTL,
 		collectorConfigs.pathtestInputChanSize,
 		collectorConfigs.pathtestProcessingChanSize,
-		collectorConfigs.pathtestContextsLimit,
-		collectorConfigs.pathtestTTL,
-		collectorConfigs.pathtestInterval,
+		collectorConfigs.storeConfig.ContextsLimit,
+		collectorConfigs.storeConfig.TTL,
+		collectorConfigs.storeConfig.Interval,
+		collectorConfigs.storeConfig.MaxPerMinute,
 		collectorConfigs.flushInterval,
 		collectorConfigs.reverseDNSEnabled,
 		collectorConfigs.reverseDNSTimeout,
@@ -102,7 +103,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		rdnsquerier:      rdnsquerier,
 		logger:           logger,
 
-		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, collectorConfigs.pathtestContextsLimit, logger),
+		// pathtestStore is set in start() after statsd.Client is configured
+		pathtestStore:          nil,
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
@@ -185,16 +187,25 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", pathtest.Hostname, pathtest.Port)
 
-	s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.count", []string{}, 1) //nolint:errcheck
+	s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_count", []string{}, 1) //nolint:errcheck
 	select {
 	case s.pathtestInputChan <- pathtest:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.processed", []string{}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_processed", []string{}, 1) //nolint:errcheck
 		return nil
 	default:
-		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.dropped", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_dropped", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
+
+func (s *npCollectorImpl) initStatsdClient(statsdClient ddgostatsd.ClientInterface) {
+	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
+	// due to statsd.Client not being configured yet.
+	s.statsdClient = statsdClient
+
+	s.pathtestStore = pathteststore.NewPathtestStore(s.collectorConfigs.storeConfig, s.logger, statsdClient, s.TimeNowFn)
+}
+
 func (s *npCollectorImpl) start() error {
 	if s.running {
 		return errors.New("server already started")
@@ -203,9 +214,7 @@ func (s *npCollectorImpl) start() error {
 
 	s.logger.Info("Start NpCollector")
 
-	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
-	// due to statsd.Client not being configured yet.
-	s.statsdClient = statsd.Client
+	s.initStatsdClient(statsd.Client)
 
 	go s.listenPathtests()
 	go s.flushLoop()
@@ -332,14 +341,14 @@ func (s *npCollectorImpl) flush() {
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(pathtestsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
-	s.statsdClient.Count(networkPathCollectorMetricPrefix+"flush.count", int64(len(pathtestsToFlush)), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Count(networkPathCollectorMetricPrefix+"flush.pathtest_count", int64(len(pathtestsToFlush)), []string{}, 1) //nolint:errcheck
 	for _, ptConf := range pathtestsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
 		select {
 		case s.pathtestProcessingChan <- ptConf:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.processed", []string{}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest_processed", []string{}, 1) //nolint:errcheck
 		default:
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.dropped", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest_dropped", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
 			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
 		}
 	}
@@ -451,9 +460,9 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 
 			checkInterval := pathtestCtx.LastFlushInterval()
 			checkDuration := s.TimeNowFn().Sub(startTime)
-			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"job.processed", []string{}, 1)                      //nolint:errcheck
-			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.interval", float64(checkInterval), nil, 1) //nolint:errcheck
-			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"job.duration", float64(checkDuration), nil, 1) //nolint:errcheck
+			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.task_duration", checkDuration.Seconds(), nil, 1)     //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"worker.pathtest_processed", []string{}, 1)                       //nolint:errcheck
+			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1) //nolint:errcheck
 		}
 	}
 }

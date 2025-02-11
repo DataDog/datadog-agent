@@ -93,7 +93,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 
 	app.RequireStart()
 
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 
 	assert.True(t, npCollector.running)
 
@@ -241,7 +241,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 
 	conns := []*model.Connection{
 		{
@@ -289,7 +289,7 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 	assert.Equal(t, 4, npCollector.workers)
 	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 5000, npCollector.collectorConfigs.pathtestContextsLimit)
+	assert.Equal(t, 5000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
@@ -309,7 +309,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	assert.Equal(t, 2, npCollector.workers)
 	assert.Equal(t, 300, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 400, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 500, npCollector.collectorConfigs.pathtestContextsLimit)
+	assert.Equal(t, 500, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "ns1", npCollector.networkDevicesNamespace)
 }
 
@@ -499,7 +499,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			utillog.SetupLogger(l, "debug")
 
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			npCollector.initStatsdClient(stats)
 
 			npCollector.ScheduleConns(tt.conns, tt.dns)
 
@@ -608,7 +608,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			_, npCollector := newTestNpCollector(t, agentConfigs)
 
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			npCollector.initStatsdClient(stats)
+
 			npCollector.TimeNowFn = func() time.Time {
 				return tt.flushEndTime
 			}
@@ -633,17 +634,26 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 }
 
 func Test_npCollectorImpl_flush(t *testing.T) {
+	mockNow := time.Now()
+	mockTimeNow := func() time.Time {
+		return mockNow
+	}
+
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              6,
 	}
 	_, npCollector := newTestNpCollector(t, agentConfigs)
+	npCollector.TimeNowFn = mockTimeNow
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
+
+	// simulate some time passing so that the PathTestStore rate limit has some budget to work with
+	mockNow = mockNow.Add(10 * time.Second)
 
 	// WHEN
 	npCollector.flush()
@@ -652,7 +662,7 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
 	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
 	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.processing_chan_size", Value: 2, Tags: []string{}, Rate: 1})
-	assert.Contains(t, stats.CountCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.flush.count", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.CountCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.flush.pathtest_count", Value: 2, Tags: []string{}, Rate: 1})
 
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
@@ -668,7 +678,7 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 	defer npCollector.stop()
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
 
@@ -735,7 +745,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -786,7 +796,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	}
 	_, npCollector = newTestNpCollector(t, agentConfigs)
 
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -818,7 +828,7 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 
 	// WHEN
 	path := payload.NetworkPath{
@@ -841,7 +851,7 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 
 	tts := []struct {
 		description string

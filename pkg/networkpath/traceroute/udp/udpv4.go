@@ -38,7 +38,7 @@ type (
 // NewUDPv4 initializes a new UDPv4 traceroute instance
 func NewUDPv4(target net.IP, targetPort uint16, numPaths uint16, minTTL uint8, maxTTL uint8, delay time.Duration, timeout time.Duration) *UDPv4 {
 	icmpParser := icmp.NewICMPUDPParser()
-	buffer := gopacket.NewSerializeBuffer()
+	buffer := gopacket.NewSerializeBufferExpectedSize(36, 0)
 
 	return &UDPv4{
 		Target:     target,
@@ -66,6 +66,8 @@ func (u *UDPv4) Close() error {
 //
 // the nolint:unused is necessary because we don't yet use this outside the Windows implementation
 func (u *UDPv4) createRawUDPBuffer(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, ttl int) (*ipv4.Header, []byte, uint16, int, error) { //nolint:unused
+	// if this function is modified in a way that changes the size,
+	// update the NewSerializeBufferExpectedSize call in NewUDPv4
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,
