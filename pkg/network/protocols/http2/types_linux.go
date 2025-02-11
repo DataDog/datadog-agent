@@ -4,8 +4,10 @@
 package http2
 
 const (
-	maxHTTP2Path     = 0xa0
-	http2PathBuckets = 0x7
+	maxHTTP2Path        = 0xa0
+	PathBucketsCount    = 0x7
+	MaxTelemetryPathLen = 0x78
+	PathBucketSize      = 0xa
 
 	HTTP2TerminatedBatchSize = 0x55
 

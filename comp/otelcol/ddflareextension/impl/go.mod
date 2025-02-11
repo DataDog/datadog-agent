@@ -2,116 +2,6 @@ module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 
 go 1.23.0
 
-replace (
-	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../api/authtoken
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
-	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
-	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../core/hostname/hostnameinterface
-	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../core/log/def
-	github.com/DataDog/datadog-agent/comp/core/log/fx => ../../../core/log/fx
-	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../core/log/mock
-	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../core/secrets
-	github.com/DataDog/datadog-agent/comp/core/status => ../../../core/status
-	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../core/tagger/def/
-	github.com/DataDog/datadog-agent/comp/core/tagger/fx => ../../../core/tagger/fx/
-	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote => ../../../core/tagger/fx-remote/
-	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store => ../../../core/tagger/generic_store/
-	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote => ../../../core/tagger/impl-remote/
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../../core/tagger/origindetection
-	github.com/DataDog/datadog-agent/comp/core/tagger/tags => ../../../core/tagger/tags
-	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../core/tagger/telemetry/
-	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../core/tagger/types
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../core/tagger/utils
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
-	github.com/DataDog/datadog-agent/comp/def => ../../../def
-	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../forwarder/defaultforwarder
-	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../forwarder/orchestrator/orchestratorinterface
-	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
-	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../../otelcol/converter/def
-	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ../../converter/impl
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ../../ddflareextension/def
-	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../logsagentpipeline
-	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../logsagentpipeline/logsagentpipelineimpl
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../otlp/components/exporter/datadogexporter
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../otlp/components/exporter/logsagentexporter
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../otlp/components/exporter/serializerexporter
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../otlp/components/metricsclient
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../otlp/components/processor/infraattributesprocessor
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../otlp/components/statsprocessor
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../../otelcol/otlp/testutil
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../serializer/logscompression
-	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../serializer/metricscompression
-	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../trace/agent/def
-	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
-	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../pkg/aggregator/ckey
-	github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
-	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
-	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
-	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
-	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
-	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
-	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../../pkg/logs/auditor
-	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../pkg/logs/client
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
-	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
-	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
-	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../../pkg/logs/sds
-	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
-	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
-	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../pkg/logs/util/testutils
-	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
-	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../pkg/obfuscate
-	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../../pkg/orchestrator/model
-	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../pkg/process/util/api
-	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../pkg/remoteconfig/state
-	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../pkg/serializer
-	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
-	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
-	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
-	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
-	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
-	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
-	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../../pkg/util/cgroups
-	github.com/DataDog/datadog-agent/pkg/util/common => ../../../../pkg/util/common
-	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../../pkg/util/compression
-	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../../pkg/util/containers/image
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
-	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
-	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
-	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
-	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
-	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../pkg/util/json
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
-	github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
-	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
-	github.com/DataDog/datadog-agent/pkg/util/sort => ../../../../pkg/util/sort
-	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../../pkg/util/startstop
-	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../../pkg/util/statstracker
-	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
-	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
-	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../../../pkg/util/utilizationtracker
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
-	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
-)
-
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.58.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
@@ -122,53 +12,54 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.61.0
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.118.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.118.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.119.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.119.0
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/component v0.118.0
-	go.opentelemetry.io/collector/component/componentstatus v0.118.0
-	go.opentelemetry.io/collector/component/componenttest v0.118.0
-	go.opentelemetry.io/collector/config/confighttp v0.118.0
-	go.opentelemetry.io/collector/confmap v1.24.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v1.24.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.24.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.24.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.24.0
-	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.24.0
-	go.opentelemetry.io/collector/connector v0.118.0
-	go.opentelemetry.io/collector/exporter v0.118.0
-	go.opentelemetry.io/collector/exporter/otlpexporter v0.118.0
-	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.118.0
-	go.opentelemetry.io/collector/extension v0.118.0
-	go.opentelemetry.io/collector/extension/extensioncapabilities v0.118.0
-	go.opentelemetry.io/collector/extension/zpagesextension v0.118.0
-	go.opentelemetry.io/collector/otelcol v0.118.0
-	go.opentelemetry.io/collector/processor v0.118.0
-	go.opentelemetry.io/collector/processor/batchprocessor v0.118.0
-	go.opentelemetry.io/collector/receiver v0.118.0
-	go.opentelemetry.io/collector/receiver/nopreceiver v0.118.0
-	go.opentelemetry.io/collector/receiver/otlpreceiver v0.118.0
+	go.opentelemetry.io/collector/component v0.119.0
+	go.opentelemetry.io/collector/component/componentstatus v0.119.0
+	go.opentelemetry.io/collector/component/componenttest v0.119.0
+	go.opentelemetry.io/collector/config/confighttp v0.119.0
+	go.opentelemetry.io/collector/confmap v1.25.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v1.25.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v1.25.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v1.25.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.25.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.25.0
+	go.opentelemetry.io/collector/connector v0.119.0
+	go.opentelemetry.io/collector/exporter v0.119.0
+	go.opentelemetry.io/collector/exporter/otlpexporter v0.119.0
+	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.119.0
+	go.opentelemetry.io/collector/extension v0.119.0
+	go.opentelemetry.io/collector/extension/extensioncapabilities v0.119.0
+	go.opentelemetry.io/collector/extension/zpagesextension v0.119.0
+	go.opentelemetry.io/collector/otelcol v0.119.0
+	go.opentelemetry.io/collector/processor v0.119.0
+	go.opentelemetry.io/collector/processor/batchprocessor v0.119.0
+	go.opentelemetry.io/collector/receiver v0.119.0
+	go.opentelemetry.io/collector/receiver/nopreceiver v0.119.0
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.119.0
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v2 v2.4.0
 
 )
 
-require go.opentelemetry.io/collector/extension/extensiontest v0.118.0 // indirect
+require go.opentelemetry.io/collector/extension/extensiontest v0.119.0 // indirect
 
 require (
-	go.opentelemetry.io/collector/connector/xconnector v0.118.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.118.0 // indirect
-	go.opentelemetry.io/collector/consumer/xconsumer v0.118.0 // indirect
-	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.118.0 // indirect
-	go.opentelemetry.io/collector/exporter/xexporter v0.118.0 // indirect
-	go.opentelemetry.io/collector/extension/xextension v0.118.0 // indirect
-	go.opentelemetry.io/collector/pipeline/xpipeline v0.118.0 // indirect
-	go.opentelemetry.io/collector/processor/xprocessor v0.118.0 // indirect
-	go.opentelemetry.io/collector/receiver/xreceiver v0.118.0 // indirect
+	go.opentelemetry.io/collector/connector/xconnector v0.119.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.119.0 // indirect
+	go.opentelemetry.io/collector/consumer/xconsumer v0.119.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.119.0 // indirect
+	go.opentelemetry.io/collector/exporter/xexporter v0.119.0 // indirect
+	go.opentelemetry.io/collector/extension/xextension v0.119.0 // indirect
+	go.opentelemetry.io/collector/pipeline/xpipeline v0.119.0 // indirect
+	go.opentelemetry.io/collector/processor/xprocessor v0.119.0 // indirect
+	go.opentelemetry.io/collector/receiver/xreceiver v0.119.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.10.0 // indirect
 )
 
 require (
@@ -193,14 +84,14 @@ require (
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/collector/connector/connectortest v0.118.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumererror v0.118.0 // indirect
-	go.opentelemetry.io/collector/exporter/exportertest v0.118.0 // indirect
-	go.opentelemetry.io/collector/internal/fanoutconsumer v0.118.0 // indirect
-	go.opentelemetry.io/collector/internal/sharedcomponent v0.118.0 // indirect
-	go.opentelemetry.io/collector/processor/processortest v0.118.0 // indirect
-	go.opentelemetry.io/collector/receiver/receivertest v0.118.0 // indirect
-	go.opentelemetry.io/contrib/bridges/otelzap v0.6.0 // indirect
+	go.opentelemetry.io/collector/connector/connectortest v0.119.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror v0.119.0 // indirect
+	go.opentelemetry.io/collector/exporter/exportertest v0.119.0 // indirect
+	go.opentelemetry.io/collector/internal/fanoutconsumer v0.119.0 // indirect
+	go.opentelemetry.io/collector/internal/sharedcomponent v0.119.0 // indirect
+	go.opentelemetry.io/collector/processor/processortest v0.119.0 // indirect
+	go.opentelemetry.io/collector/receiver/receivertest v0.119.0 // indirect
+	go.opentelemetry.io/contrib/bridges/otelzap v0.9.0 // indirect
 )
 
 require (
@@ -263,7 +154,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.59.0-rc.6 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-devel.0.20250123185937-1feb84b482c8 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel // indirect
@@ -273,7 +164,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-devel.0.20250129182827-bab631c10d61 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
@@ -284,7 +175,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-devel.0.20250123185937-1feb84b482c8 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.61.0 // indirect
@@ -428,15 +319,15 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/onsi/ginkgo/v2 v2.20.2 // indirect
 	github.com/onsi/gomega v1.34.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.118.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.118.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.119.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.119.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
@@ -477,49 +368,49 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/collector v0.118.0 // indirect
-	go.opentelemetry.io/collector/client v1.24.0 // indirect
-	go.opentelemetry.io/collector/config/configauth v0.118.0 // indirect
-	go.opentelemetry.io/collector/config/configcompression v1.24.0 // indirect
-	go.opentelemetry.io/collector/config/configgrpc v0.118.0 // indirect
-	go.opentelemetry.io/collector/config/confignet v1.24.0 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.24.0 // indirect
-	go.opentelemetry.io/collector/config/configretry v1.24.0 // indirect
-	go.opentelemetry.io/collector/config/configtelemetry v0.118.0 // indirect
-	go.opentelemetry.io/collector/config/configtls v1.24.0 // indirect
-	go.opentelemetry.io/collector/consumer v1.24.0 // indirect
-	go.opentelemetry.io/collector/consumer/consumertest v0.118.0 // indirect
-	go.opentelemetry.io/collector/extension/auth v0.118.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.24.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.24.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.118.0 // indirect
-	go.opentelemetry.io/collector/pdata/testdata v0.118.0 // indirect
-	go.opentelemetry.io/collector/pipeline v0.118.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.118.0 // indirect
-	go.opentelemetry.io/collector/service v0.118.0 // indirect
-	go.opentelemetry.io/contrib/config v0.10.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.57.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.57.0 // indirect
-	go.opentelemetry.io/contrib/propagators/b3 v1.31.0 // indirect
-	go.opentelemetry.io/contrib/zpages v0.56.0 // indirect
+	go.opentelemetry.io/collector v0.119.0 // indirect
+	go.opentelemetry.io/collector/client v1.25.0 // indirect
+	go.opentelemetry.io/collector/config/configauth v0.119.0 // indirect
+	go.opentelemetry.io/collector/config/configcompression v1.25.0 // indirect
+	go.opentelemetry.io/collector/config/configgrpc v0.119.0 // indirect
+	go.opentelemetry.io/collector/config/confignet v1.25.0 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.25.0 // indirect
+	go.opentelemetry.io/collector/config/configretry v1.25.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.119.0 // indirect
+	go.opentelemetry.io/collector/config/configtls v1.25.0 // indirect
+	go.opentelemetry.io/collector/consumer v1.25.0 // indirect
+	go.opentelemetry.io/collector/consumer/consumertest v0.119.0 // indirect
+	go.opentelemetry.io/collector/extension/auth v0.119.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.25.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.25.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.119.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.119.0 // indirect
+	go.opentelemetry.io/collector/pipeline v0.119.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.119.0 // indirect
+	go.opentelemetry.io/collector/service v0.119.0 // indirect
+	go.opentelemetry.io/contrib/config v0.14.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.59.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.59.0 // indirect
+	go.opentelemetry.io/contrib/propagators/b3 v1.34.0 // indirect
+	go.opentelemetry.io/contrib/zpages v0.59.0 // indirect
 	go.opentelemetry.io/otel v1.34.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.7.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.32.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.32.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.33.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.32.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.33.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.54.0 // indirect
-	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.7.0 // indirect
-	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.32.0 // indirect
-	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.32.0 // indirect
-	go.opentelemetry.io/otel/log v0.8.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.10.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.34.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.34.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.34.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.34.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.34.0 // indirect
+	go.opentelemetry.io/otel/exporters/prometheus v0.56.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.10.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.34.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.34.0 // indirect
+	go.opentelemetry.io/otel/log v0.10.0 // indirect
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.34.0 // indirect
-	go.opentelemetry.io/otel/sdk/log v0.7.0 // indirect
+	go.opentelemetry.io/otel/sdk/log v0.10.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.4.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/fx v1.23.0 // indirect
@@ -559,8 +450,140 @@ require (
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
 
-replace github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../core/log/impl
+// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
 
-replace github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache
-
-replace github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../pkg/util/grpc
+replace (
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../../comp/api/authtoken
+	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../../comp/core/log/def
+	github.com/DataDog/datadog-agent/comp/core/log/fx => ../../../../comp/core/log/fx
+	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../../comp/core/log/impl
+	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../../comp/core/log/impl-trace
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../comp/core/log/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/status => ../../../../comp/core/status
+	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../../comp/core/status/statusimpl
+	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../../comp/core/tagger/def
+	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote => ../../../../comp/core/tagger/fx-remote
+	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store => ../../../../comp/core/tagger/generic_store
+	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote => ../../../../comp/core/tagger/impl-remote
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../../../comp/core/tagger/origindetection
+	github.com/DataDog/datadog-agent/comp/core/tagger/subscriber => ../../../../comp/core/tagger/subscriber
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags => ../../../../comp/core/tagger/tags
+	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../../comp/core/tagger/telemetry
+	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../comp/core/tagger/types
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../comp/core/tagger/utils
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
+	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../comp/forwarder/defaultforwarder
+	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../comp/logs/agent/config
+	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../comp/netflow/payload
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../comp/otelcol/collector-contrib/def
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../../../comp/otelcol/collector-contrib/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../../../comp/otelcol/converter/def
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ../../../../comp/otelcol/converter/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ../../../../comp/otelcol/ddflareextension/def
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def => ../../../../comp/otelcol/ddprofilingextension/def
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../../../comp/otelcol/ddprofilingextension/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../../comp/otelcol/logsagentpipeline
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../../../comp/otelcol/otlp/components/exporter/datadogexporter
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../../../comp/otelcol/otlp/components/exporter/logsagentexporter
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../../comp/otelcol/otlp/components/exporter/serializerexporter
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../../../comp/otelcol/otlp/components/metricsclient
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../../../comp/otelcol/otlp/components/processor/infraattributesprocessor
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../../../comp/otelcol/otlp/components/statsprocessor
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../../../comp/otelcol/otlp/testutil
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../../../comp/serializer/logscompression
+	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../../../comp/serializer/metricscompression
+	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../../comp/trace/agent/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../../comp/trace/compression/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../../comp/trace/compression/impl-gzip
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../../comp/trace/compression/impl-zstd
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../pkg/aggregator/ckey
+	github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
+	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../../pkg/config/remote
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
+	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/errors => ../../../../pkg/errors
+	github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
+	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../../../pkg/linters/components/pkgconfigusage
+	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../../pkg/logs/auditor
+	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../pkg/logs/client
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
+	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
+	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
+	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
+	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../../pkg/logs/sds
+	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../pkg/logs/util/testutils
+	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
+	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../pkg/network/payload
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ../../../../pkg/networkdevice/profile
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ../../../../pkg/networkpath/payload
+	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../pkg/obfuscate
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../../pkg/orchestrator/model
+	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../pkg/process/util/api
+	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../../pkg/security/secl
+	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../../pkg/security/seclwin
+	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../pkg/serializer
+	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
+	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../../../pkg/tagger/types
+	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../pkg/tagset
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../../pkg/trace/stats/oteltest
+	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
+	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
+	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache
+	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../../pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/common => ../../../../pkg/util/common
+	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../../pkg/util/compression
+	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../../pkg/util/containers/image
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths => ../../../../pkg/util/defaultpaths
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../../pkg/util/flavor
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
+	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../pkg/util/json
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/sort => ../../../../pkg/util/sort
+	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../../pkg/util/startstop
+	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../../pkg/util/statstracker
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../../../pkg/util/utilizationtracker
+	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../pkg/util/uuid
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../test/fakeintake
+	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../test/new-e2e
+	github.com/DataDog/datadog-agent/test/otel => ../../../../test/otel
+)

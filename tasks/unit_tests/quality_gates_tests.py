@@ -5,8 +5,8 @@ from unittest.mock import ANY, MagicMock, patch
 from invoke import Context, MockContext, Result
 
 from tasks.quality_gates import display_pr_comment
+from tasks.static_quality_gates.lib.docker_agent_lib import calculate_image_on_disk_size
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
-from tasks.static_quality_gates.static_quality_gate_docker_agent_amd64 import calculate_image_on_disk_size
 
 
 class TestQualityGatesPrMessage(unittest.TestCase):
@@ -149,12 +149,12 @@ class DynamicMockContext:
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
     def tearDown(self):
         try:
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
         except OSError:
             pass
         try:
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
         except OSError:
             pass
 

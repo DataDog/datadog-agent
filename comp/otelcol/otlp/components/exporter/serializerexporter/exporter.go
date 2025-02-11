@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -87,7 +88,10 @@ func translatorFromConfig(
 		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.DeltaTTL),
-		metrics.WithOTelPrefix(),
+	}
+
+	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
+		options = append(options, metrics.WithOTelPrefix())
 	}
 
 	if statsIn != nil {
