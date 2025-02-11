@@ -398,9 +398,7 @@ def pretty_print_test_logs(logs_per_test: dict[tuple[str, str], str], max_size):
         raise TooManyLogsError
     for (package, test), logs in logs_per_test.items():
         with gitlab_section("Complete logs for " + package + "." + test, collapsed=True):
-            print('\n------ START', package, test)  # TODO
             print("".join(logs).strip())
-            print('------ END', package, test)  # TODO
 
     return size
 
