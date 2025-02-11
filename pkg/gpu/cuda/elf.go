@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Some of the code of this file is based on the debug/elf package from the Go standard library.
+
 package cuda
 
 import (
@@ -48,6 +50,7 @@ func (l *lazySectionReader) Err() error {
 
 // Iterate reads the ELF sections and yields them one by one. After iterating
 // through all sections, the error field l.err is set if an error occurred.
+// Part of the code has been adapted from the NewFile method in the debug/elf package of the Go standard library.
 func (l *lazySectionReader) Iterate() iter.Seq[*elfSection] {
 	sr := io.NewSectionReader(l.reader, 0, 1<<63-1)
 
@@ -275,6 +278,8 @@ func (l *lazySectionReader) Iterate() iter.Seq[*elfSection] {
 	}
 }
 
+// readSection reads the section header at the given offset and initializes the current section.
+// Part of the code has been taken from the NewFile method in the debug/elf package of the Go standard library.
 func (l *lazySectionReader) readSection(reader io.ReaderAt, cls elf.Class, bo binary.ByteOrder, offset int64) error {
 	// sectionHeaderBuffer is already allocated with the correct size based on the header size
 	// attribute of the ELF file, so we can reuse it for every section.
