@@ -1,8 +1,10 @@
 import os
 import re
+import sys
 
 from tasks.libs.ciproviders.gitlab_api import get_commit, get_pipeline
 from tasks.libs.common.git import get_default_branch
+from tasks.libs.common.utils import Color, color_message
 from tasks.libs.notify.utils import DEPLOY_PIPELINES_CHANNEL, PIPELINES_CHANNEL, PROJECT_NAME, get_pipeline_type
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
@@ -76,4 +78,7 @@ def send_message(ctx, pipeline_id, dry_run):
                 recipient = client.users_lookupByEmail(email=author_email)
                 client.chat_postMessage(channel=recipient.data['user']['id'], text=str(message))
             except SlackApiError as e:
-                print(f"Failed to send message to {author_email}: {e.response['error']}")
+                print(
+                    f"[{color_message('ERROR', Color.RED)}] Failed to send message to {author_email}: {e.response['error']}",
+                    file=sys.stderr,
+                )

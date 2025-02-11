@@ -87,9 +87,9 @@ trigger_manual_prod_release_on_failure:
 
 generate_windows_gitlab_runner_bump_pr:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: ["trigger_auto_staging_release"]
-  tags: ["arch:amd64"]
+  tags: ["arch:arm64"]
   rules:
     - if: $DDR_WORKFLOW_ID != null
       when: never
@@ -108,9 +108,9 @@ generate_windows_gitlab_runner_bump_pr:
 # Manual job to generate the gitlab bump pr on buildenv if trigger_auto_staging_release fails
 generate_windows_gitlab_runner_bump_pr_manual:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: ["trigger_auto_staging_release"]
-  tags: ["arch:amd64"]
+  tags: ["arch:arm64"]
   rules:
     - if: $DDR_WORKFLOW_ID != null
       when: never
