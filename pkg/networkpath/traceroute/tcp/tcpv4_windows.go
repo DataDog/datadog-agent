@@ -65,7 +65,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rs *winconn.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
+func (t *TCPv4) sendAndReceive(rs winconn.RawConnWrapper, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
 	_, buffer, _, err := t.createRawTCPSynBuffer(seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
