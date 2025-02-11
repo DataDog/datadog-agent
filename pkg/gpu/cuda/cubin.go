@@ -134,7 +134,7 @@ type sectionParserFunc func(*elfSection, []byte) error
 
 type sectionParser struct {
 	prefix []byte
-	funct  sectionParserFunc
+	parser sectionParserFunc
 }
 
 // cubinParser is a helper struct to parse the cubin ELF sections
@@ -152,10 +152,10 @@ func newCubinParser() *cubinParser {
 	}
 
 	cp.sectionParsers = []sectionParser{
-		{prefix: []byte(".nv.info"), funct: cp.parseNvInfoSection},
-		{prefix: []byte(".text"), funct: cp.parseTextSection},
-		{prefix: []byte(".nv.shared"), funct: cp.parseSharedMemSection},
-		{prefix: []byte(".nv.constant"), funct: cp.parseConstantMemSection},
+		{prefix: []byte(".nv.info"), parser: cp.parseNvInfoSection},
+		{prefix: []byte(".text"), parser: cp.parseTextSection},
+		{prefix: []byte(".nv.shared"), parser: cp.parseSharedMemSection},
+		{prefix: []byte(".nv.constant"), parser: cp.parseConstantMemSection},
 	}
 
 	return cp
@@ -197,7 +197,7 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 				kernelName = sect.nameBytes[len(parser.prefix)+1:]
 			}
 
-			err := parser.funct(sect, kernelName)
+			err := parser.parser(sect, kernelName)
 			if err != nil {
 				return fmt.Errorf("failed to parse section %s: %w", sect.Name(), err)
 			}
