@@ -44,7 +44,7 @@ def check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_s
         raise AssertionError(error_message)
 
 
-def generic_docker_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
+def generic_package_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
     arguments = argument_extractor(
         kwargs, max_on_wire_size=read_byte_input, max_on_disk_size=read_byte_input, ctx=None, metricHandler=None
     )
@@ -57,8 +57,14 @@ def generic_docker_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
 
     metric_handler.register_metric(gate_name, "max_on_wire_size", max_on_wire_size)
     metric_handler.register_metric(gate_name, "max_on_disk_size", max_on_disk_size)
+    package_arm = arch
+    if os == "centos" or os == "suse":
+        if arch == "arm64":
+            package_arm = "aarch64"
+        elif arch == "amd64":
+            package_arm = "x86_64"
 
-    package_path = find_package_path(flavor, os, arch)
+    package_path = find_package_path(flavor, os, package_arm)
 
     package_on_wire_size, package_on_disk_size = calculate_package_size(
         ctx, os, package_path, gate_name, metric_handler
