@@ -11,9 +11,10 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
