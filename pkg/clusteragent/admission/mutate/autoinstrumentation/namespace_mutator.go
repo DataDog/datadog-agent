@@ -34,7 +34,12 @@ type NamespaceMutator struct {
 }
 
 // NewNamespaceMutator creates a new injector interface for the auto-instrumentation injector.
-func NewNamespaceMutator(config *Config, filter mutatecommon.MutationFilter, wmeta workloadmeta.Component) *NamespaceMutator {
+func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*NamespaceMutator, error) {
+	filter, err := NewFilter(config)
+	if err != nil {
+		return nil, err
+	}
+
 	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry)
 	return &NamespaceMutator{
 		config:          config,
@@ -42,7 +47,7 @@ func NewNamespaceMutator(config *Config, filter mutatecommon.MutationFilter, wme
 		wmeta:           wmeta,
 		pinnedLibraries: pinnedLibraries,
 		core:            newMutatorCore(config, wmeta, filter),
-	}
+	}, nil
 }
 
 // MutatePod implements the common.Mutator interface for the auto-instrumentation injector. It injects all of the
@@ -91,6 +96,16 @@ func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Inter
 	}
 
 	return true, nil
+}
+
+// ShouldMutatePod implements the common.MutationFilter interface for the auto-instrumentation injector.
+func (m *NamespaceMutator) ShouldMutatePod(pod *corev1.Pod) bool {
+	return m.filter.ShouldMutatePod(pod)
+}
+
+// IsNamespaceEligible implements the common.MutationFilter interface for the auto-instrumentation injector.
+func (m *NamespaceMutator) IsNamespaceEligible(ns string) bool {
+	return m.filter.IsNamespaceEligible(ns)
 }
 
 type mutatorCore struct {

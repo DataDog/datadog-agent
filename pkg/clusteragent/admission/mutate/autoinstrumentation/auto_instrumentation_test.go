@@ -235,9 +235,6 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
-			filter, err := NewFilter(config)
-			require.NoError(t, err)
-
 			require.Equal(t, instrumentationV2, config.version)
 			require.True(t, config.version.usesInjector())
 			config.initSecurityContext = tt.expectedSecurityContext
@@ -250,7 +247,9 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			mutator := NewNamespaceMutator(config, filter, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta)
+			require.NoError(t, err)
+
 			err = mutator.core.injectTracers(tt.pod, tt.libInfo)
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
@@ -596,9 +595,9 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			filter, err := NewFilter(config)
+
+			mutator, err := NewNamespaceMutator(config, wmeta)
 			require.NoError(t, err)
-			mutator := NewNamespaceMutator(config, filter, wmeta)
 
 			err = mutator.core.injectTracers(tt.pod, extractedPodLibInfo{
 				libs:   tt.libsToInject,
@@ -1080,9 +1079,8 @@ func TestExtractLibInfo(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			filter, err := NewFilter(config)
+			mutator, err := NewNamespaceMutator(config, wmeta)
 			require.NoError(t, err)
-			mutator := NewNamespaceMutator(config, filter, wmeta)
 
 			if tt.expectedPodEligible != nil {
 				require.Equal(t, *tt.expectedPodEligible, mutator.isPodEligible(tt.pod))
@@ -1681,10 +1679,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			// N.B. this is a bit hacky but consistent.
 			config.initSecurityContext = tt.secCtx
 
-			filter, err := NewFilter(config)
+			mutator, err := NewNamespaceMutator(config, wmeta)
 			require.NoError(t, err)
-
-			mutator := NewNamespaceMutator(config, filter, wmeta)
 
 			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
 			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, config.defaultResourceRequirements)
@@ -3602,9 +3598,8 @@ func TestShouldInject(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			filter, err := NewFilter(config)
+			mutator, err := NewNamespaceMutator(config, wmeta)
 			require.NoError(t, err)
-			mutator := NewNamespaceMutator(config, filter, wmeta)
 			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
@@ -3616,13 +3611,11 @@ func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Web
 		return nil, err
 	}
 
-	filter, err := NewFilter(config)
+	mutator, err := NewNamespaceMutator(config, wmeta)
 	if err != nil {
 		return nil, err
 	}
-
-	injector := NewNamespaceMutator(config, filter, wmeta)
-	webhook, err := NewWebhook(config, wmeta, injector)
+	webhook, err := NewWebhook(config, wmeta, mutator)
 	if err != nil {
 		return nil, err
 	}
