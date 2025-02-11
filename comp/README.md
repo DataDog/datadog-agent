@@ -289,6 +289,14 @@ Package adscheduler is glue code to connect autodiscovery to the logs agent. It 
 
 Package agent contains logs agent component.
 
+### [comp/logs/auditor](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/auditor)
+
+*Datadog Team*: agent-metrics-logs
+
+Package auditor records the log files the agent is tracking. It tracks
+filename, time last updated, offset (how far into the file the agent has
+read), and tailing mode for each log file.
+
 ### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
 
 Package integrations adds a go interface for integrations to register and
