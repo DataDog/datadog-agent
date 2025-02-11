@@ -47,10 +47,8 @@ func TestParseFatbinFromPath(t *testing.T) {
 		kern2MangledName: 256,
 	}
 
-	expectedConstantMemSizes := map[string]uint64{
-		kern1MangledName: 0,
-		kern2MangledName: 0,
-	}
+	expectedConstMemSizeBeforeSm70 := uint64(332)
+	expectedConstMemSizeAfterSm70 := uint64(364)
 
 	for key, kernel := range res.kernels {
 		seenSmVersionsAndKernels[key.SmVersion] = append(seenSmVersionsAndKernels[key.SmVersion], key.Name)
@@ -62,7 +60,12 @@ func TestParseFatbinFromPath(t *testing.T) {
 		// The memory sizes are different for sm_90, checked with cuobjdump
 		if key.SmVersion != 90 {
 			require.Equal(t, expectedMemSize, kernel.SharedMem, "unexpected shared memory size for kernel %s, sm=%d", key.Name, key.SmVersion)
-			require.Equal(t, expectedConstantMemSizes[key.Name], kernel.ConstantMem, "unexpected constant memory size for kernel %s, sm=%d", key.Name, key.SmVersion)
+
+			expectedConstMemSize := expectedConstMemSizeBeforeSm70
+			if key.SmVersion >= 70 {
+				expectedConstMemSize = expectedConstMemSizeAfterSm70
+			}
+			require.Equal(t, expectedConstMemSize, kernel.ConstantMem, "unexpected constant memory size for kernel %s, sm=%d", key.Name, key.SmVersion)
 		}
 
 		require.Greater(t, kernel.KernelSize, uint64(0), "unexpected kernel size for kernel %s, sm=%d", key.Name, key.SmVersion)
