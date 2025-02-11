@@ -204,7 +204,6 @@ def run(
 
     if logs_post_processing:
         if len(test_res) == 1:
-            print(test_res[0].result_json_path)
             post_processed_output = post_process_output(
                 test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
             )
@@ -330,37 +329,45 @@ def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, 
         A list of (package name, test name, logs) tuples
     """
 
-    # Used to preserve order
-    test_order = {}
-    tests = defaultdict(list)
+    def is_parent(parent: list[str], child: list[str]) -> bool:
+        if len(parent) > len(child):
+            return False
 
-    # logs_per_test = {}
+        for i in range(len(parent)):
+            if parent[i] != child[i]:
+                return False
+
+        return True
+
     with open(path) as f:
-        for line in f:
-            json_line = json.loads(line)
+        lines = [json.loads(line) for line in f]
 
-            if "Package" not in json_line or "Test" not in json_line or "Output" not in json_line:
+    lines = [
+        json_line for json_line in lines if "Package" in json_line and "Test" in json_line and "Output" in json_line
+    ]
+
+    tests = {(json_line['Package'], json_line['Test']): [] for json_line in lines}
+
+    # Used to preserve order, line where a test appeared first
+    test_order = {(json_line['Package'], json_line['Test']): i for (i, json_line) in list(enumerate(lines))[::-1]}
+
+    for json_line in lines:
+        if json_line['Action'] == 'output':
+            output: str = json_line['Output']
+            if '===' in output:
                 continue
 
-            if json_line['Action'] == 'output':
-                test_level = len(json_line['Test'].split('/'))
-                if test_level < test_depth:
+            # Append logs to all children tests + this test
+            current_test_name_splitted = json_line['Test'].split('/')
+            for (package, test_name), logs in tests.items():
+                if package != json_line['Package']:
                     continue
 
-                output: str = json_line['Output']
-                if '===' in output:
-                    continue
+                if is_parent(current_test_name_splitted, test_name.split("/")):
+                    logs.append(json_line["Output"])
 
-                test_key: tuple[str, str] = json_line['Package'], json_line['Test']
-                if test_key not in test_order:
-                    test_order[test_key] = len(test_order)
-
-                tests[test_key].append(output)
-
-        # Rebuild order
-        return sorted(
-            [(package, name, logs) for (package, name), logs in tests.items()], key=lambda x: test_order[x[:2]]
-        )
+    # Rebuild order
+    return sorted([(package, name, logs) for (package, name), logs in tests.items()], key=lambda x: test_order[x[:2]])
 
 
 def write_result_to_log_files(logs_per_test, log_folder, test_depth=1):
@@ -373,7 +380,6 @@ def write_result_to_log_files(logs_per_test, log_folder, test_depth=1):
     for (package, test), logs in merged_logs.items():
         sanitized_package_name = re.sub(r"[^\w_. -]", "_", package)
         sanitized_test_name = re.sub(r"[^\w_. -]", "_", test)
-        print(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log")
         with open(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log", "w") as f:
             f.write("".join(logs))
 
