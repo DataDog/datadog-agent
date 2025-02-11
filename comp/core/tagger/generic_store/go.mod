@@ -38,6 +38,8 @@ replace github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/con
 
 replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
 
+replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
+
 replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig

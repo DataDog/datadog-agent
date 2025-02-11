@@ -14,12 +14,14 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
+// ConfigFileNotFoundError wrapper error for when a config file is not found
 type ConfigFileNotFoundError struct {
 	Err error
 }
 
+// Error returns the error message
 func (e ConfigFileNotFoundError) Error() string {
-	return fmt.Sprintf("Config File Not Found in %v", e.Err.Error())
+	return fmt.Sprintf("Config File Not Found %v", e.Err.Error())
 }
 
 // Source stores what edits a setting as a string
