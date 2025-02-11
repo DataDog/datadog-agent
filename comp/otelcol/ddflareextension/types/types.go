@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package types all the types needed by the OpenTelemetry Extension component without the underlying implementation and dependencies.
+// Package types contains all the types needed by the OpenTelemetry Extension component without the underlying implementation and dependencies.
 package types
 
 // BuildInfoResponse is the response struct for BuildInfo
