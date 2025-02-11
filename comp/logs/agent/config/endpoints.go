@@ -35,6 +35,7 @@ const (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
+	//
 	apiKeyGetter func() string
 	isReliable   bool
 	useSSL       bool
