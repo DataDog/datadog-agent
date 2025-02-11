@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
 const (
@@ -71,8 +70,6 @@ type ConnectionsCheck struct {
 	serviceExtractor *parser.ServiceExtractor
 	processData      *ProcessData
 
-	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
-
 	localresolver *resolver.LocalResolver
 	wmeta         workloadmeta.Component
 
@@ -80,9 +77,6 @@ type ConnectionsCheck struct {
 
 	sysprobeClient *http.Client
 }
-
-// ProcessConnRates describes connection rates for processes
-type ProcessConnRates map[int32]*model.ProcessNetworks
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
@@ -176,8 +170,6 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	// Resolve the Raddr side of connections for local containers
 	c.localresolver.Resolve(conns)
 
-	c.notifyProcessConnRates(c.config, conns)
-
 	log.Debugf("collected connections in %s", time.Since(start))
 
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
@@ -234,33 +226,6 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 
 	contentType := resp.Header.Get("Content-type")
 	return netEncoding.GetUnmarshaler(contentType).Unmarshal(body)
-}
-
-func (c *ConnectionsCheck) notifyProcessConnRates(config pkgconfigmodel.Reader, conns *model.Connections) {
-	if len(c.processConnRatesTransmitter.Chs) == 0 {
-		return
-	}
-
-	connCheckIntervalS := int(GetInterval(config, ConnectionsCheckName) / time.Second)
-
-	connRates := make(ProcessConnRates)
-	for _, c := range conns.Conns {
-		rates, ok := connRates[c.Pid]
-		if !ok {
-			connRates[c.Pid] = &model.ProcessNetworks{ConnectionRate: 1, BytesRate: float32(c.LastBytesReceived) + float32(c.LastBytesSent)}
-			continue
-		}
-
-		rates.BytesRate += float32(c.LastBytesSent) + float32(c.LastBytesReceived)
-		rates.ConnectionRate++
-	}
-
-	for _, rates := range connRates {
-		rates.BytesRate /= float32(connCheckIntervalS)
-		rates.ConnectionRate /= float32(connCheckIntervalS)
-	}
-
-	c.processConnRatesTransmitter.Notify(connRates)
 }
 
 func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
@@ -528,11 +493,32 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	return tagsStr
 }
 
-// fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
+// retryGetNetworkID attempts to fetch the network_id maxRetries times before failing
 func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
+	const maxRetries = 3
+	var err error
+	var networkID string
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		networkID, err = getNetworkID(sysProbeClient)
+		if err == nil {
+			return networkID, nil
+		}
+		log.Debugf(
+			"failed to get network ID from system-probe (attempt %d/%d): %s",
+			attempt,
+			maxRetries,
+			err,
+		)
+		time.Sleep(time.Duration(250*attempt) * time.Millisecond)
+	}
+	return "", fmt.Errorf("failed to get network ID after %d attempts: %s", maxRetries, err)
+}
+
+// getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
+func getNetworkID(sysProbeClient *http.Client) (string, error) {
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil && sysProbeClient != nil {
-		log.Infof("no network ID detected. retrying via system-probe: %s", err)
+		log.Debugf("no network ID detected. retrying via system-probe: %s", err)
 		networkID, err = net.GetNetworkID(sysProbeClient)
 		if err != nil {
 			log.Infof("failed to get network ID from system-probe: %s", err)

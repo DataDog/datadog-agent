@@ -31,6 +31,9 @@ const (
 
 	// SizeOfCookie size of cookie
 	SizeOfCookie = 8
+
+	// FakeInodeMSW inode used internally
+	fakeInodeMSW uint64 = 0xdeadc001
 )
 
 // check that all path are absolute
@@ -112,6 +115,11 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	}
 
 	return nil
+}
+
+// IsFakeInode returns whether the given inode is a fake inode
+func IsFakeInode(inode uint64) bool {
+	return inode>>32 == fakeInodeMSW
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError

@@ -37,6 +37,9 @@ type systemContext struct {
 	// deviceSmVersions maps each device index to its SM (Compute architecture) version
 	deviceSmVersions map[int]int
 
+	// smVersionSet is a set of all the seen SM versions, to filter kernels to parse
+	smVersionSet map[uint32]struct{}
+
 	// cudaSymbols maps each executable file path to its Fatbin file data
 	cudaSymbols map[string]*symbolsEntry
 
@@ -102,6 +105,7 @@ func (e *symbolsEntry) updateLastUsedTime() {
 func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
 	ctx := &systemContext{
 		deviceSmVersions:          make(map[int]int),
+		smVersionSet:              make(map[uint32]struct{}),
 		cudaSymbols:               make(map[string]*symbolsEntry),
 		pidMaps:                   make(map[int][]*procfs.ProcMap),
 		nvmlLib:                   nvmlLib,
@@ -175,6 +179,7 @@ func (ctx *systemContext) fillDeviceInfo() error {
 			return err
 		}
 		ctx.deviceSmVersions[i] = smVersion
+		ctx.smVersionSet[uint32(smVersion)] = struct{}{}
 
 		ctx.gpuDevices = append(ctx.gpuDevices, dev)
 	}
@@ -187,7 +192,9 @@ func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
 		return data, nil
 	}
 
-	data, err := cuda.GetSymbols(path)
+	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, ctx.smVersionSet)
+
+	data, err := cuda.GetSymbols(path, ctx.smVersionSet)
 	if err != nil {
 		ctx.fatbinTelemetry.readErrors.Inc()
 		return nil, fmt.Errorf("error getting file data: %w", err)
@@ -291,11 +298,14 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 	}
 
 	var filteredDevices []nvml.Device
+	numContainerGPUs := 0
 	for _, resource := range container.AllocatedResources {
 		// Only consider NVIDIA GPUs
 		if resource.Name != nvidiaResourceName {
 			continue
 		}
+
+		numContainerGPUs++
 
 		for _, device := range devices {
 			uuid, ret := device.GetUUID()
@@ -311,12 +321,31 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 		}
 	}
 
-	// We didn't find any devices assigned to the container, report it as an error.
-	if len(filteredDevices) == 0 {
-		return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
+	// Found matching devices, return them
+	if len(filteredDevices) > 0 {
+		return filteredDevices, nil
 	}
 
-	return filteredDevices, nil
+	// We didn't match any devices to the container. This could be caused by
+	// multiple reasons. One option is that the container has no GPUs assigned
+	// to it. This could be a problem in the PodResources API.
+	if numContainerGPUs == 0 {
+		// An special case is when we only have one GPU in the system. In that
+		// case, we don't need the API as there's only one device available, so
+		// return it directly as a fallback
+		if len(devices) == 1 {
+			return devices, nil
+		}
+
+		// If we have more than one GPU, we need to return an error as we can't
+		// determine which device to use.
+		return nil, fmt.Errorf("container %s has no GPUs assigned to it, check whether we have access to the PodResources kubelet API", containerID)
+	}
+
+	// If the container has GPUs assigned to it but we couldn't match it to our
+	// devices, return the error for this case and show the allocated resources
+	// for debugging purposes.
+	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the

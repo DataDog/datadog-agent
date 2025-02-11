@@ -465,12 +465,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
 	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
-	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
-	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 100000)
+	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
+	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 5000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "15m")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_per_minute", 150)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_burst_duration", "30s")
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
@@ -578,7 +580,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("ecs_metadata_retry_initial_interval", 100*time.Millisecond)
 	config.BindEnvAndSetDefault("ecs_metadata_retry_max_elapsed_time", 3000*time.Millisecond)
 	config.BindEnvAndSetDefault("ecs_metadata_retry_timeout_factor", 3)
-	config.BindEnvAndSetDefault("ecs_task_collection_enabled", false)
+	config.BindEnvAndSetDefault("ecs_task_collection_enabled", true)
 	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
 	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
 	config.BindEnvAndSetDefault("ecs_task_collection_burst", 60)
@@ -1138,6 +1140,7 @@ func fleet(config pkgconfigmodel.Setup) {
 	// Directory to store fleet policies
 	config.BindEnv("fleet_policies_dir")
 	config.SetDefault("fleet_layers", []string{})
+	config.BindEnvAndSetDefault("config_id", "")
 }
 
 func autoscaling(config pkgconfigmodel.Setup) {

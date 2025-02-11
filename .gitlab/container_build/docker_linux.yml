@@ -101,7 +101,7 @@ docker_build_fips_agent7:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips
-    BUILD_ARG: --target test --build-arg FIPS_ENABLED=1 --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
+    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
 
 docker_build_fips_agent7_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -114,7 +114,7 @@ docker_build_fips_agent7_arm64:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips
-    BUILD_ARG: --target test --build-arg FIPS_ENABLED=1 --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
+    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
 
 # build agent7 jmx image
 docker_build_agent7_jmx:
@@ -154,7 +154,7 @@ docker_build_fips_agent7_jmx:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips-jmx
-    BUILD_ARG: --target test --build-arg FIPS_ENABLED=1 --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
 
 docker_build_fips_agent7_arm64_jmx:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -167,7 +167,7 @@ docker_build_fips_agent7_arm64_jmx:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips-jmx
-    BUILD_ARG: --target test --build-arg FIPS_ENABLED=1 --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
 
 # build agent7 UA image
 docker_build_ot_agent7:
@@ -225,59 +225,65 @@ docker_build_ot_agent7_jmx_arm64:
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
-  extends: [.docker_build_job_definition_amd64, .docker_build_s3]
+  extends: [.docker_build_job_definition_amd64]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_amd64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_amd64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_arm64
-      artifacts: false
+      artifacts: true
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
-    - !reference [.docker_build_s3, before_script]
-    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
+    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
+    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 docker_build_cluster_agent_arm64:
-  extends: [.docker_build_job_definition_arm64, .docker_build_s3]
+  extends: [.docker_build_job_definition_arm64]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_arm64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_amd64
-      artifacts: false
+      artifacts: true
     - job: cws_instrumentation-build_arm64
-      artifacts: false
+      artifacts: true
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
-    - !reference [.docker_build_s3, before_script]
-    - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
+    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
+    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:
-  extends: [.docker_build_job_definition_amd64, .docker_build_s3]
+  extends: [.docker_build_job_definition_amd64]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cws_instrumentation-build_amd64
-      artifacts: false
+      artifacts: true
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation
+  before_script:
+    - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.${ARCH} $BUILD_CONTEXT/
 
 docker_build_cws_instrumentation_arm64:
-  extends: [.docker_build_job_definition_arm64, .docker_build_s3]
+  extends: [.docker_build_job_definition_arm64]
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cws_instrumentation-build_arm64
-      artifacts: false
+      artifacts: true
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation
+  before_script:
+    - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.${ARCH} $BUILD_CONTEXT/
 
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:

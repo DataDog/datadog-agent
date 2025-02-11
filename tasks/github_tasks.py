@@ -4,7 +4,7 @@ import json
 import os
 import re
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from functools import lru_cache
 
 from invoke.context import Context
@@ -388,6 +388,7 @@ def pr_commenter(
     delete: bool = False,
     force_delete: bool = False,
     echo: bool = False,
+    fail_on_pr_missing: bool = False,
 ):
     """
     Will comment or update current comment posted on the PR with the new data.
@@ -397,6 +398,7 @@ def pr_commenter(
     - delete: If True and the body is empty, will delete the comment.
     - force_delete: Won't throw error if the comment to delete is not found.
     - echo: Print comment content to stdout.
+    - fail_on_pr_missing: If True, will raise an error if the PR is not found. Only a warning is printed otherwise.
 
     Inspired by the pr-commenter binary from <https://github.com/DataDog/devtools>
     """
@@ -413,6 +415,9 @@ def pr_commenter(
     if pr_id is None:
         branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
+        if len(prs) == 0 and not fail_on_pr_missing:
+            print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
+            return
         assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
         pr = prs[0]
     else:
@@ -669,3 +674,89 @@ query {
     res = gh.graphql(query)
 
     print(json.dumps(res, indent=2))
+
+
+@task
+def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
+    """
+    Check the permissions on a given repository
+    - list members without any contribution in the last 6 months
+    - list teams with not any contributors
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI(f"datadog/{repo}")
+    all_teams = gh.find_all_teams(
+        gh._repository,
+        exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
+        exclude_permissions=['pull'],
+    )
+    print(f"Found {len(all_teams)} teams")
+    idle_teams = []
+    idle_contributors = defaultdict(set)
+    active_users = gh.get_active_users(duration_days=90)
+    print(f"Checking permissions for {repo}, {len(active_users)} active users")
+    for team in all_teams:
+        members = gh.get_direct_team_members(team.slug)
+        has_contributors = False
+        for member in members:
+            if member not in active_users:
+                idle_contributors[team.name].add(member)
+            else:
+                has_contributors = True
+        if not has_contributors:
+            idle_teams.append((team.name, team.html_url))
+
+    print(f"Idle teams: {idle_teams}, idle contributors {idle_contributors}")
+    if idle_teams or idle_contributors:
+        from slack_sdk import WebClient
+
+        client = WebClient(token=os.environ['SLACK_API_TOKEN'])
+        header = f":github: {repo} permissions check\n"
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": header},
+            },
+        ]
+        message = header
+        if idle_teams:
+            teams = [f" - <{team[1]}|{team[0]}>\n" for team in idle_teams]
+            message += f"Teams:\n{''.join(teams)}"
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"Teams with no contributors:\n{''.join(teams)}"},
+                }
+            )
+        if idle_contributors:
+            message += f"Contributors: {idle_contributors}\n"
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "Users with no contribution:\n"},
+                }
+            )
+            for team, members in idle_contributors.items():
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f" - <https://github.com/orgs/DataDog/teams/{team}|{team}>: {', '.join(members)}",
+                        },
+                    }
+                )
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"Please check the `{repo}` <https://github.com/DataDog/{repo}/settings/access|settings>.",
+                },
+            }
+        )
+        MAX_BLOCKS = 50
+        for idx in range(0, len(blocks), MAX_BLOCKS):
+            client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
+        print("Message sent to slack")

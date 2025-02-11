@@ -70,6 +70,12 @@
                             "extract_value": {
                               "type": "string"
                             },
+                            "match_pattern": {
+                              "type": "string"
+                            },
+                            "match_value": {
+                              "type": "string"
+                            },
                             "scale_factor": {
                               "type": "number"
                             },
@@ -96,6 +102,12 @@
                                 "type": "string"
                               },
                               "extract_value": {
+                                "type": "string"
+                              },
+                              "match_pattern": {
+                                "type": "string"
+                              },
+                              "match_value": {
                                 "type": "string"
                               },
                               "scale_factor": {
@@ -151,6 +163,12 @@
                           "type": "string"
                         },
                         "extract_value": {
+                          "type": "string"
+                        },
+                        "match_pattern": {
+                          "type": "string"
+                        },
+                        "match_value": {
                           "type": "string"
                         },
                         "scale_factor": {
@@ -302,9 +320,6 @@
         "metric_tags": {
           "$ref": "#/$defs/MetricTagConfigList"
         },
-        "metric_type": {
-          "type": "string"
-        },
         "options": {
           "$ref": "#/$defs/MetricsConfigOption"
         }
@@ -370,11 +385,7 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "version"
-      ]
+      "type": "object"
     },
     "StringArray": {
       "items": {
@@ -391,6 +402,12 @@
           "type": "string"
         },
         "extract_value": {
+          "type": "string"
+        },
+        "match_pattern": {
+          "type": "string"
+        },
+        "match_value": {
           "type": "string"
         },
         "scale_factor": {
@@ -418,6 +435,12 @@
           "type": "string"
         },
         "extract_value": {
+          "type": "string"
+        },
+        "match_pattern": {
+          "type": "string"
+        },
+        "match_value": {
           "type": "string"
         },
         "scale_factor": {

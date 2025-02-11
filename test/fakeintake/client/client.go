@@ -80,6 +80,7 @@ const (
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 	metadataEndpoint             = "/api/v1/metadata"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
+	netpathEndpoint              = "/api/v2/netpath"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
 )
 
@@ -119,6 +120,7 @@ type Client struct {
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 	metadataAggregator             aggregator.MetadataAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
+	netpathAggregator              aggregator.NetpathAggregator
 	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
 }
 
@@ -145,6 +147,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
+		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
 	}
 	for _, opt := range opts {
@@ -278,6 +281,14 @@ func (c *Client) getNDMFlows() error {
 		return err
 	}
 	return c.ndmflowAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getNetpathEvents() error {
+	payloads, err := c.getFakePayloads(netpathEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.netpathAggregator.UnmarshallPayloads(payloads)
 }
 
 // FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
@@ -877,6 +888,19 @@ func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
 		ndmflows = append(ndmflows, c.ndmflowAggregator.GetPayloadsByName(name)...)
 	}
 	return ndmflows, nil
+}
+
+// GetNetpathEvents returns the latest netpath events by destination
+func (c *Client) GetNetpathEvents() ([]*aggregator.Netpath, error) {
+	err := c.getNetpathEvents()
+	if err != nil {
+		return nil, err
+	}
+	var netpaths []*aggregator.Netpath
+	for _, name := range c.netpathAggregator.GetNames() {
+		netpaths = append(netpaths, c.netpathAggregator.GetPayloadsByName(name)...)
+	}
+	return netpaths, nil
 }
 
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
