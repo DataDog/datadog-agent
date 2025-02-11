@@ -28,4 +28,26 @@ int tracepoint__net__netif_receive_skb(void *ctx) {
     return 0;
 }
 
+SEC("tracepoint/sched/sched_process_exit")
+int tracepoint__sched__sched_process_exit(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+
+    return 0;
+}
+
+SEC("raw_tracepoint/sched_process_exit")
+int raw_tracepoint__sched_process_exit(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+
+    return 0;
+}
+
 #endif

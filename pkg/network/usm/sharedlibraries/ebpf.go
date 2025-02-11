@@ -631,6 +631,14 @@ func (e *EbpfProgram) initializeProbes() {
 		e.enabledProbes = tpProbes
 		e.disabledProbes = tracingProbes
 	}
+
+	if kversion, err := kernel.HostVersion(); err == nil && kversion < kernel.VersionCode(4, 17, 0) {
+		// do not use a raw tracepoint on an unsupported kernel.
+		e.disabledProbes = append(e.disabledProbes, manager.ProbeIdentificationPair{
+			EBPFFuncName: "raw_tracepoint__sched_process_exit",
+			UID:          probeUID,
+		})
+	}
 }
 
 func getAssetName(module string, debug bool) string {

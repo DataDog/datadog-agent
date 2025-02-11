@@ -14,6 +14,7 @@ import (
 	"slices"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
@@ -147,6 +148,29 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 				},
 			}...)
 		}
+	}
+
+	if kversion, err := kernel.HostVersion(); err == nil && kversion >= kernel.VersionCode(4, 17, 0) {
+		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps.
+		mgr.Probes = append(mgr.Probes, []*manager.Probe{
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "raw_tracepoint__sched_process_exit",
+					UID:          probeUID,
+				},
+				TracepointName: "sched_process_exit",
+			},
+		}...)
+	} else {
+		// use a regular tracepoint to intercept terminated threads.
+		mgr.Probes = append(mgr.Probes, []*manager.Probe{
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "tracepoint__sched__sched_process_exit",
+					UID:          probeUID,
+				},
+			},
+		}...)
 	}
 
 	program := &ebpfProgram{
