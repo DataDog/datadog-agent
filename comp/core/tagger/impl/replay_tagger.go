@@ -85,12 +85,7 @@ func (t *replayTagger) AccumulateTagsFor(entityID types.EntityID, cardinality ty
 
 // Standard returns the standard tags for a given entity.
 func (t *replayTagger) Standard(entityID types.EntityID) ([]string, error) {
-	tags, err := t.store.LookupStandard(entityID)
-	if err != nil {
-		return []string{}, err
-	}
-
-	return tags, nil
+	return t.store.LookupStandard(entityID)
 }
 
 // List returns all the entities currently stored by the tagger.
