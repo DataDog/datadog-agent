@@ -165,7 +165,7 @@ def normalize_appsec(stage):
                     normalized_data["appsec.json"] = parsed
 
                 # Do not check tags if it's not an appsec span.
-                if "_dd.appsec.event_rules.version" in meta :
+                if "_dd.appsec.event_rules.version" in meta:
                     tags_checks = {}
                     for tag in span_tags_to_check:
                         if tag not in meta:
