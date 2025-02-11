@@ -5,8 +5,7 @@
 
 //go:build kubeapiserver
 
-// Package resourcetypes provides utilities for resolving Kubernetes resourceTypes using the discovery client.
-package resourcetypes
+package apiserver
 
 import (
 	"fmt"
@@ -19,9 +18,9 @@ import (
 )
 
 var (
-	cache     *ResourceTypeCache
-	cacheOnce sync.Once
-	cacheErr  error
+	resourceCache *ResourceTypeCache
+	cacheOnce     sync.Once
+	cacheErr      error
 )
 
 // ResourceTypeCache is a global cache to store Kubernetes resource types.
@@ -34,13 +33,13 @@ type ResourceTypeCache struct {
 // InitializeGlobalResourceTypeCache initializes the global cache if it hasn't been already.
 func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterface) error {
 	cacheOnce.Do(func() {
-		cache = &ResourceTypeCache{
+		resourceCache = &ResourceTypeCache{
 			kindGroupToType: make(map[string]string),
 			discoveryClient: discoveryClient,
 		}
 
 		// Optionally pre-populate the cache
-		err := cache.prepopulateCache()
+		err := resourceCache.prepopulateCache()
 		if err != nil {
 			cacheErr = fmt.Errorf("failed to prepopulate resource type cache: %w", err)
 		}
@@ -50,10 +49,10 @@ func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterf
 
 // GetResourceType retrieves the resource type for the given kind and group.
 func GetResourceType(kind, apiVersion string) (string, error) {
-	if cache == nil {
+	if resourceCache == nil {
 		return "", fmt.Errorf("resource type cache is not initialized")
 	}
-	return cache.getResourceType(kind, apiVersion)
+	return resourceCache.getResourceType(kind, apiVersion)
 }
 
 // getResourceType is the instance method to retrieve a resource type.
@@ -150,9 +149,8 @@ func isValidSubresource(resourceType string) bool {
 
 func getAPIGroup(apiVersion string) string {
 	var apiGroup string
-	apiVersionParts := strings.Split(apiVersion, "/")
-	if len(apiVersionParts) == 2 {
-		apiGroup = apiVersionParts[0]
+	if index := strings.Index(apiVersion, "/"); index > 0 {
+		apiGroup = apiVersion[:index]
 	} else {
 		apiGroup = ""
 	}

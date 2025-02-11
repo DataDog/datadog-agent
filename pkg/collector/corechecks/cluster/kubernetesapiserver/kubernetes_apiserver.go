@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/resourcetypes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -245,7 +244,7 @@ func (k *KubeASCheck) Run() error {
 			return err
 		}
 
-		err = resourcetypes.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery())
+		err = apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery())
 		if err != nil {
 			log.Errorf("Could not initialize the global resource type cache: %s", err)
 		}

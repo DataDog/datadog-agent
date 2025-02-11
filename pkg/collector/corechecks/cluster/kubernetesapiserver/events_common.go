@@ -24,7 +24,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/resourcetypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -277,7 +276,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
 		apiGroup := getAPIGroup(involvedObject.APIVersion)
-		resourceType, err := resourcetypes.GetResourceType(involvedObject.Kind, involvedObject.APIVersion)
+		resourceType, err := apiserver.GetResourceType(involvedObject.Kind, involvedObject.APIVersion)
 		if err != nil {
 			log.Warnf("error getting resource type for kind '%s' and group '%s', tags may be missing: %v", involvedObject.Kind, apiGroup, err)
 		}
@@ -459,9 +458,8 @@ func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
 
 func getAPIGroup(apiVersion string) string {
 	var apiGroup string
-	apiVersionParts := strings.Split(apiVersion, "/")
-	if len(apiVersionParts) == 2 {
-		apiGroup = apiVersionParts[0]
+	if index := strings.Index(apiVersion, "/"); index > 0 {
+		apiGroup = apiVersion[:index]
 	} else {
 		apiGroup = ""
 	}

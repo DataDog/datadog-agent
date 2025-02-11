@@ -15,14 +15,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fakediscovery "k8s.io/client-go/discovery/fake"
+	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
 	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/resourcetypes"
-	mockdiscovery "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/resourcetypes/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 func TestGetDDAlertType(t *testing.T) {
@@ -63,17 +64,18 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "default"))), "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("api-group", "resourcetypes", "default", "generic-resource"))), "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
 
-	mockDiscovery := new(mockdiscovery.DiscoveryClient)
-	mockDiscovery.On("ServerGroupsAndResources").Return(nil, []*apiv1.APIResourceList{
+	client := fakeclientset.NewClientset()
+	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
+	fakeDiscoveryClient.Resources = []*apiv1.APIResourceList{
 		{
 			GroupVersion: "api-group/v1",
 			APIResources: []apiv1.APIResource{
 				{Kind: "ResourceType", Name: "resourcetypes"},
 			},
 		},
-	}, nil)
+	}
 
-	err := resourcetypes.InitializeGlobalResourceTypeCache(mockDiscovery)
+	err := apiserver.InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
 	assert.NoError(t, err)
 
 	tests := []struct {
