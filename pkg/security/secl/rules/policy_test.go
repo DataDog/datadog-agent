@@ -408,8 +408,8 @@ func TestActionSetVariableSize(t *testing.T) {
 					Set: &SetDefinition{
 						Name:   "var2",
 						Append: true,
-						Value:  "foo",
-						Size:   1,
+						Value:  1,
+						Size:   2,
 					},
 				},
 			},
@@ -460,18 +460,16 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.Contains(t, value, "foo")
 	assert.Len(t, value, 1)
 
-	/*
-		existingVariable = opts.VariableStore.Get("var2")
-		assert.NotNil(t, existingVariable)
+	existingVariable = opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
 
-		intArrayVar, ok := existingVariable.(*eval.IntArrayVariable)
-		assert.NotNil(t, intArrayVar)
-		assert.True(t, ok)
+	intArrayVar, ok := existingVariable.(*eval.MutableIntArrayVariable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
 
-		value = intArrayVar.Get(nil)
-		assert.Contains(t, value, 1)
-		assert.Len(t, value, 1)
-	*/
+	value2 := intArrayVar.Get().(*ttlcache.Cache[int, bool]).Keys()
+	assert.Contains(t, value2, 1)
+	assert.Len(t, value2, 1)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
