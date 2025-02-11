@@ -735,6 +735,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                     "4n0th3rc0mm1t0        refs/heads/main"
                 ),
@@ -794,6 +795,7 @@ class TestCheckForChanges(unittest.TestCase):
             version_mock.return_value = next
             c = MockContext(
                 run={
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
                     'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                         "4n0th3rc0mm1t9        refs/heads/main"
                     ),
@@ -873,6 +875,7 @@ class TestCheckForChanges(unittest.TestCase):
             version_mock.return_value = next
             c = MockContext(
                 run={
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
                     'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                         "4n0th3rc0mm1t9        refs/heads/main"
                     ),
@@ -956,6 +959,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                     "4n0th3rc0mm1t0        refs/heads/main"
                 ),
@@ -1023,6 +1027,7 @@ class TestCheckForChanges(unittest.TestCase):
             version_mock.return_value = next
             c = MockContext(
                 run={
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
                     'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/7.55.x"': Result(
                         "4n0th3rc0mm1t0        refs/heads/main"
                     ),
@@ -1097,6 +1102,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
@@ -1128,6 +1134,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
@@ -1159,6 +1166,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
@@ -1195,6 +1203,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
