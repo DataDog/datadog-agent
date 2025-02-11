@@ -361,7 +361,7 @@ BPF_PERCPU_ARRAY_MAP(tstamp_cpu, struct tstamp_data, 1);
 BPF_HASH_MAP(lock_stat, struct lock_range, struct contention_data, 0);
 BPF_PERCPU_ARRAY_MAP(ranges, struct lock_range, 0);
 
-int data_map_full;
+__hidden int data_map_full;
 
 static __always_inline int can_record(u64 *ctx, struct lock_range* range)
 {
