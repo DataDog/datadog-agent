@@ -46,7 +46,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		ts = msg.ServerlessExtra.Timestamp
 	}
 
-	encoded, err := json.Marshal(jsonPayload{
+	encoded, err := encodeInner(jsonPayload{
 		Message:   toValidUtf8(msg.GetContent()),
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
@@ -62,4 +62,8 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 
 	msg.SetEncoded(encoded)
 	return nil
+}
+
+func encodeInner(payload jsonPayload) ([]byte, error) {
+	return json.Marshal(payload)
 }
