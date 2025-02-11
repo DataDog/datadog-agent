@@ -21,7 +21,7 @@ import (
 const stringBufferSize = 256
 
 // errorUnsupported is returned when an unsupported section is found, which indicates we should skip that section
-var errorUnsupported = fmt.Errorf("unsupported section parsing")
+var errorUnsupported = errors.New("unsupported section parsing")
 
 // lazySectionReader is a lazy reader for ELF sections, with reduced number of allocations.
 // It's oriented around an iterator pattern, where only one section is read (and allocated) at a time.
