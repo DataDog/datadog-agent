@@ -507,7 +507,7 @@ func (v *GlobalVariables) NewSECLVariable(_ string, value interface{}, opts Vari
 
 // NamedVariables holds a set of named variables
 type NamedVariables struct {
-	lru  *ttlcache.Cache[string, interface{}]
+	vars map[string]interface{}
 	ttl  time.Duration
 	size int
 }
@@ -523,8 +523,8 @@ func NewNamedVariables(opts VariableOpts) *NamedVariables {
 // GetBool returns the boolean value of the specified variable
 func (v *NamedVariables) GetBool(name string) bool {
 	var bval bool
-	if item := v.lru.Get(name); item != nil {
-		bval, _ = item.Value().(bool)
+	if item := v.vars[name]; item != nil {
+		bval, _ = item.(bool)
 	}
 	return bval
 }
@@ -532,8 +532,8 @@ func (v *NamedVariables) GetBool(name string) bool {
 // GetInt returns the integer value of the specified variable
 func (v *NamedVariables) GetInt(name string) int {
 	var ival int
-	if item := v.lru.Get(name); item != nil {
-		ival, _ = item.Value().(int)
+	if item := v.vars[name]; item != nil {
+		ival, _ = item.(int)
 	}
 	return ival
 }
@@ -541,8 +541,8 @@ func (v *NamedVariables) GetInt(name string) int {
 // GetString returns the string value of the specified variable
 func (v *NamedVariables) GetString(name string) string {
 	var sval string
-	if item := v.lru.Get(name); item != nil {
-		sval, _ = item.Value().(string)
+	if item := v.vars[name]; item != nil {
+		sval, _ = item.(string)
 	}
 	return sval
 }
@@ -550,8 +550,8 @@ func (v *NamedVariables) GetString(name string) string {
 // GetStringArray returns the string array value of the specified variable
 func (v *NamedVariables) GetStringArray(name string) []string {
 	var slval []string
-	if item := v.lru.Get(name); item != nil {
-		slval, _ = item.Value().([]string)
+	if item := v.vars[name]; item != nil {
+		slval, _ = item.([]string)
 	}
 	return slval
 }
@@ -559,44 +559,27 @@ func (v *NamedVariables) GetStringArray(name string) []string {
 // GetIntArray returns the integer array value of the specified variable
 func (v *NamedVariables) GetIntArray(name string) []int {
 	var ilval []int
-	if item := v.lru.Get(name); item != nil {
-		ilval, _ = item.Value().([]int)
+	if item := v.vars[name]; item != nil {
+		ilval, _ = item.([]int)
 	}
 	return ilval
 }
 
-func (v *NamedVariables) newLRU() *ttlcache.Cache[string, interface{}] {
-	maxSize := v.size
-	if maxSize == 0 {
-		maxSize = defaultMaxVariables
-	}
-
-	lru := ttlcache.New(
-		ttlcache.WithCapacity[string, interface{}](uint64(maxSize)),
-		ttlcache.WithTTL[string, interface{}](v.ttl),
-	)
-	return lru
+func (v *NamedVariables) newVariables() map[string]interface{} {
+	return make(map[string]interface{})
 }
 
 // Set the value of the specified variable
 func (v *NamedVariables) Set(name string, value interface{}) bool {
 	existed := false
-	if v.lru == nil {
-		v.lru = v.newLRU()
-		go v.lru.Start()
+	if v.vars == nil {
+		v.vars = v.newVariables()
 	} else {
-		existed = v.lru.Get(name) != nil
+		existed = v.vars[name] != nil
 	}
 
-	v.lru.Set(name, value, ttlcache.DefaultTTL)
+	v.vars[name] = value
 	return !existed
-}
-
-// Stop the underlying ttl lru
-func (v *NamedVariables) Stop() {
-	if v.lru != nil {
-		v.lru.Stop()
-	}
 }
 
 // ScopedVariables holds a set of scoped variables
@@ -678,10 +661,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 
 // ReleaseVariable releases a scoped variable
 func (v *ScopedVariables) ReleaseVariable(key ScopedVariable) {
-	if variables, ok := v.vars[key]; ok {
-		variables.Stop()
-		delete(v.vars, key)
-	}
+	delete(v.vars, key)
 }
 
 // NewScopedVariables returns a new set of scope variables
