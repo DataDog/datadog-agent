@@ -6,7 +6,7 @@
 #include "helpers/syscalls.h"
 
 // list of requests we don't want to rate limit
-const int important_reqs[] = {
+static const int important_reqs[] = {
     PTRACE_ATTACH,
     PTRACE_DETACH,
     PTRACE_TRACEME,
