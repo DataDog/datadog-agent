@@ -6,12 +6,10 @@
 // Package validators holds validators related files
 package validators
 
-import (
-	"regexp"
-)
+import "github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 
 // RuleIDPattern represents the regex that `RuleID`s must match
-var RuleIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_]*$`)
+var RuleIDPattern = lazyregexp.New(`^[a-zA-Z0-9_]*$`)
 
 // CheckRuleID validates a ruleID
 func CheckRuleID(ruleID string) bool {

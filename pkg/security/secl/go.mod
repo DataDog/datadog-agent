@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/security/secl
 go 1.23.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/util/lazyregexp v0.0.0-00010101000000-000000000000
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/alecthomas/participle v0.7.1
 	github.com/google/go-cmp v0.6.0
@@ -30,3 +31,5 @@ require (
 	golang.org/x/sync v0.10.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
+
+replace github.com/DataDog/datadog-agent/pkg/util/lazyregexp => ../../util/lazyregexp

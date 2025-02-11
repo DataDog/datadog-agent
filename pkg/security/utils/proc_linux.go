@@ -14,13 +14,13 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -35,7 +35,7 @@ func Getpid() uint32 {
 	return uint32(os.Getpid())
 }
 
-var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
+var networkNamespacePattern = lazyregexp.New(`net:\[(\d+)\]`)
 
 // NetNSPath represents a network namespace path
 type NetNSPath struct {

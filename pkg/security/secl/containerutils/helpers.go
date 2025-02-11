@@ -7,8 +7,9 @@
 package containerutils
 
 import (
-	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 // ContainerIDPatternStr defines the regexp used to match container IDs
@@ -16,7 +17,7 @@ import (
 // ([0-9a-fA-F]{32}-\d+) is container id used by AWS ECS, length: 43
 // ([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}) is container id used by Garden, length: 28
 var ContainerIDPatternStr = ""
-var containerIDPattern *regexp.Regexp
+var containerIDPattern *lazyregexp.LazyRegexp
 
 var containerIDCoreChars = "0123456789abcdefABCDEF"
 
@@ -26,7 +27,7 @@ func init() {
 		prefixes = append(prefixes, runtimePrefix.prefix)
 	}
 	ContainerIDPatternStr = "(?:" + strings.Join(prefixes[:], "|") + ")?([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
-	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
+	containerIDPattern = lazyregexp.New(ContainerIDPatternStr)
 }
 
 func isSystemdScope(cgroup CGroupID) bool {

@@ -8,11 +8,11 @@ package seclog
 
 import (
 	"fmt"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,7 +22,7 @@ const (
 )
 
 // used to extract package.struct.func from the caller
-var re = regexp.MustCompile(`[^\.]*\/([^\.]*)\.\(?\*?([^\.\)]*)\)?\.(.*)$`)
+var re = lazyregexp.New(`[^\.]*\/([^\.]*)\.\(?\*?([^\.\)]*)\)?\.(.*)$`)
 
 // TagStringer implements fmt.Stringer
 type TagStringer struct {
