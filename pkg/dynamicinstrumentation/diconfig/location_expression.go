@@ -282,7 +282,7 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExp
 
 	var visit func(param *ditypes.Parameter, path string)
 	visit = func(param *ditypes.Parameter, path string) {
-		if param == nil {
+		if param == nil || param.DoNotCapture {
 			return
 		}
 		trieKeys = append(trieKeys, expressionParamTuple{path + param.Type, param})

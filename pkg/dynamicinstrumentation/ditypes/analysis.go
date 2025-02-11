@@ -37,6 +37,7 @@ type Parameter struct {
 	Location            *Location            // Location represents where the parameter will be in memory when passed to the target function
 	LocationExpressions []LocationExpression // LocationExpressions are the needed instructions for extracting the parameter value from memory
 	FieldOffset         uint64               // FieldOffset is the offset of Parameter field within a struct, if it is a struct field
+	DoNotCapture        bool                 // DoNotCapture signals to code generation that this parameter or field shouldn't have it's value captured
 	NotCaptureReason    NotCaptureReason     // NotCaptureReason conveys to the user why the parameter was not captured
 	ParameterPieces     []*Parameter         // ParameterPieces are the sub-fields, such as struct fields or array elements
 }
