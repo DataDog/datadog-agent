@@ -89,12 +89,12 @@ func (_c *EventMonitoringModuleClient_GetProcessEvents_Call) Run(run func(ctx co
 	return _c
 }
 
-func (_c *EventMonitoringModuleClient_GetProcessEvents_Call) Return(_a0 api.EventMonitoringModule_GetProcessEventsClient, _a1 error) *EventMonitoringModuleClient_GetProcessEvents_Call {
+func (_c *EventMonitoringModuleClient_GetProcessEvents_Call) Return(_a0 grpc.ServerStreamingClient[api.ProcessEventMessage], _a1 error) *EventMonitoringModuleClient_GetProcessEvents_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *EventMonitoringModuleClient_GetProcessEvents_Call) RunAndReturn(run func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) (api.EventMonitoringModule_GetProcessEventsClient, error)) *EventMonitoringModuleClient_GetProcessEvents_Call {
+func (_c *EventMonitoringModuleClient_GetProcessEvents_Call) RunAndReturn(run func(context.Context, *api.GetProcessEventParams, ...grpc.CallOption) (grpc.ServerStreamingClient[api.ProcessEventMessage], error)) *EventMonitoringModuleClient_GetProcessEvents_Call {
 	_c.Call.Return(run)
 	return _c
 }

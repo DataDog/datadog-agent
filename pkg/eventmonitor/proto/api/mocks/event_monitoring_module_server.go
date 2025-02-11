@@ -47,14 +47,14 @@ type EventMonitoringModuleServer_GetProcessEvents_Call struct {
 
 // GetProcessEvents is a helper method to define mock.On call
 //   - _a0 *api.GetProcessEventParams
-//   - _a1 api.EventMonitoringModule_GetProcessEventsServer
+//   - _a1 grpc.ServerStreamingServer[api.ProcessEventMessage]
 func (_e *EventMonitoringModuleServer_Expecter) GetProcessEvents(_a0 interface{}, _a1 interface{}) *EventMonitoringModuleServer_GetProcessEvents_Call {
 	return &EventMonitoringModuleServer_GetProcessEvents_Call{Call: _e.mock.On("GetProcessEvents", _a0, _a1)}
 }
 
-func (_c *EventMonitoringModuleServer_GetProcessEvents_Call) Run(run func(_a0 *api.GetProcessEventParams, _a1 api.EventMonitoringModule_GetProcessEventsServer)) *EventMonitoringModuleServer_GetProcessEvents_Call {
+func (_c *EventMonitoringModuleServer_GetProcessEvents_Call) Run(run func(_a0 *api.GetProcessEventParams, _a1 grpc.ServerStreamingServer[api.ProcessEventMessage])) *EventMonitoringModuleServer_GetProcessEvents_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*api.GetProcessEventParams), args[1].(api.EventMonitoringModule_GetProcessEventsServer))
+		run(args[0].(*api.GetProcessEventParams), args[1].(grpc.ServerStreamingServer[api.ProcessEventMessage]))
 	})
 	return _c
 }
@@ -64,7 +64,7 @@ func (_c *EventMonitoringModuleServer_GetProcessEvents_Call) Return(_a0 error) *
 	return _c
 }
 
-func (_c *EventMonitoringModuleServer_GetProcessEvents_Call) RunAndReturn(run func(*api.GetProcessEventParams, api.EventMonitoringModule_GetProcessEventsServer) error) *EventMonitoringModuleServer_GetProcessEvents_Call {
+func (_c *EventMonitoringModuleServer_GetProcessEvents_Call) RunAndReturn(run func(*api.GetProcessEventParams, grpc.ServerStreamingServer[api.ProcessEventMessage]) error) *EventMonitoringModuleServer_GetProcessEvents_Call {
 	_c.Call.Return(run)
 	return _c
 }
