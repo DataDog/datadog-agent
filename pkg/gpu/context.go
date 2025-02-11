@@ -77,6 +77,7 @@ type systemContext struct {
 
 // symbolFileIdentifier holds the inode and file size of a symbol file, which we use to avoid
 // parsing the same file multiple times when it has different paths (e.g., symlinks in /proc/PID/root)
+// We add fileSize to the identifier to mitigate possible issues with inode reuse.
 type symbolFileIdentifier struct {
 	inode    int
 	fileSize int64
