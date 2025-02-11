@@ -66,6 +66,10 @@ end
 # ------------------------------------
 dependency 'datadog-otel-agent'
 
+if linux_target?
+    extra_package_file "#{output_config_dir}/etc/datadog-agent/"
+end
+
 exclude '\.git*'
 exclude 'bundler\/git'
 
