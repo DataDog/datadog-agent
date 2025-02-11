@@ -204,6 +204,7 @@ def run(
 
     if logs_post_processing:
         if len(test_res) == 1:
+            print(test_res[0].result_json_path)
             post_processed_output = post_process_output(
                 test_res[0].result_json_path, test_depth=logs_post_processing_test_depth
             )
@@ -425,8 +426,16 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, flakes_f
 
             package_flaky = all_known_flakes.get(package, set())
             package_failing = failing_tests.get(package, set())
-            # Flaky if the parent is flaky as well
-            state = test_name in package_failing, test_name in package_flaky or group_name in package_flaky
+
+            # Flaky if one of its parents is flaky as well
+            is_flaky = False
+            for i in range(test_name.count('/') + 1):
+                parent_name = '/'.join(test_name.split('/')[: i + 1])
+                if parent_name in package_flaky:
+                    is_flaky = True
+                    break
+
+            state = test_name in package_failing, is_flaky
             categorized_logs[state].append((package, group_name, logs))
 
         for failing, flaky in [TestState.FAILED, TestState.FLAKY_FAILED, TestState.SUCCESS, TestState.FLAKY_SUCCESS]:
