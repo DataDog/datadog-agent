@@ -169,19 +169,20 @@ docker_build_fips_agent7_arm64_jmx:
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --target test --build-arg FIPS_ENABLED=1 --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
 
-# build agent7 UA image
+# Build agent7 OTel image
 docker_build_ot_agent7:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: datadog-ot-agent-7-x64
+    - job: datadog-agent-7-x64
+    - job: otel-agent-x64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta
-    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-amd64.tar.xz
+    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
 
 docker_build_ot_agent7_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -189,26 +190,27 @@ docker_build_ot_agent7_arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: datadog-ot-agent-7-arm64
+    - job: datadog-agent-7-arm64
+    - job: otel-agent-arm64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta
-    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-arm64.tar.xz
+    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
-# build agent7 jmx image
 docker_build_ot_agent7_jmx:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: datadog-ot-agent-7-x64
+    - job: datadog-agent-7-x64
+    - job: otel-agent-x64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta-jmx
-    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-amd64.tar.xz
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
 
 docker_build_ot_agent7_jmx_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -216,12 +218,13 @@ docker_build_ot_agent7_jmx_arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: datadog-ot-agent-7-arm64
+    - job: datadog-agent-7-arm64
+    - job: otel-agent-arm64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta-jmx
-    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-arm64.tar.xz
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
