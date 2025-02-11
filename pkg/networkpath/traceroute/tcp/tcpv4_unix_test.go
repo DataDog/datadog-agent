@@ -30,18 +30,18 @@ func TestSendAndReceive(t *testing.T) {
 	tts := []struct {
 		description string
 		ttl         int
-		sendFunc    func(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) error
-		listenFunc  func(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) packetResponse
+		sendFunc    func(rawConnWrapper, *ipv4.Header, []byte) error
+		listenFunc  func(rawConnWrapper, rawConnWrapper, time.Duration, net.IP, uint16, net.IP, uint16, uint32) packetResponse
 		expected    *common.Hop
 		errMsg      string
 	}{
 		{
 			description: "sendPacket error",
 			ttl:         64,
-			sendFunc: func(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) error {
+			sendFunc: func(_ rawConnWrapper, _ *ipv4.Header, _ []byte) error {
 				return fmt.Errorf("sendPacket error")
 			},
-			listenFunc: func(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) packetResponse {
+			listenFunc: func(_, _, _ time.Duration, _, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
 				return packetResponse{}
 			},
 			expected: nil,
@@ -50,10 +50,10 @@ func TestSendAndReceive(t *testing.T) {
 		{
 			description: "listenPackets error",
 			ttl:         64,
-			sendFunc: func(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) error {
+			sendFunc: func(_ rawConnWrapper, _ *ipv4.Header, _ []byte) error {
 				return nil
 			},
-			listenFunc: func(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) packetResponse {
+			listenFunc: func(_, _, _ time.Duration, _, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
 				return packetResponse{Err: fmt.Errorf("listenPackets error")}
 			},
 			expected: nil,
@@ -62,10 +62,10 @@ func TestSendAndReceive(t *testing.T) {
 		{
 			description: "successful send and receive",
 			ttl:         64,
-			sendFunc: func(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) error {
+			sendFunc: func(_ rawConnWrapper, _ *ipv4.Header, _ []byte) error {
 				return nil
 			},
-			listenFunc: func(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) packetResponse {
+			listenFunc: func(_, _, _ time.Duration, _, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
 				return packetResponse{
 					IP:   net.ParseIP("7.8.9.0"),
 					Type: 2,
