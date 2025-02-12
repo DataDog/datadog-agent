@@ -520,7 +520,7 @@ func initFIPS() {
 // enableFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
 func enableFIPS(embeddedPath string) error {
 	envVars := map[string][]string{
-		"OPENSSL_CONF":   {embeddedPath, "ssl", "openssl.cnf"},
+		"OPENSSL_CONF":    {embeddedPath, "ssl", "openssl.cnf"},
 		"OPENSSL_MODULES": {embeddedPath, "lib", "ossl-modules"},
 	}
 
