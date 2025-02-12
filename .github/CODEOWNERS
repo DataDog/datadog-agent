@@ -49,8 +49,6 @@
 # if go.work changes then either .go-version or modules.yml changed too, so ASC might as well own it
 /go.work                                @DataDog/agent-runtimes
 
-/.circleci/                             @DataDog/agent-devx-infra
-
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx-loops
 /.github/dependabot.yaml                             @DataDog/agent-devx-infra
