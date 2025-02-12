@@ -28,8 +28,8 @@ type SECLVariable interface {
 	GetEvaluator() interface{}
 }
 
-// GlobalVariable is the interface implemented by global variables
-type GlobalVariable interface {
+// Variable is the interface implemented by variables
+type Variable interface {
 	GetValue() interface{}
 }
 
@@ -185,7 +185,7 @@ func (s *ScopedStringArrayVariable) Append(ctx *Context, value interface{}) erro
 	return s.Set(ctx, append(s.strFnc(ctx), value.([]string)...))
 }
 
-// NewStringArrayVariable returns a new string array variable
+// NewScopedStringArrayVariable returns a new scoped string array variable
 func NewScopedStringArrayVariable(strFnc func(ctx *Context) []string, setFnc func(ctx *Context, value interface{}) error) *ScopedStringArrayVariable {
 	return &ScopedStringArrayVariable{
 		strFnc: strFnc,
@@ -307,7 +307,7 @@ func (m *BoolVariable) Append(_ *Context, _ interface{}) error {
 	return errAppendNotSupported
 }
 
-// NewMutableBoolVariable returns a new mutable boolean variable
+// NewBoolVariable returns a new mutable boolean variable
 func NewBoolVariable() *BoolVariable {
 	return &BoolVariable{}
 }
@@ -483,8 +483,8 @@ type VariableScope interface {
 // Scoper maps a variable to the entity its scoped to
 type Scoper func(ctx *Context) VariableScope
 
-// GlobalVariables holds a set of global variables
-type GlobalVariables struct{}
+// Variables holds a set of variables
+type Variables struct{}
 
 // VariableOpts holds the options of a variable set
 type VariableOpts struct {
@@ -492,13 +492,12 @@ type VariableOpts struct {
 	TTL  time.Duration
 }
 
-// NewGlobalVariables returns a new set of global variables
-func NewGlobalVariables() *GlobalVariables {
-	return &GlobalVariables{}
+// NewVariables returns a new set of global variables
+func NewVariables() *Variables {
+	return &Variables{}
 }
 
-// NewSECLVariable returns new variable of the type of the specified value
-func (v *GlobalVariables) NewSECLVariable(_ string, value interface{}, opts VariableOpts) (SECLVariable, error) {
+func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable, error) {
 	switch value := value.(type) {
 	case bool:
 		return NewBoolVariable(), nil
@@ -515,87 +514,25 @@ func (v *GlobalVariables) NewSECLVariable(_ string, value interface{}, opts Vari
 	}
 }
 
-// NamedVariables holds a set of named variables
-type NamedVariables struct {
-	vars map[string]interface{}
-	ttl  time.Duration
-	size int
-}
-
-// NewNamedVariables returns a new set of named variables
-func NewNamedVariables(opts VariableOpts) *NamedVariables {
-	return &NamedVariables{
-		size: opts.Size,
-		ttl:  opts.TTL,
+// NewSECLVariable returns new variable of the type of the specified value
+func (v *Variables) NewSECLVariable(_ string, value interface{}, opts VariableOpts) (SECLVariable, error) {
+	seclVariable, err := newSECLVariable(value, opts)
+	if err != nil {
+		return nil, err
 	}
+	return seclVariable.(SECLVariable), nil
 }
 
-// GetBool returns the boolean value of the specified variable
-func (v *NamedVariables) GetBool(name string) bool {
-	var bval bool
-	if item := v.vars[name]; item != nil {
-		bval, _ = item.(bool)
-	}
-	return bval
-}
-
-// GetInt returns the integer value of the specified variable
-func (v *NamedVariables) GetInt(name string) int {
-	var ival int
-	if item := v.vars[name]; item != nil {
-		ival, _ = item.(int)
-	}
-	return ival
-}
-
-// GetString returns the string value of the specified variable
-func (v *NamedVariables) GetString(name string) string {
-	var sval string
-	if item := v.vars[name]; item != nil {
-		sval, _ = item.(string)
-	}
-	return sval
-}
-
-// GetStringArray returns the string array value of the specified variable
-func (v *NamedVariables) GetStringArray(name string) []string {
-	var slval []string
-	if item := v.vars[name]; item != nil {
-		slval, _ = item.([]string)
-	}
-	return slval
-}
-
-// GetIntArray returns the integer array value of the specified variable
-func (v *NamedVariables) GetIntArray(name string) []int {
-	var ilval []int
-	if item := v.vars[name]; item != nil {
-		ilval, _ = item.([]int)
-	}
-	return ilval
-}
-
-func (v *NamedVariables) newVariables() map[string]interface{} {
-	return make(map[string]interface{})
-}
-
-// Set the value of the specified variable
-func (v *NamedVariables) Set(name string, value interface{}) bool {
-	existed := false
-	if v.vars == nil {
-		v.vars = v.newVariables()
-	} else {
-		existed = v.vars[name] != nil
-	}
-
-	v.vars[name] = value
-	return !existed
+// MutableSECLVariable describes the interface implemented by mutable SECL variable
+type MutableSECLVariable interface {
+	Variable
+	MutableVariable
 }
 
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
 	scoper Scoper
-	vars   map[VariableScope]*NamedVariables
+	vars   map[VariableScope]map[string]MutableSECLVariable
 }
 
 // Len returns the length of the variable map
@@ -605,9 +542,9 @@ func (v *ScopedVariables) Len() int {
 
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
-	getVariables := func(ctx *Context) *NamedVariables {
+	getVariable := func(ctx *Context) MutableSECLVariable {
 		v := v.vars[v.scoper(ctx)]
-		return v
+		return v[name]
 	}
 
 	setVariable := func(ctx *Context, value interface{}) error {
@@ -615,51 +552,60 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 		if key == nil {
 			return fmt.Errorf("failed to scope variable '%s'", name)
 		}
+
 		vars := v.vars[key]
 		if vars == nil {
 			key.AppendReleaseCallback(func() {
 				v.ReleaseVariable(key)
 			})
-			vars = NewNamedVariables(opts)
-			v.vars[key] = vars
+
+			v.vars[key] = make(map[string]MutableSECLVariable)
 		}
-		vars.Set(name, value)
-		return nil
+
+		if _, found := v.vars[key][name]; !found {
+			seclVariable, err := newSECLVariable(value, opts)
+			if err != nil {
+				return err
+			}
+			v.vars[key][name] = seclVariable
+		}
+
+		return v.vars[key][name].Set(ctx, value)
 	}
 
 	switch value.(type) {
 	case int:
 		return NewScopedIntVariable(func(ctx *Context) int {
-			if vars := getVariables(ctx); vars != nil {
-				return vars.GetInt(name)
+			if v := getVariable(ctx); v != nil {
+				return v.GetValue().(int)
 			}
 			return 0
 		}, setVariable), nil
 	case bool:
 		return NewScopedBoolVariable(func(ctx *Context) bool {
-			if vars := getVariables(ctx); vars != nil {
-				return vars.GetBool(name)
+			if v := getVariable(ctx); v != nil {
+				return v.GetValue().(bool)
 			}
 			return false
 		}, setVariable), nil
 	case string:
 		return NewScopedStringVariable(func(ctx *Context) string {
-			if vars := getVariables(ctx); vars != nil {
-				return vars.GetString(name)
+			if v := getVariable(ctx); v != nil {
+				return v.GetValue().(string)
 			}
 			return ""
 		}, setVariable), nil
 	case []string:
 		return NewScopedStringArrayVariable(func(ctx *Context) []string {
-			if vars := getVariables(ctx); vars != nil {
-				return vars.GetStringArray(name)
+			if v := getVariable(ctx); v != nil {
+				return v.GetValue().([]string)
 			}
 			return nil
 		}, setVariable), nil
 	case []int:
 		return NewScopedIntArrayVariable(func(ctx *Context) []int {
-			if vars := getVariables(ctx); vars != nil {
-				return vars.GetIntArray(name)
+			if v := getVariable(ctx); v != nil {
+				return v.GetValue().([]int)
 			}
 			return nil
 
@@ -678,6 +624,6 @@ func (v *ScopedVariables) ReleaseVariable(key VariableScope) {
 func NewScopedVariables(scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
 		scoper: scoper,
-		vars:   make(map[VariableScope]*NamedVariables),
+		vars:   make(map[VariableScope]map[string]MutableSECLVariable),
 	}
 }

@@ -340,7 +340,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 					Set: &SetDefinition{
 						Name:   "var1",
 						Append: true,
-						Value:  []string{"foo"},
+						Value:  "foo",
 						TTL: &HumanReadableDuration{
 							Duration: 1 * time.Second,
 						},
@@ -350,7 +350,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 					Set: &SetDefinition{
 						Name:   "var2",
 						Append: true,
-						Value:  []int{123},
+						Value:  123,
 						TTL: &HumanReadableDuration{
 							Duration: 1 * time.Second,
 						},
@@ -414,7 +414,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 
 	existingVariable := opts.VariableStore.Get("var1")
 	assert.NotNil(t, existingVariable)
-	stringArrayVar, ok := existingVariable.(eval.GlobalVariable)
+	stringArrayVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
 	strValue := stringArrayVar.GetValue()
@@ -424,7 +424,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 
 	existingVariable = opts.VariableStore.Get("var2")
 	assert.NotNil(t, existingVariable)
-	intArrayVar, ok := existingVariable.(eval.GlobalVariable)
+	intArrayVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, intArrayVar)
 	assert.True(t, ok)
 	value := intArrayVar.GetValue()
@@ -457,17 +457,19 @@ func TestActionSetVariableTTL(t *testing.T) {
 
 	value = stringArrayVar.GetValue()
 	assert.NotContains(t, value, "foo")
+	assert.Len(t, value, 0)
 
 	value = intArrayVar.GetValue()
 	assert.NotContains(t, value, 123)
+	assert.Len(t, value, 0)
 
-	// TODO(lebauce): fix ttl for scoped vars
+	value = stringArrayScopedVar.GetValue(ctx)
+	assert.NotContains(t, value, "foo")
+	assert.Len(t, value, 0)
 
-	// value = stringArrayScopedVar.GetValue(ctx)
-	// assert.NotContains(t, strValue, "foo")
-
-	// value = intArrayScopedVar.GetValue(ctx)
-	// assert.NotContains(t, value, 123)
+	value = intArrayScopedVar.GetValue(ctx)
+	assert.NotContains(t, value, 123)
+	assert.Len(t, value, 0)
 }
 
 func TestActionSetVariableSize(t *testing.T) {
@@ -547,7 +549,7 @@ func TestActionSetVariableSize(t *testing.T) {
 
 	existingVariable := opts.VariableStore.Get("var1")
 	assert.NotNil(t, existingVariable)
-	stringArrayVar, ok := existingVariable.(eval.GlobalVariable)
+	stringArrayVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
 	value := stringArrayVar.GetValue()
@@ -557,7 +559,7 @@ func TestActionSetVariableSize(t *testing.T) {
 
 	existingVariable = opts.VariableStore.Get("var2")
 	assert.NotNil(t, existingVariable)
-	intArrayVar, ok := existingVariable.(eval.GlobalVariable)
+	intArrayVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, intArrayVar)
 	assert.True(t, ok)
 	assert.IsType(t, value, []string{})
@@ -576,7 +578,7 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.NotNil(t, value)
 	assert.Contains(t, value, "bar")
 	assert.IsType(t, value, []string{})
-	assert.Len(t, value, 2)
+	assert.Len(t, value, 1)
 
 	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
 	assert.NotNil(t, existingScopedVariable)
@@ -587,8 +589,7 @@ func TestActionSetVariableSize(t *testing.T) {
 	assert.NotNil(t, value)
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
-	// TODO(lebauce): fix size for scoped vars
-	// assert.Len(t, value, 1)
+	assert.Len(t, value, 1)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
