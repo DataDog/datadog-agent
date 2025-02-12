@@ -110,16 +110,16 @@ class GateMetricHandler:
             self.metadata[gate][key] = kwargs[key]
 
     def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
-        if self.metrics[gate].get(metric_key, None) is None:
-            return None
-        return create_gauge(
-            metric_name,
-            timestamp,
-            self.metrics[gate][metric_key],
-            tags=common_tags,
-            metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-            unit="byte",
-        )
+        if self.metrics[gate].get(metric_key):
+            return create_gauge(
+                metric_name,
+                timestamp,
+                self.metrics[gate][metric_key],
+                tags=common_tags,
+                metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+                unit="byte",
+            )
+        return None
 
     def _generate_series(self):
         if not self.git_ref or not self.bucket_branch:
