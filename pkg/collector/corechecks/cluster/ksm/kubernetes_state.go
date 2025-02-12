@@ -62,7 +62,11 @@ const (
 	ownerKindKey = "owner_kind"
 	// ownerNameKey represents the KSM label key owner_name
 	ownerNameKey = "owner_name"
+
+	maxBackoff = 10
 )
+
+var startBackoff = 1
 
 var extendedCollectors = map[string]string{
 	"jobs":  "batch/v1, Resource=jobs_extended",
@@ -237,8 +241,6 @@ type KSMCheck struct {
 	metricTransformers   map[string]metricTransformerFunc
 	metadataMetricsRegex *regexp.Regexp
 	backoff              int
-	startBackoff         int
-	maxBackoff           int
 	runConfigureOnce     sync.Once
 }
 
@@ -274,25 +276,60 @@ func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
 }
 
-func resourceDiscovery() (*apiserver.APIClient, []*v1.APIResourceList, error) {
+func resourceDiscovery(k *KSMCheck) (*apiserver.APIClient, *struct {
+	resources []*v1.APIResourceList
+	custom    customResources
+}, []string, error) {
+
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
-	apiServerClient, err := apiserver.WaitForAPIClient(apiCtx)
 
+	apiServerClient, err := apiserver.WaitForAPIClient(apiCtx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Discover resources that are currently available
 	resources, err := discoverResources(apiServerClient.Cl.Discovery())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return apiServerClient, resources, nil
+	var collectors []string
+
+	switch k.instance.PodCollectionMode {
+	case nodeKubeletPodCollection:
+		// In this case we don't need to set up anything related to the API
+		// server.
+		collectors = []string{"pods"}
+	case defaultPodCollection, clusterUnassignedPodCollection:
+		// Prepare the collectors for the resources specified in the configuration file.
+		collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		// Enable the KSM default collectors if the config collectors list is empty.
+		if len(collectors) == 0 {
+			collectors = options.DefaultResources.AsSlice()
+		}
+	}
+
+	cr := k.discoverCustomResources(apiServerClient, collectors, resources)
+
+	return apiServerClient,
+		&struct {
+			resources []*v1.APIResourceList
+			custom    customResources
+		}{
+			resources: resources,
+			custom:    cr,
+		},
+		collectors,
+		nil
 }
 
-func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, resources []*v1.APIResourceList) error {
+func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, collectors []string, cr customResources) error {
 	var configureErr error
 	k.runConfigureOnce.Do(func() {
 		builder := kubestatemetrics.New()
@@ -300,27 +337,8 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, resources []*v1.
 
 		k.configurePodCollection(builder, k.instance.Collectors)
 
-		var collectors []string
-		var err error
-
-		switch k.instance.PodCollectionMode {
-		case nodeKubeletPodCollection:
-			// In this case we don't need to set up anything related to the API
-			// server.
-			collectors = []string{"pods"}
-		case defaultPodCollection, clusterUnassignedPodCollection:
-
-			// Prepare the collectors for the resources specified in the configuration file.
-			collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
-			if err != nil {
-				configureErr = err
-			}
-
-			// Enable the KSM default collectors if the config collectors list is empty.
-			if len(collectors) == 0 {
-				collectors = options.DefaultResources.AsSlice()
-			}
-
+		if k.instance.PodCollectionMode == defaultPodCollection ||
+			k.instance.PodCollectionMode == clusterUnassignedPodCollection {
 			builder.WithKubeClient(client.InformerCl)
 		}
 
@@ -359,7 +377,6 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, resources []*v1.
 
 		// configure custom resources required for extended features and
 		// compatibility across deprecated/removed versions of APIs
-		cr := k.discoverCustomResources(client, collectors, resources)
 		builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 		builder.WithCustomResourceStoreFactories(cr.factories...)
 		builder.WithCustomResourceClients(cr.clients)
@@ -704,24 +721,26 @@ func (k *KSMCheck) Run() error {
 	// If backoff > 0 that means the call to discover k8s resources
 	// failed and is now in exponential backoff.
 	if k.backoff > 0 {
+		log.Debugf("[JUSTIN] Backing off %d more times", k.backoff)
 		k.backoff--
 		return nil
 	}
 
-	client, resources, err := resourceDiscovery()
+	client, resources, collectors, err := resourceDiscovery(k)
 
 	// If there was an error, that means the API Server failed to respond
 	// and needs to be retried.
 	if err != nil {
-		k.backoff = k.startBackoff
+		k.backoff = startBackoff
 		// Exponential backoff until the maximum backoff is reached
-		if k.startBackoff*2 < k.maxBackoff {
-			k.startBackoff *= 2
+		if startBackoff*2 < maxBackoff {
+			startBackoff *= 2
 		}
+		return err
 	}
 
 	// This is a singleton
-	err = runConfigureOnce(k, client, resources)
+	err = runConfigureOnce(k, client, collectors, resources.custom)
 	if err != nil {
 		return err
 	}
