@@ -117,7 +117,7 @@ func (server *apiServer) startCMDServer(
 				server.endpointProviders,
 				server.taggerComp,
 			)))
-	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
+	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux, server.collector, server.autoConfig, server.demultiplexer)))
 	cmdMux.Handle("/", gwmux)
 
 	// Add some observability in the API server
