@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -693,11 +692,12 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 
 var (
 	allowedConfigFiles = []string{
-		"datadog.yaml",
-		"security-agent.yaml",
-		"system-probe.yaml",
-		"libraries_config.yaml",
-		"conf.d/*.yaml",
+		"/datadog.yaml",
+		"/security-agent.yaml",
+		"/system-probe.yaml",
+		"/libraries_config.yaml",
+		"/conf.d/*.yaml",
+		"/conf.d/*.d/*.yaml",
 	}
 )
 
@@ -714,21 +714,23 @@ func configNameAllowed(file string) bool {
 	return false
 }
 
+type configFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}
+
 func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
-	var configs map[string]interface{}
-	err := json.Unmarshal(rawConfig, &configs)
+	var files []configFile
+	err := json.Unmarshal(rawConfig, &files)
 	if err != nil {
-		return fmt.Errorf("could not unmarshal config: %w", err)
+		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
-	for file, config := range configs {
-		if !configNameAllowed(file) {
+	for _, file := range files {
+		file.Path = filepath.Clean(file.Path)
+		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
-		serializedConfig, err := yaml.Marshal(config)
-		if err != nil {
-			return fmt.Errorf("could not marshal config: %w", err)
-		}
-		err = os.WriteFile(filepath.Join(dir, file), serializedConfig, 0644)
+		err = os.WriteFile(filepath.Join(dir, file.Path), file.Contents, 0644)
 		if err != nil {
 			return fmt.Errorf("could not write config file: %w", err)
 		}
