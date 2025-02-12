@@ -15,9 +15,18 @@ import (
 	"unsafe"
 )
 
-var BlkidCommand = func() (string, error) {
-	return "", nil
+func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
+	return nil
 }
+
+func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
+	return nil
+}
+
+func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
+	return nil
+}
+
 var mpr = win.NewLazySystemDLL("mpr.dll")
 var procWNetAddConnection2W = mpr.NewProc("WNetAddConnection2W")
 

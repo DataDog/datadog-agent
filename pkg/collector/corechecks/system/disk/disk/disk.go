@@ -652,40 +652,12 @@ func (c *Check) getDeviceTags(device string) []string {
 
 func (c *Check) fetchAllDeviceLabels() error {
 	log.Debugf("Fetching all device labels")
-	rawOutput, err := BlkidCommand()
-	if err != nil {
-		return err
+	if c.cfg.useLsblk {
+		return c.fetchAllDeviceLabelsFromLsblk()
+	} else if c.cfg.blkidCacheFile != "" {
+		return c.fetchAllDeviceLabelsFromBlkidCache()
 	}
-	log.Debugf("blkid output: %s", rawOutput)
-	// Regex to capture LABEL="some_label"
-	labelRegex := regexp.MustCompile(`LABEL="([^"]+)"`)
-	lines := strings.Split(strings.TrimSpace(string(rawOutput)), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		log.Debugf("processing line: '%s'", line)
-		if line == "" {
-			continue
-		}
-		// Typically line looks like:
-		// /dev/sda1: UUID="..." TYPE="ext4" LABEL="root"
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) < 2 {
-			// skip malformed lines
-			continue
-		}
-		device := strings.TrimSpace(parts[0])  // e.g. "/dev/sda1"
-		details := strings.TrimSpace(parts[1]) // e.g. `UUID="..." TYPE="ext4" LABEL="root"`
-		match := labelRegex.FindStringSubmatch(details)
-		if len(match) == 2 {
-			// match[1] is everything captured by ([^"]+)
-			c.deviceLabels[device] = match[1]
-		} else {
-			// No label found for this device
-			c.deviceLabels[device] = ""
-		}
-
-	}
-	return nil
+	return c.fetchAllDeviceLabelsFromBlkid()
 }
 
 // Factory creates a new check factory
