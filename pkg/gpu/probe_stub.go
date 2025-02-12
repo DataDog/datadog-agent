@@ -8,6 +8,8 @@
 package gpu
 
 import (
+	"context"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -34,9 +36,13 @@ func NewProbe(_ *config.Config, _ ProbeDependencies) (*Probe, error) {
 }
 
 // Close is not implemented on non-linux systems
-func (t *Probe) Close() {}
+func (p *Probe) Close() {}
+
+func (p *Probe) CollectConsumedEvents(_ context.Context, _ int) ([][]byte, error) {
+	return nil, ebpf.ErrNotImplemented
+}
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *Probe) GetAndFlush() (model.GPUStats, error) {
+func (p *Probe) GetAndFlush() (model.GPUStats, error) {
 	return model.GPUStats{}, nil
 }
