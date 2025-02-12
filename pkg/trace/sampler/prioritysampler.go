@@ -58,7 +58,7 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 	return s
 }
 
-var _ AdditionalMetrics = (*PrioritySampler)(nil)
+var _ AdditionalMetricsReporter = (*PrioritySampler)(nil)
 
 func (s *PrioritySampler) report(statsd statsd.ClientInterface) {
 	s.sampler.report(statsd, NamePriority)

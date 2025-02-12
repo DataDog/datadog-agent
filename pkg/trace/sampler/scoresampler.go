@@ -46,7 +46,7 @@ func NewNoPrioritySampler(conf *config.AgentConfig) *NoPrioritySampler {
 	return &NoPrioritySampler{ScoreSampler{Sampler: s, samplingRateKey: noPriorityRateKey}}
 }
 
-var _ AdditionalMetrics = (*NoPrioritySampler)(nil)
+var _ AdditionalMetricsReporter = (*NoPrioritySampler)(nil)
 
 func (s *NoPrioritySampler) report(statsd statsd.ClientInterface) {
 	s.Sampler.report(statsd, NameNoPriority)
@@ -60,7 +60,7 @@ func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
 	return &ErrorsSampler{ScoreSampler{Sampler: s, samplingRateKey: errorsRateKey, disabled: conf.ErrorTPS == 0}}
 }
 
-var _ AdditionalMetrics = (*ErrorsSampler)(nil)
+var _ AdditionalMetricsReporter = (*ErrorsSampler)(nil)
 
 func (s *ErrorsSampler) report(statsd statsd.ClientInterface) {
 	s.Sampler.report(statsd, NameError)

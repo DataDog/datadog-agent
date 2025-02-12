@@ -64,13 +64,13 @@ func (n Name) shouldAddEnvTag() bool {
 
 // Metrics is a structure to record metrics for the different samplers.
 type Metrics struct {
-	statsd     statsd.ClientInterface
-	valueMutex sync.Mutex
-	value      map[MetricsKey]metricsValue
-	additions  []AdditionalMetrics
-	startMutex sync.Mutex
-	ticker     *time.Ticker
-	started    bool
+	statsd              statsd.ClientInterface
+	valueMutex          sync.Mutex
+	value               map[MetricsKey]metricsValue
+	additionalReporters []AdditionalMetricsReporter
+	startMutex          sync.Mutex
+	ticker              *time.Ticker
+	started             bool
 }
 
 type metricsValue struct {
@@ -86,14 +86,15 @@ func NewMetrics(statsd statsd.ClientInterface) *Metrics {
 	}
 }
 
-// AdditionalMetrics is an interface for additional metrics to be called by Metrics.
-type AdditionalMetrics interface {
+// AdditionalMetricsReporter reports additional sampler metrics.
+// Metrics reported through this interface are reported at each Metrics tick.
+type AdditionalMetricsReporter interface {
 	report(statsd statsd.ClientInterface)
 }
 
-// Add adds additional metrics to be reported every tick.
-func (m *Metrics) Add(ms ...AdditionalMetrics) {
-	m.additions = append(m.additions, ms...)
+// Add sampler metrics reporter.
+func (m *Metrics) Add(mr ...AdditionalMetricsReporter) {
+	m.additionalReporters = append(m.additionalReporters, mr...)
 }
 
 // MetricsKey represents the key for the metrics.
@@ -182,7 +183,7 @@ func (m *Metrics) Stop() {
 	m.Report()
 }
 
-// Report reports the metrics and additional metrics.
+// Report reports the metrics and additional sampler metrics.
 func (m *Metrics) Report() {
 	m.valueMutex.Lock()
 	for key, value := range m.value {
@@ -197,7 +198,7 @@ func (m *Metrics) Report() {
 	m.value = make(map[MetricsKey]metricsValue) // reset counters
 	m.valueMutex.Unlock()
 
-	for _, additionalMetrics := range m.additions {
-		additionalMetrics.report(m.statsd)
+	for _, mr := range m.additionalReporters {
+		mr.report(m.statsd)
 	}
 }
