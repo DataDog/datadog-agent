@@ -2,6 +2,8 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "labels": ["dependencies"],
     "enabledManagers": ["custom.regex"],
+    "baseBranches": ["main", "nschweitzer/renovate"],
+    "useBaseBranchConfig": "merge",
     "customManagers" : [
       {
         "customType": "regex",
@@ -24,6 +26,16 @@
         "depNameTemplate": "protoc",
         "versioningTemplate": "loose",
         "datasourceTemplate": "custom.protoc"
+      },
+      {
+        "customType": "regex",
+        "fileMatch": ["release.json"],
+        "matchStrings": [
+          "[ ]+\"OMNIBUS_RUBY_VERSION\": \"(?<currentValue>[a-z0-9]+)\""
+        ],
+        "depNameTemplate": "omnibus-ruby",
+        "versioningTemplate": "loose",
+        "datasourceTemplate": "custom.omnibus-ruby"
       }
     ],
     "customDatasources": {
@@ -37,6 +49,12 @@
         "defaultRegistryUrlTemplate": "https://api.github.com/repos/protocolbuffers/protobuf/releases",
         "transformTemplates": [
           "{\"releases\": $map($.[tag_name,published_at], function($v) { {\"version\": $v[0], \"releaseTimestamp\": $v[1] } }) }"
+        ]
+      },
+      "omnibus-ruby": {
+        "defaultRegistryUrlTemplate": "https://api.github.com/repos/datadog/omnibus-ruby/commits",
+        "transformTemplates": [
+          "{\"releases\": $map($.[sha,commit.author.date], function($v) { {\"version\": $v[0], \"releaseTimestamp\": $v[1] } }) }"
         ]
       }
     }
