@@ -506,8 +506,8 @@ def set_gitconfig_in_ci(ctx):
     Set username and email when runing git "write" commands in CI
     """
     if running_in_ci():
-        set_git_config('user.name', 'github-actions[bot]')
-        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+        set_git_config(ctx, 'user.name', 'github-actions[bot]')
+        set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
 
 
 @contextmanager

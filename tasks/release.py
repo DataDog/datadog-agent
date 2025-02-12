@@ -36,7 +36,6 @@ from tasks.libs.common.git import (
     get_last_commit,
     get_last_release_tag,
     is_agent6,
-    set_git_config,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
@@ -1350,14 +1349,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
     """
     Create a PR to bump the integrations core fields in the release.json file
     """
-    github_workflow_url = ""
-    if os.environ.get("GITHUB_ACTIONS"):
-        set_git_config('user.name', 'github-actions[bot]')
-        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
-        github_server_url = os.environ.get("GITHUB_SERVER_URL")
-        github_run_id = os.environ.get("GITHUB_RUN_ID")
-        github_workflow_url = f"{github_server_url}/{GITHUB_REPO_NAME}/actions/runs/{github_run_id}"
-
+    github_workflow_url = f"{os.environ.get('GITHUB_SERVER_URL', 'github.com')}/{GITHUB_REPO_NAME}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '1')}"
     commit_hash = get_git_references(ctx, "integrations-core", "HEAD").split()[0]
 
     rj = load_release_json()
@@ -1373,6 +1365,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
     ctx.run("git add release.json")
 
     commit_message = "bump integrations core to HEAD"
+    set_gitconfig_in_ci(ctx)
     ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
     if not ok:
         raise Exit(
