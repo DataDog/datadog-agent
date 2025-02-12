@@ -17,8 +17,123 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Config is a struct to store the configuration for the autoinstrumentation logic. It can be populated using the
+// datadog config through NewConfig.
+type Config struct {
+	// Webhook is the configuration for the autoinstrumentation webhook
+	Webhook *WebhookConfig
+
+	// LanguageDetection is the configuration for the language detection
+	LanguageDetection *LanguageDetectionConfig
+
+	// Instrumentation is the configuration for the autoinstrumentation logic
+	Instrumentation *InstrumentationConfig
+
+	// containerRegistry is the container registry to use for the autoinstrumentation logic
+	containerRegistry string
+
+	// precomputed mutators for the security and profiling products
+	securityClientLibraryPodMutators  []podMutator
+	profilingClientLibraryPodMutators []podMutator
+
+	// initResources is the resource requirements for the init container
+	initResources initResourceRequirementConfiguration
+
+	// initSecurityContext is the security context for the init container
+	initSecurityContext *corev1.SecurityContext
+
+	// defaultResourceRequirements is the default resource requirements for the init container
+	defaultResourceRequirements initResourceRequirementConfiguration
+
+	// version is the version of the autoinstrumentation logic to use. We don't expose this option to the user, and V1
+	// is deprecated and slated for removal.
+	version version
+}
+
+// NewConfig creates a new Config from the datadog config. It returns an error if the configuration is invalid.
+func NewConfig(datadogConfig config.Component) (*Config, error) {
+	instrumentationConfig, err := NewInstrumentationConfig(datadogConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	version, err := instrumentationVersion(instrumentationConfig.Version)
+	if err != nil {
+		return nil, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
+	}
+
+	initResources, err := initDefaultResources(datadogConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	initSecurityContext, err := parseInitSecurityContext(datadogConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	defaultResourceRequirements, err := initDefaultResources(datadogConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
+	}
+
+	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
+	return &Config{
+		Webhook:                           NewWebhookConfig(datadogConfig),
+		LanguageDetection:                 NewLanguageDetectionConfig(datadogConfig),
+		Instrumentation:                   instrumentationConfig,
+		containerRegistry:                 containerRegistry,
+		initResources:                     initResources,
+		initSecurityContext:               initSecurityContext,
+		defaultResourceRequirements:       defaultResourceRequirements,
+		securityClientLibraryPodMutators:  securityClientLibraryConfigMutators(datadogConfig),
+		profilingClientLibraryPodMutators: profilingClientLibraryConfigMutators(datadogConfig),
+		version:                           version,
+	}, nil
+}
+
+// WebhookConfig use to store options from the config.Component for the autoinstrumentation webhook
+type WebhookConfig struct {
+	// IsEnabled is the flag to enable the autoinstrumentation webhook.
+	IsEnabled bool
+	// Endpoint is the endpoint to use for the autoinstrumentation webhook.
+	Endpoint string
+}
+
+// NewWebhookConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config
+func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
+	return &WebhookConfig{
+		IsEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
+		Endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
+	}
+}
+
+// LanguageDetectionConfig is a struct to store the configuration for the language detection. It can be populated using
+// the datadog config through NewLanguageDetectionConfig.
+type LanguageDetectionConfig struct {
+	// Enabled is a flag to enable the language detection. If false, the language detection is disabled. Full config
+	// key: language_detection.enabled
+	Enabled bool
+	// ReportingEnabled is a flag to enable the language detection reporting. If false, the language detection reporting
+	// is disabled. Full config key: language_detection.reporting_enabled
+	ReportingEnabled bool
+	// InjectDetected is a flag to enable the injection of the detected language. If false, the detected language is not
+	// injected. Full config key: admission_controller.auto_instrumentation.inject_auto_detected_libraries
+	InjectDetected bool
+}
+
+// NewLanguageDetectionConfig creates a new LanguageDetectionConfig from the datadog config.
+func NewLanguageDetectionConfig(datadogConfig config.Component) *LanguageDetectionConfig {
+	return &LanguageDetectionConfig{
+		Enabled:          datadogConfig.GetBool("language_detection.enabled"),
+		ReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
+		InjectDetected:   datadogConfig.GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
+	}
+}
 
 // InstrumentationConfig is a struct to store the configuration for the autoinstrumentation logic. It can be populated
 // using the datadog config through NewInstrumentationConfig.
@@ -49,6 +164,40 @@ type InstrumentationConfig struct {
 	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
 	// apm_config.instrumentation.targets
 	Targets []Target `mapstructure:"targets"`
+}
+
+// NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the
+// configuration is invalid.
+func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationConfig, error) {
+	cfg := &InstrumentationConfig{}
+	err := datadogConfig.UnmarshalKey("apm_config.instrumentation", cfg)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse apm_config.instrumentation: %w", err)
+	}
+
+	// Ensure both enabled and disabled namespaces are not set together.
+	if len(cfg.EnabledNamespaces) > 0 && len(cfg.DisabledNamespaces) > 0 {
+		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces are mutually exclusive and cannot be set together")
+	}
+
+	// Ensure both enabled namespaces and targets are not set together.
+	if len(cfg.EnabledNamespaces) > 0 && len(cfg.Targets) > 0 {
+		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.targets are mutually exclusive and cannot be set together")
+	}
+
+	// Ensure both library versions and targets are not set together.
+	if len(cfg.LibVersions) > 0 && len(cfg.Targets) > 0 {
+		return nil, fmt.Errorf("apm.instrumentation.lib_versions and apm.instrumentation.targets are mutually exclusive and cannot be set together")
+	}
+
+	// Ensure both namespace names and labels are not set together.
+	for _, target := range cfg.Targets {
+		if len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
+			return nil, fmt.Errorf("apm.instrumentation.targets[].namespaceSelector.matchNames and apm.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
+		}
+	}
+
+	return cfg, nil
 }
 
 // Target is a rule to apply the auto instrumentation to a specific workload using the pod and namespace selectors.
@@ -146,61 +295,12 @@ func (n NamespaceSelector) AsLabelSelector() (labels.Selector, error) {
 	return metav1.LabelSelectorAsSelector(labelSelector)
 }
 
-// NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the
-// configuration is invalid.
-func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationConfig, error) {
-	cfg := &InstrumentationConfig{}
-	err := datadogConfig.UnmarshalKey("apm_config.instrumentation", cfg)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse apm_config.instrumentation: %w", err)
-	}
-
-	// Ensure both enabled and disabled namespaces are not set together.
-	if len(cfg.EnabledNamespaces) > 0 && len(cfg.DisabledNamespaces) > 0 {
-		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces are mutually exclusive and cannot be set together")
-	}
-
-	// Ensure both enabled namespaces and targets are not set together.
-	if len(cfg.EnabledNamespaces) > 0 && len(cfg.Targets) > 0 {
-		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.targets are mutually exclusive and cannot be set together")
-	}
-
-	// Ensure both library versions and targets are not set together.
-	if len(cfg.LibVersions) > 0 && len(cfg.Targets) > 0 {
-		return nil, fmt.Errorf("apm.instrumentation.lib_versions and apm.instrumentation.targets are mutually exclusive and cannot be set together")
-	}
-
-	// Ensure both namespace names and labels are not set together.
-	for _, target := range cfg.Targets {
-		if len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
-			return nil, fmt.Errorf("apm.instrumentation.targets[].namespaceSelector.matchNames and apm.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
-		}
-	}
-
-	return cfg, nil
-}
-
 var (
 	minimumCPULimit    resource.Quantity = resource.MustParse("0.05")  // 0.05 core, otherwise copying + library initialization is going to take forever
 	minimumMemoryLimit resource.Quantity = resource.MustParse("100Mi") // 100 MB (recommended minimum by Alpine)
 )
 
-// webhookConfig use to store options from the config.Component for the autoinstrumentation webhook
-type webhookConfig struct {
-	// isEnabled is the flag to enable the autoinstrumentation webhook
-	isEnabled bool
-	endpoint  string
-}
-
 type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
-
-// retrieveConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config
-func retrieveConfig(datadogConfig config.Component) webhookConfig {
-	return webhookConfig{
-		isEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
-		endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
-	}
-}
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
 func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {

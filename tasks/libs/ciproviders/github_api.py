@@ -41,7 +41,7 @@ class GithubAPI:
 
     def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
-        self._github = Github(auth=self._auth)
+        self._github = Github(auth=self._auth, per_page=100)
         org = repository.split("/")
         self._organization = org[0] if len(org) > 1 else None
         self._repository = self._github.get_repo(repository)
@@ -624,31 +624,28 @@ class GithubAPI:
             ):
                 continue
             teams.append(team)
-            teams.extend(
-                self.find_all_teams(team, exclude_teams=exclude_teams, exclude_permissions=exclude_permissions)
-            )
+            teams.extend(self.find_all_teams(team))
         return teams
 
-    def get_committers(self, duration_days=183):
-        """Get the set of committers within the last <duration_days>"""
-        comitters = set()
-        since_date = datetime.now() - timedelta(days=duration_days)
-        for commit in self._repository.get_commits(since=since_date):
-            if commit.author:
-                comitters.add(commit.author.login)
-        return comitters
-
-    def get_reviewers(self, duration_days=183):
+    def get_active_users(self, duration_days=183):
         """Get the set of reviewers within the last <duration_days>"""
-        reviewers = set()
+        actors = set()
         since_date = datetime.now() - timedelta(days=duration_days)
         for pr in self._repository.get_pulls(state="all"):
+            actors.add(pr.user.login)
             if pr.created_at < since_date:
                 break
             for review in pr.get_reviews():
                 if review.user:
-                    reviewers.add(review.user.login)
-        return reviewers
+                    actors.add(review.user.login)
+        return actors
+
+    def get_direct_team_members(self, team):
+        query = '{ organization(login: "datadog") { team(slug: "TEAM")  { members(membership: IMMEDIATE) { nodes { login } } } } }'.replace(
+            "TEAM", team
+        )
+        data = self.graphql(query)
+        return [member["login"] for member in data["data"]["organization"]["team"]["members"]["nodes"]]
 
 
 def get_github_teams(users):
