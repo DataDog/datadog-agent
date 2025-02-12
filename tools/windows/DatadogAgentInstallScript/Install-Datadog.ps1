@@ -229,7 +229,9 @@ try {
    [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
 
    # If not set the `default-packages` won't contain the Datadog Agent
-   $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT = "True"
+   if (-Not $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT) {
+      $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT = "True"
+   }
 
    Write-Host "Starting bootstrap process"
    $result = Start-ProcessWithOutput -Path $installer -ArgumentList "bootstrap"

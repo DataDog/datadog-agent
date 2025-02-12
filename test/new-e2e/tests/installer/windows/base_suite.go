@@ -7,11 +7,12 @@
 package installer
 
 import (
+	"os"
+
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
-	"os"
 )
 
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
@@ -78,7 +79,7 @@ func (s *BaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
 	// TODO:FA-779
-	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {
+	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_INSTALLER_URL") == "" {
 		s.FailNow("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 	}
 

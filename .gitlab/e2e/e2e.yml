@@ -520,12 +520,6 @@ new-e2e-installer-windows:
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
-      # installer-package
-      - EXTRA_PARAMS: --run "TestInstaller$"
-      - EXTRA_PARAMS: --run "TestInstallerRollback$"
-      - EXTRA_PARAMS: --run "TestInstallerSystemIntegrity$"
-      - EXTRA_PARAMS: --run "TestInstallerUpgrades$"
-
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template

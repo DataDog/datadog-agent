@@ -8,19 +8,19 @@ package installer
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
@@ -147,81 +147,4 @@ func (d *DatadogInstaller) Purge() (string, error) {
 	// if purge is run from the install directory it may cause an uninstall failure due
 	// to the file being in use.
 	return d.executeFromCopy("purge")
-}
-
-func (d *DatadogInstaller) createInstallerFolders() {
-	for _, p := range consts.InstallerConfigPaths {
-		d.env.RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
-	}
-}
-
-// Install will attempt to install the Datadog Installer on the remote host.
-// By default, it will use the installer from the current pipeline.
-func (d *DatadogInstaller) Install(opts ...MsiOption) error {
-	params := MsiParams{
-		msiLogFilename:         "install.log",
-		createInstallerFolders: true,
-	}
-	err := optional.ApplyOptions(&params, opts)
-	if err != nil {
-		return err
-	}
-	if params.createInstallerFolders {
-		d.createInstallerFolders()
-	}
-	// MSI can install from a URL or a local file
-	msiPath := params.installerURL
-	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists {
-		// developer provided a local file, put it on the remote host
-		msiPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
-		if err != nil {
-			return err
-		}
-		d.env.RemoteHost.CopyFile(localMSIPath, msiPath)
-	} else if params.installerURL == "" {
-		artifactURL, err := pipeline.GetPipelineArtifact(d.env.Environment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".msi")
-		})
-		if err != nil {
-			return err
-		}
-		// update URL
-		params.installerURL = artifactURL
-		msiPath = params.installerURL
-	}
-	logPath := filepath.Join(d.outputDir, params.msiLogFilename)
-	if _, err := os.Stat(logPath); err == nil {
-		return fmt.Errorf("log file %s already exists", logPath)
-	}
-	msiArgs := ""
-	if params.msiArgs != nil {
-		msiArgs = strings.Join(params.msiArgs, " ")
-	}
-	return windowsCommon.InstallMSI(d.env.RemoteHost, msiPath, msiArgs, logPath)
-}
-
-// Uninstall will attempt to uninstall the Datadog Installer on the remote host.
-func (d *DatadogInstaller) Uninstall(opts ...MsiOption) error {
-	params := MsiParams{
-		msiLogFilename: "uninstall.log",
-	}
-	err := optional.ApplyOptions(&params, opts)
-	if err != nil {
-		return err
-	}
-
-	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Installer")
-	if err != nil {
-		return err
-	}
-
-	logPath := filepath.Join(d.outputDir, params.msiLogFilename)
-	if _, err := os.Stat(logPath); err == nil {
-		return fmt.Errorf("log file %s already exists", logPath)
-	}
-	msiArgs := ""
-	if params.msiArgs != nil {
-		msiArgs = strings.Join(params.msiArgs, " ")
-	}
-	return windowsCommon.MsiExec(d.env.RemoteHost, "/x", productCode, msiArgs, logPath)
 }
