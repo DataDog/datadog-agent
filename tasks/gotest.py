@@ -889,7 +889,8 @@ def check_otel_build(ctx):
 @task
 def check_otel_module_versions(ctx):
     pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
-    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
+    # TODO(songy23): restore to OTEL_UPSTREAM_GO_MOD_PATH once otel v0.120.0 is brought to Agent.
+    r = requests.get("https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod")
     matches = re.findall(pattern, r.text, flags=re.MULTILINE)
     if len(matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
