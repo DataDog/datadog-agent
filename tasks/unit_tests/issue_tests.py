@@ -55,24 +55,20 @@ class TestAddReviewers(unittest.TestCase):
     def test_single_dependency_one_reviewer(self, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.user.login = "dependabot[bot]"
-        pr_mock.title = "Bump modernc.org/mathutil from 1.6.0 to 1.7.0"
+        pr_mock.title = "Bump github.com/redis/go-redis/v9 from 9.1.0 to 9.7.0"
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
         c = MockContext(
             run={
-                "git ls-files | grep -e \"^.*.go$\"": Result("""pkg/security/proto/ebpfless/msg.go
-pkg/security/ptracer/span.go
-pkg/security/secl/go.mod
-pkg/security/secl/model/model.go
-pkg/security/secl/model/model_helpers_unix.go
-pkg/security/secl/model/model_unix.go
+                "git ls-files | grep -e \"^.*.go$\"": Result("""pkg/network/protocols/redis/client.go
+pkg/network/usm/tests/tracer_usm_linux_test.go
 """)
             }
         )
         add_reviewers(c, 1234)
         print_mock.assert_not_called()
-        pr_mock.create_review_request.assert_called_once_with(team_reviewers=['agent-security'])
+        pr_mock.create_review_request.assert_called_once_with(team_reviewers=['universal-service-monitoring'])
 
     @patch('builtins.print')
     @patch('tasks.issue.GithubAPI')
@@ -153,7 +149,7 @@ test/new-e2e/tests/windows/common/pipeline/pipeline.go""")
                 'serverless',
                 'container-platform',
                 'windows-kernel-integrations',
-                'agent-shared-components',
+                'agent-runtimes',
                 'agent-e2e-testing',
                 'serverless-aws',
             ],
