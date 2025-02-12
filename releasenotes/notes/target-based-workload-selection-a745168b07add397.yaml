@@ -46,7 +46,7 @@ features:
     ```
 
     Targets support tracer configuration options in the form of environment variables. All options must have the
-    `DD_` prefix. The following example will install the Python tracer with profiling and data jobs enabled:
+    `DD_` prefix. The following example installs the Python tracer with profiling and data jobs enabled:
     ```
     instrumentation:
       enabled: true
