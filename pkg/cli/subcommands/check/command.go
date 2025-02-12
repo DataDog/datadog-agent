@@ -294,6 +294,9 @@ func run(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
+	// TODO Ideally we would support RC in the check subcommand,
+	//  but at the moment this is not possible - only one process can access the RC database at a time,
+	//  so the subcommand can't read the RC database if the agent is also running.
 	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
