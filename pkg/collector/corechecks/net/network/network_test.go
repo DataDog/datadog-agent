@@ -115,12 +115,12 @@ type MockCommandRunner struct {
 func (m *MockCommandRunner) FakeRunCommand(cmd []string) (string, error) {
 	if contains(cmd, "netstat") {
 		return `Proto Recv-Q Send-Q Local Address           Foreign Address         State
-                tcp        0      0 46.105.75.4:80          79.220.227.193:2032     SYN_RECV
+                tcp        0      0 46.105.75.4:80          79.220.227.193:2032     TIME_WAIT
                 tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED`, nil
 	} else if contains(cmd, "ss") {
 		return `Recv-Q Send-Q Local Address           Foreign Address         State
-				0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
-                0      0 46.105.75.4:50468       107.20.207.175:443      TIME_WAIT`, nil
+				0      0 46.105.75.4:143         90.56.111.177:56867     ESTAB
+                0      0 46.105.75.4:50468       107.20.207.175:443      TIME-WAIT`, nil
 	}
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
