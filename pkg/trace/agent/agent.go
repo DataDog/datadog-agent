@@ -673,7 +673,10 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 	if hasPriority {
 		samplerName = sampler.NamePriority
 		samplingPriority = priority
-		if dm, ok := pt.TraceChunk.Tags[tagDecisionMaker]; ok && dm == probabilitySampling {
+		if spans := pt.TraceChunk.GetSpans(); len(spans) > 0 && spans[0].Meta[tagDecisionMaker] == probabilitySampling {
+			// This trace has already been sampled by the probabilistic sampler in the OTLPReceiver.
+			// When sampler.PriorityAutoKeep is set as the trace chunk priority,
+			// the probabilistic sampler assigns the decision maker (probabilitySampling).
 			samplerName = sampler.NameProbabilistic
 		}
 		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)

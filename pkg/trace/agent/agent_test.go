@@ -1624,6 +1624,7 @@ func TestSampleTrace(t *testing.T) {
 		chunk := testutil.TraceChunkWithSpan(root)
 		if decisionMaker != "" {
 			chunk.Tags["_dd.p.dm"] = decisionMaker
+			chunk.GetSpans()[0].Meta["_dd.p.dm"] = decisionMaker
 		}
 		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
 		pt.TraceChunk.Priority = int32(priority)
@@ -1811,6 +1812,31 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
 			},
 		},
+		"autokeep-dm-sampled": {
+			trace:           genSpan("-9", sampler.PriorityAutoKeep, 0),
+			keep:            true,
+			keepWithFeature: true,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1862,6 +1888,7 @@ func TestSample(t *testing.T) {
 		chunk := testutil.TraceChunkWithSpan(root)
 		if decisionMaker != "" {
 			chunk.Tags["_dd.p.dm"] = decisionMaker
+			chunk.GetSpans()[0].Meta["_dd.p.dm"] = decisionMaker
 		}
 		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
 		pt.TraceChunk.Priority = int32(priority)
