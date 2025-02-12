@@ -18,7 +18,7 @@ const (
 	MetricSamplerSeen = "datadog.trace_agent.sampler.seen"
 	// MetricSamplerKept is the metric name for the number of traces kept by the sampler.
 	MetricSamplerKept = "datadog.trace_agent.sampler.kept"
-	// MetricSamplerSize is the metric name for the size of the sampler.
+	// MetricSamplerSize is the current number of unique trace signatures tracked for stats calculation.
 	MetricSamplerSize = "datadog.trace_agent.sampler.size"
 )
 
