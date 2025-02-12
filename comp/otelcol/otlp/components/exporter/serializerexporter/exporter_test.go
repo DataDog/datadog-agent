@@ -12,10 +12,12 @@ import (
 	"strings"
 	"testing"
 
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/exporter/exportertest"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -321,6 +323,63 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMetricPrefix(t *testing.T) {
+	testMetricPrefixWithFeatureGates(t, false, "datadog_trace_agent_retries", "otelcol_datadog_trace_agent_retries")
+	testMetricPrefixWithFeatureGates(t, false, "system.memory.usage", "otel.system.memory.usage")
+	testMetricPrefixWithFeatureGates(t, false, "process.cpu.utilization", "otel.process.cpu.utilization")
+	testMetricPrefixWithFeatureGates(t, false, "kafka.producer.request-rate", "otel.kafka.producer.request-rate")
+
+	testMetricPrefixWithFeatureGates(t, true, "datadog_trace_agent_retries", "datadog_trace_agent_retries")
+	testMetricPrefixWithFeatureGates(t, true, "system.memory.usage", "system.memory.usage")
+	testMetricPrefixWithFeatureGates(t, true, "process.cpu.utilization", "process.cpu.utilization")
+	testMetricPrefixWithFeatureGates(t, true, "kafka.producer.request-rate", "kafka.producer.request-rate")
+}
+
+func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName string, outName string) {
+	prevVal := pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), disablePrefix))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevVal))
+	}()
+
+	rec := &metricRecorder{}
+	ctx := context.Background()
+	f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+		return "", nil
+	}, nil, nil)
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	exp, err := f.CreateMetrics(
+		ctx,
+		exportertest.NewNopSettings(),
+		cfg,
+	)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+
+	md := pmetric.NewMetrics()
+	rms := md.ResourceMetrics()
+	rm := rms.AppendEmpty()
+	ilms := rm.ScopeMetrics()
+	ilm := ilms.AppendEmpty()
+	metricsArray := ilm.Metrics()
+	met := metricsArray.AppendEmpty()
+	met.SetName(inName)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := met.Sum().DataPoints().AppendEmpty()
+	dp.SetIntValue(100)
+
+	require.NoError(t, exp.ConsumeMetrics(ctx, md))
+	require.NoError(t, exp.Shutdown(ctx))
+
+	for _, serie := range rec.series {
+		if serie.Name == outName {
+			return
+		}
+	}
+	t.Errorf("%s not found in metrics", outName)
 }
 
 func newMetrics(

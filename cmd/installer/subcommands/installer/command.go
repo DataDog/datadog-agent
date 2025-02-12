@@ -284,6 +284,7 @@ func setupCommand() *cobra.Command {
 
 func installCommand() *cobra.Command {
 	var installArgs []string
+	var forceInstall bool
 	cmd := &cobra.Command{
 		Use:     "install <url>",
 		Short:   "Install a package",
@@ -296,10 +297,14 @@ func installCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
+			if forceInstall {
+				return i.ForceInstall(i.ctx, args[0], installArgs)
+			}
 			return i.Install(i.ctx, args[0], installArgs)
 		},
 	}
 	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
+	cmd.Flags().BoolVar(&forceInstall, "force", false, "Install packages, even if they are already up-to-date.")
 	return cmd
 }
 

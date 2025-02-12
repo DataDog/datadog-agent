@@ -21,7 +21,6 @@ needs-rules:
     - deploy_containers-cws-instrumentation-rc-mutable
     - deploy_containers-cws-instrumentation-rc-versioned
     - dogstatsd_x64_size_test
-    - generate_windows_gitlab_runner_bump_pr
     - go_mod_tidy_check
     - lint_flavor_dogstatsd_linux-x64
     - lint_flavor_heroku_linux-x64
@@ -43,7 +42,9 @@ needs-rules:
     - tests_windows_secagent_x64
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
+    - trigger_auto_staging_release_on_failure
     - trigger_manual_prod_release
+    - trigger_manual_prod_release_on_failure
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:

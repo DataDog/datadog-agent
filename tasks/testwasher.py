@@ -245,7 +245,7 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
 
             new_jobs[f"{job}-{i}"]["rules"] = [{"when": "always"}]
             if i > 0:
-                new_jobs[f"{job}-{i}"]["needs"].append(f"{job}-{i - 1}")
+                new_jobs[f"{job}-{i}"]["needs"].append({"job": f"{job}-{i - 1}", "artifacts": False})
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:
         f.write(yaml.safe_dump(new_jobs))

@@ -10,6 +10,7 @@ package diconfig
 import (
 	"cmp"
 	"debug/dwarf"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
@@ -45,13 +45,15 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 		name       string
 		isReturn   bool
 		typeFields *ditypes.Parameter
+		entry      *dwarf.Entry
+		err        error
 	)
 
 entryLoop:
 	for {
 		seenTypes := make(map[string]*seenTypeCounter)
 
-		entry, err := entryReader.Next()
+		entry, err = entryReader.Next()
 		if err == io.EOF || entry == nil {
 			break
 		}
@@ -62,7 +64,6 @@ entryLoop:
 		}
 
 		if entry.Tag == dwarf.TagCompileUnit {
-
 			name, ok := entry.Val(dwarf.AttrName).(string)
 			if !ok {
 				continue entryLoop
@@ -141,7 +142,6 @@ entryLoop:
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
 				}
-
 			}
 		}
 
@@ -163,25 +163,12 @@ entryLoop:
 	return &result, nil
 }
 
-func loadDWARF(binaryPath string) (*dwarf.Data, error) {
-	elfFile, err := safeelf.Open(binaryPath)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't open elf binary: %w", err)
-	}
-	defer elfFile.Close()
-	dwarfData, err := elfFile.DWARF()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't retrieve debug info from elf: %w", err)
-	}
-	return dwarfData, nil
-}
-
 func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) (*ditypes.Parameter, error) {
 	typeReader := dwarfData.Reader()
 
 	typeReader.Seek(offset)
 	typeEntry, err := typeReader.Next()
-	if err != nil {
+	if err != nil || typeEntry == nil {
 		return nil, fmt.Errorf("could not get type entry: %w", err)
 	}
 
@@ -193,6 +180,9 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader)
 		if err != nil {
 			return nil, err
+		}
+		if typeEntry == nil {
+			return nil, errors.New("could not resolve type entry")
 		}
 	}
 

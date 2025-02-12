@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
+// smVersions has all the SM version of the kernels.
+// Retrieved from the Makefile, all the -gencode arch=compute_XX,code=sm_XX flags
+var smVersions = []uint32{50, 52, 60, 61, 70, 75, 80, 86, 89, 90}
+
 // The test data is a CUDA fatbin file compiled with the Makefile present in the same directory,
 // using `make <name>` (for now, only supported samples are `sample` and `heavy-sample`).
 func getCudaSample(t testing.TB, name string) string {
@@ -32,11 +36,18 @@ func getCudaSample(t testing.TB, name string) string {
 	return sample
 }
 
+func smVersionSet() map[uint32]struct{} {
+	smSet := make(map[uint32]struct{})
+	for _, sm := range smVersions {
+		smSet[sm] = struct{}{}
+	}
+	return smSet
+}
+
 func TestParseFatbinFromPath(t *testing.T) {
 	path := getCudaSample(t, "sample")
-	res, err := ParseFatbinFromELFFilePath(path)
+	res, err := ParseFatbinFromELFFilePath(path, smVersionSet())
 	require.NoError(t, err)
-
 	kern1MangledName := "_Z7kernel1Pfi" // = kernel1(float*)
 	kern2MangledName := "_Z7kernel2Pfi" // = kernel2(float*)
 
@@ -60,15 +71,30 @@ func TestParseFatbinFromPath(t *testing.T) {
 		}
 
 		require.Greater(t, kernel.KernelSize, uint64(0), "unexpected kernel size for kernel %s, sm=%d", key.Name, key.SmVersion)
+
+		for attr := range kernel.attributes {
+			require.Contains(t, enabledNvInfoAttrs, attr)
+		}
 	}
 
-	// From the Makefile, all the -gencode arch=compute_XX,code=sm_XX flags
-	expectedSmVersions := []uint32{50, 52, 60, 61, 70, 75, 80, 86, 89, 90}
-	require.ElementsMatch(t, expectedSmVersions, maps.Keys(seenSmVersionsAndKernels))
+	require.ElementsMatch(t, smVersions, maps.Keys(seenSmVersionsAndKernels))
 
 	// Check that all the kernels are present in each version
 	for version, kernelNames := range seenSmVersionsAndKernels {
 		require.ElementsMatch(t, []string{kern1MangledName, kern2MangledName}, kernelNames, "missing kernels for version %d", version)
+	}
+}
+
+func TestParseFatbinFromPathExcludesSomeSmVersions(t *testing.T) {
+	path := getCudaSample(t, "sample")
+	wantedVersions := map[uint32]struct{}{50: {}, 52: {}, 86: {}}
+	res, err := ParseFatbinFromELFFilePath(path, wantedVersions)
+	require.NoError(t, err)
+
+	// We already check in other tests that we get all the kernels for all the versions
+	// so here we check that we properly exclude the versions we don't want
+	for key := range res.kernels {
+		require.Contains(t, wantedVersions, key.SmVersion)
 	}
 }
 
@@ -78,7 +104,7 @@ func BenchmarkParseFatbinFromPath(b *testing.B) {
 		b.Run(sample, func(b *testing.B) {
 			path := getCudaSample(b, sample)
 			for i := 0; i < b.N; i++ {
-				_, err := ParseFatbinFromELFFilePath(path)
+				_, err := ParseFatbinFromELFFilePath(path, smVersionSet())
 				if err != nil {
 					b.Fatalf("unexpected error: %v", err)
 				}
@@ -92,7 +118,7 @@ func BenchmarkParseFatbinFromPath(b *testing.B) {
 // scales with the number of variables per kernel and kernels.
 func TestParseBigFatbinFromPath(t *testing.T) {
 	path := getCudaSample(t, "heavy-sample")
-	res, err := ParseFatbinFromELFFilePath(path)
+	res, err := ParseFatbinFromELFFilePath(path, smVersionSet())
 	require.NoError(t, err)
 
 	// These parameters need to match the same values used in the Makefile to generate the sample
@@ -125,11 +151,13 @@ func TestParseBigFatbinFromPath(t *testing.T) {
 		}
 
 		require.Greater(t, kernel.KernelSize, uint64(0), "unexpected kernel size for kernel %s, sm=%d", key.Name, key.SmVersion)
+
+		for attr := range kernel.attributes {
+			require.Contains(t, enabledNvInfoAttrs, attr)
+		}
 	}
 
-	// From the Makefile, all the -gencode arch=compute_XX,code=sm_XX flags
-	expectedSmVersions := []uint32{50, 52, 60, 61, 70, 75, 80, 86, 89, 90}
-	require.ElementsMatch(t, expectedSmVersions, maps.Keys(seenSmVersionsAndKernels))
+	require.ElementsMatch(t, smVersions, maps.Keys(seenSmVersionsAndKernels))
 
 	// Check that all the kernels are present in each version
 	for version, kernelNames := range seenSmVersionsAndKernels {
