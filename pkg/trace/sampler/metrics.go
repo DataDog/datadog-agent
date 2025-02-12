@@ -153,7 +153,7 @@ func (m *Metrics) RecordMetricsKey(sampled bool, metricsKey MetricsKey) {
 	m.value[metricsKey] = v
 }
 
-// Start starts the metrics reporting loop.
+// Start the metrics reporting loop.
 func (m *Metrics) Start() {
 	m.startMutex.Lock()
 	defer m.startMutex.Unlock()
@@ -170,7 +170,7 @@ func (m *Metrics) Start() {
 	}()
 }
 
-// Stop stops the metrics reporting loop.
+// Stop the metrics reporting loop.
 func (m *Metrics) Stop() {
 	m.startMutex.Lock()
 	if !m.started {
