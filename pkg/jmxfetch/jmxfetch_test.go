@@ -74,9 +74,9 @@ func TestCheckHAIsNotSupported(t *testing.T) {
 
 	err := j.ConfigureFromInitConfig(configOne)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "High Availability mode is not supported in JMXFetch")
+	require.Contains(t, err.Error(), "High Availability is not supported in JMX integrations")
 
 	err = j.ConfigureFromInstance(configTwo)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "High Availability mode is not supported in JMXFetch")
+	require.Contains(t, err.Error(), "High Availability is not supported in JMX integrations")
 }
