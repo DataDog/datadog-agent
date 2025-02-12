@@ -28,6 +28,16 @@ type SECLVariable interface {
 	GetEvaluator() interface{}
 }
 
+// GlobalVariable is the interface implemented by global variables
+type GlobalVariable interface {
+	GetValue() interface{}
+}
+
+// ScopedVariable is the interface implemented by scoped variables
+type ScopedVariable interface {
+	GetValue(ctx *Context) interface{}
+}
+
 // MutableVariable is the interface by variables whose value can be changed
 type MutableVariable interface {
 	Set(ctx *Context, value interface{}) error
@@ -69,7 +79,7 @@ func (i *IntVariable) GetEvaluator() interface{} {
 }
 
 // Get returns the variable value
-func (i *IntVariable) Get(ctx *Context) interface{} {
+func (i *IntVariable) GetValue(ctx *Context) interface{} {
 	return i.intFnc(ctx)
 }
 
@@ -100,7 +110,7 @@ func (s *StringVariable) GetEvaluator() interface{} {
 }
 
 // Get returns the variable value
-func (s *StringVariable) Get(ctx *Context) interface{} {
+func (s *StringVariable) GetValue(ctx *Context) interface{} {
 	return s.strFnc(ctx)
 }
 
@@ -130,7 +140,7 @@ func (b *BoolVariable) GetEvaluator() interface{} {
 }
 
 // Get returns the variable value
-func (b *BoolVariable) Get(ctx *Context) interface{} {
+func (b *BoolVariable) GetValue(ctx *Context) interface{} {
 	return b.boolFnc(ctx)
 }
 
@@ -158,7 +168,7 @@ func (s *StringArrayVariable) GetEvaluator() interface{} {
 }
 
 // Get returns the variable value
-func (s *StringArrayVariable) Get(ctx *Context) interface{} {
+func (s *StringArrayVariable) GetValue(ctx *Context) interface{} {
 	return s.strFnc(ctx)
 }
 
@@ -199,7 +209,7 @@ func (v *IntArrayVariable) GetEvaluator() interface{} {
 }
 
 // Get returns the variable value
-func (v *IntArrayVariable) Get(ctx *Context) interface{} {
+func (v *IntArrayVariable) GetValue(ctx *Context) interface{} {
 	return v.intFnc(ctx)
 }
 
@@ -212,8 +222,8 @@ func (v *IntArrayVariable) Set(ctx *Context, value interface{}) error {
 }
 
 // Append a value to the array
-func (s *IntArrayVariable) Append(ctx *Context, value interface{}) error {
-	return s.Set(ctx, append(s.intFnc(ctx), value.([]int)...))
+func (v *IntArrayVariable) Append(ctx *Context, value interface{}) error {
+	return v.Set(ctx, append(v.intFnc(ctx), value.([]int)...))
 }
 
 // NewIntArrayVariable returns a new integer array variable
@@ -232,7 +242,7 @@ type MutableIntVariable struct {
 }
 
 // Get returns the variable value
-func (m *MutableIntVariable) Get() interface{} {
+func (m *MutableIntVariable) GetValue() interface{} {
 	return m.Value
 }
 
@@ -282,7 +292,7 @@ func NewMutableIntVariable() *MutableIntVariable {
 }
 
 // Get returns the variable value
-func (m *MutableBoolVariable) Get() interface{} {
+func (m *MutableBoolVariable) GetValue() interface{} {
 	return m.Value
 }
 
@@ -318,7 +328,7 @@ func (m *MutableStringVariable) GetEvaluator() interface{} {
 }
 
 // Get returns the variable value
-func (m *MutableStringVariable) Get() interface{} {
+func (m *MutableStringVariable) GetValue() interface{} {
 	return m.Value
 }
 
@@ -350,8 +360,8 @@ type MutableStringArrayVariable struct {
 }
 
 // Get returns the variable value
-func (m *MutableStringArrayVariable) Get() interface{} {
-	return m.LRU
+func (m *MutableStringArrayVariable) GetValue() interface{} {
+	return m.LRU.Keys()
 }
 
 // Set the variable with the specified value
@@ -410,8 +420,8 @@ type MutableIntArrayVariable struct {
 }
 
 // Get returns the variable value
-func (m *MutableIntArrayVariable) Get() interface{} {
-	return m.LRU
+func (m *MutableIntArrayVariable) GetValue() interface{} {
+	return m.LRU.Keys()
 }
 
 // Set the variable with the specified value
@@ -465,13 +475,13 @@ func NewMutableIntArrayVariable(size int, ttl time.Duration) *MutableIntArrayVar
 	}
 }
 
-// ScopedVariable is the interface to be implemented by scoped variable in order to be released
-type ScopedVariable interface {
+// VariableScope is the interface to be implemented by scoped variable in order to be released
+type VariableScope interface {
 	AppendReleaseCallback(callback func())
 }
 
 // Scoper maps a variable to the entity its scoped to
-type Scoper func(ctx *Context) ScopedVariable
+type Scoper func(ctx *Context) VariableScope
 
 // GlobalVariables holds a set of global variables
 type GlobalVariables struct{}
@@ -585,7 +595,7 @@ func (v *NamedVariables) Set(name string, value interface{}) bool {
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
 	scoper Scoper
-	vars   map[ScopedVariable]*NamedVariables
+	vars   map[VariableScope]*NamedVariables
 }
 
 // Len returns the length of the variable map
@@ -660,7 +670,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 }
 
 // ReleaseVariable releases a scoped variable
-func (v *ScopedVariables) ReleaseVariable(key ScopedVariable) {
+func (v *ScopedVariables) ReleaseVariable(key VariableScope) {
 	delete(v.vars, key)
 }
 
@@ -668,6 +678,6 @@ func (v *ScopedVariables) ReleaseVariable(key ScopedVariable) {
 func NewScopedVariables(scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
 		scoper: scoper,
-		vars:   make(map[ScopedVariable]*NamedVariables),
+		vars:   make(map[VariableScope]*NamedVariables),
 	}
 }

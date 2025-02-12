@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/jellydator/ttlcache/v3"
 	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/Masterminds/semver/v3"
@@ -336,16 +335,50 @@ func TestActionSetVariableTTL(t *testing.T) {
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []*ActionDefinition{{
-				Set: &SetDefinition{
-					Name:   "var1",
-					Append: true,
-					Value:  []string{"foo"},
-					TTL: &HumanReadableDuration{
-						Duration: 1 * time.Second,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Append: true,
+						Value:  []string{"foo"},
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
 					},
 				},
-			}},
+				{
+					Set: &SetDefinition{
+						Name:   "var2",
+						Append: true,
+						Value:  []int{123},
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar1",
+						Append: true,
+						Value:  []string{"bar"},
+						Scope:  "process",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar2",
+						Append: true,
+						Value:  []int{123},
+						Scope:  "process",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+			},
 		}},
 	}
 
@@ -381,14 +414,60 @@ func TestActionSetVariableTTL(t *testing.T) {
 
 	existingVariable := opts.VariableStore.Get("var1")
 	assert.NotNil(t, existingVariable)
-
-	stringArrayVar, ok := existingVariable.(*eval.MutableStringArrayVariable)
+	stringArrayVar, ok := existingVariable.(eval.GlobalVariable)
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
+	strValue := stringArrayVar.GetValue()
+	assert.NotNil(t, strValue)
+	assert.Contains(t, strValue, "foo")
+	assert.IsType(t, strValue, []string{})
 
-	assert.True(t, stringArrayVar.LRU.Has("foo"))
+	existingVariable = opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
+	intArrayVar, ok := existingVariable.(eval.GlobalVariable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	value := intArrayVar.GetValue()
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+
+	ctx := eval.NewContext(event)
+	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+	assert.NotNil(t, existingScopedVariable)
+	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringArrayScopedVar)
+	assert.True(t, ok)
+	value = stringArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, "bar")
+	assert.IsType(t, value, []string{})
+
+	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
+	assert.NotNil(t, existingScopedVariable)
+	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, intArrayScopedVar)
+	assert.True(t, ok)
+	value = intArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+
 	time.Sleep(time.Second + 100*time.Millisecond)
-	assert.False(t, stringArrayVar.LRU.Has("foo"))
+
+	value = stringArrayVar.GetValue()
+	assert.NotContains(t, value, "foo")
+
+	value = intArrayVar.GetValue()
+	assert.NotContains(t, value, 123)
+
+	// TODO(lebauce): fix ttl for scoped vars
+
+	// value = stringArrayScopedVar.GetValue(ctx)
+	// assert.NotContains(t, strValue, "foo")
+
+	// value = intArrayScopedVar.GetValue(ctx)
+	// assert.NotContains(t, value, 123)
 }
 
 func TestActionSetVariableSize(t *testing.T) {
@@ -410,6 +489,23 @@ func TestActionSetVariableSize(t *testing.T) {
 						Append: true,
 						Value:  1,
 						Size:   2,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar1",
+						Append: true,
+						Value:  "bar",
+						Size:   1,
+						Scope:  "process",
+					},
+				}, {
+					Set: &SetDefinition{
+						Name:   "scopedvar2",
+						Append: true,
+						Value:  123,
+						Size:   2,
+						Scope:  "process",
 					},
 				},
 			},
@@ -451,25 +547,48 @@ func TestActionSetVariableSize(t *testing.T) {
 
 	existingVariable := opts.VariableStore.Get("var1")
 	assert.NotNil(t, existingVariable)
-
-	stringArrayVar, ok := existingVariable.(*eval.MutableStringArrayVariable)
+	stringArrayVar, ok := existingVariable.(eval.GlobalVariable)
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
-
-	value := stringArrayVar.Get().(*ttlcache.Cache[string, bool]).Keys()
+	value := stringArrayVar.GetValue()
 	assert.Contains(t, value, "foo")
 	assert.Len(t, value, 1)
+	assert.IsType(t, value, []string{})
 
 	existingVariable = opts.VariableStore.Get("var2")
 	assert.NotNil(t, existingVariable)
-
-	intArrayVar, ok := existingVariable.(*eval.MutableIntArrayVariable)
+	intArrayVar, ok := existingVariable.(eval.GlobalVariable)
 	assert.NotNil(t, intArrayVar)
 	assert.True(t, ok)
+	assert.IsType(t, value, []string{})
+	value = intArrayVar.GetValue()
+	assert.IsType(t, value, []int{})
+	assert.Contains(t, value, 1)
+	assert.Len(t, value, 1)
 
-	value2 := intArrayVar.Get().(*ttlcache.Cache[int, bool]).Keys()
-	assert.Contains(t, value2, 1)
-	assert.Len(t, value2, 1)
+	ctx := eval.NewContext(event)
+	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+	assert.NotNil(t, existingScopedVariable)
+	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringArrayScopedVar)
+	assert.True(t, ok)
+	value = stringArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, "bar")
+	assert.IsType(t, value, []string{})
+	assert.Len(t, value, 2)
+
+	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
+	assert.NotNil(t, existingScopedVariable)
+	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, intArrayScopedVar)
+	assert.True(t, ok)
+	value = intArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+	// TODO(lebauce): fix size for scoped vars
+	// assert.Len(t, value, 1)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
