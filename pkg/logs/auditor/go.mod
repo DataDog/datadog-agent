@@ -42,36 +42,36 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.63.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.63.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.63.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.63.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/status/health v0.63.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-rc.4
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.63.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.63.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.63.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.63.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/status/health v0.63.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-rc.7
 	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.63.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.63.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.63.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.63.0-rc.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
