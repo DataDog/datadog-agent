@@ -15,7 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	// import sqlite3 driver
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
