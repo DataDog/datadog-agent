@@ -1537,13 +1537,13 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	}
 
 	if needRawSyscalls {
-		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 	} else {
 		// ActivityDumps
 		if p.config.RuntimeSecurity.ActivityDumpEnabled {
 			for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
 				if e == model.SyscallsEventType {
-					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 					break
 				}
 			}
@@ -1552,7 +1552,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			for _, e := range p.profileManagers.GetAnomalyDetectionEventTypes() {
 				if e == model.SyscallsEventType {
-					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 					break
 				}
 			}
@@ -2178,7 +2178,7 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes(config *config.Config) {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
-				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 				break
 			}
 		}
@@ -2187,7 +2187,7 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes(config *config.Config) {
 		for _, e := range config.RuntimeSecurity.AnomalyDetectionEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
-				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 				break
 			}
 		}
