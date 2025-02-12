@@ -74,7 +74,7 @@ func InitCheckScheduler(config config.Component, collector option.Option[collect
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(config, senderManager, logReceiver, tagger) {
-		checkScheduler.AddLoader(loader)
+		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
 	return checkScheduler
@@ -144,8 +144,8 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 // Stop is a stub to satisfy the scheduler interface
 func (s *CheckScheduler) Stop() {}
 
-// AddLoader adds a new Loader that AutoConfig can use to load a check.
-func (s *CheckScheduler) AddLoader(loader check.Loader) {
+// addLoader adds a new Loader that AutoConfig can use to load a check.
+func (s *CheckScheduler) addLoader(loader check.Loader) {
 	for _, l := range s.loaders {
 		if l == loader {
 			log.Warnf("Loader %s was already added, skipping...", loader)

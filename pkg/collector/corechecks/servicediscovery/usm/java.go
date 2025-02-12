@@ -25,6 +25,10 @@ var vendorToSource = map[serverVendor]ServiceNameSource{
 	jboss:     JBoss,
 }
 
+func isNameFlag(arg string) bool {
+	return arg == "-jar" || arg == "-m" || arg == "--module"
+}
+
 func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success bool) {
 	// Look for dd.service
 	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
@@ -94,7 +98,7 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 			}
 		}
 
-		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && !isNameFlag(a)
 	}
 	return
 }

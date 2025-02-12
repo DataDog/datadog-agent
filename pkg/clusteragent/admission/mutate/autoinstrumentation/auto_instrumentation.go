@@ -23,7 +23,6 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -52,20 +51,19 @@ type Webhook struct {
 	mutator mutatecommon.Mutator
 
 	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
-	config webhookConfig
+	config *WebhookConfig
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, injector mutatecommon.Mutator) (*Webhook, error) {
-	config := retrieveConfig(datadogConfig)
+func NewWebhook(config *Config, wmeta workloadmeta.Component, mutator mutatecommon.Mutator) (*Webhook, error) {
 	webhook := &Webhook{
 		name:            webhookName,
 		resources:       map[string][]string{"": {"pods"}},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
-		mutator:         injector,
+		mutator:         mutator,
 		wmeta:           wmeta,
-		config:          config,
+		config:          config.Webhook,
 	}
 
 	return webhook, nil
@@ -83,12 +81,12 @@ func (w *Webhook) WebhookType() common.WebhookType {
 
 // IsEnabled returns whether the webhook is enabled
 func (w *Webhook) IsEnabled() bool {
-	return w.config.isEnabled
+	return w.config.IsEnabled
 }
 
 // Endpoint returns the endpoint of the webhook
 func (w *Webhook) Endpoint() string {
-	return w.config.endpoint
+	return w.config.Endpoint
 }
 
 // Resources returns the kubernetes resources for which the webhook should
