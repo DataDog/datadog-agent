@@ -23,8 +23,8 @@ run_codeql_scan:
     CODEQL_DB: /tmp/datadog-agent.codeql
     PYTHON_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/python/codeql-suites/custom.qls
     GO_CUSTOM_QLPACK: /tmp/codescanning/qlpacks/golang/codeql-suites/dd-source.qls
-    DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=go,python,javascript,cpp --quiet
-    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
+    DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=go,python,javascript,cpp
+    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting
     UPLOAD_CONFIGS: -upload_sarif=true
     CODEQL_BUNDLE_URL: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.20.4/codeql-bundle-linux64.tar.gz
   script:
