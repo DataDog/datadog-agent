@@ -42,4 +42,3 @@ def _is_ssl_fips():
         return 0
     except ssl.SSLError:
         return 1
-
