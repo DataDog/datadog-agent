@@ -741,6 +741,7 @@ func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	assert.NotNil(t, tags["kube_replica_set"])
 	assert.NotNil(t, tags["pod_phase"])
 	assert.Equal(t, "replicaset", tags["kube_ownerref_kind"])
+	assert.Equal(t, "infra", tags["team"])
 	assert.Equal(t, tags["kube_app_instance"], tags["kube_app_name"])
 	assert.Contains(t, tags["k8s.pod.name"], tags["kube_replica_set"])
 

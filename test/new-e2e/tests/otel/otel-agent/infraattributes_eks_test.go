@@ -30,6 +30,12 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
+agents:
+  containers:
+    agent:
+      env:
+        - name: DD_TAGS
+          value: 'team:infra'
 `
 	t.Parallel()
 	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSOptions(eks.WithLinuxNodeGroup()), awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
