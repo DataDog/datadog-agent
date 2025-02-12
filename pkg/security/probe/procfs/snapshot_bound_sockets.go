@@ -10,7 +10,6 @@ package procfs
 
 import (
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -52,7 +51,7 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	proc, _ := procfs.NewFS(filepath.Join(kernel.HostProc(fmt.Sprintf("%d", p.Pid))))
+	proc, _ := procfs.NewFS(kernel.HostProc(fmt.Sprintf("%d", p.Pid)))
 	if err != nil {
 		seclog.Warnf("error while opening procfs (pid: %v): %s", p.Pid, err)
 	}
