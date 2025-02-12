@@ -3,12 +3,12 @@
 # Contains CodeQL scan job to perform security static analysis
 
 run_codeql_scan:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: source_test
   rules:
     - when: on_success
-  needs: ["go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   allow_failure: true # This job should not impact the overall status of the pipeline
   variables:
     ARCH: arm64
@@ -29,6 +29,7 @@ run_codeql_scan:
     CODEQL_BUNDLE_URL: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.20.4/codeql-bundle-linux64.tar.gz
   script:
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
     - curl -L $CODEQL_BUNDLE_URL -o /tmp/codeql.tar.gz && tar -zxf /tmp/codeql.tar.gz -C /usr/local && rm /tmp/codeql.tar.gz
@@ -38,8 +39,7 @@ run_codeql_scan:
     - export CGO_CFLAGS="-I${PWD}/rtloader/include -I${PWD}/rtloader/common"
     - echo "CGO_LDFLAGS=${CGO_LDFLAGS}"
     - echo "CGO_CFLAGS=${CGO_CFLAGS}"
-    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    - GOPROXY=https://proxy.golang.org,https://goproxy.io,direct invoke install-tools
+    - invoke install-tools
     - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS --command="inv -e agent.build --build-exclude=systemd"
     - $CODEQL database analyze "$CODEQL_DB"/go "$GO_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="go" --output="/tmp/go.sarif"
     - $CODEQL database analyze "$CODEQL_DB"/javascript codeql/javascript-queries $SCAN_CONFIGS --sarif-category="javascript" --output="/tmp/javascript.sarif"
