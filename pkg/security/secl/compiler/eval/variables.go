@@ -78,7 +78,7 @@ func (i *IntVariable) GetEvaluator() interface{} {
 	}
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (i *IntVariable) GetValue(ctx *Context) interface{} {
 	return i.intFnc(ctx)
 }
@@ -109,7 +109,7 @@ func (s *StringVariable) GetEvaluator() interface{} {
 	}
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (s *StringVariable) GetValue(ctx *Context) interface{} {
 	return s.strFnc(ctx)
 }
@@ -139,7 +139,7 @@ func (b *BoolVariable) GetEvaluator() interface{} {
 	}
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (b *BoolVariable) GetValue(ctx *Context) interface{} {
 	return b.boolFnc(ctx)
 }
@@ -167,7 +167,7 @@ func (s *StringArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (s *StringArrayVariable) GetValue(ctx *Context) interface{} {
 	return s.strFnc(ctx)
 }
@@ -208,7 +208,7 @@ func (v *IntArrayVariable) GetEvaluator() interface{} {
 	}
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (v *IntArrayVariable) GetValue(ctx *Context) interface{} {
 	return v.intFnc(ctx)
 }
@@ -241,7 +241,7 @@ type MutableIntVariable struct {
 	Value int
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (m *MutableIntVariable) GetValue() interface{} {
 	return m.Value
 }
@@ -291,7 +291,7 @@ func NewMutableIntVariable() *MutableIntVariable {
 	return &MutableIntVariable{}
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (m *MutableBoolVariable) GetValue() interface{} {
 	return m.Value
 }
@@ -327,7 +327,7 @@ func (m *MutableStringVariable) GetEvaluator() interface{} {
 	}
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (m *MutableStringVariable) GetValue() interface{} {
 	return m.Value
 }
@@ -359,7 +359,7 @@ type MutableStringArrayVariable struct {
 	LRU *ttlcache.Cache[string, bool]
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (m *MutableStringArrayVariable) GetValue() interface{} {
 	return m.LRU.Keys()
 }
@@ -419,7 +419,7 @@ type MutableIntArrayVariable struct {
 	LRU *ttlcache.Cache[int, bool]
 }
 
-// Get returns the variable value
+// GetValue returns the variable value
 func (m *MutableIntArrayVariable) GetValue() interface{} {
 	return m.LRU.Keys()
 }
