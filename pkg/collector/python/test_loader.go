@@ -11,12 +11,14 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/stretchr/testify/assert"
 )
 
 /*
@@ -143,7 +145,8 @@ func testLoadCustomCheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	configMock := config.NewMock(t)
+	loader, err := NewPythonCheckLoader(configMock, senderManager, logReceiver, tagger)
 	assert.Nil(t, err)
 
 	// testing loading custom checks
@@ -182,7 +185,8 @@ func testLoadWheelCheck(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
-	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	configMock := config.NewMock(t)
+	loader, err := NewPythonCheckLoader(configMock, senderManager, logReceiver, tagger)
 	assert.Nil(t, err)
 
 	// testing loading dd wheels

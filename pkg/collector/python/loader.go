@@ -16,15 +16,16 @@ import (
 	"unsafe"
 
 	"github.com/mohae/deepcopy"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -63,8 +64,8 @@ const (
 const PythonCheckLoaderName string = "python"
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
-		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	factory := func(config config.Component, senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
+		return NewPythonCheckLoader(config, senderManager, logReceiver, tagger)
 	}
 	loaders.RegisterLoader(20, factory)
 
@@ -89,15 +90,26 @@ func init() {
 //
 //nolint:revive // TODO(AML) Fix revive linter
 type PythonCheckLoader struct {
-	logReceiver option.Option[integrations.Component]
+	logReceiver    option.Option[integrations.Component]
+	config         config.Component
+	allSettings    []byte
+	allSettingsErr error
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
+func NewPythonCheckLoader(config config.Component, senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
 	initializeCheckContext(senderManager, logReceiver, tagger)
-	return &PythonCheckLoader{
+	loader := &PythonCheckLoader{
 		logReceiver: logReceiver,
-	}, nil
+		config:      config,
+	}
+
+	allSettings, err := yaml.Marshal(config.AllSettings())
+	loader.allSettings = allSettings
+	loader.allSettingsErr = err
+
+	config.OnUpdate(func(_ string, _, _ any) { loader.refreshAllSettings() })
+	return loader, nil
 }
 
 func getRtLoaderError() error {
@@ -131,7 +143,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	defer glock.unlock()
 
 	// Platform-specific preparation
-	if !pkgconfigsetup.Datadog().GetBool("win_skip_com_init") {
+	if !cl.config.GetBool("win_skip_com_init") {
 		log.Debugf("Performing platform loading prep")
 		err = platformLoaderPrep()
 		if err != nil {
@@ -188,7 +200,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, getRtLoaderError())
 	}
 
-	if !pkgconfigsetup.Datadog().GetBool("disable_py3_validation") && !loadedAsWheel {
+	if !cl.config.GetBool("disable_py3_validation") && !loadedAsWheel {
 		// Customers, though unlikely might version their custom checks.
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
@@ -205,10 +217,12 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getRtLoaderError())
 		}
 
-		go reportPy3Warnings(name, goCheckFilePath)
+		go cl.reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	c, err := NewPythonCheck(senderManager, moduleName, checkClass)
+	c, err := NewPythonCheck(senderManager, moduleName, checkClass, func() ([]byte, error) {
+		return cl.allSettings, cl.allSettingsErr
+	})
 	if err != nil {
 		return c, err
 	}
@@ -271,7 +285,7 @@ func expvarPy3Warnings() interface{} {
 
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
 // and the aggregator (as extra series)
-func reportPy3Warnings(checkName string, checkFilePath string) {
+func (cl *PythonCheckLoader) reportPy3Warnings(checkName string, checkFilePath string) {
 	// check if the check has already been linted
 	py3LintedLock.Lock()
 	_, found := py3Linted[checkName]
@@ -290,7 +304,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			checkFilePath = checkFilePath[:len(checkFilePath)-1]
 		}
 
-		if strings.TrimSpace(pkgconfigsetup.Datadog().GetString("python_version")) == "3" {
+		if strings.TrimSpace(cl.config.GetString("python_version")) == "3" {
 			// the linter used by validatePython3 doesn't work when run from python3
 			status = a7TagPython3
 			metricValue = 1.0
@@ -332,4 +346,10 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 		Tags:   tagset.CompositeTagsFromSlice(tags),
 		MType:  metrics.APIGaugeType,
 	})
+}
+
+func (cl *PythonCheckLoader) refreshAllSettings() {
+	allSettings, err := yaml.Marshal(cl.config.AllSettings())
+	cl.allSettings = allSettings
+	cl.allSettingsErr = err
 }

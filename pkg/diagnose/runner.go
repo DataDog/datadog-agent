@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -313,10 +314,10 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.Diag
 }
 
 // RunInCLIProcess run diagnoses in the CLI process.
-func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) (*diagnosis.DiagnoseResult, error) {
+func RunInCLIProcess(config config.Component, diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) (*diagnosis.DiagnoseResult, error) {
 	return RunDiagnose(diagCfg, func() []diagnosis.Suite {
 		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC, deps.tagger)
+			return diagnoseChecksInCLIProcess(config, diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC, deps.tagger)
 		})
 	})
 }
