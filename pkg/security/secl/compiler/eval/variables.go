@@ -44,13 +44,13 @@ type MutableVariable interface {
 	Append(ctx *Context, value interface{}) error
 }
 
-// SettableVariable describes a SECL variable
-type SettableVariable struct {
+// settableVariable describes a SECL variable
+type settableVariable struct {
 	setFnc func(ctx *Context, value interface{}) error
 }
 
 // Set the variable with the specified value
-func (v *SettableVariable) Set(ctx *Context, value interface{}) error {
+func (v *settableVariable) Set(ctx *Context, value interface{}) error {
 	if v.setFnc == nil {
 		return errors.New("variable is not mutable")
 	}
@@ -59,13 +59,13 @@ func (v *SettableVariable) Set(ctx *Context, value interface{}) error {
 }
 
 // Append a value to the variable
-func (v *SettableVariable) Append(_ *Context, _ interface{}) error {
+func (v *settableVariable) Append(_ *Context, _ interface{}) error {
 	return errAppendNotSupported
 }
 
 // ScopedIntVariable describes a scoped integer variable
 type ScopedIntVariable struct {
-	SettableVariable
+	settableVariable
 	intFnc func(ctx *Context) int
 }
 
@@ -86,7 +86,7 @@ func (i *ScopedIntVariable) GetValue(ctx *Context) interface{} {
 // NewScopedIntVariable returns a new integer variable
 func NewScopedIntVariable(intFnc func(ctx *Context) int, setFnc func(ctx *Context, value interface{}) error) *ScopedIntVariable {
 	return &ScopedIntVariable{
-		SettableVariable: SettableVariable{
+		settableVariable: settableVariable{
 			setFnc: setFnc,
 		},
 		intFnc: intFnc,
@@ -95,7 +95,7 @@ func NewScopedIntVariable(intFnc func(ctx *Context) int, setFnc func(ctx *Contex
 
 // ScopedStringVariable describes a string variable
 type ScopedStringVariable struct {
-	SettableVariable
+	settableVariable
 	strFnc func(ctx *Context) string
 }
 
@@ -118,7 +118,7 @@ func (s *ScopedStringVariable) GetValue(ctx *Context) interface{} {
 func NewScopedStringVariable(strFnc func(ctx *Context) string, setFnc func(ctx *Context, value interface{}) error) *ScopedStringVariable {
 	return &ScopedStringVariable{
 		strFnc: strFnc,
-		SettableVariable: SettableVariable{
+		settableVariable: settableVariable{
 			setFnc: setFnc,
 		},
 	}
@@ -126,7 +126,7 @@ func NewScopedStringVariable(strFnc func(ctx *Context) string, setFnc func(ctx *
 
 // ScopedBoolVariable describes a boolean variable
 type ScopedBoolVariable struct {
-	SettableVariable
+	settableVariable
 	boolFnc func(ctx *Context) bool
 }
 
@@ -148,7 +148,7 @@ func (b *ScopedBoolVariable) GetValue(ctx *Context) interface{} {
 func NewScopedBoolVariable(boolFnc func(ctx *Context) bool, setFnc func(ctx *Context, value interface{}) error) *ScopedBoolVariable {
 	return &ScopedBoolVariable{
 		boolFnc: boolFnc,
-		SettableVariable: SettableVariable{
+		settableVariable: settableVariable{
 			setFnc: setFnc,
 		},
 	}
@@ -156,7 +156,7 @@ func NewScopedBoolVariable(boolFnc func(ctx *Context) bool, setFnc func(ctx *Con
 
 // ScopedStringArrayVariable describes a scoped string array variable
 type ScopedStringArrayVariable struct {
-	SettableVariable
+	settableVariable
 	strFnc func(ctx *Context) []string
 }
 
@@ -177,7 +177,7 @@ func (s *ScopedStringArrayVariable) Set(ctx *Context, value interface{}) error {
 	if s, ok := value.(string); ok {
 		value = []string{s}
 	}
-	return s.SettableVariable.Set(ctx, value)
+	return s.settableVariable.Set(ctx, value)
 }
 
 // Append a value to the array
@@ -189,7 +189,7 @@ func (s *ScopedStringArrayVariable) Append(ctx *Context, value interface{}) erro
 func NewScopedStringArrayVariable(strFnc func(ctx *Context) []string, setFnc func(ctx *Context, value interface{}) error) *ScopedStringArrayVariable {
 	return &ScopedStringArrayVariable{
 		strFnc: strFnc,
-		SettableVariable: SettableVariable{
+		settableVariable: settableVariable{
 			setFnc: setFnc,
 		},
 	}
@@ -197,7 +197,7 @@ func NewScopedStringArrayVariable(strFnc func(ctx *Context) []string, setFnc fun
 
 // ScopedIntArrayVariable describes a scoped integer array variable
 type ScopedIntArrayVariable struct {
-	SettableVariable
+	settableVariable
 	intFnc func(ctx *Context) []int
 }
 
@@ -218,7 +218,7 @@ func (v *ScopedIntArrayVariable) Set(ctx *Context, value interface{}) error {
 	if i, ok := value.(int); ok {
 		value = []int{i}
 	}
-	return v.SettableVariable.Set(ctx, value)
+	return v.settableVariable.Set(ctx, value)
 }
 
 // Append a value to the array
@@ -230,7 +230,7 @@ func (v *ScopedIntArrayVariable) Append(ctx *Context, value interface{}) error {
 func NewScopedIntArrayVariable(intFnc func(ctx *Context) []int, setFnc func(ctx *Context, value interface{}) error) *ScopedIntArrayVariable {
 	return &ScopedIntArrayVariable{
 		intFnc: intFnc,
-		SettableVariable: SettableVariable{
+		settableVariable: settableVariable{
 			setFnc: setFnc,
 		},
 	}
