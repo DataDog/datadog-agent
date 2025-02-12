@@ -64,6 +64,10 @@ func test_struct_pointer(x *nStruct) {}
 
 //nolint:all
 //go:noinline
+func test_nil_struct_pointer(x *nStruct) {}
+
+//nolint:all
+//go:noinline
 func test_complex_type(z *reallyComplexType) {}
 
 //nolint:all
@@ -104,7 +108,7 @@ func ExecutePointerFuncs() {
 
 	n := nStruct{true, 1, 2}
 	test_struct_pointer(&n)
-
+	test_nil_struct_pointer(nil)
 	ssaw := swsp{
 		a: 1,
 		b: &n,
