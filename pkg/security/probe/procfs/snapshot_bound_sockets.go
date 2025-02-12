@@ -10,6 +10,7 @@ package procfs
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -143,9 +144,8 @@ func parseNetTCPFromReader(r io.Reader) ([]netTCPEntry, error) {
 	s := bufio.NewScanner(lr)
 	s.Scan() // skip first line with headers
 	for s.Scan() {
-		fields := strings.Fields(s.Text())
-
-		localF := fields[1]
+		line := s.Bytes()
+		localF := fieldN(line, 1)
 		ipF, portF, found := strings.Cut(localF, ":")
 		if !found {
 			return nil, fmt.Errorf("unexpected format for local address: %s", localF)
@@ -162,7 +162,7 @@ func parseNetTCPFromReader(r io.Reader) ([]netTCPEntry, error) {
 		}
 		port := uint16(port64)
 
-		inodeF := fields[9]
+		inodeF := fieldN(line, 9)
 		inode, err := strconv.ParseUint(inodeF, 10, 64)
 		if err != nil {
 			return nil, err
@@ -178,6 +178,26 @@ func parseNetTCPFromReader(r io.Reader) ([]netTCPEntry, error) {
 		return nil, err
 	}
 	return netTCP, nil
+}
+
+func fieldN(text []byte, n int) string {
+	var word []byte
+	n++ // to run one last time
+	for ; n != 0; n-- {
+		// eat first whitespaces
+		for len(text) != 0 && (text[0] == ' ' || text[0] == '\t') {
+			text = text[1:]
+		}
+
+		nextSpace := bytes.IndexAny(text, " \t")
+		if nextSpace < 0 {
+			return ""
+		}
+
+		word = text[:nextSpace]
+		text = text[nextSpace:]
+	}
+	return string(word)
 }
 
 func parseIP(hexIP string) (net.IP, error) {
