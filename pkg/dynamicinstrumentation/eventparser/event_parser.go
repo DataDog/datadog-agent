@@ -53,7 +53,7 @@ func readParams(values []byte) []*ditypes.Param {
 		log.Tracef("DI event bytes (0:100): %v", values[0:100])
 	}
 	outputParams := []*ditypes.Param{}
-	for i := 0; i+3 < len(values); {
+	for i := 0; i+sizeOfKindAndSize < len(values); {
 		paramTypeDefinition := parseTypeDefinition(values[i:])
 		if paramTypeDefinition == nil {
 			break
@@ -195,7 +195,7 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		if newParam.Kind == 0 {
 			break
 		}
-		i += 3
+		i += sizeOfKindAndSize
 		if newParam.Size == 0 {
 			if reflect.Kind(newParam.Kind) == reflect.Struct {
 				goto stackCheck
@@ -257,7 +257,7 @@ func countBufferUsedByTypeDefinition(root *ditypes.Param) int {
 	for len(queue) != 0 {
 		front := queue[0]
 		queue = queue[1:]
-		counter += 3
+		counter += sizeOfKindAndSize
 
 		if reflect.Kind(front.Kind) == reflect.Slice && len(front.Fields) > 0 {
 			// The fields of slice elements are amended after the fact to account
@@ -316,3 +316,5 @@ func parseIndividualValue(paramType byte, paramValueBytes []byte) string {
 		return ""
 	}
 }
+
+const sizeOfKindAndSize = 3
