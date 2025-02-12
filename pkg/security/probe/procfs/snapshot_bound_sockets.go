@@ -16,11 +16,9 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sys/unix"
 
@@ -58,26 +56,21 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	procPath := kernel.HostProc(fmt.Sprintf("%d", p.Pid))
-	proc, _ := procfs.NewFS(procPath)
-	if err != nil {
-		seclog.Warnf("error while opening procfs (pid: %v): %s", p.Pid, err)
-	}
 	// looking for AF_INET sockets
-	TCP, err := parseNetTCP(procPath, false)
+	TCP, err := parseNetIP(p.Pid, "net/tcp")
 	if err != nil {
 		seclog.Debugf("couldn't snapshot TCP sockets: %v", err)
 	}
-	UDP, err := proc.NetUDP()
+	UDP, err := parseNetIP(p.Pid, "net/udp")
 	if err != nil {
 		seclog.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
 	// looking for AF_INET6 sockets
-	TCP6, err := parseNetTCP(procPath, true)
+	TCP6, err := parseNetIP(p.Pid, "net/tcp6")
 	if err != nil {
 		seclog.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
-	UDP6, err := proc.NetUDP6()
+	UDP6, err := parseNetIP(p.Pid, "net/udp6")
 	if err != nil {
 		seclog.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
@@ -91,8 +84,8 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 			}
 		}
 		for _, sock := range UDP {
-			if sock.Inode == s {
-				boundSockets = append(boundSockets, model.SnapshottedBoundSocket{IP: sock.LocalAddr, Port: uint16(sock.LocalPort), Family: unix.AF_INET, Protocol: unix.IPPROTO_UDP})
+			if sock.inode == s {
+				boundSockets = append(boundSockets, model.SnapshottedBoundSocket{IP: sock.ip, Port: sock.port, Family: unix.AF_INET, Protocol: unix.IPPROTO_UDP})
 				break
 			}
 		}
@@ -103,8 +96,8 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 			}
 		}
 		for _, sock := range UDP6 {
-			if sock.Inode == s {
-				boundSockets = append(boundSockets, model.SnapshottedBoundSocket{IP: sock.LocalAddr, Port: uint16(sock.LocalPort), Family: unix.AF_INET6, Protocol: unix.IPPROTO_UDP})
+			if sock.inode == s {
+				boundSockets = append(boundSockets, model.SnapshottedBoundSocket{IP: sock.ip, Port: sock.port, Family: unix.AF_INET6, Protocol: unix.IPPROTO_UDP})
 				break
 			}
 		}
@@ -120,24 +113,19 @@ type netIPEntry struct {
 	inode uint64
 }
 
-func parseNetTCP(procPath string, v6 bool) ([]netTCPEntry, error) {
-	suffix := "net/tcp"
-	if v6 {
-		suffix = "net/tcp6"
-	}
-
-	path := filepath.Join(procPath, suffix)
+func parseNetIP(pid int32, suffix string) ([]netIPEntry, error) {
+	path := kernel.HostProc(fmt.Sprintf("%d", pid), suffix)
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	return parseNetTCPFromReader(f)
+	return parseNetIPFromReader(f)
 }
 
-func parseNetTCPFromReader(r io.Reader) ([]netTCPEntry, error) {
-	var netTCP []netTCPEntry
+func parseNetIPFromReader(r io.Reader) ([]netIPEntry, error) {
+	var netTCP []netIPEntry
 
 	const readLimit = 4294967296 // Byte -> 4 GiB
 	lr := io.LimitReader(r, readLimit)
