@@ -191,6 +191,11 @@ def warn_new_commits(release_managers, team, branch, next_rc):
     message += f":announcement: We detected new commits on the {branch} release branch of `integrations-core`.\n"
     message += f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate planned <{rc_schedule_link}|{rc_date.strftime('%Y-%m-%d %H:%M')}> UTC?\n"
     message += "Thanks in advance!\n"
-    message += f"cc {' '.join(release_managers)}"
     client = WebClient(os.environ["SLACK_API_TOKEN"])
+    slack_ids = []
+    for email in release_managers:
+        r = client.users_lookupByEmail(email=email)
+        if r.status_code == 200:
+            slack_ids.append(r.data["user"]["id"])
+    message += f"cc {' '.join(f'<@{sid}>' for sid in slack_ids)}"
     client.chat_postMessage(channel=f"#{team}", text=message)
