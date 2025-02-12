@@ -55,8 +55,8 @@ func (c *eventCollector) tryRecordEvent(event any) {
 		// Tell ourselves we are done (we are the only ones looking at this variable now)
 		c.enabled = false
 
-		// Tell the listener we are done
-		close(c.finished)
+		// Tell the listener we are done. Do not close the channel as we might reuse it later
+		c.finished <- struct{}{}
 	}
 }
 
