@@ -487,7 +487,7 @@ func getQueueMetrics(ipVersion string) (map[string][]uint64, error) {
 }
 
 func getQueueMetricsNetstat(ipVersion string) (map[string][]uint64, error) {
-	output, err := runCommand([]string{"sh", "-c", "netstat -n -u -t -a"})
+	output, err := runCommand([]string{"sh", "-c", "netstat", "-n -u -t -a"})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
 	}
@@ -519,7 +519,7 @@ func parseQueueMetricsNetstat(output string) (map[string][]uint64, error) {
 		if strings.Contains(line, "tcp") {
 			fields := strings.Fields(line)
 			if len(fields) > 5 {
-				val, ok := tcpStateMetricsSuffixMapping_ss[fields[5]]
+				val, ok := tcpStateMetricsSuffixMapping_netstat[fields[5]]
 				if ok {
 					state := val
 					recvQ := parseQueue(fields[1])
@@ -547,40 +547,39 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMe
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
 	}
-	queueMetrics := make(map[string][]uint64)
 	for _, connectionStats := range connectionsStats {
 		metricCount[stateMetricSuffixMapping[connectionStats.Status]]++
-		if collectConnectionQueues && protocolName[:3] == "tcp" {
-			var queues map[string][]uint64
-			var err error
-			// pass in version number
-			if ssAvailable {
-				queues, err = getQueueMetrics(protocolName[len(protocolName)-1:])
-				if err != nil {
-					log.Debug("Error getting queue metrics with ss:", err)
-					return
-				}
-			} else {
-				queues, err = getQueueMetricsNetstat(protocolName[len(protocolName)-1:])
-				if err != nil {
-					log.Debug("Error getting queue metrics with netstat:", err)
-					return
-				}
-			}
-			for state, queues := range queues {
-				queueMetrics[state] = append(queueMetrics[state], queues...)
-			}
-			for state, queues := range queueMetrics {
-				for _, queue := range queues {
-					sender.Histogram("system.net.recv_q", float64(queue), "", []string{"state:" + state})
-					sender.Histogram("system.net.send_q", float64(queue), "", []string{"state:" + state})
-				}
-			}
-		}
 	}
-
 	for suffix, count := range metricCount {
 		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), count, "", nil)
+	}
+	queueMetrics := make(map[string][]uint64)
+	if collectConnectionQueues && protocolName[:3] == "tcp" {
+		var queues map[string][]uint64
+		var err error
+		// pass in version number
+		if ssAvailable {
+			queues, err = getQueueMetrics(protocolName[len(protocolName)-1:])
+			if err != nil {
+				log.Debug("Error getting queue metrics with ss:", err)
+				return
+			}
+		} else {
+			queues, err = getQueueMetricsNetstat(protocolName[len(protocolName)-1:])
+			if err != nil {
+				log.Debug("Error getting queue metrics with netstat:", err)
+				return
+			}
+		}
+		for state, queues := range queues {
+			queueMetrics[state] = append(queueMetrics[state], queues...)
+		}
+		for state, queues := range queueMetrics {
+			for _, queue := range queues {
+				sender.Histogram("system.net.tcp.recv_q", float64(queue), "", []string{"state:" + state})
+				sender.Histogram("system.net.tcp.send_q", float64(queue), "", []string{"state:" + state})
+			}
+		}
 	}
 }
 

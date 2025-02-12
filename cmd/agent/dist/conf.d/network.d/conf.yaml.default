@@ -37,13 +37,13 @@ instances:
     #
     # collect_ethtool_stats: false
 
-    ## @param conntrack_path - string - optional - default: None
+    ## @param conntrack_path - string - optional - default: "None"
     ## Linux only.
     ## The location of the conntrack executable in order to get the stats from conntrack -S.
     ## It will be run with sudo by default, so an entry needs to be added to the sudoers file.
     ## By default, these metrics will not be sent.
     #
-    # conntrack_path: None
+    # conntrack_path: "None"
 
     ## @param use_sudo_conntrack - boolean - optional - default: true
     ## Set to false to disable sudo when running `conntrack -S`

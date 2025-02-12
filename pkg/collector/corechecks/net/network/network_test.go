@@ -112,7 +112,16 @@ type MockCommandRunner struct {
 	mock.Mock
 }
 
-func (m *MockCommandRunner) FakeRunCommand(_ []string) (string, error) {
+func (m *MockCommandRunner) FakeRunCommand(cmd []string) (string, error) {
+	if contains(cmd, "netstat") {
+		return `Proto Recv-Q Send-Q Local Address           Foreign Address         State
+                tcp        0      0 46.105.75.4:80          79.220.227.193:2032     SYN_RECV
+                tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED`, nil
+	} else if contains(cmd, "ss") {
+		return `Recv-Q Send-Q Local Address           Foreign Address         State
+				0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
+                0      0 46.105.75.4:50468       107.20.207.175:443      TIME_WAIT`, nil
+	}
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
 }
@@ -121,7 +130,11 @@ type MockSS struct {
 	mock.Mock
 }
 
-func (m *MockSS) FakeSSCommand() error {
+func (m *MockSS) SSCommand() error {
+	return nil
+}
+
+func (m *MockSS) NetstatCommand() error {
 	return errors.New("forced to use netstat")
 }
 
@@ -353,7 +366,7 @@ func TestNetworkCheck(t *testing.T) {
 	getStats = mockEthtool.Stats
 
 	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.FakeSSCommand
+	ssAvailableFunction = mockSS.NetstatCommand
 
 	networkCheck := NetworkCheck{
 		net: net,
@@ -1076,4 +1089,100 @@ whitelist_conntrack_metrics: ["max", "include"]
 
 	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.insert", float64(13), "", []string{})
 	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.include", float64(14), "", []string{})
+}
+
+func TestFetchQueueStatsSS(t *testing.T) {
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			{
+				Name:        "eth0",
+				BytesRecv:   100,
+				BytesSent:   200,
+				PacketsRecv: 300,
+				Dropin:      400,
+				Errin:       500,
+				PacketsSent: 600,
+				Dropout:     700,
+				Errout:      800,
+			},
+		},
+	}
+
+	mockSS := new(MockSS)
+	ssAvailableFunction = mockSS.SSCommand
+	mockCommandRunner := new(MockCommandRunner)
+	runCommandFunction = mockCommandRunner.FakeRunCommand
+
+	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
+
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+	fakeInstanceConfig := []byte(`conntrack_path: "None"
+collect_connection_state: true
+collect_connection_queues: true`)
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test")
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Nil(t, err)
+
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:time_wait"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:established"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:time_wait"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
+}
+
+func TestFetchQueueStatsNetstat(t *testing.T) {
+	net := &fakeNetworkStats{
+		counterStats: []net.IOCountersStat{
+			{
+				Name:        "eth0",
+				BytesRecv:   100,
+				BytesSent:   200,
+				PacketsRecv: 300,
+				Dropin:      400,
+				Errin:       500,
+				PacketsSent: 600,
+				Dropout:     700,
+				Errout:      800,
+			},
+		},
+	}
+
+	mockSS := new(MockSS)
+	ssAvailableFunction = mockSS.NetstatCommand
+	mockCommandRunner := new(MockCommandRunner)
+	runCommandFunction = mockCommandRunner.FakeRunCommand
+
+	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
+
+	networkCheck := NetworkCheck{
+		net: net,
+	}
+	fakeInstanceConfig := []byte(`conntrack_path: "None"
+collect_connection_state: true
+collect_connection_queues: true`)
+	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, fakeInstanceConfig, []byte(``), "test")
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	err := networkCheck.Run()
+	assert.Nil(t, err)
+
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:time_wait"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:established"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:time_wait"})
+	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
 }
