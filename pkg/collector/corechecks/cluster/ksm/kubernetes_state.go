@@ -66,7 +66,7 @@ const (
 	maxBackoff = 10
 )
 
-var startBackoff = 1
+var currentBackoff = 1
 
 var extendedCollectors = map[string]string{
 	"jobs":  "batch/v1, Resource=jobs_extended",
@@ -224,6 +224,12 @@ type KSMConfig struct {
 	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
 }
 
+type resourceDiscovery struct {
+	resources  []*v1.APIResourceList
+	custom     customResources
+	collectors []string
+}
+
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
@@ -240,8 +246,9 @@ type KSMCheck struct {
 	metricAggregators    map[string]metricAggregator
 	metricTransformers   map[string]metricTransformerFunc
 	metadataMetricsRegex *regexp.Regexp
-	backoff              int
+	resourceDiscovery    *resourceDiscovery
 	runConfigureOnce     sync.Once
+	retryBackoff         int
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -276,23 +283,19 @@ func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
 }
 
-func resourceDiscovery(k *KSMCheck) (*apiserver.APIClient, *struct {
-	resources []*v1.APIResourceList
-	custom    customResources
-}, []string, error) {
-
+func doResourceDiscovery(k *KSMCheck) (*apiserver.APIClient, error) {
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 
 	apiServerClient, err := apiserver.WaitForAPIClient(apiCtx)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	// Discover resources that are currently available
 	resources, err := discoverResources(apiServerClient.Cl.Discovery())
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	var collectors []string
@@ -306,7 +309,7 @@ func resourceDiscovery(k *KSMCheck) (*apiserver.APIClient, *struct {
 		// Prepare the collectors for the resources specified in the configuration file.
 		collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 
 		// Enable the KSM default collectors if the config collectors list is empty.
@@ -315,21 +318,15 @@ func resourceDiscovery(k *KSMCheck) (*apiserver.APIClient, *struct {
 		}
 	}
 
-	cr := k.discoverCustomResources(apiServerClient, collectors, resources)
+	custom := k.discoverCustomResources(apiServerClient, collectors, resources)
 
-	return apiServerClient,
-		&struct {
-			resources []*v1.APIResourceList
-			custom    customResources
-		}{
-			resources: resources,
-			custom:    cr,
-		},
-		collectors,
-		nil
+	// Initialize resource discovery on KSMCheck
+	k.resourceDiscovery = &resourceDiscovery{collectors: collectors, resources: resources, custom: custom}
+
+	return apiServerClient, nil
 }
 
-func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, collectors []string, cr customResources) error {
+func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient) error {
 	var configureErr error
 	k.runConfigureOnce.Do(func() {
 		builder := kubestatemetrics.New()
@@ -351,7 +348,7 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, collectors []str
 		}
 
 		builder.WithNamespaces(namespaces)
-		allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
+		allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(k.resourceDiscovery.collectors))
 		if err != nil {
 			configureErr = err
 		}
@@ -378,13 +375,13 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, collectors []str
 		// configure custom resources required for extended features and
 		// compatibility across deprecated/removed versions of APIs
 		builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
-		builder.WithCustomResourceStoreFactories(cr.factories...)
-		builder.WithCustomResourceClients(cr.clients)
+		builder.WithCustomResourceStoreFactories(k.resourceDiscovery.custom.factories...)
+		builder.WithCustomResourceClients(k.resourceDiscovery.custom.clients)
 
 		// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 		// Equivalent to configuring --metric-annotations-allowlist.
 		allowedAnnotations := map[string][]string{}
-		for _, collector := range collectors {
+		for _, collector := range k.resourceDiscovery.collectors {
 			// Any annotation can be used for label joins.
 			allowedAnnotations[collector] = []string{"*"}
 		}
@@ -394,7 +391,7 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, collectors []str
 		// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 		// Equivalent to configuring --metric-labels-allowlist.
 		allowedLabels := map[string][]string{}
-		for _, collector := range collectors {
+		for _, collector := range k.resourceDiscovery.collectors {
 			// Any label can be used for label joins.
 			allowedLabels[collector] = []string{"*"}
 		}
@@ -403,7 +400,7 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient, collectors []str
 			configureErr = err
 		}
 
-		if err := builder.WithEnabledResources(cr.collectors); err != nil {
+		if err := builder.WithEnabledResources(k.resourceDiscovery.collectors); err != nil {
 			configureErr = err
 		}
 
@@ -718,29 +715,35 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
-	// If backoff > 0 that means the call to discover k8s resources
-	// failed and is now in exponential backoff.
-	if k.backoff > 0 {
-		log.Debugf("[JUSTIN] Backing off %d more times", k.backoff)
-		k.backoff--
-		return nil
-	}
+	var client *apiserver.APIClient
+	var err error
 
-	client, resources, collectors, err := resourceDiscovery(k)
-
-	// If there was an error, that means the API Server failed to respond
-	// and needs to be retried.
-	if err != nil {
-		k.backoff = startBackoff
-		// Exponential backoff until the maximum backoff is reached
-		if startBackoff*2 < maxBackoff {
-			startBackoff *= 2
+	// If resource discovery hasn't successfully completed yet
+	if k.resourceDiscovery == nil {
+		if k.retryBackoff > 0 {
+			log.Debugf("[JUSTIN] Backing off %d more times", k.retryBackoff)
+			k.retryBackoff--
+			return nil
 		}
-		return err
+
+		// Perform resource discovery
+		// this will populate the KSMCheck.resourceDiscovery field
+		client, err = doResourceDiscovery(k)
+
+		// If there was an error, that means the API Server failed to respond
+		// and needs to be retried.
+		if err != nil {
+			k.retryBackoff = currentBackoff
+			// Exponential backoff until the maximum backoff is reached
+			if currentBackoff*2 < maxBackoff {
+				currentBackoff *= 2
+			}
+			return err
+		}
 	}
 
 	// This is a singleton
-	err = runConfigureOnce(k, client, collectors, resources.custom)
+	err = runConfigureOnce(k, client)
 	if err != nil {
 		return err
 	}
