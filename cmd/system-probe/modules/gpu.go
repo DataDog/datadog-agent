@@ -46,6 +46,7 @@ const processConsumerID = "gpu"
 const processConsumerChanSize = 100
 
 const defaultCollectedDebugEvents = 100
+const maxCollectedDebugEvents = 1000000
 
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 
@@ -143,6 +144,11 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+	}
+
+	if count > maxCollectedDebugEvents {
+		log.Warnf("Count %d is too high, clamping to %d", count, maxCollectedDebugEvents)
+		count = maxCollectedDebugEvents
 	}
 
 	log.Infof("Received request to collect %d GPU events, collecting...", count)
