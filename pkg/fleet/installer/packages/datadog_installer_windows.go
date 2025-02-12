@@ -17,7 +17,6 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
@@ -179,8 +178,44 @@ func startService(name string) error {
 }
 
 // RemoveInstaller removes the installer
-func RemoveInstaller(_ context.Context) error {
-	return msi.RemoveProduct("Datadog Installer")
+func RemoveInstaller(ctx context.Context) error {
+	// stop all the services
+	err := StopAll(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to stop all services: %w", err)
+	}
+
+	// remove the services
+	m, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("failed to connect to service manager: %w", err)
+	}
+	defer m.Disconnect()
+
+	// delete the stable installer
+	// we don't care if somehow the service didn't exist we are already uninstalling
+	stable, err := m.OpenService("Datadog Installer")
+	if err == nil {
+		// service already exists
+		err = stable.Delete()
+		if err != nil {
+			return fmt.Errorf("failed to delete service: %w", err)
+		}
+		stable.Close()
+	}
+
+	// delete the experment installer
+	exp, err := m.OpenService("Datadog Installer Experiment")
+	if err == nil {
+		// service already exists
+		err = exp.Delete()
+		if err != nil {
+			return fmt.Errorf("failed to delete service: %w", err)
+		}
+		exp.Close()
+	}
+
+	return nil
 }
 
 // StartInstallerExperiment starts the installer experiment
