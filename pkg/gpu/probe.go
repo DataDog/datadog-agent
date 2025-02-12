@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -301,6 +302,12 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 
 	p.m.Manager.RingBuffers = append(p.m.Manager.RingBuffers, rb)
 	p.eventHandler = rbHandler
+}
+
+func (p *Probe) CollectConsumedEvents(ctx context.Context, count int) ([][]byte, error) {
+	p.consumer.debugCollector.enable(count)
+
+	return p.consumer.debugCollector.wait(ctx)
 }
 
 func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {

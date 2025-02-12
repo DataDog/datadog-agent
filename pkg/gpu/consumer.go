@@ -8,7 +8,6 @@
 package gpu
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -46,9 +45,7 @@ type cudaEventConsumer struct {
 	sysCtx         *systemContext
 	cfg            *config.Config
 	telemetry      *cudaEventConsumerTelemetry
-
-	recordingEnabled bool
-	eventStore       [][]byte
+	debugCollector *eventCollector
 }
 
 type cudaEventConsumerTelemetry struct {
@@ -70,6 +67,7 @@ func newCudaEventConsumer(sysCtx *systemContext, eventHandler ddebpf.EventHandle
 		cfg:            cfg,
 		sysCtx:         sysCtx,
 		telemetry:      newCudaEventConsumerTelemetry(telemetry),
+		debugCollector: newEventCollector(),
 	}
 }
 
@@ -187,17 +185,7 @@ func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType g
 	typedEvent := (*K)(data)
 
 	handler(typedEvent)
-
-	if c.recordingEnabled {
-		// marshal here to avoid keeping references to the data, which is stored in a memory
-		// are of the ring buffer that can be reused
-		marshaled, err := json.Marshal(typedEvent)
-		if err != nil {
-			log.Errorf("Error marshaling %s event: %v", eventType.String(), err)
-		}
-
-		c.eventStore = append(c.eventStore, marshaled)
-	}
+	c.debugCollector.tryRecordEvent(typedEvent)
 
 	return nil
 }
