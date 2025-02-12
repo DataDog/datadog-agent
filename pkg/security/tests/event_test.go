@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -19,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -281,6 +283,58 @@ func TestEventIteratorRegister(t *testing.T) {
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_2")
 		})
+	})
+}
+
+func TestEventProductTags(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	rule := &rules.RuleDefinition{
+		ID:          "event_product_tags",
+		Expression:  `open.file.path == "{{.Root}}/test-event-ruletags" && open.flags&O_CREAT == O_CREAT`,
+		ProductTags: []string{"tag:test_tag"},
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("test-event-ruletags")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("product_tags", func(t *testing.T) {
+		test.msgSender.flush()
+		err := test.GetEventSent(t, func() error {
+			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(rule *rules.Rule, event *model.Event) bool {
+			assert.Contains(t, rule.Tags, "tag:test_tag")
+			return true
+		}, getEventTimeout, "event_product_tags")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("event_product_tags")
+			if msg == nil {
+				return errors.New("not found")
+			}
+
+			assert.Contains(t, msg.Tags, "tag:test_tag")
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		if err != nil {
+			t.Fatal(err)
+		}
 	})
 }
 
