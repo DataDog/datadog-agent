@@ -57,9 +57,6 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 						return err
 					}
 					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
-					if err != nil {
-						return err
-					}
 				}
 
 				return err

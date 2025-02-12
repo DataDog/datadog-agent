@@ -23,29 +23,31 @@ type ServiceMetadata struct {
 }
 
 func fixAdditionalNames(additionalNames []string) []string {
+	if len(additionalNames) == 0 {
+		return additionalNames
+	}
+
 	out := make([]string, 0, len(additionalNames))
 	for _, v := range additionalNames {
-		if len(strings.TrimSpace(v)) > 0 {
-			out = append(out, v)
+		if len(strings.TrimSpace(v)) == 0 {
+			continue
+		}
+
+		// lang is only used for fallback names, which we don't use since we
+		// check for errors.
+		norm, err := traceutil.NormalizeService(v, "")
+		if err == nil {
+			out = append(out, norm)
 		}
 	}
 	slices.Sort(out)
 	return out
 }
 
-func makeFinalName(meta usm.ServiceMetadata) string {
-	name := meta.Name
-	if len(meta.AdditionalNames) > 0 {
-		name = name + "-" + strings.Join(fixAdditionalNames(meta.AdditionalNames), "-")
-	}
-
-	return name
-}
-
 // fixupMetadata performs additional adjustments on the meta data returned from
 // the meta data extraction library.
 func fixupMetadata(meta usm.ServiceMetadata, lang language.Language) usm.ServiceMetadata {
-	meta.Name = makeFinalName(meta)
+	meta.AdditionalNames = fixAdditionalNames(meta.AdditionalNames)
 
 	langName := ""
 	if lang != language.Unknown {

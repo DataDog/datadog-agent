@@ -324,11 +324,6 @@ def get_build_flags(
     if os.getenv('DD_CXX'):
         env['CXX'] = os.getenv('DD_CXX')
 
-    if sys.platform == 'linux' and os.getenv('GOOS') != "windows":
-        # Enable lazy binding, which seems to be overridden when loading containerd
-        # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
-        extldflags += "-Wl,-z,lazy "
-
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
 
