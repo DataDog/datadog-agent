@@ -11,15 +11,17 @@ package tests
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/nettest"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"os"
 	"regexp"
 	"strconv"
 	"syscall"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/nettest"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -174,19 +176,17 @@ func checkFlowPidEntry(t *testing.T, testModule *testModule, key FlowPid, expect
 			return
 		}
 	}
-
 }
 
 func TestFlowPidBind(t *testing.T) {
 	SkipIfNotAvailable(t)
-	if testEnvironment == DockerEnvironment || env.IsContainerized() {
-		t.Skip("Skip tests inside docker")
-	}
 
 	checkNetworkCompatibility(t)
 
-	if out, err := loadModule("veth"); err != nil {
-		t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+		}
 	}
 
 	ruleDefs := []*rules.RuleDefinition{
@@ -197,7 +197,8 @@ func TestFlowPidBind(t *testing.T) {
 		},
 	}
 
-	pid := uint32(os.Getpid())
+	t.Logf("host proc: %s", kernel.ProcFSRoot())
+	pid := utils.Getpid()
 	netns, err := getCurrentNetns()
 	if err != nil {
 		t.Fatalf("failed to get the network namespace: %v", err)
@@ -640,15 +641,16 @@ func TestFlowPidBind(t *testing.T) {
 
 func TestFlowPidBindLeak(t *testing.T) {
 	SkipIfNotAvailable(t)
-	if testEnvironment == DockerEnvironment || env.IsContainerized() {
-		t.Skip("Skip tests inside docker")
-	}
 
 	checkNetworkCompatibility(t)
 
-	if out, err := loadModule("veth"); err != nil {
-		t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+		}
 	}
+
+	t.Logf("host proc: %s", kernel.ProcFSRoot())
 
 	ruleDefs := []*rules.RuleDefinition{
 		// We use this dummy DNS rule to make sure the flow <-> pid tracking probes are loaded
@@ -658,7 +660,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 		},
 	}
 
-	pid := uint32(os.Getpid())
+	pid := utils.Getpid()
 	netns, err := utils.NetNSPathFromPid(pid).GetProcessNetworkNamespace()
 	if err != nil {
 		t.Fatalf("failed to get the network namespace: %v", err)
