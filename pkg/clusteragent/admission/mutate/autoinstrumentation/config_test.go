@@ -87,6 +87,16 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						TracerVersions: map[string]string{
 							"java": "default",
 						},
+						TracerConfigs: []TracerConfig{
+							{
+								Name:  "DD_PROFILING_ENABLED",
+								Value: "true",
+							},
+							{
+								Name:  "DD_DATA_JOBS_ENABLED",
+								Value: "true",
+							},
+						},
 					},
 				},
 			},
@@ -133,6 +143,16 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 						TracerVersions: map[string]string{
 							"java": "default",
+						},
+						TracerConfigs: []TracerConfig{
+							{
+								Name:  "DD_PROFILING_ENABLED",
+								Value: "true",
+							},
+							{
+								Name:  "DD_DATA_JOBS_ENABLED",
+								Value: "true",
+							},
 						},
 					},
 				},
