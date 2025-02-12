@@ -46,14 +46,15 @@ docker_trigger_internal:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
 
 docker_trigger_internal-fips:
   stage: internal_image_deploy
   rules: !reference [.on_deploy_internal_or_manual]
   needs:
-    - job: docker_build_fips_agent7
+    - job: docker_build_fips_agent7_jmx
       artifacts: false
-    - job: docker_build_fips_agent7_arm64
+    - job: docker_build_fips_agent7_arm64_jmx
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -61,9 +62,9 @@ docker_trigger_internal-fips:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
     IMAGE_VERSION: tmpl-v11
     IMAGE_NAME: datadog-agent
-    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-fips
-    BUILD_TAG: ${CI_COMMIT_REF_SLUG}-fips
-    TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips
+    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-fips-jmx
+    BUILD_TAG: ${CI_COMMIT_REF_SLUG}-fips-jmx
+    TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx
     TMPL_SRC_REPO: ci/datadog-agent/agent
     RELEASE_STAGING: "true"
   script:
@@ -91,6 +92,7 @@ docker_trigger_internal-fips:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
 
 docker_trigger_internal-ot:
   stage: internal_image_deploy
@@ -136,6 +138,7 @@ docker_trigger_internal-ot:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
 
 docker_trigger_cluster_agent_internal:
   stage: internal_image_deploy
@@ -182,6 +185,7 @@ docker_trigger_cluster_agent_internal:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
 
 docker_trigger_cws_instrumentation_internal:
   stage: internal_image_deploy
@@ -228,3 +232,4 @@ docker_trigger_cws_instrumentation_internal:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2

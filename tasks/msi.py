@@ -44,6 +44,7 @@ DATADOG_AGENT_MSI_ALLOW_LIST = [
     "APPLICATIONDATADIRECTORY",
     "EXAMPLECONFSLOCATION",
     "checks.d",
+    "protected",
     "run",
     "logs",
     "ProgramMenuDatadog",
@@ -71,16 +72,23 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', release_version='nightly'):
+def _get_env(ctx, major_version='7', release_version='nightly-a7', flavor=None):
     env = load_release_versions(ctx, release_version)
+
+    if flavor is None:
+        flavor = os.getenv("AGENT_FLAVOR", "")
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
-    env['AGENT_FLAVOR'] = os.getenv("AGENT_FLAVOR", "")
+    env['AGENT_FLAVOR'] = flavor
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
     env['AGENT_PRODUCT_NAME_SUFFIX'] = ""
+    # Used for installation directories registry keys
+    # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+    # TODO: How best to configure the OpenSSL version?
+    env['AGENT_OPENSSL_VERSION'] = "3.4"
 
     return env
 
@@ -280,12 +288,19 @@ def _msi_output_name(env):
 
 @task
 def build(
-    ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False, build_upgrade=False
+    ctx,
+    vstudio_root=None,
+    arch="x64",
+    major_version='7',
+    release_version='nightly-a7',
+    flavor=None,
+    debug=False,
+    build_upgrade=False,
 ):
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, release_version)
+    env = _get_env(ctx, major_version, release_version, flavor=flavor)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -384,7 +399,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly-a7', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """

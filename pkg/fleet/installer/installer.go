@@ -50,6 +50,7 @@ type Installer interface {
 	ConfigStates() (map[string]repository.State, error)
 
 	Install(ctx context.Context, url string, args []string) error
+	ForceInstall(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
 
@@ -151,8 +152,28 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 	return hasPackage, nil
 }
 
+// ForceInstall installs or updates a package, even if it's already installed
+func (i *installerImpl) ForceInstall(ctx context.Context, url string, args []string) error {
+	return i.doInstall(ctx, url, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
+		if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
+			log.Warnf("package %s version %s is already installed, updating it anyway", pkg.Name, pkg.Version)
+		}
+		return true
+	})
+}
+
 // Install installs or updates a package.
 func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
+	return i.doInstall(ctx, url, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
+		if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
+			log.Warnf("package %s version %s is already installed", pkg.Name, pkg.Version)
+			return false
+		}
+		return true
+	})
+}
+
+func (i *installerImpl) doInstall(ctx context.Context, url string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
@@ -168,8 +189,7 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
 	}
-	if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
-		log.Infof("package %s version %s is already installed", pkg.Name, pkg.Version)
+	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
 	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
@@ -330,7 +350,21 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	return i.promoteExperiment(ctx, pkg)
+	err = i.promoteExperiment(ctx, pkg)
+	if err != nil {
+		return err
+	}
+
+	// Update db
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	return i.db.SetPackage(db.Package{
+		Name:             pkg,
+		Version:          state.Stable,
+		InstallerVersion: version.AgentVersion,
+	})
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
@@ -662,7 +696,7 @@ var (
 		"datadog.yaml",
 		"security-agent.yaml",
 		"system-probe.yaml",
-		"libraries_config.yaml",
+		"application_monitoring.yaml",
 		"conf.d/*.yaml",
 	}
 )

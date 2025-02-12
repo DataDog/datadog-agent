@@ -84,6 +84,9 @@ func TestConversions(t *testing.T) {
 					CollectorTags: []string{
 						"tag1",
 					},
+					AllocatedResources: []workloadmeta.ContainerAllocatedResource{
+						{Name: "nvidia.com/gpu", ID: "gpu1"},
+					},
 				},
 			},
 			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
@@ -137,6 +140,9 @@ func TestConversions(t *testing.T) {
 					},
 					CollectorTags: []string{
 						"tag1",
+					},
+					AllocatedResources: []*pb.ContainerAllocatedResource{
+						{Name: "nvidia.com/gpu", ID: "gpu1"},
 					},
 				},
 			},

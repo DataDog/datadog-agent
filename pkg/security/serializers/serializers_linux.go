@@ -687,8 +687,8 @@ func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
-	lowerLayer := f.GetInLowerLayer()
-	upperLayer := f.GetInUpperLayer()
+	lowerLayer := f.IsInLowerLayer()
+	upperLayer := f.IsInUpperLayer()
 	if !lowerLayer && !upperLayer {
 		return nil
 	}
@@ -1123,7 +1123,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 
 	ctx := eval.NewContext(e)
 
-	it := &model.ProcessAncestorsIterator{}
+	it := &model.ProcessAncestorsIterator{Root: e.ProcessContext.Ancestor}
 	ptr := it.Front(ctx)
 
 	var ancestor *model.ProcessCacheEntry
@@ -1185,7 +1185,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	}
 
 	ctx := eval.NewContext(e)
-	it := &model.ProcessAncestorsIterator{}
+	it := &model.ProcessAncestorsIterator{Root: e.ProcessContext.Ancestor}
 	ptr := it.Front(ctx)
 
 	for ptr != nil {

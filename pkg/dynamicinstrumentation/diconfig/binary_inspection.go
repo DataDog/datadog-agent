@@ -8,6 +8,7 @@
 package diconfig
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -41,9 +42,15 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 		targetFunctions[probe.FuncName] = true
 	}
 
-	dwarfData, err := loadDWARF(procInfo.BinaryPath)
+	elfFile, err := safeelf.Open(procInfo.BinaryPath)
 	if err != nil {
-		return fmt.Errorf("could not retrieve debug information from binary: %w", err)
+		return fmt.Errorf("could not open elf file %w", err)
+	}
+	defer elfFile.Close()
+
+	dwarfData, ok := bininspect.HasDwarfInfo(elfFile)
+	if !ok || dwarfData == nil {
+		return errors.New("could not get debug information from binary")
 	}
 
 	typeMap, err := getTypeMap(dwarfData, targetFunctions)
@@ -52,12 +59,6 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	}
 
 	procInfo.TypeMap = typeMap
-
-	elfFile, err := safeelf.Open(procInfo.BinaryPath)
-	if err != nil {
-		return fmt.Errorf("could not open elf file %w", err)
-	}
-
 	procInfo.DwarfData = dwarfData
 
 	fieldIDs := make([]bininspect.FieldIdentifier, 0)
@@ -68,7 +69,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 		}
 	}
 
-	r, err := bininspect.InspectWithDWARF(elfFile, functions, fieldIDs)
+	r, err := bininspect.InspectWithDWARF(elfFile, dwarfData, functions, fieldIDs)
 	if err != nil {
 		return fmt.Errorf("could not determine locations of variables from debug information %w", err)
 	}
@@ -106,7 +107,7 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 
 		if current.Kind == uint(reflect.Struct) || current.Kind == uint(reflect.Slice) {
 			for _, structField := range current.ParameterPieces {
-				if structField.Name == "" || current.Type == "" {
+				if structField == nil || structField.Name == "" || current.Type == "" {
 					// these can be blank in anonymous types or embedded fields
 					// of builtin types. bininspect has no ability to find offsets
 					// in these cases and we're best off skipping them.

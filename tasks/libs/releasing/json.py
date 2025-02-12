@@ -24,8 +24,9 @@ from tasks.libs.types.version import Version
 # The order matters, eg. when fetching matching tags for an Agent 6 entry,
 # tags starting with 6 will be preferred to tags starting with 7.
 COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
+INTEGRATIONS_CORE_JSON_FIELD = "INTEGRATIONS_CORE_VERSION"
 RELEASE_JSON_FIELDS_TO_UPDATE = [
-    "INTEGRATIONS_CORE_VERSION",
+    INTEGRATIONS_CORE_JSON_FIELD,
     "OMNIBUS_SOFTWARE_VERSION",
     "OMNIBUS_RUBY_VERSION",
     "MACOS_BUILD_VERSION",
@@ -337,7 +338,14 @@ def set_new_release_branch(branch):
 
 
 def generate_repo_data(ctx, warning_mode, next_version, release_branch):
-    repos = ["integrations-core"] if warning_mode else ALL_REPOS
+    if warning_mode:
+        # Warning mode is used to warn integrations so that they prepare their release version in advance.
+        repos = ["integrations-core"]
+    elif next_version.major == 6:
+        # For Agent 6, we are only concerned by datadog-agent. The other repos won't be updated.
+        repos = ["datadog-agent"]
+    else:
+        repos = ALL_REPOS
     previous_tags = find_previous_tags("release-a7", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
     data = {}
     for repo in repos:

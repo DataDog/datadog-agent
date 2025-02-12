@@ -411,7 +411,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 
 // handleDefaultDumpRequest starts dumping a new workload with the provided load configuration and the default dump configuration
 func (adm *ActivityDumpManager) startDumpWithConfig(containerID containerutils.ContainerID, cgroupContext model.CGroupContext, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
-	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
+	newDump := NewActivityDump(adm, loadConfig.CGroupFlags, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerID
 		ad.Metadata.CGroupContext = cgroupContext
 		ad.SetLoadConfig(cookie, loadConfig)
@@ -576,7 +576,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 		params.Storage.LocalStorageDirectory = adm.config.RuntimeSecurity.ActivityDumpLocalStorageDirectory
 	}
 
-	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
+	newDump := NewActivityDump(adm, 0, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerutils.ContainerID(params.GetContainerID())
 		ad.Metadata.CGroupContext.CGroupID = containerutils.CGroupID(params.GetCGroupID())
 
@@ -771,7 +771,7 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 func (adm *ActivityDumpManager) TranscodingRequest(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
-	ad := NewActivityDump(adm)
+	ad := NewActivityDump(adm, 0)
 
 	// open and parse input file
 	if err := ad.Decode(params.GetActivityDumpFile()); err != nil {
@@ -855,16 +855,24 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 
 		if err = adm.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, remove expired entries
-			seclog.Errorf("config not found for (%v): %v", cgroupFile, err)
+			seclog.Warnf("config not found for (%v): %v", cgroupFile, err)
 			_ = adm.tracedCgroupsMap.Delete(cgroupFile)
 			continue
 		}
+
+		cgroupContext, err := adm.resolvers.ResolveCGroupContext(cgroupFile, event.Config.CGroupFlags)
+		if err != nil {
+			seclog.Warnf("couldn't resolve cgroup context for (%v): %v", cgroupFile, err)
+			continue
+		}
+
+		event.CGroupContext = *cgroupContext
 
 		adm.HandleCGroupTracingEvent(&event)
 	}
 
 	if err = iterator.Err(); err != nil {
-		seclog.Errorf("couldn't iterate over the map traced_cgroups: %v", err)
+		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
 	}
 }
 

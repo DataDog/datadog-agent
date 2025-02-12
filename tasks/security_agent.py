@@ -9,6 +9,7 @@ import re
 import shutil
 import sys
 import tempfile
+from itertools import chain
 from subprocess import check_output
 
 from invoke.exceptions import Exit
@@ -572,7 +573,7 @@ def generate_syscall_table(ctx):
             f"go run github.com/DataDog/datadog-agent/pkg/security/generators/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
         )
 
-    linux_version = "v6.8"
+    linux_version = "v6.13"
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
@@ -662,8 +663,13 @@ def generate_cws_proto(ctx):
             ctx.run(
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
             )
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
+            )
 
-    for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):
+    security_files = glob.glob("pkg/security/**/*.pb.go", recursive=True)
+    eventmonitor_files = glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True)
+    for path in chain(security_files, eventmonitor_files):
         print(f"replacing protoc version in {path}")
         with open(path) as f:
             content = f.read()
@@ -815,7 +821,7 @@ def sync_secl_win_pkg(ctx):
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
-        ("string_array_iter.go", None),
+        ("iterator.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")

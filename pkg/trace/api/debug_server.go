@@ -50,16 +50,25 @@ func (ds *DebugServer) Start() {
 		log.Debug("Debug server is disabled by config (apm_config.debug.port: 0).")
 		return
 	}
-	ds.server = &http.Server{
-		ReadTimeout:  defaultTimeout,
-		WriteTimeout: defaultTimeout,
-		Handler:      ds.setupMux(),
+
+	// TODO: Improve certificate delivery
+	if ds.tlsConfig == nil {
+		log.Warnf("Debug server wasn't able to start: uninitialized IPC certificate")
+		return
 	}
+
 	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(ds.conf.DebugServerPort)))
 	if err != nil {
 		log.Errorf("Error creating debug server listener: %s", err)
 		return
 	}
+
+	ds.server = &http.Server{
+		ReadTimeout:  defaultTimeout,
+		WriteTimeout: defaultTimeout,
+		Handler:      ds.setupMux(),
+	}
+
 	tlsListener := tls.NewListener(listener, ds.tlsConfig)
 	go func() {
 		if err := ds.server.Serve(tlsListener); err != nil && err != http.ErrServerClosed {

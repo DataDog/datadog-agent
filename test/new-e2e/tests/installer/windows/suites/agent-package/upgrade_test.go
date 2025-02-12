@@ -6,6 +6,7 @@
 package agenttests
 
 import (
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -15,7 +16,7 @@ import (
 )
 
 type testAgentUpgradeSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 }
 
 // TestAgentUpgrades tests the usage of the Datadog installer to upgrade the Datadog Agent package.
@@ -41,11 +42,11 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 // TestDowngradeAgentPackage tests that it's possible to downgrade the Datadog Agent using the Datadog installer.
 func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 	// Arrange
-	_, err := s.Installer().InstallPackage(installerwindows.AgentPackage)
+	_, err := s.Installer().InstallPackage(consts.AgentPackage)
 	s.Require().NoErrorf(err, "failed to install the stable Datadog Agent package")
 
 	// Act
-	_, err = s.Installer().InstallExperiment(installerwindows.AgentPackage,
+	_, err = s.Installer().InstallExperiment(consts.AgentPackage,
 		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
 		installer.WithAuthentication(""),
@@ -58,7 +59,7 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		}).
-		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
+		DirExists(consts.GetStableDirFor(consts.AgentPackage))
 }
 
 func (s *testAgentUpgradeSuite) TestExperimentFailure() {
@@ -68,7 +69,7 @@ func (s *testAgentUpgradeSuite) TestExperimentFailure() {
 	})
 
 	// Act
-	_, err := s.Installer().InstallExperiment(installerwindows.AgentPackage,
+	_, err := s.Installer().InstallExperiment(consts.AgentPackage,
 		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion("unknown-version"),
 		installer.WithAuthentication(""),
@@ -87,7 +88,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersion() {
 	})
 
 	// Act
-	_, err := s.Installer().InstallExperiment(installerwindows.AgentPackage,
+	_, err := s.Installer().InstallExperiment(consts.AgentPackage,
 		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
 		installer.WithAuthentication(""),
@@ -100,7 +101,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersion() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		}).
-		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
+		DirExists(consts.GetStableDirFor(consts.AgentPackage))
 }
 
 func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
@@ -120,7 +121,7 @@ func (s *testAgentUpgradeSuite) installStableAgent() {
 	// Arrange
 
 	// Act
-	output, err := s.Installer().InstallPackage(installerwindows.AgentPackage,
+	output, err := s.Installer().InstallPackage(consts.AgentPackage,
 		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
 		installer.WithAuthentication(""),
@@ -133,14 +134,14 @@ func (s *testAgentUpgradeSuite) installStableAgent() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		}).
-		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
+		DirExists(consts.GetStableDirFor(consts.AgentPackage))
 }
 
 func (s *testAgentUpgradeSuite) startLatestExperiment() {
 	// Arrange
 
 	// Act
-	output, err := s.Installer().InstallExperiment(installerwindows.AgentPackage)
+	output, err := s.Installer().InstallExperiment(consts.AgentPackage)
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to upgrade to the latest Datadog Agent package: %s", output)
@@ -149,14 +150,14 @@ func (s *testAgentUpgradeSuite) startLatestExperiment() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
 		}).
-		DirExists(installerwindows.GetExperimentDirFor(installerwindows.AgentPackage))
+		DirExists(consts.GetExperimentDirFor(consts.AgentPackage))
 }
 
 func (s *testAgentUpgradeSuite) stopExperiment() {
 	// Arrange
 
 	// Act
-	output, err := s.Installer().RemoveExperiment(installerwindows.AgentPackage)
+	output, err := s.Installer().RemoveExperiment(consts.AgentPackage)
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to remove the experiment for the Datadog Agent package: %s", output)
@@ -167,5 +168,5 @@ func (s *testAgentUpgradeSuite) stopExperiment() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		}).
-		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
+		DirExists(consts.GetStableDirFor(consts.AgentPackage))
 }

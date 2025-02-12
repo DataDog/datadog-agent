@@ -49,23 +49,25 @@ type ProgOpts struct {
 }
 
 // DefaultProgOpts default options
-var DefaultProgOpts = ProgOpts{
-	EBPFOpts: &cbpfc.EBPFOpts{
-		PacketStart: asm.R1,
-		PacketEnd:   asm.R2,
-		Result:      asm.R3,
-		Working: [4]asm.Register{
-			asm.R4,
-			asm.R5,
-			asm.R6,
-			asm.R7,
+func DefaultProgOpts() ProgOpts {
+	return ProgOpts{
+		EBPFOpts: &cbpfc.EBPFOpts{
+			PacketStart: asm.R1,
+			PacketEnd:   asm.R2,
+			Result:      asm.R3,
+			Working: [4]asm.Register{
+				asm.R4,
+				asm.R5,
+				asm.R6,
+				asm.R7,
+			},
+			StackOffset: 16, // adapt using the stack size used outside of the filter itself, ex: map_lookup
 		},
-		StackOffset: 16, // adapt using the stack size used outside of the filter itself, ex: map_lookup
-	},
-	sendEventLabel: "send_event",
-	ctxSave:        asm.R9,
-	MaxTailCalls:   probes.RawPacketFilterMaxTailCall,
-	MaxProgSize:    4000,
+		sendEventLabel: "send_event",
+		ctxSave:        asm.R9,
+		MaxTailCalls:   probes.RawPacketFilterMaxTailCall,
+		MaxProgSize:    4000,
+	}
 }
 
 // BPFFilterToInsts compile a bpf filter expression
@@ -120,6 +122,7 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 
 	// prepend a return instruction in case of fail
 	footerInsts := append(asm.Instructions{
+		asm.Mov.Imm(asm.R0, 0),
 		asm.Return(),
 	}, senderInsts...)
 
@@ -143,7 +146,6 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 				asm.LoadMapPtr(asm.R2, opts.tailCallMapFd),
 				asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey+uint32(tailCalls)+1)),
 				asm.FnTailCall.Call(),
-				asm.Mov.Imm(asm.R0, 0),
 			}
 		}
 

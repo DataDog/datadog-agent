@@ -31,6 +31,7 @@ needs-rules:
     - lint_linux-x64
     - lint_macos_gitlab_amd64
     - new-e2e-eks-cleanup-on-failure
+    - protobuf_test
     - publish_winget_7_x64
     - revert_latest_7
     - security_go_generate_check
@@ -41,8 +42,9 @@ needs-rules:
     - tests_windows_secagent_x64
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
+    - trigger_auto_staging_release_on_failure
     - trigger_manual_prod_release
-    - generate_windows_gitlab_runner_bump_pr
+    - trigger_manual_prod_release_on_failure
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:

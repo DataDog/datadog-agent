@@ -254,16 +254,24 @@ def get_last_commit(ctx, repo, branch):
     )
 
 
+def get_git_references(ctx, repo, ref, tags=False):
+    """
+    Fetches a specific reference (ex: branch, tag, or HEAD) from a remote Git repository
+    """
+    filter_by = " -t" if tags else ""
+    return ctx.run(
+        rf'git ls-remote{filter_by} https://github.com/DataDog/{repo} "{ref}"',
+        hide=True,
+    ).stdout.strip()
+
+
 def get_last_release_tag(ctx, repo, pattern):
     import re
     from functools import cmp_to_key
 
     import semver
 
-    tags = ctx.run(
-        rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
-        hide=True,
-    ).stdout.strip()
+    tags = get_git_references(ctx, repo, pattern, tags=True)
     if not tags:
         raise Exit(
             color_message(
@@ -273,7 +281,8 @@ def get_last_release_tag(ctx, repo, pattern):
             code=1,
         )
 
-    release_pattern = re.compile(r'^.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?(\^{})?$')
+    major = 6 if is_agent6(ctx) else 7
+    release_pattern = re.compile(rf'^.*{major}' + r'\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?(\^{})?$')
     tags_without_suffix = [
         line for line in tags.splitlines() if not line.endswith("^{}") and release_pattern.match(line)
     ]

@@ -8,8 +8,13 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -19,10 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,6 +44,9 @@ var processEventConsumer *consumers.ProcessConsumer
 
 const processConsumerID = "gpu"
 const processConsumerChanSize = 100
+
+const defaultCollectedDebugEvents = 100
+const maxCollectedDebugEvents = 1000000
 
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 
@@ -49,6 +61,11 @@ var GPUMonitoring = module.Factory{
 		}
 
 		c := gpuconfig.New()
+
+		if c.ConfigureCgroupPerms {
+			configureCgroupPermissions()
+		}
+
 		probeDeps := gpu.ProbeDependencies{
 			Telemetry: deps.Telemetry,
 			//if the config parameter doesn't exist or is empty string, the default value is used as defined in go-nvml library
@@ -98,6 +115,13 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, stats)
 	})
 
+	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/collect-events", t.collectEventsHandler)
+
 	return nil
 }
 
@@ -106,6 +130,46 @@ func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": t.lastCheck.Load(),
 	}
+}
+
+func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *http.Request) {
+	count := defaultCollectedDebugEvents
+
+	countStr := r.URL.Query().Get("count")
+	if countStr != "" {
+		var err error
+		count, err = strconv.Atoi(countStr)
+		if err != nil {
+			w.Write([]byte(fmt.Sprintf("Invalid count: %s", countStr)))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
+
+	if count > maxCollectedDebugEvents {
+		log.Warnf("Count %d is too high, clamping to %d", count, maxCollectedDebugEvents)
+		count = maxCollectedDebugEvents
+	}
+
+	log.Infof("Received request to collect %d GPU events, collecting...", count)
+
+	data, err := t.Probe.CollectConsumedEvents(r.Context(), count)
+	if err != nil {
+		msg := fmt.Sprintf("Error collecting GPU events: %v", err)
+		log.Warn(msg)
+		w.Write([]byte(msg))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	log.Info("Collection finished, writing response...")
+
+	for _, row := range data {
+		w.Write([]byte(row))
+		w.Write([]byte("\n"))
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // Close closes the GPU monitoring module
@@ -122,4 +186,66 @@ func createGPUProcessEventConsumer(evm *eventmonitor.EventMonitor) error {
 	}
 
 	return nil
+}
+
+func hostRoot() string {
+	envHostRoot := os.Getenv("HOST_ROOT")
+	if envHostRoot != "" {
+		return envHostRoot
+	}
+
+	if env.IsContainerized() {
+		return "/host"
+	}
+
+	return "/"
+}
+
+var agentProcessRegexp = regexp.MustCompile("datadog-agent/.*/agent")
+
+func getAgentPID(procRoot string) (uint32, error) {
+	pids, err := kernel.AllPidsProcs(procRoot)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get all pids: %w", err)
+	}
+
+	for _, pid := range pids {
+		proc := uprobes.NewProcInfo(procRoot, uint32(pid))
+		exe, err := proc.Exe()
+		if err != nil {
+			// Ignore this process, we don't want to stop the search because of that
+			continue
+		}
+
+		if agentProcessRegexp.MatchString(exe) {
+			return uint32(pid), nil
+		}
+	}
+
+	return 0, errors.New("agent process not found")
+}
+
+// configureCgroupPermissions configures the cgroup permissions to access NVIDIA
+// devices for the system-probe and agent processes, as the NVIDIA device plugin
+// sets them in a way that can be overwritten by SystemD cgroups.
+func configureCgroupPermissions() {
+	root := hostRoot()
+
+	sysprobePID := uint32(os.Getpid())
+	log.Infof("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
+	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {
+		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
+	}
+
+	procRoot := filepath.Join(root, "proc")
+	agentPID, err := getAgentPID(procRoot)
+	if err != nil {
+		log.Warnf("Failed to get agent PID: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
+		return
+	}
+
+	log.Infof("Configuring cgroup permissions for agent process with PID %d", agentPID)
+	if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
+		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
+	}
 }

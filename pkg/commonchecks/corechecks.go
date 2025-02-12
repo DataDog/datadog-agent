@@ -11,6 +11,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
@@ -55,14 +56,15 @@ import (
 )
 
 // RegisterChecks registers all core checks
-func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg config.Component, telemetry telemetry.Component) {
+func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg config.Component,
+	telemetry telemetry.Component, rcClient rcclient.Component) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
-	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory(cfg))
+	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory(cfg, rcClient))
 	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
@@ -77,7 +79,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
-	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger))
+	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))

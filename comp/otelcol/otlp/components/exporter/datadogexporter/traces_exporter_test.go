@@ -39,11 +39,18 @@ func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 }
 
 func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
 }
 
 func (c testComponent) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
+}
+
+func (c testComponent) GetHTTPHandler(endpoint string) http.Handler {
+	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
+		return v
+	}
+	return nil
 }
 
 var _ traceagent.Component = (*testComponent)(nil)
@@ -90,8 +97,8 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = server.URL
-	if enableReceiveResourceSpansV2 {
-		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
@@ -132,8 +139,8 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()
 	tcfg.ReceiverEnabled = false
-	if enableReceiveResourceSpansV2 {
-		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 

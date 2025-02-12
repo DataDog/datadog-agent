@@ -27,7 +27,7 @@ jobs:
                 persist-credentials: false
 
             - name: Install python
-              uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+              uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
               with:
                 python-version-file: .python-version
                 cache: "pip"
@@ -81,7 +81,7 @@ jobs:
                 persist-credentials: true
 
             - name: Install python
-              uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+              uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
               with:
                 python-version-file: .python-version
                 cache: "pip"
@@ -108,8 +108,14 @@ jobs:
                   echo "CHANGES=$(inv -e release.check-for-changes -r "$MATRIX")" >> $GITHUB_OUTPUT
                 fi
 
+            - name: Check if agent 6 is in qualification phase
+              if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
+              run: |
+                is_qualification=$(inv -e release.is-qualification -r 6.53.x --output)
+                echo "IS_QUALIFICATION=$is_qualification" >> $GITHUB_ENV
+
             - name: Create RC PR
-              if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || env.IS_AGENT6_RELEASE == 'true' }}
+              if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || ( env.IS_AGENT6_RELEASE == 'true' && env.IS_QUALIFICATION == 'false') }}
               env:
                 MATRIX: ${{ matrix.value }}
               run: |
@@ -118,3 +124,8 @@ jobs:
                 else
                   inv -e release.create-rc -r "$MATRIX" --slack-webhook=${{ secrets.AGENT_RELEASE_SYNC_SLACK_WEBHOOK }}
                 fi
+
+            - name: Rebuild agent 6 RC pipeline if no changes and in qualification phase
+              if: ${{ env.IS_AGENT6_RELEASE == 'true' && steps.check_for_changes.outputs.CHANGES == 'false' && env.IS_QUALIFICATION == 'true' }}
+              run: |
+                inv -e release.run-rc-pipeline -r 6.53.x

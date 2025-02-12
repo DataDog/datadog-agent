@@ -58,7 +58,7 @@ func (h *PersistentVolumeHandlers) BuildMessageBody(ctx processors.ProcessorCont
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.PersistentVolume)
-	return k8sTransformers.ExtractPersistentVolume(r)
+	return k8sTransformers.ExtractPersistentVolume(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

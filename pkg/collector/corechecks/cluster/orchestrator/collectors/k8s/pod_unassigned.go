@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -23,9 +24,9 @@ import (
 )
 
 // NewUnassignedPodCollectorVersions builds the group of collector versions.
-func NewUnassignedPodCollectorVersions(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) collectors.CollectorVersions {
+func NewUnassignedPodCollectorVersions(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewUnassignedPodCollector(cfg, store, tagger),
+		NewUnassignedPodCollector(cfg, store, tagger, metadataAsTags),
 	)
 }
 
@@ -40,7 +41,11 @@ type UnassignedPodCollector struct {
 
 // NewUnassignedPodCollector creates a new collector for the Kubernetes Pod
 // resource that is not assigned to any node.
-func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component) *UnassignedPodCollector {
+func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *UnassignedPodCollector {
+	resourceType := getResourceType(podName, podVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &UnassignedPodCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -48,9 +53,11 @@ func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Componen
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "pods",
+			Name:                      podName,
 			NodeType:                  orchestrator.K8sPod,
-			Version:                   "v1",
+			Version:                   podVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}
@@ -79,6 +86,11 @@ func (c *UnassignedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *UnassignedPodCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
@@ -89,7 +101,7 @@ func (c *UnassignedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

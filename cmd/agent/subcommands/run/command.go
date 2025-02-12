@@ -65,6 +65,7 @@ import (
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -98,6 +99,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
+	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -114,6 +116,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	otelagentStatusfx "github.com/DataDog/datadog-agent/comp/otelcol/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
@@ -239,6 +242,7 @@ func run(log log.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
 	_ inventoryotel.Component,
+	_ haagentmetadata.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
@@ -342,6 +346,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.StreamlogsLogFile,
 		)),
 		core.Bundle(),
+		flareprofiler.Module(),
 		lsof.Module(),
 		// Enable core agent specific features like persistence-to-disk
 		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
@@ -372,6 +377,7 @@ func getSharedFxOption() fx.Option {
 				AgentVersion: version.AgentVersion,
 			},
 		),
+		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
@@ -583,7 +589,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
+	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rcclient)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

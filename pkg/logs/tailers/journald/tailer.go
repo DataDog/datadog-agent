@@ -19,13 +19,10 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -69,7 +66,7 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 	}
 
 	return &Tailer{
-		decoder:           decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		decoder:           decoder.NewNoopDecoder(),
 		source:            source,
 		outputChan:        outputChan,
 		journal:           journal,
@@ -193,6 +190,11 @@ func (t *Tailer) setup() error {
 }
 
 func (t *Tailer) forwardMessages() {
+	defer func() {
+		// the decoder has successfully been flushed
+		close(t.done)
+	}()
+
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
 			t.outputChan <- decodedMessage
@@ -250,7 +252,6 @@ func (t *Tailer) tail() {
 	defer func() {
 		t.journal.Close()
 		t.decoder.Stop()
-		t.done <- struct{}{}
 	}()
 	for {
 		select {

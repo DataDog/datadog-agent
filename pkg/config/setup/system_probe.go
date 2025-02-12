@@ -317,7 +317,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// connection aggregation with port rollups
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false, "DD_ENABLE_EBPFLESS", "DD_NETWORK_CONFIG_ENABLE_EBPFLESS")
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
@@ -363,8 +363,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), true, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_all_probes"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_kernel_filters"), true)
-	eventMonitorBindEnv(cfg, join(evNS, "enable_approvers"))
-	eventMonitorBindEnv(cfg, join(evNS, "enable_discarders"))
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_approvers"), false)  // will be set to true by sanitize() if enable_kernel_filters is true
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_discarders"), false) // will be set to true by sanitize() if enable_kernel_filters is true
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "flush_discarder_window"), 3)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "pid_cache_size"), 10000)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.tags_cardinality"), "high")
@@ -381,10 +381,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.flow_monitor.period"), "10s")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_classifier_handle"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_ring_buffer"), true)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), true)
-	eventMonitorBindEnv(cfg, join(evNS, "event_stream.use_fentry_amd64"))
-	eventMonitorBindEnv(cfg, join(evNS, "event_stream.use_fentry_arm64"))
-	eventMonitorBindEnv(cfg, join(evNS, "event_stream.buffer_size"))
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_kprobe_fallback"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.buffer_size"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
@@ -419,6 +418,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Discovery config
 	cfg.BindEnv(join(discoveryNS, "enabled"))
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.enabled"), true)
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_services"), []string{"datadog-agent", "trace-agent", "process-agent", "system-probe", "security-agent", "datadog-cluster-agent"})
 
@@ -430,6 +431,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
 	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "configure_cgroup_perms"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }
