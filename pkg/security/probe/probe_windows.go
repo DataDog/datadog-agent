@@ -396,11 +396,6 @@ func (p *WindowsProbe) reconfigureProvider() error {
 	return nil
 }
 
-// Setup the runtime security probe
-func (p *WindowsProbe) Setup() error {
-	return nil
-}
-
 // Stop the probe
 func (p *WindowsProbe) Stop() {
 	if p.fimSession != nil || p.auditSession != nil {

@@ -114,11 +114,6 @@ func (m *EventMonitor) Start() error {
 		}
 	}()
 
-	// setup the manager and its probes / perf maps
-	if err := m.Probe.Setup(); err != nil {
-		return fmt.Errorf("failed to setup probe: %w", err)
-	}
-
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
 	// context is ready when we start the probes
 	if err := m.Probe.Snapshot(); err != nil {
