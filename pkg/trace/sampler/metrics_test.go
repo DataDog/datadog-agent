@@ -65,7 +65,7 @@ func Test_Metrics(t *testing.T) {
 		statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(3), []string{"sampler:rare", "target_service:service-1", "target_env:env-3"}, float64(1)).Times(1)
 		statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(3), []string{"sampler:rare", "target_service:service-1", "target_env:env-3"}, float64(1)).Times(1)
 		for _, r := range duplicate(3, record{sample: true, MetricsKey: sampler.NewMetricsKey("service-1", "env-3", sampler.NameRare, sampler.PriorityAutoDrop)}) {
-			metrics.RecordSample(r.sample, r.MetricsKey)
+			metrics.RecordMetricsKey(r.sample, r.MetricsKey)
 		}
 		metrics.Report()
 
@@ -77,7 +77,7 @@ func Test_Metrics(t *testing.T) {
 		statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(3), []string{"sampler:no_priority", "target_service:service-1", "target_env:env-3"}, float64(1)).Times(1)
 		statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(3), []string{"sampler:no_priority", "target_service:service-1", "target_env:env-3"}, float64(1)).Times(1)
 		for _, r := range duplicate(3, record{sample: true, MetricsKey: sampler.NewMetricsKey("service-1", "env-3", sampler.NameNoPriority, sampler.PriorityUserDrop)}) {
-			metrics.RecordSample(r.sample, r.MetricsKey)
+			metrics.RecordMetricsKey(r.sample, r.MetricsKey)
 		}
 		metrics.Report()
 
@@ -191,7 +191,7 @@ func Test_Metrics(t *testing.T) {
 				go func(records []record) {
 					defer wg.Done()
 					for _, r := range records {
-						metrics.RecordSample(r.sample, r.MetricsKey)
+						metrics.RecordMetricsKey(r.sample, r.MetricsKey)
 					}
 				}(records)
 			}

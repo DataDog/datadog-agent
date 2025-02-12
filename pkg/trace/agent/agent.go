@@ -637,7 +637,7 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 	samplerName := sampler.NameUnknown
 	samplingPriority := sampler.PriorityNone
 	defer func() {
-		a.SamplerMetrics.RecordSample(keep, sampler.NewMetricsKey(pt.Root.Service, pt.TracerEnv, samplerName, samplingPriority))
+		a.SamplerMetrics.RecordMetricsKey(keep, sampler.NewMetricsKey(pt.Root.Service, pt.TracerEnv, samplerName, samplingPriority))
 	}()
 	// ETS: chunks that don't contain errors (or spans with exception span events) are all dropped.
 	if a.conf.ErrorTrackingStandalone {

@@ -133,8 +133,8 @@ func (k MetricsKey) tags() []string {
 	return tags
 }
 
-// RecordSample records a sample metrics.
-func (m *Metrics) RecordSample(sampled bool, metricsKey MetricsKey) {
+// RecordMetricsKey records if metricsKey has been seen before and whether it was kept or not.
+func (m *Metrics) RecordMetricsKey(sampled bool, metricsKey MetricsKey) {
 	m.valueMutex.Lock()
 	defer m.valueMutex.Unlock()
 	v, ok := m.value[metricsKey]
