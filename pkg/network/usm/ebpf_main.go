@@ -486,6 +486,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
+	if kversion, err := kernel.HostVersion(); err == nil && kversion < kernel.VersionCode(4, 17, 0) {
+		// do not use a raw tracepoint on an unsupported kernel.
+		options.ExcludedFunctions = append(options.ExcludedFunctions, "raw_tracepoint__sched_process_exit")
+	}
+
 	err := e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()
