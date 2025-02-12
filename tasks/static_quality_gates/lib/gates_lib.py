@@ -79,6 +79,14 @@ def find_package_path(flavor, package_os, arch):
 
 
 class GateMetricHandler:
+    # All metric_name -> metric_key
+    METRICS_DICT = {
+        "datadog.agent.static_quality_gate.on_wire_size": "current_on_wire_size",
+        "datadog.agent.static_quality_gate.on_disk_size": "current_on_disk_size",
+        "datadog.agent.static_quality_gate.max_allowed_on_wire_size": "max_on_wire_size",
+        "datadog.agent.static_quality_gate.max_allowed_on_disk_size": "max_on_disk_size",
+    }
+
     def __init__(self, git_ref, bucket_branch):
         self.metrics = {}
         self.metadata = {}
@@ -101,6 +109,18 @@ class GateMetricHandler:
         for key in kwargs:
             self.metadata[gate][key] = kwargs[key]
 
+    def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
+        if self.metrics[gate].get(metric_key, None) is None:
+            return None
+        return create_gauge(
+            metric_name,
+            timestamp,
+            self.metrics[gate][metric_key],
+            tags=common_tags,
+            metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
+            unit="byte",
+        )
+
     def _generate_series(self):
         if not self.git_ref or not self.bucket_branch:
             return None
@@ -120,46 +140,17 @@ class GateMetricHandler:
             for tag in self.metadata[gate]:
                 common_tags.append(f"{tag}:{self.metadata[gate][tag]}")
 
-            series.append(
-                create_gauge(
-                    "datadog.agent.static_quality_gate.on_wire_size",
-                    timestamp,
-                    self.metrics[gate]["current_on_wire_size"],
-                    tags=common_tags,
-                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-                    unit="byte",
-                ),
-            )
-            series.append(
-                create_gauge(
-                    "datadog.agent.static_quality_gate.on_disk_size",
-                    timestamp,
-                    self.metrics[gate]["current_on_disk_size"],
-                    tags=common_tags,
-                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-                    unit="byte",
-                ),
-            )
-            series.append(
-                create_gauge(
-                    "datadog.agent.static_quality_gate.max_allowed_on_wire_size",
-                    timestamp,
-                    self.metrics[gate]["max_on_wire_size"],
-                    tags=common_tags,
-                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-                    unit="byte",
-                ),
-            )
-            series.append(
-                create_gauge(
-                    "datadog.agent.static_quality_gate.max_allowed_on_disk_size",
-                    timestamp,
-                    self.metrics[gate]["max_on_disk_size"],
-                    tags=common_tags,
-                    metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
-                    unit="byte",
-                ),
-            )
+            for metric_name, metric_key in self.METRICS_DICT.items():
+                gauge = self._add_gauge(timestamp, common_tags, gate, metric_name, metric_key)
+                if gauge:
+                    series.append(gauge)
+                else:
+                    print(
+                        color_message(
+                            f"[WARN] gate {gate} doesn't have the {metric_name} metric registered ! skipping metric...",
+                            "orange",
+                        )
+                    )
         return series
 
     def send_metrics_to_datadog(self):
