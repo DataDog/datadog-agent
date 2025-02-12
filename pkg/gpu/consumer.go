@@ -45,6 +45,7 @@ type cudaEventConsumer struct {
 	sysCtx         *systemContext
 	cfg            *config.Config
 	telemetry      *cudaEventConsumerTelemetry
+	debugCollector *eventCollector
 }
 
 type cudaEventConsumerTelemetry struct {
@@ -66,6 +67,7 @@ func newCudaEventConsumer(sysCtx *systemContext, eventHandler ddebpf.EventHandle
 		cfg:            cfg,
 		sysCtx:         sysCtx,
 		telemetry:      newCudaEventConsumerTelemetry(telemetry),
+		debugCollector: newEventCollector(),
 	}
 }
 
@@ -173,35 +175,36 @@ func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
 	return eventType != gpuebpf.CudaEventTypeSetDevice
 }
 
+func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType gpuebpf.CudaEventType, data unsafe.Pointer, dataLen int, expectedSize int) error {
+	if dataLen != expectedSize {
+		evStr := eventType.String()
+		c.telemetry.eventErrors.Inc(evStr, telemetryEventErrorMismatch)
+		return fmt.Errorf("Not enough data to parse %s event, data size=%d, expecting %d", evStr, dataLen, expectedSize)
+	}
+
+	typedEvent := (*K)(data)
+
+	handler(typedEvent)
+	c.debugCollector.tryRecordEvent(typedEvent)
+
+	return nil
+}
+
 func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
 	streamHandler := c.getStreamHandler(header)
 	eventType := gpuebpf.CudaEventType(header.Type)
 
 	switch eventType {
 	case gpuebpf.CudaEventTypeKernelLaunch:
-		if dataLen != gpuebpf.SizeofCudaKernelLaunch {
-			c.telemetry.eventErrors.Inc(eventType.String(), telemetryEventErrorMismatch)
-			return fmt.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
-		}
-		streamHandler.handleKernelLaunch((*gpuebpf.CudaKernelLaunch)(data))
+		return handleTypedEvent(c, streamHandler.handleKernelLaunch, eventType, data, dataLen, gpuebpf.SizeofCudaKernelLaunch)
 	case gpuebpf.CudaEventTypeMemory:
-		if dataLen != gpuebpf.SizeofCudaMemEvent {
-			c.telemetry.eventErrors.Inc(eventType.String(), telemetryEventErrorMismatch)
-			return fmt.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
-		}
-		streamHandler.handleMemEvent((*gpuebpf.CudaMemEvent)(data))
+		return handleTypedEvent(c, streamHandler.handleMemEvent, eventType, data, dataLen, gpuebpf.SizeofCudaMemEvent)
 	case gpuebpf.CudaEventTypeSync:
-		if dataLen != gpuebpf.SizeofCudaSync {
-			c.telemetry.eventErrors.Inc(eventType.String(), telemetryEventErrorMismatch)
-			return fmt.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
-		}
-		streamHandler.handleSync((*gpuebpf.CudaSync)(data))
+		return handleTypedEvent(c, streamHandler.handleSync, eventType, data, dataLen, int(gpuebpf.SizeofCudaSync))
 	default:
 		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
 		return fmt.Errorf("Unknown event type: %d", header.Type)
 	}
-
-	return nil
 }
 
 func getPidTidFromHeader(header *gpuebpf.CudaEventHeader) (uint32, uint32) {
@@ -210,24 +213,20 @@ func getPidTidFromHeader(header *gpuebpf.CudaEventHeader) (uint32, uint32) {
 	return pid, tid
 }
 
+func (c *cudaEventConsumer) handleSetDevice(csde *gpuebpf.CudaSetDeviceEvent) {
+	pid, tid := getPidTidFromHeader(&csde.Header)
+	c.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
+}
+
 func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
 	switch eventType {
 	case gpuebpf.CudaEventTypeSetDevice:
-		if dataLen != gpuebpf.SizeofCudaSetDeviceEvent {
-			c.telemetry.eventErrors.Inc(eventType.String(), telemetryEventErrorMismatch)
-			return fmt.Errorf("Not enough data to parse set device event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
-		}
-		csde := (*gpuebpf.CudaSetDeviceEvent)(data)
-
-		pid, tid := getPidTidFromHeader(header)
-		c.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
+		return handleTypedEvent(c, c.handleSetDevice, eventType, data, dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
 	default:
 		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
 		return fmt.Errorf("Unknown event type: %d", header.Type)
 	}
-
-	return nil
 }
 
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
