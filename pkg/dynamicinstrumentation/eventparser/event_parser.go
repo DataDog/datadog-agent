@@ -14,11 +14,10 @@ import (
 	"reflect"
 	"unsafe"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -76,6 +75,12 @@ func readParams(values []byte) []*ditypes.Param {
 // from the byte buffer. It returns the resulting parameter and an indication of
 // how many bytes were read from the buffer
 func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, int) {
+	if definition == nil {
+		return nil, 0
+	}
+	if definition.Size == 0 {
+		return definition, 0
+	}
 	var bufferIndex int
 	// Start by creating a stack with each layer of the definition
 	// which will correspond with the layers of the values read from buffer.
@@ -87,6 +92,9 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 		current := tempStack.pop()
 		copiedParam := copyParam(current)
 		definitionStack.push(copiedParam)
+		if current.Size == 0 {
+			continue
+		}
 		for n := 0; n < len(current.Fields); n++ {
 			tempStack.push(current.Fields[n])
 		}
@@ -223,6 +231,12 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 				top.Fields = append(top.Fields, sliceElementTypeCopy)
 			}
 		}
+
+		if reflect.Kind(top.Kind) == reflect.Pointer &&
+			len(top.Fields) > 0 {
+			top.Type = fmt.Sprintf("*%s", top.Fields[0].Type)
+		}
+
 		if len(top.Fields) == int(top.Size) ||
 			(reflect.Kind(top.Kind) == reflect.Slice && top.Size == 0) ||
 			(reflect.Kind(top.Kind) == reflect.Pointer && len(top.Fields) == 1) {
