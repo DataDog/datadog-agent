@@ -40,6 +40,9 @@ run_codeql_scan:
     - echo "CGO_LDFLAGS=${CGO_LDFLAGS}"
     - echo "CGO_CFLAGS=${CGO_CFLAGS}"
     - invoke install-tools
+    - rm -rf /tmp/codeql.*
+    - df -h /tmp
+    - ls -ld /tmp
     - $CODEQL database create "$CODEQL_DB" $DB_CONFIGS --command="inv -e agent.build --build-exclude=systemd"
     - $CODEQL database analyze "$CODEQL_DB"/go "$GO_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="go" --output="/tmp/go.sarif"
     - $CODEQL database analyze "$CODEQL_DB"/javascript codeql/javascript-queries $SCAN_CONFIGS --sarif-category="javascript" --output="/tmp/javascript.sarif"
