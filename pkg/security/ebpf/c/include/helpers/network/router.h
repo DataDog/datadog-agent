@@ -8,11 +8,14 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     if (is_network_flow_monitor_enabled()) {
         count_pkt(skb, pkt);
     }
-
     // route DNS requests
-    if (is_event_enabled(EVENT_DNS)) {
-        if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_UDP && pkt->translated_ns_flow.flow.dport == htons(53)) {
-            bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST);
+    if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_UDP &&  pkt->translated_ns_flow.flow.sport == htons(53)) {
+        if (direction == INGRESS) {
+            bpf_tail_call_compat(skb, &classifier_router, DNS_RESPONSE);
+        } else if (direction == EGRESS && pkt->translated_ns_flow.flow.dport == htons(53)) {
+            if (is_event_enabled(EVENT_DNS)) {
+                bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST);
+            }
         }
     }
 

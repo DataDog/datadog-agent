@@ -122,6 +122,14 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 				EBPFFuncName: "classifier_imds_request",
 			},
 		},
+		// TODO: Only load this if ingress is enabled
+		{
+			ProgArrayName: "classifier_router",
+			Key:           TCDNSResponseKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "classifier_dns_response",
+			},
+		},
 	}
 
 	if withRawPacket {
