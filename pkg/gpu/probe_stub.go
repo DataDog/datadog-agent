@@ -38,6 +38,7 @@ func NewProbe(_ *config.Config, _ ProbeDependencies) (*Probe, error) {
 // Close is not implemented on non-linux systems
 func (p *Probe) Close() {}
 
+// CollectConsumedEvents is not implemented on non-linux systems
 func (p *Probe) CollectConsumedEvents(_ context.Context, _ int) ([][]byte, error) {
 	return nil, ebpf.ErrNotImplemented
 }
