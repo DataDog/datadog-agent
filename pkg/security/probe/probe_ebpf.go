@@ -16,7 +16,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -241,6 +240,19 @@ func (p *EBPFProbe) selectFentryMode() {
 	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
 		p.useFentry = false
 		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
+		return
+	}
+
+	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	if err != nil {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but failed to verify kernel symbols, falling back to kprobe mode")
+		return
+	}
+
+	if hasPotentialFentryDeadlock {
+		p.useFentry = false
+		seclog.Warnf("fentry enabled but lock responsible for deadlock was found in kernel symbols, falling back to kprobe mode")
 		return
 	}
 
@@ -1524,13 +1536,13 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	}
 
 	if needRawSyscalls {
-		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 	} else {
 		// ActivityDumps
 		if p.config.RuntimeSecurity.ActivityDumpEnabled {
 			for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
 				if e == model.SyscallsEventType {
-					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 					break
 				}
 			}
@@ -1539,7 +1551,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			for _, e := range p.profileManagers.GetAnomalyDetectionEventTypes() {
 				if e == model.SyscallsEventType {
-					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 					break
 				}
 			}
@@ -1663,8 +1675,6 @@ func (p *EBPFProbe) RefreshUserCache(containerID containerutils.ContainerID) err
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *EBPFProbe) Snapshot() error {
-	// the snapshot for the read of a lot of file which can allocate a lot of memory.
-	defer runtime.GC()
 	return p.Resolvers.Snapshot()
 }
 
@@ -2165,7 +2175,7 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes(config *config.Config) {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
-				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 				break
 			}
 		}
@@ -2174,7 +2184,7 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes(config *config.Config) {
 		for _, e := range config.RuntimeSecurity.AnomalyDetectionEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
-				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 				break
 			}
 		}
