@@ -91,6 +91,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read) {
     ssl_read_args_t args = { 0 };
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
+    args.read_started = bpf_ktime_get_ns();
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
@@ -218,6 +219,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read_ex) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
+    args.read_started = bpf_ktime_get_ns();
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);

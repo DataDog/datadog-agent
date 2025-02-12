@@ -258,6 +258,9 @@ type Config struct {
 	// HTTPMapCleanerInterval is the interval to run the cleaner function.
 	HTTPMapCleanerInterval time.Duration
 
+	// SSLMapCleanerInterval is the interval to run the cleaner for kernel maps.
+	SSLMapCleanerInterval time.Duration
+
 	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
 	HTTPIdleConnectionTTL time.Duration
 
@@ -394,6 +397,8 @@ func New() *Config {
 
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+
+		SSLMapCleanerInterval: time.Duration(cfg.GetInt(sysconfig.FullKeyPath(smNS, "ssl_map_cleaner_interval_in_s"))) * time.Second,
 
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 

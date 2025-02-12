@@ -20,9 +20,17 @@ type SslSock struct {
 	Pad_cgo_0 [4]byte
 }
 type SslReadArgs struct {
-	Ctx *byte
-	Buf *byte
+	Ctx     *byte
+	Buf     *byte
+	Started uint64
 }
+type SslReadExArgs struct {
+	Ctx            *byte
+	Buf            *byte
+	Size_out_param *uint64
+	Read_started   uint64
+}
+type SslReadKey = uint64
 
 type EbpfEvent struct {
 	Tuple ConnTuple
