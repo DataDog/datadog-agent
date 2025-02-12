@@ -695,7 +695,7 @@ var (
 		"/datadog.yaml",
 		"/security-agent.yaml",
 		"/system-probe.yaml",
-		"/libraries_config.yaml",
+		"/application_monitoring.yaml",
 		"/conf.d/*.yaml",
 		"/conf.d/*.d/*.yaml",
 	}

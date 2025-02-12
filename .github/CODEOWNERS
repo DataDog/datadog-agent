@@ -319,6 +319,7 @@
 /comp/core/configsync @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
+/comp/core/profiler @DataDog/agent-configuration
 /comp/core/secrets @DataDog/agent-configuration
 /comp/core/settings @DataDog/agent-configuration
 /comp/core/status @DataDog/agent-configuration
@@ -629,6 +630,7 @@
 /test/new-e2e/tests/agent-platform            @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/agent-devx-loops
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
+/test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-configuration
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
