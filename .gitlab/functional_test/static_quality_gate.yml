@@ -11,6 +11,16 @@ static_quality_gates:
       artifacts: true
     - job: docker_build_agent7
       artifacts: true
+    - job: docker_build_agent7_arm64
+      artifacts: true
+    - job: docker_build_agent7_jmx
+      artifacts: true
+    - job: docker_build_agent7_jmx_arm64
+      artifacts: true
+    - job: docker_build_cluster_agent_amd64
+      artifacts: true
+    - job: docker_build_cluster_agent_arm64
+      artifacts: true
   # Static Quality Gates aren't enforced until Q1
   allow_failure: true
   script:

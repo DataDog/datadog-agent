@@ -77,7 +77,7 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
+	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
 	SetUID        SetuidEvent        `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID        SetgidEvent        `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset        CapsetEvent        `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
@@ -697,6 +697,7 @@ type ActivityDumpLoadConfig struct {
 	EndTimestampRaw      uint64
 	Rate                 uint16 // max number of events per sec
 	Paused               uint32
+	CGroupFlags          containerutils.CGroupFlags
 }
 
 // NetworkDeviceContext represents the network device context of a network event
