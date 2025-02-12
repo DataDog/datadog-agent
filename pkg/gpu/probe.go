@@ -304,6 +304,7 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 	p.eventHandler = rbHandler
 }
 
+// CollectConsumedEvents waits until the debug collector stores count events and returns them
 func (p *Probe) CollectConsumedEvents(ctx context.Context, count int) ([][]byte, error) {
 	p.consumer.debugCollector.enable(count)
 
