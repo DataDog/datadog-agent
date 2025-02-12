@@ -358,7 +358,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	apiKey := fi.extractDatadogAPIKey(req)
 	if apiKey != "" {
-		fi.store.SetRecentAPIKey(apiKey)
+		fi.store.SetLastAPIKey(apiKey)
 	}
 
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
@@ -477,7 +477,7 @@ func (fi *Server) extractDatadogAPIKey(req *http.Request) string {
 }
 
 func (fi *Server) handleGetLastAPIKey(w http.ResponseWriter, _req *http.Request) {
-	apiKey, err := fi.store.GetRecentAPIKey()
+	apiKey, err := fi.store.GetLastAPIKey()
 	if err != nil {
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)

@@ -20,8 +20,8 @@ import (
 type inMemoryStore struct {
 	mutex sync.RWMutex
 
-	rawPayloads  map[string][]api.Payload
-	recentAPIKey string
+	rawPayloads map[string][]api.Payload
+	lastAPIKey  string
 
 	// NbPayloads is a prometheus metric to track the number of payloads collected by route
 	NbPayloads *prometheus.GaugeVec
@@ -39,26 +39,25 @@ func newInMemoryStore() *inMemoryStore {
 	}
 }
 
-func (s *inMemoryStore) SetRecentAPIKey(key string) {
+func (s *inMemoryStore) SetLastAPIKey(key string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.recentAPIKey = key
+	s.lastAPIKey = key
 }
 
-func (s *inMemoryStore) GetRecentAPIKey() (string, error) {
+func (s *inMemoryStore) GetLastAPIKey() (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	lastAPIKey := s.recentAPIKey
-	if lastAPIKey == "" {
+	if s.lastAPIKey == "" {
 		return "", fmt.Errorf("no apiKey sent")
 	}
-	return lastAPIKey, nil
+	return s.lastAPIKey, nil
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
 func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time) error {
-	// Set the recent APIKey first, to avoid deadlocking
-	s.SetRecentAPIKey(apiKey)
+	// Set the last APIKey first, to avoid deadlocking
+	s.SetLastAPIKey(apiKey)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	rawPayload := api.Payload{

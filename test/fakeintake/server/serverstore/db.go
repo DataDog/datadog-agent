@@ -123,12 +123,12 @@ func (s *sqlStore) Close() {
 	os.Remove(s.path)
 }
 
-func (s *sqlStore) SetRecentAPIKey(_ string) {
+func (s *sqlStore) SetLastAPIKey(_ string) {
 	// pass
 }
 
-func (s *sqlStore) GetRecentAPIKey() (string, error) {
-	return "", fmt.Errorf("sqlstore does not track recent APIKey")
+func (s *sqlStore) GetLastAPIKey() (string, error) {
+	return "", fmt.Errorf("sqlstore does not track last APIKey")
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
