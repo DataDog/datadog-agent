@@ -6,7 +6,6 @@
 package fipscompliance
 
 import (
-	_ "embed"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -27,9 +26,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-//go:embed fixtures/e2e_fips_test.py
-var fipsTestCheck string
 
 type windowsVMSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
