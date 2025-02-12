@@ -37,7 +37,6 @@ const (
 
 // PlatformProbe defines a platform dependant probe
 type PlatformProbe interface {
-	Setup() error
 	Init() error
 	Start() error
 	Stop()
@@ -135,11 +134,6 @@ func newProbe(config *config.Config, opts Opts) *Probe {
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 	return p.PlatformProbe.Init()
-}
-
-// Setup the runtime security probe
-func (p *Probe) Setup() error {
-	return p.PlatformProbe.Setup()
 }
 
 // Start plays the snapshot data and then start the event stream

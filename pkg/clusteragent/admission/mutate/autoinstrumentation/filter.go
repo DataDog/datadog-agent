@@ -8,14 +8,13 @@
 package autoinstrumentation
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
 // NewFilter creates a new MutationFilter from the provided FilterConfig.
-func NewFilter(datadogConfig config.Component) (mutatecommon.MutationFilter, error) {
-	enabled := datadogConfig.GetBool("apm_config.instrumentation.enabled")
-	enabledNamespaces := datadogConfig.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	disabledNamespaces := datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-	return mutatecommon.NewDefaultFilter(enabled, enabledNamespaces, disabledNamespaces)
+func NewFilter(config *Config) (mutatecommon.MutationFilter, error) {
+	return mutatecommon.NewDefaultFilter(
+		config.Instrumentation.Enabled,
+		config.Instrumentation.EnabledNamespaces,
+		config.Instrumentation.DisabledNamespaces)
 }
