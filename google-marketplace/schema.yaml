@@ -313,6 +313,8 @@ properties:
             - datadogagents
             - datadogagents/finalizers
             - datadogdashboards
+            - datadoggenericresources
+            - datadoggenericresources/finalizers
             - datadogmonitors
             - datadogmonitors/finalizers
             - datadogslos
@@ -332,6 +334,7 @@ properties:
             - datadogagentprofiles/status
             - datadogagents/status
             - datadogdashboards/status
+            - datadoggenericresources/status
             - datadogmonitors/status
             - datadogslos/status
             verbs:
