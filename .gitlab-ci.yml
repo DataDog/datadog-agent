@@ -169,8 +169,8 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
-  DATADOG_AGENT_BUILDIMAGES_SUFFIX: "_test_only"
-  DATADOG_AGENT_BUILDIMAGES: v55508864-5558bd15
+  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BUILDIMAGES: v55677206-ea52e48c
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_WINBUILDIMAGES: v54965839-ff6db30b
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
