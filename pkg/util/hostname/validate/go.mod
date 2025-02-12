@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3

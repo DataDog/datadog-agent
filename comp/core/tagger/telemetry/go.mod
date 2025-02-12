@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0

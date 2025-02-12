@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/flare/builder
 
-go 1.22.0
+go 1.23.0
 
 // This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
 
