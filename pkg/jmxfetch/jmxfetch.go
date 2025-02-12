@@ -481,7 +481,7 @@ func (j *JMXFetch) ConfigureFromInitConfig(initConfig integration.Data) error {
 		}
 	}
 	if initConf.HAEnabled {
-		return fmt.Errorf("High Availability mode is not supported in JMXFetch")
+		return fmt.Errorf("High Availability is not supported in JMX integrations")
 	}
 
 	return nil
