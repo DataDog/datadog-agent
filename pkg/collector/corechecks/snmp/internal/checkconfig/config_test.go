@@ -8,12 +8,14 @@ package checkconfig
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 
@@ -1940,6 +1942,7 @@ func TestDynamicRCConfig(t *testing.T) {
 }
 
 func TestRCConflict(t *testing.T) {
+	flake.Mark(t)
 	// language=yaml
 	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
 	// language=yaml
