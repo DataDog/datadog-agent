@@ -11,6 +11,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -167,6 +168,7 @@ func TestNewSpringBootArchiveSourceFromReader(t *testing.T) {
 		})
 	}
 }
+
 func TestArgumentPropertySource(t *testing.T) {
 	argSlice := []string{"-c",
 		"-Dspring.application.name=test",
@@ -400,6 +402,75 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			app, ok := newSpringBootParser(NewDetectionContext(tt.cmdline, envs.NewVariables(tt.envs), RealFs{})).GetSpringBootAppName(tt.jarname)
+			require.Equal(t, tt.expected, app)
+			require.Equal(t, len(app) > 0, ok)
+		})
+	}
+}
+
+func createJar(t *testing.T, name string, write func(*zip.Writer)) string {
+	tempDir := t.TempDir()
+	fullPath := path.Join(tempDir, name)
+
+	f, err := os.Create(fullPath)
+	require.NoError(t, err)
+
+	writer := zip.NewWriter(f)
+	defer f.Close()
+	write(writer)
+	require.NoError(t, writer.Close())
+
+	return fullPath
+}
+
+func TestExtractServiceMetadataSpringBootLauncherJar(t *testing.T) {
+	tests := []struct {
+		name     string
+		cmdline  []string
+		envs     map[string]string
+		expected string
+	}{
+		{
+			name: "with props",
+			cmdline: []string{
+				"java",
+				"-cp",
+				createJar(t, "props.jar", func(writer *zip.Writer) {
+					require.NoError(t, writeFile(writer, "BOOT-INF/classes/application.properties",
+						"spring.application.name=my-app"))
+				}),
+				springBootLauncher,
+			},
+			expected: "my-app",
+		},
+		{
+			name: "without props",
+			cmdline: []string{
+				"java",
+				"-cp",
+				createJar(t, "noprops.jar", func(writer *zip.Writer) {
+					require.NoError(t, writeFile(writer, "META-INF/MANIFEST.MF",
+						"Start-Class: org.my.class"))
+				}),
+				springBootOldLauncher,
+			},
+			expected: "org.my.class",
+		},
+		{
+			name: "empty",
+			cmdline: []string{
+				"java",
+				"-cp",
+				createJar(t, "noprops.jar", func(_ *zip.Writer) {}),
+				springBootOldLauncher,
+			},
+			expected: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parser := newSpringBootParser(NewDetectionContext(tt.cmdline, envs.NewVariables(tt.envs), RealFs{}))
+			app, ok := parser.GetSpringBootLauncherAppName()
 			require.Equal(t, tt.expected, app)
 			require.Equal(t, len(app) > 0, ok)
 		})
