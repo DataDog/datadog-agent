@@ -37,9 +37,6 @@ type systemContext struct {
 	// deviceSmVersions maps each device UUID to its SM (Compute architecture) version
 	deviceSmVersions map[string]uint32
 
-	// defaultSmVersion is the default SM version to use when the device is not found
-	defaultSmVersion uint32
-
 	// smVersionSet is a set of all the seen SM versions, to filter kernels to parse
 	smVersionSet map[uint32]struct{}
 
@@ -185,11 +182,6 @@ func (ctx *systemContext) fillDeviceInfo() error {
 		devUUID, ret := dev.GetUUID()
 		if ret != nvml.SUCCESS {
 			return fmt.Errorf("error getting device UUID: %s", nvml.ErrorString(ret))
-		}
-
-		// Update the defaultSmVersion to at least have something for the case where we cannot assign
-		if ctx.defaultSmVersion == 0 {
-			ctx.defaultSmVersion = smVersion
 		}
 
 		ctx.deviceSmVersions[devUUID] = smVersion

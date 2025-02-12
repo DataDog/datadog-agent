@@ -288,7 +288,7 @@ func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) *S
 				// if the device UUID is empty
 				log.Warnf("SM version not found for device %s, using default", key.gpuUUID)
 			}
-			smVersion = c.sysCtx.defaultSmVersion
+			smVersion = noSmVersion
 		}
 
 		c.streamHandlers[key] = newStreamHandler(key.pid, key.containerID, smVersion, c.sysCtx)

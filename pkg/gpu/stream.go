@@ -22,6 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// noSmVersion is used when the SM version is not available
+const noSmVersion uint32 = 0
+
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
@@ -152,8 +155,10 @@ func findEntryInMaps(procMaps []*procfs.ProcMap, addr uintptr) *procfs.ProcMap {
 }
 
 func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
-	if sh.sysCtx == nil {
-		return nil // No system context, kernel data attaching is disabled
+	if sh.sysCtx == nil || sh.smVersion == noSmVersion {
+		// No system context or we don't have a SM version to use,
+		// kernel data attaching is disabled
+		return nil
 	}
 
 	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.pid))
