@@ -11,6 +11,7 @@ package tests
 import (
 	"os"
 	"os/exec"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -132,8 +133,9 @@ func TestFIMPermError(t *testing.T) {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(_ *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_open_rule")
+			assert.Equal(t, -int64(syscall.EACCES), event.Open.Retval)
 		})
 	})
 
@@ -150,8 +152,9 @@ func TestFIMPermError(t *testing.T) {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
-		}, func(_ *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_unlink_rule")
+			assert.Equal(t, -int64(syscall.EACCES), event.Unlink.Retval)
 		})
 	})
 }
