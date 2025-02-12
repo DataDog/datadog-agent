@@ -233,22 +233,11 @@ func init() {
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
-	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
-	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
-
 	resolvePythonHome()
 
-	fipsEnabled, err := fips.Enabled()
-	if err != nil {
-		log.Warnf("Error checking FIPS mode: %v", err)
-	}
-	if fipsEnabled {
-		err := initFIPS(PythonHome)
-		if err != nil {
-			log.Warnf("Error initializing FIPS mode: %v", err)
-		}
-	}
-
+	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
+	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
+	initFIPS()
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -515,21 +504,35 @@ func initPymemTelemetry(d time.Duration) {
 	}()
 }
 
-// initFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
-func initFIPS(embeddedPath string) error {
-	if v := os.Getenv("OPENSSL_CONF"); v == "" {
-		pathToOpenSSLConf := filepath.Join(embeddedPath, "ssl", "openssl.cnf")
-		if _, err := os.Stat(pathToOpenSSLConf); os.IsNotExist(err) {
-			return errors.New("The configuration file " + pathToOpenSSLConf + " does not exist")
-		}
-		os.Setenv("OPENSSL_CONF", pathToOpenSSLConf)
+func initFIPS() {
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("Error checking FIPS mode: %v", err)
 	}
-	if v := os.Getenv("OPENSSL_MODULES"); v == "" {
-		pathToOpenSSLModules := filepath.Join(embeddedPath, "lib", "ossl-modules")
-		if _, err := os.Stat(pathToOpenSSLModules); os.IsNotExist(err) {
-			return fmt.Errorf("The directory %q does not exist", pathToOpenSSLModules)
+	if fipsEnabled {
+		err := enableFIPS(PythonHome)
+		if err != nil {
+			log.Warnf("Error initializing FIPS mode: %v", err)
 		}
-		os.Setenv("OPENSSL_MODULES", pathToOpenSSLModules)
+	}
+}
+
+// enableFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
+func enableFIPS(embeddedPath string) error {
+	envVars := map[string][]string{
+		"OPENSSL_CONF":   {"ssl", "openssl.cnf"},
+		"OPENSSL_MODULES": {"lib", "ossl-modules"},
+	}
+
+	for envVar, pathParts := range envVars {
+		if v := os.Getenv(envVar); v != "" {
+			continue
+		}
+		path := filepath.Join(embeddedPath, pathParts...)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return fmt.Errorf("The path %q does not exist", path)
+		}
+		os.Setenv(envVar, path)
 	}
 	return nil
 }
