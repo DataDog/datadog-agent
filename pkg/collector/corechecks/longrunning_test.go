@@ -99,6 +99,11 @@ func (m *mockLongRunningCheck) GetSender() (sender.Sender, error) {
 	return s.(sender.Sender), args.Error(1)
 }
 
+func (m *mockLongRunningCheck) Loader() string {
+	args := m.Called()
+	return args.String(0)
+}
+
 func newMockLongRunningCheck() *mockLongRunningCheck {
 	return &mockLongRunningCheck{
 		stopCh:    make(chan struct{}),

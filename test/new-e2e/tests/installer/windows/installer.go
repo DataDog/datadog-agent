@@ -8,6 +8,7 @@ package installer
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"os"
 	"path"
 	"path/filepath"
@@ -18,34 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-)
-
-const (
-	// AgentPackage is the name of the Datadog Agent package
-	// We use a constant to make it easier for calling code, because depending on the context
-	// the Agent package can be referred to as "agent-package" (like in the OCI registry) or "datadog-agent" (in the
-	// local database once the Agent is installed).
-	AgentPackage string = "datadog-agent"
-	// Path is the path where the Datadog Installer is installed on disk
-	Path string = "C:\\Program Files\\Datadog\\Datadog Installer"
-	// BinaryName is the name of the Datadog Installer binary on disk
-	BinaryName string = "datadog-installer.exe"
-	// ServiceName the installer service name
-	ServiceName string = "Datadog Installer"
-	// ConfigPath is the location of the Datadog Installer's configuration on disk
-	ConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	// RegistryKeyPath is the root registry key that the Datadog Installer uses to store some state
-	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Installer`
-	// NamedPipe is the name of the named pipe used by the Datadog Installer
-	NamedPipe string = `\\.\pipe\dd_installer`
-)
-
-var (
-	// BinaryPath is the path of the Datadog Installer binary on disk
-	BinaryPath = path.Join(Path, BinaryName)
 )
 
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
@@ -63,7 +38,7 @@ func NewDatadogInstaller(env *environments.WindowsHost, outputDir string) *Datad
 	}
 
 	return &DatadogInstaller{
-		binaryPath: path.Join(Path, BinaryName),
+		binaryPath: path.Join(consts.Path, consts.BinaryName),
 		env:        env,
 		outputDir:  outputDir,
 	}
@@ -138,28 +113,6 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...insta
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
 }
 
-// RunInstallScript runs the Datadog Installer install script on the remote host.
-func (d *DatadogInstaller) RunInstallScript(extraEnvVars map[string]string) (string, error) {
-	// Get the URL of the installer.exe artifact from the pipeline
-	artifactURL, err := pipeline.GetPipelineArtifact(d.env.Environment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-		return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".exe")
-	})
-	if err != nil {
-		return "", err
-	}
-	// Set the environment variables for the install script
-	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
-	for k, v := range extraEnvVars {
-		envVars[k] = v
-	}
-	envVars["DD_INSTALLER_URL"] = artifactURL
-	// TODO: Use install script from pipeline
-	cmd := `Set-ExecutionPolicy Bypass -Scope Process -Force;
-		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-		iex ((New-Object System.Net.WebClient).DownloadString('https://s3.amazonaws.com/dd-agent-mstesting/Install-Datadog.ps1'));`
-	return d.env.RemoteHost.Execute(cmd, client.WithEnvVariables(envVars))
-}
-
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
 // version: A function that returns the version of the package to install. By default, it will install
 // the package matching the current pipeline. This is a function so that it can be combined with
@@ -196,68 +149,25 @@ func (d *DatadogInstaller) Purge() (string, error) {
 	return d.executeFromCopy("purge")
 }
 
-// Params contains the optional parameters for the Datadog Installer Install command
-type Params struct {
-	installerURL   string
-	msiArgs        []string
-	msiLogFilename string
-}
-
-// Option is an optional function parameter type for the Datadog Installer Install command
-type Option func(*Params) error
-
-// WithInstallerURL uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
-func WithInstallerURL(installerURL string) Option {
-	return func(params *Params) error {
-		params.installerURL = installerURL
-		return nil
-	}
-}
-
-// WithMSIArg uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
-func WithMSIArg(arg string) Option {
-	return func(params *Params) error {
-		params.msiArgs = append(params.msiArgs, arg)
-		return nil
-	}
-}
-
-// WithMSILogFile sets the filename for the MSI log file, to be stored in the output directory.
-func WithMSILogFile(filename string) Option {
-	return func(params *Params) error {
-		params.msiLogFilename = filename
-		return nil
-	}
-}
-
-// WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
-// file.
-// jsonURL: The URL of the installers_v2.json file, i.e. pipeline.StableURL
-// version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
-//
-// Example: WithInstallerURLFromInstallersJSON(pipeline.StableURL, "7.56.0-installer-0.4.5-1")
-// will look into "https://s3.amazonaws.com/ddagent-windows-stable/stable/installers_v2.json" for the Datadog Installer
-// version "7.56.0-installer-0.4.5-1"
-func WithInstallerURLFromInstallersJSON(jsonURL, version string) Option {
-	return func(params *Params) error {
-		url, err := installers.GetProductURL(jsonURL, "datadog-installer", version, "x86_64")
-		if err != nil {
-			return err
-		}
-		params.installerURL = url
-		return nil
+func (d *DatadogInstaller) createInstallerFolders() {
+	for _, p := range consts.InstallerConfigPaths {
+		d.env.RemoteHost.MustExecute(fmt.Sprintf("New-Item -Path \"%s\" -ItemType Directory -Force", p))
 	}
 }
 
 // Install will attempt to install the Datadog Installer on the remote host.
 // By default, it will use the installer from the current pipeline.
-func (d *DatadogInstaller) Install(opts ...Option) error {
-	params := Params{
-		msiLogFilename: "install.log",
+func (d *DatadogInstaller) Install(opts ...MsiOption) error {
+	params := MsiParams{
+		msiLogFilename:         "install.log",
+		createInstallerFolders: true,
 	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
 		return err
+	}
+	if params.createInstallerFolders {
+		d.createInstallerFolders()
 	}
 	// MSI can install from a URL or a local file
 	msiPath := params.installerURL
@@ -291,8 +201,8 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 }
 
 // Uninstall will attempt to uninstall the Datadog Installer on the remote host.
-func (d *DatadogInstaller) Uninstall(opts ...Option) error {
-	params := Params{
+func (d *DatadogInstaller) Uninstall(opts ...MsiOption) error {
+	params := MsiParams{
 		msiLogFilename: "uninstall.log",
 	}
 	err := optional.ApplyOptions(&params, opts)
@@ -314,14 +224,4 @@ func (d *DatadogInstaller) Uninstall(opts ...Option) error {
 		msiArgs = strings.Join(params.msiArgs, " ")
 	}
 	return windowsCommon.MsiExec(d.env.RemoteHost, "/x", productCode, msiArgs, logPath)
-}
-
-// GetExperimentDirFor is the path to the experiment symbolic link on disk
-func GetExperimentDirFor(packageName string) string {
-	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\experiment", packageName)
-}
-
-// GetStableDirFor is the path to the stable symbolic link on disk
-func GetStableDirFor(packageName string) string {
-	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\stable", packageName)
 }
