@@ -63,8 +63,11 @@ def generic_package_agent_quality_gate(gate_name, arch, os, flavor, **kwargs):
             package_arm = "aarch64"
         elif arch == "amd64":
             package_arm = "x86_64"
+    package_os = os
+    if os == "heroku":
+        package_os = "debian"
 
-    package_path = find_package_path(flavor, os, package_arm)
+    package_path = find_package_path(flavor, package_os, package_arm)
 
     package_on_wire_size, package_on_disk_size = calculate_package_size(
         ctx, os, package_path, gate_name, metric_handler
