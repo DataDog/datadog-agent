@@ -15,3 +15,4 @@ e2e_pre_test:
     TEAM: "agent-developer-tools"
     # override to use latest stable agent
     E2E_PIPELINE_ID: ""
+    IS_AGENT_6: "true"
