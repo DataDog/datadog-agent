@@ -13,6 +13,13 @@ instances:
     #
   - collect_connection_state: false
 
+    ## @param collect_connection_queues - boolean - required
+    ## Set to true to enable connection queues collection
+    ## Note: connection queues collections require both
+    ## `collect_connection_state` and `collect_connection_queues` to be true
+    #
+    # collect_connection_queues: false
+
     ## @param excluded_interfaces - list of strings - optional
     ## List of interfaces to exclude from the check.
     #

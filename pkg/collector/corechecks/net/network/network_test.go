@@ -10,6 +10,7 @@ package network
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/net"
@@ -114,6 +115,14 @@ type MockCommandRunner struct {
 func (m *MockCommandRunner) FakeRunCommand(_ []string) (string, error) {
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
+}
+
+type MockSS struct {
+	mock.Mock
+}
+
+func (m *MockSS) FakeSSCommand() error {
+	return errors.New("forced to use netstat")
 }
 
 func TestDefaultConfiguration(t *testing.T) {
@@ -342,6 +351,9 @@ func TestNetworkCheck(t *testing.T) {
 
 	getDrvInfo = mockEthtool.DriverInfo
 	getStats = mockEthtool.Stats
+
+	mockSS := new(MockSS)
+	ssAvailableFunction = mockSS.FakeSSCommand
 
 	networkCheck := NetworkCheck{
 		net: net,

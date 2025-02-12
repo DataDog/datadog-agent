@@ -83,7 +83,21 @@ var (
 			"InCsumErrors": "system.net.udp.in_csum_errors",
 		},
 	}
-	tcpStateMetricsSuffixMapping = map[string]string{
+	tcpStateMetricsSuffixMapping_ss = map[string]string{
+		"ESTAB":      "established",
+		"SYN-SENT":   "opening",
+		"SYN-RECV":   "opening",
+		"FIN-WAIT-1": "closing",
+		"FIN-WAIT-2": "closing",
+		"TIME-WAIT":  "time_wait",
+		"UNCONN":     "closing",
+		"CLOSE-WAIT": "closing",
+		"LAST-ACK":   "closing",
+		"LISTEN":     "listening",
+		"CLOSING":    "closing",
+	}
+
+	tcpStateMetricsSuffixMapping_netstat = map[string]string{
 		"ESTABLISHED": "established",
 		"SYN_SENT":    "opening",
 		"SYN_RECV":    "opening",
@@ -107,7 +121,8 @@ var (
 	getDrvInfo    = ethtoolObject.DriverInfo
 	getStats      = ethtoolObject.Stats
 
-	runCommandFunction = runCommand
+	runCommandFunction  = runCommand
+	ssAvailableFunction = checkSSExecutable
 )
 
 // NetworkCheck represent a network check
@@ -119,6 +134,7 @@ type NetworkCheck struct {
 
 type networkInstanceConfig struct {
 	CollectConnectionState    bool     `yaml:"collect_connection_state"`
+	CollectConnectionQueues   bool     `yaml:"collect_connection_queues"`
 	ExcludedInterfaces        []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe       string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern  *regexp.Regexp
@@ -213,29 +229,41 @@ func (c *NetworkCheck) Run() error {
 	}
 
 	if c.config.instance.CollectConnectionState {
+		ssAvailable := false
+		if ssAvailableFunction() == nil {
+			ssAvailable = true
+		}
 		connectionsStats, err := c.net.Connections("udp4")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats)
+		submitConnectionsMetrics(sender, "udp4", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
 
 		connectionsStats, err = c.net.Connections("udp6")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats)
+		submitConnectionsMetrics(sender, "udp6", udpStateMetricsSuffixMapping, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
 
 		connectionsStats, err = c.net.Connections("tcp4")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping, connectionsStats)
+		if ssAvailable {
+			submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping_ss, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+		} else {
+			submitConnectionsMetrics(sender, "tcp4", tcpStateMetricsSuffixMapping_netstat, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+		}
 
 		connectionsStats, err = c.net.Connections("tcp6")
 		if err != nil {
 			return err
 		}
-		submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping, connectionsStats)
+		if ssAvailable {
+			submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping_ss, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+		} else {
+			submitConnectionsMetrics(sender, "tcp6", tcpStateMetricsSuffixMapping_netstat, connectionsStats, c.config.instance.CollectConnectionQueues, ssAvailable)
+		}
 	}
 
 	setProcPath := c.net.GetProcPath()
@@ -441,14 +469,114 @@ func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCounters
 	}
 }
 
-func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat) {
+func checkSSExecutable() error {
+	_, err := exec.LookPath("ss")
+	if err != nil {
+		return errors.New("`ss` executable not found in system PATH")
+	}
+	return nil
+}
+
+func getQueueMetrics(ipVersion string) (map[string][]uint64, error) {
+	cmd := fmt.Sprintf("ss --numeric --tcp --all --ipv%s", ipVersion)
+	output, err := runCommand([]string{"sh", "-c", cmd})
+	if err != nil {
+		return nil, fmt.Errorf("error executing ss command: %v", err)
+	}
+	return parseQueueMetrics(output)
+}
+
+func getQueueMetricsNetstat(ipVersion string) (map[string][]uint64, error) {
+	output, err := runCommand([]string{"sh", "-c", "netstat -n -u -t -a"})
+	if err != nil {
+		return nil, fmt.Errorf("error executing netstat command: %v", err)
+	}
+	return parseQueueMetricsNetstat(output)
+}
+
+func parseQueueMetrics(output string) (map[string][]uint64, error) {
+	queueMetrics := make(map[string][]uint64)
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) > 2 {
+			val, ok := tcpStateMetricsSuffixMapping_ss[fields[0]]
+			if ok {
+				state := val
+				recvQ := parseQueue(fields[1])
+				sendQ := parseQueue(fields[2])
+				queueMetrics[state] = append(queueMetrics[state], recvQ, sendQ)
+			}
+		}
+	}
+	return queueMetrics, nil
+}
+
+func parseQueueMetricsNetstat(output string) (map[string][]uint64, error) {
+	queueMetrics := make(map[string][]uint64)
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "tcp") {
+			fields := strings.Fields(line)
+			if len(fields) > 5 {
+				val, ok := tcpStateMetricsSuffixMapping_ss[fields[5]]
+				if ok {
+					state := val
+					recvQ := parseQueue(fields[1])
+					sendQ := parseQueue(fields[2])
+					queueMetrics[state] = append(queueMetrics[state], recvQ, sendQ)
+				}
+			}
+		}
+	}
+
+	return queueMetrics, nil
+}
+
+func parseQueue(queueStr string) uint64 {
+	var queue uint64
+	_, err := fmt.Sscanf(queueStr, "%d", &queue)
+	if err != nil {
+		return 0
+	}
+	return queue
+}
+
+func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat, collectConnectionQueues bool, ssAvailable bool) {
 	metricCount := map[string]float64{}
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
 	}
-
+	queueMetrics := make(map[string][]uint64)
 	for _, connectionStats := range connectionsStats {
 		metricCount[stateMetricSuffixMapping[connectionStats.Status]]++
+		if collectConnectionQueues && protocolName[:3] == "tcp" {
+			var queues map[string][]uint64
+			var err error
+			// pass in version number
+			if ssAvailable {
+				queues, err = getQueueMetrics(protocolName[len(protocolName)-1:])
+				if err != nil {
+					log.Debug("Error getting queue metrics with ss:", err)
+					return
+				}
+			} else {
+				queues, err = getQueueMetricsNetstat(protocolName[len(protocolName)-1:])
+				if err != nil {
+					log.Debug("Error getting queue metrics with netstat:", err)
+					return
+				}
+			}
+			for state, queues := range queues {
+				queueMetrics[state] = append(queueMetrics[state], queues...)
+			}
+			for state, queues := range queueMetrics {
+				for _, queue := range queues {
+					sender.Histogram("system.net.recv_q", float64(queue), "", []string{"state:" + state})
+					sender.Histogram("system.net.send_q", float64(queue), "", []string{"state:" + state})
+				}
+			}
+		}
 	}
 
 	for suffix, count := range metricCount {
@@ -553,10 +681,12 @@ func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSud
 func runCommand(cmd []string) (string, error) {
 	execCmd := exec.Command(cmd[0], cmd[1:]...)
 	var out bytes.Buffer
+	var stderr bytes.Buffer
 	execCmd.Stdout = &out
+	execCmd.Stderr = &stderr
 	err := execCmd.Run()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error executing command: %v, stderr: %s", err, stderr.String())
 	}
 	return out.String(), nil
 }
