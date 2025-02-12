@@ -145,11 +145,13 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 		}
 	}
 
-	log.Info("Received request to collect %d GPU events, collecting...", count)
+	log.Infof("Received request to collect %d GPU events, collecting...", count)
 
 	data, err := t.Probe.CollectConsumedEvents(r.Context(), count)
 	if err != nil {
-		w.Write([]byte(fmt.Sprintf("Error collecting GPU events: %v", err)))
+		msg := fmt.Sprintf("Error collecting GPU events: %v", err)
+		log.Warn(msg)
+		w.Write([]byte(msg))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
