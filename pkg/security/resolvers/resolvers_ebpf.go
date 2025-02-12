@@ -64,7 +64,7 @@ type EBPFResolvers struct {
 	HashResolver         *hash.Resolver
 	UserSessionsResolver *usersessions.Resolver
 	SyscallCtxResolver   *syscallctx.Resolver
-	DnsResolver          *dns.Resolver
+	DNSResolver          *dns.Resolver
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
@@ -153,7 +153,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 
 	var dnsResolver *dns.Resolver
 	if config.Probe.DNSResolutionEnabled {
-		dnsResolver = dns.NewDnsResolver(config.Probe)
+		dnsResolver = dns.NewDNSResolver(config.Probe, statsdClient)
 	}
 
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
@@ -188,7 +188,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		HashResolver:         hashResolver,
 		UserSessionsResolver: userSessionsResolver,
 		SyscallCtxResolver:   syscallctx.NewResolver(),
-		DnsResolver:          dnsResolver,
+		DNSResolver:          dnsResolver,
 	}
 
 	return resolvers, nil

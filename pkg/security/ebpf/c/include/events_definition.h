@@ -212,7 +212,7 @@ struct dns_event_t {
 struct dns_response_event_t {
     struct kevent_t event;
     struct dnshdr header;
-    char data[DNS_MAX_LENGTH];
+    char data[DNS_RECEIVE_MAX_LENGTH];
 };
 
 struct imds_event_t {

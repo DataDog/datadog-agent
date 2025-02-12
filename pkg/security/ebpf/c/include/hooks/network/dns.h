@@ -126,6 +126,7 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
 SEC("classifier/dns_response")
 int classifier_dns_response(struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
+
     if (pkt == NULL) {
         // should never happen
         return ACT_OK;
@@ -148,20 +149,19 @@ int classifier_dns_response(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    int length = 0;
+    int remaining_bytes = len - sizeof(struct dnshdr);
 
-#pragma unroll
-    for (int i = 0; i < DNS_MAX_LENGTH ; i++) {
-        long err = bpf_skb_load_bytes(skb, pkt->offset, &evt.data[i], sizeof(u8));
-        if (err < 0) {
-            break;
-        }
-
-        pkt->offset++;
-        ++length;
+    if (remaining_bytes < 1 || pkt->offset < 1 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
+        return ACT_OK;
     }
 
-    send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, &evt, offsetof(struct dns_response_event_t, data) + length);
+    long err = bpf_skb_load_bytes(skb, pkt->offset, evt.data, remaining_bytes);
+
+    if (err < 0) {
+        return ACT_OK;
+    }
+
+    send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE, &evt, offsetof(struct dns_response_event_t, data) + remaining_bytes);
 
     return ACT_OK;
 }

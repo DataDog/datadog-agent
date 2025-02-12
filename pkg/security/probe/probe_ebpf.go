@@ -919,27 +919,35 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		return
 	case model.DNSResponseEventType:
+		fmt.Println("DNS response received")
 		packet := gopacket.NewPacket(data[offset:], layers.LayerTypeDNS, gopacket.Default)
+		if len(packet.Layers()) == 0 {
+			fmt.Println("DNS Invalid layer")
+		}
+
+		fmt.Println("DNS data ", data[offset:])
 
 		for _, layer := range packet.Layers() {
 			switch layer := layer.(type) {
 			case *layers.DNS:
+				fmt.Println("Got a DNS layer")
 				for _, answer := range layer.Answers {
 					if answer.Type == layers.DNSTypeCNAME {
-						p.Resolvers.DnsResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
+						p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
 					} else {
 						ip, ok := netip.AddrFromSlice(answer.IP)
 						if ok {
-							p.Resolvers.DnsResolver.AddNew(string(answer.Name), ip)
+							p.Resolvers.DNSResolver.AddNew(string(answer.Name), ip)
 						} else {
 							seclog.Errorf("DNS response with an invalid IP received: %v", ip)
 						}
 					}
 				}
+			default:
+				fmt.Println("Got another layer that's not DNS")
 			}
 		}
 
-		offset += len(data[offset:])
 		return
 	}
 
@@ -1308,7 +1316,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		ip, ok := netip.AddrFromSlice(event.Accept.Addr.IPNet.IP)
 		if ok {
-			event.Accept.Hostnames = p.Resolvers.DnsResolver.HostListFromIp(ip)
+			event.Accept.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
 		}
 
 	case model.BindEventType:
@@ -1323,7 +1331,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		ip, ok := netip.AddrFromSlice(event.Connect.Addr.IPNet.IP)
 		if ok {
-			event.Connect.Hostnames = p.Resolvers.DnsResolver.HostListFromIp(ip)
+			event.Connect.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
 		}
 
 	case model.SyscallsEventType:
