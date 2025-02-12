@@ -66,6 +66,7 @@ type Exporter struct {
 	extraTags       []string
 	enricher        tagenricher
 	apmReceiverAddr string
+	exporterType    ExporterType
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -131,6 +132,7 @@ func NewExporter(
 	enricher tagenricher,
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
+	exporterType ExporterType,
 ) (*Exporter, error) {
 	tr, err := translatorFromConfig(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, statsIn)
 	if err != nil {
@@ -152,12 +154,18 @@ func NewExporter(
 		enricher:        enricher,
 		apmReceiverAddr: cfg.Metrics.APMStatsReceiverAddr,
 		extraTags:       extraTags,
+		exporterType:    exporterType,
 	}, nil
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
-	consumer := &agentSerializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
+	var consumer metrics.Consumer
+	if e.exporterType == Agent {
+		consumer = &agentSerializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
+	} else {
+		consumer = &collectorSerializerConsumer{}
+	}
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err
@@ -167,10 +175,15 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
-	consumer.addTelemetryMetric(hostname)
-	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
-	if err := consumer.Send(e.s); err != nil {
-		return fmt.Errorf("failed to flush metrics: %w", err)
+	// check if the consumer is an agentSerializerConsumer
+	// and call the addTelemetryMetric function
+	if agentConsumer, ok := consumer.(*agentSerializerConsumer); ok {
+		agentConsumer.addTelemetryMetric(hostname)
+		agentConsumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
+		if err := agentConsumer.Send(e.s); err != nil {
+			return fmt.Errorf("failed to flush metrics: %w", err)
+		}
 	}
+
 	return nil
 }

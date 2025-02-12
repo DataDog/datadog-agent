@@ -10,11 +10,12 @@ import (
 	"sync"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -26,12 +27,20 @@ const (
 	stability = component.StabilityLevelStable
 )
 
+type ExporterType int
+
+const (
+	Agent ExporterType = iota + 1
+	Collector
+)
+
 type factory struct {
-	s          serializer.MetricSerializer
-	enricher   tagenricher
-	hostGetter SourceProviderFunc
-	statsIn    chan []byte
-	wg         *sync.WaitGroup // waits for consumeStatsPayload to exit
+	s            serializer.MetricSerializer
+	enricher     tagenricher
+	hostGetter   SourceProviderFunc
+	statsIn      chan []byte
+	wg           *sync.WaitGroup // waits for consumeStatsPayload to exit
+	exporterType ExporterType
 }
 
 type tagenricher interface {
@@ -39,14 +48,33 @@ type tagenricher interface {
 	Enrich(ctx context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 }
 
-// NewFactory creates a new serializer exporter factory.
-func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter func(context.Context) (string, error), statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
+// NewAgentFactory creates a new serializer exporter factory.
+func NewAgentFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter func(context.Context) (string, error), statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
 	f := &factory{
-		s:          s,
-		enricher:   enricher,
-		hostGetter: hostGetter,
-		statsIn:    statsIn,
-		wg:         wg,
+		s:            s,
+		enricher:     enricher,
+		hostGetter:   hostGetter,
+		statsIn:      statsIn,
+		wg:           wg,
+		exporterType: Agent,
+	}
+	cfgType, _ := component.NewType(TypeStr)
+
+	return exp.NewFactory(
+		cfgType,
+		newDefaultConfig,
+		exp.WithMetrics(f.createMetricExporter, stability),
+	)
+}
+
+func NewCollectorFactory(s serializer.MetricSerializer, hostGetter func(context.Context) (string, error), statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
+	f := &factory{
+		s:            s,
+		hostGetter:   hostGetter,
+		statsIn:      statsIn,
+		wg:           wg,
+		enricher:     nil,
+		exporterType: Collector,
 	}
 	cfgType, _ := component.NewType(TypeStr)
 
@@ -69,7 +97,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, err
 	}
 
-	newExp, err := NewExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter, f.statsIn)
+	newExp, err := NewExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter, f.statsIn, f.exporterType)
 	if err != nil {
 		return nil, err
 	}
