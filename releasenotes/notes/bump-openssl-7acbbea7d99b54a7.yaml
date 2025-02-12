@@ -1,0 +1,4 @@
+
+security:
+  - |
+    Update OpenSSL from 3.3.2 to 3.3.3 addressing CVE-2024-12797. 
