@@ -14,9 +14,10 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-)
+	"strings"
 
-const maxCudaKernelNameLength = 256
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+)
 
 // CubinKernelKey is the key to identify a kernel in a fatbin
 type CubinKernelKey struct {
@@ -130,47 +131,35 @@ type nvInfoItem struct {
 	Attr   nvInfoAttr
 }
 
-type sectionParserFunc func(*elfSection, []byte) error
-
-type sectionParser struct {
-	prefix []byte
-	parser sectionParserFunc
-}
+type sectionParserFunc func(*safeelf.Section, string) error
 
 // cubinParser is a helper struct to parse the cubin ELF sections
 type cubinParser struct {
-	// kernels is the internal index for the parsed kernels for this cubin file.
-	// The key is the kernel name as a byte array to avoid string allocations on lookup,
-	// as in some situations we are parsing a lot of kernels.
-	kernels        map[[maxCudaKernelNameLength]byte]*CubinKernel
-	sectionParsers []sectionParser
+	kernels            map[string]*CubinKernel
+	sectPrefixToParser map[string]sectionParserFunc
 }
 
 func newCubinParser() *cubinParser {
 	cp := &cubinParser{
-		kernels: make(map[[maxCudaKernelNameLength]byte]*CubinKernel),
+		kernels:            make(map[string]*CubinKernel),
+		sectPrefixToParser: make(map[string]sectionParserFunc),
 	}
 
-	cp.sectionParsers = []sectionParser{
-		{prefix: []byte(".nv.info"), parser: cp.parseNvInfoSection},
-		{prefix: []byte(".text"), parser: cp.parseTextSection},
-		{prefix: []byte(".nv.shared"), parser: cp.parseSharedMemSection},
-		{prefix: []byte(".nv.constant"), parser: cp.parseConstantMemSection},
-	}
+	cp.sectPrefixToParser[".nv.info"] = cp.parseNvInfoSection
+	cp.sectPrefixToParser[".text"] = cp.parseTextSection
+	cp.sectPrefixToParser[".nv.shared"] = cp.parseSharedMemSection
+	cp.sectPrefixToParser[".nv.constant"] = cp.parseConstantMemSection
 
 	return cp
 }
 
-func (cp *cubinParser) getOrCreateKernel(name []byte) *CubinKernel {
-	var nameStr [maxCudaKernelNameLength]byte
-	copy(nameStr[:], name)
-
-	if _, ok := cp.kernels[nameStr]; !ok {
-		cp.kernels[nameStr] = &CubinKernel{
-			Name: string(name),
+func (cp *cubinParser) getOrCreateKernel(name string) *CubinKernel {
+	if _, ok := cp.kernels[name]; !ok {
+		cp.kernels[name] = &CubinKernel{
+			Name: name,
 		}
 	}
-	return cp.kernels[nameStr]
+	return cp.kernels[name]
 }
 
 const elfVersionOffset = 20
@@ -183,29 +172,31 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 	}
 	data[elfVersionOffset] = 1
 
-	lazyReader := newLazySectionReader(bytes.NewReader(data))
+	cubinElf, err := safeelf.NewFile(bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("failed to parse cubin ELF: %w", err)
+	}
+	defer cubinElf.Close()
 
 	// Iterate through all the sections, parse all the ones we know how to parse
-	for sect := range lazyReader.Iterate() {
-		for _, parser := range cp.sectionParsers {
-			if !bytes.HasPrefix(sect.nameBytes, parser.prefix) {
+	for _, sect := range cubinElf.Sections {
+		for prefix, parser := range cp.sectPrefixToParser {
+			prefixWithDot := prefix + "."
+
+			if !strings.HasPrefix(sect.Name, prefix) {
 				continue
 			}
 
-			var kernelName []byte
-			if len(sect.nameBytes) > len(parser.prefix) && sect.nameBytes[len(parser.prefix)] == '.' {
-				kernelName = sect.nameBytes[len(parser.prefix)+1:]
+			var kernelName string
+			if strings.HasPrefix(sect.Name, prefixWithDot) {
+				kernelName = strings.TrimPrefix(sect.Name, prefixWithDot)
 			}
 
-			err := parser.parser(sect, kernelName)
+			err = parser(sect, kernelName)
 			if err != nil {
-				return fmt.Errorf("failed to parse section %s: %w", sect.Name(), err)
+				return fmt.Errorf("failed to parse section %s: %w", sect.Name, err)
 			}
 		}
-	}
-
-	if err := lazyReader.Err(); err != nil {
-		return fmt.Errorf("failed to read ELF sections: %w", err)
 	}
 
 	return nil
@@ -217,15 +208,14 @@ type nvInfoParsedItem struct {
 	value []byte
 }
 
-func (cp *cubinParser) parseNvInfoSection(sect *elfSection, kernelName []byte) error {
-	if len(enabledNvInfoAttrs) == 0 || len(kernelName) == 0 {
+func (cp *cubinParser) parseNvInfoSection(sect *safeelf.Section, kernelName string) error {
+	if len(enabledNvInfoAttrs) == 0 {
 		// if there are no enabled attributes, we don't need to parse the section
-		// same if there's no kernel name
 		return nil
 	}
 
 	items := make(map[nvInfoAttr]nvInfoParsedItem)
-	buffer := sect.Reader()
+	buffer := sect.Open()
 
 	for {
 		var item nvInfoItem
@@ -274,13 +264,15 @@ func (cp *cubinParser) parseNvInfoSection(sect *elfSection, kernelName []byte) e
 		items[item.Attr] = parsedItem
 	}
 
-	cp.getOrCreateKernel(kernelName).attributes = items
+	if kernelName != "" {
+		cp.getOrCreateKernel(kernelName).attributes = items
+	}
 
 	return nil
 }
 
-func (cp *cubinParser) parseTextSection(sect *elfSection, kernelName []byte) error {
-	if len(kernelName) == 0 {
+func (cp *cubinParser) parseTextSection(sect *safeelf.Section, kernelName string) error {
+	if kernelName == "" {
 		return nil
 	}
 
@@ -291,8 +283,8 @@ func (cp *cubinParser) parseTextSection(sect *elfSection, kernelName []byte) err
 	return nil
 }
 
-func (cp *cubinParser) parseSharedMemSection(sect *elfSection, kernelName []byte) error {
-	if len(kernelName) == 0 {
+func (cp *cubinParser) parseSharedMemSection(sect *safeelf.Section, kernelName string) error {
+	if kernelName == "" {
 		return nil
 	}
 
@@ -304,10 +296,10 @@ func (cp *cubinParser) parseSharedMemSection(sect *elfSection, kernelName []byte
 
 var constantSectNameRegex = regexp.MustCompile(`\.nv\.constant\d\.(.*)`)
 
-func (cp *cubinParser) parseConstantMemSection(sect *elfSection, _ []byte) error {
+func (cp *cubinParser) parseConstantMemSection(sect *safeelf.Section, _ string) error {
 	// Constant memory sections are named .nv.constantX.Y where X is the constant memory index and Y is the name
 	// so we have to do some custom parsing
-	match := constantSectNameRegex.FindSubmatch(sect.nameBytes)
+	match := constantSectNameRegex.FindStringSubmatch(sect.Name)
 	if match == nil {
 		// Not a constant memory section. We might be missing the kernel name, for example, which happens
 		// on some binaries. In that case just ignore the section
