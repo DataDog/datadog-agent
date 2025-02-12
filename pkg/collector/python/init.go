@@ -507,12 +507,12 @@ func initPymemTelemetry(d time.Duration) {
 func initFIPS() {
 	fipsEnabled, err := fips.Enabled()
 	if err != nil {
-		log.Warnf("Error checking FIPS mode: %v", err)
+		log.Warnf("could not check FIPS mode: %v", err)
 	}
 	if fipsEnabled {
 		err := enableFIPS(PythonHome)
 		if err != nil {
-			log.Warnf("Error initializing FIPS mode: %v", err)
+			log.Warnf("could not initialize FIPS mode: %v", err)
 		}
 	}
 }
@@ -520,17 +520,17 @@ func initFIPS() {
 // enableFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
 func enableFIPS(embeddedPath string) error {
 	envVars := map[string][]string{
-		"OPENSSL_CONF":   {"ssl", "openssl.cnf"},
-		"OPENSSL_MODULES": {"lib", "ossl-modules"},
+		"OPENSSL_CONF":   {embeddedPath, "ssl", "openssl.cnf"},
+		"OPENSSL_MODULES": {embeddedPath, "lib", "ossl-modules"},
 	}
 
 	for envVar, pathParts := range envVars {
 		if v := os.Getenv(envVar); v != "" {
 			continue
 		}
-		path := filepath.Join(embeddedPath, pathParts...)
+		path := filepath.Join(pathParts...)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return fmt.Errorf("The path %q does not exist", path)
+			return fmt.Errorf("path %q does not exist", path)
 		}
 		os.Setenv(envVar, path)
 	}
