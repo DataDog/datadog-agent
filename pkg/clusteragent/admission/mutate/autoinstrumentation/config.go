@@ -218,6 +218,10 @@ type Target struct {
 	// name and the value is the version to inject. Full config key:
 	// apm_config.instrumentation.targets[].ddTraceVersions
 	TracerVersions map[string]string `mapstructure:"ddTraceVersions"`
+	// TracerConfigs is a list of configuration options to use for the installed tracers. These options will be added
+	// as environment variables in addition to the injected tracer. Full config key:
+	// apm_config.instrumentation.targets[].ddTraceConfigs
+	TracerConfigs []TracerConfig `mapstructure:"ddTraceConfigs" json:"ddTraceConfigs"`
 }
 
 // PodSelector is a reconstruction of the metav1.LabelSelector struct to be able to unmarshal the configuration. It
@@ -293,6 +297,23 @@ func (n NamespaceSelector) AsLabelSelector() (labels.Selector, error) {
 	}
 
 	return metav1.LabelSelectorAsSelector(labelSelector)
+}
+
+// TracerConfig is a struct that stores configuration options for a tracer. These will be injected as environment
+// variables to the workload that matches targeting.
+type TracerConfig struct {
+	// Name is the name of the environment variable.
+	Name string `mapstructure:"name" json:"name"`
+	// Value is the value to use.
+	Value string `mapstructure:"value" json:"value"`
+}
+
+// AsEnvVar converts the TracerConfig to a corev1.EnvVar.
+func (c *TracerConfig) AsEnvVar() corev1.EnvVar {
+	return corev1.EnvVar{
+		Name:  c.Name,
+		Value: c.Value,
+	}
 }
 
 var (
