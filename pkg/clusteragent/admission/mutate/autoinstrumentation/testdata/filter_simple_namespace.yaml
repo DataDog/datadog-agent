@@ -9,3 +9,8 @@ apm_config:
           - "application"
         ddTraceVersions:
           python: "v2"
+        ddTraceConfigs:
+          - name: "DD_PROFILING_ENABLED"
+            value: "true"
+          - name: "DD_DATA_JOBS_ENABLED"
+            value: "true"

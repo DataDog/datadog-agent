@@ -10,20 +10,17 @@ package trivy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime"
 	"slices"
-	"sort"
 	"sync"
-
-	"golang.org/x/xerrors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
@@ -33,7 +30,11 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
+	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
+	"github.com/aquasecurity/trivy/pkg/scanner/local"
+	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
+	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
 	// This is required to load sqlite based RPM databases
 	_ "modernc.org/sqlite"
@@ -63,6 +64,10 @@ type Collector struct {
 	persistentCache  CacheWithCleaner
 	marshaler        cyclonedx.Marshaler
 	wmeta            option.Option[workloadmeta.Component]
+
+	osScanner   ospkg.Scanner
+	langScanner langpkg.Scanner
+	vulnClient  vulnerability.Client
 }
 
 var globalCollector *Collector
@@ -135,6 +140,10 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		analyzer.TypeLicenseFile,
 		analyzer.TypeRpmArchive,
 	)
+
+	// FIXME: the java analyzer requires some javadb, let's skip it for now
+	disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeJar)
+
 	return disabledAnalyzers
 }
 
@@ -153,6 +162,10 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 		wmeta:     wmeta,
+
+		osScanner:   ospkg.NewScanner(),
+		langScanner: langpkg.NewScanner(),
+		vulnClient:  vulnerability.NewClient(db.Config{}),
 	}, nil
 }
 
@@ -251,66 +264,6 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
 
-type driver struct {
-	applier applier.Applier
-}
-
-func (d *driver) Scan(_ context.Context, target, artifactKey string, blobKeys []string, _ types.ScanOptions) (
-	types.Results, ftypes.OS, error) {
-
-	detail, err := d.applier.ApplyLayers(artifactKey, blobKeys)
-	switch {
-	case errors.Is(err, analyzer.ErrUnknownOS):
-		log.Debug("OS is not detected.")
-
-		// Packages may contain OS-independent binary information even though OS is not detected.
-		if len(detail.Packages) != 0 {
-			detail.OS = ftypes.OS{Family: "none"}
-		}
-
-		// If OS is not detected and repositories are detected, we'll try to use repositories as OS.
-		if detail.Repository != nil {
-			log.Debug("Package repository %s, version %s", string(detail.Repository.Family), detail.Repository.Release)
-			log.Debug("Assuming OS family %s, version %s", string(detail.Repository.Family), detail.Repository.Release)
-			detail.OS = ftypes.OS{
-				Family: detail.Repository.Family,
-				Name:   detail.Repository.Release,
-			}
-		}
-	case errors.Is(err, analyzer.ErrNoPkgsDetected):
-		log.Warn("No OS package is detected. Make sure you haven't deleted any files that contain information about the installed packages.")
-		log.Warn(`e.g. files under "/lib/apk/db/", "/var/lib/dpkg/" and "/var/lib/rpm"`)
-	case err != nil:
-		return nil, ftypes.OS{}, xerrors.Errorf("failed to apply layers: %w", err)
-	}
-
-	results := make([]types.Result, 0, 1+len(detail.Applications))
-
-	// main OS result
-	osresult := types.Result{
-		Target: fmt.Sprintf("%s (%s %s)", target, detail.OS.Family, detail.OS.Name),
-		Class:  types.ClassOSPkg,
-		Type:   detail.OS.Family,
-	}
-
-	sort.Sort(detail.Packages)
-	osresult.Packages = detail.Packages
-	results = append(results, osresult)
-
-	for _, app := range detail.Applications {
-		sort.Sort(app.Packages)
-		appresult := types.Result{
-			Target:   app.FilePath,
-			Class:    types.ClassLangPkg,
-			Type:     app.Type,
-			Packages: app.Packages,
-		}
-		results = append(results, appresult)
-	}
-
-	return results, detail.OS, nil
-}
-
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner, useCache bool) (*types.Report, error) {
 	if useCache && imgMeta != nil && cache != nil {
 		// The artifact reference is only needed to clean up the blobs after the scan.
@@ -322,11 +275,12 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
 	}
 
-	s := scanner.NewScanner(&driver{applier: applier}, artifact)
+	localScanner := local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient)
+	s := scanner.NewScanner(localScanner, artifact)
 
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		ScanRemovedPackages: false,
-		PkgTypes:            []types.PkgType{types.PkgTypeOS, types.PkgTypeLibrary},
+		PkgTypes:            types.PkgTypes,
 		PkgRelationships:    ftypes.Relationships,
 		Scanners:            types.Scanners{types.SBOMScanner},
 	})

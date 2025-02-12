@@ -530,7 +530,7 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 	}
 
 	// adapt max instruction limits depending of the kernel version
-	opts := rawpacket.DefaultProgOpts
+	opts := rawpacket.DefaultProgOpts()
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
 		opts.MaxProgSize = 1_000_000
 	}
