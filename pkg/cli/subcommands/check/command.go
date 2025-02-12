@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	auStats "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stats"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -294,7 +295,10 @@ func run(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry)
+	// TODO Ideally we would support RC in the check subcommand,
+	//  but at the moment this is not possible - only one process can access the RC database at a time,
+	//  so the subcommand can't read the RC database if the agent is also running.
+	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -434,7 +438,7 @@ func run(
 
 	// something happened while getting the check(s), display some info.
 	if len(cs) == 0 {
-		for check, error := range autodiscoveryimpl.GetConfigErrors() {
+		for check, error := range auStats.GetConfigErrors() {
 			if cliParams.checkName == check {
 				fmt.Fprintf(color.Output, "\n%s: invalid config for %s: %s\n", color.RedString("Error"), color.YellowString(check), error)
 			}
@@ -447,7 +451,7 @@ func run(
 				}
 			}
 		}
-		for check, warnings := range autodiscoveryimpl.GetResolveWarnings() {
+		for check, warnings := range auStats.GetResolveWarnings() {
 			if cliParams.checkName == check {
 				fmt.Fprintf(color.Output, "\n%s: could not resolve %s config:\n", color.YellowString("Warning"), color.YellowString(check))
 				for _, warning := range warnings {

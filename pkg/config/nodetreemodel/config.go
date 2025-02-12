@@ -17,8 +17,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/viper"
 	"go.uber.org/atomic"
+
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -666,7 +667,7 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 
 // UnmarshalKey unmarshals the data for the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper.DecoderConfigOption) error {
+func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)

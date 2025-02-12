@@ -48,6 +48,8 @@ func TestNewConverterForAgent(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
+	t.Setenv("DD_API_KEY", "")
+	t.Setenv("DD_SITE", "")
 	tests := []struct {
 		name           string
 		provided       string

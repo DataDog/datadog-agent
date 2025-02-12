@@ -588,6 +588,12 @@ func fexitSupported(funcName string) bool {
 	}
 	defer l.Close()
 
+	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	if hasPotentialFentryDeadlock || (err != nil) {
+		// incase of error, let's be safe and assume the bug is present
+		return false
+	}
+
 	return true
 }
 

@@ -14,25 +14,25 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-// SecretClient is a client that can create and delete files containing secrets
-type SecretClient struct {
+// Client is a client that can create and delete files containing secrets
+type Client struct {
 	t       *testing.T
 	rootDir string
 	host    *components.RemoteHost
 }
 
-// NewSecretClient creates a new SecretClient that can create and delete files containing secrets
-func NewSecretClient(t *testing.T, host *components.RemoteHost, rootDir string) *SecretClient {
+// NewClient creates a new Client that can create and delete files containing secrets
+func NewClient(t *testing.T, host *components.RemoteHost, rootDir string) *Client {
 	t.Log("Creating secret client with root directory", rootDir)
-	return &SecretClient{
+	return &Client{
 		t:       t,
 		rootDir: rootDir,
 		host:    host,
 	}
 }
 
-// SetSecret creates a new file containing the secret value
-func (c *SecretClient) SetSecret(name string, value string) int64 {
+// SetSecret creates or updates a file containing the secret value
+func (c *Client) SetSecret(name string, value string) int64 {
 	c.t.Log("Setting secret", name)
 
 	// Create the root directory if it doesn't exist
@@ -46,7 +46,7 @@ func (c *SecretClient) SetSecret(name string, value string) int64 {
 }
 
 // RemoveSecret deletes the file containing the secret
-func (c *SecretClient) RemoveSecret(name string) error {
+func (c *Client) RemoveSecret(name string) error {
 	c.t.Log("Removing secret", name)
 	err := c.host.Remove(path.Join(c.rootDir, name))
 	return err

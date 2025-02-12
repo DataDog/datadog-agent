@@ -13,6 +13,8 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -23,15 +25,14 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/onlycollectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -44,20 +45,17 @@ import (
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	haagentfxnoop "github.com/DataDog/datadog-agent/comp/haagent/fx-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -68,6 +66,63 @@ type CLIParams struct {
 	pidfilePath string
 }
 
+type memoryStats struct {
+	heapSize uint64
+}
+
+type mockSender struct{}
+
+func (m *mockSender) Commit()                                                                     {}
+func (m *mockSender) Gauge(metric string, value float64, hostname string, tags []string)          {}
+func (m *mockSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string)   {}
+func (m *mockSender) Rate(metric string, value float64, hostname string, tags []string)           {}
+func (m *mockSender) Count(metric string, value float64, hostname string, tags []string)          {}
+func (m *mockSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {}
+func (m *mockSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
+}
+func (m *mockSender) Counter(metric string, value float64, hostname string, tags []string)      {}
+func (m *mockSender) Histogram(metric string, value float64, hostname string, tags []string)    {}
+func (m *mockSender) Historate(metric string, value float64, hostname string, tags []string)    {}
+func (m *mockSender) Distribution(metric string, value float64, hostname string, tags []string) {}
+func (m *mockSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
+}
+func (m *mockSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+}
+func (m *mockSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	return nil
+}
+func (m *mockSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	return nil
+}
+func (m *mockSender) Event(e event.Event)                                  {}
+func (m *mockSender) EventPlatformEvent(rawEvent []byte, eventType string) {}
+func (m *mockSender) GetSenderStats() stats.SenderStats {
+	return stats.SenderStats{}
+}
+func (m *mockSender) DisableDefaultHostname(disable bool) {}
+func (m *mockSender) SetCheckCustomTags(tags []string)    {}
+func (m *mockSender) SetCheckService(service string)      {}
+func (m *mockSender) SetNoIndex(noIndex bool)             {}
+func (m *mockSender) FinalizeCheckServiceTag()            {}
+func (m *mockSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
+}
+func (m *mockSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {}
+
+type mockSenderManager struct{}
+
+func (m *mockSenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
+	return &mockSender{}, nil
+}
+func (m *mockSenderManager) SetSender(sender.Sender, checkid.ID) error {
+	return nil
+}
+func (m *mockSenderManager) DestroySender(id checkid.ID) {
+
+}
+func (m *mockSenderManager) GetDefaultSender() (sender.Sender, error) {
+	return &mockSender{}, nil
+}
+
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
 func MakeCommand() *cobra.Command {
 	cliParams := &CLIParams{}
@@ -76,7 +131,12 @@ func MakeCommand() *cobra.Command {
 		Short: "Start Checks Agent",
 		Long:  `Runs Checks Agent in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			return RunChecksAgent(cliParams, "", start)
+			heapSize := getAlloc()
+
+			fmt.Printf("value before Fx components = %d KB\n", heapSize)
+			return RunChecksAgent(cliParams, "", start, memoryStats{
+				heapSize: heapSize,
+			})
 		},
 	}
 
@@ -87,9 +147,10 @@ func MakeCommand() *cobra.Command {
 	return startCmd
 }
 
-func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{}) error {
+func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{}, memstats memoryStats) error {
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
+		fx.Supply(memstats),
 
 		// Configuration
 		fx.Supply(config.NewParams(
@@ -111,24 +172,7 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
 		telemetryimpl.Module(),
-		collectorimpl.Module(),
-		// Sending metrics to the backend
-		metricscompressionimpl.Module(),
-		logscompressionimpl.Module(),
-		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
-		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
-		eventplatformreceiverimpl.Module(),
-		defaultforwarder.Module(defaultforwarder.NewParams()),
-		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
-		// already migrated components to request it.
-		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
-			return demuxInstance.Serializer()
-		}),
-
-		fx.Provide(func(ms serializer.MetricSerializer) option.Option[serializer.MetricSerializer] {
-			return option.New[serializer.MetricSerializer](ms)
-		}),
+		onlycollectorimpl.Module(),
 		hostnameimpl.Module(),
 		remoteTagger.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
@@ -143,25 +187,39 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		}),
 
 		fetchonlyimpl.Module(),
-		haagentfx.Module(),
+		haagentfxnoop.Module(),
 
 		pidimpl.Module(),
 		fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+		fx.Provide(func() sender.SenderManager {
+			return &mockSenderManager{}
+		}),
 	)
 }
 
 func start(
 	cliParams *CLIParams,
+	memoryStats memoryStats,
 	config config.Component,
 	log log.Component,
 	collector collector.Component,
-	demultiplexer demultiplexer.Component,
+	senderManager sender.SenderManager,
 	tagger tagger.Component,
 	authToken authtoken.Component,
 	telemetry telemetry.Component,
 	_ pid.Component,
 ) error {
+	currentheapSize := getAlloc()
+	fmt.Printf("value after Fx components = %d KB\n", currentheapSize)
+	fmt.Printf("heap size delta after components initialization = %d KB\n", heapDelta(memoryStats.heapSize, currentheapSize))
 
+	// Free memory after initializing all components to return memory to the OS
+	// as soon as possible. That way RSS will be lower
+	debug.FreeOSMemory()
+
+	currentheapSize = getAlloc()
+	fmt.Printf("value after FreeOSMemory = %d KB\n", currentheapSize)
+	fmt.Printf("heap size delta after FreeOSMemory = %d KB\n", heapDelta(memoryStats.heapSize, currentheapSize))
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -201,13 +259,11 @@ func start(
 
 	client := core.NewAgentSecureClient(conn)
 
-	// TODO: figure out how to initial.ize checks context
+	// TODO: figure out how to initial.ize checks contexts
 	// check.InitializeInventoryChecksContext(invChecks)
-	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
-	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
-	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, option.None[integrations.Component](), tagger)
+	scheduler := pkgcollector.InitCheckScheduler(option.New(collector), &mockSenderManager{}, option.None[integrations.Component](), tagger)
 
-	// // Start the scheduler
+	// Start the scheduler
 	go startScheduler(ctx, StreamCancel, client, scheduler, log)
 
 	stopCh := make(chan struct{})
@@ -216,10 +272,6 @@ func start(
 	err = Run(ctx, cliParams, config, log)
 	if err != nil {
 		return err
-	}
-
-	if err := setupInternalProfiling(config); err != nil {
-		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
 	}
 
 	// Block here until we receive a stop signal
@@ -280,6 +332,15 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 	log.Info("See ya!")
 	log.Flush()
 }
+
+// type auConfig struct {
+// 	integration.Config
+// 	EventType string `json:"event_type,omitempty"`
+// }
+
+// type results struct {
+// 	Results map[string][]auConfig `json:"result,omitempty"`
+// }
 
 type autodiscoveryStream struct {
 	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
@@ -347,10 +408,10 @@ func startScheduler(ctx context.Context, f context.CancelFunc, client core.Agent
 		unscheduleConfigs := []integration.Config{}
 
 		for _, config := range streamConfigs.Configs {
-			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType.String(), config.Name)
-			if config.EventType == core.ConfigEventType_SCHEDULE {
+			log.Infof("received autodiscovery scheduler config event %s for check %s", config.EventType, config.CheckName)
+			if config.EventType == core.ConfigEventType_SCHEDULE.String() {
 				scheduleConfigs = append(scheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
-			} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
+			} else if config.EventType == core.ConfigEventType_UNSCHEDULE.String() {
 				unscheduleConfigs = append(unscheduleConfigs, proto.AutodiscoveryConfigFromProtobufConfig(config))
 			}
 		}
@@ -360,8 +421,25 @@ func startScheduler(ctx context.Context, f context.CancelFunc, client core.Agent
 	}
 }
 
+// heapDelta returns the delta in KB between
+// the current heap size and the previous heap size.
+func heapDelta(prev, cur uint64) uint64 {
+	if cur < prev {
+		return 0
+	}
+	return cur - prev
+}
+
+// getAlloc returns the current heap size in KB.
+func getAlloc() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.Alloc / 1024
+}
+
 func setupInternalProfiling(_ config.Component) error {
 	return nil
+
 }
 
 func startPprof(_ config.Component, _ telemetry.Component) {}

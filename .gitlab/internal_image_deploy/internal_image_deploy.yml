@@ -46,6 +46,7 @@ docker_trigger_internal:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
 
 docker_trigger_internal-fips:
   stage: internal_image_deploy
@@ -91,6 +92,7 @@ docker_trigger_internal-fips:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
 
 docker_trigger_internal-ot:
   stage: internal_image_deploy
@@ -136,6 +138,7 @@ docker_trigger_internal-ot:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
 
 docker_trigger_cluster_agent_internal:
   stage: internal_image_deploy
@@ -182,6 +185,7 @@ docker_trigger_cluster_agent_internal:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2
 
 docker_trigger_cws_instrumentation_internal:
   stage: internal_image_deploy
@@ -228,3 +232,4 @@ docker_trigger_cws_instrumentation_internal:
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+  retry: 2

@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 /*
@@ -137,6 +138,8 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 
 // Run a Python check
 func (c *PythonCheck) Run() error {
+	rss.Before("PythonCheck.Run")
+	defer rss.After("PythonCheck.Run")
 	return c.runCheck(true)
 }
 
@@ -182,6 +185,11 @@ func (c *PythonCheck) IsTelemetryEnabled() bool {
 // ConfigSource returns the source of the configuration for this check
 func (c *PythonCheck) ConfigSource() string {
 	return c.source
+}
+
+// Loader returns the check loader
+func (*PythonCheck) Loader() string {
+	return PythonCheckLoaderName
 }
 
 // InitConfig returns the init_config configuration for the check.

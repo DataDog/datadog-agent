@@ -38,7 +38,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `chown` | File | A file’s owner was changed | 7.27 |
 | `connect` | Network | A connect was executed | 7.60 |
 | `dns` | Network | A DNS request was sent | 7.36 |
-| `exec` | Process | A process was executed or forked | 7.27 |
+| `exec` | Process | A process was executed (does not trigger on fork syscalls). | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
 | `imds` | Network | An IMDS event was captured | 7.55 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
@@ -572,7 +572,7 @@ A DNS request was sent
 
 ### Event `exec`
 
-A process was executed or forked
+A process was executed (does not trigger on fork syscalls).
 
 | Property | Definition |
 | -------- | ------------- |

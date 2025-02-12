@@ -16,10 +16,9 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -132,7 +131,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		createdAt:          time.Now(),
 	}
 
-	pkgCollector.InitPython(common.GetPythonPaths()...)
+	pkgCollector.InitPython(pkgCollector.GetPythonPaths()...)
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: c.start,
@@ -190,7 +189,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager, c.haAgent)
+	run := runner.NewRunner(c.senderManager, c.haAgent, false)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler

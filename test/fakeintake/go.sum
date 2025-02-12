@@ -1,5 +1,5 @@
-github.com/DataDog/agent-payload/v5 v5.0.141 h1:pV76CyTUEe/LFuS7fwarIfOX5seSuYZylzhj1aGY2DQ=
-github.com/DataDog/agent-payload/v5 v5.0.141/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.143 h1:a2A1yp3Gj918nKWo9yPiG67dSviIFJGO7HhkPm1aUV4=
+github.com/DataDog/agent-payload/v5 v5.0.143/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/zstd v1.5.6 h1:LbEglqepa/ipmmQJUDnSsfvA8e8IStVcGaFWDuxvGOY=

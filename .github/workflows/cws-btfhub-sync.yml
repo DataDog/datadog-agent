@@ -61,7 +61,7 @@ jobs:
           persist-credentials: false
 
       - name: Install python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version-file: .python-version
           cache: 'pip'
@@ -102,7 +102,7 @@ jobs:
           ref: ${{ inputs.base_branch || 'main' }}
 
       - name: Install python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version-file: .python-version
           cache: 'pip'
@@ -130,7 +130,7 @@ jobs:
         run: |
           echo "BRANCH_NAME=cws/constants-sync-$(date +%s)" >> $GITHUB_OUTPUT
 
-      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
+      - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
         id: commit-creator
         with:
           commit_message: "CWS: sync BTFhub constants"

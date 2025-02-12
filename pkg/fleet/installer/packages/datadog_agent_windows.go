@@ -128,6 +128,8 @@ func installAgentPackage(target string, args []string) error {
 		msi.WithMsiFromPackagePath(target, datadogAgent),
 		msi.WithDdAgentUserName(agentUser),
 		msi.WithAdditionalArgs(args),
+		// The Agent package is not serviceable by the end user.
+		msi.HideControlPanelEntry(),
 		msi.WithLogFile(path.Join(tempDir, "msi.log")),
 	)
 	var output []byte

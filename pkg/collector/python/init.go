@@ -20,15 +20,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 /*
@@ -232,20 +228,8 @@ func init() {
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
-	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
-	// in integrations, which causes a 10MB memory increase.
-	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
-	// (https://github.com/pypa/setuptools/issues/3625),
-	// and Python 3.12 removes distutils from the standard library.
-	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
-	// which means we will get the memory increase again if integrations still use distutils.
-
-	// This must happen as early as possible in the process lifetime to avoid data race with
-	// `getenv`. Ideally before we start any goroutines that call native code or open network
-	// connections.
-	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
-		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
-	}
+	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
+	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -263,23 +247,23 @@ func addExpvarPythonInitErrors(msg string) error {
 	return errors.New(msg)
 }
 
-func sendTelemetry(pythonVersion string) {
-	tags := []string{
-		fmt.Sprintf("python_version:%s", pythonVersion),
-	}
-	if agentVersion, err := version.Agent(); err == nil {
-		tags = append(tags,
-			fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
-			fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
-			fmt.Sprintf("agent_version_patch:%d", agentVersion.Patch),
-		)
-	}
-	aggregator.AddRecurrentSeries(&metrics.Serie{
-		Name:   "datadog.agent.python.version",
-		Points: []metrics.Point{{Value: 1.0}},
-		Tags:   tagset.CompositeTagsFromSlice(tags),
-		MType:  metrics.APIGaugeType,
-	})
+func sendTelemetry(_ string) {
+	// tags := []string{
+	// 	fmt.Sprintf("python_version:%s", pythonVersion),
+	// }
+	// if agentVersion, err := version.Agent(); err == nil {
+	// 	tags = append(tags,
+	// 		fmt.Sprintf("agent_version_major:%d", agentVersion.Major),
+	// 		fmt.Sprintf("agent_version_minor:%d", agentVersion.Minor),
+	// 		fmt.Sprintf("agent_version_patch:%d", agentVersion.Patch),
+	// 	)
+	// }
+	// aggregator.AddRecurrentSeries(&metrics.Serie{
+	// 	Name:   "datadog.agent.python.version",
+	// 	Points: []metrics.Point{{Value: 1.0}},
+	// 	Tags:   tagset.CompositeTagsFromSlice(tags),
+	// 	MType:  metrics.APIGaugeType,
+	// })
 }
 
 func pathToBinary(name string, ignoreErrors bool) (string, error) {

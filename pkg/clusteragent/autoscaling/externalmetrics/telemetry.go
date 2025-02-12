@@ -13,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -49,7 +48,7 @@ var (
 
 	elapsedTelemetry = telemetry.NewHistogramWithOpts("external_metrics", "api_elapsed",
 		[]string{"handler", "in_error"}, "Wall time spent on API request (seconds)",
-		prometheus.DefBuckets,
+		[]float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 

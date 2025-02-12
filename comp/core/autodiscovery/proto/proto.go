@@ -38,7 +38,7 @@ func ProtobufConfigFromAutodiscoveryConfig(config *integration.Config) *core.Con
 	}
 
 	return &core.Config{
-		Name:                    config.Name,
+		CheckName:               config.Name,
 		Instances:               instances,
 		InitConfig:              config.InitConfig,
 		MetricConfig:            config.MetricConfig,
@@ -84,7 +84,7 @@ func AutodiscoveryConfigFromProtobufConfig(config *core.Config) integration.Conf
 	}
 
 	return integration.Config{
-		Name:                    config.Name,
+		Name:                    config.CheckName,
 		Instances:               instances,
 		InitConfig:              config.InitConfig,
 		MetricConfig:            config.MetricConfig,

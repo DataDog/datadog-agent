@@ -10,6 +10,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 )
 
 type component struct{}
@@ -20,7 +21,10 @@ type Provides struct {
 }
 
 func (*component) NewCompressor(kind string, level int) compression.Compressor {
-	return selector.NewCompressor(kind, level)
+	rss.Before("NewCompressor")
+	compressor := selector.NewCompressor(kind, level)
+	rss.After("NewCompressor")
+	return compressor
 }
 
 // NewComponent creates a new logscompression component.

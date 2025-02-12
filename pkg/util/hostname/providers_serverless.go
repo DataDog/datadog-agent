@@ -18,3 +18,8 @@ func GetWithProvider(ctx context.Context) (Data, error) {
 func Get(ctx context.Context) (string, error) {
 	return "", nil
 }
+
+// GetWithLegacyResolutionProvider returns the hostname for the Agent and the provider that was used to retrieve it without using IMDSv2 and MDI
+func GetWithLegacyResolutionProvider(ctx context.Context) (Data, error) {
+	return Data{}, nil
+}

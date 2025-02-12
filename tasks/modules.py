@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import tempfile
 from collections import defaultdict
@@ -273,3 +274,85 @@ def show_all(_, base_dir: str = '.', ignored=False):
 
     print('\n'.join(sorted(names)))
     print(len(names), 'modules')
+
+
+def remove_replace_rules(data: str) -> str:
+    # remove all replace block
+    data = re.sub("\tgithub.com/DataDog/datadog-agent/.+ => .+", '', data)
+    data = re.sub("replace github.com/DataDog/datadog-agent/[^ ]+ => .+", '', data)
+    data = re.sub(r"replace \(\s+\)", '', data)
+    data = re.sub(r"// This section was automatically added by 'invoke modules\..+", '', data)
+    return data
+
+
+def update_go_mod(gomod_list, root):
+    file = "go.mod"
+    repo_name = "github.com/DataDog/datadog-agent/"
+    replace_comment = (
+        "// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually\n\n"
+    )
+
+    gomod_file = os.path.join(root, file)
+    print("Updating:", gomod_file)
+    with open(gomod_file) as f:
+        gomod = f.read()
+
+    prefix = re.sub(r"[^/\.]+", "..", root)
+    if prefix.endswith("/"):
+        prefix = prefix[:-1]
+
+    # remove all replace block
+    gomod = remove_replace_rules(gomod)
+
+    # inject all replace rules at the bottom
+    gomod += "\n" + replace_comment
+    gomod += "replace (\n"
+
+    for mod in gomod_list:
+        if root.endswith(mod):
+            # don't add a replace for the current module
+            continue
+        gomod += f"\t{repo_name}{mod} => {prefix}/{mod}\n"
+
+    gomod += ")\n"
+
+    # Last cleanup: remove concurrent line break
+    gomod = re.sub("\n{3,}", "\n\n", gomod)
+
+    with open(os.path.join(root, file), "w") as f:
+        f.write(gomod)
+        f.truncate()
+
+
+@task
+def add_all_replace(ctx: Context):
+    """
+    This command will add all the replace rules to all go.mod even if not used. This ensures that go mod tidy will work
+    and no replace rule is missing.
+
+    It's meant to be used as the following:
+    - running `inv modules.add-all-replace` to add all possible replace rules to all go.mod
+    - `inv tidy` to update all the go.mod
+
+    This solves the problem of `go mod tidy` failing if some replace rules are missing but needing `go mod tidy` to run
+    successfully to know which replace rules are needed. This is a major pain point when creating/moving go.mod.
+
+    While this is a brute force approach it's the only way to ensure that all replace are in place while circumventing
+    limitations from go toolings:
+    - 'go list' only list the dependencies from go mod. This means that if a local version of module as a new dependency
+      compare to the latest release version 'go list' will not show it. This means that our previous tooling would not
+      detect a missing replace until the local version is released.
+    - 'go mod tidy' requires all the replace rules to succeed. But in order of knowing which replace rules are needed we
+      need 'go mod tidy' to run successfully.
+
+    After months of pain and manually editing our 150+ go.mod in this repo we have come to this.
+    """
+
+    # First we find all go.mod in comp and pkg
+    gomods = [mods for mods in get_default_modules().keys() if mods.split(os.sep)[0] not in ["tools", "internal"]]
+    mod_to_replace = sorted(gomods)
+    mod_to_replace.remove(".")
+
+    # Second we iterate over all go.mod and update them
+    for folder in gomods:
+        update_go_mod(mod_to_replace, folder)

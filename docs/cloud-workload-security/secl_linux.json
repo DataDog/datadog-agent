@@ -2007,7 +2007,7 @@
     },
     {
       "name": "exec",
-      "definition": "A process was executed or forked",
+      "definition": "A process was executed (does not trigger on fork syscalls).",
       "type": "Process",
       "from_agent_version": "7.27",
       "experimental": false,

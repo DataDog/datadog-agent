@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"html/template"
 	"io"
@@ -24,7 +25,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/dvsekhvalnov/jose2go/base64url"
 	"github.com/gorilla/mux"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
@@ -196,7 +196,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, e.Error(), 500)
 	}
 
-	token := base64url.Encode(key)
+	token := base64.RawURLEncoding.EncodeToString(key)
 	g.intentTokens[token] = true
 	w.Write([]byte(token))
 }

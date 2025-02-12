@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 
@@ -98,10 +99,8 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 
 // DefaultDisabledCollectors returns default disabled collectors
 func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
-	sort.Strings(enabledAnalyzers)
 	analyzersDisabled := func(analyzers string) bool {
-		index := sort.SearchStrings(enabledAnalyzers, analyzers)
-		return index >= len(enabledAnalyzers) || enabledAnalyzers[index] != analyzers
+		return !slices.Contains(enabledAnalyzers, analyzers)
 	}
 
 	var disabledAnalyzers []analyzer.Type

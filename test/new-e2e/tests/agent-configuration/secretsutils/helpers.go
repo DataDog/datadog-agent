@@ -22,13 +22,18 @@ import (
 //go:embed fixtures/secret-resolver.py
 var secretResolverScript string
 
-// WithUnixSecretSetupScript returns an agent param that setups a secret resolver script with correct permissions.
-func WithUnixSecretSetupScript(path string, allowGroupExec bool) func(*agentparams.Params) error {
-	return agentparams.WithFileWithPermissions(path, secretResolverScript, true, WithUnixSecretPermissions(allowGroupExec))
+// WithUnixSetupScript returns an agent param that setups the default secret resolver script with correct permissions.
+func WithUnixSetupScript(path string, allowGroupExec bool) func(*agentparams.Params) error {
+	return WithUnixSetupCustomScript(path, secretResolverScript, allowGroupExec)
 }
 
-// WithUnixSecretPermissions returns an UnixPermissions object containing correct permissions for a secret backend script.
-func WithUnixSecretPermissions(allowGroupExec bool) option.Option[perms.FilePermissions] {
+// WithUnixSetupCustomScript returns an agent param that setups a custom secret resolver script with correct permissions.
+func WithUnixSetupCustomScript(path string, scriptContent string, allowGroupExec bool) func(*agentparams.Params) error {
+	return agentparams.WithFileWithPermissions(path, scriptContent, true, withUnixPermissions(allowGroupExec))
+}
+
+// withUnixPermissions returns an UnixPermissions object containing correct permissions for a secret backend script.
+func withUnixPermissions(allowGroupExec bool) option.Option[perms.FilePermissions] {
 	if allowGroupExec {
 		return perms.NewUnixPermissions(perms.WithPermissions("0750"), perms.WithOwner("dd-agent"), perms.WithGroup("root"))
 	}
@@ -39,8 +44,13 @@ func WithUnixSecretPermissions(allowGroupExec bool) option.Option[perms.FilePerm
 //go:embed fixtures/secret_wrapper.bat
 var secretWrapperScript string
 
-// WithWindowsSecretSetupScript returns a list of agent params that setups a secret resolver script with correct permissions.
-func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []func(*agentparams.Params) error {
+// WithWindowsSetupScript returns a list of agent params that setups the default secret resolver script with correct permissions.
+func WithWindowsSetupScript(path string, allowGroupExec bool) []func(*agentparams.Params) error {
+	return WithWindowsSetupCustomScript(path, secretResolverScript, allowGroupExec)
+}
+
+// WithWindowsSetupCustomScript returns a list of agent params that setups a secret resolver script with correct permissions.
+func WithWindowsSetupCustomScript(wrapperPath string, scriptContent string, allowGroupExec bool) []func(*agentparams.Params) error {
 	// On Windows we're using a wrapper around the python script because we can't execute python scripts directly
 	// (this would require modifying permissions of the python binary)
 	// Basically the setup looks like this:
@@ -55,13 +65,13 @@ func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []fun
 	secretWrapperContent := fillSecretWrapperTemplate(strings.ReplaceAll(pythonScriptPath, "/", "\\"))
 
 	return []func(*agentparams.Params) error{
-		agentparams.WithFileWithPermissions(wrapperPath, secretWrapperContent, true, WithWindowsSecretPermissions(allowGroupExec)),
-		agentparams.WithFile(pythonScriptPath, secretResolverScript, true),
+		agentparams.WithFileWithPermissions(wrapperPath, secretWrapperContent, true, withWindowsPermissions(allowGroupExec)),
+		agentparams.WithFile(pythonScriptPath, scriptContent, true),
 	}
 }
 
-// WithWindowsSecretSetupScriptNoPerms returns a list of agent params that setups a secret resolver script with no permissions.
-func WithWindowsSecretSetupScriptNoPerms(wrapperPath string) []func(*agentparams.Params) error {
+// WithWindowsSetupScriptNoPerms returns a list of agent params that setups a secret resolver script with no permissions.
+func WithWindowsSetupScriptNoPerms(wrapperPath string) []func(*agentparams.Params) error {
 	wrapperPath = strings.ReplaceAll(wrapperPath, `\`, `/`)
 
 	dir, _ := filepath.Split(wrapperPath)
@@ -74,8 +84,8 @@ func WithWindowsSecretSetupScriptNoPerms(wrapperPath string) []func(*agentparams
 	}
 }
 
-// WithWindowsSecretPermissions returns a WindowsPermissions object containing correct permissions for a secret backend script.
-func WithWindowsSecretPermissions(allowGroupExec bool) option.Option[perms.FilePermissions] {
+// withWindowsPermissions returns a WindowsPermissions object containing correct permissions for a secret backend script.
+func withWindowsPermissions(allowGroupExec bool) option.Option[perms.FilePermissions] {
 	icaclsCmd := `/grant "ddagentuser:(RX)"`
 	if allowGroupExec {
 		icaclsCmd += ` "Administrators:(RX)"`

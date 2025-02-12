@@ -21,6 +21,17 @@ apm_config:
             language: "java"
         ddTraceVersions:
           java: "default"
+      - name: "Enabled Prod Namespaces"
+        namespaceSelector:
+          matchLabels:
+            tracing: "yes"
+          matchExpressions:
+            - key: "env"
+              operator: "In"
+              values:
+                - "prod"
+        ddTraceVersions:
+          dotnet: "v1"
       - name: "Unknown Language"
         podSelector:
           matchLabels:

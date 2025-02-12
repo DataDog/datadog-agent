@@ -44,28 +44,28 @@ type TransactionRetryQueue struct {
 
 // BuildTransactionRetryQueue builds a new instance of TransactionRetryQueue
 func BuildTransactionRetryQueue(
-	log log.Component,
+	_ log.Component,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
-	optionalDomainFolderPath string,
-	optionalDiskUsageLimit *DiskUsageLimit,
+	_ string,
+	_ *DiskUsageLimit,
 	dropPrioritySorter TransactionPrioritySorter,
 	resolver resolver.DomainResolver,
 	pointCountTelemetry *PointCountTelemetry) *TransactionRetryQueue {
 	var storage TransactionDiskStorage
-	var err error
+	// var err error
 	domain := resolver.GetBaseDomain()
 
-	if optionalDomainFolderPath != "" && optionalDiskUsageLimit != nil {
-		serializer := NewHTTPTransactionsSerializer(log, resolver)
-		storage, err = newOnDiskRetryQueue(log, serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()), pointCountTelemetry)
+	// if optionalDomainFolderPath != "" && optionalDiskUsageLimit != nil {
+	// 	serializer := NewHTTPTransactionsSerializer(log, resolver)
+	// 	storage, err = newOnDiskRetryQueue(log, serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()), pointCountTelemetry)
 
-		// If the storage on disk cannot be used, log the error and continue.
-		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.
-		if err != nil {
-			log.Errorf("Error when creating the file storage: %v", err)
-		}
-	}
+	// 	// If the storage on disk cannot be used, log the error and continue.
+	// 	// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.
+	// 	if err != nil {
+	// 		log.Errorf("Error when creating the file storage: %v", err)
+	// 	}
+	// }
 
 	return NewTransactionRetryQueue(
 		dropPrioritySorter,

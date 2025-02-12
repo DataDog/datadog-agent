@@ -1349,9 +1349,13 @@ def bump_integrations_core(ctx, slack_webhook=None):
     """
     Create a PR to bump the integrations core fields in the release.json file
     """
+    github_workflow_url = ""
     if os.environ.get("GITHUB_ACTIONS"):
         set_git_config('user.name', 'github-actions[bot]')
         set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+        github_server_url = os.environ.get("GITHUB_SERVER_URL")
+        github_run_id = os.environ.get("GITHUB_RUN_ID")
+        github_workflow_url = f"{github_server_url}/{GITHUB_REPO_NAME}/actions/runs/{github_run_id}"
 
     commit_hash = get_git_references(ctx, "integrations-core", "HEAD").split()[0]
 
@@ -1367,7 +1371,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
     ctx.run(f"git checkout -b {bump_integrations_core_branch}")
     ctx.run("git add release.json")
 
-    commit_message = "Update integrations core to HEAD"
+    commit_message = "bump integrations core to HEAD"
     ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
     if not ok:
         raise Exit(
@@ -1391,7 +1395,9 @@ def bump_integrations_core(ctx, slack_webhook=None):
     current = current_version(ctx, 7)
     current.rc = False
     current.devel = False
-    pr_url = create_datadog_agent_pr(commit_message, main_branch, bump_integrations_core_branch, str(current))
+    pr_url = create_datadog_agent_pr(
+        commit_message, main_branch, bump_integrations_core_branch, str(current), body=github_workflow_url
+    )
 
     if slack_webhook:
         payload = {'pr_url': pr_url}

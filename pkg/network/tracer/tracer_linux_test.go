@@ -25,7 +25,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -85,7 +84,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), 2*time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -105,7 +104,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	c.Close()
 
 	// Create a new client
-	c2, err := net.DialTimeout("tcp", server.Address(), 1*time.Second)
+	c2, err := server.Dial()
 	require.NoError(t, err)
 
 	// Send a messages
@@ -155,7 +154,7 @@ func (s *TracerSuite) TestTCPRetransmit() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +210,7 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -292,7 +291,7 @@ func (s *TracerSuite) TestTCPRTT() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -349,7 +348,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +399,7 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 
 	// Write 5 bytes to TCP socket
@@ -467,7 +466,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	_, port, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err, "could not split server address %s", server.Address())
 
-	c, err := net.Dial("tcp", "2.2.2.2:"+port)
+	c, err := tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		c.Close()
@@ -520,7 +519,6 @@ func (s *TracerSuite) TestConntrackDelays() {
 	skipOnEbpflessNotSupported(t, cfg)
 
 	netlinktestutil.SetupDNAT(t)
-	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, cfg)
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
@@ -529,9 +527,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 	// Letting the OS pick an open port is necessary to avoid flakiness in the test. Running the the test multiple
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
 	server := tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
-		wg.Add(1)
-		defer wg.Done()
-		defer c.Close()
+		defer tracertestutil.GracefulCloseTCP(c)
 
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
@@ -541,9 +537,9 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 	_, port, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err)
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%s", port))
+	c, err := tracertestutil.DialTCP("tcp", fmt.Sprintf("2.2.2.2:%s", port))
 	require.NoError(t, err)
-	defer c.Close()
+	defer tracertestutil.GracefulCloseTCP(c)
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
@@ -557,7 +553,6 @@ func (s *TracerSuite) TestConntrackDelays() {
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
 	require.NoError(t, err)
-	wg.Wait()
 }
 
 func (s *TracerSuite) TestTranslationBindingRegression() {
@@ -567,15 +562,12 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	skipOnEbpflessNotSupported(t, cfg)
 
 	netlinktestutil.SetupDNAT(t)
-	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, cfg)
 
 	// Setup TCP server
 	server := tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
-		wg.Add(1)
-		defer wg.Done()
-		defer c.Close()
+		defer tracertestutil.GracefulCloseTCP(c)
 
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
@@ -586,9 +578,9 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	// Send data to 2.2.2.2 (which should be translated to 1.1.1.1)
 	_, port, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err)
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%s", port))
+	c, err := tracertestutil.DialTCP("tcp", fmt.Sprintf("2.2.2.2:%s", port))
 	require.NoError(t, err)
-	defer c.Close()
+	defer tracertestutil.GracefulCloseTCP(c)
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
@@ -616,7 +608,6 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
 	require.NoError(t, err)
-	wg.Wait()
 }
 
 func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
@@ -910,7 +901,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	var conn *network.ConnectionStats
 	t.Run("client in root namespace", func(t *testing.T) {
-		c, err := net.DialTimeout("tcp", server.Address(), 2*time.Second)
+		c, err := server.Dial()
 		require.NoError(t, err)
 
 		// write some data
@@ -940,7 +931,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var c net.Conn
 		err = kernel.WithNS(test2Ns, func() error {
 			var err error
-			c, err = net.DialTimeout("tcp", server.Address(), 2*time.Second)
+			c, err = server.Dial()
 			return err
 		})
 		require.NoError(t, err)
@@ -1116,7 +1107,7 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 	require.NoError(t, err)
 
 	var conn net.Conn
-	conn, err = net.Dial("tcp", "2.2.2.2:"+port)
+	conn, err = tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err, "error connecting to client")
 	t.Cleanup(func() {
 		conn.Close()
@@ -1719,7 +1710,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				require.NoError(t, server.Run())
 
 				// Connect to TCP server
-				c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+				c, err := tracertestutil.DialTCP("tcp", server.Address())
 				require.NoError(t, err)
 
 				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd.Load() })
@@ -1790,7 +1781,7 @@ func (s *TracerSuite) TestSendfileError() {
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
 
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 
 	// Send file contents via SENDFILE(2)
@@ -1949,21 +1940,21 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	tr := setupTracer(t, testConfig())
 	ch := make(chan struct{})
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		defer tracertestutil.GracefulCloseTCP(c)
 		_, err := c.Write([]byte("foo"))
 		require.NoError(t, err, "error writing to client")
 		time.Sleep(time.Second)
 		_, err = c.Write([]byte("foo"))
 		require.NoError(t, err, "error writing to client")
-		<-ch
 	})
 
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
 	t.Cleanup(func() { close(ch) })
 
-	c, err := net.DialTimeout("tcp", server.Address(), 5*time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
-	defer c.Close()
+	defer tracertestutil.GracefulCloseTCP(c)
 
 	rawConn, err := c.(syscall.Conn).SyscallConn()
 	require.NoError(t, err, "error getting raw conn")
@@ -2019,12 +2010,12 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 			}
 			_, _ = c.Write(genPayload(serverMessageSize))
 		}
-		c.Close()
+		tracertestutil.GracefulCloseTCP(c)
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	t.Cleanup(func() { c.Close() })
 
@@ -2041,7 +2032,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	_, err = r.ReadBytes(byte('\n'))
 	require.NoError(t, err)
 
-	c.Close()
+	tracertestutil.GracefulCloseTCP(c)
 
 	var incoming, outgoing *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -2127,7 +2118,7 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
 
-	c, err := net.DialTimeout("tcp", server.Address(), 5*time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 
 	// Enable BPF-based system probe
@@ -2432,9 +2423,8 @@ func (s *TracerSuite) TestConnectionDuration() {
 	require.NoError(t, srv.Run(), "error running server")
 	t.Cleanup(srv.Shutdown)
 
-	srvAddr := srv.Address()
-	c, err := net.DialTimeout("tcp", srvAddr, time.Second)
-	require.NoError(t, err, "could not connect to server at %s", srvAddr)
+	c, err := srv.Dial()
+	require.NoError(t, err)
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	t.Cleanup(ticker.Stop)
@@ -2583,7 +2573,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
 
 	// Attempt to connect to the DNAT address (2.2.2.2), which should be redirected to the server at 1.1.1.1
 	serverAddr := "2.2.2.2:80"
-	c, err := net.Dial("tcp", serverAddr)
+	c, err := tracertestutil.DialTCP("tcp", serverAddr)
 	require.NoError(t, err, "could not connect to server: ", err)
 
 	// Write to the server and expect a reset
@@ -2649,6 +2639,7 @@ func (s *TracerSuite) TestTLSClassification() {
 			postTracerSetup: func(t *testing.T) (uint16, uint16) {
 				srv := usmtestutil.NewTLSServerWithSpecificVersion("localhost:0", func(conn net.Conn) {
 					defer conn.Close()
+					tracertestutil.SetTestDeadline(conn)
 					_, err := io.Copy(conn, conn)
 					if err != nil {
 						fmt.Printf("Failed to echo data: %v\n", err)
@@ -2674,7 +2665,7 @@ func (s *TracerSuite) TestTLSClassification() {
 					SessionTicketsDisabled: true,
 					ClientSessionCache:     nil,
 				}
-				conn, err := net.Dial("tcp", addr)
+				conn, err := tracertestutil.DialTCP("tcp", addr)
 				require.NoError(t, err)
 				defer conn.Close()
 
@@ -2705,7 +2696,8 @@ func (s *TracerSuite) TestTLSClassification() {
 						return
 					}
 					go func(c net.Conn) {
-						defer c.Close()
+						tracertestutil.SetTestDeadline(c)
+						defer tracertestutil.GracefulCloseTCP(c)
 						buf := make([]byte, 1024)
 						_, _ = c.Read(buf)
 						// Do nothing with the data
@@ -2722,9 +2714,10 @@ func (s *TracerSuite) TestTLSClassification() {
 			port := uint16(portInt)
 
 			// Client connects to the server
-			conn, err := net.Dial("tcp", addr)
+			conn, err := tracertestutil.DialTCP("tcp", addr)
 			require.NoError(t, err)
-			defer conn.Close()
+			defer tracertestutil.GracefulCloseTCP(conn)
+			tracertestutil.SetTestDeadline(conn)
 
 			// Send invalid TLS handshake data
 			_, err = conn.Write([]byte("invalid TLS data"))
@@ -2825,4 +2818,122 @@ func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
 	if cfg.EnableEbpfless {
 		t.Skip("TODO: ebpf-less")
 	}
+}
+
+func getHandshakeBuffer(t *testing.T, srvAddr string) []byte {
+	rawConn, err := tracertestutil.DialTCP("tcp", srvAddr)
+	require.NoError(t, err)
+	defer rawConn.Close()
+
+	client := tls.Client(rawConn, &tls.Config{InsecureSkipVerify: true})
+	_ = client.Handshake() // Perform the handshake
+
+	response := make([]byte, 1024)
+	n, err := rawConn.Read(response)
+	require.NoError(t, err)
+	return response[:n]
+}
+
+func waitForTracer(t *testing.T, tr *Tracer, srvAddr string) {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		client, err := tracertestutil.DialTCP("tcp", srvAddr)
+		require.NoError(collect, err)
+		defer client.Close()
+
+		conns := getConnections(collect, tr)
+		_, found := findConnection(client.LocalAddr(), client.RemoteAddr(), conns)
+		require.True(collect, found)
+	}, time.Second*15, time.Second)
+}
+
+func sendMessage(t *testing.T, conn net.Conn, message []byte) []byte {
+	_, err := conn.Write(message)
+	require.NoError(t, err)
+
+	response := make([]byte, len(message))
+	_, err = conn.Read(response)
+	require.NoError(t, err)
+
+	return response
+}
+
+func (s *TracerSuite) TestRawTLSClient() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	srv := usmtestutil.NewTCPServer("localhost:9999", func(conn net.Conn) {
+		defer conn.Close()
+		_, _ = io.Copy(conn, conn)
+	}, false)
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+	require.NoError(t, srv.Run(done))
+
+	waitForTracer(t, tr, srv.Address())
+	handshake := getHandshakeBuffer(t, srv.Address())
+
+	tr.RemoveClient(clientID)
+	require.NoError(t, tr.RegisterClient(clientID))
+
+	t.Run("TLS then HTTP", func(t *testing.T) {
+		conn, err := tracertestutil.DialTCP("tcp", srv.Address())
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sendMessage(t, conn, handshake)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns := getConnections(collect, tr)
+			c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+			require.True(collect, found)
+			assert.True(collect, c.ProtocolStack.Contains(protocols.TLS), "expected TLS protocol")
+		}, time.Second*5, time.Millisecond*200)
+
+		// Now send HTTP traffic, which should not be classified as TLS was already detected
+		sendMessage(t, conn, []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"))
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns := getConnections(collect, tr)
+			c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+			require.True(collect, found)
+			assert.True(collect, c.ProtocolStack.Contains(protocols.TLS), "expected TLS protocol")
+			assert.False(collect, c.ProtocolStack.Contains(protocols.HTTP), "not expected HTTP protocol")
+		}, time.Second*5, time.Millisecond*200)
+	})
+
+	tr.RemoveClient(clientID)
+	require.NoError(t, tr.RegisterClient(clientID))
+
+	t.Run("HTTP then TLS", func(t *testing.T) {
+		conn, err := tracertestutil.DialTCP("tcp", srv.Address())
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Now send HTTP traffic, which should not be classified as TLS was already detected
+		sendMessage(t, conn, []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"))
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns := getConnections(collect, tr)
+			c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+			require.True(collect, found)
+			assert.False(collect, c.ProtocolStack.Contains(protocols.TLS), "not expected TLS protocol")
+			assert.True(collect, c.ProtocolStack.Contains(protocols.HTTP), "expected HTTP protocol")
+		}, time.Second*5, time.Millisecond*200)
+
+		sendMessage(t, conn, handshake)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns := getConnections(collect, tr)
+			c, found := findConnection(conn.LocalAddr(), conn.RemoteAddr(), conns)
+			require.True(collect, found)
+			assert.False(collect, c.ProtocolStack.Contains(protocols.TLS), "not expected TLS protocol")
+			assert.True(collect, c.ProtocolStack.Contains(protocols.HTTP), "expected HTTP protocol")
+		}, time.Second*5, time.Millisecond*200)
+	})
 }

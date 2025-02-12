@@ -1426,12 +1426,13 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	}
 }
 
-func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
+func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 	tests := []struct {
-		name     string
-		conf     map[string]map[string]string
-		extra    map[string]map[string]string
-		expected map[string]map[string]string
+		name                    string
+		shouldTransformResource bool
+		conf                    map[string]map[string]string
+		extra                   map[string]map[string]string
+		expected                map[string]map[string]string
 	}{
 		{
 			name:     "nominal",
@@ -1469,12 +1470,17 @@ func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
 			extra:    defaultAnnotationsAsTags(),
 			expected: defaultAnnotationsAsTags(),
 		},
+		{
+			name:     "resource annotations as tags",
+			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"foo": "bar"}},
+			extra:    map[string]map[string]string{"endpoints.v1": {"foo": "bar"}, "daemonsets.apps/v1": {"fizz": "buzz"}, "pods": {"common_key": "some_val", "another_key": "another_value"}, "deployments.apps": {"foo": "another_bar", "fizz": "buzz"}},
+			expected: map[string]map[string]string{"pod": {"common_key": "in_val", "another_key": "another_value"}, "endpoint": {"foo": "bar"}, "daemonset": {"fizz": "buzz"}, "deployment": {"foo": "bar", "fizz": "buzz"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			k := &KSMCheck{instance: &KSMConfig{AnnotationsAsTags: tt.conf}}
-			k.mergeAnnotationsAsTags(tt.extra)
-			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.AnnotationsAsTags))
+			annotationsAsTags := mergeLabelsOrAnnotationAsTags(tt.extra, tt.conf)
+			assert.True(t, reflect.DeepEqual(tt.expected, annotationsAsTags))
 		})
 	}
 }

@@ -72,6 +72,7 @@ exporters:
       cert_file: ""
       cert_pem: "[REDACTED]"
       cipher_suites: []
+      curve_preferences: []
       include_system_ca_certs_pool: false
       insecure: false
       insecure_skip_verify: false
@@ -183,10 +184,14 @@ service:
       readers:
         - pull:
             exporter:
-              additionalproperties:
               prometheus:
                 host: localhost
                 port: 8888
+                with_resource_constant_labels:
+                  included: []
+                without_scope_info: true
+                without_type_suffix: true
+                without_units: true
     resource: {}
     traces:
       level: Basic

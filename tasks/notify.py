@@ -90,7 +90,7 @@ def check_consistent_failures(ctx, pipeline_id, job_failures_file="job_execution
     # The jobs dictionary contains the consecutive and cumulative failures for each job
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
-    if not should_notify(pipeline_id) or os.environ['CI_COMMIT_BRANCH'] != os.environ['CI_DEFAULT_BRANCH']:
+    if not should_notify(pipeline_id) or os.environ.get('CI_COMMIT_BRANCH') != os.environ['CI_DEFAULT_BRANCH']:
         print("Consistent failures check is only run on the not-downstream default branch")
         return
 

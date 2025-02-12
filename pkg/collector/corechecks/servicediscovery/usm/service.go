@@ -40,7 +40,6 @@ const (
 )
 
 const (
-	javaJarFlag      = "-jar"
 	javaJarExtension = ".jar"
 	javaWarExtension = ".war"
 	dllExtension     = ".dll"

@@ -1,0 +1,11 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "Application Namespace"
+        namespaceSelector:
+          matchNames:
+          - "application"
+        ddTraceVersions:
+          python: "v2"

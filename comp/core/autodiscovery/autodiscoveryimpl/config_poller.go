@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/stats"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -190,7 +191,7 @@ func (cp *configPoller) collectOnce(ctx context.Context, provider providers.Coll
 			}
 
 			// Clear any old errors if a valid config file is found
-			errorStats.removeConfigError(config.Name)
+			stats.RemoveConfigError(config.Name)
 		}
 
 		config.Provider = cp.provider.String()

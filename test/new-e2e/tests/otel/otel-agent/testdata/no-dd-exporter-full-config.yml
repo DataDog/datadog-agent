@@ -70,6 +70,7 @@ exporters:
       cert_file: ""
       cert_pem: '[REDACTED]'
       cipher_suites: []
+      curve_preferences: []
       include_system_ca_certs_pool: false
       insecure: false
       insecure_skip_verify: false
@@ -203,7 +204,7 @@ receivers:
         job_name: datadog-agent
         metrics_path: /metrics
         scheme: http
-        scrape_interval: 10s
+        scrape_interval: 1m
         scrape_protocols:
         - OpenMetricsText1.0.0
         - OpenMetricsText0.0.1
@@ -273,10 +274,14 @@ service:
       readers:
       - pull:
           exporter:
-            additionalproperties: null
             prometheus:
               host: localhost
               port: 8888
+              with_resource_constant_labels:
+                included: []
+              without_scope_info: true
+              without_type_suffix: true
+              without_units: true
     resource: {}
     traces:
       level: Basic

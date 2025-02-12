@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/stats"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -368,16 +369,16 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
-		errorStats.setResolveWarning(tpl.Name, msg)
+		stats.SetResolveWarning(tpl.Name, msg)
 		return tpl, false
 	}
 	resolvedConfig, err := decryptConfig(config, cm.secretResolver)
 	if err != nil {
 		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
-		errorStats.setResolveWarning(tpl.Name, msg)
+		stats.SetResolveWarning(tpl.Name, msg)
 		return config, false
 	}
-	errorStats.removeResolveWarnings(tpl.Name)
+	stats.RemoveResolveWarnings(tpl.Name)
 	return resolvedConfig, true
 }
 

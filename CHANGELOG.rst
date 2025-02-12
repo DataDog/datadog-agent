@@ -2,6 +2,50 @@
 Release Notes
 =============
 
+.. _Release Notes_7.62.2:
+
+7.62.2
+======
+
+.. _Release Notes_7.62.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-10
+
+- Please refer to the `7.62.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7622>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.62.2_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Removes Datadog user's full control of the Datadog data directory on Windows.
+  If you are using custom configured values for log files, confd_path, run_path, or additional_checksd
+  that are within the Datadog ProgramData folder, then you will have to explicitly give the Datadog user
+  write permissions to the folders and files configured.
+
+
+.. _Release Notes_7.62.2_Security Notes:
+
+Security Notes
+--------------
+
+- Removes Datadog user's full control of the Datadog data directory on Windows.
+
+
+.. _Release Notes_7.62.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, ensures the ipc_perm.pem file's permissions are updated during installation.
+
+- Disables fentry by default in event stream.
+
+
 .. _Release Notes_7.62.1:
 
 7.62.1

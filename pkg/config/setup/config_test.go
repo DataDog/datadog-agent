@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -692,9 +693,9 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.input_chan_size"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.processing_chan_size"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
+	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
 	assert.Equal(t, 15*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
 	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
@@ -1074,7 +1075,7 @@ func TestPeerTagsEnv(t *testing.T) {
 
 func TestLogDefaults(t *testing.T) {
 	// New config
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	c := viperconfig.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
 	require.Equal(t, "", c.GetString("log_file_max_size"))
 	require.Equal(t, "", c.GetString("log_file"))
@@ -1093,7 +1094,7 @@ func TestLogDefaults(t *testing.T) {
 
 	// SystemProbe config
 
-	SystemProbe := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	SystemProbe := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	InitSystemProbeConfig(SystemProbe)
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
@@ -1434,7 +1435,7 @@ func TestServerlessConfigNumComponents(t *testing.T) {
 }
 
 func TestServerlessConfigInit(t *testing.T) {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	initCommonWithServerless(conf)
 
@@ -1450,7 +1451,7 @@ func TestServerlessConfigInit(t *testing.T) {
 
 func TestDisableCoreAgent(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 
 	InitConfig(conf)
@@ -1473,7 +1474,7 @@ func TestDisableCoreAgent(t *testing.T) {
 
 func TestAPMObfuscationDefaultValue(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	InitConfig(conf)
 	assert.True(t, conf.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
@@ -1516,7 +1517,7 @@ func TestAgentConfigInit(t *testing.T) {
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
-	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	cfg := viperconfig.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	data := `scrubber.additional_keys:
 - yet_another_key

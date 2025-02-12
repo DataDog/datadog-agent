@@ -322,7 +322,7 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 }
 
 func getPayload(a *atel) (*Payload, error) {
-	payloadJSON, err := a.GetAsJSON()
+	payloadJSON, err := a.getAsJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -835,7 +835,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
 
-	payloadJSON, err := a.GetAsJSON()
+	payloadJSON, err := a.getAsJSON()
 	require.NoError(t, err)
 	var payload map[string]interface{}
 	err = json.Unmarshal(payloadJSON, &payload)

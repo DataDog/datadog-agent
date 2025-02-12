@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/rss"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -73,7 +74,7 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger) {
-		checkScheduler.AddLoader(loader)
+		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
 	return checkScheduler
@@ -81,6 +82,8 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
+	rss.Before("CheckScheduler.Schedule")
+	defer rss.After("CheckScheduler.Schedule")
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
@@ -143,8 +146,8 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 // Stop is a stub to satisfy the scheduler interface
 func (s *CheckScheduler) Stop() {}
 
-// AddLoader adds a new Loader that AutoConfig can use to load a check.
-func (s *CheckScheduler) AddLoader(loader check.Loader) {
+// addLoader adds a new Loader that AutoConfig can use to load a check.
+func (s *CheckScheduler) addLoader(loader check.Loader) {
 	for _, l := range s.loaders {
 		if l == loader {
 			log.Warnf("Loader %s was already added, skipping...", loader)

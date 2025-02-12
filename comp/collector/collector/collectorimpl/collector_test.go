@@ -19,7 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"

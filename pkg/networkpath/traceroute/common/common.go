@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/gopacket/layers"
 	"golang.org/x/net/ipv4"
 )
 
@@ -33,7 +32,8 @@ type (
 	Hop struct {
 		IP       net.IP
 		Port     uint16
-		ICMPType layers.ICMPv4TypeCode
+		ICMPType uint8
+		ICMPCode uint8
 		RTT      time.Duration
 		IsDest   bool
 	}

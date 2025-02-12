@@ -7,6 +7,7 @@ import platform
 import re
 import subprocess
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from functools import lru_cache
 
 import requests
@@ -40,7 +41,7 @@ class GithubAPI:
 
     def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
-        self._github = Github(auth=self._auth)
+        self._github = Github(auth=self._auth, per_page=100)
         org = repository.split("/")
         self._organization = org[0] if len(org) > 1 else None
         self._repository = self._github.get_repo(repository)
@@ -611,6 +612,41 @@ class GithubAPI:
             return 'long review'
         return 'medium review'
 
+    def find_all_teams(self, obj, exclude_teams=None, exclude_permissions=None):
+        """Get all the repositories teams, including the nested ones."""
+        teams = []
+        for team in obj.get_teams():
+            if (
+                exclude_teams
+                and team.name in exclude_teams
+                or exclude_permissions
+                and team.permission in exclude_permissions
+            ):
+                continue
+            teams.append(team)
+            teams.extend(self.find_all_teams(team))
+        return teams
+
+    def get_active_users(self, duration_days=183):
+        """Get the set of reviewers within the last <duration_days>"""
+        actors = set()
+        since_date = datetime.now() - timedelta(days=duration_days)
+        for pr in self._repository.get_pulls(state="all"):
+            actors.add(pr.user.login)
+            if pr.created_at < since_date:
+                break
+            for review in pr.get_reviews():
+                if review.user:
+                    actors.add(review.user.login)
+        return actors
+
+    def get_direct_team_members(self, team):
+        query = '{ organization(login: "datadog") { team(slug: "TEAM")  { members(membership: IMMEDIATE) { nodes { login } } } } }'.replace(
+            "TEAM", team
+        )
+        data = self.graphql(query)
+        return [member["login"] for member in data["data"]["organization"]["team"]["members"]["nodes"]]
+
 
 def get_github_teams(users):
     for user in users:
@@ -641,7 +677,7 @@ def get_user_query(login):
     return query + string_var
 
 
-def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None):
+def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
@@ -660,7 +696,7 @@ Make sure that milestone is open before trying again.""",
 
     pr = github.create_pr(
         pr_title=title,
-        pr_body="",
+        pr_body=body,
         base_branch=base_branch,
         target_branch=target_branch,
     )

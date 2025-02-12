@@ -41,6 +41,8 @@ REQUIRED_JOBS = [
     "dogstatsd_rpm-x64",
     "security_go_generate_check",
     "lint_python",
+    "single-machine-performance-regression_detector",
+    "single-machine-performance-regression_detector-pr-comment",
 ]
 
 

@@ -286,7 +286,7 @@ func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest, expir
 	podDetails := requestData.PodDetails
 
 	for _, podDetail := range podDetails {
-		namespacedOwnerRef := langUtil.GetNamespacedBaseOwnerReference(podDetail)
+		namespacedOwnerRef := langUtil.GetNamespacedBaseOwnerReference(podDetail.Ownerref.Kind, podDetail.Ownerref.Name, podDetail.Namespace)
 
 		if _, found := langUtil.SupportedBaseOwners[namespacedOwnerRef.Kind]; found {
 			containersLanguages := *getContainersLanguagesFromPodDetail(podDetail, expirationTime)

@@ -220,3 +220,8 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
+
+if linux_target? or windows_target?
+  strip_build windows_target? || !do_package
+  debug_path '.debug'
+end

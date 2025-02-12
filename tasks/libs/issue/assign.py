@@ -140,7 +140,6 @@ def team_to_label(team):
         'telemetry-and-analytics': "agent-apm",
         'fleet': "fleet-automation",
         'debugger': "dynamic-intrumentation",
-        'container-integrations': "containers",
         'agent-e2e-testing': "agent-e2e-test",
         'agent-integrations': "integrations",
         'asm-go': "agent-security",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from dataclasses import dataclass
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from invoke.context import Context
 
@@ -10,6 +10,7 @@ import tasks
 from tasks.github_tasks import (
     Exit,
     assign_team_label,
+    check_permissions,
     check_qa_labels,
     extract_test_qa_description,
     pr_merge_dd_event_sender,
@@ -464,3 +465,138 @@ class TestCheckQALabels(unittest.TestCase):
                     self.assertEqual(exception.message.split("\n")[0], tc.expected_error, f"Test case: {tc.name}")
                     continue
                 self.fail(f"Test case: {tc.name} should not have raised an error")
+
+
+class TestCheckPermissions(unittest.TestCase):
+    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch('slack_sdk.WebClient', autospec=True)
+    @patch("tasks.libs.ciproviders.github_api.GithubAPI", autospec=True)
+    def test_empty_team(self, gh_mock, web_mock):
+        gh_api, team_a, client_mock = MagicMock(), MagicMock(), MagicMock()
+        team_a.name = "secret-agent"
+        team_a.html_url = "http://secret-agent"
+        gh_api.find_all_teams.return_value = [team_a]
+        gh_mock.return_value = gh_api
+        web_mock.return_value = client_mock
+        check_permissions(Context(), "antagonist-ai")
+        client_mock.chat_postMessage.assert_called_once_with(
+            channel="agent-devx-help",
+            blocks=[
+                {
+                    'type': 'header',
+                    'text': {'type': 'plain_text', 'text': ':github: antagonist-ai permissions check\n'},
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': "Teams with no contributors:\n - <http://secret-agent|secret-agent>\n",
+                    },
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': 'Please check the `antagonist-ai` <https://github.com/DataDog/antagonist-ai/settings/access|settings>.',
+                    },
+                },
+            ],
+            text=":github: antagonist-ai permissions check\nTeams:\n - <http://secret-agent|secret-agent>\n",
+        )
+
+    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch('slack_sdk.WebClient', autospec=True)
+    @patch("tasks.libs.ciproviders.github_api.GithubAPI", autospec=True)
+    def test_idle_team(self, gh_mock, web_mock):
+        gh_api, team_a, client_mock = MagicMock(), MagicMock(), MagicMock()
+        team_a.name = "secret-agent"
+        team_a.html_url = "http://secret-agent"
+        gh_api.find_all_teams.return_value = [team_a]
+        gh_api.get_active_users.return_value = {'zorro', 'bernardo', 'garcia'}
+        gh_api.get_direct_team_members.return_value = ['tornado']
+        gh_mock.return_value = gh_api
+        web_mock.return_value = client_mock
+        check_permissions(Context(), "antagonist-ai")
+        client_mock.chat_postMessage.assert_called_once_with(
+            channel="agent-devx-help",
+            blocks=[
+                {
+                    'type': 'header',
+                    'text': {'type': 'plain_text', 'text': ':github: antagonist-ai permissions check\n'},
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': 'Teams with no contributors:\n - <http://secret-agent|secret-agent>\n',
+                    },
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': 'Users with no contribution:\n',
+                    },
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': ' - <https://github.com/orgs/DataDog/teams/secret-agent|secret-agent>: tornado',
+                    },
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': 'Please check the `antagonist-ai` <https://github.com/DataDog/antagonist-ai/settings/access|settings>.',
+                    },
+                },
+            ],
+            text=":github: antagonist-ai permissions check\nTeams:\n - <http://secret-agent|secret-agent>\nContributors: defaultdict(<class 'set'>, {'secret-agent': {'tornado'}})\n",
+        )
+
+    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch('slack_sdk.WebClient', autospec=True)
+    @patch("tasks.libs.ciproviders.github_api.GithubAPI", autospec=True)
+    def test_idle_contributor(self, gh_mock, web_mock):
+        gh_api, team_a, client_mock = MagicMock(), MagicMock(), MagicMock()
+        team_a.name = "secret-agent"
+        team_a.html_url = "http://secret-agent"
+        gh_api.find_all_teams.return_value = [team_a]
+        gh_api.get_active_users.return_value = {'zorro', 'bernardo', 'DonDiegoDeLaVega', 'garcia'}
+        gh_api.get_direct_team_members.return_value = ['tornado', 'DonDiegoDeLaVega']
+        gh_mock.return_value = gh_api
+        web_mock.return_value = client_mock
+        check_permissions(Context(), "antagonist-ai")
+        client_mock.chat_postMessage.assert_called_once_with(
+            channel="agent-devx-help",
+            blocks=[
+                {
+                    'type': 'header',
+                    'text': {'type': 'plain_text', 'text': ':github: antagonist-ai permissions check\n'},
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': 'Users with no contribution:\n',
+                    },
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': ' - <https://github.com/orgs/DataDog/teams/secret-agent|secret-agent>: tornado',
+                    },
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': 'Please check the `antagonist-ai` <https://github.com/DataDog/antagonist-ai/settings/access|settings>.',
+                    },
+                },
+            ],
+            text=":github: antagonist-ai permissions check\nContributors: defaultdict(<class 'set'>, {'secret-agent': {'tornado'}})\n",
+        )

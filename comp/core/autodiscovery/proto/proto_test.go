@@ -55,7 +55,7 @@ func TestProtobufConfigFromAutodiscoveryConfig(t *testing.T) {
 				LogsExcluded:            true,
 			},
 			expected: &core.Config{
-				Name: "test_config",
+				CheckName: "test_config",
 				Instances: [][]byte{
 					[]byte("instance1"),
 					[]byte("instance2"),
@@ -109,7 +109,7 @@ func TestProtobufConfigFromAutodiscoveryConfig(t *testing.T) {
 				LogsExcluded:            true,
 			},
 			expected: &core.Config{
-				Name: "test_config",
+				CheckName: "test_config",
 				Instances: [][]byte{
 					[]byte("instance1"),
 				},
@@ -161,7 +161,7 @@ func TestAutodiscoveryConfigFromProtobufConfig(t *testing.T) {
 		{
 			name: "all fields set",
 			input: &core.Config{
-				Name: "test_config",
+				CheckName: "test_config",
 				Instances: [][]byte{
 					[]byte("instance1"),
 					[]byte("instance2"),
@@ -228,7 +228,7 @@ func TestAutodiscoveryConfigFromProtobufConfig(t *testing.T) {
 		{
 			name: "some fields set",
 			input: &core.Config{
-				Name: "test_config",
+				CheckName: "test_config",
 				Instances: [][]byte{
 					[]byte("instance1"),
 				},

@@ -10,33 +10,54 @@ enum ConfigEventType {
 }
 
 message KubeNamespacedName {
+  // @gotags: json:"name"
   string name = 1;
+  // @gotags: json:"namespace"
   string namespace = 2;
 }
 
 message AdvancedADIdentifier {
-	KubeNamespacedName kubeService   = 1;
-	KubeNamespacedName kubeEndpoints = 2;
+  // @gotags: json:"kube_service"
+	KubeNamespacedName kube_service   = 1;
+  // @gotags: json:"kube_endpoints"
+	KubeNamespacedName kube_endpoints = 2;
 }
 
 message Config {
-  string name = 1;
+  // @gotags: json:"check_name"
+  string check_name = 1;
+  // @gotags: json:"instances"
   repeated bytes instances = 2;
-  bytes initConfig = 3;
-  bytes metricConfig = 4;
-  bytes logsConfig = 5;
-  repeated string adIdentifiers = 6;
-  repeated AdvancedADIdentifier advancedAdIdentifiers = 7;
+  // @gotags: json:"init_config"
+  bytes init_config = 3;
+  // @gotags: json:"metrics_config"
+  bytes metric_config = 4;
+  // @gotags: json:"logs_config"
+  bytes logs_config = 5;
+  // @gotags: json:"ad_identifiers"
+  repeated string ad_identifiers = 6;
+  // @gotags: json:"advance_ad_identifiers"
+  repeated AdvancedADIdentifier advanced_ad_identifiers = 7;
+  // @gotags: json:"provider"
   string provider = 8;
-  string serviceId = 9;
-  string taggerEntity = 10;
-  bool clusterCheck = 11;
-  string nodeName = 12;
+  // @gotags: json:"service_id"
+  string service_id = 9;
+  // @gotags: json:"-"
+  string tagger_entity = 10;
+  // @gotags: json:"cluster_check"
+  bool cluster_check = 11;
+  // @gotags: json:"node_name"
+  string node_name = 12;
+  // @gotags: json:"source"
   string source = 13;
-  bool ignoreAutodiscoveryTags = 14;
-  bool metricsExcluded = 15;
-  bool logsExcluded = 16;
-  ConfigEventType eventType = 17;
+  // @gotags: json:"ignore_autodiscovery_tags"
+  bool ignore_autodiscovery_tags = 14;
+  // @gotags: json:"metrics_excluded"
+  bool metrics_excluded = 15;
+  // @gotags: json:"logs_excluded"
+  bool logs_excluded = 16;
+  // @gotags: json:"event_type"
+  string event_type = 17;
 }
 
 message AutodiscoveryStreamResponse {

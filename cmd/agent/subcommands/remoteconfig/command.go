@@ -7,25 +7,18 @@
 package remoteconfig
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/flare"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -63,43 +56,43 @@ func state(_ *cliParams, config config.Component) error {
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
 
-	token, err := security.FetchAuthToken(config)
-	if err != nil {
-		return fmt.Errorf("couldn't get auth token: %w", err)
-	}
+	// token, err := security.FetchAuthToken(config)
+	// if err != nil {
+	// 	return fmt.Errorf("couldn't get auth token: %w", err)
+	// }
 
-	ctx, closeFn := context.WithCancel(context.Background())
-	defer closeFn()
-	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
-	}
-	ctx = metadata.NewOutgoingContext(ctx, md)
+	// ctx, closeFn := context.WithCancel(context.Background())
+	// defer closeFn()
+	// md := metadata.MD{
+	// 	"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+	// }
+	// ctx = metadata.NewOutgoingContext(ctx, md)
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
-	}
+	// ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	// if err != nil {
+	// 	return err
+	// }
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
-	if err != nil {
-		return err
-	}
-	in := new(emptypb.Empty)
+	// cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+	// if err != nil {
+	// 	return err
+	// }
+	// in := new(emptypb.Empty)
 
-	s, err := cli.GetConfigState(ctx, in)
-	if err != nil {
-		return fmt.Errorf("couldn't get the repositories state: %w", err)
-	}
+	// s, err := cli.GetConfigState(ctx, in)
+	// if err != nil {
+	// 	return fmt.Errorf("couldn't get the repositories state: %w", err)
+	// }
 
-	var stateHA *pbgo.GetStateConfigResponse
-	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
-		stateHA, err = cli.GetConfigStateHA(ctx, in)
-		if err != nil {
-			return fmt.Errorf("couldn't get the HA repositories state: %w", err)
-		}
-	}
+	// var stateHA *pbgo.GetStateConfigResponse
+	// if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
+	// 	stateHA, err = cli.GetConfigStateHA(ctx, in)
+	// 	if err != nil {
+	// 		return fmt.Errorf("couldn't get the HA repositories state: %w", err)
+	// 	}
+	// }
 
-	flare.PrintRemoteConfigStates(os.Stdout, s, stateHA)
+	// flare.PrintRemoteConfigStates(os.Stdout, s, stateHA)
 
 	return nil
 }

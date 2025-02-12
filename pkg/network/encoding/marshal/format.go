@@ -157,17 +157,9 @@ func FormatCompilationTelemetry(builder *model.ConnectionsBuilder, telByAsset ma
 
 // FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatConnectionTelemetry(builder *model.ConnectionsBuilder, tel map[network.ConnTelemetryType]int64) {
-	// Fetch USM payload telemetry
-	ret := GetUSMPayloadTelemetry()
-
-	// Merge it with NPM telemetry
 	for k, v := range tel {
-		ret[string(k)] = v
-	}
-
-	for k, v := range ret {
 		builder.AddConnTelemetryMap(func(w *model.Connections_ConnTelemetryMapEntryBuilder) {
-			w.SetKey(k)
+			w.SetKey(string(k))
 			w.SetValue(v)
 		})
 	}

@@ -887,9 +887,6 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 			tags = append(tags, "package_version:"+version.AgentPackageVersion)
 		}
 	}
-	if agg.haAgent.Enabled() {
-		tags = append(tags, "ha_agent_enabled:true")
-	}
 	// nil to empty string
 	// This is expected by other components/tests
 	if tags == nil {
