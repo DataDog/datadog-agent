@@ -738,10 +738,15 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	return factories
 }
 
+// Init initializes both the "status" and "max" counters associated with an operation's retries
+// We need to track two fields in the map because we need to both:
+// - keep track of the maximum backoff reached (otherwise we couldn't exponentially backoff)
+// - keep track of the current backoff's status, decrementing by 1 each attempt
 func (k *KSMCheck) Init(name string, backoff int) {
 	k.backoffStore[name] = map[string]int{backoffStatus: backoff, backoffMax: backoff}
 }
 
+// Get returns the current backoff's status, i.e. how many checks to skip until retrying
 func (k *KSMCheck) Get(name string) (int, bool) {
 	backoff, found := k.backoffStore[name]
 	if !found {
@@ -756,6 +761,7 @@ func (k *KSMCheck) Get(name string) (int, bool) {
 	return b, found
 }
 
+// Decrement decreases the current backoff's status by N steps, called each time an attempt is skipped
 func (k *KSMCheck) Decrement(name string, step int) bool {
 	backoff, ok := k.backoffStore[name]
 	if !ok {
@@ -770,6 +776,9 @@ func (k *KSMCheck) Decrement(name string, step int) bool {
 	return true
 }
 
+// ExponentialIncrease increases the previous max backoff by a supplied factor, and sets the current
+// backoff status to the new max
+// e.g. if the previous max was 2, this would set both max and status to 4
 func (k *KSMCheck) ExponentialIncrease(name string, factor int, max int) bool {
 	backoff, ok := k.backoffStore[name]
 	if !ok {
