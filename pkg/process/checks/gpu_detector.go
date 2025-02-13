@@ -19,6 +19,7 @@ type GPUDetector struct {
 	wmeta       workloadmeta.Component
 }
 
+// NewGPUDetector creates a new GPUDetector instance
 func NewGPUDetector(wmeta workloadmeta.Component) *GPUDetector {
 	return &GPUDetector{
 		stopCh: make(chan struct{}),
@@ -70,14 +71,17 @@ func (g *GPUDetector) Run() {
 	}
 }
 
+// IsGPUDetected checks if a GPU has been detected
 func (g *GPUDetector) IsGPUDetected() bool {
 	return g.gpuDetected.Load()
 }
 
+// SetGPUDetected sets the GPU detected status
 func (g *GPUDetector) SetGPUDetected(value bool) {
 	g.gpuDetected.Store(value)
 }
 
+// Stop stops the GPU detector
 func (g *GPUDetector) Stop() {
 	close(g.stopCh)
 }
