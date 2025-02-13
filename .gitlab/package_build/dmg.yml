@@ -212,6 +212,8 @@ new-agent_dmg-x64-a7:
       mkdir -p $HOME/go
       echo 'export GOPATH=$HOME/go' >> ~/.build_setup
       echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
+      export GO_VERSION="$(cat .go-version)"
+      eval "$(gimme $GO_VERSION)"
     - . ~/.build_setup
     # - export AGENT_DIR="$GOPATH/src/github.com/DataDog/datadog-agent"
     # # Clone agent
