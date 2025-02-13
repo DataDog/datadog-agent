@@ -121,8 +121,12 @@ type fieldValueMetric struct {
 
 var metricNameToFieldID = []fieldValueMetric{
 	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP},
-	{"nvlink.bandwidth.c0", nvml.FI_DEV_NVLINK_BANDWIDTH_C0_TOTAL},
-	{"nvlink.bandwidth.c1", nvml.FI_DEV_NVLINK_BANDWIDTH_C1_TOTAL},
+	//we don't want to use bandwidth fields as they are deprecated:
+	//https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2049-L2057
+	{"nvlink.throughput.data.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX},
+	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX},
+	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX},
+	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX},
 	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER},
 	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL},
 }
