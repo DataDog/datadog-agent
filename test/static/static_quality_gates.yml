@@ -70,11 +70,11 @@ static_quality_gate_docker_agent_arm64:
 
 static_quality_gate_docker_agent_jmx_amd64:
   max_on_wire_size: "393.75 MiB"
-  max_on_disk_size: "1134.21 MiB"
+  max_on_disk_size: "1130.17 MiB"
 
 static_quality_gate_docker_agent_jmx_arm64:
   max_on_wire_size: "373.71 MiB"
-  max_on_disk_size: "1134.64 MiB"
+  max_on_disk_size: "1131.13 MiB"
 
 static_quality_gate_docker_dogstatsd_amd64:
   max_on_wire_size: "28.29 MiB"
