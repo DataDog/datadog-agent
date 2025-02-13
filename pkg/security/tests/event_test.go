@@ -291,7 +291,7 @@ func TestEventProductTags(t *testing.T) {
 
 	rule := &rules.RuleDefinition{
 		ID:          "event_product_tags",
-		Expression:  `open.file.path == "{{.Root}}/test-event-ruletags" && open.flags&O_CREAT == O_CREAT`,
+		Expression:  `open.file.path == "{{.Root}}/test-event-product-tags" && open.flags&O_CREAT == O_CREAT`,
 		ProductTags: []string{"tag:test_tag"},
 	}
 
@@ -301,7 +301,7 @@ func TestEventProductTags(t *testing.T) {
 	}
 	defer test.Close()
 
-	testFile, _, err := test.Path("test-event-ruletags")
+	testFile, _, err := test.Path("test-event-product-tags")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +314,7 @@ func TestEventProductTags(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(rule *rules.Rule, _ *model.Event) bool {
 			assert.Contains(t, rule.Tags, "tag:test_tag")
 			return true
 		}, getEventTimeout, "event_product_tags")
