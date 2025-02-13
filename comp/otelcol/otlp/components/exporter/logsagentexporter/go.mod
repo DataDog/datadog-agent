@@ -8,8 +8,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.25.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.25.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.26.0
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v0.119.0
@@ -58,7 +58,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.34.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.35.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.24.0 // indirect
 	github.com/DataDog/sketches-go v1.4.6 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
@@ -121,14 +121,14 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c // indirect
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/oauth2 v0.25.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/term v0.28.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287 // indirect
+	golang.org/x/net v0.35.0 // indirect
+	golang.org/x/oauth2 v0.26.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/term v0.29.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250212204824-5a70512c5d8b // indirect
 	google.golang.org/grpc v1.70.0 // indirect
-	google.golang.org/protobuf v1.36.4 // indirect
+	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

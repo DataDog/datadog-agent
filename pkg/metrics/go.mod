@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.25.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 )
@@ -84,7 +84,7 @@ require (
 	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	google.golang.org/protobuf v1.36.4 // indirect
+	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
