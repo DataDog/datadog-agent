@@ -44,8 +44,6 @@ func (certificateFactory) Generate() (Certificate, []byte, error) {
 }
 
 func (certificateFactory) Deserialize(raw []byte) (Certificate, error) {
-	var block *pem.Block
-
 	block, rest := pem.Decode(raw)
 
 	if block == nil || block.Type != "CERTIFICATE" {
