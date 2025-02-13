@@ -40,7 +40,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import set_gitconfig_in_ci
+from tasks.libs.common.utils import running_in_github_actions, set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -1349,7 +1349,11 @@ def bump_integrations_core(ctx, slack_webhook=None):
     """
     Create a PR to bump the integrations core fields in the release.json file
     """
-    github_workflow_url = f"{os.environ.get('GITHUB_SERVER_URL', 'github.com')}/{GITHUB_REPO_NAME}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '1')}"
+    github_workflow_url = ""
+    if running_in_github_actions():
+        github_workflow_url = (
+            f"{os.environ.get('GITHUB_SERVER_URL')}/{GITHUB_REPO_NAME}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}"
+        )
     commit_hash = get_git_references(ctx, "integrations-core", "HEAD").split()[0]
 
     rj = load_release_json()
