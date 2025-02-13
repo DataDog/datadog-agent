@@ -1,0 +1,33 @@
+--- debuginfod/Makefile.in.old	2025-02-13 10:18:31.553359065 +0100
++++ debuginfod/Makefile.in	2025-02-13 10:18:41.193142581 +0100
+@@ -518,7 +518,7 @@
+ @BUILD_STATIC_TRUE@@DUMMY_LIBDEBUGINFOD_TRUE@libdebuginfod = ./libdebuginfod.a
+ libebl = ../libebl/libebl.a
+ libeu = ../lib/libeu.a
+-AM_LDFLAGS = -Wl,-rpath-link,../libelf:../libdw:.
++AM_LDFLAGS =
+ debuginfod_SOURCES = debuginfod.cxx
+ debuginfod_LDADD = $(libdw) $(libelf) $(libeu) $(libdebuginfod) $(argp_LDADD) $(fts_LIBS) $(libmicrohttpd_LIBS) $(sqlite3_LIBS) $(libarchive_LIBS) $(rpm_LIBS) $(jsonc_LIBS) $(libcurl_LIBS) $(lzma_LIBS) -lpthread -ldl
+ debuginfod_find_SOURCES = debuginfod-find.c
+--- src/Makefile.in.old	2025-02-13 10:19:05.920617535 +0100
++++ src/Makefile.in	2025-02-13 10:19:44.807875842 +0100
+@@ -573,7 +573,7 @@
+ @FATAL_TEXTREL_TRUE@textrel_found = $(textrel_msg); exit 1
+ textrel_check = if $(READELF) -d $@ | grep -F -q TEXTREL; then $(textrel_found); fi
+ DEFAULT_INCLUDES = 
+-AM_LDFLAGS = -Wl,-rpath-link,../libelf:../libdw $(STACK_USAGE_NO_ERROR)
++AM_LDFLAGS = $(STACK_USAGE_NO_ERROR)
+ noinst_LIBRARIES = libar.a
+ libar_a_SOURCES = arlib.c arlib2.c arlib-argp.c
+ EXTRA_DIST = arlib.h debugpred.h make-debug-archive.in
+--- tests/Makefile.in.old	2025-02-13 10:20:16.883336687 +0100
++++ tests/Makefile.in	2025-02-13 10:20:31.507111487 +0100
+@@ -1424,7 +1424,7 @@
+ @FATAL_TEXTREL_TRUE@textrel_found = $(textrel_msg); exit 1
+ textrel_check = if $(READELF) -d $@ | grep -F -q TEXTREL; then $(textrel_found); fi
+ BUILD_RPATH = \$$ORIGIN/../libasm:\$$ORIGIN/../libdw:\$$ORIGIN/../backends:\$$ORIGIN/../libelf
+-AM_LDFLAGS = -Wl,-rpath-link,../libasm:../libdw:../libelf \
++AM_LDFLAGS = \
+ 	$(am__append_2)
+ @TESTS_RPATH_FALSE@tests_rpath = no
+ @TESTS_RPATH_TRUE@tests_rpath = yes
