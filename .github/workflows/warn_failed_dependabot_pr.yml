@@ -9,7 +9,7 @@ on:
 
 jobs:
   check_comment:
-    if: github.actor == 'dd-devflow[bot]'
+    if: github.event.comment.user.id == 'dd-devflow[bot]' && github.event.issue.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Check for error in comment
