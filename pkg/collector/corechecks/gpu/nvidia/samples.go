@@ -20,29 +20,28 @@ import (
 const samplesCollectorName = "samples"
 
 var allSamples = []sampleMetric{
-	{"gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES},
-	{"dram_active", nvml.MEMORY_UTILIZATION_SAMPLES},
-	{"encoder_utilization", nvml.ENC_UTILIZATION_SAMPLES},
-	{"decoder_utilization", nvml.DEC_UTILIZATION_SAMPLES},
+	{"gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, 0},
+	{"dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, 0},
+	{"encoder_utilization", nvml.ENC_UTILIZATION_SAMPLES, 0},
+	{"decoder_utilization", nvml.DEC_UTILIZATION_SAMPLES, 0},
 }
 
 type sampleMetric struct {
-	name         string
-	samplingType nvml.SamplingType
+	name          string
+	samplingType  nvml.SamplingType
+	lastTimestamp uint64
 }
 
 type samplesCollector struct {
 	device           nvml.Device
 	tags             []string
-	lastTimestamps   map[nvml.SamplingType]uint64
 	samplesToCollect []sampleMetric
 }
 
 func newSamplesCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
 	c := &samplesCollector{
-		device:         device,
-		tags:           tags,
-		lastTimestamps: make(map[nvml.SamplingType]uint64),
+		device: device,
+		tags:   tags,
 	}
 	c.samplesToCollect = append(c.samplesToCollect, allSamples...) // copy all metrics to avoid modifying the original slice
 
@@ -78,13 +77,20 @@ func (samplesCollector) Name() string {
 	return samplesCollectorName
 }
 
-// Collect collects all the metrics from the given NVML device.
+// Collect collects all the metrics from the given NVML device. This function
+// calls the nvml GetSamples function, which returns a list of samples for each
+// possible internal counter type. In this function we compute the average over
+// time of those samples and report it as the metric for the current interval.
 func (c *samplesCollector) Collect() ([]Metric, error) {
 	var err error
 
 	values := make([]Metric, 0, len(allSamples)) // preallocate to reduce allocations
 	for _, metric := range allSamples {
-		prevTimestamp := c.lastTimestamps[metric.samplingType]
+		prevTimestamp := metric.lastTimestamp
+
+		// GetSamples returns a list of samples (timestamp + counter value) for the
+		// given counter type (GPU utilization, memory activity, etc).
+		// Note that timestamps are in microseconds always.
 		valueType, samples, ret := c.device.GetSamples(metric.samplingType, prevTimestamp)
 		if ret != nvml.SUCCESS {
 			err = multierror.Append(err, fmt.Errorf("failed to get metric %s: %s", metric.name, nvml.ErrorString(ret)))
@@ -100,22 +106,24 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 		total := 0.0
 		lastTimestamp := prevTimestamp
 
-		// We're assuming "samples" is always sorted
+		// We're assuming "samples" is always sorted. Here we traverse the list of samples
+		// and compute the average over time, which means weighing each sample by the time
+		// it passed since the last sample.
 		for _, sample := range samples {
-			if sample.TimeStamp == 0 {
-				// some samples have a timestamp of 0, which we take as invalid/placeholder
+			if sample.TimeStamp < lastTimestamp {
+				// some samples have a timestamp of 0, which we take as
+				// invalid/placeholder.
+				// They can also have the same timestamp as
+				// the previous one if the sample is the first one in the list
+				// which means it refers to the utilization before
+				// 'prevTimestamp', so ignore it
 				continue
 			}
 
 			sampleInterval := sample.TimeStamp - lastTimestamp
-			if sampleInterval == 0 {
-				// this can happen if the sample is the first one in the list
-				// which means it refers to the utilization before 'prevTimestamp',
-				// so ignore it
-				continue
-			}
 
-			value, err := metricValueToDouble(valueType, sample.SampleValue)
+			var value float64
+			value, err = metricValueToDouble(valueType, sample.SampleValue)
 			if err != nil {
 				err = multierror.Append(err, fmt.Errorf("failed to convert sample value %s from %v with type %v: %w", metric.name, sample.SampleValue, valueType, err))
 				continue
@@ -130,8 +138,10 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 			continue
 		}
 
+		// Divide by the length of the time interval to get the average since the last
+		// time we computed these metrics.
 		total /= float64(lastTimestamp - prevTimestamp)
-		c.lastTimestamps[metric.samplingType] = lastTimestamp
+		metric.lastTimestamp = lastTimestamp
 
 		values = append(values, Metric{
 			Name:  metric.name,
