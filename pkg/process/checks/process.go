@@ -122,6 +122,8 @@ type ProcessCheck struct {
 	wmeta workloadmetacomp.Component
 
 	sysprobeClient *http.Client
+
+	gpuDetector *GPUDetector
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -136,6 +138,10 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		return err
 	}
 	p.containerProvider = sharedContainerProvider
+
+	log.Info("Initializing gpu detector from process check")
+	p.gpuDetector = NewGPUDetector(p.wmeta)
+	log.Info("Finish initializing gpu detector from process check")
 
 	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
@@ -212,6 +218,10 @@ func (p *ProcessCheck) Cleanup() {
 	if p.workloadMetaServer != nil {
 		p.workloadMetaServer.Stop()
 	}
+	if p.gpuDetector != nil {
+		log.Info("Cleaning up gpu detector from process check")
+		p.gpuDetector.Stop()
+	}
 }
 
 func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
@@ -285,7 +295,13 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	collectorProcHints := p.generateHints()
 	p.checkCount++
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor)
+	pidToGPUTags := make(map[int32][]string)
+	if p.gpuDetector != nil {
+		log.Info("GPU detected in process check, populating pidToGPUTags mapping")
+		pidToGPUTags = p.gpuDetector.GetGPUTags()
+	}
+
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -355,6 +371,12 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 
 // Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
+	// start running GPU detector
+	if p.gpuDetector != nil {
+		log.Tracef("Starting process check gpu detector in go routine")
+		go p.gpuDetector.Run()
+	}
+
 	if options == nil {
 		return p.run(nextGroupID(), false)
 	}
@@ -456,6 +478,7 @@ func fmtProcesses(
 	lookupIdProbe *LookupIdProbe,
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
+	pidToGPUTags map[int32][]string,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
@@ -481,6 +504,13 @@ func fmtProcesses(
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
+		}
+
+		if tags, ok := pidToGPUTags[fp.Pid]; ok {
+			log.Info("Detected GPU, and process is in activePids, adding gpu tags to pid:", fp.Pid)
+			proc.Tags = tags
+		} else {
+			log.Info("Process is not active, or GPU not detected")
 		}
 
 		_, ok := procsByCtr[proc.ContainerId]
