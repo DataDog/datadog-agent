@@ -9,9 +9,12 @@ package nvidia
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 const samplesCollectorName = "samples"
@@ -29,9 +32,10 @@ type sampleMetric struct {
 }
 
 type samplesCollector struct {
-	device         nvml.Device
-	tags           []string
-	lastTimestamps map[nvml.SamplingType]uint64
+	device           nvml.Device
+	tags             []string
+	lastTimestamps   map[nvml.SamplingType]uint64
+	samplesToCollect []sampleMetric
 }
 
 func newSamplesCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
@@ -40,8 +44,30 @@ func newSamplesCollector(_ nvml.Interface, device nvml.Device, tags []string) (C
 		tags:           tags,
 		lastTimestamps: make(map[nvml.SamplingType]uint64),
 	}
+	c.samplesToCollect = append(c.samplesToCollect, allSamples...) // copy all metrics to avoid modifying the original slice
+
+	c.removeUnsupportedSamples()
+	if len(c.samplesToCollect) == 0 {
+		return nil, errUnsupportedDevice
+	}
 
 	return c, nil
+}
+
+func (c *samplesCollector) removeUnsupportedSamples() {
+	metricsToRemove := common.StringSet{}
+	for _, metric := range c.samplesToCollect {
+		_, _, ret := c.device.GetSamples(metric.samplingType, 0)
+		if ret == nvml.ERROR_NOT_SUPPORTED {
+			metricsToRemove.Add(metric.name)
+		}
+	}
+
+	for toRemove := range metricsToRemove {
+		c.samplesToCollect = slices.DeleteFunc(c.samplesToCollect, func(m sampleMetric) bool {
+			return m.name == toRemove
+		})
+	}
 }
 
 func (c *samplesCollector) Close() error {
