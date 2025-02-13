@@ -1,9 +1,10 @@
-import _hashlib
 import ssl
+import sys
+
+import _hashlib
 import win32api
 from checks import AgentCheck
 from cryptography.hazmat.backends import default_backend
-import sys
 
 
 class FIPSModeCheck(AgentCheck):
