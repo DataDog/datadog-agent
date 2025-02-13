@@ -97,6 +97,8 @@ func (g *GPUDetector) GetGPUTags() map[int32][]string {
 	for pid, tagSet := range pidToTagSet {
 		pidToGPUTags[pid] = tagSet.GetAll()
 	}
+
+	log.Info("GPU tags created for active pids:", pidToGPUTags)
 	return pidToGPUTags
 }
 
