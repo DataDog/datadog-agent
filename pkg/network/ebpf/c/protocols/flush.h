@@ -39,8 +39,6 @@ int tracepoint__sched__sched_process_exit(void *ctx) {
     return 0;
 }
 
-#if defined(COMPILE_PREBUILT) || defined(COMPILE_CORE) || (defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0))
-// add this program when compiling CO-RE or runtime compilation for supported kernel versions.
 SEC("raw_tracepoint/sched_process_exit")
 int raw_tracepoint__sched_process_exit(void *ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
@@ -51,6 +49,5 @@ int raw_tracepoint__sched_process_exit(void *ctx) {
 
     return 0;
 }
-#endif
 
 #endif
