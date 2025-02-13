@@ -10,7 +10,6 @@ package python
 import (
 	"context"
 	"math/rand/v2"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,9 +19,9 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -129,7 +128,7 @@ func testEmitAgentTelemetry(t *testing.T) {
 
 func testObfuscaterConfig(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := pkgconfigmock.New(t)
 	pkgconfigsetup.InitConfig(conf)
 	o := lazyInitObfuscator()
 	o.Stop()
