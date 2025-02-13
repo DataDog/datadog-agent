@@ -26,4 +26,4 @@ jobs:
         if: ${{ steps.check-comment.outputs.not_merged == 'true' }}
         run: |
           message="Hi!\nThis dependabot PR ${{github.event.issue.html_url}} was not merged.\nPlease have a look."
-          curl -X POST -H "Content-Type: application/json" --data '{"message": "$message"}' ${{ secrets.SLACK_AGENT_DEVX_WEBHOOK }}
+          curl -X POST -H "Content-Type: application/json" --data '{"message": "'"$message"'"}' ${{ secrets.SLACK_AGENT_DEVX_WEBHOOK }}
