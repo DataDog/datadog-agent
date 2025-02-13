@@ -177,7 +177,7 @@ func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) st
 	// Generate container ID from OriginInfo.
 	generatedContainerID, err := c.containerIDFromOriginInfo(originInfo)
 	if err != nil {
-		log.Errorf("Could not generate container ID from OriginInfo: %+v, err: %v", originInfo, err)
+		log.Debugf("Could not generate container ID from OriginInfo: %+v, err: %v", originInfo, err)
 	}
 	return generatedContainerID
 }
