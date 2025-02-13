@@ -35,7 +35,7 @@ func getLibraryPath(installDir string) string {
 	return filepath.Join(installDir, "library")
 }
 
-// SetupAPMLibraryDotnet installs the .NET APM library.
+// SetupAPMLibraryDotnet runs on the first install of the .NET APM library after the files are laid out on disk.
 func SetupAPMLibraryDotnet(ctx context.Context, _ string) (err error) {
 	// Register GAC + set env variables
 	var installDir string
@@ -109,13 +109,14 @@ func RemoveAPMLibraryDotnet(ctx context.Context) (err error) {
 	return nil
 }
 
-// GarbageCollectAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
-func GarbageCollectAPMLibraryDotnet(pkgPath string) (err error) {
+// PreRemoveHookDotnet runs before the garbage collector deletes the package files for a version.
+func PreRemoveHookDotnet(pkgRepositoryPath string) (bool, error) {
 	ctx := context.Background()
-	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgPath))
-	err = dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgPath))
+	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(pkgRepositoryPath))
+	err := dotnetExec.UninstallVersion(ctx, getLibraryPath(pkgRepositoryPath))
 	if err != nil {
-		return err
+		// TODO are there cases when we want to delete even if there was an error
+		return false, err
 	}
-	return nil
+	return true, nil
 }
