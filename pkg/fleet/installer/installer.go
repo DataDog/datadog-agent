@@ -97,8 +97,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
-		packages:   repository.NewRepositories(paths.PackagesPath),
-		configs:    repository.NewRepositories(paths.ConfigsPath),
+		packages:   repository.NewRepositories(paths.PackagesPath, packages.PreRemoveHooks),
+		configs:    repository.NewRepositories(paths.ConfigsPath, nil),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
