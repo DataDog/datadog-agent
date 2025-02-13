@@ -206,6 +206,11 @@ try {
       Write-Host "Stopping Datadog Installer service"
       Stop-Service "Datadog Installer"
    }
+   
+   if ((Get-Service "Datadog Installer Experiment" -ea silent | Measure-Object).Count -eq 1) {
+      Write-Host "Stopping Datadog Installer Experiment service"
+      Stop-Service "Datadog Installer Experiment"
+   }
 
    $configUpdated = $False
    # Write the config before-hand if it exists, that way if the Agent/Installer services start
@@ -240,11 +245,14 @@ try {
       throw [ExitCodeException]::new("Bootstrap failed", $result)
    }
    Write-Host "Bootstrap execution done"
-
-   if (-Not (Test-DatadogAgentPresence)) {
-      throw "Agent is not installed"
+   
+   # if the agent was not installed, we don't need to check if it's running
+   if ($env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT -eq "True") {
+      if (-Not (Test-DatadogAgentPresence)) {
+         throw "Agent is not installed"
+      }
    }
-
+   
    if (-Not ($configUpdated)) {
       Update-DatadogAgentConfig
    }
