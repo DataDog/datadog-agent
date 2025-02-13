@@ -300,7 +300,8 @@ func init() {
 
 func getAPIClient() (*apiserver.APIClient, error) {
 	// Intentionally leaving maximumWaitForAPIServer as-is because if the check interval < wait time
-	// the subsequent check execution will automatically be skipped
+	// the subsequent check execution will automatically be skipped; there is no risk of two checks
+	// running simultaneously
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 
@@ -312,8 +313,6 @@ func getAPIClient() (*apiserver.APIClient, error) {
 	return apiServerClient, nil
 }
 
-// doResourceDiscovery acquires a Kubernetes API Server client and discovers resources for the KSM check, this function
-// is retried
 func (k *KSMCheck) doResourceDiscovery(client *apiserver.APIClient) (*resourceDiscovery, error) {
 	if failCount > 0 {
 		failCount--
