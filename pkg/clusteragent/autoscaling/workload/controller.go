@@ -301,7 +301,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	}
 
 	// Update the scaling values based on the staleness of recommendations
-	desiredScalingSource := c.updateScalingValues(podAutoscalerInternal)
+	desiredScalingSource := c.updateActiveScalingSource(podAutoscalerInternal)
 	podAutoscalerInternal.UpdateFromValues(desiredScalingSource)
 
 	// Get autoscaler target
@@ -458,30 +458,21 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	return nil
 }
 
-func (c *Controller) updateScalingValues(podAutoscalerInternal model.PodAutoscalerInternal) datadoghq.DatadogPodAutoscalerValueSource {
-	mainHorizontalScalingValues := podAutoscalerInternal.MainScalingValues().Horizontal
-	if mainHorizontalScalingValues == nil {
-		// Not scaling horizontally, but we still need to update main values
-		return datadoghq.DatadogPodAutoscalerAutoscalingValueSource
-	}
+func (c *Controller) updateActiveScalingSource(podAutoscalerInternal model.PodAutoscalerInternal) datadoghq.DatadogPodAutoscalerValueSource {
+	currentTime := c.clock.Now()
+	activeSource := getActiveSource(currentTime, podAutoscalerInternal.MainScalingValues().Horizontal)
 
-	// Check that the last received recommendation is not stale
-	lastReceivedTimestamp := mainHorizontalScalingValues.Timestamp
-	if isRecommendationStale(c.clock.Now(), lastReceivedTimestamp) {
-		if !c.isFallbackEnabled {
-			log.Debugf("Product horizontal scaling values are stale, activating local fallback")
-			c.isFallbackEnabled = true
-		}
-		trackLocalFallbackEnabled(1.0, podAutoscalerInternal)
-		return datadoghq.DatadogPodAutoscalerLocalValueSource
-	}
-
-	if c.isFallbackEnabled {
+	// Logic when local fallback is activated/deactivated
+	if c.isFallbackEnabled && activeSource == datadoghq.DatadogPodAutoscalerAutoscalingValueSource {
 		log.Debugf("Product horizontal scaling values are no longer stale, deactivating local fallback")
 		c.isFallbackEnabled = false
+	} else if !c.isFallbackEnabled && activeSource == datadoghq.DatadogPodAutoscalerLocalValueSource {
+		log.Debugf("Product horizontal scaling values are stale, activating local fallback")
+		c.isFallbackEnabled = true
 	}
-	trackLocalFallbackEnabled(0.0, podAutoscalerInternal)
-	return datadoghq.DatadogPodAutoscalerAutoscalingValueSource
+
+	trackLocalFallbackEnabled(activeSource, podAutoscalerInternal)
+	return activeSource
 }
 
 func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
@@ -500,6 +491,13 @@ func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, n
 	return err
 }
 
-func isRecommendationStale(currentTime, lastReceivedTimestamp time.Time) bool {
-	return currentTime.Sub(lastReceivedTimestamp) > staleRecommendationThreshold
+func getActiveSource(currentTime time.Time, mainHorizontalScalingValues *model.HorizontalScalingValues) datadoghq.DatadogPodAutoscalerValueSource {
+	if mainHorizontalScalingValues == nil {
+		return datadoghq.DatadogPodAutoscalerLocalValueSource
+	}
+	lastReceivedTimestamp := mainHorizontalScalingValues.Timestamp
+	if currentTime.Sub(lastReceivedTimestamp) > staleRecommendationThreshold {
+		return datadoghq.DatadogPodAutoscalerLocalValueSource
+	}
+	return datadoghq.DatadogPodAutoscalerAutoscalingValueSource
 }

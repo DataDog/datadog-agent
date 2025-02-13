@@ -29,6 +29,7 @@ const (
 var (
 	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 	commonOpts                      = telemetry.Options{NoDoubleUnderscoreSep: true}
+	validRecommendationSources      = []datadoghq.DatadogPodAutoscalerValueSource{datadoghq.DatadogPodAutoscalerAutoscalingValueSource, datadoghq.DatadogPodAutoscalerLocalValueSource}
 
 	// telemetryHorizontalScaleActions tracks the number of horizontal scaling attempts
 	telemetryHorizontalScaleActions = telemetry.NewCounterWithOpts(
@@ -109,8 +110,40 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	}
 }
 
-func trackLocalFallbackEnabled(value float64, podAutoscalerInternal model.PodAutoscalerInternal) {
+func trackLocalFallbackEnabled(currentSource datadoghq.DatadogPodAutoscalerValueSource, podAutoscalerInternal model.PodAutoscalerInternal) {
+	var value float64
+	if currentSource == datadoghq.DatadogPodAutoscalerLocalValueSource {
+		value = 1
+	} else {
+		value = 0
+	}
 	telemetryLocalFallbackEnabled.Set(value, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Spec().TargetRef.Name, podAutoscalerInternal.Name(), le.JoinLeaderValue)
+}
+
+func setHorizontalScaleAppliedRecommendations(toReplicas float64, ns, targetName, autoscalerName, source string) {
+	// Clear previous values to prevent gauge from reporting old values for different sources
+	unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName)
+
+	telemetryHorizontalScaleAppliedRecommendations.Set(
+		toReplicas,
+		ns,
+		targetName,
+		autoscalerName,
+		source,
+		le.JoinLeaderValue,
+	)
+}
+
+func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName string) {
+	for _, source := range validRecommendationSources {
+		telemetryHorizontalScaleAppliedRecommendations.Delete(
+			ns,
+			targetName,
+			autoscalerName,
+			string(source),
+			le.JoinLeaderValue,
+		)
+	}
 }
 
 func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {
