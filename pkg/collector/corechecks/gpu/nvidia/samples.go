@@ -88,9 +88,11 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 	for _, metric := range allSamples {
 		prevTimestamp := metric.lastTimestamp
 
-		// GetSamples returns a list of samples (timestamp + counter value) for the
+		// GetSamples returns a list of samples (timestamp + value) for the
 		// given counter type (GPU utilization, memory activity, etc).
 		// Note that timestamps are in microseconds always.
+		// The values returned by GetSamples are of a gauge type, so
+		// we need to average them.
 		valueType, samples, ret := c.device.GetSamples(metric.samplingType, prevTimestamp)
 		if ret != nvml.SUCCESS {
 			err = multierror.Append(err, fmt.Errorf("failed to get metric %s: %s", metric.name, nvml.ErrorString(ret)))
