@@ -21,9 +21,9 @@ const samplesCollectorName = "samples"
 
 var allSamples = []sampleMetric{
 	{"gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES},
-	{"dram.active", nvml.MEMORY_UTILIZATION_SAMPLES},
-	{"encoder.active", nvml.ENC_UTILIZATION_SAMPLES},
-	{"decoder.active", nvml.DEC_UTILIZATION_SAMPLES},
+	{"dram_active", nvml.MEMORY_UTILIZATION_SAMPLES},
+	{"encoder_utilization", nvml.ENC_UTILIZATION_SAMPLES},
+	{"decoder_utilization", nvml.DEC_UTILIZATION_SAMPLES},
 }
 
 type sampleMetric struct {
