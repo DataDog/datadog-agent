@@ -164,7 +164,9 @@ def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCo
     enhanced_commit_title = commit_title
     if pr_info:
         parsed_pr_id, pr_url_github = pr_info
-        enhanced_commit_title = enhanced_commit_title.replace(f"#{parsed_pr_id}", f"<{pr_url_github}|#{parsed_pr_id}>")
+        enhanced_commit_title = enhanced_commit_title.replace(
+            f"#{parsed_pr_id}", f"<{pr_url_github}/s|#{parsed_pr_id}>"
+        )
 
     return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state} {duration}.
 {enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""

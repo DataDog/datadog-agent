@@ -23,7 +23,7 @@ def should_send_message_to_author(git_ref: str, default_branch: str) -> bool:
     return not (git_ref == default_branch or release_ref_regex.match(git_ref) or release_ref_regex_rc.match(git_ref))
 
 
-def send_message(ctx, pipeline_id, dry_run):
+def send_message(pipeline_id, dry_run):
     pipeline = get_pipeline(PROJECT_NAME, pipeline_id)
     commit = get_commit(PROJECT_NAME, pipeline.sha)
     failed_jobs = get_failed_jobs(pipeline)
@@ -59,26 +59,25 @@ def send_message(ctx, pipeline_id, dry_run):
         for test in get_failed_tests(PROJECT_NAME, job):
             message.add_test_failure(test, job)
 
+    if dry_run:
+        print(f"Would send to {slack_channel}:\n{str(message)}")
+        if should_send_message_to_author(pipeline.ref, get_default_branch()):
+            print(f"Would send to {commit.author_email}:\n{str(message)}")
+        return
+
     # Send message
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
 
     client = WebClient(token=os.environ["SLACK_API_TOKEN"])
-    if dry_run:
-        print(f"Would send to {slack_channel}:\n{str(message)}")
-    else:
-        client.chat_postMessage(channel=slack_channel, text=str(message))
-
+    client.chat_postMessage(channel=slack_channel, text=str(message))
     if should_send_message_to_author(pipeline.ref, get_default_branch()):
         author_email = commit.author_email
-        if dry_run:
-            print(f"Would send to {author_email}:\n{str(message)}")
-        else:
-            try:
-                recipient = client.users_lookupByEmail(email=author_email)
-                client.chat_postMessage(channel=recipient.data['user']['id'], text=str(message))
-            except SlackApiError as e:
-                print(
-                    f"[{color_message('ERROR', Color.RED)}] Failed to send message to {author_email}: {e.response['error']}",
-                    file=sys.stderr,
-                )
+        try:
+            recipient = client.users_lookupByEmail(email=author_email)
+            client.chat_postMessage(channel=recipient.data['user']['id'], text=str(message))
+        except SlackApiError as e:
+            print(
+                f"[{color_message('ERROR', Color.RED)}] Failed to send message to {author_email}: {e.response['error']}",
+                file=sys.stderr,
+            )
