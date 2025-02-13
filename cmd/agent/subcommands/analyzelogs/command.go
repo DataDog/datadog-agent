@@ -159,7 +159,7 @@ func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.Lo
 
 	sources, err = resolveCheckConfig(ac, cliParams)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid file config path or check name")
+		return nil, fmt.Errorf("failed to resolve check config: %w", err)
 	}
 	return sources, nil
 }
