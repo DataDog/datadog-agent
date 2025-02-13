@@ -267,3 +267,18 @@ func validateStatus(t *testing.T, status string) {
 	require.Contains(t, status, "Metric Points Sent:")
 	require.Contains(t, status, "Log Records Sent:")
 }
+
+// TestCoreAgentConfigCmd tests the output of core agent's config command contains the embedded collector's config
+func TestCoreAgentConfigCmd(s OTelTestSuite, expectedCfg string) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Calling config command in core agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "config"})
+	require.NoError(s.T(), err, "Failed to execute config")
+	require.Empty(s.T(), stderr)
+	require.NotNil(s.T(), stdout)
+	s.T().Log("Full output of config command in core agent\n", stdout)
+	assert.Contains(s.T(), stdout, expectedCfg)
+}

@@ -333,12 +333,12 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 			},
 		})
 		if err != nil {
-			_ = t.log.Errorf("unable to generate container ID from origin info, will retry: %s", err)
+			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
 			return err
 		}
 
 		if containerIDResponse == nil {
-			_ = t.log.Warnf("unable to generate container ID from origin info, will retry: %s", err)
+			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
 			return errors.New("containerIDResponse is nil")
 		}
 		containerID = containerIDResponse.ContainerID
