@@ -207,7 +207,7 @@ new-agent_dmg-x64-a7:
       rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
       rm -rf _omnibus_cache_key_files && mkdir -p _omnibus_cache_key_files
       cp ./{release.json,omnibus/Gemfile} _omnibus_cache_key_files
-    # Clone agent
+    # TODO: Cache go?
     - |
       mkdir -p $HOME/go
       echo 'export GOPATH=$HOME/go' >> ~/.build_setup
