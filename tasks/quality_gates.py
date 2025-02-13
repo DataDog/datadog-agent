@@ -39,7 +39,7 @@ def display_pr_comment(
     :return:
     """
     title = f"Static quality checks {SUCCESS_CHAR if final_state else FAIL_CHAR}"
-    body_info = "<details>\n<summary>Successful checks</summary>\n" + body_pattern.format("Info")
+    body_info = "<details>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
 
