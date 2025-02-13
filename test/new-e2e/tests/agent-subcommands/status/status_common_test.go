@@ -99,11 +99,15 @@ func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection)
 }
 
 func (v *baseStatusSuite) TestDefaultInstallStatus() {
+	notReachStatus := "Status: Not running or unreachable"
 	var processAgentContain []string
-	processAgentNotContain := []string{"Status: Not running or unreachable"}
+	processAgentNotContain := []string{notReachStatus}
 	if runtime.GOOS == "linux" {
-		processAgentContain, processAgentNotContain = processAgentNotContain, processAgentContain
+		processAgentContain = []string{notReachStatus}
+		processAgentNotContain = nil
 	}
+	fmt.Printf("contain: %+v\n", processAgentContain)
+	fmt.Printf("not contain: %+v\n", processAgentNotContain)
 
 	expectedSections := []expectedSection{
 		{
