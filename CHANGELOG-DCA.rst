@@ -2,6 +2,19 @@
 Release Notes
 =============
 
+.. _Release Notes_7.62.3:
+
+7.62.3
+======
+
+.. _Release Notes_7.62.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-02-14
+Pinned to datadog-agent v7.62.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7623>`_.
+
 .. _Release Notes_7.62.2:
 
 7.62.2
@@ -268,7 +281,7 @@ Bug Fixes
 
 - Fixed an issue that prevented the Kubernetes autoscaler from evicting pods
   injected by the Admission Controller.
-  
+
 
 .. _Release Notes_7.57.1:
 
@@ -326,7 +339,7 @@ Bug Fixes
 
 - Library package versions for auto-instrumentation are now set to the latest major
   version of the library-package instead of `latest`.
-  
+
   * java:v1
   * dotnet:v2
   * python:v2
