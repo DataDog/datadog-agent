@@ -51,7 +51,7 @@ jobs:
             }
             // When a required reviewer approves, the team is removed from the requested_teams list.
             // As such, a mergeable PR has no more requested teams and no changes requested in its reviews.
-            return `${allAproved && pullRequest.requested_teams.length === 0}`;
+            return `${allApproved && pullRequest.requested_teams.length === 0}`;
           result-encoding: string
       - name: Add Merge Comment to Pull Request
         if: ${{ steps.check-mergeable.outputs.result == 'true' }}
