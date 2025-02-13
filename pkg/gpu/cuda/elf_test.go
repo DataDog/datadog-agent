@@ -5,6 +5,9 @@
 
 //go:build linux
 
+// Only _test file is tagged for linux, as it causes problems when running in windows builds. This is a
+// temporary fix as part of #incident-35081. This should be removed once the issue is resolved.
+
 package cuda
 
 import (
