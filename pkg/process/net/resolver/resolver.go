@@ -42,7 +42,7 @@ type containerIDEntry struct {
 // LocalResolver is responsible resolving the raddr of connections when they are local containers
 type LocalResolver struct {
 	mux                sync.Mutex
-	addrToCtrID        map[model.ContainerAddr]*containerIDEntry
+	addrToCtrID        map[tempKey]*containerIDEntry
 	maxAddrToCtrIDSize int
 	ctrForPid          map[int]*containerIDEntry
 	maxCtrForPidSize   int
@@ -58,7 +58,7 @@ func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock 
 		ContainerProvider:  containerProvider,
 		Clock:              clock,
 		done:               make(chan bool),
-		addrToCtrID:        make(map[model.ContainerAddr]*containerIDEntry),
+		addrToCtrID:        make(map[tempKey]*containerIDEntry),
 		maxAddrToCtrIDSize: maxAddrCacheSize,
 		ctrForPid:          make(map[int]*containerIDEntry),
 		maxCtrForPidSize:   maxPidCacheSize,
@@ -124,7 +124,7 @@ containersLoop:
 			if parsedAddr.IsLoopback() {
 				continue
 			}
-			l.addrToCtrID[*networkAddr] = &containerIDEntry{
+			l.addrToCtrID[addr(networkAddr)] = &containerIDEntry{
 				cid:   intern.GetByString(ctr.Id),
 				inUse: true,
 			}
@@ -286,11 +286,11 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			}
 		}
 
-		if v, ok := l.addrToCtrID[model.ContainerAddr{
+		if v, ok := l.addrToCtrID[addr(&model.ContainerAddr{
 			Ip:       raddr.Addr().String(),
 			Port:     int32(raddr.Port()),
 			Protocol: conn.Type,
-		}]; ok {
+		})]; ok {
 			conn.Raddr.ContainerId = v.cid.Get().(string)
 		} else {
 			log.Tracef("could not resolve raddr %v", conn.Raddr)
@@ -343,4 +343,14 @@ func translatedAddrs(conn *model.Connection) (laddr, raddr netip.AddrPort, err e
 
 	raddr, err = translatedRaddr(conn.Raddr, conn.IpTranslation)
 	return laddr, raddr, err
+}
+
+type tempKey struct {
+	ip       string
+	port     int32
+	protocol model.ConnectionType
+}
+
+func addr(ca *model.ContainerAddr) tempKey {
+	return tempKey{ip: ca.Ip, port: ca.Port, protocol: ca.Protocol}
 }
