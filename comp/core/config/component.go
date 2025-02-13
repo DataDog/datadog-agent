@@ -18,9 +18,8 @@ package config
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-configuration
