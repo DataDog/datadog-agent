@@ -10,9 +10,10 @@ package winregistry
 
 import (
 	"fmt"
+	"path/filepath"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -67,4 +68,25 @@ func GetAgentUserName() (string, error) {
 	}
 
 	return user, nil
+}
+
+// SetAgentUserName sets the user name for the Agent in the registry
+func SetAgentUserName(user string) error {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Installer", registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer k.Close()
+
+	err = k.SetStringValue("installedUser", user)
+	if err != nil {
+		return fmt.Errorf("could not write installedUser to registry: %w", err)
+	}
+
+	err = k.SetStringValue("installedDomain", "")
+	if err != nil {
+		return fmt.Errorf("could not write installedDomain to registry: %w", err)
+	}
+
+	return nil
 }

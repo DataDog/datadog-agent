@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
@@ -69,6 +70,12 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
+	}
+
+	//set the user in the registry
+	err = winregistry.SetAgentUserName(env.AgentUserName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set user in registry: %w", err)
 	}
 
 	installerBinPath := filepath.Join(tmpDir, installerBinPath)
