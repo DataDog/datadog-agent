@@ -19,13 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Testcases:
-// no detected gpu
-// detected gpu but workloadmeta is empty
-// detected gpu and process asociated to one gpu
-// detected gpu and process not active pid
-// detectd gpu and processes associated with multiple gpus
-
 func TestGetGPUTags(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindGPU,
@@ -39,7 +32,7 @@ func TestGetGPUTags(t *testing.T) {
 		expectedTagMap map[int32][]string
 	}{
 		{
-			name:        "no detected gpu",
+			name:        "No detected gpu",
 			detectedGPU: false,
 			gpus: []workloadmeta.GPU{{
 				EntityID: entityID,
@@ -53,13 +46,13 @@ func TestGetGPUTags(t *testing.T) {
 			expectedTagMap: nil,
 		},
 		{
-			name:           "detected gpu with empty workloadmeta",
+			name:           "Detected gpu with empty workloadmeta",
 			detectedGPU:    true,
 			gpus:           []workloadmeta.GPU{},
 			expectedTagMap: map[int32][]string{},
 		},
 		{
-			name:        "detected process on gpu",
+			name:        "Detected process on gpu",
 			detectedGPU: true,
 			gpus: []workloadmeta.GPU{
 				{
@@ -97,6 +90,47 @@ func TestGetGPUTags(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "Detected process on multiple gpus",
+			detectedGPU: true,
+			gpus: []workloadmeta.GPU{
+				{
+					EntityID: entityID,
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: entityID.ID,
+					},
+					Vendor:     "nvidia",
+					Device:     "tesla-v100",
+					ActivePIDs: []int{1234, 185},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindGPU,
+						ID:   "gpu-2",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "gpu-2",
+					},
+					Vendor:     "nvidia",
+					Device:     "tesla-v105",
+					ActivePIDs: []int{185},
+				},
+			},
+			expectedTagMap: map[int32][]string{
+				1234: {
+					"gpu_uuid:gpu-1",
+					"gpu_device:tesla-v100",
+					"gpu_vendor:nvidia",
+				},
+				185: {
+					"gpu_uuid:gpu-2",
+					"gpu_device:tesla-v105",
+					"gpu_device:tesla-v100",
+					"gpu_uuid:gpu-1",
+					"gpu_vendor:nvidia",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -119,7 +153,9 @@ func TestGetGPUTags(t *testing.T) {
 			gpuDetector.detectedGPU.Store(tt.detectedGPU)
 
 			actualTagMap := gpuDetector.GetGPUTags()
-			assert.Equal(t, actualTagMap, tt.expectedTagMap)
+			for pid, tagMap := range actualTagMap {
+				assert.ElementsMatch(t, tagMap, tt.expectedTagMap[pid])
+			}
 		})
 	}
 }
