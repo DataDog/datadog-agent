@@ -18,12 +18,9 @@ import (
 	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,7 +69,7 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		evtapi:     evtapi,
 		source:     source,
 		config:     config,
-		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		decoder:    decoder.NewNoopDecoder(),
 		outputChan: outputChan,
 	}
 }

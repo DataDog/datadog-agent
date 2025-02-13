@@ -36,11 +36,11 @@ from tasks.libs.common.git import (
     get_last_commit,
     get_last_release_tag,
     is_agent6,
-    set_git_config,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import running_in_github_actions, set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -206,6 +206,7 @@ def tag_modules(
 
         if push:
             tags_list = ' '.join(tags)
+            set_gitconfig_in_ci(ctx)
             for idx in range(0, len(tags), TAG_BATCH_SIZE):
                 batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
                 ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
@@ -250,6 +251,7 @@ def tag_version(
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
+        set_gitconfig_in_ci(ctx)
         # create or update the qualification tag using the force option (points tag to next RC)
         if is_agent6(ctx) and (start_qual or is_qualification(ctx, "6.53.x")):
             if FINAL_VERSION_RE.match(agent_version):
@@ -323,6 +325,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
         commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
 
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(ctx, f"git commit -m {commit_message}")
         if not ok:
             raise Exit(
@@ -394,12 +397,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
-        github_action = os.environ.get("GITHUB_ACTIONS")
-
-        if github_action:
-            set_git_config('user.name', 'github-actions[bot]')
-            set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
-            upstream = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{GITHUB_REPO_NAME}.git"
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
@@ -454,10 +451,10 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git add release.json")
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(
             ctx,
             f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
-            github_action,
         )
         if not ok:
             raise Exit(
@@ -673,6 +670,7 @@ def create_and_update_release_branch(
         # Step 2 - Push newly created release branch to the remote repository
 
         print(color_message("Pushing new branch to the upstream repository", "bold"))
+        set_gitconfig_in_ci(ctx)
         res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
         if res.exited is None or res.exited > 0:
             raise Exit(
@@ -863,6 +861,7 @@ def cleanup(ctx, release_branch):
         ctx.run("git add release.json")
 
         commit_message = f"Update last_stable to {version}"
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
         if not ok:
             raise Exit(
@@ -1175,6 +1174,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                         with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):
                             # We can add the new commit now to be used by release candidate creation
                             print(f"Creating new tag {next_version} on {repo_name}", file=sys.stderr)
+                            set_gitconfig_in_ci(ctx)
                             ctx.run(f"git tag {next_version}")
                             ctx.run(f"git push origin tag {next_version}")
                 # This repo has changes, the next check is not needed
@@ -1349,10 +1349,11 @@ def bump_integrations_core(ctx, slack_webhook=None):
     """
     Create a PR to bump the integrations core fields in the release.json file
     """
-    if os.environ.get("GITHUB_ACTIONS"):
-        set_git_config('user.name', 'github-actions[bot]')
-        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
-
+    github_workflow_url = ""
+    if running_in_github_actions():
+        github_workflow_url = (
+            f"{os.environ.get('GITHUB_SERVER_URL')}/{GITHUB_REPO_NAME}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}"
+        )
     commit_hash = get_git_references(ctx, "integrations-core", "HEAD").split()[0]
 
     rj = load_release_json()
@@ -1367,7 +1368,8 @@ def bump_integrations_core(ctx, slack_webhook=None):
     ctx.run(f"git checkout -b {bump_integrations_core_branch}")
     ctx.run("git add release.json")
 
-    commit_message = "Update integrations core to HEAD"
+    commit_message = "bump integrations core to HEAD"
+    set_gitconfig_in_ci(ctx)
     ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
     if not ok:
         raise Exit(
@@ -1391,7 +1393,9 @@ def bump_integrations_core(ctx, slack_webhook=None):
     current = current_version(ctx, 7)
     current.rc = False
     current.devel = False
-    pr_url = create_datadog_agent_pr(commit_message, main_branch, bump_integrations_core_branch, str(current))
+    pr_url = create_datadog_agent_pr(
+        commit_message, main_branch, bump_integrations_core_branch, str(current), body=github_workflow_url
+    )
 
     if slack_webhook:
         payload = {'pr_url': pr_url}
