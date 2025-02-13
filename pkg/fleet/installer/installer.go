@@ -302,8 +302,6 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 	fmt.Println("Starting experiment")
-	// we don't need the database anymore and need to allow for the promote to use it
-	i.db.Close()
 	return i.startExperiment(ctx, pkg.Name)
 }
 
@@ -620,6 +618,12 @@ func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 	case packageDatadogAgent:
 		return packages.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
+		if runtime.GOOS == "windows" {
+			// we don't need the database anymore and need to allow for the promote to use it
+			// as on windows we are going to watch the experiment to make sure it doesn't fail
+			// and the promote will not be able to access the database if we don't close it
+			i.db.Close()
+		}
 		return packages.StartInstallerExperiment(ctx)
 	default:
 		return nil
