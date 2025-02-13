@@ -142,9 +142,7 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout="", only: li
         "Cluster Agent": lambda: containerized_integration_tests(
             ctx, CLUSTER_AGENT_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
         ),
-        "Trace Agent": lambda: containerized_integration_tests(
-            ctx, TRACE_AGENT_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
-        ),
+        "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT_IT_CONF, race=race, timeout=timeout),
     }
 
     if only:
