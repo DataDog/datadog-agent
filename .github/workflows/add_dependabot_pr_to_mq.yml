@@ -6,14 +6,14 @@ on:
       - submitted
       - edited
 
+permissions: {}
 jobs:
   add_to_merge_queue:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
 
     steps:
+      # Use a token as only the github App can push to the merge queue
       - uses: actions/create-github-app-token@c1a285145b9d317df6ced56c09f525b5c2b6f755 # v1.11.1
         id: app-token
         with:
