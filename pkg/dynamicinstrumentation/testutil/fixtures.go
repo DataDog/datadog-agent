@@ -145,15 +145,23 @@ var sliceCaptures = fixtures{
 		"a": capturedValue("int", "2"),
 		"xs": {
 			Type:   "[]struct",
-			Fields: fieldMap{},
+			Fields: nil,
 		},
 	},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_slice_of_structs": {
 		"a": capturedValue("int", "5"),
 		"xs": {
 			Type:   "[]struct",
-			Fields: fieldMap{},
+			Fields: nil,
 		},
+	},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_slice_with_other_params": {
+		"a": capturedValue("int8", "1"),
+		"s": {
+			Type:   "[]bool",
+			Fields: nil,
+		},
+		"x": capturedValue("uint", "5"),
 	},
 }
 

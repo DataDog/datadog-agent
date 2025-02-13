@@ -79,6 +79,7 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 		return nil, 0
 	}
 	if definition.Size == 0 {
+		definition.Fields = nil
 		return definition, 0
 	}
 	var bufferIndex int
@@ -181,7 +182,7 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 	stack := newParamStack()
 	i := 0
 	for {
-		if len(b) < i+3 {
+		if len(b) < i+sizeOfKindAndSize {
 			log.Tracef("could not parse type definition, ran out of buffer while parsing")
 			return nil
 		}
@@ -189,7 +190,7 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		kind := b[i]
 		newParam := &ditypes.Param{
 			Kind: kind,
-			Size: byteOrder.Uint16(b[i+1 : i+3]),
+			Size: byteOrder.Uint16(b[i+1 : i+sizeOfKindAndSize]),
 			Type: parseKindToString(kind),
 		}
 		if newParam.Kind == 0 {
@@ -221,7 +222,6 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 			// case we want the field for the underlying type just for
 			// displaying context to user, but we're not expecting to
 			// populate it with parsed values.
-
 			if len(top.Fields) > 0 {
 				top.Type = fmt.Sprintf("[]%s", top.Fields[0].Type)
 			}

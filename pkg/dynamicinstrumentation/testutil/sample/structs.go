@@ -110,7 +110,6 @@ func ExecuteStructFuncs() {
 	test_struct_with_a_slice(structWithASlice{1, []uint8{2, 3, 4}, 5})
 	test_struct_with_an_empty_slice(structWithASlice{9, []uint8{}, 5})
 	test_struct_with_a_nil_slice(structWithASlice{9, nil, 5})
-
 	test_pointer_to_struct_with_a_slice(&structWithASlice{5, []uint8{2, 3, 4}, 5})
 	test_pointer_to_struct_with_a_string(&structWithAString{5, "abcdef"})
 
