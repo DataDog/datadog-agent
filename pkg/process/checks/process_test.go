@@ -724,7 +724,7 @@ func TestGetGPUTags(t *testing.T) {
 
 			fakeTagger := taggerMock.SetupFakeTagger(t)
 			gpuDetector := NewGPUDetector(mockWmeta)
-			gpuDetector.detectedGPU.Store(tt.detectedGPU)
+			gpuDetector.SetGPUDetected(tt.detectedGPU)
 
 			processCheck := &ProcessCheck{
 				gpuDetector: gpuDetector,

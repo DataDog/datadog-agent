@@ -13,7 +13,7 @@ import (
 )
 
 type GPUDetector struct {
-	detectedGPU atomic.Bool
+	gpuDetected atomic.Bool
 	gpuEventsCh chan workloadmeta.EventBundle
 	stopCh      chan struct{}
 	wmeta       workloadmeta.Component
@@ -53,12 +53,12 @@ func (g *GPUDetector) Run() {
 				}
 
 				log.Info("GPU detected, enabling GPU tagging:", gpu)
-				g.detectedGPU.Store(true)
+				g.SetGPUDetected(true)
 				break
 			}
 			eventBundle.Acknowledge()
 
-			if g.detectedGPU.Load() {
+			if g.IsGPUDetected() {
 				log.Info("GPU detected in event bundle")
 			} else {
 				log.Info("GPU not detected in event bundle, continuing to listen")
@@ -69,6 +69,15 @@ func (g *GPUDetector) Run() {
 		}
 	}
 }
+
+func (g *GPUDetector) IsGPUDetected() bool {
+	return g.gpuDetected.Load()
+}
+
+func (g *GPUDetector) SetGPUDetected(value bool) {
+	g.gpuDetected.Store(value)
+}
+
 func (g *GPUDetector) Stop() {
 	close(g.stopCh)
 }
