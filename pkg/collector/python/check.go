@@ -419,7 +419,9 @@ func (c *PythonCheck) IsHAEnabled() bool {
 	return c.haEnabled
 }
 
-// IsHASupported returns if the check is compatible with High Availability
+// IsHASupported is actually not used, the HA Supported is defined at Python Check level as a class attribute
+// An exception is raised if a non HA Supported check is configured with ha_enabled config in the __init__ method of the AgentCheck class
+// https://github.com/DataDog/integrations-core/blob/master/datadog_checks_base/datadog_checks/base/checks/base.py#L98
 func (c *PythonCheck) IsHASupported() bool {
 	return false
 }
