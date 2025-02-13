@@ -72,7 +72,7 @@ func GetAgentUserName() (string, error) {
 
 // SetAgentUserName sets the user name for the Agent in the registry
 func SetAgentUserName(user string) error {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Installer", registry.SET_VALUE)
+	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Installer", registry.SET_VALUE)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,6 @@ func SetAgentUserName(user string) error {
 	if err != nil {
 		return fmt.Errorf("could not write installedUser to registry: %w", err)
 	}
-
 	err = k.SetStringValue("installedDomain", "")
 	if err != nil {
 		return fmt.Errorf("could not write installedDomain to registry: %w", err)
