@@ -47,6 +47,23 @@ var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
 }
 
+// legacyConvertArrayToMap convert array to map when DD_CONF_NODETREEMODEL is disabled
+var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
+	c.DecodeHook = func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
+		if rf != reflect.Slice {
+			return data, nil
+		}
+		if rt != reflect.Map {
+			return data, nil
+		}
+		newData := map[interface{}]bool{}
+		for _, i := range data.([]interface{}) {
+			newData[i] = true
+		}
+		return newData, nil
+	}
+}
+
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct.
 //
@@ -66,21 +83,7 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	}
 
 	if fs.convertArrayToMap {
-		return cfg.UnmarshalKey(key, target, func(c *mapstructure.DecoderConfig) {
-			c.DecodeHook = func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
-				if rf != reflect.Slice {
-					return data, nil
-				}
-				if rt != reflect.Map {
-					return data, nil
-				}
-				newData := map[interface{}]bool{}
-				for _, i := range data.([]interface{}) {
-					newData[i] = true
-				}
-				return newData, nil
-			}
-		})
+		return cfg.UnmarshalKey(key, target, legacyConvertArrayToMap)
 	}
 	return cfg.UnmarshalKey(key, target)
 }
