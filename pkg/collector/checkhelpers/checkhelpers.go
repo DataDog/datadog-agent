@@ -10,14 +10,14 @@ import "github.com/DataDog/datadog-agent/pkg/util/log"
 type BackoffStore interface {
 	Get(string) (int, bool)
 	Init(string, int)
-	Decrement(string, int) bool
+	Decrement(string) bool
 	ExponentialIncrease(string, int, int) bool
 }
 type RetryableOperation[T any] func() (T, error)
 
 // Retry is a helper function to retry operations inside a Check, it relies on the fact that a
 // check will be run at regular intervals, and "backs off" by skipping N number of check executions
-func Retry[B BackoffStore, T any](backoff B, opName string, op RetryableOperation[T], maxBackoff int) (T, error) {
+func Retry[B BackoffStore, T any](backoff B, opName string, op RetryableOperation[T], factor int, maxBackoff int) (T, error) {
 	var none T
 
 	// Check if operation is already in backoff and throw error if so
@@ -28,7 +28,7 @@ func Retry[B BackoffStore, T any](backoff B, opName string, op RetryableOperatio
 				opName)
 
 			// Decrement backoff by 1
-			backoff.Decrement(opName, 1)
+			backoff.Decrement(opName)
 			return none, err
 		}
 
@@ -45,8 +45,8 @@ func Retry[B BackoffStore, T any](backoff B, opName string, op RetryableOperatio
 			return none, err
 		}
 
-		// Increase backoff by a factor of 2 until max is reached
-		backoff.ExponentialIncrease(opName, 2, maxBackoff)
+		// Increase backoff by a specified factor until max is reached
+		backoff.ExponentialIncrease(opName, factor, maxBackoff)
 
 		// throw err
 		return none, err

@@ -761,8 +761,8 @@ func (k *KSMCheck) Get(name string) (int, bool) {
 	return b, found
 }
 
-// Decrement decreases the current backoff's status by N steps, called each time an attempt is skipped
-func (k *KSMCheck) Decrement(name string, step int) bool {
+// Decrement decreases the current backoff's status by 1, called each time an attempt is skipped
+func (k *KSMCheck) Decrement(name string) bool {
 	backoff, ok := k.backoffStore[name]
 	if !ok {
 		return ok
@@ -772,7 +772,8 @@ func (k *KSMCheck) Decrement(name string, step int) bool {
 		return ok
 	}
 
-	backoff[backoffStatus] = backoff[backoffStatus] - step
+	backoff[backoffStatus]--
+
 	return true
 }
 
@@ -813,14 +814,14 @@ func (k *KSMCheck) Run() error {
 		})
 
 		var err error
-		client, err = checkhelpers.Retry(k, getAPIServerClient, getAPIClient, maxRetryBackoff)
+		client, err = checkhelpers.Retry(k, getAPIServerClient, getAPIClient, 2, maxRetryBackoff)
 		if err != nil {
 			return err
 		}
 
 		rd, err := checkhelpers.Retry(k, performResourceDiscovery, func() (*resourceDiscovery, error) {
 			return k.doResourceDiscovery(client)
-		}, maxRetryBackoff)
+		}, 2, maxRetryBackoff)
 		if err != nil {
 			return err
 		}
