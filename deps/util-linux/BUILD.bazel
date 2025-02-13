@@ -12,7 +12,12 @@ configure_make(
     lib_source = "@util-linux//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
+          "libblkid.so",
+          "libblkid.so.1",
+          "libblkid.so.1.1.0",
         ],
     }),
     visibility = ["//visibility:public"],
+    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
+    env = {"LD": ""},
 )
