@@ -14,7 +14,6 @@ import (
 	"slices"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 var (
@@ -150,7 +150,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		}
 	}
 
-	if kversion, err := kernel.HostVersion(); err == nil && kversion >= kernel.VersionCode(4, 17, 0) {
+	if rawTracepointSupported() {
 		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps.
 		mgr.Probes = append(mgr.Probes, []*manager.Probe{
 			{
@@ -486,8 +486,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	if kversion, err := kernel.HostVersion(); err == nil && kversion < kernel.VersionCode(4, 17, 0) {
-		// do not use a raw tracepoint on an unsupported kernel.
+	if rawTracepointSupported() {
+		// exclude regular tracepoint if kernel supports raw tracepoint
+		options.ExcludedFunctions = append(options.ExcludedFunctions, "tracepoint__sched__sched_process_exit")
+	} else {
+		//exclude a raw tracepoint if kernel does not support it.
 		options.ExcludedFunctions = append(options.ExcludedFunctions, "raw_tracepoint__sched_process_exit")
 	}
 
@@ -501,6 +504,14 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return err
+}
+
+func rawTracepointSupported() bool {
+	if kversion, err := kernel.HostVersion(); err == nil && kversion >= kernel.VersionCode(4, 17, 0) {
+		return true
+	}
+
+	return false
 }
 
 func getAssetName(module string, debug bool) string {
