@@ -21,22 +21,19 @@ const (
 
 // Repositories manages multiple repositories.
 type Repositories struct {
-	rootPath  string
-	locksPath string
+	rootPath string
 }
 
 // NewRepositories returns a new Repositories.
-func NewRepositories(rootPath, locksPath string) *Repositories {
+func NewRepositories(rootPath string) *Repositories {
 	return &Repositories{
-		rootPath:  rootPath,
-		locksPath: locksPath,
+		rootPath: rootPath,
 	}
 }
 
 func (r *Repositories) newRepository(pkg string) *Repository {
 	return &Repository{
-		rootPath:  filepath.Join(r.rootPath, pkg),
-		locksPath: filepath.Join(r.locksPath, pkg),
+		rootPath: filepath.Join(r.rootPath, pkg),
 	}
 }
 
@@ -87,7 +84,6 @@ func (r *Repositories) Create(pkg string, version string, stableSourcePath strin
 // Delete deletes the repository for the given package name.
 func (r *Repositories) Delete(_ context.Context, pkg string) error {
 	repository := r.newRepository(pkg)
-	// TODO: locked packages will still be deleted
 	err := os.RemoveAll(repository.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not delete repository for package %s: %w", pkg, err)
