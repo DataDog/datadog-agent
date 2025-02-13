@@ -30,7 +30,7 @@ func getSystemContextForTest(t *testing.T) *systemContext {
 }
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -87,7 +87,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -156,7 +156,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -189,7 +189,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -231,7 +231,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -360,9 +360,7 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 		},
 	}
 
-	sysCtx.deviceSmVersions = map[int]int{0: int(smVersion)}
-
-	stream := newStreamHandler(uint32(pid), "", sysCtx)
+	stream := newStreamHandler(uint32(pid), "", smVersion, sysCtx)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
