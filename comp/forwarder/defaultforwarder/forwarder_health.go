@@ -99,8 +99,10 @@ func (fh *forwarderHealth) init() {
 	}
 
 	// when the config updates the "api_key", process that change
+	// test-refresh
 	if fh.config != nil {
 		fh.config.OnUpdate(func(setting string, oldValue, newValue any) {
+			// notify me when configs come to config
 			if setting != "api_key" {
 				return
 			}
@@ -176,6 +178,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 }
 
 func (fh *forwarderHealth) updateAPIKey(oldKey, newKey string) {
+	// iterate through map of keys, checks if old then changes to new
 	fh.keyMapMutex.Lock()
 	for domainURL, keyList := range fh.keysPerAPIEndpoint {
 		replaceList := make([]string, 0, len(keyList))
