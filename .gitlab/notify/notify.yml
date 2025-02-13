@@ -2,32 +2,35 @@
 # notify stage
 # Contains jobs which send notifications depending on pipeline status.
 
-include:
-  - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
+.notify_setup:
+  - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
+  - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+  - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
 
 notify-on-tagged-success:
-  extends: .slack-notifier-base
   stage: notify
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
-  tags: ["arch:amd64"]
+  tags: ["arch:arm64"]
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
-    postmessage "#agent-release-sync" "$MESSAGE_TEXT"
+    python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+    SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN 
+    invoke notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
 
 notify:
-  extends: .slack-notifier-base
   stage: notify
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
-  tags: ["arch:amd64"]
+  tags: ["arch:arm64"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+    - !reference [.notify_setup]
     - invoke -e notify.send-message -p $CI_PIPELINE_ID
     - invoke -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
@@ -38,8 +41,7 @@ send_pipeline_stats:
   when: always
   dependencies: []
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - !reference [.notify_setup]
     - invoke -e notify.send-stats
 
 notify_github:
@@ -105,11 +107,6 @@ notify_gitlab_ci_changes:
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
 
-.failure_summary_setup:
-  - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
-  - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
-  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-  - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
 
 # Upload failure summary data to S3 at the end of each main pipeline
 notify_failure_summary_on_pipeline:
@@ -119,7 +116,7 @@ notify_failure_summary_on_pipeline:
       when: never
     - !reference [.on_main_always]
   script:
-    - !reference [.failure_summary_setup]
+    - !reference [.notify_setup]
     - inv -e notify.failure-summary-upload-pipeline-data
 
 # Send failure summary notifications daily and weekly
@@ -130,7 +127,7 @@ notify_failure_summary_daily:
       when: never
     - !reference [.on_deploy_nightly_repo_branch_always]
   script:
-    - !reference [.failure_summary_setup]
+    - !reference [.notify_setup]
     - weekday="$(date --utc '+%A')"
     - |
       if [ "$weekday" = "Sunday" ] || [ "$weekday" = "Monday" ]; then
