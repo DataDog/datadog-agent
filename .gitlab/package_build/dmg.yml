@@ -140,7 +140,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  extends: .macos_gitlab
+  # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
@@ -159,7 +159,22 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite awscli || true
   #   # - which aws || true
   #   # - brew install cryptography -fv || true
+  after_script:
+    - brew install gettext -fv || true
+    - brew link --overwrite gettext || true
   script:
+    - set +e
+    - brew remove --force --ignore-dependencies gettext
+    - echo Trying git
+    - rm -rf /tmp/agentrepo
+    - git clone https://github.com/DataDog/datadog-agent.git /tmp/agentrepo
+    - find /usr -name "libintl*"
+    - find /opt -name "libintl*"
+    - echo Trying reinstall
+    - brew install gettext
+    - brew link --overwrite gettext
+    - exit 1
+
     - set -e
     - !reference [.vault_login]
 
