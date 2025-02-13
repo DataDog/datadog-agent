@@ -44,6 +44,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sds v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.56.0-rc.3 // indirect
