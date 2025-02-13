@@ -98,8 +98,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
-		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
-		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
+		packages:   repository.NewRepositories(paths.PackagesPath),
+		configs:    repository.NewRepositories(paths.ConfigsPath),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
