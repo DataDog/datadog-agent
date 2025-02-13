@@ -124,7 +124,7 @@ def containerized_integration_tests(
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
+def integration_tests(ctx, race=False, remote_docker=False, timeout="", only_trace_agent=False):
     """
     Run all the available integration tests
     """
@@ -141,6 +141,9 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
         ),
         "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT_IT_CONF, race=race, timeout=timeout),
     }
+    if only_trace_agent:
+        tests = {"Trace Agent": tests["Trace Agent"]}
+
     tests_failures = {}
     for t_name, t in tests.items():
         with gitlab_section(f"Running the {t_name} integration tests", collapsed=True, echo=True):

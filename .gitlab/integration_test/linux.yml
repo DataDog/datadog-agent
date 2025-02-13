@@ -35,3 +35,31 @@ docker_integration_tests:
   script:
     - inv -e docker.test
     - inv -e docker.integration-tests
+
+celian_trace_agent_integration_tests:
+  extends: .integration_tests_deb
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  timeout: 50m
+  retry: 2
+  script:
+    # Exporting the docker credentials to later pass them to the container
+    - DOCKER_USER=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?; export DOCKER_USER
+    - DOCKER_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token) || exit $?; export DOCKER_TOKEN
+    - export DOCKER_REGISTRY_URL
+    # DockerHub login not to be rate-limited during the docker compose
+    - echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
+    - inv -e integration-tests --race --remote-docker --only-trace-agent
+
+celian_trace_agent_integration_tests_no_docker:
+  extends: .integration_tests_deb
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  timeout: 50m
+  retry: 2
+  script:
+    # Exporting the docker credentials to later pass them to the container
+    - DOCKER_USER=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?; export DOCKER_USER
+    - DOCKER_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token) || exit $?; export DOCKER_TOKEN
+    - export DOCKER_REGISTRY_URL
+    # DockerHub login not to be rate-limited during the docker compose
+    - echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "$DOCKER_REGISTRY_URL"
+    - inv -e integration-tests --race --only-trace-agent
