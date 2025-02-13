@@ -70,6 +70,7 @@ RUN chmod +x /entrypoint.sh
 
 # Final settings
 ENV DOCKER_DD_AGENT=yes
+ENV INTEGRATION=yes
 WORKDIR /
 COPY test.bin /test.bin
 ENTRYPOINT ["/entrypoint.sh"]
