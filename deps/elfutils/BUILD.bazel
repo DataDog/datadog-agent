@@ -19,6 +19,4 @@ configure_make(
         "@xz//:lzma",
         "@zlib",
     ],
-    configure_in_place = True,
-    autoreconf = True,
 )

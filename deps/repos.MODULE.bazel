@@ -213,14 +213,19 @@ ELFUTILS_VERSION = "0.192"
 http_archive(
     name = "elfutils",
     build_file_content = all_content,
+    patch_tool = "patch",
+    patches = [
+        # Patch the Makefile.in, not the makefile.am:
+        # patching the .am files requires autoconf to run, which requires configure_in_place to
+        # be specified.
+        # However when configuring & building in place, we end up including the "stack" binary
+        # that gets built by elfutils instead of the <stack> standard c++ header, due to "-I." and
+        # the fact that the built arfifacts are colocated with the sources
+        "//deps/elfutils:patches/elfutils-rpath-link-in.patch",
+    ],
     sha256 = "616099beae24aba11f9b63d86ca6cc8d566d968b802391334c91df54eab416b4",
     strip_prefix = "elfutils-{0}".format(ELFUTILS_VERSION),
     url = "https://sourceware.org/elfutils/ftp/{0}/elfutils-{0}.tar.bz2".format(ELFUTILS_VERSION),
-    patch_args = ["-p1"],
-    patch_tool = "patch",
-    patches = [
-        "//deps/elfutils:patches/0001-don-t-hardcode-rpath-link-to-LDFLAGS.patch",
-    ],
 )
 
 # Defines a zstd target for the lib
