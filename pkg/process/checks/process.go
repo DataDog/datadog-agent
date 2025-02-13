@@ -18,6 +18,8 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -29,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,7 +47,7 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component) *ProcessCheck {
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, tagger tagger.Component) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
@@ -54,6 +57,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		lookupIdProbe:    NewLookupIDProbe(config),
 		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 		wmeta:            wmeta,
+		tagger:           tagger,
 	}
 
 	return check
@@ -120,6 +124,8 @@ type ProcessCheck struct {
 	serviceExtractor *parser.ServiceExtractor
 
 	wmeta workloadmetacomp.Component
+
+	tagger tagger.Component
 
 	sysprobeClient *http.Client
 
@@ -298,7 +304,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	pidToGPUTags := make(map[int32][]string)
 	if p.gpuDetector != nil {
 		log.Info("GPU detected in process check, populating pidToGPUTags mapping")
-		pidToGPUTags = p.gpuDetector.GetGPUTags()
+		pidToGPUTags = p.getGPUTags()
 	}
 
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
@@ -359,6 +365,47 @@ func (p *ProcessCheck) generateHints() int32 {
 		hints |= ProcessDiscoveryHint
 	}
 	return hints
+}
+
+// GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
+func (p *ProcessCheck) getGPUTags() map[int32][]string {
+	if !p.gpuDetector.detectedGPU.Load() {
+		log.Info("GPU not detected, skipping GPU tag creation")
+		return nil
+	}
+
+	wmetaGPUs := p.wmeta.ListGPUs()
+
+	pidToTagSet := make(map[int32]common.StringSet)
+	for _, gpu := range wmetaGPUs {
+		uuid := gpu.ID
+
+		// use tagger to get gpu tags
+		entityID := types.NewEntityID(types.GPU, uuid)
+		tags, err := p.tagger.Tag(entityID, p.tagger.ChecksCardinality())
+		if err != nil {
+			log.Debugf("Could not collect tags for GPU %q, err: %v", uuid, err, tags)
+		}
+
+		// filter tags to remove duplicates
+		for _, pid := range gpu.ActivePIDs {
+			if _, ok := pidToTagSet[int32(pid)]; !ok {
+				pidToTagSet[int32(pid)] = common.NewStringSet()
+			}
+			for _, tag := range tags {
+				pidToTagSet[int32(pid)].Add(tag)
+			}
+		}
+	}
+
+	// Convert StringSet to []string
+	pidToGPUTags := make(map[int32][]string)
+	for pid, tagSet := range pidToTagSet {
+		pidToGPUTags[pid] = tagSet.GetAll()
+	}
+
+	log.Info("GPU tags created for active pids:", pidToGPUTags)
+	return pidToGPUTags
 }
 
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
