@@ -673,10 +673,7 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 	if hasPriority {
 		samplerName = sampler.NamePriority
 		samplingPriority = priority
-		if spans := pt.TraceChunk.GetSpans(); len(spans) > 0 && spans[0].Meta[tagDecisionMaker] == probabilitySampling {
-			// This trace has already been sampled by the probabilistic sampler in the OTLPReceiver.
-			// When sampler.PriorityAutoKeep is set as the trace chunk priority,
-			// the probabilistic sampler assigns the decision maker (probabilitySampling).
+		if traceChunkContainsProbabilitySampling(pt.TraceChunk) {
 			samplerName = sampler.NameProbabilistic
 		}
 		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
@@ -774,4 +771,21 @@ func newEventProcessor(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 // SetGlobalTagsUnsafe sets global tags to the agent configuration. Unsafe for concurrent use.
 func (a *Agent) SetGlobalTagsUnsafe(tags map[string]string) {
 	a.conf.GlobalTags = tags
+}
+
+// traceChunkContainsProbabilitySampling returns true when trace has already
+// been sampled by the probabilistic sampler in the OTLPReceiver.
+// The probabilistic sampler in the OTLPReceiver returns `sampler.PriorityAutoKeep`
+// as a result of the sampling decision.
+func traceChunkContainsProbabilitySampling(chunk *pb.TraceChunk) bool {
+	if chunk == nil {
+		return false
+	}
+	if dm, ok := chunk.Tags[tagDecisionMaker]; ok && dm == probabilitySampling {
+		return true
+	}
+	if spans := chunk.GetSpans(); len(spans) > 0 && spans[0].Meta[tagDecisionMaker] == probabilitySampling {
+		return true
+	}
+	return false
 }
