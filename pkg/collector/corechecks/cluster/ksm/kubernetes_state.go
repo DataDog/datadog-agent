@@ -76,11 +76,6 @@ const (
 	performResourceDiscovery = "perform_resource_discovery"
 )
 
-// Establish a non-zero start for API Server backoff
-var currentBackoff = 1
-
-var failCount = 5
-
 var extendedCollectors = map[string]string{
 	"jobs":  "batch/v1, Resource=jobs_extended",
 	"nodes": "core/v1, Resource=nodes_extended",
@@ -261,7 +256,7 @@ type KSMCheck struct {
 	metadataMetricsRegex *regexp.Regexp
 	resourceDiscovery    *resourceDiscovery
 	runConfigureOnce     sync.Once
-	initBackoffOnce      sync.Once
+	initBackoffStoreOnce sync.Once
 	backoffStore         map[string]map[string]int // operation name -> backoffStatus/backoffMax -> int
 	configureError       error
 }
@@ -314,10 +309,6 @@ func getAPIClient() (*apiserver.APIClient, error) {
 }
 
 func (k *KSMCheck) doResourceDiscovery(client *apiserver.APIClient) (*resourceDiscovery, error) {
-	if failCount > 0 {
-		failCount--
-		return nil, fmt.Errorf("%s failing %d more times", CheckName, failCount)
-	}
 	// Discover resources that are currently available
 	resources, err := discoverResources(client.Cl.Discovery())
 	if err != nil {
@@ -808,7 +799,7 @@ func (k *KSMCheck) Run() error {
 	if k.resourceDiscovery == nil {
 
 		// initialize backoff store
-		k.initBackoffOnce.Do(func() {
+		k.initBackoffStoreOnce.Do(func() {
 			k.backoffStore = make(map[string]map[string]int)
 		})
 
