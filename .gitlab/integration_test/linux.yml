@@ -43,3 +43,12 @@ trace_agent_integration_tests:
   retry: 2
   script:
     - inv -e integration-tests --race --only="Trace Agent"
+
+trace_agent_integration_tests_docker:
+  extends: .integration_tests_deb
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  timeout: 50m
+  retry: 2
+  parallel: 16
+  script:
+    - inv -e integration-tests --race --remote-docker --only="Trace Agent"
