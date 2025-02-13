@@ -113,7 +113,7 @@ def containerized_integration_tests(
     if remote_docker:
         test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+    go_cmd = 'go test {timeout_opt} -v -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
     for it in integration_tests_config.tests:
         if it.dir:
