@@ -369,7 +369,7 @@ func (p *ProcessCheck) generateHints() int32 {
 
 // GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
 func (p *ProcessCheck) getGPUTags() map[int32][]string {
-	if !p.gpuDetector.detectedGPU.Load() {
+	if !p.gpuDetector.IsGPUDetected() {
 		log.Info("GPU not detected, skipping GPU tag creation")
 		return nil
 	}
