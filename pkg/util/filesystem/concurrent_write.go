@@ -74,7 +74,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 
 	fileLock := flock.New(location + lockSuffix)
 	defer func() {
-		log.Debugf("releasing lock for file %v", location)
+		log.Debugf("trying to releasing lock for file %v", location)
 
 		// Calling Unlock() even if the lock was not acquired is safe
 		// [flock.Unlock()](https://pkg.go.dev/github.com/gofrs/flock#Flock.Unlock) is idempotent
@@ -99,18 +99,30 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 		}
 	}()
 
-	// trying to lock artifact file
-	locked, err := tryLockContext(ctx, fileLock, retryDelay)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return zero, fmt.Errorf("unable to acquire lock in the given time: %v", err)
+	// trying to read artifact or locking file
+	for {
+		// First check if another process were able to create and save artifact during wait
+		res, err := FetchArtifact(location, factory)
+		if err == nil {
+			succeed = true
+			return res, nil
 		}
 
-		return zero, fmt.Errorf("an error happened while trying to acquire lock: %v", err)
-	}
+		// Trying to acquire lock
+		ok, err := fileLock.TryLock()
+		if err != nil {
+			log.Debugf("unable to acquire lock: %v", err)
+		}
+		if ok {
+			break
+		}
 
-	if !locked {
-		return zero, fmt.Errorf("unable to acquire lock %v, if the error persists, consider removing it manually", location+lockSuffix)
+		select {
+		case <-ctx.Done():
+			return zero, fmt.Errorf("unable to read the artifact or acquire the lock in the given time: %v", ctx.Err())
+		case <-time.After(retryDelay):
+			// try again
+		}
 	}
 
 	// Here we acquired the lock
@@ -157,22 +169,6 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 
 // tryLockContext tries to acquire a lock on the provided file.
 // It copy the behavior of flock.TryLock() but retry if the lock have the wrong permissions.
-// This allow the case where a the lock file is created by a different user than the one trying to acquire the lock.
-// and let the opportunity to the other process to set the right permissions in the meantime.
-func tryLockContext(ctx context.Context, lockfile *flock.Flock, retryDelay time.Duration) (bool, error) {
-	for {
-		if ok, err := lockfile.TryLock(); ok || (err != nil && !errors.Is(err, fs.ErrPermission)) {
-			return ok, err
-		}
-
-		select {
-		case <-ctx.Done():
-			return false, ctx.Err()
-		case <-time.After(retryDelay):
-			// try again
-		}
-	}
-}
 
 func generateTmpArtifact[T any](location string, factory ArtifactBuilder[T], perms *Permission) (T, string, error) {
 	var zero T

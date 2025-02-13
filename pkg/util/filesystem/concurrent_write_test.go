@@ -114,7 +114,7 @@ func TestContextCancellation(t *testing.T) {
 
 	// Check that the error is due to context cancellation
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unable to acquire lock in the given time")
+	assert.Contains(t, err.Error(), "unable to read the artifact or acquire the lock in the given time")
 }
 
 func TestHandleMultipleConcurrentWrites(t *testing.T) {
