@@ -5,6 +5,8 @@
 
 // Some of the code of this file is based on the debug/elf package from the Go standard library.
 
+//go:build linux
+
 package cuda
 
 import (
