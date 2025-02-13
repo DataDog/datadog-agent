@@ -277,3 +277,14 @@ def close_failing_tests_stale_issues(_, dry_run=False):
                 print(f'Error closing issue {issue["key"]}: {e}', file=sys.stderr)
 
     print(f'Closed {n_closed} issues without failing tests')
+
+
+@task
+def post_message(_: Context, channel: str, message: str):
+    """
+    Post a message to a slack channel
+    """
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ['SLACK_API_TOKEN'])
+    client.chat_postMessage(channel=channel, text=message)
