@@ -4,8 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package catalog is a wrapper that loads workloadmeta collectors, while having less
-// than the full set. Currently only used by the dogstatsd binary, this catalog does
-// not include the process-collector due to its increased dependency set.
+// than the full set. This is the catalog used by standalone dogstatsd.
 package catalog
 
 import (
