@@ -54,7 +54,7 @@ func test_string_slice(s []string) {}
 
 //nolint:all
 //go:noinline
-func test_nil_slice(s []bool) {}
+func test_nil_slice(a int8, s []bool, x uint) {}
 
 //nolint:all
 func ExecuteSliceFuncs() {
@@ -75,5 +75,5 @@ func ExecuteSliceFuncs() {
 	})
 	test_empty_slice([]uint{})
 
-	test_nil_slice(nil)
+	test_nil_slice(1, nil, 5)
 }
