@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v55677206-ea52e48c
+      - image: gcr.io/datadoghq/agent-circleci-runner_test_only:v55781556-f181d356
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
