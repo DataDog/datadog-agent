@@ -12,6 +12,7 @@ from tasks.libs.package.utils import find_package
 DEBIAN_OS = "debian"
 CENTOS_OS = "centos"
 SUSE_OS = "suse"
+WINDOWS_OS = "windows"
 
 SCANNED_BINARIES = {
     "agent": {
@@ -64,12 +65,18 @@ def extract_rpm_package(ctx, package_path, extract_dir):
     with ctx.cd(extract_dir):
         ctx.run(f"rpm2cpio {package_path} | cpio -idm > /dev/null")
 
+def extract_zip_archive(ctx, package_path, extract_dir):
+    with ctx.cd(extract_dir):
+        ctx.run(f"unzip {package_path}")
+
 
 def extract_package(ctx, package_os, package_path, extract_dir):
     if package_os == DEBIAN_OS:
         return extract_deb_package(ctx, package_path, extract_dir)
     elif package_os in (CENTOS_OS, SUSE_OS):
         return extract_rpm_package(ctx, package_path, extract_dir)
+    elif package_os == WINDOWS_OS:
+        return extract_zip_archive(ctx, package_path, extract_dir)
     else:
         raise ValueError(
             message=color_message(
