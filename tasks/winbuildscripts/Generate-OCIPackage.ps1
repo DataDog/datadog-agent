@@ -29,11 +29,11 @@ New-Item -ItemType Directory C:\oci-pkg | Out-Null
 
 # if we are building the installer we need to copy exe
 if ($package -eq "datadog-installer") {
-    $binDir = "$(Get-Location)\bin\installer\"
+    $binDir = "C:\opt\datadog-installer\"
     New-Item -ItemType Directory C:\oci-pkg\bin | Out-Null
     New-Item -ItemType Directory C:\oci-pkg\bin\installer | Out-Null
     # copy raw .exe 
-    Copy-Item (Get-ChildItem $binDir\installer.exe).FullName -Destination C:\oci-pkg\bin\installer\installer.exe
+    Copy-Item (Get-ChildItem $binDir\datadog-installer.exe).FullName -Destination C:\oci-pkg\bin\installer\installer.exe
 
 }
 # else we move the MSI for the agent or other package into the OCI package

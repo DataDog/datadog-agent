@@ -248,6 +248,6 @@ func PromoteInstallerExperiment(ctx context.Context) error {
 }
 
 // StopAll stops all services
-func StopAll(ctx context.Context) error {
+func StopAll(_ context.Context) error {
 	return nil
 }
