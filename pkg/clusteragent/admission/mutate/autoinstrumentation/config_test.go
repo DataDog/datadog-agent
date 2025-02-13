@@ -39,6 +39,12 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			},
 		},
 		{
+			name:       "config with extra fields errors",
+			configPath: "testdata/extra_fields.yaml",
+			shouldErr:  true,
+			expected:   nil,
+		},
+		{
 			name:       "valid config disabled namespaces",
 			configPath: "testdata/disabled_namespaces.yaml",
 			shouldErr:  false,
