@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -64,6 +65,7 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 	fields := make([]nvml.FieldValue, len(c.fieldMetrics))
 	for i, metric := range c.fieldMetrics {
 		fields[i].FieldId = metric.fieldValueID
+		fields[i].ScopeId = metric.scopeID
 	}
 
 	ret := c.device.GetFieldValues(fields)
@@ -117,16 +119,20 @@ func (c *fieldsCollector) Name() string {
 type fieldValueMetric struct {
 	name         string
 	fieldValueID uint32 // No specific type, but these are constants prefixed with FI_DEV in the nvml package
+	// some fields require scopeID to be filled for the GetFieldValues to work properly
+	// (e.g: https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2175-L2177)
+	scopeID uint32
 }
 
 var metricNameToFieldID = []fieldValueMetric{
-	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP},
-	//we don't want to use bandwidth fields as they are deprecated:
-	//https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2049-L2057
-	{"nvlink.throughput.data.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX},
-	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX},
-	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX},
-	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX},
-	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER},
-	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL},
+	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP, 0},
+	// we don't want to use bandwidth fields as they are deprecated:
+	// https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2049-L2057
+	// uint_max to collect the aggregated value summed up across all links (ref: https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2175-L2177)
+	{"nvlink.throughput.data.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, math.MaxUint32},
+	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, math.MaxUint32},
+	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, math.MaxUint32},
+	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, math.MaxUint32},
+	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER, 0},
+	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL, 0},
 }
