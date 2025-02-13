@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -79,18 +80,22 @@ func (g *GPUDetector) GetGPUTags() map[int32][]string {
 
 	wmetaGPUs := g.wmeta.ListGPUs()
 
-	pidToGPUTags := make(map[int32][]string)
+	pidToTagSet := make(map[int32]common.StringSet)
 	for _, gpu := range wmetaGPUs {
-		gpuTags := []string{
-			"gpu_uuid:" + gpu.ID,
-			"gpu_device:" + gpu.Device,
-			"gpu_vendor:" + gpu.Vendor,
-		}
-
-		// An active pid can be associated with multiple GPUs
 		for _, pid := range gpu.ActivePIDs {
-			pidToGPUTags[int32(pid)] = append(pidToGPUTags[int32(pid)], gpuTags...)
+			if _, ok := pidToTagSet[int32(pid)]; !ok {
+				pidToTagSet[int32(pid)] = common.NewStringSet()
+			}
+			pidToTagSet[int32(pid)].Add("gpu_uuid:" + gpu.ID)
+			pidToTagSet[int32(pid)].Add("gpu_device:" + gpu.Device)
+			pidToTagSet[int32(pid)].Add("gpu_vendor:" + gpu.Vendor)
 		}
+	}
+
+	// Convert StringSet to []string
+	pidToGPUTags := make(map[int32][]string)
+	for pid, tagSet := range pidToTagSet {
+		pidToGPUTags[pid] = tagSet.GetAll()
 	}
 	return pidToGPUTags
 }
