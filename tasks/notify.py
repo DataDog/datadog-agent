@@ -41,14 +41,14 @@ def check_teams(_):
 
 
 @task
-def send_message(ctx: Context, pipeline_id: str, dry_run: bool = False):
+def send_message(_: Context, pipeline_id: str, dry_run: bool = False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --dry-run option to test this locally, without sending
     real slack messages.
     """
     if should_notify(pipeline_id):
-        pipeline_status.send_message(ctx, pipeline_id, dry_run)
+        pipeline_status.send_message(pipeline_id, dry_run)
     else:
         print("This pipeline is a non-conductor downstream pipeline, skipping notifications")
 
