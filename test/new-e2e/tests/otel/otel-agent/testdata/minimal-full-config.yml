@@ -16,7 +16,7 @@ exporters:
   datadog:
     api:
       fail_on_invalid_key: false
-      key: "${env:DD_API_KEY}"
+      key: "[REDACTED]"
       site: datadoghq.com
     auth: null
     compression: ""
