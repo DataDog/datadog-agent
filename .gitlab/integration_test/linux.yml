@@ -41,6 +41,7 @@ celian_trace_agent_integration_tests:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   timeout: 50m
   retry: 2
+  parallel: 16
   script:
     # Exporting the docker credentials to later pass them to the container
     - DOCKER_USER=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?; export DOCKER_USER
@@ -54,6 +55,7 @@ celian_trace_agent_integration_tests_no_docker:
   extends: .integration_tests_deb
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   timeout: 50m
+  parallel: 16
   retry: 2
   script:
     # Exporting the docker credentials to later pass them to the container
