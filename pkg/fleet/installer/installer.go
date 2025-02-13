@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -730,7 +731,16 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
-		err = os.WriteFile(filepath.Join(dir, file.Path), file.Contents, 0644)
+		var c interface{}
+		err = json.Unmarshal(file.Contents, &c)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal config file contents: %w", err)
+		}
+		serialized, err := yaml.Marshal(c)
+		if err != nil {
+			return fmt.Errorf("could not serialize config file contents: %w", err)
+		}
+		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
 		if err != nil {
 			return fmt.Errorf("could not write config file: %w", err)
 		}
