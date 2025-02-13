@@ -154,6 +154,10 @@ func testObfuscaterConfig(t *testing.T) {
 			Enabled:       true,
 			RemoveAllArgs: false,
 		},
+		Valkey: obfuscate.ValkeyConfig{
+			Enabled:       true,
+			RemoveAllArgs: false,
+		},
 		Memcached: obfuscate.MemcachedConfig{
 			Enabled:     true,
 			KeepCommand: false,

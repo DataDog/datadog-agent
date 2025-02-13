@@ -1,6 +1,6 @@
 go 1.23.3
 
-toolchain go1.23.5
+toolchain go1.23.6
 
 use (
 	.
@@ -40,6 +40,9 @@ use (
 	comp/otelcol/converter/impl
 	comp/otelcol/ddflareextension/def
 	comp/otelcol/ddflareextension/impl
+	comp/otelcol/ddflareextension/types
+	comp/otelcol/ddprofilingextension/def
+	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	comp/otelcol/otlp/components/exporter/datadogexporter
@@ -91,7 +94,9 @@ use (
 	pkg/logs/status/utils
 	pkg/logs/util/testutils
 	pkg/metrics
+	pkg/network/payload
 	pkg/networkdevice/profile
+	pkg/networkpath/payload
 	pkg/obfuscate
 	pkg/orchestrator/model
 	pkg/process/util/api

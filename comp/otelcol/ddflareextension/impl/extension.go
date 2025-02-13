@@ -23,6 +23,7 @@ import (
 
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
+	extensionTypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -38,7 +39,7 @@ type ddExtension struct {
 	telemetry   component.TelemetrySettings
 	server      *server
 	info        component.BuildInfo
-	debug       extensionDef.DebugSourceResponse
+	debug       extensionTypes.DebugSourceResponse
 	configStore *configStore
 }
 
@@ -108,7 +109,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		}
 
 		ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
-		ext.debug.Sources[extension] = extensionDef.OTelFlareSource{
+		ext.debug.Sources[extension] = extensionTypes.OTelFlareSource{
 			URLs: uris,
 		}
 	}
@@ -123,8 +124,8 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		telemetry:   telemetry,
 		info:        info,
 		configStore: &configStore{},
-		debug: extensionDef.DebugSourceResponse{
-			Sources: map[string]extensionDef.OTelFlareSource{},
+		debug: extensionTypes.DebugSourceResponse{
+			Sources: map[string]extensionTypes.OTelFlareSource{},
 		},
 	}
 	// only initiate the configprovider and set provided config if factories are provided
@@ -210,14 +211,14 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		envconfig = string(envbytes)
 	}
 
-	resp := extensionDef.Response{
-		BuildInfoResponse: extensionDef.BuildInfoResponse{
+	resp := extensionTypes.Response{
+		BuildInfoResponse: extensionTypes.BuildInfoResponse{
 			AgentVersion:     version.AgentVersion,
 			AgentCommand:     ext.info.Command,
 			AgentDesc:        ext.info.Description,
 			ExtensionVersion: ext.info.Version,
 		},
-		ConfigResponse: extensionDef.ConfigResponse{
+		ConfigResponse: extensionTypes.ConfigResponse{
 			CustomerConfig:        customer,
 			RuntimeConfig:         enhanced,
 			RuntimeOverrideConfig: "", // TODO: support RemoteConfig

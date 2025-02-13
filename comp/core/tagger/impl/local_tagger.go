@@ -138,9 +138,9 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 		t.log.Debugf("Resolving container ID from PID: %d", originInfo.LocalData.ProcessID)
 		containerID, err = metaCollector.GetContainerIDForPID(int(originInfo.LocalData.ProcessID), pidCacheTTL)
 		if err != nil {
-			t.log.Errorf("Error resolving container ID from PID: %v", err)
+			t.log.Debugf("Error resolving container ID from PID: %v", err)
 		} else if containerID == "" {
-			t.log.Errorf("No container ID found for PID: %d", originInfo.LocalData.ProcessID)
+			t.log.Debugf("No container ID found for PID: %d", originInfo.LocalData.ProcessID)
 		} else {
 			return
 		}
@@ -151,9 +151,9 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 		t.log.Debugf("Resolving container ID from inode: %d", originInfo.LocalData.Inode)
 		containerID, err = metaCollector.GetContainerIDForInode(originInfo.LocalData.Inode, inodeCacheTTL)
 		if err != nil {
-			t.log.Errorf("Error resolving container ID from inode: %v", err)
+			t.log.Debugf("Error resolving container ID from inode: %v", err)
 		} else if containerID == "" {
-			t.log.Errorf("No container ID found for inode: %d", originInfo.LocalData.Inode)
+			t.log.Debugf("No container ID found for inode: %d", originInfo.LocalData.Inode)
 		} else {
 			return
 		}
@@ -164,9 +164,9 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 		t.log.Debugf("Resolving container ID from ExternalData: %+v", originInfo.ExternalData)
 		containerID, err = metaCollector.ContainerIDForPodUIDAndContName(originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init, externalDataCacheTTL)
 		if err != nil {
-			t.log.Errorf("Error resolving container ID from ExternalData: %v", err)
+			t.log.Debugf("Error resolving container ID from ExternalData: %v", err)
 		} else if containerID == "" {
-			t.log.Errorf("No container ID found for ExternalData: %+v", originInfo.ExternalData)
+			t.log.Debugf("No container ID found for ExternalData: %+v", originInfo.ExternalData)
 		} else {
 			return
 		}

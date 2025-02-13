@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -225,18 +225,19 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			wmeta := common.FakeStoreWithDeployment(t, nil)
 
-			c := configmock.New(t)
+			mockConfig := configmock.New(t)
 
-			c.SetWithoutSource("apm_config.instrumentation.version", "v2")
+			mockConfig.SetWithoutSource("apm_config.instrumentation.version", "v2")
 			if tt.config != nil {
-				tt.config(c)
+				tt.config(mockConfig)
 			}
 
-			webhook := mustWebhook(t, wmeta, c)
-			require.Equal(t, instrumentationV2, webhook.config.version)
-			require.True(t, webhook.config.version.usesInjector())
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
 
-			webhook.config.initSecurityContext = tt.expectedSecurityContext
+			require.Equal(t, instrumentationV2, config.version)
+			require.True(t, config.version.usesInjector())
+			config.initSecurityContext = tt.expectedSecurityContext
 
 			if tt.libInfo.source == libInfoSourceNone {
 				tt.libInfo.source = libInfoSourceSingleStepInstrumentation
@@ -246,8 +247,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			err := webhook.injectAutoInstruConfig(tt.pod, tt.libInfo)
+			mutator, err := NewNamespaceMutator(config, wmeta)
+			require.NoError(t, err)
 
+			err = mutator.core.injectTracers(tt.pod, tt.libInfo)
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
 			} else {
@@ -587,11 +590,16 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 
-			c := configmock.New(t)
-			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
-			webhook := mustWebhook(t, wmeta, c)
-			err := webhook.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+
+			mutator, err := NewNamespaceMutator(config, wmeta)
+			require.NoError(t, err)
+
+			err = mutator.core.injectTracers(tt.pod, extractedPodLibInfo{
 				libs:   tt.libsToInject,
 				source: libInfoSourceLibInjection,
 			})
@@ -1069,13 +1077,16 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			webhook := mustWebhook(t, wmeta, mockConfig)
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+			mutator, err := NewNamespaceMutator(config, wmeta)
+			require.NoError(t, err)
 
 			if tt.expectedPodEligible != nil {
-				require.Equal(t, *tt.expectedPodEligible, webhook.isPodEligible(tt.pod))
+				require.Equal(t, *tt.expectedPodEligible, mutator.isPodEligible(tt.pod))
 			}
 
-			extracted := webhook.extractLibInfo(tt.pod)
+			extracted := mutator.extractLibInfo(tt.pod)
 			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
 		})
 	}
@@ -1650,33 +1661,35 @@ func TestInjectLibInitContainer(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 
-			conf := configmock.New(t)
+			mockConfig := configmock.New(t)
 			if tt.cpu != "" {
-				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
 			}
 			if tt.mem != "" {
-				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
-			filter, _ := NewInjectionFilter(conf)
-			wh, err := NewWebhook(wmeta, conf, filter)
+
+			config, err := NewConfig(mockConfig)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if err != nil {
 				return
 			}
-
 			// N.B. this is a bit hacky but consistent.
-			wh.config.initSecurityContext = tt.secCtx
+			config.initSecurityContext = tt.secCtx
 
-			c := tt.lang.libInfo("", tt.image).initContainers(wh.config.version)[0]
-			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, wh.config.defaultResourceRequirements)
+			mutator, err := NewNamespaceMutator(config, wmeta)
+			require.NoError(t, err)
+
+			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
+			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, config.defaultResourceRequirements)
 			require.Equal(t, tt.wantSkipInjection, injectionDecision.skipInjection)
 			require.Equal(t, tt.resourceRequireAnnotation, injectionDecision.message)
 			if tt.wantSkipInjection {
 				return
 			}
-			c.Mutators = wh.newContainerMutators(requirements)
+			c.Mutators = mutator.core.newContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {
@@ -3327,8 +3340,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			filter, _ := NewInjectionFilter(mockConfig)
-			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, mockConfig, filter)
+			webhook, errInitAPMInstrumentation := maybeWebhook(wmeta, mockConfig)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
@@ -3584,23 +3596,37 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			webhook := mustWebhook(t, wmeta, mockConfig)
-			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+			mutator, err := NewNamespaceMutator(config, wmeta)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
 
-func mustWebhook(t *testing.T, wmeta workloadmeta.Component, ddConfig config.Component) *Webhook {
-	filter, _ := NewInjectionFilter(ddConfig)
-	webhook, err := NewWebhook(wmeta, ddConfig, filter)
-	require.NoError(t, err)
-	return webhook
+func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
+	config, err := NewConfig(ddConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	mutator, err := NewNamespaceMutator(config, wmeta)
+	if err != nil {
+		return nil, err
+	}
+	webhook, err := NewWebhook(config, wmeta, mutator)
+	if err != nil {
+		return nil, err
+	}
+
+	return webhook, nil
 }
 
-func languageSetOf(languages ...string) util.LanguageSet {
-	set := util.LanguageSet{}
+func languageSetOf(languages ...string) languagemodels.LanguageSet {
+	set := languagemodels.LanguageSet{}
 	for _, l := range languages {
-		_ = set.Add(util.Language(l))
+		_ = set.Add(languagemodels.LanguageName(l))
 	}
 	return set
 }

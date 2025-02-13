@@ -120,6 +120,10 @@ const (
 	nviAttrInstrRegMap
 )
 
+// enabledNvInfoAttrs is a map of the attributes we care about in the .nv.info section
+// Parsing all of them is not necessary and some of have quite a lot of data
+var enabledNvInfoAttrs = map[nvInfoAttr]struct{}{}
+
 // nvInfoItem is the in-file representation of an item  header in the .nv.info section. The value follows
 // according to the format
 type nvInfoItem struct {
@@ -205,6 +209,11 @@ type nvInfoParsedItem struct {
 }
 
 func (cp *cubinParser) parseNvInfoSection(sect *safeelf.Section, kernelName string) error {
+	if len(enabledNvInfoAttrs) == 0 {
+		// if there are no enabled attributes, we don't need to parse the section
+		return nil
+	}
+
 	items := make(map[nvInfoAttr]nvInfoParsedItem)
 	buffer := sect.Open()
 
@@ -235,6 +244,14 @@ func (cp *cubinParser) parseNvInfoSection(sect *safeelf.Section, kernelName stri
 			valueSize = 2 // Doesn't really make sense as that data isn't used, but we need to skip it
 		default:
 			return fmt.Errorf("unsupported nvInfoFormat %d", item.Format)
+		}
+
+		_, enabled := enabledNvInfoAttrs[item.Attr]
+		if !enabled {
+			// Skip the value if we don't care about this attribute
+			if _, err := buffer.Seek(int64(valueSize), io.SeekCurrent); err != nil {
+				return fmt.Errorf("failed to skip value of size %d: %w", valueSize, err)
+			}
 		}
 
 		parsedItem := nvInfoParsedItem{

@@ -1,14 +1,15 @@
+import os
 import re
+import sys
 
 from tasks.libs.ciproviders.gitlab_api import get_commit, get_pipeline
 from tasks.libs.common.git import get_default_branch
+from tasks.libs.common.utils import Color, color_message
 from tasks.libs.notify.utils import DEPLOY_PIPELINES_CHANNEL, PIPELINES_CHANNEL, PROJECT_NAME, get_pipeline_type
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     base_message,
-    email_to_slackid,
     get_failed_tests,
-    send_slack_message,
 )
 from tasks.libs.types.types import SlackMessage
 
@@ -58,16 +59,26 @@ def send_message(ctx, pipeline_id, dry_run):
         for test in get_failed_tests(PROJECT_NAME, job):
             message.add_test_failure(test, job)
 
-    # Send messages
+    # Send message
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+
+    client = WebClient(token=os.environ["SLACK_API_TOKEN"])
     if dry_run:
         print(f"Would send to {slack_channel}:\n{str(message)}")
     else:
-        send_slack_message(slack_channel, str(message))
+        client.chat_postMessage(channel=slack_channel, text=str(message))
 
     if should_send_message_to_author(pipeline.ref, get_default_branch()):
         author_email = commit.author_email
         if dry_run:
             print(f"Would send to {author_email}:\n{str(message)}")
         else:
-            recipient = email_to_slackid(ctx, author_email)
-            send_slack_message(recipient, str(message))
+            try:
+                recipient = client.users_lookupByEmail(email=author_email)
+                client.chat_postMessage(channel=recipient.data['user']['id'], text=str(message))
+            except SlackApiError as e:
+                print(
+                    f"[{color_message('ERROR', Color.RED)}] Failed to send message to {author_email}: {e.response['error']}",
+                    file=sys.stderr,
+                )

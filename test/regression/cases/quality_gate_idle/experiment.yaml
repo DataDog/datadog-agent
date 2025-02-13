@@ -27,6 +27,7 @@ target:
     DD_PROFILING_EXECUTION_TRACE_ENABLED: true
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
 
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle
 
@@ -35,7 +36,7 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "365.0 MiB"
+      upper_bound: "350.0 MiB"
 
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."

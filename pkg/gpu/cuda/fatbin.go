@@ -146,14 +146,14 @@ func (fbd *fatbinData) validate() error {
 }
 
 // ParseFatbinFromELFFilePath opens the given path and parses the resulting ELF for CUDA kernels
-func ParseFatbinFromELFFilePath(path string) (*Fatbin, error) {
+func ParseFatbinFromELFFilePath(path string, acceptedSmVersions map[uint32]struct{}) (*Fatbin, error) {
 	elfFile, err := safeelf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ELF file %s: %w", path, err)
 	}
 	defer elfFile.Close()
 
-	return ParseFatbinFromELFFile(elfFile)
+	return ParseFatbinFromELFFile(elfFile, acceptedSmVersions)
 }
 
 func getBufferOffset(buf io.Seeker) int64 {
@@ -162,7 +162,7 @@ func getBufferOffset(buf io.Seeker) int64 {
 }
 
 // ParseFatbinFromELFFile parses the fatbin sections of the given ELF file and returns the information found in it
-func ParseFatbinFromELFFile(elfFile *safeelf.File) (*Fatbin, error) {
+func ParseFatbinFromELFFile(elfFile *safeelf.File, acceptedSmVersions map[uint32]struct{}) (*Fatbin, error) {
 	fatbin := NewFatbin()
 
 	for _, sect := range elfFile.Sections {
@@ -206,7 +206,7 @@ func ParseFatbinFromELFFile(elfFile *safeelf.File) (*Fatbin, error) {
 			// We need to read only up to the size given to us by the header, not to the end of the section.
 			readStart := getBufferOffset(buffer)
 			for currOffset := getBufferOffset(buffer); uint64(currOffset-readStart) < fbHeader.FatSize; currOffset = getBufferOffset(buffer) {
-				if err := parseFatbinData(buffer, fatbin); err != nil {
+				if err := parseFatbinData(buffer, fatbin, acceptedSmVersions); err != nil {
 					if err == io.EOF {
 						break
 					}
@@ -220,7 +220,7 @@ func ParseFatbinFromELFFile(elfFile *safeelf.File) (*Fatbin, error) {
 	return fatbin, nil
 }
 
-func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
+func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin, acceptedSmVersions map[uint32]struct{}) error {
 	// Each data section starts with a data header, read it
 	var fbData fatbinData
 	err := binary.Read(buffer, binary.LittleEndian, &fbData)
@@ -247,11 +247,13 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 		}
 	}
 
-	if fbData.dataKind() != fatbinDataKindSm {
-		// We only support SM data for now, skip this one
+	_, smVersionAccepted := acceptedSmVersions[fbData.SmVersion]
+
+	// Skip if the data is not for a SM version we care about, or if it's not a format we can handle (PTX)
+	if fbData.dataKind() != fatbinDataKindSm || !smVersionAccepted {
 		_, err := buffer.Seek(int64(fbData.PaddedPayloadSize), io.SeekCurrent)
 		if err != nil {
-			return fmt.Errorf("failed to skip PTX fatbin data: %w", err)
+			return fmt.Errorf("failed to skip fatbin data: %w", err)
 		}
 
 		return nil // Skip this data section
