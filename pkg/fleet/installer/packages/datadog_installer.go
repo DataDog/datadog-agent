@@ -90,16 +90,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	// Run directory can already be created by the RC client
 	err = os.Chmod("/opt/datadog-packages/run", 0755)
 	if err != nil {
-		return fmt.Errorf("error changing permissions of /opt/datadog-packages/run/locks: %w", err)
-	}
-	err = os.MkdirAll("/opt/datadog-packages/run/locks", 0777)
-	if err != nil {
-		return fmt.Errorf("error creating /opt/datadog-packages/run/locks: %w", err)
-	}
-	// Locks directory can already be created by a package install
-	err = os.Chmod("/opt/datadog-packages/run/locks", 0777)
-	if err != nil {
-		return fmt.Errorf("error changing permissions of /opt/datadog-packages/run/locks: %w", err)
+		return fmt.Errorf("error changing permissions of /opt/datadog-packages/run: %w", err)
 	}
 	err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID)
 	if err != nil {

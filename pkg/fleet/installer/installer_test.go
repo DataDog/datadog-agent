@@ -37,9 +37,9 @@ type testPackageManager struct {
 	installerImpl
 }
 
-func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, locksPath string) *testPackageManager {
-	packages := repository.NewRepositories(rootPath, locksPath)
-	configs := repository.NewRepositories(t.TempDir(), t.TempDir())
+func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
+	packages := repository.NewRepositories(rootPath)
+	configs := repository.NewRepositories(t.TempDir())
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	return &testPackageManager{
@@ -62,7 +62,7 @@ func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 func TestInstallStable(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -80,7 +80,7 @@ func TestInstallStable(t *testing.T) {
 func TestInstallExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -101,7 +101,7 @@ func TestInstallExperiment(t *testing.T) {
 func TestInstallPromoteExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -123,7 +123,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 func TestUninstallExperiment(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -145,7 +145,7 @@ func TestUninstallExperiment(t *testing.T) {
 
 func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
-	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -164,7 +164,7 @@ func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {
 
 func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 	s := fixtures.NewServer(t)
-	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	installer := newTestPackageManager(t, s, t.TempDir())
 	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -184,7 +184,7 @@ func TestForceInstallWhenAlreadyInstalled(t *testing.T) {
 func TestReinstallAfterDBClean(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
-		installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+		installer := newTestPackageManager(t, s, t.TempDir())
 		defer installer.db.Close()
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
@@ -248,7 +248,7 @@ func TestPurge(t *testing.T) {
 	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
 		s := fixtures.NewServer(t)
 		rootPath := t.TempDir()
-		installer := newTestPackageManager(t, s, rootPath, t.TempDir())
+		installer := newTestPackageManager(t, s, rootPath)
 
 		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
