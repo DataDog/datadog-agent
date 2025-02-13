@@ -21,19 +21,22 @@ const (
 
 // Repositories manages multiple repositories.
 type Repositories struct {
-	rootPath string
+	rootPath       string
+	preRemoveHooks map[string]PreRemoveHook
 }
 
 // NewRepositories returns a new Repositories.
-func NewRepositories(rootPath string) *Repositories {
+func NewRepositories(rootPath string, preRemoveHooks map[string]PreRemoveHook) *Repositories {
 	return &Repositories{
-		rootPath: rootPath,
+		rootPath:       rootPath,
+		preRemoveHooks: preRemoveHooks,
 	}
 }
 
 func (r *Repositories) newRepository(pkg string) *Repository {
 	return &Repository{
-		rootPath: filepath.Join(r.rootPath, pkg),
+		rootPath:       filepath.Join(r.rootPath, pkg),
+		preRemoveHooks: r.preRemoveHooks,
 	}
 }
 
@@ -84,7 +87,8 @@ func (r *Repositories) Create(pkg string, version string, stableSourcePath strin
 // Delete deletes the repository for the given package name.
 func (r *Repositories) Delete(_ context.Context, pkg string) error {
 	repository := r.newRepository(pkg)
-	err := os.RemoveAll(repository.rootPath)
+
+	err := repository.Delete()
 	if err != nil {
 		return fmt.Errorf("could not delete repository for package %s: %w", pkg, err)
 	}

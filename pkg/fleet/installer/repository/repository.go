@@ -25,6 +25,11 @@ var (
 	errRepositoryNotCreated = errors.New("repository not created")
 )
 
+// PreRemoveHook are called before a package is removed.  It returns a boolean
+// indicating if the package files can be deleted safely and an error if an error happened
+// when running the hook.
+type PreRemoveHook func(string) (bool, error)
+
 // Repository contains the stable and experimental package of a single artifact managed by the updater.
 //
 // On disk the repository is structured as follows:
@@ -41,7 +46,8 @@ var (
 // It is possible to end up with garbage left on disk if an error happens during some operations. This
 // is cleaned up during the next operation.
 type Repository struct {
-	rootPath string
+	rootPath       string
+	preRemoveHooks map[string]PreRemoveHook
 }
 
 // State is the state of the repository.
@@ -72,7 +78,7 @@ func (r *Repository) ExperimentFS() fs.FS {
 
 // GetState returns the state of the repository.
 func (r *Repository) GetState() (State, error) {
-	repository, err := readRepository(r.rootPath)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if errors.Is(err, errRepositoryNotCreated) {
 		return State{}, nil
 	}
@@ -104,7 +110,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		return fmt.Errorf("could not create packages root directory: %w", err)
 	}
 
-	repository, err := readRepository(r.rootPath)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
@@ -145,7 +151,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
 func (r *Repository) SetExperiment(name string, sourcePath string) error {
-	repository, err := readRepository(r.rootPath)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
@@ -172,7 +178,7 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 2. Set the stable link to the experiment package. The experiment link stays in place.
 // 3. Cleanup the repository to remove the previous stable package.
 func (r *Repository) PromoteExperiment() error {
-	repository, err := readRepository(r.rootPath)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
@@ -206,7 +212,7 @@ func (r *Repository) PromoteExperiment() error {
 // 2. Sets the experiment link to the stable link.
 // 3. Cleanup the repository to remove the previous experiment package.
 func (r *Repository) DeleteExperiment() error {
-	repository, err := readRepository(r.rootPath)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
@@ -233,7 +239,7 @@ func (r *Repository) DeleteExperiment() error {
 
 // Cleanup calls the cleanup function of the repository
 func (r *Repository) Cleanup() error {
-	repository, err := readRepository(r.rootPath)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
@@ -241,13 +247,14 @@ func (r *Repository) Cleanup() error {
 }
 
 type repositoryFiles struct {
-	rootPath string
+	rootPath       string
+	preRemoveHooks map[string]PreRemoveHook
 
 	stable     *link
 	experiment *link
 }
 
-func readRepository(rootPath string) (*repositoryFiles, error) {
+func readRepository(rootPath string, preRemoveHooks map[string]PreRemoveHook) (*repositoryFiles, error) {
 	stableLink, err := newLink(filepath.Join(rootPath, stableVersionLink))
 	if err != nil {
 		return nil, fmt.Errorf("could not load stable link: %w", err)
@@ -258,9 +265,10 @@ func readRepository(rootPath string) (*repositoryFiles, error) {
 	}
 
 	return &repositoryFiles{
-		rootPath:   rootPath,
-		stable:     stableLink,
-		experiment: experimentLink,
+		rootPath:       rootPath,
+		preRemoveHooks: preRemoveHooks,
+		stable:         stableLink,
+		experiment:     experimentLink,
 	}, nil
 }
 
@@ -326,6 +334,9 @@ func (r *repositoryFiles) cleanup() error {
 		return fmt.Errorf("could not read root directory: %w", err)
 	}
 
+	// for all versions that are not stable or experiment:
+	// - if no pre-remove hook is configured, delete the package
+	// - if a pre-remove hook is configured, run the hook and delete the package only if the hook returns true
 	for _, file := range files {
 		isLink := file.Name() == stableVersionLink || file.Name() == experimentVersionLink
 		isStable := r.stable.Exists() && r.stable.Target() == file.Name()
@@ -335,6 +346,19 @@ func (r *repositoryFiles) cleanup() error {
 		}
 
 		pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
+		pkgName := filepath.Base(r.rootPath)
+
+		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
+			canDelete, err := pkgHook(pkgRepositoryPath)
+			if err != nil {
+				log.Errorf("Pre-remove hook for package %s returned an error: %v", pkgRepositoryPath, err)
+			}
+			// if there is an error, the hook still decides if the package can be deleted
+			if !canDelete {
+				continue
+			}
+		}
+
 		log.Debugf("Removing package %s", pkgRepositoryPath)
 		if err := os.RemoveAll(pkgRepositoryPath); err != nil {
 			log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
