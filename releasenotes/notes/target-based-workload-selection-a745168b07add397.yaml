@@ -44,3 +44,22 @@ features:
           ddTraceVersions:
             python: "default"
     ```
+
+    Targets support tracer configuration options in the form of environment variables. All options must have the
+    `DD_` prefix. The following example installs the Python tracer with profiling and data jobs enabled:
+    ```
+    instrumentation:
+      enabled: true
+      targets:
+        - name: "Python Apps"
+          podSelector:
+            matchLabels:
+              language: "python"
+          ddTraceVersions:
+            python: "v2"
+          ddTraceConfigs:
+            - name: "DD_PROFILING_ENABLED"
+              value: "true"
+            - name: "DD_DATA_JOBS_ENABLED"
+              value: "true"
+    ```

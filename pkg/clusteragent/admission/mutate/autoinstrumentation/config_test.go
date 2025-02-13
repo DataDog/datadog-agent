@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -86,6 +87,16 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						TracerVersions: map[string]string{
 							"java": "default",
 						},
+						TracerConfigs: []TracerConfig{
+							{
+								Name:  "DD_PROFILING_ENABLED",
+								Value: "true",
+							},
+							{
+								Name:  "DD_DATA_JOBS_ENABLED",
+								Value: "true",
+							},
+						},
 					},
 				},
 			},
@@ -133,6 +144,16 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						TracerVersions: map[string]string{
 							"java": "default",
 						},
+						TracerConfigs: []TracerConfig{
+							{
+								Name:  "DD_PROFILING_ENABLED",
+								Value: "true",
+							},
+							{
+								Name:  "DD_DATA_JOBS_ENABLED",
+								Value: "true",
+							},
+						},
 					},
 				},
 			},
@@ -170,4 +191,40 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			require.Equal(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestTargetEnvVar(t *testing.T) {
+	expected := []Target{
+		{
+			Name: "Billing Service",
+			PodSelector: PodSelector{
+				MatchLabels: map[string]string{
+					"app": "billing-service",
+				},
+				MatchExpressions: []SelectorMatchExpression{
+					{
+						Key:      "env",
+						Operator: "In",
+						Values:   []string{"prod"},
+					},
+				},
+			},
+			NamespaceSelector: NamespaceSelector{
+				MatchNames: []string{"billing"},
+			},
+			TracerVersions: map[string]string{
+				"java": "default",
+			},
+		},
+	}
+
+	data, err := json.Marshal(expected)
+	require.NoError(t, err)
+
+	t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
+
+	actual, err := NewInstrumentationConfig(configmock.New(t))
+	require.NoError(t, err)
+
+	require.Equal(t, expected, actual.Targets)
 }

@@ -5,10 +5,11 @@ package ebpf
 
 type CudaEventType uint32
 type CudaEventHeader struct {
-	Type      uint32
 	Pid_tgid  uint64
 	Stream_id uint64
 	Ktime_ns  uint64
+	Type      uint32
+	Pad       uint32
 	Cgroup    [129]byte
 	Pad_cgo_0 [7]byte
 }
