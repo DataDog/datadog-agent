@@ -99,9 +99,6 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledNoOpenSSLConfig() {
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")
 }
 
-// TestReportsFIPSStatusMetrics tests that the custom check from our fixtures
-// is able to report metrics while in FIPS mode. These metric values are based
-// on the status of Python's FIPS mode.
 func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 	host := v.Env().RemoteHost
 	// Restart the Agent and reset the aggregator to ensure the metrics are fresh
@@ -110,12 +107,11 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 	require.NoError(v.T(), err)
 	err = v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(v.T(), err)
-	// The Agent should automatically be in FIPS mode
-	// _, err = host.Execute("GOFIPS=1 agent start")
-	// require.NoError(v.T(), err)
 	_, err = host.Execute("agent start")
 	require.NoError(v.T(), err)
 
+	// Test that the custom check from our fixtures is able to report metrics while
+	// in FIPS mode. These metric values are based on the status of Python's FIPS mode.
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("e2e.fips_mode", fakeintakeclient.WithMetricValueHigherThan(0))
 		assert.NoError(c, err)

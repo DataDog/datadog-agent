@@ -508,6 +508,11 @@ func initFIPS() {
 	fipsEnabled, err := fips.Enabled()
 	if err != nil {
 		log.Warnf("could not check FIPS mode: %v", err)
+		return
+	}
+	if PythonHome == "" {
+		log.Warnf("Python home is empty. FIPS mode could not be enabled.")
+		return
 	}
 	if fipsEnabled {
 		err := enableFIPS(PythonHome)
