@@ -206,6 +206,11 @@ http_archive(
     sha256 = "c25a4838fc8e4c1c8aacb8bd620edb3084a3d63bf8987fdad3ca2758c63240f9",
     strip_prefix = "popt-{0}".format(POPT_VERSION),
     url = "http://ftp.rpm.org/popt/releases/popt-1.x/popt-{0}.tar.gz".format(POPT_VERSION),
+    patch_args = ["-p1"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/popt:patches/0001-remove-_init-_fini-from-exported-symbols.patch",
+    ],
 )
 
 ELFUTILS_VERSION = "0.192"

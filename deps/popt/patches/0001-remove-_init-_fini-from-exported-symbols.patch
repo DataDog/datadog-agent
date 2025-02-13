@@ -1,0 +1,26 @@
+From 283db2c37ae4f81179a6abe1a5369c2dbb84cebe Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Thu, 13 Feb 2025 09:27:40 +0100
+Subject: [PATCH] remove _init / _fini from exported symbols
+
+these are deprecated symbols which zig doesn't generate
+---
+ src/libpopt.vers | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/src/libpopt.vers b/src/libpopt.vers
+index 3ac5e52..d199ac9 100644
+--- a/src/libpopt.vers
++++ b/src/libpopt.vers
+@@ -1,8 +1,6 @@
+ LIBPOPT_0
+ {
+   global:
+-    _fini;
+-    _init;
+     _poptArgMask;
+     _poptGroupMask;
+     poptAddAlias;
+-- 
+2.34.1
+
