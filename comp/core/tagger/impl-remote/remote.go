@@ -49,8 +49,7 @@ const (
 )
 
 var (
-	errTaggerStreamNotStarted                        = errors.New("tagger stream not started")
-	errTaggerFailedGenerateContainerIDFromOriginInfo = errors.New("tagger failed to generate container ID from origin info")
+	errTaggerStreamNotStarted = errors.New("tagger stream not started")
 )
 
 // Requires defines the dependencies for the remote tagger.
@@ -287,65 +286,51 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 }
 
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
-func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 50 * time.Millisecond
-	expBackoff.MaxInterval = 200 * time.Millisecond
-	expBackoff.MaxElapsedTime = 500 * time.Millisecond
-
-	err = backoff.Retry(func() error {
-		select {
-		case <-t.ctx.Done():
-			return &backoff.PermanentError{Err: errTaggerFailedGenerateContainerIDFromOriginInfo}
-		default:
+func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	// Fetch the auth token
+	if t.token == "" {
+		var authError error
+		t.token, authError = t.options.TokenFetcher()
+		if authError != nil {
+			_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
+			return "", authError
 		}
+	}
 
-		// Fetch the auth token
-		if t.token == "" {
-			var authError error
-			t.token, authError = t.options.TokenFetcher()
-			if authError != nil {
-				_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
-				return authError
-			}
-		}
+	// Create the context with the auth token
+	queryCtx, queryCancel := context.WithCancel(
+		metadata.NewOutgoingContext(t.ctx, metadata.MD{
+			"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
+		}),
+	)
+	defer queryCancel()
 
-		// Create the context with the auth token
-		queryCtx, queryCancel := context.WithCancel(
-			metadata.NewOutgoingContext(t.ctx, metadata.MD{
-				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
-			}),
-		)
-		defer queryCancel()
+	// Call the gRPC method to get the container ID from the OriginInfo.
+	containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+		LocalData: &pb.GenerateContainerIDFromOriginInfoRequest_LocalData{
+			ProcessID:   &originInfo.LocalData.ProcessID,
+			ContainerID: &originInfo.LocalData.ContainerID,
+			Inode:       &originInfo.LocalData.Inode,
+			PodUID:      &originInfo.LocalData.PodUID,
+		},
+		ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
+			Init:          &originInfo.ExternalData.Init,
+			ContainerName: &originInfo.ExternalData.ContainerName,
+			PodUID:        &originInfo.ExternalData.PodUID,
+		},
+	})
+	if err != nil {
+		t.log.Debugf("unable to generate container ID from origin info: %s", err)
+		return "", err
+	}
 
-		// Call the gRPC method to get the container ID from the OriginInfo.
-		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
-			LocalData: &pb.GenerateContainerIDFromOriginInfoRequest_LocalData{
-				ProcessID:   &originInfo.LocalData.ProcessID,
-				ContainerID: &originInfo.LocalData.ContainerID,
-				Inode:       &originInfo.LocalData.Inode,
-				PodUID:      &originInfo.LocalData.PodUID,
-			},
-			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
-				Init:          &originInfo.ExternalData.Init,
-				ContainerName: &originInfo.ExternalData.ContainerName,
-				PodUID:        &originInfo.ExternalData.PodUID,
-			},
-		})
-		if err != nil {
-			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
-			return err
-		}
+	if containerIDResponse == nil {
+		t.log.Debugf("unable to generate container ID from origin info: %s", err)
+		return "", errors.New("containerIDResponse is nil")
+	}
+	containerID := containerIDResponse.ContainerID
 
-		if containerIDResponse == nil {
-			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
-			return errors.New("containerIDResponse is nil")
-		}
-		containerID = containerIDResponse.ContainerID
-
-		t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
-		return nil
-	}, expBackoff)
+	t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
 
 	return containerID, err
 }
