@@ -95,7 +95,7 @@ func runString(code string) (string, error) {
 
 func fetchError() error {
 	if C.has_error(rtloader) == 1 {
-		return fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return fmt.Errorf("%s", C.GoString(C.get_error(rtloader)))
 	}
 	return nil
 }
@@ -149,7 +149,7 @@ func getFakeCheck() (string, error) {
 
 	ret := C.get_class(rtloader, classStr, &module, &class)
 	if ret != 1 || module == nil || class == nil {
-		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return "", fmt.Errorf("%s", C.GoString(C.get_error(rtloader)))
 	}
 
 	// version
@@ -158,7 +158,7 @@ func getFakeCheck() (string, error) {
 
 	ret = C.get_attr_string(rtloader, module, verStr, &version)
 	if ret != 1 || version == nil {
-		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return "", fmt.Errorf("%s", C.GoString(C.get_error(rtloader)))
 	}
 	defer C._free(unsafe.Pointer(version))
 
@@ -174,7 +174,7 @@ func getFakeCheck() (string, error) {
 
 	ret = C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
 	if ret != 1 || check == nil {
-		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return "", fmt.Errorf("%s", C.GoString(C.get_error(rtloader)))
 	}
 
 	C.release_gil(rtloader, state)
