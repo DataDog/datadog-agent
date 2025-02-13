@@ -11,6 +11,7 @@ package ksm
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/checkhelpers"
 	"maps"
 	"regexp"
 	"strings"
@@ -63,10 +64,22 @@ const (
 	// ownerNameKey represents the KSM label key owner_name
 	ownerNameKey = "owner_name"
 
-	maxBackoff = 10
+	// maxRetryBackoff is the max # of check runs that can be skipped while waiting for API Server to recover
+	maxRetryBackoff = 10
+	// backoffStatus is the map key where the current backoff counter is stored
+	backoffStatus = "status"
+	// backoffMax is the map key where the current max backoff is stored
+	backoffMax = "max"
+	// getAPIServerClient is the operation name used to retry the acquisition of an API client
+	getAPIServerClient = "get_api_server_client"
+	// performResourceDiscovery is the operation name used to retry resource discovery
+	performResourceDiscovery = "perform_resource_discovery"
 )
 
+// Establish a non-zero start for API Server backoff
 var currentBackoff = 1
+
+var failCount = 5
 
 var extendedCollectors = map[string]string{
 	"jobs":  "batch/v1, Resource=jobs_extended",
@@ -248,7 +261,9 @@ type KSMCheck struct {
 	metadataMetricsRegex *regexp.Regexp
 	resourceDiscovery    *resourceDiscovery
 	runConfigureOnce     sync.Once
-	retryBackoff         int
+	initBackoffOnce      sync.Once
+	backoffStore         map[string]map[string]int // operation name -> backoffStatus/backoffMax -> int
+	configureError       error
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -283,7 +298,9 @@ func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
 }
 
-func doResourceDiscovery(k *KSMCheck) (*apiserver.APIClient, error) {
+func getAPIClient() (*apiserver.APIClient, error) {
+	// Intentionally leaving maximumWaitForAPIServer as-is because if the check interval < wait time
+	// the subsequent check execution will automatically be skipped
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 
@@ -292,8 +309,18 @@ func doResourceDiscovery(k *KSMCheck) (*apiserver.APIClient, error) {
 		return nil, err
 	}
 
+	return apiServerClient, nil
+}
+
+// doResourceDiscovery acquires a Kubernetes API Server client and discovers resources for the KSM check, this function
+// is retried
+func (k *KSMCheck) doResourceDiscovery(client *apiserver.APIClient) (*resourceDiscovery, error) {
+	if failCount > 0 {
+		failCount--
+		return nil, fmt.Errorf("%s failing %d more times", CheckName, failCount)
+	}
 	// Discover resources that are currently available
-	resources, err := discoverResources(apiServerClient.Cl.Discovery())
+	resources, err := discoverResources(client.Cl.Discovery())
 	if err != nil {
 		return nil, err
 	}
@@ -318,14 +345,12 @@ func doResourceDiscovery(k *KSMCheck) (*apiserver.APIClient, error) {
 		}
 	}
 
-	custom := k.discoverCustomResources(apiServerClient, collectors, resources)
+	custom := k.discoverCustomResources(client, collectors, resources)
 
-	// Initialize resource discovery on KSMCheck
-	k.resourceDiscovery = &resourceDiscovery{collectors: collectors, resources: resources, custom: custom}
-
-	return apiServerClient, nil
+	return &resourceDiscovery{resources, custom, collectors}, nil
 }
 
+// runConfigureOnce executes the builder steps previously in Configure() that depend on resource discovery
 func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient) error {
 	var configureErr error
 	k.runConfigureOnce.Do(func() {
@@ -713,39 +738,96 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	return factories
 }
 
+func (k *KSMCheck) Init(name string, backoff int) {
+	k.backoffStore[name] = map[string]int{backoffStatus: backoff, backoffMax: backoff}
+}
+
+func (k *KSMCheck) Get(name string) (int, bool) {
+	backoff, found := k.backoffStore[name]
+	if !found {
+		return 0, found
+	}
+
+	b, found := backoff[backoffStatus]
+	if !found {
+		return 0, found
+	}
+
+	return b, found
+}
+
+func (k *KSMCheck) Decrement(name string, step int) bool {
+	backoff, ok := k.backoffStore[name]
+	if !ok {
+		return ok
+	}
+
+	if _, ok := backoff[backoffStatus]; !ok {
+		return ok
+	}
+
+	backoff[backoffStatus] = backoff[backoffStatus] - step
+	return true
+}
+
+func (k *KSMCheck) ExponentialIncrease(name string, factor int, max int) bool {
+	backoff, ok := k.backoffStore[name]
+	if !ok {
+		return ok
+	}
+
+	if _, ok := backoff[backoffMax]; !ok {
+		return ok
+	}
+
+	multiplied := backoff[backoffMax] * factor
+	if multiplied > max {
+		multiplied = max
+	}
+
+	backoff[backoffMax] = multiplied
+	backoff[backoffStatus] = multiplied
+
+	return true
+}
+
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
 	var client *apiserver.APIClient
-	var err error
 
-	// If resource discovery hasn't successfully completed yet
+	// Perform resource discovery if it hasn't successfully completed yet
 	if k.resourceDiscovery == nil {
-		if k.retryBackoff > 0 {
-			log.Debugf("[JUSTIN] Backing off %d more times", k.retryBackoff)
-			k.retryBackoff--
-			return nil
-		}
 
-		// Perform resource discovery
-		// this will populate the KSMCheck.resourceDiscovery field
-		client, err = doResourceDiscovery(k)
+		// initialize backoff store
+		k.initBackoffOnce.Do(func() {
+			k.backoffStore = make(map[string]map[string]int)
+		})
 
-		// If there was an error, that means the API Server failed to respond
-		// and needs to be retried.
+		var err error
+		client, err = checkhelpers.Retry(k, getAPIServerClient, getAPIClient, maxRetryBackoff)
 		if err != nil {
-			k.retryBackoff = currentBackoff
-			// Exponential backoff until the maximum backoff is reached
-			if currentBackoff*2 < maxBackoff {
-				currentBackoff *= 2
-			}
 			return err
 		}
+
+		rd, err := checkhelpers.Retry(k, performResourceDiscovery, func() (*resourceDiscovery, error) {
+			return k.doResourceDiscovery(client)
+		}, maxRetryBackoff)
+		if err != nil {
+			return err
+		}
+
+		k.resourceDiscovery = rd
 	}
 
-	// This is a singleton
-	err = runConfigureOnce(k, client)
+	// Run configure as a singleton
+	err := runConfigureOnce(k, client)
 	if err != nil {
-		return err
+		k.configureError = err
+	}
+
+	// If configuration failed, we always want to return the error as it won't be retried
+	if k.configureError != nil {
+		return k.configureError
 	}
 
 	// this check uses a "raw" sender, for better performance.  That requires
