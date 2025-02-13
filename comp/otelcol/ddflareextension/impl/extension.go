@@ -63,19 +63,19 @@ func extensionType(s string) string {
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	var err error
 	confMap := conf.ToStringMap()
-	enhancedStr, err := yaml.Marshal(confMap)
+	enhancedBytes, err := yaml.Marshal(confMap)
 	if err != nil {
 		return err
 	}
 
 	if ext.envConfMap != nil {
-		envConfMap := ext.envConfMap.replaceEnvVarNameBy(confMap)
-		envStr, err := yaml.Marshal(envConfMap)
+		envConfMap := ext.envConfMap.useEnvVarValues(confMap)
+		envBytes, err := yaml.Marshal(envConfMap)
 		if err != nil {
 			return err
 		}
 
-		ext.configStore.set(string(envStr), string(enhancedStr))
+		ext.configStore.set(string(envBytes), string(enhancedBytes))
 	}
 
 	extensionConfs, err := conf.Sub("extensions")
@@ -166,7 +166,7 @@ func NewExtension(ctx context.Context, cfg *Config, telemetry component.Telemetr
 		}
 
 		providedConfig := conf.ToStringMap()
-		envConfMap.replaceByEnvVarName(providedConfig)
+		providedConfig = envConfMap.useEnvVarNames(providedConfig)
 		if envbytes, err := yaml.Marshal(providedConfig); err == nil {
 			ext.configStore.setProvided(string(envbytes))
 		}

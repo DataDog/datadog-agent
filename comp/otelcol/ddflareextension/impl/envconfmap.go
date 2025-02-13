@@ -23,6 +23,9 @@ type envConfMap struct {
 	conf map[string]any
 }
 
+// newEnvConfMap creates a new envConfMap from the configProviderSettings.
+// It replaces temporary the envProvider by a provider that replace the environment variable value with a UUID.
+// This allows to easily identify which values were environment variables.
 func newEnvConfMap(ctx context.Context, configProviderSettings otelcol.ConfigProviderSettings) (*envConfMap, error) {
 	resolverSettings := configProviderSettings.ResolverSettings
 	providerFactories := resolverSettings.ProviderFactories
@@ -65,15 +68,16 @@ func newEnvConfMap(ctx context.Context, configProviderSettings otelcol.ConfigPro
 
 }
 
-// replaceByEnvVarNameTo replaces the values of the target map with the values of the source map
-// For example replace REDACTED with ${env:DD_API_KEY}
-func (e *envConfMap) replaceByEnvVarName(confMap map[string]any) {
+// useEnvVarNames replaces the values of the target map with the values of the source map
+// For example replace REDACTED from confMap with ${env:DD_API_KEY}
+func (e *envConfMap) useEnvVarNames(confMap map[string]any) map[string]any {
 	mapReplaceValue(e.conf, confMap)
+	return confMap
 }
 
-// replaceEnvVarNameBy replaces the env variable name with the values of the source map
-// For example replace ${env:DD_API_KEY} with REDACTED
-func (e *envConfMap) replaceEnvVarNameBy(confMap map[string]any) map[string]any {
+// useEnvVarValues replaces the env variable name with the values of the source map
+// For example replace ${env:DD_API_KEY} with REDACTED from confMap
+func (e *envConfMap) useEnvVarValues(confMap map[string]any) map[string]any {
 	result := deepcopy.Copy(e.conf).(map[string]any)
 
 	mapReplaceValue(confMap, result)

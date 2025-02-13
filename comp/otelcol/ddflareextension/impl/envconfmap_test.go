@@ -30,7 +30,7 @@ const yamlStr = `exporters:
     traces:
       span_name_as_resource_name: true`
 
-func TestEnvConfMap_replaceByEnvVarName(t *testing.T) {
+func TestEnvConfMap_useEnvVarNames(t *testing.T) {
 	envConfMap := newEnvConfMapFromYAML(t, yamlStr)
 
 	provided := yamlToMap(t, `exporters:
@@ -42,7 +42,7 @@ func TestEnvConfMap_replaceByEnvVarName(t *testing.T) {
     traces:
       span_name_as_resource_name: true`)
 
-	envConfMap.replaceByEnvVarName(provided)
+	provided = envConfMap.useEnvVarNames(provided)
 	expected := `exporters:
   datadog:
     api:
@@ -55,7 +55,7 @@ func TestEnvConfMap_replaceByEnvVarName(t *testing.T) {
 	require.Equal(t, expected, mapToYAML(t, provided))
 }
 
-func TestEnvConfMap_replaceEnvVarNameBy(t *testing.T) {
+func TestEnvConfMap_useEnvVarValues(t *testing.T) {
 	envConfMap := newEnvConfMapFromYAML(t, yamlStr)
 
 	provided := yamlToMap(t, `exporters:
@@ -67,7 +67,7 @@ func TestEnvConfMap_replaceEnvVarNameBy(t *testing.T) {
     traces:
       span_name_as_resource_name: true`)
 
-	results := envConfMap.replaceEnvVarNameBy(provided)
+	results := envConfMap.useEnvVarValues(provided)
 	expected := `exporters:
   datadog:
     api:
