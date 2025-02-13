@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -596,4 +597,151 @@ func TestProcessContextCollection(t *testing.T) {
 	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Payloads())
+}
+
+func TestGetGPUTags(t *testing.T) {
+	entityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindGPU,
+		ID:   "gpu-1",
+	}
+
+	tests := []struct {
+		name           string
+		detectedGPU    bool
+		gpus           []workloadmeta.GPU
+		expectedTagMap map[int32][]string
+	}{
+		{
+			name:        "No detected gpu",
+			detectedGPU: false,
+			gpus: []workloadmeta.GPU{{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor:     "nvidia",
+				Device:     "tesla-v100",
+				ActivePIDs: []int{1234},
+			}},
+			expectedTagMap: nil,
+		},
+		{
+			name:           "Detected gpu with empty workloadmeta",
+			detectedGPU:    true,
+			gpus:           []workloadmeta.GPU{},
+			expectedTagMap: map[int32][]string{},
+		},
+		{
+			name:        "Detected process on gpu",
+			detectedGPU: true,
+			gpus: []workloadmeta.GPU{
+				{
+					EntityID: entityID,
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: entityID.ID,
+					},
+					Vendor:     "nvidia",
+					Device:     "tesla-v100",
+					ActivePIDs: []int{1234},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindGPU,
+						ID:   "gpu-2",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "gpu-2",
+					},
+					Vendor:     "nvidia",
+					Device:     "tesla-v105",
+					ActivePIDs: []int{185},
+				},
+			},
+			expectedTagMap: map[int32][]string{
+				1234: {
+					"gpu_uuid:gpu-1",
+					"gpu_device:tesla-v100",
+					"gpu_vendor:nvidia",
+				},
+				185: {
+					"gpu_uuid:gpu-2",
+					"gpu_device:tesla-v105",
+					"gpu_vendor:nvidia",
+				},
+			},
+		},
+		{
+			name:        "Detected process on multiple gpus",
+			detectedGPU: true,
+			gpus: []workloadmeta.GPU{
+				{
+					EntityID: entityID,
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: entityID.ID,
+					},
+					Vendor:     "nvidia",
+					Device:     "tesla-v100",
+					ActivePIDs: []int{1234, 185},
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindGPU,
+						ID:   "gpu-2",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "gpu-2",
+					},
+					Vendor:     "nvidia",
+					Device:     "tesla-v105",
+					ActivePIDs: []int{185},
+				},
+			},
+			expectedTagMap: map[int32][]string{
+				1234: {
+					"gpu_uuid:gpu-1",
+					"gpu_device:tesla-v100",
+					"gpu_vendor:nvidia",
+				},
+				185: {
+					"gpu_uuid:gpu-2",
+					"gpu_device:tesla-v105",
+					"gpu_device:tesla-v100",
+					"gpu_uuid:gpu-1",
+					"gpu_vendor:nvidia",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mocked dependencies and ProcessCheck
+			mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				core.MockBundle(),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)).(workloadmetamock.Mock)
+
+			fakeTagger := taggerMock.SetupFakeTagger(t)
+			gpuDetector := NewGPUDetector(mockWmeta)
+			gpuDetector.detectedGPU.Store(tt.detectedGPU)
+
+			processCheck := &ProcessCheck{
+				gpuDetector: gpuDetector,
+				wmeta:       mockWmeta,
+				tagger:      fakeTagger,
+			}
+
+			// Populate workloadmeta and tagger stores with mocked data
+			for _, gpu := range tt.gpus {
+				mockWmeta.Set(&gpu)
+				fakeTagger.SetTags(types.NewEntityID(types.GPU, gpu.ID), "fake", []string{"gpu_uuid:" + gpu.ID, "gpu_device:" + gpu.Device, "gpu_vendor:" + gpu.Vendor}, nil, nil, nil)
+			}
+
+			actualTagMap := processCheck.getGPUTags()
+			for pid, tagMap := range actualTagMap {
+				assert.ElementsMatch(t, tagMap, tt.expectedTagMap[pid])
+			}
+		})
+	}
 }

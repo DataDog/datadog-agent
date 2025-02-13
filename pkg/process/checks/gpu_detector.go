@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,38 +69,6 @@ func (g *GPUDetector) Run() {
 		}
 	}
 }
-
-// GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
-func (g *GPUDetector) GetGPUTags() map[int32][]string {
-	if !g.detectedGPU.Load() {
-		log.Info("GPU not detected, skipping GPU tag creation")
-		return nil
-	}
-
-	wmetaGPUs := g.wmeta.ListGPUs()
-
-	pidToTagSet := make(map[int32]common.StringSet)
-	for _, gpu := range wmetaGPUs {
-		for _, pid := range gpu.ActivePIDs {
-			if _, ok := pidToTagSet[int32(pid)]; !ok {
-				pidToTagSet[int32(pid)] = common.NewStringSet()
-			}
-			pidToTagSet[int32(pid)].Add("gpu_uuid:" + gpu.ID)
-			pidToTagSet[int32(pid)].Add("gpu_device:" + gpu.Device)
-			pidToTagSet[int32(pid)].Add("gpu_vendor:" + gpu.Vendor)
-		}
-	}
-
-	// Convert StringSet to []string
-	pidToGPUTags := make(map[int32][]string)
-	for pid, tagSet := range pidToTagSet {
-		pidToGPUTags[pid] = tagSet.GetAll()
-	}
-
-	log.Info("GPU tags created for active pids:", pidToGPUTags)
-	return pidToGPUTags
-}
-
 func (g *GPUDetector) Stop() {
 	close(g.stopCh)
 }

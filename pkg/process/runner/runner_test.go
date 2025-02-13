@@ -16,6 +16,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -31,7 +32,8 @@ func TestUpdateRTStatus(t *testing.T) {
 
 	assert := assert.New(t)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta)}, nil)
+	tagger := taggerMock.SetupFakeTagger(t)
+	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, tagger)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -68,7 +70,8 @@ func TestUpdateRTInterval(t *testing.T) {
 	cfg := configmock.New(t)
 	assert := assert.New(t)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta)}, nil)
+	tagger := taggerMock.SetupFakeTagger(t)
+	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, tagger)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -128,13 +131,14 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 		},
 	}
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	tagger := taggerMock.SetupFakeTagger(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
 
 			assert := assert.New(t)
-			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig, wmeta)}
+			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig, wmeta, tagger)}
 
 			c, err := NewRunner(mockConfig, nil, &checks.HostInfo{}, expectedChecks, nil)
 			assert.NoError(err)
