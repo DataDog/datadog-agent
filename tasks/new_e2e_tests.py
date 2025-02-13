@@ -128,7 +128,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     # Create temporary file for flaky patterns config
-    tmp_flaky_patterns_config = tempfile.NamedTemporaryFile(suffix="flaky_patterns_config.yaml", delete_on_close=False)
+    tmp_flaky_patterns_config = tempfile.NamedTemporaryFile(suffix="flaky_patterns_config.yaml", delete=False)
     tmp_flaky_patterns_config.write(b"{}")
     tmp_flaky_patterns_config.close()
     flaky_patterns_config = tmp_flaky_patterns_config.name

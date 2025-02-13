@@ -1,0 +1,9 @@
+datadog:
+  networkMonitoring:
+    enabled: true
+
+  containers:
+    systemProbe:
+      env:
+        - name: "DD_NETWORK_CONFIG_ENABLE_CILIUM_LB_CONNTRACKER"
+          value: "true"
