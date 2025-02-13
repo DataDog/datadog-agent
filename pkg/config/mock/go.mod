@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/config/mock
 
-go 1.23.0
+go 1.23.5
+
+toolchain go1.23.6
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel

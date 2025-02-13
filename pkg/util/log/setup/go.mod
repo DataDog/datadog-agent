@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/util/log/setup
 
-go 1.23.0
+go 1.23.5
+
+toolchain go1.23.6
 
 replace github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 

@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/core/log/mock
 
-go 1.23.0
+go 1.23.5
+
+toolchain go1.23.6
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
@@ -11,7 +13,6 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.62.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect

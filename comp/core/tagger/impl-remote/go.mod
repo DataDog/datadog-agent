@@ -1,8 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote
 
-go 1.23.0
+go 1.23.5
 
-toolchain go1.23.3
+toolchain go1.23.6
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0

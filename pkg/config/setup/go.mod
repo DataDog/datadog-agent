@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/config/setup
 
-go 1.23.0
+go 1.23.5
+
+toolchain go1.23.6
 
 // Internal deps fix version
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0

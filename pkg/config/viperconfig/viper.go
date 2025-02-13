@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package viperconfig provides a viper-based implementation of the config interface.
 package viperconfig
 
 import (

@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/util/grpc
 
-go 1.23.0
+go 1.23.5
+
+toolchain go1.23.6
 
 require (
 	github.com/DataDog/datadog-agent/pkg/api v0.61.0
