@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentmemprof"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
@@ -69,6 +70,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
 	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(agentmemprof.CheckName, agentmemprof.Factory(cfg))
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())

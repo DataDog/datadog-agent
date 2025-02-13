@@ -1267,6 +1267,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
 	config.BindEnv("no_proxy_nonexact_match")
+	config.BindEnvAndSetDefault("memory_profile_threshold", 0)
 }
 
 func telemetry(config pkgconfigmodel.Setup) {

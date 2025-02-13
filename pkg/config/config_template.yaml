@@ -860,7 +860,6 @@ api_key:
 #
 # secret_backend_remove_trailing_line_break: false
 
-
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
@@ -4561,6 +4560,13 @@ api_key:
   ## The port used for the injection controller communications API (served on localhost).
   #
   # socket_port: 3030
+
+  ## @param memory_profile_threshold - integer - optional - default: 0
+  ## @env DD_MEMORY_PROFILE_THRESHOLD - integer - optional - default: 0
+  ## Memory threshold in bytes to automatically generate a memory profile.
+  ## If set to 0, memory profiling is disabled.
+  #
+  # memory_profile_threshold: 0
 
   # internal_profiling:
   #
