@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -43,7 +44,7 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 }
 
 func TestSplitServiceChecks(t *testing.T) {
-	var serviceChecks = ServiceChecks{}
+	serviceChecks := ServiceChecks{}
 	for i := 0; i < 2; i++ {
 		sc := servicecheck.ServiceCheck{
 			CheckName:  "test.check",
@@ -81,7 +82,7 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-	builder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
+	builder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(t))
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
@@ -131,7 +132,8 @@ func TestPayloadsServiceChecks(t *testing.T) {
 	serviceCheckCollection := []ServiceChecks{
 		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},
 		{createServiceCheck("4"), createServiceCheck("5"), createServiceCheck("6")},
-		{createServiceCheck("7"), createServiceCheck("8")}}
+		{createServiceCheck("7"), createServiceCheck("8")},
+	}
 	var allServiceChecks ServiceChecks
 	for _, serviceCheck := range serviceCheckCollection {
 		allServiceChecks = append(allServiceChecks, serviceCheck...)
@@ -160,7 +162,7 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor)
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
@@ -173,24 +175,31 @@ func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 func BenchmarkJSONPayloadBuilderServiceCheck1(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck10(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck100(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 100)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck1000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1000)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck10000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10000)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck100000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 100000)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck1000000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1000000)
 }
+
 func BenchmarkJSONPayloadBuilderServiceCheck10000000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10000000)
 }
@@ -203,7 +212,7 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serviceChecks, true, split.JSONMarshalFct, compressor)
+		split.Payloads(serviceChecks, true, split.JSONMarshalFct, compressor, logmock.New(b))
 	}
 }
 
@@ -216,6 +225,7 @@ func BenchmarkPayloadServiceCheck100000(b *testing.B) { benchmarkPayloadsService
 func BenchmarkPayloadServiceCheck1000000(b *testing.B) {
 	benchmarkPayloadsServiceCheck(b, 1000000)
 }
+
 func BenchmarkPayloadServiceCheck10000000(b *testing.B) {
 	benchmarkPayloadsServiceCheck(b, 10000000)
 }

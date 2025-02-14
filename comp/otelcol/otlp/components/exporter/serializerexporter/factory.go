@@ -45,11 +45,11 @@ type tagenricher interface {
 
 type defaultTagEnricher struct{}
 
-func (d *defaultTagEnricher) SetCardinality(cardinality string) error {
+func (d *defaultTagEnricher) SetCardinality(_ string) error {
 	return nil
 }
 
-func (d *defaultTagEnricher) Enrich(ctx context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
+func (d *defaultTagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
 	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
@@ -66,7 +66,7 @@ func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hos
 		hostGetter: hostGetter,
 		statsIn:    statsIn,
 		wg:         wg,
-		createConsumer: func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializeConsumer {
+		createConsumer: func(enricher tagenricher, extraTags []string, apmReceiverAddr string, _ component.BuildInfo) SerializeConsumer {
 			return &serializerConsumer{enricher: enricher, extraTags: extraTags, apmReceiverAddr: apmReceiverAddr}
 		},
 	}

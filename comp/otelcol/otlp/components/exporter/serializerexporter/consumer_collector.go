@@ -27,8 +27,7 @@ type collectorConsumer struct {
 
 var _ SerializeConsumer = (*collectorConsumer)(nil)
 
-func (c *collectorConsumer) addRuntimeTelemetryMetric(hostname string, languageTags []string) {
-	fmt.Printf("##### Adding runtime telemetry metric for %s\n", hostname)
+func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []string) {
 	timestamp := c.getPushTime()
 	buildTags := TagsFromBuildInfo(c.buildInfo)
 	series := c.series
@@ -57,7 +56,7 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(hostname string, languageT
 	c.series = series
 }
 
-func (c *collectorConsumer) addTelemetryMetric(hostname string) {
+func (c *collectorConsumer) addTelemetryMetric(_ string) {
 }
 
 // ConsumeHost implements the metrics.HostConsumer interface.

@@ -129,7 +129,8 @@ func InitAndStartAgentDemultiplexer(
 	haAgent haagent.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
-	hostname string) *AgentDemultiplexer {
+	hostname string,
+) *AgentDemultiplexer {
 	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, hostname)
 	go demux.run()
 	return demux
@@ -143,7 +144,8 @@ func initAgentDemultiplexer(log log.Component,
 	haAgent haagent.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
-	hostname string) *AgentDemultiplexer {
+	hostname string,
+) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
@@ -154,7 +156,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -186,7 +188,7 @@ func initAgentDemultiplexer(log log.Component,
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), hostname)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
 		noAggWorker = newNoAggregationStreamWorker(
 			pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,

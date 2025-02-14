@@ -11,12 +11,12 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 
-	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -28,6 +28,64 @@ import (
 	"go.uber.org/zap"
 )
 
+const megaByte = 1024 * 1024
+
+func setupForwarder(config pkgconfigmodel.Config) {
+	// Forwarder
+	config.Set("additional_endpoints", map[string][]string{}, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_timeout", 20, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_connection_reset_interval", 0, pkgconfigmodel.SourceDefault)                                               // in seconds, 0 means disabled
+	config.Set("forwarder_apikey_validation_interval", pkgconfigsetup.DefaultAPIKeyValidationInterval, pkgconfigmodel.SourceDefault) // in minutes
+
+	config.Set("forwarder_num_workers", 1, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_stop_timeout", 2, pkgconfigmodel.SourceDefault)
+	// Forwarder retry settings
+	config.Set("forwarder_backoff_factor", 2, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_backoff_base", 2, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_backoff_max", 64, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_recovery_interval", pkgconfigsetup.DefaultForwarderRecoveryInterval, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_recovery_reset", false, pkgconfigmodel.SourceDefault)
+
+	// Forwarder storage on disk
+	config.Set("forwarder_storage_path", "", pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_outdated_file_in_days", 10, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_flush_to_disk_mem_ratio", 0.5, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_storage_max_size_in_bytes", 0, pkgconfigmodel.SourceDefault)                // 0 means disabled. This is a BETA feature.
+	config.Set("forwarder_storage_max_disk_ratio", 0.80, pkgconfigmodel.SourceDefault)                // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
+	config.Set("forwarder_retry_queue_capacity_time_interval_sec", 900, pkgconfigmodel.SourceDefault) // 15 mins
+
+	// Forwarder channels buffer size
+	config.Set("forwarder_high_prio_buffer_size", 100, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_low_prio_buffer_size", 100, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_requeue_buffer_size", 100, pkgconfigmodel.SourceDefault)
+}
+
+func setupSerializer(config pkgconfigmodel.Config) {
+	// Serializer
+	config.Set("enable_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
+	config.Set("enable_service_checks_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
+	config.Set("enable_events_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
+	config.Set("enable_sketch_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
+	config.Set("enable_json_stream_shared_compressor_buffers", true, pkgconfigmodel.SourceDefault)
+
+	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
+	config.Set("serializer_max_payload_size", 2*megaByte+megaByte/2, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_max_uncompressed_payload_size", 4*megaByte, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_max_series_points_per_payload", 10000, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_max_series_payload_size", 512000, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_max_series_uncompressed_payload_size", 5242880, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_zstd_compressor_level", pkgconfigsetup.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
+
+	config.Set("use_v2_api.series", true, pkgconfigmodel.SourceDefault)
+	// Serializer: allow user to blacklist any kind of payload to be sent
+	config.Set("enable_payloads.events", true, pkgconfigmodel.SourceDefault)
+	config.Set("enable_payloads.series", true, pkgconfigmodel.SourceDefault)
+	config.Set("enable_payloads.service_checks", true, pkgconfigmodel.SourceDefault)
+	config.Set("enable_payloads.sketches", true, pkgconfigmodel.SourceDefault)
+	config.Set("enable_payloads.json_to_v1_intake", true, pkgconfigmodel.SourceDefault)
+}
+
 func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
 	var f defaultforwarder.Component
 	var s *serializer.Serializer
@@ -38,21 +96,20 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := pkgconfigmodel.NewConfig("DD", "DD", strings.NewReplacer(".", "_"))
+			pkgconfig := pkgconfigmodel.NewConfig("DD", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 			// Set the API Key
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
 			pkgconfig.Set("site", cfg.API.Site, pkgconfigmodel.SourceFile)
-
-			return pkgconfigsetup.Datadog()
+			setupSerializer(pkgconfig)
+			setupForwarder(pkgconfig)
+			pkgconfig.Set("logging_frequency", int64(500), pkgconfigmodel.SourceDefault)
+			return pkgconfig
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {
-			return &zaplogger{logger: log}, nil
+			zp := &zaplogger{log}
+			return zp, nil
 		}),
-
-		//fx.Provide(func(c coreconfig.Component, l corelog.Component) (defaultforwarder.Params, error) {
-		//	return defaultforwarder.NewParams()	, nil
-		//}),
 		// casts the defaultforwarder.Component to a defaultforwarder.Forwarder
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
@@ -68,16 +125,10 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
 		fx.Provide(serializer.NewSerializer),
-		// fx.Provide(strategy.NewZlibStrategy),
-		// this doesn't let us switch impls.........
 		metricscompressionfx.Module(),
-		// casts the metricscompression.Component to a compression.Compressor
 		fx.Provide(func(c metricscompression.Component) compression.Compressor {
 			return c
 		}),
-		//fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
-		//	return s
-		//}),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
 		fx.Populate(&f),
 		fx.Populate(&s),

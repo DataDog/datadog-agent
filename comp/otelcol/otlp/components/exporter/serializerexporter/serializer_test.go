@@ -16,7 +16,7 @@ import (
 
 func TestInitSerializer(t *testing.T) {
 	logger := zap.NewNop()
-	var sourceProvider SourceProviderFunc = func(ctx context.Context) (string, error) {
+	var sourceProvider SourceProviderFunc = func(_ context.Context) (string, error) {
 		return "test", nil
 	}
 	cfg := &ExporterConfig{}

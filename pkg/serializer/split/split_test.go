@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -52,7 +53,6 @@ func TestSplitPayloadsSeries(t *testing.T) {
 }
 
 func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
-
 	tests := map[string]struct {
 		kind string
 	}{
@@ -88,13 +88,13 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 
 			strategy := selector.NewCompressor(tc.kind, 1)
 
-			payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy)
+			payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy, logmock.New(t))
 			require.Nil(t, err)
 
 			originalLength := len(testSeries)
-			var splitSeries = []metricsserializer.Series{}
+			splitSeries := []metricsserializer.Series{}
 			for _, payload := range payloads {
-				var s = map[string]metricsserializer.Series{}
+				s := map[string]metricsserializer.Series{}
 				localPayload := payload.GetContent()
 
 				if compress {
@@ -141,8 +141,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = Payloads(testSeries, true, JSONMarshalFct, compressor)
-
+		r, _ = Payloads(testSeries, true, JSONMarshalFct, compressor, logmock.New(b))
 	}
 	// ensure we actually had to split
 	if len(r) < 2 {
@@ -189,7 +188,6 @@ func TestSplitPayloadsEvents(t *testing.T) {
 }
 
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
-
 	tests := map[string]struct {
 		kind string
 	}{
@@ -198,7 +196,6 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			testEvent := metricsserializer.Events{}
 			for i := 0; i < numPoints; i++ {
 				event := event.Event{
@@ -216,7 +213,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, compressor)
+			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, compressor, logmock.New(t))
 			require.Nil(t, err)
 
 			originalLength := len(testEvent.EventsArr)
@@ -270,13 +267,13 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 }
 
 func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
-
 	tests := map[string]struct {
 		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
+	log := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			testServiceChecks := metricsserializer.ServiceChecks{}
@@ -295,7 +292,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, compressor)
+			payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, compressor, log)
 			require.Nil(t, err)
 
 			originalLength := len(testServiceChecks)
@@ -319,6 +316,5 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 			newLength := len(unrolledServiceChecks)
 			require.Equal(t, originalLength, newLength)
 		})
-
 	}
 }
