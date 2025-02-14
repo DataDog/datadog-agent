@@ -116,13 +116,17 @@ func (c *deviceCollector) Name() CollectorName {
 }
 
 func getRxPciThroughput(dev nvml.Device) (float64, nvml.Return) {
+	// Output in KB/s
 	tput, ret := dev.GetPcieThroughput(nvml.PCIE_UTIL_RX_BYTES)
-	return float64(tput), ret
+	// Convert to B/S
+	return float64(tput) * 1024, ret
 }
 
 func getTxPciThroughput(dev nvml.Device) (float64, nvml.Return) {
+	// Output in KB/s
 	tput, ret := dev.GetPcieThroughput(nvml.PCIE_UTIL_TX_BYTES)
-	return float64(tput), ret
+	// Convert to B/S
+	return float64(tput) * 1024, ret
 }
 
 func getDecoderUtilization(dev nvml.Device) (float64, nvml.Return) {
