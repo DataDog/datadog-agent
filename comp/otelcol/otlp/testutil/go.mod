@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.24.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.25.0
-	github.com/DataDog/sketches-go v1.4.6
+	github.com/DataDog/sketches-go v1.4.7-0.20250214055153-ba6577e8d0ec
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/pdata v1.25.0
 	google.golang.org/protobuf v1.36.4
