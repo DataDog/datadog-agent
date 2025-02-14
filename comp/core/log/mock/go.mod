@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/log/mock
 
-go 1.23.5
+go 1.23.0
 
 toolchain go1.23.6
 

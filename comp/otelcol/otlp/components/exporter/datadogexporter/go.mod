@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter
 
-go 1.23.5
+go 1.23.0
 
 toolchain go1.23.6
 

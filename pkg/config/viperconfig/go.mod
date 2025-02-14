@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/viperconfig
 
-go 1.23.5
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.62.2
