@@ -231,7 +231,8 @@ func (c *LogsConfig) UnmarshalYAML(node *yaml.Node) error {
 
 		if structField.CanSet() {
 			switch valueNode.Kind {
-			// A ScalarNode represents a single value (string, int, *bool, float64, or slice represented as a string).
+			// A ScalarNode represents a single value (string, int, *bool, bool, float64, or slice
+			// represented as a string).
 			// A SequenceNode a multiple(list) of such values.
 			case yaml.ScalarNode:
 				if structField.Kind() == reflect.String {
@@ -256,6 +257,11 @@ func (c *LogsConfig) UnmarshalYAML(node *yaml.Node) error {
 						boolPtr := reflect.New(structField.Type().Elem())
 						boolPtr.Elem().SetBool(boolValue)
 						structField.Set(boolPtr)
+					}
+				} else if structField.Kind() == reflect.Bool {
+					boolValue, err := strconv.ParseBool(valueNode.Value)
+					if err == nil {
+						structField.SetBool(boolValue)
 					}
 				} else if structField.Kind() == reflect.Float64 {
 					floatValue, err := strconv.ParseFloat(valueNode.Value, 64)
