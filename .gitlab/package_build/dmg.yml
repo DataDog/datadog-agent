@@ -188,7 +188,7 @@ new-agent_dmg-x64-a7:
         curl -LO https://github.com/git/git/archive/refs/tags/v${GIT_VERSION}.tar.gz
         # TODO: Remove etc.
         tar -xzf v${GIT_VERSION}.tar.gz
-        cd git-$GIT_VERSION
+        pushd git-$GIT_VERSION
 
         make configure -j 4
         ./configure
@@ -198,6 +198,8 @@ new-agent_dmg-x64-a7:
         echo Git Built
 
         echo "$PWD/git"
+
+        popd
 
         # TODO A: Install?
         # sudo make install -j 4
