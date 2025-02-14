@@ -143,7 +143,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  extends: .macos_gitlab
+  # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
@@ -162,7 +162,7 @@ new-agent_dmg-x64-a7:
     - set -e
     - !reference [.vault_login]
     # TODO A
-    - 'echo "Number of cpu: $(sysctl -n hw.ncpu)" || true'
+    # - 'echo "Number of cpu: $(sysctl -n hw.ncpu)" || true'
 
     - |
       echo Removing preinstalled environment
@@ -171,6 +171,18 @@ new-agent_dmg-x64-a7:
       # brew remove --force --ignore-dependencies --formula libidn2
       # brew remove --force --ignore-dependencies --formula wget
       brew remove --force --ignore-dependencies --formula gettext
+
+    - ls -l /usr/local/Cellar/python@3.12/3.12.9/bin/python3.12 || true
+    - which python3.12 || true
+    - which python || true
+    - python -c 'print("hell world")' || true
+    - /usr/local/Cellar/python@3.12/3.12.9/bin/python3.12 -c 'print("hell world")' || true
+    - export PATH="/usr/local/Cellar/python@3.12/3.12.9/bin:$PATH"
+    - which python || true
+    - which python3 || true
+    - which python3.12 || true
+    - python -c 'print("hell world")' || true
+    - exit
 
     - |
       debug()
