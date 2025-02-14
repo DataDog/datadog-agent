@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/subscribers"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -129,7 +130,7 @@ type ProcessCheck struct {
 
 	sysprobeClient *http.Client
 
-	gpuDetector *GPUDetector
+	gpuSubscriber *subscribers.GPUSubscriber
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -146,7 +147,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.containerProvider = sharedContainerProvider
 
 	log.Info("Initializing gpu detector from process check")
-	p.gpuDetector = NewGPUDetector(p.wmeta)
+	p.gpuSubscriber = subscribers.NewGPUSubscriber(p.wmeta)
 	log.Info("Finish initializing gpu detector from process check")
 
 	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
@@ -224,9 +225,9 @@ func (p *ProcessCheck) Cleanup() {
 	if p.workloadMetaServer != nil {
 		p.workloadMetaServer.Stop()
 	}
-	if p.gpuDetector != nil {
+	if p.gpuSubscriber != nil {
 		log.Info("Cleaning up gpu detector from process check")
-		p.gpuDetector.Stop()
+		p.gpuSubscriber.Stop()
 	}
 }
 
@@ -302,7 +303,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	pidToGPUTags := make(map[int32][]string)
-	if p.gpuDetector != nil {
+	if p.gpuSubscriber != nil {
 		log.Info("GPU detected in process check, populating pidToGPUTags mapping")
 		pidToGPUTags = p.getGPUTags()
 	}
@@ -369,7 +370,7 @@ func (p *ProcessCheck) generateHints() int32 {
 
 // GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
 func (p *ProcessCheck) getGPUTags() map[int32][]string {
-	if !p.gpuDetector.IsGPUDetected() {
+	if !p.gpuSubscriber.IsGPUDetected() {
 		log.Info("GPU not detected, skipping GPU tag creation")
 		return nil
 	}
@@ -419,9 +420,9 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 // Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	// start running GPU detector
-	if p.gpuDetector != nil {
+	if p.gpuSubscriber != nil {
 		log.Tracef("Starting process check gpu detector in go routine")
-		go p.gpuDetector.Run()
+		go p.gpuSubscriber.Run()
 	}
 
 	if options == nil {

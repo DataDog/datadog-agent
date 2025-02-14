@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
+	"github.com/DataDog/datadog-agent/pkg/process/subscribers"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
@@ -723,13 +724,13 @@ func TestGetGPUTags(t *testing.T) {
 			)).(workloadmetamock.Mock)
 
 			fakeTagger := taggerMock.SetupFakeTagger(t)
-			gpuDetector := NewGPUDetector(mockWmeta)
+			gpuDetector := subscribers.NewGPUSubscriber(mockWmeta)
 			gpuDetector.SetGPUDetected(tt.detectedGPU)
 
 			processCheck := &ProcessCheck{
-				gpuDetector: gpuDetector,
-				wmeta:       mockWmeta,
-				tagger:      fakeTagger,
+				gpuSubscriber: gpuDetector,
+				wmeta:         mockWmeta,
+				tagger:        fakeTagger,
 			}
 
 			// Populate workloadmeta and tagger stores with mocked data
