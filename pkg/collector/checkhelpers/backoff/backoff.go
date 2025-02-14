@@ -142,7 +142,6 @@ func Retry[T any](backoff *Store, opName string, op RetryableOperation[T], multi
 
 	}
 
-	// Call the function
 	result, err := op()
 
 	// If operation failed, adjust backoff strategy
@@ -158,7 +157,6 @@ func Retry[T any](backoff *Store, opName string, op RetryableOperation[T], multi
 		// Increase backoff strategy by a specified multiplication factor until max is reached
 		backoff.ExponentialIncrease(opName, multiplier, maxBackoff)
 
-		// throw err
 		return none, err
 	}
 
