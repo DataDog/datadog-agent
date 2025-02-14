@@ -204,6 +204,10 @@ new-agent_dmg-x64-a7:
     # Setup
     - |
       # TODO A: Omnibus cache
+      unset INTEGRATION_WHEELS_CACHE_BUCKET || true
+      unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
+      unset S3_OMNIBUS_CACHE_BUCKET || true
+      unset S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS || true
       # export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
       # export INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD="true"
       # export S3_OMNIBUS_CACHE_BUCKET="dd-ci-datadog-agent-omnibus-cache-build-stable"
