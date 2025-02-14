@@ -161,6 +161,8 @@ new-agent_dmg-x64-a7:
   script:
     - set -e
     - !reference [.vault_login]
+    # TODO A
+    - 'echo "Number of cpu: $(sysctl -n hw.ncpu)" || true'
 
     - |
       echo Removing preinstalled environment
@@ -206,19 +208,14 @@ new-agent_dmg-x64-a7:
       }
 
       echo Installing git
-      pwd
       install_git
-      pwd
 
-      which git
+      # Use this local git
       export PATH="$PWD/git-$GIT_VERSION:$PATH"
-      which git
       git --version
 
       echo After git install
       debug
-
-      exit
 
     # # Try builder
     # - brew list --formula
