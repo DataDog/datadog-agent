@@ -103,11 +103,11 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 	host := v.Env().RemoteHost
 	// Restart the Agent and reset the aggregator to ensure the metrics are fresh
 	// with FIPS mode enabled.
-	_, err := host.Execute("agent stop")
+	_, err := host.Execute("sudo datadog-agent stop")
 	require.NoError(v.T(), err)
 	err = v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(v.T(), err)
-	_, err = host.Execute("agent start")
+	_, err = host.Execute("sudo datadog-agent start")
 	require.NoError(v.T(), err)
 
 	// Test that the custom check from our fixtures is able to report metrics while
