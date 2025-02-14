@@ -632,6 +632,8 @@
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/check   @DataDog/agent-metric-pipelines
+/test/new-e2e/tests/agent-subcommands/hostname  @DataDog/agent-runtimes
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
