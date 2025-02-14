@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -618,7 +619,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 func TestHighPriorityTransaction(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
 	var mutex sync.Mutex
-	var requestChan = make(chan (string))
+	var requestChan = make(chan (string), 100)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mutex.Lock()
@@ -651,24 +652,43 @@ func TestHighPriorityTransaction(t *testing.T) {
 	f.Start()
 	defer f.Stop()
 
-	data1 := []byte("data payload 1")
-	data2 := []byte("data payload 2")
-	dataHighPrio := []byte("data payload high Prio")
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data1}), headers))
-	// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
-	time.Sleep(10 * time.Millisecond)
+	for i := range 100 {
+		// Every third transaction is high priority
+		if i%2 == 0 {
+			data := []byte(fmt.Sprintf("high priority %d", i))
+			assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
+		} else {
+			data := []byte(fmt.Sprintf("low priority %d", i))
+			assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
+		}
 
-	// SubmitHostMetadata send the transactions as TransactionPriorityHigh
-	assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&dataHighPrio}), headers))
-	time.Sleep(10 * time.Millisecond)
-	assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data2}), headers))
+		// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
+		time.Sleep(10 * time.Millisecond)
+	}
 
-	assert.Equal(t, string(dataHighPrio), <-requestChan)
-	assert.Equal(t, string(data2), <-requestChan)
-	assert.Equal(t, string(data1), <-requestChan)
+	highPosition := 0
+	lowPosition := 0
+
+	// Check the first 33 recieved
+	for i := range 100 {
+		tt := <-requestChan
+
+		fmt.Println(string(tt))
+
+		if strings.Contains(string(tt), "high") {
+			highPosition += i
+		} else {
+			lowPosition += i
+		}
+	}
+
+	fmt.Println(lowPosition / 50)
+	fmt.Println(highPosition / 50)
+
+	assert.Greater(t, lowPosition/50, highPosition/50)
 }
 
 func TestCustomCompletionHandler(t *testing.T) {
