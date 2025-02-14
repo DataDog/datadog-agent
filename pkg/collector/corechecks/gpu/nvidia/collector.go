@@ -31,6 +31,7 @@ const (
 	clock        CollectorName = "clocks"
 	device       CollectorName = "device"
 	remappedRows CollectorName = "remapped_rows"
+	samples      CollectorName = "samples"
 )
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -67,7 +68,7 @@ var allSubsystems = map[CollectorName]subsystemBuilder{
 	device:       newDeviceCollector,
 	remappedRows: newRemappedRowsCollector,
 	clock:        newClocksCollector,
-	samplesCollectorName:      newSamplesCollector,
+	samples:      newSamplesCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
