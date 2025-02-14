@@ -45,7 +45,7 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 			Name:     name,
 			Resource: name,
 			Start:    time.Now().UnixNano(),
-			Meta:     make(map[string]string),
+			Meta:     initMeta(),
 			Metrics:  make(map[string]float64),
 		},
 	}
