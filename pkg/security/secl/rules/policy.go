@@ -77,16 +77,16 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 			wasOverridden = true
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideActionFields) {
-			for _, action := range rd2.Actions {
+			for _, action := range rd2.Def.Actions {
 				duplicated := false
 				for _, a := range rd1.Actions {
-					if action.Def.Equals(a.Def) {
+					if action.Equals(a.Def) {
 						duplicated = true
 						break
 					}
 				}
 				if !duplicated {
-					rd1.Actions = append(rd1.Actions, action)
+					rd1.Def.Actions = append(rd1.Def.Actions, action)
 					wasOverridden = true
 				}
 			}
@@ -122,10 +122,15 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 		}
 	}
 
-	if r.Policy.Type == DefaultPolicyType && r2.Policy.Type == CustomPolicyType {
+	if r.Def.Disabled {
 		r.Def.Disabled = r2.Def.Disabled
-		r.ModifiedBy = append(r.ModifiedBy, r2)
+	} else {
+		if r.Policy.Type == DefaultPolicyType && r2.Policy.Type == CustomPolicyType {
+			r.Def.Disabled = r2.Def.Disabled
+		}
 	}
+
+	r.ModifiedBy = append(r.ModifiedBy, r2)
 
 	return nil
 }
@@ -138,9 +143,9 @@ const (
 	DefaultPolicyType PolicyType = "default"
 	// CustomPolicyType is the custom policy type
 	CustomPolicyType PolicyType = "custom"
-	// Interal is the policy for internal use (bundled_policy_provider)
+	// InternalPolicyType is the policy for internal use (bundled_policy_provider)
 	InternalPolicyType PolicyType = "internal"
-	// SelfTestPolicy is the policy for self tests
+	// SelftestPolicy is the policy for self tests
 	SelftestPolicy PolicyType = "selftest"
 )
 
