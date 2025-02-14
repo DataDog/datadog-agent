@@ -219,19 +219,24 @@ class TestAlertsSendNotification(unittest.TestCase):
         message = cumulative.message()
         self.assertIn(f'{alerts.CUMULATIVE_THRESHOLD} times in last {alerts.CUMULATIVE_LENGTH} executions', message)
 
-    @patch("tasks.libs.notify.alerts.send_slack_message")
+    @patch('slack_sdk.WebClient', autospec=True)
     def test_none(self, mock_slack):
+        client_mock = MagicMock()
+        mock_slack.return_value = client_mock
         alert_jobs = {"consecutive": {}, "cumulative": {}}
         alerts.send_notification(MagicMock(), alert_jobs)
-        mock_slack.assert_not_called()
+        client_mock.chat_postMessage.assert_not_called()
 
     @patch("tasks.libs.notify.alerts.send_metrics")
-    @patch("tasks.libs.notify.alerts.send_slack_message")
-    @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
+    @patch('slack_sdk.WebClient', autospec=True)
+    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, _: '\n'.join(self.failures) + '\n')
     @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
     @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())
     @patch('tasks.libs.notify.alerts.CHANNEL_BROADCAST', '#channel-broadcast')
     def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
+        client_mock = MagicMock()
+        mock_slack.return_value = client_mock
         consecutive = {
             'tests_hello': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
             'tests_team_a_1': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
@@ -248,7 +253,7 @@ class TestAlertsSendNotification(unittest.TestCase):
 
         alert_jobs = {"consecutive": consecutive, "cumulative": cumulative}
         alerts.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit_tests/testdata/jobowners.txt')
-        self.assertEqual(len(mock_slack.call_args_list), 4)
+        self.assertEqual(len(client_mock.chat_postMessage.call_args_list), 4)
 
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
@@ -258,8 +263,8 @@ class TestAlertsSendNotification(unittest.TestCase):
             '#channel-broadcast': 5,
         }
 
-        for call_args in mock_slack.call_args_list:
-            channel, message = call_args.args
+        for call_args in client_mock.chat_postMessage.call_args_list:
+            channel, message = call_args.kwargs['channel'], call_args.kwargs['text']
             # The mock will separate job names with a newline
             jobs = message.strip().split("\n")
             njobs = len(jobs)

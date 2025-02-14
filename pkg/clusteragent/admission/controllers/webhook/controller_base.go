@@ -162,7 +162,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 }
 
 func generateConfigWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*configWebhook.Webhook, error) {
-	filter, err := configWebhook.NewFilter(configWebhook.NewFilterConfig(datadogConfig))
+	filter, err := configWebhook.NewFilter(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config filter: %v", err)
 	}
@@ -172,7 +172,7 @@ func generateConfigWebhook(wmeta workloadmeta.Component, datadogConfig config.Co
 }
 
 func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*tagsfromlabels.Webhook, error) {
-	filter, err := tagsfromlabels.NewFilter(tagsfromlabels.NewFilterConfig(datadogConfig))
+	filter, err := tagsfromlabels.NewFilter(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tags from labels filter: %v", err)
 	}
@@ -181,24 +181,25 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 }
 
 func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*autoinstrumentation.Webhook, error) {
-	filter, err := autoinstrumentation.NewFilter(autoinstrumentation.NewFilterConfig(datadogConfig))
+	config, err := autoinstrumentation.NewConfig(datadogConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation filter: %v", err)
+		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
-	apmMutatorCfg, err := autoinstrumentation.NewMutatorConfig(datadogConfig)
+
+	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation mutator config: %v", err)
+		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}
 
 	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
 	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
 	// env vars to be set from labels if they are available..
 	mutator := mutatecommon.NewMutators(
-		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter),
-		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), filter),
-		autoinstrumentation.NewMutator(apmMutatorCfg, filter, wmeta),
+		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), apm),
+		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
+		apm,
 	)
-	return autoinstrumentation.NewWebhook(wmeta, datadogConfig, mutator)
+	return autoinstrumentation.NewWebhook(config, wmeta, mutator)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.

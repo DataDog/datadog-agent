@@ -13,8 +13,6 @@ type Component interface {
 	// Set updates a metadata value in the payload. The given value will be stored in the cache without being copied. It is
 	// up to the caller to make sure the given value will not be modified later.
 	Set(name string, value interface{})
-	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
-	GetAsJSON() ([]byte, error)
 	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 	Get() map[string]interface{}
 }
