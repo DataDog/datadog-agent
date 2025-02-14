@@ -9,7 +9,6 @@ import (
 	_ "embed"
 	"fmt"
 	"regexp"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -98,17 +97,7 @@ func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection)
 	}, 2*time.Minute, 20*time.Second)
 }
 
-func (v *baseStatusSuite) TestDefaultInstallStatus() {
-	notReachStatus := "Status: Not running or unreachable"
-	var processAgentContain []string
-	processAgentNotContain := []string{notReachStatus}
-	if runtime.GOOS == "linux" {
-		processAgentContain = []string{notReachStatus}
-		processAgentNotContain = nil
-	}
-	fmt.Printf("contain: %+v\n", processAgentContain)
-	fmt.Printf("not contain: %+v\n", processAgentNotContain)
-
+func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processAgentNotContain []string) {
 	expectedSections := []expectedSection{
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
