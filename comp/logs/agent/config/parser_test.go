@@ -68,6 +68,9 @@ logs:
   - type: udp
     source: foo
     service: bar
+    tags:
+      - a
+      - b:c
   - type: docker
     log_processing_rules:
       - type: include_at_match
