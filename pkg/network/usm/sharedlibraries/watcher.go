@@ -396,11 +396,14 @@ func cleanDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map[
 			keysToDelete = append(keysToDelete, key)
 		}
 	}
+	var lastError error
 	for _, k := range keysToDelete {
-		emap.Delete(&k)
+		if err := emap.Delete(&k); err != nil {
+			lastError = err
+		}
 	}
 
-	return nil
+	return lastError
 }
 
 func rawTracepointsNotSupported() bool {
