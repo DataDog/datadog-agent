@@ -16,3 +16,20 @@ cancel-prev-pipelines:
   script:
     - $CI_PROJECT_DIR/tools/ci/test_exit_code.sh 
 
+cancel-prev-pipelines_docker:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
+  rules: # this should only run on dev branches
+    - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
+      when: never
+    - if: $CI_COMMIT_TAG
+      when: never
+    - !reference [.except_main_or_release_branch]
+    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
+      when: never
+    - when: on_success
+  script:
+    - $CI_PROJECT_DIR/tools/ci/test_exit_code.sh 
