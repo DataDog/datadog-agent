@@ -9,6 +9,7 @@ package sharedlibraries
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 var (
@@ -71,6 +73,8 @@ type Watcher struct {
 	// telemetry
 	libHits    *telemetry.Counter
 	libMatches *telemetry.Counter
+
+	ebpfManager *manager.Manager
 }
 
 // Validate that Watcher implements the Attacher interface.
@@ -347,4 +351,59 @@ func (w *Watcher) sync() {
 	for pid := range deletionCandidates {
 		_ = w.registry.Unregister(pid)
 	}
+
+	if w.ebpfManager != nil && rawTracepointsNotSupported() {
+		err := w.CleanDeadPidsInMaps(w.ebpfManager, []string{"ssl_read_args", "ssl_read_ex_args"}, alivePIDs)
+		if err != nil {
+			log.Debugf("clean 'ssl_read_args' map error: %v", err)
+		}
+	}
+}
+
+// SetEbpfManager assigns eBPF manager
+func (w *Watcher) SetEbpfManager(m *manager.Manager) {
+	if w == nil {
+		return
+	}
+	w.ebpfManager = m
+}
+
+// CleanDeadPidsInMaps finds a map by name and deletes dead processes, used for maps with the key 'u64 pid_tgid'
+func (w *Watcher) CleanDeadPidsInMaps(manager *manager.Manager, mapNames []string, alivePIDs map[uint32]struct{}) error {
+	var errs []error
+	for _, n := range mapNames {
+		err := cleanDeadPidsInMap(manager, n, alivePIDs)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func cleanDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map[uint32]struct{}) error {
+	emap, _, err := manager.GetMap(mapName)
+	if err != nil {
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %s", emap, err)
+	}
+	iter := emap.Iterate()
+	var keysToDelete []uint64
+	var key uint64
+	value := make([]byte, emap.ValueSize())
+
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		pid := uint32(key >> 32)
+		if _, exists := alivePIDs[pid]; !exists {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+	for _, k := range keysToDelete {
+		emap.Delete(&k)
+	}
+
+	return nil
+}
+
+func rawTracepointsNotSupported() bool {
+	kversion, err := kernel.HostVersion()
+	return err == nil && kversion < kernel.VersionCode(4, 17, 0)
 }

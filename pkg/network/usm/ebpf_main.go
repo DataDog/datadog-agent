@@ -150,7 +150,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		}
 	}
 
-	if rawTracepointSupported() {
+	if rawTracepointsSupported() {
 		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps.
 		mgr.Probes = append(mgr.Probes, []*manager.Probe{
 			{
@@ -486,7 +486,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	if rawTracepointSupported() {
+	if rawTracepointsSupported() {
 		// exclude regular tracepoint if kernel supports raw tracepoint
 		options.ExcludedFunctions = append(options.ExcludedFunctions, "tracepoint__sched__sched_process_exit")
 	} else {
@@ -506,12 +506,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	return err
 }
 
-func rawTracepointSupported() bool {
-	if kversion, err := kernel.HostVersion(); err == nil && kversion >= kernel.VersionCode(4, 17, 0) {
-		return true
-	}
-
-	return false
+func rawTracepointsSupported() bool {
+	kversion, err := kernel.HostVersion()
+	return err == nil && kversion >= kernel.VersionCode(4, 17, 0)
 }
 
 func getAssetName(module string, debug bool) string {

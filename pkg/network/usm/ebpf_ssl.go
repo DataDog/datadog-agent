@@ -499,8 +499,9 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 }
 
 // PreStart is called before the start of the provided eBPF manager.
-func (o *sslProgram) PreStart(*manager.Manager) error {
+func (o *sslProgram) PreStart(m *manager.Manager) error {
 	o.watcher.Start()
+	o.watcher.SetEbpfManager(m)
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
