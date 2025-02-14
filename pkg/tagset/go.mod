@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/tagset
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3

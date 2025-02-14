@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -304,18 +303,21 @@ def get_last_release_tag(ctx, repo, pattern):
     return last_tag_commit, last_tag_name
 
 
-def get_git_config(key):
-    result = subprocess.run(['git', 'config', '--get', key], capture_output=True, text=True)
-    return result.stdout.strip() if result.returncode == 0 else None
+def get_git_config(ctx, key):
+    try:
+        result = ctx.run(f'git config --get {key}')
+    except Exit:
+        return None
+    return result.stdout.strip() if result.return_code == 0 else None
 
 
-def set_git_config(key, value):
-    subprocess.run(['git', 'config', key, value])
+def set_git_config(ctx, key, value):
+    ctx.run(f'git config {key} {value}')
 
 
-def revert_git_config(original_config):
+def revert_git_config(ctx, original_config):
     for key, value in original_config.items():
         if value is None:
-            subprocess.run(['git', 'config', '--unset', key])
+            ctx.run(f'git config --unset {key}', hide=True)
         else:
-            subprocess.run(['git', 'config', key, value])
+            ctx.run(f'git config {key} {value}', hide=True)

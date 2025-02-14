@@ -27,10 +27,10 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 	}
 
 	variables := map[string]SECLVariable{
-		"pid": NewIntVariable(func(_ *Context) int {
+		"pid": NewScopedIntVariable(func(_ *Context) int {
 			return os.Getpid()
 		}, nil),
-		"str": NewStringVariable(func(_ *Context) string {
+		"str": NewScopedStringVariable(func(_ *Context) string {
 			return "aaa"
 		}, nil),
 	}
@@ -480,7 +480,7 @@ func TestPartial(t *testing.T) {
 	}
 
 	variables := make(map[string]SECLVariable)
-	variables["var"] = NewBoolVariable(
+	variables["var"] = NewScopedBoolVariable(
 		func(_ *Context) bool {
 			return false
 		},

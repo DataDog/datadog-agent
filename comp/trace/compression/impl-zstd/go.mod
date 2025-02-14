@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.0-rc.3

@@ -1,9 +1,9 @@
 module github.com/DataDog/datadog-agent/pkg/logs/processor
 
-go 1.22.0
+go 1.23.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.143
+	github.com/DataDog/agent-payload/v5 v5.0.144
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
