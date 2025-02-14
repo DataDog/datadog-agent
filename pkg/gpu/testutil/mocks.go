@@ -64,6 +64,7 @@ var DefaultGPUAttributes = nvml.DeviceAttributes{
 	MultiprocessorCount: 10,
 }
 
+// DefaultProcessInfo is the list of processes running on the default device returned by the mock
 var DefaultProcessInfo = []nvml.ProcessInfo{
 	{Pid: 1, UsedGpuMemory: 100},
 	{Pid: 5678, UsedGpuMemory: 200},
