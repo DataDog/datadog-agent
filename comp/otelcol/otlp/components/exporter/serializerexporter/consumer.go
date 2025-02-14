@@ -181,7 +181,6 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 		metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000),
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			for _, serie := range c.series {
-				fmt.Printf("############ serie: %v\n", serie)
 				seriesSink.Append(serie)
 			}
 			for _, sketch := range c.sketches {

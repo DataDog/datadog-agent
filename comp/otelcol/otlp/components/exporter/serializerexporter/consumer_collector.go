@@ -29,13 +29,13 @@ var _ SerializeConsumer = (*collectorConsumer)(nil)
 
 func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []string) {
 	timestamp := c.getPushTime()
-	buildTags := TagsFromBuildInfo(c.buildInfo)
+	buildTags := tagsFromBuildInfo(c.buildInfo)
 	series := c.series
 	for host := range c.seenHosts {
 		// Report the host as running
-		runningMetric := DefaultMetrics("metrics", host, timestamp, buildTags)
+		runningMetric := exporterDefaultMetrics("metrics", host, timestamp, buildTags)
 		if c.gatewayUsage != nil {
-			series = append(series, GatewayUsageGauge(timestamp, host, buildTags, c.gatewayUsage))
+			series = append(series, gatewayUsageGauge(timestamp, host, buildTags, c.gatewayUsage))
 		}
 		series = append(series, runningMetric)
 	}
@@ -45,12 +45,12 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 	for tag := range c.seenTags {
 		tags = append(tags, tag)
 	}
-	runningMetrics := DefaultMetrics("metrics", "", timestamp, tags)
+	runningMetrics := exporterDefaultMetrics("metrics", "", timestamp, tags)
 	series = append(series, runningMetrics)
 
 	for _, lang := range languageTags {
 		tags := append(buildTags, "language:"+lang) //nolint:gocritic
-		runningMetric := DefaultMetrics("runtime_metrics", "", timestamp, tags)
+		runningMetric := exporterDefaultMetrics("runtime_metrics", "", timestamp, tags)
 		series = append(series, runningMetric)
 	}
 	c.series = series
@@ -69,8 +69,8 @@ func (c *collectorConsumer) ConsumeTag(tag string) {
 	c.seenTags[tag] = struct{}{}
 }
 
-// DefaultMetrics creates built-in metrics to report that an exporter is running
-func DefaultMetrics(exporterType string, hostname string, timestamp uint64, tags []string) *metrics.Serie {
+// exporterDefaultMetrics creates built-in metrics to report that an exporter is running
+func exporterDefaultMetrics(exporterType string, hostname string, timestamp uint64, tags []string) *metrics.Serie {
 	metrics := &metrics.Serie{
 		Name: fmt.Sprintf("otel.datadog_exporter.%s.running", exporterType),
 		Points: []metrics.Point{
@@ -87,8 +87,8 @@ func DefaultMetrics(exporterType string, hostname string, timestamp uint64, tags
 	return metrics
 }
 
-// GatewayUsageGauge creates a gauge metric to report if there is a gateway
-func GatewayUsageGauge(timestamp uint64, hostname string, tags []string, gatewayUsage *attributes.GatewayUsage) *metrics.Serie {
+// gatewayUsageGauge creates a gauge metric to report if there is a gateway
+func gatewayUsageGauge(timestamp uint64, hostname string, tags []string, gatewayUsage *attributes.GatewayUsage) *metrics.Serie {
 	metrics := &metrics.Serie{
 		Name: "datadog.otel.gateway",
 		Points: []metrics.Point{
@@ -105,8 +105,8 @@ func GatewayUsageGauge(timestamp uint64, hostname string, tags []string, gateway
 	return metrics
 }
 
-// TagsFromBuildInfo returns a list of tags derived from buildInfo to be used when creating metrics
-func TagsFromBuildInfo(buildInfo component.BuildInfo) []string {
+// tagsFromBuildInfo returns a list of tags derived from buildInfo to be used when creating metrics
+func tagsFromBuildInfo(buildInfo component.BuildInfo) []string {
 	var tags []string
 	if buildInfo.Version != "" {
 		tags = append(tags, "version:"+buildInfo.Version)

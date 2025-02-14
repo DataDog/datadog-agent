@@ -85,7 +85,7 @@ func NewFactory() exp.Factory {
 		enricher: &defaultTagEnricher{},
 		// send empty hostname to the serializer
 		hostGetter: func(context.Context) (string, error) {
-			return "new-otel-test-host", nil
+			return "", nil
 		},
 		createConsumer: func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializeConsumer {
 			s := &serializerConsumer{enricher: enricher, extraTags: extraTags, apmReceiverAddr: apmReceiverAddr}
