@@ -233,6 +233,17 @@ func (c *collector) Pull(_ context.Context) error {
 			gpu.SMCount = int(devAttr.MultiprocessorCount)
 		}
 
+		procs, ret := dev.GetComputeRunningProcesses()
+		if ret != nvml.SUCCESS {
+			if logLimiter.ShouldLog() {
+				log.Warnf("failed to get compute running processes for device index %d: %v", i, nvml.ErrorString(ret))
+			}
+		} else {
+			for _, proc := range procs {
+				gpu.ActivePIDs = append(gpu.ActivePIDs, int(proc.Pid))
+			}
+		}
+
 		event := workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceRuntime,
 			Type:   workloadmeta.EventTypeSet,
