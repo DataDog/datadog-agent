@@ -23,6 +23,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CollectorName is the name of the nvml sub-collectors
+type CollectorName string
+
+const (
+	field        CollectorName = "fields"
+	clock        CollectorName = "clocks"
+	device       CollectorName = "device"
+	remappedRows CollectorName = "remapped_rows"
+	samples      CollectorName = "samples"
+)
+
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
 type Collector interface {
 	// Collect collects metrics from the given NVML device. This method should not fill the tags
@@ -32,8 +43,8 @@ type Collector interface {
 	// Close closes the subsystem and releases any resources it might have allocated
 	Close() error
 
-	// name returns the name of the subsystem
-	Name() string
+	// Name returns the name of the subsystem
+	Name() CollectorName
 }
 
 // Metric represents a single metric collected from the NVML library.
@@ -52,12 +63,12 @@ var errUnsupportedDevice = errors.New("device does not support the given collect
 type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
-var allSubsystems = map[string]subsystemBuilder{
-	fieldsCollectorName:       newFieldsCollector,
-	deviceCollectorName:       newDeviceCollector,
-	remappedRowsCollectorName: newRemappedRowsCollector,
-	clocksCollectorName:       newClocksCollector,
-	samplesCollectorName:      newSamplesCollector,
+var allSubsystems = map[CollectorName]subsystemBuilder{
+	field:        newFieldsCollector,
+	device:       newDeviceCollector,
+	remappedRows: newRemappedRowsCollector,
+	clock:        newClocksCollector,
+	samples:      newSamplesCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -74,7 +85,7 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 	return buildCollectors(deps, allSubsystems)
 }
 
-func buildCollectors(deps *CollectorDependencies, subsystems map[string]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, subsystems map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
 	devCount, ret := deps.NVML.DeviceGetCount()

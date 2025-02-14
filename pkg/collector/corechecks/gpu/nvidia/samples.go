@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
-const samplesCollectorName = "samples"
-
 var allSamples = []sampleMetric{
 	{"gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, 0},
 	{"dram_active", nvml.MEMORY_UTILIZATION_SAMPLES, 0},
@@ -73,8 +71,8 @@ func (c *samplesCollector) Close() error {
 	return nil
 }
 
-func (samplesCollector) Name() string {
-	return samplesCollectorName
+func (samplesCollector) Name() CollectorName {
+	return samples
 }
 
 // Collect collects all the metrics from the given NVML device. This function
