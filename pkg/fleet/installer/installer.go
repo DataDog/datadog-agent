@@ -740,6 +740,10 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		if err != nil {
 			return fmt.Errorf("could not serialize config file contents: %w", err)
 		}
+		err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
+		if err != nil {
+			return fmt.Errorf("could not create config file directory: %w", err)
+		}
 		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
 		if err != nil {
 			return fmt.Errorf("could not write config file: %w", err)
