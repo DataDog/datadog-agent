@@ -11,15 +11,15 @@ import (
 )
 
 const (
-	status  = "status"
-	maximum = "maximum"
+	countdown = "countdown"
+	maximum   = "maximum"
 )
 
 type RetryableOperation[T any] func() (T, error)
 
 type Store struct {
 	lock       sync.RWMutex
-	strategies map[string]map[string]int // operation name -> backoffStatus/backoffMax -> int
+	strategies map[string]map[string]int // "operation_name": { "countdown": X, "maximum": Y }
 }
 
 func New() *Store {
@@ -34,79 +34,75 @@ func (s *Store) Delete(name string) {
 	s.lock.Unlock()
 }
 
-// Get returns the current strategies strategy's status, i.e. how many checks to skip until retrying
+// Get returns the current strategies strategy's countdown, i.e. how many checks to skip until retrying
 func (s *Store) Get(name string) (int, bool) {
 	s.lock.RLock()
+	defer s.lock.RUnlock()
 
-	// Get the backoff strategy
+	// Get the backoff strategy ex: "operation_name": { "countdown": 2, "maximum": 4 }
 	strategy, ok := s.strategies[name]
 	if !ok {
-		s.lock.RUnlock()
 		return 0, false
 	}
 
-	// Check that the strategy's status exists
-	status, ok := strategy["status"]
+	// Check that the strategy's countdown key exists
+	status, ok := strategy["countdown"]
 	if !ok {
-		s.lock.RUnlock()
 		return 0, false
 	}
-
-	s.lock.RUnlock()
 
 	return status, ok
 }
 
-// Init initializes both the "status" and "max" counters associated with an operation's retries
-// We need to track two fields in the map because we need to both:
-// - keep track of the maximum strategies reached (otherwise we couldn't exponentially strategies)
-// - keep track of the current strategies strategy's status, decrementing by 1 each attempt
+// Init initializes both the "countdown" and "maximum" keys associated with an operation's retries
+// We need to track two fields in the map because we need to:
+// - keep track of the maximum backoff reached (so we can exponentially backoff)
+// - keep track of the current strategy's countdown (so we can keep track of how many iterations have elapsed)
 func (s *Store) Init(name string, init int) bool {
 	s.lock.RLock()
+	defer s.lock.RUnlock()
 
 	// Guard against initializing a key that already exists
 	if _, ok := s.strategies[name]; ok {
-		s.lock.RUnlock()
 		return ok
 	}
 
-	// Initialize map with given value
-	s.strategies[name] = map[string]int{status: init, maximum: init}
-
-	s.lock.RUnlock()
+	// Initialize a new strategy map with given value
+	s.strategies[name] = map[string]int{countdown: init, maximum: init}
 
 	return true
 }
 
-// Decrement decreases the current strategies strategy's status by 1, called each time an attempt is skipped
+// Decrement decreases the current strategies strategy's countdown by 1, called each time an attempt is skipped
 func (s *Store) Decrement(name string) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	// Get the backoff strategy
+	// Get the backoff strategy e.g. "operation_name": { "countdown": 2, "maximum": 4 }
 	strategy, ok := s.strategies[name]
 	if !ok {
 		return false
 	}
 
-	// Check that the strategy's status exists
-	if _, ok := strategy[status]; !ok {
+	// Check that the strategy's countdown key exists
+	if _, ok := strategy[countdown]; !ok {
 		return false
 	}
 
-	strategy[status]--
+	strategy[countdown]--
 
 	return true
 }
 
 // ExponentialIncrease increases the previous max strategies by a supplied multiplier and sets the current
-// strategies status to the new max
-// e.g. if the previous max was 2, this would set both max and status to 4
+// strategy countdown to the new max
+//
+// e.g. if the previous max was 2, this would set both max and countdown to 4
 func (s *Store) ExponentialIncrease(name string, multiplier int, max int) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	// Get the strategies strategy
+	// Get the backoff strategy e.g. "operation_name": { "countdown": 2, "maximum": 4 }
 	strategy, ok := s.strategies[name]
 	if !ok {
 		return false
@@ -118,13 +114,13 @@ func (s *Store) ExponentialIncrease(name string, multiplier int, max int) bool {
 	}
 
 	// Calculate new backoff
-	newBackoff := strategy[maximum] * multiplier
-	if newBackoff > max {
-		newBackoff = max
+	newMaximum := strategy[maximum] * multiplier
+	if newMaximum > max {
+		newMaximum = max
 	}
 
-	strategy[maximum] = newBackoff
-	strategy[status] = newBackoff
+	strategy[maximum] = newMaximum
+	strategy[countdown] = newMaximum
 
 	return true
 }
@@ -135,10 +131,10 @@ func Retry[T any](backoff *Store, opName string, op RetryableOperation[T], multi
 	var none T
 
 	// Check if operation is already in backoff and throw error if so
-	if status, ok := backoff.Get(opName); ok {
-		if status > 0 {
+	if counter, ok := backoff.Get(opName); ok {
+		if counter > 0 {
 			err := log.Errorf("In backoff, skipping %d check(s) runs before resuming: %s",
-				status,
+				counter,
 				opName)
 
 			// Decrement strategy by 1
@@ -148,9 +144,10 @@ func Retry[T any](backoff *Store, opName string, op RetryableOperation[T], multi
 
 	}
 
+	// Call the function
 	result, err := op()
 
-	// If operation failed, set backoff strategy
+	// If operation failed, adjust backoff strategy
 	if err != nil {
 		_, ok := backoff.Get(opName)
 

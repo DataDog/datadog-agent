@@ -21,10 +21,10 @@ func newStore(s int, m int) *Store {
 	// initialize map
 	store := New()
 
-	// set status and maximum
+	// set countdown and maximum
 	store.strategies[operation] = map[string]int{
-		status:  s,
-		maximum: m,
+		countdown: s,
+		maximum:   m,
 	}
 
 	return store
@@ -87,17 +87,17 @@ func TestRetry(t *testing.T) {
 			_, err := Retry(tt.store, operation, _func, multiplier, maxBackoff)
 
 			if err == nil {
-				// assert there is no backoff strategy in underlying map
+				// assert there is no backoff strategy in the underlying map
 				assert.NotContains(tt.store.strategies, operation)
 			} else {
 				// assert underlying map contains operation name
 				assert.Contains(tt.store.strategies, operation)
 
-				// assert backoff strategy's status is expected value
+				// assert backoff countdown is expected value
 				backoffStatus, _ := tt.store.Get(operation)
 				assert.Equal(tt.expectedStatus, backoffStatus)
 
-				// assert backoff strategy's maximum is calculated appropriately
+				// assert backoff maximum is calculated appropriately
 				backoffMax, _ := tt.store.strategies[operation][maximum]
 				assert.Equal(tt.expectedMax, backoffMax)
 			}
