@@ -161,8 +161,7 @@ new-agent_dmg-x64-a7:
   script:
     - set -e
     - !reference [.vault_login]
-    # TODO A
-    # - 'echo "Number of cpu: $(sysctl -n hw.ncpu)" || true'
+    - NCPU="$(sysctl -n hw.ncpu)"
 
     - |
       echo Removing preinstalled environment
@@ -172,12 +171,13 @@ new-agent_dmg-x64-a7:
       # brew remove --force --ignore-dependencies --formula wget
       brew remove --force --ignore-dependencies --formula gettext
 
-    - ls -l /usr/local/Cellar/python@3.12/3.12.9/bin/python3.12 || true
+    - ls -l /usr/local/Cellar/python@3.12 || true
+    - ls -l /usr/local/Cellar/python@3.12/3.12.6/bin/python3.12 || true
     - which python3.12 || true
     - which python || true
     - python -c 'print("hell world")' || true
-    - /usr/local/Cellar/python@3.12/3.12.9/bin/python3.12 -c 'print("hell world")' || true
-    - export PATH="/usr/local/Cellar/python@3.12/3.12.9/bin:$PATH"
+    - /usr/local/Cellar/python@3.12/3.12.6/bin/python3.12 -c 'print("hell world")' || true
+    - export PATH="/usr/local/Cellar/python@3.12/3.12.6/bin:$PATH"
     - which python || true
     - which python3 || true
     - which python3.12 || true
@@ -204,11 +204,11 @@ new-agent_dmg-x64-a7:
         tar -xzf v${GIT_VERSION}.tar.gz
         pushd git-$GIT_VERSION
 
-        make configure -j 4
+        make configure -j "$NCPU"
         ./configure
         echo Git Configured
 
-        make all -j 4
+        make all -j "$NCPU"
         echo Git Built
 
         echo "$PWD/git"
@@ -216,7 +216,7 @@ new-agent_dmg-x64-a7:
         popd
 
         # TODO A: Install?
-        # sudo make install -j 4
+        # sudo make install -j "$NCPU"
       }
 
       echo Installing git
