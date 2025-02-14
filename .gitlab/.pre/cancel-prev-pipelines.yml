@@ -32,4 +32,4 @@ cancel-prev-pipelines_docker:
       when: never
     - when: on_success
   script:
-    - $CI_PROJECT_DIR/tools/ci/test_exit_code.sh 
+    - $CI_PROJECT_DIR/tools/ci/test_exit_code.sh
