@@ -301,7 +301,6 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not set experiment: %w", err),
 		)
 	}
-	fmt.Println("Starting experiment")
 	return i.startExperiment(ctx, pkg.Name)
 }
 
