@@ -20,7 +20,7 @@ import (
 var allDeviceMetrics = []deviceMetric{
 	{"pci.throughput.tx", getTxPciThroughput},
 	{"pci.throughput.rx", getRxPciThroughput},
-	{"decoder_utiliation", getDecoderUtilization},
+	{"decoder_utilization", getDecoderUtilization},
 	{"dram_active", getDramActive},
 	{"encoder_utilization", getEncoderUtilization},
 	{"fan_speed", getFanSpeed},
@@ -130,11 +130,13 @@ func getTxPciThroughput(dev nvml.Device) (float64, nvml.Return) {
 }
 
 func getDecoderUtilization(dev nvml.Device) (float64, nvml.Return) {
+	// returns utilization from 0-100
 	util, _, ret := dev.GetDecoderUtilization()
 	return float64(util), ret
 }
 
 func getDramActive(dev nvml.Device) (float64, nvml.Return) {
+	// returns utilization from 0-100
 	util, ret := dev.GetUtilizationRates()
 	return float64(util.Memory), ret
 }
@@ -145,21 +147,25 @@ func getSMActive(dev nvml.Device) (float64, nvml.Return) {
 }
 
 func getEncoderUtilization(dev nvml.Device) (float64, nvml.Return) {
+	// returns utilization from 0-100
 	util, _, ret := dev.GetEncoderUtilization()
 	return float64(util), ret
 }
 
 func getFanSpeed(dev nvml.Device) (float64, nvml.Return) {
+	// returns percentage from 0-100 (0 = fan off)
 	speed, ret := dev.GetFanSpeed()
 	return float64(speed), ret
 }
 
 func getPowerManagementLimit(dev nvml.Device) (float64, nvml.Return) {
+	// returns power limit in milliwatts
 	limit, ret := dev.GetPowerManagementLimit()
 	return float64(limit), ret
 }
 
 func getPowerUsage(dev nvml.Device) (float64, nvml.Return) {
+	// returns power usage in milliwatts
 	power, ret := dev.GetPowerUsage()
 	return float64(power), ret
 }
@@ -215,6 +221,7 @@ func getTemperature(dev nvml.Device) (float64, nvml.Return) {
 }
 
 func getTotalEnergyConsumption(dev nvml.Device) (float64, nvml.Return) {
+	// returns energy in millijoules
 	energy, ret := dev.GetTotalEnergyConsumption()
 	return float64(energy), ret
 }
