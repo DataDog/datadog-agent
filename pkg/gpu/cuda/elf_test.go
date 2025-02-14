@@ -3,6 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build linux
+
+// Only _test file is tagged for linux, as it causes problems when running in windows builds. This is a
+// temporary fix as part of #incident-35081. This should be removed once the issue is resolved.
+
 package cuda
 
 import (
