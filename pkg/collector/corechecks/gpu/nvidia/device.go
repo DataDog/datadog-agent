@@ -106,11 +106,6 @@ func (c *deviceCollector) Collect() ([]Metric, error) {
 	return values, err
 }
 
-// Close closes the collector (no-op for this collector).
-func (c *deviceCollector) Close() error {
-	return nil
-}
-
 // Name returns the name of the collector.
 func (c *deviceCollector) Name() CollectorName {
 	return device

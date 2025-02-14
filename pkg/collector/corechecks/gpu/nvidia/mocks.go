@@ -19,51 +19,6 @@ func (_m *mockCollector) EXPECT() *mockCollector_Expecter {
 	return &mockCollector_Expecter{mock: &_m.Mock}
 }
 
-// Close provides a mock function with no fields
-func (_m *mockCollector) Close() error {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for Close")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func() error); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// mockCollector_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
-type mockCollector_Close_Call struct {
-	*mock.Call
-}
-
-// Close is a helper method to define mock.On call
-func (_e *mockCollector_Expecter) Close() *mockCollector_Close_Call {
-	return &mockCollector_Close_Call{Call: _e.mock.On("Close")}
-}
-
-func (_c *mockCollector_Close_Call) Run(run func()) *mockCollector_Close_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *mockCollector_Close_Call) Return(_a0 error) *mockCollector_Close_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *mockCollector_Close_Call) RunAndReturn(run func() error) *mockCollector_Close_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Collect provides a mock function with no fields
 func (_m *mockCollector) Collect() ([]Metric, error) {
 	ret := _m.Called()

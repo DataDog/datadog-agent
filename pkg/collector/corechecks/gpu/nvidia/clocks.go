@@ -59,11 +59,6 @@ func (c *clocksCollector) Collect() ([]Metric, error) {
 	return metrics, nil
 }
 
-// Close closes the collector and releases any resources it might have allocated (no-op for this collector).
-func (c *clocksCollector) Close() error {
-	return nil
-}
-
 // Name returns the name of the collector.
 func (c *clocksCollector) Name() CollectorName {
 	return clock

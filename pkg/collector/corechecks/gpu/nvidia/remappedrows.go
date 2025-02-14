@@ -54,11 +54,6 @@ func (c *remappedRowsCollector) Collect() ([]Metric, error) {
 	return metrics, nil
 }
 
-// Close closes the collector and releases any resources it might have allocated (no-op for this collector).
-func (c *remappedRowsCollector) Close() error {
-	return nil
-}
-
 // Name returns the name of the collector.
 func (c *remappedRowsCollector) Name() CollectorName {
 	return remappedRows

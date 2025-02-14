@@ -102,11 +102,6 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 	return metrics, err
 }
 
-// Close cleans up any resources used by the collector (no-op for this collector).
-func (c *fieldsCollector) Close() error {
-	return nil
-}
-
 // Name returns the name of the collector.
 func (c *fieldsCollector) Name() CollectorName {
 	return field
