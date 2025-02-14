@@ -301,10 +301,11 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 	}
 
 	// Create the context with the auth token
-	queryCtx, queryCancel := context.WithCancel(
+	queryCtx, queryCancel := context.WithTimeout(
 		metadata.NewOutgoingContext(t.ctx, metadata.MD{
 			"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
 		}),
+		1*time.Second,
 	)
 	defer queryCancel()
 
