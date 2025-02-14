@@ -211,7 +211,7 @@ var defaultProfiles = `
         - name: logs.encoded_bytes_sent
         - name: logs.sender_latency
         - name: logs.auto_multi_line_aggregator_flush
-		  aggregate_tags:
+          aggregate_tags:
             - truncated
             - line_type
         - name: point.sent
