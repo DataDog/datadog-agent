@@ -8,10 +8,13 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"gopkg.in/yaml.v3"
 )
 
 // Logs source types
@@ -37,38 +40,38 @@ const (
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
 type LogsConfig struct {
-	Type string
+	Type string `yaml:"type"`
 
-	IntegrationName string
+	IntegrationName string `yaml:"integration_name"`
 
-	Port        int    // Network
-	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout"` // Network
-	Path        string // File, Journald
+	Port        int    `yaml:"port"`                                                         // Network
+	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network
+	Path        string `yaml:"path"`                                                         // File, Journald
 
-	Encoding     string   `mapstructure:"encoding" json:"encoding"`             // File
-	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
-	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
+	Encoding     string   `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
+	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
+	TailingMode  string   `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
 
 	//nolint:revive // TODO(AML) Fix revive linter
-	ConfigId           string   `mapstructure:"config_id" json:"config_id"`                   // Journald
-	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units"`           // Journald
-	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units"`           // Journald
-	IncludeUserUnits   []string `mapstructure:"include_user_units" json:"include_user_units"` // Journald
-	ExcludeUserUnits   []string `mapstructure:"exclude_user_units" json:"exclude_user_units"` // Journald
-	IncludeMatches     []string `mapstructure:"include_matches" json:"include_matches"`       // Journald
-	ExcludeMatches     []string `mapstructure:"exclude_matches" json:"exclude_matches"`       // Journald
-	ContainerMode      bool     `mapstructure:"container_mode" json:"container_mode"`         // Journald
+	ConfigId           string   `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                            // Journald
+	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
+	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units" yaml:"exclude_units"`                // Journald
+	IncludeUserUnits   []string `mapstructure:"include_user_units" json:"include_user_units" yaml:"include_user_units"` // Journald
+	ExcludeUserUnits   []string `mapstructure:"exclude_user_units" json:"exclude_user_units" yaml:"exclude_user_units"` // Journald
+	IncludeMatches     []string `mapstructure:"include_matches" json:"include_matches" yaml:"include_matches"`          // Journald
+	ExcludeMatches     []string `mapstructure:"exclude_matches" json:"exclude_matches" yaml:"exclude_matches"`          // Journald
+	ContainerMode      bool     `mapstructure:"container_mode" json:"container_mode" yaml:"container_mode"`             // Journald
 
-	Image string // Docker
-	Label string // Docker
+	Image string `yaml:"image"` // Docker
+	Label string `yaml:"label"` // Docker
 	// Name contains the container name
-	Name string // Docker
+	Name string `yaml:"name"` // Docker
 	// Identifier contains the container ID.  This is also set for File sources and used to
 	// determine the appropriate tags for the logs.
-	Identifier string // Docker, File
+	Identifier string `yaml:"identifier"` // Docker, File
 
-	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
-	Query       string // Windows Event
+	ChannelPath string `mapstructure:"channel_path" json:"channel_path" yaml:"channel_path"` // Windows Event
+	Query       string `yaml:"query"`                                                        // Windows Event
 
 	// used as input only by the Channel tailer.
 	// could have been unidirectional but the tailer could not close it in this case.
@@ -76,22 +79,38 @@ type LogsConfig struct {
 
 	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
 	// modified at runtime (as long as ChannelTagsMutex is held).
-	ChannelTags []string
+	ChannelTags []string `yaml:"channel_tags"`
 
 	// ChannelTagsMutex guards ChannelTags.
 	ChannelTagsMutex sync.Mutex
 
-	Service         string
-	Source          string
-	SourceCategory  string
-	Tags            []string
-	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+	Service         string            `yaml:"service"`
+	Source          string            `yaml:"source"`
+	SourceCategory  string            `yaml:"source_category"`
+	Tags            []string          `yaml:"tags"`
+	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
-	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message"`
+	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
-	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
-	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
-	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
+	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
+	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
+	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
+}
+
+// creating a yaml field to struct field map to check if a field exists in the struct
+func buildYamlToFieldCache(c *LogsConfig) map[string]reflect.Value {
+	yamlToFieldCache := make(map[string]reflect.Value)
+	structVal := reflect.ValueOf(c).Elem()
+	structType := structVal.Type()
+
+	for i := 0; i < structType.NumField(); i++ {
+		field := structType.Field(i)
+		yamlTag := field.Tag.Get("yaml")
+		if yamlTag != "" {
+			yamlToFieldCache[yamlTag] = structVal.Field(i)
+		}
+	}
+	return yamlToFieldCache
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
@@ -197,6 +216,78 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ProcessingRules: c.ProcessingRules,
 		AutoMultiLine:   c.AutoMultiLine,
 	})
+}
+
+// UnmarshalYAML is a custom unmarshalling function is needed for string array fields to split comma-separated values.
+func (c *LogsConfig) UnmarshalYAML(node *yaml.Node) error {
+	yamlToFieldCache := buildYamlToFieldCache(c)
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i].Value
+		valueNode := node.Content[i+1]
+		structField, exists := yamlToFieldCache[key]
+		if !exists {
+			return fmt.Errorf("field %s not found in struct", key)
+		}
+
+		if structField.CanSet() {
+			switch valueNode.Kind {
+			// A ScalarNode represents a single value (string, int, *bool, float64, or slice represented as a string).
+			// A SequenceNode a multiple(list) of such values.
+			case yaml.ScalarNode:
+				if structField.Kind() == reflect.String {
+					structField.SetString(valueNode.Value)
+				} else if structField.Kind() == reflect.Int {
+					intValue, err := strconv.Atoi(valueNode.Value)
+					if err == nil {
+						structField.SetInt(int64(intValue))
+					}
+				} else if structField.Kind() == reflect.Slice {
+					//an example of a slice when the input is a scalar node:
+					//tags: a, b:c -> []string{"a", "b:c"}
+					rawValue := strings.Split(valueNode.Value, ",")
+					strSlice := make([]string, 0, len(rawValue))
+					for _, v := range rawValue {
+						strSlice = append(strSlice, strings.TrimSpace(v))
+					}
+					structField.Set(reflect.ValueOf(strSlice))
+				} else if structField.Kind() == reflect.Ptr && structField.Type().Elem().Kind() == reflect.Bool {
+					boolValue, err := strconv.ParseBool(valueNode.Value)
+					if err == nil {
+						boolPtr := reflect.New(structField.Type().Elem())
+						boolPtr.Elem().SetBool(boolValue)
+						structField.Set(boolPtr)
+					}
+				} else if structField.Kind() == reflect.Float64 {
+					floatValue, err := strconv.ParseFloat(valueNode.Value, 64)
+					if err == nil {
+						structField.SetFloat(floatValue)
+					}
+				}
+			case yaml.SequenceNode:
+				if structField.Kind() == reflect.Slice {
+					if key == "log_processing_rules" {
+						// Special handling for log_processing_rules, which is a slice of ProcessingRule pointers
+						slice := reflect.MakeSlice(structField.Type(), len(valueNode.Content), len(valueNode.Content))
+						for i, itemNode := range valueNode.Content {
+							itemValue := reflect.New(structField.Type().Elem()).Elem()
+							if err := itemNode.Decode(itemValue.Addr().Interface()); err != nil {
+								return fmt.Errorf("could not decode ProcessingRule: %v", err)
+							}
+							slice.Index(i).Set(itemValue)
+						}
+						structField.Set(slice)
+					} else {
+						slice := reflect.MakeSlice(structField.Type(), len(valueNode.Content), len(valueNode.Content))
+						for i, itemNode := range valueNode.Content {
+							slice.Index(i).SetString(itemNode.Value)
+						}
+						structField.Set(slice)
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // TailingMode type
