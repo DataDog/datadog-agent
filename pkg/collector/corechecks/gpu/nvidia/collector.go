@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CollectorName is the name of the nvml sub-collectors
 type CollectorName string
 
 const (
