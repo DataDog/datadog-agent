@@ -22,7 +22,7 @@ type fieldsCollector struct {
 	fieldMetrics []fieldValueMetric
 }
 
-func newFieldsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newFieldsCollector(device nvml.Device, tags []string) (Collector, error) {
 	c := &fieldsCollector{
 		device: device,
 		tags:   tags,

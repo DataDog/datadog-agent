@@ -21,7 +21,7 @@ type remappedRowsCollector struct {
 }
 
 // newRemappedRowsCollector creates a new remappedRowsMetricsCollector for the given NVML device.
-func newRemappedRowsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newRemappedRowsCollector(device nvml.Device, tags []string) (Collector, error) {
 	// Do a first check to see if the device supports remapped rows metrics
 	_, _, _, _, ret := device.GetRemappedRows()
 	if ret == nvml.ERROR_NOT_SUPPORTED {

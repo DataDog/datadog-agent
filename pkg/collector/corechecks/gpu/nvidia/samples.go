@@ -36,7 +36,7 @@ type samplesCollector struct {
 	samplesToCollect []sampleMetric
 }
 
-func newSamplesCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newSamplesCollector(device nvml.Device, tags []string) (Collector, error) {
 	c := &samplesCollector{
 		device: device,
 		tags:   tags,
