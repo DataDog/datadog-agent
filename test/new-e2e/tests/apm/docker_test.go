@@ -142,7 +142,7 @@ func (s *DockerFakeintakeSuite) TestIsTraceRootTag() {
 }
 
 func (s *DockerFakeintakeSuite) TestStatsForService() {
-	// Test both normal stats computes by agent, and client stats from tracer
+	// Test both normal stats computed by agent, and client stats from tracer
 	s.testStatsForService(false)
 	s.testStatsForService(true)
 }
