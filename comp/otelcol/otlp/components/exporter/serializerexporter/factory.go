@@ -8,6 +8,7 @@ package serializerexporter
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
@@ -15,7 +16,9 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.uber.org/zap"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 )
@@ -27,11 +30,12 @@ const (
 )
 
 type factory struct {
-	s          serializer.MetricSerializer
-	enricher   tagenricher
-	hostGetter SourceProviderFunc
-	statsIn    chan []byte
-	wg         *sync.WaitGroup // waits for consumeStatsPayload to exit
+	s              serializer.MetricSerializer
+	enricher       tagenricher
+	hostGetter     SourceProviderFunc
+	statsIn        chan []byte
+	wg             *sync.WaitGroup // waits for consumeStatsPayload to exit
+	createConsumer createConsumerFunc
 }
 
 type tagenricher interface {
@@ -39,14 +43,32 @@ type tagenricher interface {
 	Enrich(ctx context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 }
 
-// NewFactory creates a new serializer exporter factory.
-func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter func(context.Context) (string, error), statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
+type defaultTagEnricher struct{}
+
+func (d *defaultTagEnricher) SetCardinality(cardinality string) error {
+	return nil
+}
+
+func (d *defaultTagEnricher) Enrich(ctx context.Context, extraTags []string, dimensions *otlpmetrics.Dimensions) []string {
+	enrichedTags := make([]string, 0, len(extraTags)+len(dimensions.Tags()))
+	enrichedTags = append(enrichedTags, extraTags...)
+	enrichedTags = append(enrichedTags, dimensions.Tags()...)
+	return enrichedTags
+}
+
+type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializeConsumer
+
+// NewFactoryForAgent creates a new serializer exporter factory.
+func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter func(context.Context) (string, error), statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
 	f := &factory{
 		s:          s,
 		enricher:   enricher,
 		hostGetter: hostGetter,
 		statsIn:    statsIn,
 		wg:         wg,
+		createConsumer: func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializeConsumer {
+			return &serializerConsumer{enricher: enricher, extraTags: extraTags, apmReceiverAddr: apmReceiverAddr}
+		},
 	}
 	cfgType, _ := component.NewType(TypeStr)
 
@@ -57,9 +79,53 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 	)
 }
 
+// NewFactory creates a new factory for the serializer exporter.
+func NewFactory() exp.Factory {
+	f := &factory{
+		enricher: &defaultTagEnricher{},
+		// send empty hostname to the serializer
+		hostGetter: func(context.Context) (string, error) {
+			return "new-otel-test-host", nil
+		},
+		createConsumer: func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializeConsumer {
+			s := &serializerConsumer{enricher: enricher, extraTags: extraTags, apmReceiverAddr: apmReceiverAddr}
+			return &collectorConsumer{
+				serializerConsumer: s,
+				seenHosts:          make(map[string]struct{}),
+				seenTags:           make(map[string]struct{}),
+				buildInfo:          buildInfo,
+				gatewayUsage:       attributes.NewGatewayUsage(),
+				getPushTime:        func() uint64 { return uint64(time.Now().Unix()) },
+			}
+		},
+	}
+	cfgType, _ := component.NewType(TypeStr)
+	return exp.NewFactory(
+		cfgType,
+		newDefaultConfig,
+		exp.WithMetrics(f.createMetricExporter, stability),
+	)
+}
+
 // createMetricsExporter creates a new metrics exporter.
 func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings, c component.Config) (exp.Metrics, error) {
+	var err error
 	cfg := c.(*ExporterConfig)
+	var forwader *defaultforwarder.DefaultForwarder
+	if f.s == nil {
+		f.s, forwader, err = initSerializer(params.Logger, cfg, f.hostGetter)
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			params.Logger.Info("starting forwarder")
+			err := forwader.Start()
+			if err != nil {
+				params.Logger.Error("failed to start forwarder", zap.Error(err))
+			}
+		}()
+
+	}
 
 	// TODO: Ideally the attributes translator would be created once and reused
 	// across all signals. This would need unifying the logsagent and serializer
@@ -69,7 +135,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, err
 	}
 
-	newExp, err := NewExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter, f.statsIn)
+	newExp, err := NewExporter(params, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter, f.statsIn, f.createConsumer)
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +151,9 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 			}
 			if f.statsIn != nil {
 				close(f.statsIn)
+			}
+			if forwader != nil {
+				forwader.Stop()
 			}
 			return nil
 		}),

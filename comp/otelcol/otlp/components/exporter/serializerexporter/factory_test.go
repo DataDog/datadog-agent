@@ -34,7 +34,7 @@ func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensio
 }
 
 func newFactory() exp.Factory {
-	return NewFactory(&MockSerializer{}, &MockTagEnricher{}, func(context.Context) (string, error) {
+	return NewFactoryForAgent(&MockSerializer{}, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
 	}, nil, nil)
 }

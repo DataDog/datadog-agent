@@ -18,6 +18,10 @@ type ExporterConfig struct {
 	exporterhelper.QueueConfig   `mapstructure:",squash"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
+	// API defines the Datadog API configuration.
+	// It is useful for OSS OpenTelemetry Collector or to use
+	// the serializer exporter with the OCB.
+	API datadogconfig.APIConfig `mapstructure:"api"`
 }
 
 var _ component.Config = (*ExporterConfig)(nil)

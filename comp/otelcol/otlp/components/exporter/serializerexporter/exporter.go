@@ -19,6 +19,7 @@ import (
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
@@ -39,6 +40,9 @@ func newDefaultConfig() component.Config {
 		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 
 		Metrics: mcfg,
+		API: datadogconfig.APIConfig{
+			Site: "datadoghq.com",
+		},
 	}
 }
 
@@ -66,6 +70,8 @@ type Exporter struct {
 	extraTags       []string
 	enricher        tagenricher
 	apmReceiverAddr string
+	createConsumer  createConsumerFunc
+	params          exporter.Settings
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -127,15 +133,16 @@ func translatorFromConfig(
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
 func NewExporter(
-	set component.TelemetrySettings,
+	params exporter.Settings,
 	attributesTranslator *attributes.Translator,
 	s serializer.MetricSerializer,
 	cfg *ExporterConfig,
 	enricher tagenricher,
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
+	createConsumer createConsumerFunc,
 ) (*Exporter, error) {
-	tr, err := translatorFromConfig(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, statsIn)
+	tr, err := translatorFromConfig(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, statsIn)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
@@ -155,12 +162,13 @@ func NewExporter(
 		enricher:        enricher,
 		apmReceiverAddr: cfg.Metrics.APMStatsReceiverAddr,
 		extraTags:       extraTags,
+		createConsumer:  createConsumer,
 	}, nil
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
-	consumer := &serializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
+	consumer := e.createConsumer(e.enricher, e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, nil)
 	if err != nil {
 		return err
