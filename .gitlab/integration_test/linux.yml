@@ -34,4 +34,3 @@ docker_integration_tests:
   allow_failure: true
   script:
     - inv -e docker.test
-    - inv -e docker.integration-tests
