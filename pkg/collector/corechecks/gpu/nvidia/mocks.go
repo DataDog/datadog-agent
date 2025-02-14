@@ -122,18 +122,18 @@ func (_c *mockCollector_Collect_Call) RunAndReturn(run func() ([]Metric, error))
 }
 
 // Name provides a mock function with no fields
-func (_m *mockCollector) Name() string {
+func (_m *mockCollector) Name() collectorName {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Name")
 	}
 
-	var r0 string
-	if rf, ok := ret.Get(0).(func() string); ok {
+	var r0 collectorName
+	if rf, ok := ret.Get(0).(func() collectorName); ok {
 		r0 = rf()
 	} else {
-		r0 = ret.Get(0).(string)
+		r0 = ret.Get(0).(collectorName)
 	}
 
 	return r0

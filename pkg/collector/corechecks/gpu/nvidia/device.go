@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
-const deviceCollectorName = "device"
-
 var allDeviceMetrics = []deviceMetric{
 	{"pci.throughput.tx", getTxPciThroughput},
 	{"pci.throughput.rx", getRxPciThroughput},
@@ -113,8 +111,8 @@ func (c *deviceCollector) Close() error {
 }
 
 // Name returns the name of the collector.
-func (c *deviceCollector) Name() string {
-	return deviceCollectorName
+func (c *deviceCollector) Name() collectorName {
+	return device
 }
 
 func getRxPciThroughput(dev nvml.Device) (float64, nvml.Return) {

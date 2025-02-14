@@ -13,7 +13,6 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
-const remappedRowsCollectorName = "remapped_rows"
 const remappedRowsMetricPrefix = "remapped_rows"
 
 type remappedRowsCollector struct {
@@ -61,6 +60,6 @@ func (c *remappedRowsCollector) Close() error {
 }
 
 // Name returns the name of the collector.
-func (c *remappedRowsCollector) Name() string {
-	return remappedRowsCollectorName
+func (c *remappedRowsCollector) Name() collectorName {
+	return remappedRows
 }
