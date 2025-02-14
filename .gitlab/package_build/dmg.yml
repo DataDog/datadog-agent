@@ -138,6 +138,9 @@ agent_dmg-x64-a7:
 #     # - !reference [.upload_sbom_artifacts]
 
 
+
+
+
 new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
@@ -174,6 +177,40 @@ new-agent_dmg-x64-a7:
     # - brew install gettext
     # - brew link --overwrite gettext
     # - exit 1
+    - set -e
+
+    # Install custom git to avoid libintl dependencies provided by gettext
+    - |
+      install_git()
+      {
+        GIT_VERSION=2.48.1
+        curl -LO https://github.com/git/git/archive/refs/tags/v${GIT_VERSION}.tar.gz
+        # TODO: Remove etc.
+        tar -xzf v${GIT_VERSION}.tar.gz
+        cd git-$GIT_VERSION
+
+        make configure -j 4
+        ./configure
+        echo Git Configured
+
+        make all -j 4
+        echo Git Built
+
+        ./git --version
+
+        # TODO: Install
+        # sudo make install -j 4
+        # echo Git $GIT_VERSION Installed
+
+        # which git
+        # git --version
+      }
+      install_git
+    - |
+      PATH="$PWD/git-$GIT_VERSION:$PATH"
+      which git
+    - echo 'Git installed!'
+    - exit
 
     - set -e
     - !reference [.vault_login]
