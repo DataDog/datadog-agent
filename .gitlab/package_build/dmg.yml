@@ -163,6 +163,8 @@ new-agent_dmg-x64-a7:
     - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
 
+    - python3 --version
+    - ls -l "$(which python3)"
     - |
       echo Removing preinstalled environment
       # brew remove --force --ignore-dependencies --formula aria2
