@@ -75,6 +75,7 @@ func readParams(values []byte) []*ditypes.Param {
 // from the byte buffer. It returns the resulting parameter and an indication of
 // how many bytes were read from the buffer
 func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, int) {
+
 	if definition == nil {
 		return nil, 0
 	}
@@ -92,6 +93,18 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 	for !tempStack.isEmpty() {
 		current := tempStack.pop()
 		copiedParam := copyParam(current)
+		if current.Kind == byte(reflect.Pointer) {
+			// Pointers have special logic because they have their own
+			// values (address) in addition to the value they point at.
+			// The pointer is pushed after the value, unlike other types
+			// that have sub-types like slices or structs.
+			if len(current.Fields) != 1 {
+				return definition, 0
+			}
+			definitionStack.push(current.Fields[0])
+			definitionStack.push(copiedParam)
+			continue
+		}
 		definitionStack.push(copiedParam)
 		if current.Size == 0 {
 			continue
@@ -128,7 +141,15 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			if nextIndex > len(buffer) {
 				break
 			}
-			paramDefinition.Fields = append(paramDefinition.Fields, valueStack.pop())
+			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[bufferIndex:nextIndex])
+
+			bufferIndex += int(paramDefinition.Size)
+			pointerActualValueDefinition := definitionStack.pop()
+			pointerActualValue, ind := parseParamValue(pointerActualValueDefinition, buffer[bufferIndex:])
+			bufferIndex += ind
+			if paramDefinition.ValueStr != "0x0" {
+				paramDefinition.Fields = append(paramDefinition.Fields, pointerActualValue)
+			}
 			valueStack.push(paramDefinition)
 		} else {
 			// This is a type with sub-fields which have already been parsed and push
@@ -170,7 +191,6 @@ func parseKindToString(kind byte) string {
 	} else if kind == 254 {
 		return "reached field limit"
 	}
-
 	return reflect.Kind(kind).String()
 }
 
@@ -186,7 +206,6 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 			log.Tracef("could not parse type definition, ran out of buffer while parsing")
 			return nil
 		}
-
 		kind := b[i]
 		newParam := &ditypes.Param{
 			Kind: kind,
