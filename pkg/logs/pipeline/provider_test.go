@@ -13,11 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -42,7 +43,7 @@ func newMockSenderFactory() *mockSenderFactory {
 
 func (f *mockSenderFactory) NewTCPSender(
 	_ pkgconfigmodel.Reader,
-	_ auditor.Auditor,
+	_ auditor.Component,
 	_ int,
 	senderDoneChan chan *sync.WaitGroup,
 	flushWg *sync.WaitGroup,
@@ -67,7 +68,7 @@ func (f *mockSenderFactory) NewTCPSender(
 
 func (f *mockSenderFactory) NewHTTPSender(
 	_ pkgconfigmodel.Reader,
-	_ auditor.Auditor,
+	_ auditor.Component,
 	_ int,
 	senderDoneChan chan *sync.WaitGroup,
 	flushWg *sync.WaitGroup,
@@ -224,7 +225,7 @@ func TestProviderConfigurations(t *testing.T) {
 			}()
 
 			destinationsContext := &client.DestinationsContext{}
-			auditor := auditor.NewNullAuditor()
+			auditor := auditorMock.NewAuditor()
 			diagnosticMessageReceiver := &diagnostic.BufferedMessageReceiver{}
 			status := statusinterface.NewStatusProviderMock()
 			compression := compressionfx.NewMockCompressor()
@@ -295,7 +296,7 @@ func TestPipelineChannelDistribution(t *testing.T) {
 			})
 
 			destinationsContext := &client.DestinationsContext{}
-			auditor := auditor.NewNullAuditor()
+			auditor := auditorMock.NewAuditor()
 			diagnosticMessageReceiver := &diagnostic.BufferedMessageReceiver{}
 			status := statusinterface.NewStatusProviderMock()
 			compression := compressionfx.NewMockCompressor()

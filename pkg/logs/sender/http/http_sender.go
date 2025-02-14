@@ -11,8 +11,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -23,7 +23,7 @@ import (
 // NewHTTPSender returns a new http sender.
 func NewHTTPSender(
 	config pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	bufferSize int,
 	senderDoneChan chan *sync.WaitGroup,
 	flushWg *sync.WaitGroup,

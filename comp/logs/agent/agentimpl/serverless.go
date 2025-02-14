@@ -14,6 +14,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -28,6 +29,7 @@ func NewServerlessLogsAgent(tagger tagger.Component, compression logscompression
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
 		config:  pkgconfigsetup.Datadog(),
 		started: atomic.NewUint32(0),
+		auditor: auditornoop.NewAuditor(),
 
 		sources:         sources.NewLogSources(),
 		services:        service.NewServices(),
