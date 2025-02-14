@@ -58,7 +58,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	nvmlMock := getBasicNvmlMock()
 	fakeTagger := taggerMock.SetupFakeTagger(t)
 	deps := &CollectorDependencies{NVML: nvmlMock, Tagger: fakeTagger}
-	collectors, err := buildCollectors(deps, map[collectorName]subsystemBuilder{"ok": factory, "fail": factory})
+	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 

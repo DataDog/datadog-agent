@@ -244,7 +244,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		metrics, collectErr := collector.Collect()
 		if collectErr != nil {
-			c.telemetry.collectorErrors.Add(1, collector.Name())
+			c.telemetry.collectorErrors.Add(1, string(collector.Name()))
 			err = multierror.Append(err, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 
@@ -253,7 +253,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 			snd.Gauge(metricName, metric.Value, "", metric.Tags)
 		}
 
-		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), collector.Name())
+		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
 	return err

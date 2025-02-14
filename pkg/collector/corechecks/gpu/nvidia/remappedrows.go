@@ -60,6 +60,6 @@ func (c *remappedRowsCollector) Close() error {
 }
 
 // Name returns the name of the collector.
-func (c *remappedRowsCollector) Name() collectorName {
+func (c *remappedRowsCollector) Name() CollectorName {
 	return remappedRows
 }

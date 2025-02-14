@@ -108,7 +108,7 @@ func (c *fieldsCollector) Close() error {
 }
 
 // Name returns the name of the collector.
-func (c *fieldsCollector) Name() collectorName {
+func (c *fieldsCollector) Name() CollectorName {
 	return field
 }
 

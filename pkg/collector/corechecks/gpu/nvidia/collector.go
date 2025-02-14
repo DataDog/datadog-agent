@@ -23,13 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type collectorName string
+type CollectorName string
 
 const (
-	field        collectorName = "fields"
-	clock        collectorName = "clocks"
-	device       collectorName = "device"
-	remappedRows collectorName = "remapped_rows"
+	field        CollectorName = "fields"
+	clock        CollectorName = "clocks"
+	device       CollectorName = "device"
+	remappedRows CollectorName = "remapped_rows"
 )
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -42,7 +42,7 @@ type Collector interface {
 	Close() error
 
 	// Name returns the name of the subsystem
-	Name() collectorName
+	Name() CollectorName
 }
 
 // Metric represents a single metric collected from the NVML library.
@@ -61,7 +61,7 @@ var errUnsupportedDevice = errors.New("device does not support the given collect
 type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
-var allSubsystems = map[collectorName]subsystemBuilder{
+var allSubsystems = map[CollectorName]subsystemBuilder{
 	field:        newFieldsCollector,
 	device:       newDeviceCollector,
 	remappedRows: newRemappedRowsCollector,
@@ -83,7 +83,7 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 	return buildCollectors(deps, allSubsystems)
 }
 
-func buildCollectors(deps *CollectorDependencies, subsystems map[collectorName]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, subsystems map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
 	devCount, ret := deps.NVML.DeviceGetCount()

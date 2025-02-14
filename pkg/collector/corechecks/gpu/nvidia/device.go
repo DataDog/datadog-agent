@@ -111,7 +111,7 @@ func (c *deviceCollector) Close() error {
 }
 
 // Name returns the name of the collector.
-func (c *deviceCollector) Name() collectorName {
+func (c *deviceCollector) Name() CollectorName {
 	return device
 }
 

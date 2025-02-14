@@ -65,7 +65,7 @@ func (c *clocksCollector) Close() error {
 }
 
 // Name returns the name of the collector.
-func (c *clocksCollector) Name() collectorName {
+func (c *clocksCollector) Name() CollectorName {
 	return clock
 }
 
