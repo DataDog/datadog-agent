@@ -171,7 +171,7 @@ type InstrumentationConfig struct {
 // configuration is invalid.
 func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationConfig, error) {
 	cfg := &InstrumentationConfig{}
-	err := structure.UnmarshalKey(datadogConfig, "apm_config.instrumentation", cfg)
+	err := structure.UnmarshalKey(datadogConfig, "apm_config.instrumentation", cfg, structure.ErrorUnused)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse apm_config.instrumentation: %w", err)
 	}
