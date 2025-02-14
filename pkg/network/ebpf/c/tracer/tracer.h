@@ -36,8 +36,8 @@ typedef struct {
 } tls_info_t;
 
 typedef struct {
-    tls_info_t info;
     __u64 updated;
+    tls_info_t info;
 } tls_info_wrapper_t;
 
 typedef struct {

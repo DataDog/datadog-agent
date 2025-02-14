@@ -84,7 +84,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), 2*time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -104,7 +104,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	c.Close()
 
 	// Create a new client
-	c2, err := net.DialTimeout("tcp", server.Address(), 1*time.Second)
+	c2, err := server.Dial()
 	require.NoError(t, err)
 
 	// Send a messages
@@ -154,7 +154,7 @@ func (s *TracerSuite) TestTCPRetransmit() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -291,7 +291,7 @@ func (s *TracerSuite) TestTCPRTT() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -399,7 +399,7 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
+	c, err := server.Dial()
 	require.NoError(t, err)
 
 	// Write 5 bytes to TCP socket
@@ -2821,7 +2821,7 @@ func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
 }
 
 func getHandshakeBuffer(t *testing.T, srvAddr string) []byte {
-	rawConn, err := net.Dial("tcp", srvAddr)
+	rawConn, err := tracertestutil.DialTCP("tcp", srvAddr)
 	require.NoError(t, err)
 	defer rawConn.Close()
 
@@ -2836,7 +2836,7 @@ func getHandshakeBuffer(t *testing.T, srvAddr string) []byte {
 
 func waitForTracer(t *testing.T, tr *Tracer, srvAddr string) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		client, err := net.Dial("tcp", srvAddr)
+		client, err := tracertestutil.DialTCP("tcp", srvAddr)
 		require.NoError(collect, err)
 		defer client.Close()
 
@@ -2882,7 +2882,7 @@ func (s *TracerSuite) TestRawTLSClient() {
 	require.NoError(t, tr.RegisterClient(clientID))
 
 	t.Run("TLS then HTTP", func(t *testing.T) {
-		conn, err := net.Dial("tcp", srv.Address())
+		conn, err := tracertestutil.DialTCP("tcp", srv.Address())
 		require.NoError(t, err)
 		defer conn.Close()
 
@@ -2911,7 +2911,7 @@ func (s *TracerSuite) TestRawTLSClient() {
 	require.NoError(t, tr.RegisterClient(clientID))
 
 	t.Run("HTTP then TLS", func(t *testing.T) {
-		conn, err := net.Dial("tcp", srv.Address())
+		conn, err := tracertestutil.DialTCP("tcp", srv.Address())
 		require.NoError(t, err)
 		defer conn.Close()
 

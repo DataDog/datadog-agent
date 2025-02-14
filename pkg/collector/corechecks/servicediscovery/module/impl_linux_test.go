@@ -39,11 +39,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/comp/core"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
@@ -54,8 +49,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
@@ -73,46 +68,30 @@ func findService(pid int, services []model.Service) *model.Service {
 	return nil
 }
 
-func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
+func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCollectorFactory) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
 	t.Helper()
 
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		core.MockBundle(),
-		wmmock.MockModule(workloadmeta.NewParams()),
-	)
-
-	tagger := taggermock.SetupFakeTagger(t)
 	mockCtrl := gomock.NewController(t)
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
 
 	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
 
 	mux := gorillamux.NewRouter()
-	cfg := &types.Config{
-		Enabled: true,
-		EnabledModules: map[types.ModuleName]struct{}{
-			config.DiscoveryModule: {},
-		},
-	}
-	m := module.Factory{
-		Name:             config.DiscoveryModule,
-		ConfigNamespaces: []string{"discovery"},
-		Fn: func(*types.Config, module.FactoryDependencies) (module.Module, error) {
-			module := newDiscovery(mockContainerProvider, mTimeProvider)
-			module.config.cpuUsageUpdateDelay = time.Second
 
-			return module, nil
-		},
-		NeedsEBPF: func() bool {
-			return false
-		},
-	}
-	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, tagger, nil, nil)
-	require.NoError(t, err)
+	discovery := newDiscoveryWithNetwork(mockContainerProvider, mTimeProvider, getNetworkCollector)
+	discovery.config.cpuUsageUpdateDelay = time.Second
+	discovery.config.networkStatsPeriod = time.Second
+	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
+	t.Cleanup(discovery.Close)
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv.URL, mockContainerProvider, mTimeProvider
+}
+
+func setupDiscoveryModule(t *testing.T) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
+	t.Helper()
+	return setupDiscoveryModuleWithNetwork(t, newNetworkCollector)
 }
 
 func getServicesWithParams(t require.TestingT, url string, params *params) *model.ServicesResponse {
@@ -257,7 +236,7 @@ func TestBasic(t *testing.T) {
 		}
 
 		for _, pid := range expectedPIDs {
-			assert.Contains(collect, seen, pid)
+			require.Contains(collect, seen, pid)
 			require.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
 			require.Equal(collect, seen[pid].LastHeartbeat, mockedTime.Unix())
 			assertStat(collect, seen[pid])
@@ -1028,6 +1007,12 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, startEvent.ContainerServiceNameSource, "app")
 	require.Contains(t, startEvent.Type, "web_service")
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
+}
+
+func newDiscovery(containerProvider proccontainers.ContainerProvider, tp timeProvider) *discovery {
+	return newDiscoveryWithNetwork(containerProvider, tp, func(_ *discoveryConfig) (networkCollector, error) {
+		return nil, nil
+	})
 }
 
 // Check that the cache is cleaned when procceses die.

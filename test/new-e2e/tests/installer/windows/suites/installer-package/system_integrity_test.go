@@ -16,7 +16,7 @@ import (
 )
 
 type testSystemIntegrityInstallerSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 	name  string
 	sutFn func(suite *testSystemIntegrityInstallerSuite)
 }

@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type linuxRuntimeSecretSuite struct {
@@ -30,7 +30,7 @@ func TestLinuxRuntimeSecretSuite(t *testing.T) {
 }
 
 //go:embed fixtures/secret_script.py
-var secretScript []byte
+var secretScript string
 
 func (v *linuxRuntimeSecretSuite) TestSecretRuntimeHostname() {
 	config := `secret_backend_command: /tmp/bin/secret.sh
@@ -38,7 +38,7 @@ hostname: ENC[hostname]`
 
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			agentparams.WithFileWithPermissions("/tmp/bin/secret.sh", string(secretScript), true, secrets.WithUnixSecretPermissions(false)),
+			secretsutils.WithUnixSetupCustomScript("/tmp/bin/secret.sh", secretScript, false),
 			agentparams.WithAgentConfig(config),
 		),
 	))
