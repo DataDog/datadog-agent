@@ -50,7 +50,7 @@ cancel-prev-pipelines_docker_with_hack:
       when: never
     - when: on_success
   script:
-    - $CI_PROJECT_DIR/tools/ci/test_exit_code.sh | exit $?
+    - $CI_PROJECT_DIR/tools/ci/test_exit_code.sh || exit $?
 
 cancel-prev-pipelines-h:
   stage: .pre
@@ -68,4 +68,4 @@ cancel-prev-pipelines-h:
       when: never
     - when: on_success
   script:
-    - $CI_PROJECT_DIR/tools/ci/test_exit_code.sh | exit $?
+    - $CI_PROJECT_DIR/tools/ci/test_exit_code.sh || exit $?
