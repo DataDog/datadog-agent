@@ -193,6 +193,14 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 		return err
 	}
 
+	// Fetch the auth token
+	for t.token == "" {
+		t.token, err = t.options.TokenFetcher()
+		if err != nil {
+			t.log.Warnf("unable to fetch auth token. Error: %s", err)
+		}
+	}
+
 	t.client = pb.NewAgentSecureClient(t.conn)
 
 	t.log.Info("remote tagger initialized successfully")
@@ -287,14 +295,9 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
 func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
-	// Fetch the auth token
+	// Check the auth token
 	if t.token == "" {
-		var authError error
-		t.token, authError = t.options.TokenFetcher()
-		if authError != nil {
-			_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
-			return "", authError
-		}
+		return "", errors.New("RemoteTagger initialization failed: auth token is unset")
 	}
 
 	// Create the context with the auth token
@@ -551,15 +554,16 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 		default:
 		}
 
-		token, err := t.options.TokenFetcher()
-		if err != nil {
-			t.log.Infof("unable to fetch auth token, will possibly retry: %s", err)
-			return err
+		var err error
+
+		// Check the auth token
+		if t.token == "" {
+			return errors.New("RemoteTagger initialization failed: auth token is unset")
 		}
 
 		t.streamCtx, t.streamCancel = context.WithCancel(
 			metadata.NewOutgoingContext(t.ctx, metadata.MD{
-				"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
 			}),
 		)
 
