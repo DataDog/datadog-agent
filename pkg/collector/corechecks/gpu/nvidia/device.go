@@ -35,6 +35,7 @@ var allDeviceMetrics = []deviceMetric{
 	{"clock_speed.video", getVideoClockSpeed},
 	{"temperature", getTemperature},
 	{"total_energy_consumption", getTotalEnergyConsumption},
+	{"sm_active", getSMActive},
 }
 
 type deviceCollector struct {
@@ -135,6 +136,11 @@ func getDecoderUtilization(dev nvml.Device) (float64, nvml.Return) {
 func getDramActive(dev nvml.Device) (float64, nvml.Return) {
 	util, ret := dev.GetUtilizationRates()
 	return float64(util.Memory), ret
+}
+
+func getSMActive(dev nvml.Device) (float64, nvml.Return) {
+	util, ret := dev.GetUtilizationRates()
+	return float64(util.Gpu), ret
 }
 
 func getEncoderUtilization(dev nvml.Device) (float64, nvml.Return) {
