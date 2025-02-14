@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checks
+package subscribers
 
 import (
 	"sync/atomic"
@@ -12,23 +12,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type GPUDetector struct {
+type GPUSubscriber struct {
 	gpuDetected atomic.Bool
 	gpuEventsCh chan workloadmeta.EventBundle
 	stopCh      chan struct{}
 	wmeta       workloadmeta.Component
 }
 
-// NewGPUDetector creates a new GPUDetector instance
-func NewGPUDetector(wmeta workloadmeta.Component) *GPUDetector {
-	return &GPUDetector{
+// NewGPUSubscriber creates a new GPUDetector instance
+func NewGPUSubscriber(wmeta workloadmeta.Component) *GPUSubscriber {
+	return &GPUSubscriber{
 		stopCh: make(chan struct{}),
 		wmeta:  wmeta,
 	}
 }
 
 // Run starts the GPU detector, which listens for workloadmeta events to detect GPUs on the host
-func (g *GPUDetector) Run() {
+func (g *GPUSubscriber) Run() {
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).
 		SetEventType(workloadmeta.EventTypeSet).
@@ -46,17 +46,7 @@ func (g *GPUDetector) Run() {
 			if !ok {
 				return
 			}
-			for _, event := range eventBundle.Events {
-				gpu, ok := event.Entity.(*workloadmeta.GPU)
-				if !ok {
-					log.Debugf("Expected workloadmeta.GPU got %T, skipping", event.Entity)
-					continue
-				}
-
-				log.Info("GPU detected, enabling GPU tagging:", gpu)
-				g.SetGPUDetected(true)
-				break
-			}
+			g.processEvents(eventBundle)
 			eventBundle.Acknowledge()
 
 			if g.IsGPUDetected() {
@@ -72,16 +62,31 @@ func (g *GPUDetector) Run() {
 }
 
 // IsGPUDetected checks if a GPU has been detected
-func (g *GPUDetector) IsGPUDetected() bool {
+func (g *GPUSubscriber) IsGPUDetected() bool {
 	return g.gpuDetected.Load()
 }
 
 // SetGPUDetected sets the GPU detected status
-func (g *GPUDetector) SetGPUDetected(value bool) {
+func (g *GPUSubscriber) SetGPUDetected(value bool) {
 	g.gpuDetected.Store(value)
 }
 
+// processEvents processes the events received from workloadmeta
+func (g *GPUSubscriber) processEvents(eventBundle workloadmeta.EventBundle) {
+	for _, event := range eventBundle.Events {
+		gpu, ok := event.Entity.(*workloadmeta.GPU)
+		if !ok {
+			log.Debugf("Expected workloadmeta.GPU got %T, skipping", event.Entity)
+			continue
+		}
+
+		log.Info("GPU detected, enabling GPU tagging:", gpu)
+		g.SetGPUDetected(true)
+		break
+	}
+}
+
 // Stop stops the GPU detector
-func (g *GPUDetector) Stop() {
+func (g *GPUSubscriber) Stop() {
 	close(g.stopCh)
 }
