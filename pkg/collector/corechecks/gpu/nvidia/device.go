@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
-const deviceCollectorName = "device"
-
 var allDeviceMetrics = []deviceMetric{
 	{"pci.throughput.tx", getTxPciThroughput},
 	{"pci.throughput.rx", getRxPciThroughput},
@@ -35,6 +33,7 @@ var allDeviceMetrics = []deviceMetric{
 	{"clock_speed.video", getVideoClockSpeed},
 	{"temperature", getTemperature},
 	{"total_energy_consumption", getTotalEnergyConsumption},
+	{"sm_active", getSMActive},
 }
 
 type deviceCollector struct {
@@ -113,8 +112,8 @@ func (c *deviceCollector) Close() error {
 }
 
 // Name returns the name of the collector.
-func (c *deviceCollector) Name() string {
-	return deviceCollectorName
+func (c *deviceCollector) Name() CollectorName {
+	return device
 }
 
 func getRxPciThroughput(dev nvml.Device) (float64, nvml.Return) {
@@ -135,6 +134,11 @@ func getDecoderUtilization(dev nvml.Device) (float64, nvml.Return) {
 func getDramActive(dev nvml.Device) (float64, nvml.Return) {
 	util, ret := dev.GetUtilizationRates()
 	return float64(util.Memory), ret
+}
+
+func getSMActive(dev nvml.Device) (float64, nvml.Return) {
+	util, ret := dev.GetUtilizationRates()
+	return float64(util.Gpu), ret
 }
 
 func getEncoderUtilization(dev nvml.Device) (float64, nvml.Return) {

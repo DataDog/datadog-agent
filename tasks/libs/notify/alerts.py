@@ -19,7 +19,6 @@ from tasks.libs.notify.utils import (
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     get_pr_from_commit,
-    send_slack_message,
 )
 from tasks.owners import channel_owners, make_partition
 
@@ -232,7 +231,10 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
         message = message.strip()
 
         if message:
-            send_slack_message(channel, message)
+            from slack_sdk import WebClient
+
+            client = WebClient(token=os.environ["SLACK_API_TOKEN"])
+            client.chat_postMessage(channel=channel, text=message)
 
             # Create metrics for consecutive and cumulative alerts
             return [
