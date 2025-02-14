@@ -581,7 +581,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
-        run_rc_pipeline(ctx, release_branch, gitlab_tag.name, k8s_deployments)
+        run_rc_pipeline(ctx, gitlab_tag.name, k8s_deployments)
 
 
 def get_qualification_rc_tag(ctx, release_branch):
