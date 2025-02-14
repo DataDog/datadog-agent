@@ -38,7 +38,7 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
-		return aksSelectors(useNamespaceSelector, labelSelector)
+		return AksSelectors(useNamespaceSelector, labelSelector)
 	}
 
 	if useNamespaceSelector {
@@ -48,14 +48,14 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 	return nil, &labelSelector
 }
 
-// aksSelectors takes a label selector and builds a namespace and object
+// AksSelectors takes a label selector and builds a namespace and object
 // selector adapted for AKS. AKS adds automatically some selector requirements
 // if we don't, so we need to add them to avoid conflicts when updating the
 // webhook.
 //
 // Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
 // Ref: https://github.com/Azure/AKS/issues/1771
-func aksSelectors(useNamespaceSelector bool, labelSelector metav1.LabelSelector) (namespaceSelector, objectSelector *metav1.LabelSelector) {
+func AksSelectors(useNamespaceSelector bool, labelSelector metav1.LabelSelector) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	if useNamespaceSelector {
 		labelSelector.MatchExpressions = append(
 			labelSelector.MatchExpressions,
