@@ -109,8 +109,10 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.GetDuration("auth_init_timeout"))
+	authTimeout := config.GetDuration("auth_init_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), authTimeout)
 	defer cancel()
+	log.Infof("starting to load the IPC auth primitives (timeout: %v)", authTimeout)
 
 	var err error
 	token, err = pkgtoken.FetchOrCreateAuthToken(ctx, config)
@@ -327,9 +329,9 @@ func printAuthSignature(token string, ipccert, ipckey []byte) {
 
 	_, err := h.Write(bytes.Join([][]byte{[]byte(token), ipccert, ipckey}, []byte{}))
 	if err != nil {
-		log.Debugf("error while computing auth signature: %v", err)
+		log.Warnf("error while computing auth signature: %v", err)
 	}
 
 	sign := h.Sum(nil)
-	log.Debugf("successfully loaded the IPC auth primitives (%.8x)", sign)
+	log.Infof("successfully loaded the IPC auth primitives (fingerprint: %.8x)", sign)
 }
