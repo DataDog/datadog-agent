@@ -84,11 +84,11 @@ func TestFIMPermError(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_perm_open_rule",
-			Expression: `open.file.path == "{{.Root}}/test-file"`,
+			Expression: `open.file.path == "{{.Root}}/test-file" && open.retval == -13`,
 		},
 		{
 			ID:         "test_perm_unlink_rule",
-			Expression: `unlink.file.path == "{{.Root}}/test-file"`,
+			Expression: `unlink.file.path == "{{.Root}}/test-file" && open.retval == -13`,
 		},
 	}
 
@@ -112,6 +112,12 @@ func TestFIMPermError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	err = os.Chmod(testFile, 0o400)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	err = os.Chown(testFile, 2002, 2002)
 	if err != nil {
 		t.Fatal(err)
