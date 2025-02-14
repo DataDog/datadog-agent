@@ -616,6 +616,80 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	require.False(t, ok) // channel should have been closed without receiving any responses
 }
 
+func TestHighPriorityTransactionTendency(t *testing.T) {
+	var receivedRequests = make(map[string]struct{})
+	var mutex sync.Mutex
+	var requestChan = make(chan (string), 100)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		defer r.Body.Close()
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		bodyStr := string(body)
+
+		fmt.Printf("\033[33mReceived %s\033[0m\n", bodyStr)
+
+		// Failed the first time for each request
+		if _, found := receivedRequests[bodyStr]; !found {
+			receivedRequests[bodyStr] = struct{}{}
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+			requestChan <- bodyStr
+		}
+	}))
+
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
+
+	oldFlushInterval := flushInterval
+	flushInterval = 500 * time.Millisecond
+	defer func() { flushInterval = oldFlushInterval }()
+
+	log := logmock.New(t)
+	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
+
+	f.Start()
+	defer f.Stop()
+
+	headers := http.Header{}
+	headers.Set("key", "value")
+
+	for i := range 100 {
+		// Every third transaction is high priority
+		if i%2 == 0 {
+			data := []byte(fmt.Sprintf("high priority %d", i))
+			assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
+		} else {
+			data := []byte(fmt.Sprintf("low priority %d", i))
+			assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
+		}
+
+		// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	highPosition := 0
+	lowPosition := 0
+
+	for i := range 100 {
+		tt := <-requestChan
+
+		if strings.Contains(string(tt), "high") {
+			highPosition += i
+		} else {
+			lowPosition += i
+		}
+	}
+
+	fmt.Println(lowPosition / 50)
+	fmt.Println(highPosition / 50)
+
+	assert.Greater(t, lowPosition/50, highPosition/50)
+}
+
 func TestHighPriorityTransaction(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
 	var mutex sync.Mutex
