@@ -34,7 +34,7 @@ func (s *Store) Delete(name string) {
 	s.lock.Unlock()
 }
 
-// Get returns the current strategies strategy's countdown, i.e. how many checks to skip until retrying
+// Get returns the strategy's countdown, i.e. how many checks to skip until retrying
 func (s *Store) Get(name string) (int, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
@@ -73,7 +73,7 @@ func (s *Store) Init(name string, init int) bool {
 	return true
 }
 
-// Decrement decreases the current strategies strategy's countdown by 1, called each time an attempt is skipped
+// Decrement decreases the strategy's countdown by 1, called each time an attempt is skipped
 func (s *Store) Decrement(name string) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -94,10 +94,8 @@ func (s *Store) Decrement(name string) bool {
 	return true
 }
 
-// ExponentialIncrease increases the previous max strategies by a supplied multiplier and sets the current
-// strategy countdown to the new max
-//
-// e.g. if the previous max was 2, this would set both max and countdown to 4
+// ExponentialIncrease increases the strategy's countdown and maximum by a supplied multiplier
+// e.g. if the previous max was 2, this would set both maximum and countdown to 4
 func (s *Store) ExponentialIncrease(name string, multiplier int, max int) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
