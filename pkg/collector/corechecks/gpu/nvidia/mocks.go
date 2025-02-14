@@ -156,12 +156,12 @@ func (_c *mockCollector_Name_Call) Run(run func()) *mockCollector_Name_Call {
 	return _c
 }
 
-func (_c *mockCollector_Name_Call) Return(_a0 string) *mockCollector_Name_Call {
+func (_c *mockCollector_Name_Call) Return(_a0 CollectorName) *mockCollector_Name_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *mockCollector_Name_Call) RunAndReturn(run func() string) *mockCollector_Name_Call {
+func (_c *mockCollector_Name_Call) RunAndReturn(run func() CollectorName) *mockCollector_Name_Call {
 	_c.Call.Return(run)
 	return _c
 }
