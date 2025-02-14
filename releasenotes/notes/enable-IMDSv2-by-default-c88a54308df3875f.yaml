@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    IMDSv2 is now enabled by default. This change should not have any impact.
+    Change ``ec2_imdsv2_transition_payload_enabled`` from ``false`` to ``true``. 
