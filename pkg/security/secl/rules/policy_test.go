@@ -180,8 +180,8 @@ func TestRuleMerge(t *testing.T) {
 
 	t.Run("enabled-disabled", func(t *testing.T) {
 		rule := rs.GetRules()["test_rule_foo"]
-		if rule != nil {
-			t.Fatal("expected test_rule_foo to not be loaded")
+		if rule == nil {
+			t.Fatal("expected test_rule_foo to be loaded now")
 		}
 	})
 

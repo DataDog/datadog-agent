@@ -32,8 +32,6 @@ type OverrideField = string
 const (
 	// OverrideAllFields used to override all the fields
 	OverrideAllFields OverrideField = "all"
-	// OverrideExpressionField used to override the expression
-	OverrideExpressionField OverrideField = "expression"
 	// OverrideActionFields used to override the actions
 	OverrideActionFields OverrideField = "actions"
 	// OverrideEveryField used to override the every field
@@ -128,6 +126,7 @@ func (a *ActionDefinition) Name() ActionName {
 	}
 }
 
+// Equals returns true if the action is equal to another action
 func (a *ActionDefinition) Equals(other *ActionDefinition) bool {
 	if a == nil && other == nil {
 		return true

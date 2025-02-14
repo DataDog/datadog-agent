@@ -739,7 +739,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									policyType: DefaultPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
-											{ID: "rule_1", Disabled: true},
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"", Disabled: true},
 										},
 									},
 								},
@@ -755,7 +755,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									policyType: DefaultPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
-											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/bar\"", Combine: OverridePolicy},
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"", Disabled: false},
 										},
 									},
 								},
@@ -768,7 +768,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expected := map[eval.RuleID]*Rule{
 					"rule_1": {
 						PolicyRule: &PolicyRule{
-							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/default/bar\"", Combine: OverridePolicy},
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
 							Policy: &Policy{
 								Name:   "P1.policy",
 								Source: PolicyProviderTypeRC,
@@ -778,6 +778,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						},
 					},
 				}
+				fmt.Println("fffffffffff")
 				return checkOverrideResult(t, expected, got)
 			},
 		},
@@ -853,7 +854,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
-											{ID: "rule_1", Disabled: true},
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"", Disabled: true},
 										},
 									},
 								},
@@ -923,7 +924,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									policyType: DefaultPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
-											{ID: "rule_1", Disabled: true},
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: true},
 										},
 									},
 								},
@@ -939,7 +940,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
-											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Combine: OverridePolicy},
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: false},
 										},
 									},
 								},
@@ -952,7 +953,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expected := map[eval.RuleID]*Rule{
 					"rule_1": {
 						PolicyRule: &PolicyRule{
-							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Combine: OverridePolicy},
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
 							Policy: &Policy{
 								Name:   "P1.policy",
 								Source: PolicyProviderTypeRC,
@@ -1090,7 +1091,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
-											{ID: "rule_1", Disabled: true},
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: true},
 										},
 									},
 								},
@@ -1106,7 +1107,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
-											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Combine: OverridePolicy},
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: false},
 										},
 									},
 								},
@@ -1119,7 +1120,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expected := map[eval.RuleID]*Rule{
 					"rule_1": {
 						PolicyRule: &PolicyRule{
-							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Combine: OverridePolicy},
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
 							Policy: &Policy{
 								Name:   "P1.policy",
 								Source: PolicyProviderTypeRC,
@@ -1161,7 +1162,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
-											{ID: "rule_1", Disabled: true},
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: true},
 										},
 									},
 								},
@@ -1260,10 +1261,10 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
 											{
-												ID: "rule_1", Expression: "open.file.path == \"/etc/default/bar\"",
+												ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
 												Combine: OverridePolicy,
 												OverrideOptions: OverrideOptions{
-													Fields: []OverrideField{OverrideExpressionField, OverrideActionFields},
+													Fields: []OverrideField{OverrideActionFields},
 												},
 												Actions: []*ActionDefinition{
 													{
@@ -1285,7 +1286,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					"rule_1": {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{
-								ID: "rule_1", Expression: "open.file.path == \"/etc/default/bar\"",
+								ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
 								Combine: OverridePolicy,
 								Actions: []*ActionDefinition{
 									{
@@ -1350,10 +1351,10 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 										Rules: []*RuleDefinition{
 											{
 												ID:         "rule_1",
-												Expression: "open.file.path == \"/etc/custom/bar\"",
+												Expression: "open.file.path == \"/etc/default/foo\"",
 												Combine:    OverridePolicy,
 												OverrideOptions: OverrideOptions{
-													Fields: []OverrideField{OverrideExpressionField, OverrideActionFields},
+													Fields: []OverrideField{OverrideActionFields},
 												},
 												Actions: []*ActionDefinition{
 													{
@@ -1376,7 +1377,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					"rule_1": {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{
-								ID: "rule_1", Expression: "open.file.path == \"/etc/custom/bar\"",
+								ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
 								Combine: OverridePolicy,
 								Actions: []*ActionDefinition{
 									{
@@ -1444,10 +1445,10 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 										Rules: []*RuleDefinition{
 											{
 												ID:         "rule_1",
-												Expression: "open.file.path == \"/etc/custom/bar\"",
+												Expression: "open.file.path == \"/etc/default/foo\"",
 												Combine:    OverridePolicy,
 												OverrideOptions: OverrideOptions{
-													Fields: []OverrideField{OverrideExpressionField, OverrideActionFields},
+													Fields: []OverrideField{OverrideActionFields},
 												},
 											},
 										},
@@ -1463,7 +1464,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					"rule_1": {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{
-								ID: "rule_1", Expression: "open.file.path == \"/etc/custom/bar\"",
+								ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
 								Combine: OverridePolicy,
 								Actions: []*ActionDefinition{
 									{
@@ -1526,10 +1527,10 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 										Rules: []*RuleDefinition{
 											{
 												ID:         "rule_1",
-												Expression: "open.file.path == \"/etc/custom/bar\"",
+												Expression: "open.file.path == \"/etc/custom/foo\"",
 												Combine:    OverridePolicy,
 												OverrideOptions: OverrideOptions{
-													Fields: []OverrideField{OverrideExpressionField, OverrideActionFields},
+													Fields: []OverrideField{OverrideActionFields},
 												},
 											},
 										},
@@ -1545,7 +1546,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					"rule_1": {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{
-								ID: "rule_1", Expression: "open.file.path == \"/etc/custom/bar\"",
+								ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"",
 								Combine: OverridePolicy,
 								Actions: []*ActionDefinition{
 									{
@@ -1554,6 +1555,114 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 										},
 									},
 								},
+							},
+							Policy: &Policy{
+								Name:   "P0.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR enabled, P1.CR 1 actionA, enabled, P2 1 actionB, disabled => P1.CR + 1 actionA",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Disabled:   false,
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													},
+												},
+												Combine: OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+											},
+										},
+									},
+								},
+								{
+									name:       "P2.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Disabled:   true,
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR2",
+														},
+													},
+												},
+												Combine: OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
+								Actions: []*ActionDefinition{
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR1",
+										},
+									},
+								},
+								Combine: OverridePolicy,
 							},
 							Policy: &Policy{
 								Name:   "P1.policy",

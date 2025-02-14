@@ -69,13 +69,11 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 		rd1.Def.Expression = rd2.Def.Expression
 		wasOverridden = true
 	} else if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) && rd1.Policy.Type == DefaultPolicyType {
+		tmpExpression := rd1.Def.Expression
 		*rd1.Def = *rd2.Def
+		rd1.Def.Expression = tmpExpression
 		wasOverridden = true
 	} else {
-		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideExpressionField) {
-			rd1.Def.Expression = rd2.Def.Expression
-			wasOverridden = true
-		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideActionFields) {
 			for _, action := range rd2.Def.Actions {
 				duplicated := false
@@ -115,7 +113,9 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 	switch r2.Def.Combine {
 	case OverridePolicy:
-		applyOverride(r, r2)
+		if !r2.Def.Disabled {
+			applyOverride(r, r2)
+		}
 	default:
 		if r.Def.Disabled == r2.Def.Disabled {
 			return &ErrRuleLoad{Rule: r2, Err: ErrDefinitionIDConflict}
@@ -124,9 +124,16 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 
 	if r.Def.Disabled {
 		r.Def.Disabled = r2.Def.Disabled
+		r.Policy.Name = r2.Policy.Name
+		r.Policy.Source = r2.Policy.Source
+		r.Policy.Type = r2.Policy.Type
+
 	} else {
 		if r.Policy.Type == DefaultPolicyType && r2.Policy.Type == CustomPolicyType {
 			r.Def.Disabled = r2.Def.Disabled
+			r.Policy.Name = r2.Policy.Name
+			r.Policy.Source = r2.Policy.Source
+			r.Policy.Type = r2.Policy.Type
 		}
 	}
 
