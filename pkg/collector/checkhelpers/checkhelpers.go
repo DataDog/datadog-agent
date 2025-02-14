@@ -17,7 +17,7 @@ type RetryableOperation[T any] func() (T, error)
 
 // Retry is a helper function to retry operations inside a Check, it relies on the fact that a
 // check will be run at regular intervals, and "backs off" by skipping N number of check executions
-func Retry[B BackoffStore, T any](backoff B, opName string, op RetryableOperation[T], factor int, maxBackoff int) (T, error) {
+func Retry[B BackoffStore, T any](backoff B, opName string, op RetryableOperation[T], multiplier int, maxBackoff int) (T, error) {
 	var none T
 
 	// Check if operation is already in backoff and throw error if so
@@ -46,7 +46,7 @@ func Retry[B BackoffStore, T any](backoff B, opName string, op RetryableOperatio
 		}
 
 		// Increase backoff by a specified factor until max is reached
-		backoff.ExponentialIncrease(opName, factor, maxBackoff)
+		backoff.ExponentialIncrease(opName, multiplier, maxBackoff)
 
 		// throw err
 		return none, err

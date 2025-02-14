@@ -66,6 +66,8 @@ const (
 
 	// maxRetryBackoff is the max # of check runs that can be skipped while waiting for API Server to recover
 	maxRetryBackoff = 10
+	// backoffMultiplier is the multiplication factor used in the backoff strategy
+	backoffMultipler = 2
 	// backoffStatus is the map key where the current backoff counter is stored
 	backoffStatus = "status"
 	// backoffMax is the map key where the current max backoff is stored
@@ -684,20 +686,22 @@ func (k *KSMCheck) Run() error {
 	// Perform resource discovery if it hasn't successfully completed yet
 	if k.resourceDiscovery == nil {
 
-		// initialize backoff store
+		// Initialize backoff store
 		k.initBackoffStoreOnce.Do(func() {
 			k.backoffStore = make(map[string]map[string]int)
 		})
 
+		// Acquire the API Server client, retrying with exponential backoff
 		var err error
-		client, err = checkhelpers.Retry(k, getAPIServerClient, getAPIClient, 2, maxRetryBackoff)
+		client, err = checkhelpers.Retry(k, getAPIServerClient, getAPIClient, backoffMultipler, maxRetryBackoff)
 		if err != nil {
 			return err
 		}
 
+		// Perform resource discovery, retrying with exponential backoff
 		rd, err := checkhelpers.Retry(k, performResourceDiscovery, func() (*resourceDiscovery, error) {
 			return k.doResourceDiscovery(client)
-		}, 2, maxRetryBackoff)
+		}, backoffMultipler, maxRetryBackoff)
 		if err != nil {
 			return err
 		}
