@@ -251,11 +251,11 @@ try {
       if (-Not (Test-DatadogAgentPresence)) {
          throw "Agent is not installed"
       }
+      if (-Not ($configUpdated)) {
+         Update-DatadogAgentConfig
+      }
    }
    
-   if (-Not ($configUpdated)) {
-      Update-DatadogAgentConfig
-   }
 
    Send-Telemetry @"
 {
