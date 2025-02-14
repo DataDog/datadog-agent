@@ -136,16 +136,51 @@ def normalize_appsec(stage):
 
         entries = []
 
+        # We want to validate that some tags are sent alongside our traces.
+        span_tags_to_check = [
+            # Found only in the first security event span (sent once per WAF handle)
+            "_dd.appsec.event_rules.errors",
+            "_dd.appsec.event_rules.loaded",
+            "_dd.appsec.event_rules.error_count",
+            "_dd.appsec.waf.version",
+            # Found in every span triggering a security event
+            "_dd.origin",
+            "appsec.event",
+            # Found in every span which ran a WAF check
+            "_dd.appsec.event_rules.version",
+            "_dd.appsec.waf.duration_ext",
+        ]
+
         for chunk in log["chunks"]:
             for span in chunk.get("spans") or []:
                 meta = span.get("meta") or {}
+
                 data = meta.get("_dd.appsec.json")
-                if data is None:
+                normalized_data = {}
+
+                if data is not None:
+                    parsed = json.loads(data, strict=False)
+                    # The triggers may appear in any order, so we sort them by rule ID
+                    parsed["triggers"] = sorted(parsed["triggers"], key=lambda x: x["rule"]["id"])
+                    normalized_data["appsec.json"] = parsed
+
+                # Do not check tags if it's not an appsec span.
+                if "_dd.appsec.event_rules.version" in meta:
+                    tags_checks = {}
+                    for tag in span_tags_to_check:
+                        if tag not in meta:
+                            tags_checks[tag] = "NOT_FOUND"
+                        elif not meta[tag]:  # Check if the value is empty (None, "", etc.)
+                            tags_checks[tag] = "EMPTY"
+                        else:
+                            tags_checks[tag] = "FOUND"
+                    normalized_data["tags"] = tags_checks
+
+                if not normalized_data:
+                    # Do not add entries for spans that have no appsec data
                     continue
-                parsed = json.loads(data, strict=False)
-                # The triggers may appear in any order, so we sort them by rule ID
-                parsed["triggers"] = sorted(parsed["triggers"], key=lambda x: x["rule"]["id"])
-                entries.append(parsed)
+
+                entries.append(normalized_data)
 
         return entries
 

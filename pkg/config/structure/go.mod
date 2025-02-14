@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/structure
 
-go 1.22.0
+go 1.23.0
 
 // Internal deps fix version
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
@@ -9,6 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.0-devel
 	github.com/DataDog/viper v1.14.0
+	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/spf13/cast v1.7.1
 	github.com/stretchr/testify v1.10.0
 )
@@ -22,7 +23,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
-	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -31,7 +31,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c // indirect
-	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -76,6 +76,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ../../../comp/otelcol/converter/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ../../../comp/otelcol/ddflareextension/def
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl => ../../../comp/otelcol/ddflareextension/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types => ../../../comp/otelcol/ddflareextension/types
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def => ../../../comp/otelcol/ddprofilingextension/def
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../../comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../comp/otelcol/logsagentpipeline
