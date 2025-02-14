@@ -447,6 +447,8 @@ func TestMetedataRequestWithToken(t *testing.T) {
 			tokenURL = ts.URL
 
 			// Set test-specific configuration
+			configmock.New(t)
+			defer resetPackageVars()
 			pkgconfigsetup.Datadog().SetDefault(tc.configKey, tc.configValue)
 			pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 			defer resetPackageVars()
