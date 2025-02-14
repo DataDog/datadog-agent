@@ -57,6 +57,7 @@ var allSubsystems = map[string]subsystemBuilder{
 	deviceCollectorName:       newDeviceCollector,
 	remappedRowsCollectorName: newRemappedRowsCollector,
 	clocksCollectorName:       newClocksCollector,
+	samplesCollectorName:      newSamplesCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -121,6 +122,12 @@ func getTagsFromDevice(dev nvml.Device, tagger tagger.Component) ([]string, erro
 	tags, err := tagger.Tag(entityID, tagger.ChecksCardinality())
 	if err != nil {
 		log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
+	}
+
+	if len(tags) == 0 {
+		// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
+		// add at least the UUID as a tag to distinguish the values.
+		tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
 	}
 
 	return tags, nil

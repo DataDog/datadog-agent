@@ -316,6 +316,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	for k, v := range pRule.Def.Tags {
 		tags = append(tags, k+":"+v)
 	}
+	tags = append(tags, pRule.Def.ProductTags...)
 
 	expandedRules := expandFim(pRule.Def.ID, pRule.Def.GroupID, pRule.Def.Expression)
 
