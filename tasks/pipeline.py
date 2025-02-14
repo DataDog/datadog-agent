@@ -722,15 +722,16 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     """
     Trigger a pipeline from an external owner.
     """
-    # Verify parameters
-    owner_branch_name = owner_branch_name.lower()
+
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):((?P<prefix>[a-zA-Z0-9_-]+)/)?(?P<branch_name>[a-zA-Z0-9_-]+)$')
+    match = branch_re.match(owner_branch_name)
 
     assert (
-        owner_branch_name.count('/') >= 1
-    ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
+        match is not None
+    ), f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
     assert "'" not in owner_branch_name
 
-    owner, branch = owner_branch_name.split('/', 1)
+    owner, branch = match.group('owner'), match.group('branch_name')
     no_verify_flag = ' --no-verify' if no_verify else ''
 
     # Can checkout
