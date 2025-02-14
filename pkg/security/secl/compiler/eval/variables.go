@@ -39,16 +39,6 @@ type ScopedVariable interface {
 	GetValue(ctx *Context) interface{}
 }
 
-// Variable is the interface implemented by variables
-type Variable interface {
-	GetValue() interface{}
-}
-
-// ScopedVariable is the interface implemented by scoped variables
-type ScopedVariable interface {
-	GetValue(ctx *Context) interface{}
-}
-
 // MutableVariable is the interface by variables whose value can be changed
 type MutableVariable interface {
 	Set(ctx *Context, value interface{}) error
@@ -629,7 +619,6 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 // ReleaseVariable releases a scoped variable
 func (v *ScopedVariables) ReleaseVariable(key VariableScope) {
 	delete(v.vars, key)
-	
 }
 
 // NewScopedVariables returns a new set of scope variables
