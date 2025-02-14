@@ -43,7 +43,7 @@ require (
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/metric v1.34.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.29.0
+	golang.org/x/sys v0.30.0
 	golang.org/x/time v0.8.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.4
