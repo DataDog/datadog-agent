@@ -6,8 +6,9 @@
 package agenttests
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -23,13 +24,16 @@ type testAgentUpgradeSuite struct {
 func TestAgentUpgrades(t *testing.T) {
 	e2e.Run(t, &testAgentUpgradeSuite{},
 		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(),
-			)))
+			winawshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 // TestUpgradeAgentPackage tests that it's possible to upgrade the Datadog Agent using the Datadog installer.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "False",
+	}))
+	s.T().Log(out)
+	s.Require().NoError(err)
 	s.Run("Install stable", func() {
 		s.installStableAgent()
 		s.Run("Upgrade to latest using an experiment", func() {
@@ -37,12 +41,21 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 			s.Run("Stop experiment", s.stopExperiment)
 		})
 	})
+
+	// remove the installer
+	_, err = s.Installer().Purge()
+	s.Require().NoError(err)
 }
 
 // TestDowngradeAgentPackage tests that it's possible to downgrade the Datadog Agent using the Datadog installer.
 func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 	// Arrange
-	_, err := s.Installer().InstallPackage(consts.AgentPackage)
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "False",
+	}))
+	s.T().Log(out)
+	s.Require().NoError(err)
+	_, err = s.Installer().InstallPackage(consts.AgentPackage)
 	s.Require().NoErrorf(err, "failed to install the stable Datadog Agent package")
 
 	// Act
@@ -60,16 +73,25 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		}).
 		DirExists(consts.GetStableDirFor(consts.AgentPackage))
+
+	// remove the installer
+	_, err = s.Installer().Purge()
+	s.Require().NoError(err)
 }
 
 func (s *testAgentUpgradeSuite) TestExperimentFailure() {
 	// Arrange
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "False",
+	}))
+	s.T().Log(out)
+	s.Require().NoError(err)
 	s.Run("Install stable", func() {
 		s.installStableAgent()
 	})
 
 	// Act
-	_, err := s.Installer().InstallExperiment(consts.AgentPackage,
+	_, err = s.Installer().InstallExperiment(consts.AgentPackage,
 		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion("unknown-version"),
 		installer.WithAuthentication(""),
@@ -78,17 +100,26 @@ func (s *testAgentUpgradeSuite) TestExperimentFailure() {
 	// Assert
 	s.Require().Error(err, "expected an error when trying to start an experiment with an unknown version")
 	s.stopExperiment()
+
+	// remove the installer
+	_, err = s.Installer().Purge()
+	s.Require().NoError(err)
 	// TODO: is this the same test as TestStopWithoutExperiment?
 }
 
 func (s *testAgentUpgradeSuite) TestExperimentCurrentVersion() {
 	// Arrange
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "False",
+	}))
+	s.T().Log(out)
+	s.Require().NoError(err)
 	s.Run("Install stable", func() {
 		s.installStableAgent()
 	})
 
 	// Act
-	_, err := s.Installer().InstallExperiment(consts.AgentPackage,
+	_, err = s.Installer().InstallExperiment(consts.AgentPackage,
 		installer.WithRegistry("install.datadoghq.com"),
 		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
 		installer.WithAuthentication(""),
@@ -102,10 +133,19 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersion() {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		}).
 		DirExists(consts.GetStableDirFor(consts.AgentPackage))
+
+	// remove the installer
+	_, err = s.Installer().Purge()
+	s.Require().NoError(err)
 }
 
 func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 	// Arrange
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "False",
+	}))
+	s.T().Log(out)
+	s.Require().NoError(err)
 	s.Run("Install stable", func() {
 		s.installStableAgent()
 	})
@@ -114,6 +154,10 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 
 	// Assert
 	s.stopExperiment()
+
+	// remove the installer
+	_, err = s.Installer().Purge()
+	s.Require().NoError(err)
 	// TODO: Currently uninstalls stable then reinstalls stable. functional but a waste.
 }
 
