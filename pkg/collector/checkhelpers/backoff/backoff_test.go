@@ -17,12 +17,12 @@ const (
 	maxBackoff = 10
 )
 
-func newStore(op string, s int, m int) *Store {
+func newStore(s int, m int) *Store {
 	// initialize map
 	store := New()
 
 	// set status and maximum
-	store.backoff[operation] = map[string]int{
+	store.strategies[operation] = map[string]int{
 		status:  s,
 		maximum: m,
 	}
@@ -43,6 +43,10 @@ func TestRetry(t *testing.T) {
 			store: New(),
 		},
 		{
+			name:  "Operation_Success_Results_In_Deletion_Of_Backoff_Entry",
+			store: newStore(0, 1), // mid backoff
+		},
+		{
 			name:           "Initial_Error_Thrown_Results_In_Backoff_Strategy_Creation",
 			store:          New(),
 			operationErr:   fmt.Errorf("error"),
@@ -51,21 +55,21 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name:           "Mid_Backoff_Error_Results_In_Status_Decrement",
-			store:          newStore(operation, 5, 5), // new strategy
+			store:          newStore(5, 5), // new strategy
 			operationErr:   fmt.Errorf("error"),
 			expectedStatus: 4, // expected to decrement by 1
 			expectedMax:    5,
 		},
 		{
-			name:           "Strategy_Exhaustion_Results_In_New_Strategy",
-			store:          newStore(operation, 0, 4), // final attempt
+			name:           "Strategy_Exhaustion_Results_In_New_Exponential_Backoff_Strategy",
+			store:          newStore(0, 4), // final iteration of backoff cycle
 			operationErr:   fmt.Errorf("error"),
 			expectedStatus: 8, // expected to double based on maxBackoff
 			expectedMax:    8, // expected to double based on maxBackoff
 		},
 		{
-			name:           "Strategy_Exhaustion_Results_In_Exponential_Backoff_Does_Not_Exceed_Maximum",
-			store:          newStore(operation, 0, maxBackoff), // final attempt
+			name:           "Strategy_Exhaustion_Results_In_New_Exponential_Backoff_Strategy_That_Does_Not_Exceed_Maximum",
+			store:          newStore(0, maxBackoff), // final iteration of backoff cycle
 			operationErr:   fmt.Errorf("error"),
 			expectedStatus: maxBackoff, // expected to cap at max
 			expectedMax:    maxBackoff, // expected to cap at max
@@ -80,21 +84,21 @@ func TestRetry(t *testing.T) {
 				return "", tt.operationErr
 			}
 
-			Retry(tt.store, operation, _func, multiplier, maxBackoff)
+			_, err := Retry(tt.store, operation, _func, multiplier, maxBackoff)
 
-			if tt.operationErr == nil {
-				// if no error, assert there is no backoff strategy
-				assert.NotContains(tt.store.backoff, operation)
+			if err == nil {
+				// assert there is no backoff strategy in underlying map
+				assert.NotContains(tt.store.strategies, operation)
 			} else {
 				// assert underlying map contains operation name
-				assert.Contains(tt.store.backoff, operation)
+				assert.Contains(tt.store.strategies, operation)
 
-				// assert backoff strategy status is expected
+				// assert backoff strategy's status is expected value
 				backoffStatus, _ := tt.store.Get(operation)
 				assert.Equal(tt.expectedStatus, backoffStatus)
 
-				// assert backoff strategy maximum is calculated appropriately
-				backoffMax, _ := tt.store.backoff[operation][maximum]
+				// assert backoff strategy's maximum is calculated appropriately
+				backoffMax, _ := tt.store.strategies[operation][maximum]
 				assert.Equal(tt.expectedMax, backoffMax)
 			}
 

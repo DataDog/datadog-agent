@@ -18,62 +18,78 @@ const (
 type RetryableOperation[T any] func() (T, error)
 
 type Store struct {
-	lock    sync.RWMutex
-	backoff map[string]map[string]int // operation name -> backoffStatus/backoffMax -> int
+	lock       sync.RWMutex
+	strategies map[string]map[string]int // operation name -> backoffStatus/backoffMax -> int
 }
 
 func New() *Store {
 	return &Store{
-		backoff: make(map[string]map[string]int),
+		strategies: make(map[string]map[string]int),
 	}
 }
 
-// Get returns the current backoff strategy's status, i.e. how many checks to skip until retrying
+func (s *Store) Delete(name string) {
+	s.lock.Lock()
+	delete(s.strategies, name)
+	s.lock.Unlock()
+}
+
+// Get returns the current strategies strategy's status, i.e. how many checks to skip until retrying
 func (s *Store) Get(name string) (int, bool) {
 	s.lock.RLock()
-	strategy, ok := s.backoff[name]
+
+	// Get the backoff strategy
+	strategy, ok := s.strategies[name]
 	if !ok {
-		return 0, ok
+		s.lock.RUnlock()
+		return 0, false
 	}
 
+	// Check that the strategy's status exists
 	status, ok := strategy["status"]
 	if !ok {
-		return 0, ok
+		s.lock.RUnlock()
+		return 0, false
 	}
 
 	s.lock.RUnlock()
+
 	return status, ok
 }
 
 // Init initializes both the "status" and "max" counters associated with an operation's retries
 // We need to track two fields in the map because we need to both:
-// - keep track of the maximum backoff reached (otherwise we couldn't exponentially backoff)
-// - keep track of the current backoff strategy's status, decrementing by 1 each attempt
+// - keep track of the maximum strategies reached (otherwise we couldn't exponentially strategies)
+// - keep track of the current strategies strategy's status, decrementing by 1 each attempt
 func (s *Store) Init(name string, init int) bool {
 	s.lock.RLock()
 
 	// Guard against initializing a key that already exists
-	if _, ok := s.backoff[name]; ok {
+	if _, ok := s.strategies[name]; ok {
 		s.lock.RUnlock()
 		return ok
 	}
 
-	s.backoff[name] = map[string]int{status: init, maximum: init}
+	// Initialize map with given value
+	s.strategies[name] = map[string]int{status: init, maximum: init}
+
 	s.lock.RUnlock()
 
 	return true
 }
 
-// Decrement decreases the current backoff strategy's status by 1, called each time an attempt is skipped
+// Decrement decreases the current strategies strategy's status by 1, called each time an attempt is skipped
 func (s *Store) Decrement(name string) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	strategy, ok := s.backoff[name]
+	// Get the backoff strategy
+	strategy, ok := s.strategies[name]
 	if !ok {
 		return false
 	}
 
+	// Check that the strategy's status exists
 	if _, ok := strategy[status]; !ok {
 		return false
 	}
@@ -83,29 +99,32 @@ func (s *Store) Decrement(name string) bool {
 	return true
 }
 
-// ExponentialIncrease increases the previous max backoff by a supplied multiplier and sets the current
-// backoff status to the new max
+// ExponentialIncrease increases the previous max strategies by a supplied multiplier and sets the current
+// strategies status to the new max
 // e.g. if the previous max was 2, this would set both max and status to 4
 func (s *Store) ExponentialIncrease(name string, multiplier int, max int) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	strategy, ok := s.backoff[name]
+	// Get the strategies strategy
+	strategy, ok := s.strategies[name]
 	if !ok {
 		return false
 	}
 
+	// Check that the strategy's maximum key exists
 	if _, ok := strategy[maximum]; !ok {
 		return false
 	}
 
-	multiplied := strategy[maximum] * multiplier
-	if multiplied > max {
-		multiplied = max
+	// Calculate new backoff
+	newBackoff := strategy[maximum] * multiplier
+	if newBackoff > max {
+		newBackoff = max
 	}
 
-	strategy[maximum] = multiplied
-	strategy[status] = multiplied
+	strategy[maximum] = newBackoff
+	strategy[status] = newBackoff
 
 	return true
 }
@@ -122,7 +141,7 @@ func Retry[T any](backoff *Store, opName string, op RetryableOperation[T], multi
 				status,
 				opName)
 
-			// Decrement backoff by 1
+			// Decrement strategy by 1
 			backoff.Decrement(opName)
 			return none, err
 		}
@@ -131,21 +150,25 @@ func Retry[T any](backoff *Store, opName string, op RetryableOperation[T], multi
 
 	result, err := op()
 
-	// If operation failed, set backoff
+	// If operation failed, set backoff strategy
 	if err != nil {
 		_, ok := backoff.Get(opName)
-		// backoff wasn't found, default to 1
+
+		// backoff strategy wasn't found, default to 1
 		if !ok {
 			backoff.Init(opName, 1)
 			return none, err
 		}
 
-		// Increase backoff by a specified factor until max is reached
+		// Increase backoff strategy by a specified multiplication factor until max is reached
 		backoff.ExponentialIncrease(opName, multiplier, maxBackoff)
 
 		// throw err
 		return none, err
 	}
+
+	// Operation was successful, clear backoff strategy entry
+	backoff.Delete(opName)
 
 	return result, nil
 }

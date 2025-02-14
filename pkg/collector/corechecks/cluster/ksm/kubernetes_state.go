@@ -291,10 +291,17 @@ func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
 }
 
+var failCounter = 5
+
 func getAPIClient() (*apiserver.APIClient, error) {
 	// Intentionally leaving maximumWaitForAPIServer as-is because if the check interval < wait time
 	// the subsequent check execution will automatically be skipped; there is no risk of two checks
 	// running simultaneously
+
+	if failCounter > 0 {
+		failCounter--
+		return nil, fmt.Errorf("Intentionally failing, %d more failures to go", failCounter)
+	}
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 
