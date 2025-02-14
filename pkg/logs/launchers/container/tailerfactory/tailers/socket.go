@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/docker"

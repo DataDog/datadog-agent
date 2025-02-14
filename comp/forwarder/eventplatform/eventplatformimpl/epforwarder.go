@@ -21,11 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -355,7 +356,7 @@ type passthroughPipeline struct {
 	sender                *sender.Sender
 	strategy              sender.Strategy
 	in                    chan *message.Message
-	auditor               auditor.Auditor
+	auditor               auditor.Component
 	eventPlatformReceiver eventplatformreceiver.Component
 }
 
@@ -438,7 +439,7 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 			pipelineMonitor)
 	}
 
-	a := auditor.NewNullAuditor()
+	a := auditornoop.NewAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{

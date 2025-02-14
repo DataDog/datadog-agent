@@ -13,9 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -43,7 +43,7 @@ type Provider interface {
 // provider implements providing logic
 type provider struct {
 	numberOfPipelines         int
-	auditor                   auditor.Auditor
+	auditor                   auditor.Component
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	outputChan                chan *message.Payload
 	processingRules           []*config.ProcessingRule
@@ -63,7 +63,7 @@ type provider struct {
 
 // NewProvider returns a new Provider
 func NewProvider(numberOfPipelines int,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
@@ -78,7 +78,7 @@ func NewProvider(numberOfPipelines int,
 
 // NewServerlessProvider returns a new Provider in serverless mode
 func NewServerlessProvider(numberOfPipelines int,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
@@ -98,7 +98,7 @@ func NewMockProvider() Provider {
 }
 
 func newProvider(numberOfPipelines int,
-	auditor auditor.Auditor,
+	auditor auditor.Component,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,

@@ -12,9 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -48,7 +48,7 @@ func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsc
 
 func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compression compression.Component) (seccommon.RawReporter, error) {
 	// setup the auditor
-	auditor := auditor.NewNullAuditor()
+	auditor := auditornoop.NewAuditor()
 	auditor.Start()
 	stopper.Add(auditor)
 
