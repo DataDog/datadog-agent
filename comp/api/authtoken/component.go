@@ -21,7 +21,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	Get() string
+	Get() (string, error)
 	GetTLSClientConfig() *tls.Config
 	GetTLSServerConfig() *tls.Config
 }

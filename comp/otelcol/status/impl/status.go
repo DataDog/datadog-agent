@@ -188,9 +188,17 @@ func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
 
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionURL := s.Config.GetString("otelcollector.extension_url")
+
+	auth, err := s.authToken.Get()
+	if err != nil {
+		return map[string]interface{}{
+			"url":   extensionURL,
+			"error": err.Error(),
+		}
+	}
 	options := apiutil.ReqOptions{
 		Conn:      apiutil.CloseConnection,
-		Authtoken: s.authToken.Get(),
+		Authtoken: auth,
 	}
 	resp, err := apiutil.DoGetWithOptions(s.client, extensionURL, &options)
 	if err != nil {
