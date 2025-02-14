@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -73,7 +75,7 @@ type MockComponentImplMrf struct {
 
 	logs    *bool
 	metrics *bool
-	traces  *bool
+	apm     *bool
 }
 
 func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface{}, _ model.Source) error {
@@ -87,8 +89,8 @@ func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface
 		m.metrics = &v
 	case "multi_region_failover.failover_logs":
 		m.logs = &v
-	case "multi_region_failover.failover_traces":
-		m.traces = &v
+	case "multi_region_failover.failover_apm":
+		m.apm = &v
 	default:
 		return &settings.SettingNotFoundError{Name: setting}
 	}
@@ -103,6 +105,7 @@ func TestRCClientCreate(t *testing.T) {
 			fx.Provide(func() config.Component { return configmock.New(t) }),
 			settingsimpl.MockModule(),
 			sysprobeconfig.NoneModule(),
+			fetchonlyimpl.MockModule(),
 		),
 	)
 	// Missing params
@@ -121,6 +124,7 @@ func TestRCClientCreate(t *testing.T) {
 				},
 			),
 			settingsimpl.MockModule(),
+			fetchonlyimpl.MockModule(),
 		),
 	)
 	assert.NoError(t, err)
@@ -131,6 +135,8 @@ func TestRCClientCreate(t *testing.T) {
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(pkglog.Default(), "info")
 	cfg := configmock.New(t)
+
+	var at authtoken.Component
 
 	rc := fxutil.Test[rcclient.Component](t,
 		fx.Options(
@@ -153,6 +159,8 @@ func TestAgentConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
+			fetchonlyimpl.MockModule(),
+			fx.Populate(&at),
 		),
 	)
 
@@ -166,7 +174,10 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.NoError(t, err)
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
-		ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(cfg) },
+		ipcAddress,
+		pkgconfigsetup.GetIPCPort(),
+		at.Get,
+		at.GetTLSClientConfig,
 		client.WithAgent("test-agent", "9.99.9"),
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
@@ -228,6 +239,8 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(pkglog.Default(), "info")
 	cfg := configmock.New(t)
 
+	var at authtoken.Component
+
 	rc := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			Module(),
@@ -249,12 +262,15 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
+			fetchonlyimpl.MockModule(),
+			fx.Populate(&at),
 		),
 	)
 
 	allInactive := state.RawConfig{Config: []byte(`{"name": "none"}`)}
 	noLogs := state.RawConfig{Config: []byte(`{"name": "nologs", "failover_logs": false}`)}
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
+	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
 
 	structRC := rc.(rcClient)
 
@@ -263,6 +279,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(cfg) },
+		at.GetTLSClientConfig,
 		client.WithAgent("test-agent", "9.99.9"),
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
@@ -274,10 +291,11 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 		"datadog/2/AGENT_FAILOVER/none/configname":       allInactive,
 		"datadog/2/AGENT_FAILOVER/nologs/configname":     noLogs,
 		"datadog/2/AGENT_FAILOVER/yesmetrics/configname": activeMetrics,
+		"datadog/2/AGENT_FAILOVER/yesapm/configname":     activeAPM,
 	}, applyEmpty)
 
 	cmpntSettings := structRC.settingsComponent.(*MockComponentImplMrf)
 	assert.True(t, *cmpntSettings.metrics)
 	assert.False(t, *cmpntSettings.logs)
-	assert.Nil(t, cmpntSettings.traces)
+	assert.True(t, *cmpntSettings.apm)
 }

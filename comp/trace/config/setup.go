@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -45,6 +46,8 @@ import (
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
+	// mrfPrefix is the MRF site prefix.
+	mrfPrefix = "mrf."
 	// rcClientName is the default name for remote configuration clients in the trace agent
 	rcClientName = "trace-agent"
 )
@@ -58,14 +61,14 @@ const (
 func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
-	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger)
+	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.At)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(c, tagger)
+func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
+	cfg, err := prepareConfig(c, tagger, at)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -82,7 +85,7 @@ func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Componen
 	return cfg, validate(cfg, c)
 }
 
-func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.AgentConfig, error) {
+func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
@@ -112,7 +115,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress)
+		client, err := remote(c, ipcAddress, at)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -129,6 +132,10 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
+
+	cfg.IsMRFEnabled = func() bool {
+		return coreConfigObject.GetBool("multi_region_failover.enabled") && coreConfigObject.GetBool("multi_region_failover.failover_apm")
 	}
 	return cfg, nil
 }
@@ -176,6 +183,22 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	} else {
 		c.Endpoints[0].Host = utils.GetMainEndpoint(pkgconfigsetup.Datadog(), apiEndpointPrefix, "apm_config.apm_dd_url")
 	}
+
+	// Add MRF endpoint, if enabled
+	if core.GetBool("multi_region_failover.enabled") {
+		prefix := apiEndpointPrefix + mrfPrefix
+		mrfURL, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
+		if err != nil {
+			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+
+		c.Endpoints = append(c.Endpoints, &config.Endpoint{
+			Host:   mrfURL,
+			APIKey: utils.SanitizeAPIKey(core.GetString("multi_region_failover.api_key")),
+			IsMRF:  true,
+		})
+	}
+
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if core.IsSet("proxy.no_proxy") {
