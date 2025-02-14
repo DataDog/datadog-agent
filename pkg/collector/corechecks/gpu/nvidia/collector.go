@@ -45,6 +45,9 @@ type Collector interface {
 
 	// Name returns the name of the subsystem
 	Name() CollectorName
+
+	// DeviceUUID returns the UUID of the device this collector is collecting metrics from. Returns an empty string if there's no UUID
+	DeviceUUID() string
 }
 
 // Metric represents a single metric collected from the NVML library.

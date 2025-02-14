@@ -42,6 +42,11 @@ func newFieldsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Co
 	return c, nil
 }
 
+func (c *fieldsCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
+}
+
 func (c *fieldsCollector) removeUnsupportedFields() error {
 	fieldValues, err := c.getFieldValues()
 	if err != nil {

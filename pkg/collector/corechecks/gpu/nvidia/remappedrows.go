@@ -36,6 +36,11 @@ func newRemappedRowsCollector(_ nvml.Interface, device nvml.Device, tags []strin
 	}, nil
 }
 
+func (c *remappedRowsCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
+}
+
 // Collect collects remapped rows metrics from the NVML device.
 func (c *remappedRowsCollector) Collect() ([]Metric, error) {
 	// Collect remapped rows metrics from the NVML device

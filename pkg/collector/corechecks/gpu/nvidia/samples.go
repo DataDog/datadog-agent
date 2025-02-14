@@ -51,6 +51,11 @@ func newSamplesCollector(_ nvml.Interface, device nvml.Device, tags []string) (C
 	return c, nil
 }
 
+func (c *samplesCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
+}
+
 func (c *samplesCollector) removeUnsupportedSamples() {
 	metricsToRemove := common.StringSet{}
 	for _, metric := range c.samplesToCollect {

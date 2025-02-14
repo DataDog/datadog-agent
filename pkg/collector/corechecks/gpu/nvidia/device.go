@@ -57,6 +57,11 @@ func newDeviceCollector(_ nvml.Interface, device nvml.Device, tags []string) (Co
 	return c, nil
 }
 
+func (c *deviceCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
+}
+
 func (c *deviceCollector) removeUnsupportedGetters() {
 	metricsToRemove := common.StringSet{}
 	for _, metric := range c.metricGetters {
