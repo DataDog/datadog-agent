@@ -98,9 +98,9 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 				// This is not directly assigned, expect the address for it on the stack
 				if elementParam.Kind == uint(reflect.Pointer) {
 					targetExpressions = append(targetExpressions,
+						ditypes.DereferenceLocationExpression(uint(elementParam.TotalSize)),
 						ditypes.CopyLocationExpression(),
 						ditypes.PopLocationExpression(1, 8),
-						ditypes.DereferenceLocationExpression(uint(elementParam.TotalSize)),
 					)
 				} else if elementParam.Kind == uint(reflect.Struct) {
 					// Structs don't provide context on location, or have values themselves
