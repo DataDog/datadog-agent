@@ -88,7 +88,7 @@ func TestFIMPermError(t *testing.T) {
 		},
 		{
 			ID:         "test_perm_unlink_rule",
-			Expression: `unlink.file.path == "{{.Root}}/test-file" && open.retval == -13`,
+			Expression: `unlink.file.path == "{{.Root}}/test-file" && unlink.retval == -13`,
 		},
 	}
 
