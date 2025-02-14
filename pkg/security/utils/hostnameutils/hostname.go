@@ -13,7 +13,6 @@ import (
 
 	"github.com/avast/retry-go/v4"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -66,11 +65,7 @@ func getHostnameFromAgent(ctx context.Context) (string, error) {
 			return err
 		}
 
-		err = util.SetAuthToken(pkgconfigsetup.Datadog())
-		if err != nil {
-			return err
-		}
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), util.GetTLSClientConfig)
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
 		if err != nil {
 			return err
 		}
