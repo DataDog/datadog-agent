@@ -143,7 +143,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  # extends: .macos_gitlab
+  extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
@@ -155,30 +155,12 @@ new-agent_dmg-x64-a7:
       - /tmp/celian
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-  # after_script:
-  #   # - brew reinstall libidn2 -fv || true
-  #   # - brew link --overwrite libidn2 || true
-  #   - brew reinstall awscli -fv || true
-  #   - brew link --overwrite awscli || true
-  #   # - which aws || true
-  #   # - brew install cryptography -fv || true
   after_script:
     - brew install gettext -fv || true
     - brew link --overwrite gettext || true
-
   script:
-    # - set +e
-    # - brew remove --force --ignore-dependencies gettext
-    # - echo Trying git
-    # - rm -rf /tmp/agentrepo
-    # - git clone https://github.com/DataDog/datadog-agent.git /tmp/agentrepo
-    # - find /usr -name "libintl*"
-    # - find /opt -name "libintl*"
-    # - echo Trying reinstall
-    # - brew install gettext
-    # - brew link --overwrite gettext
-    # - exit 1
     - set -e
+    - !reference [.vault_login]
 
     - |
       echo Removing preinstalled environment
@@ -215,23 +197,26 @@ new-agent_dmg-x64-a7:
         make all -j 4
         echo Git Built
 
+        echo "$PWD/git"
+
         # TODO A: Install?
         # sudo make install -j 4
-
-        ./git --version
       }
+
       echo Installing git
+      pwd
       install_git
-    - |
-      PATH="$PWD/git-$GIT_VERSION:$PATH"
+      pwd
+
       which git
-    - |
+      export PATH="$PWD/git-$GIT_VERSION:$PATH"
+      which git
+      git --version
+
       echo After git install
       debug
-    - exit
 
-    - set -e
-    - !reference [.vault_login]
+      exit
 
     # # Try builder
     # - brew list --formula
