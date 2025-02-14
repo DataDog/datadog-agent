@@ -13,9 +13,11 @@ import (
 	"sort"
 	"strings"
 
+	waf "github.com/DataDog/go-libddwaf/v3"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/httpsec"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -91,7 +93,9 @@ func setEventSpanTags(span span, events []any) error {
 		return err
 	}
 	span.SetMetaTag("_dd.appsec.json", string(val))
+
 	// Set the appsec.event tag needed by the appsec backend
+	span.SetMetaTag("_dd.origin", "appsec")
 	span.SetMetaTag("appsec.event", "true")
 	return nil
 }
@@ -99,10 +103,9 @@ func setEventSpanTags(span span, events []any) error {
 // Create the value of the security events tag.
 func makeEventsTagValue(events []any) (json.RawMessage, error) {
 	// Create the structure to use in the `_dd.appsec.json` span tag.
-	v := struct {
+	tag, err := json.Marshal(struct {
 		Triggers []any `json:"triggers"`
-	}{Triggers: events}
-	tag, err := json.Marshal(v)
+	}{Triggers: events})
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error while serializing the appsec event span tag: %v", err)
 	}
@@ -163,5 +166,37 @@ func setClientIPTags(span span, remoteAddr string, reqHeaders map[string][]strin
 
 	for k, v := range tags {
 		span.SetMetaTag(k, v)
+	}
+}
+
+// setRulesMonitoringTags adds the tags related to security rules monitoring
+// It's only needed once per handle initialization as the ruleset data does not
+// change over time.
+func setRulesMonitoringTags(span span, wafDiags waf.Diagnostics) {
+	rInfo := wafDiags.Rules
+	if rInfo == nil {
+		return
+	}
+
+	var rulesetErrors []byte
+	var err error
+	rulesetErrors, err = json.Marshal(wafDiags.Rules.Errors)
+	if err != nil {
+		log.Error("appsec: could not marshal the waf ruleset info errors to json")
+	}
+	span.SetMetaTag("_dd.appsec.event_rules.errors", string(rulesetErrors))
+	span.SetMetaTag("_dd.appsec.event_rules.loaded", fmt.Sprintf("%d", len(rInfo.Loaded)))
+	span.SetMetaTag("_dd.appsec.event_rules.error_count", fmt.Sprintf("%d", len(rInfo.Failed)))
+	span.SetMetaTag("_dd.appsec.waf.version", waf.Version())
+}
+
+// setWAFMonitoringTags adds the tags related to the monitoring of the WAF performances
+func setWAFMonitoringTags(span span, mRes *MonitorResult) {
+	// Rules version is set for every request to help the backend associate Feature duration metrics with rule version
+	span.SetMetaTag("_dd.appsec.event_rules.version", mRes.Diagnostics.Version)
+
+	// Report the stats sent by the Feature
+	for k, v := range mRes.Stats.Metrics() {
+		span.SetMetaTag("_dd.appsec."+k, fmt.Sprintf("%v", v))
 	}
 }

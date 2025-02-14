@@ -12,11 +12,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
 
 // Struct that is used within the config
@@ -1205,6 +1206,11 @@ type squashConfig struct {
 	Endpoint endpoint `mapstructure:",squash"`
 }
 
+type serviceConfig struct {
+	Host     string   `mapstructure:"host"`
+	Endpoint endpoint `mapstructure:"endpoint"`
+}
+
 func TestUnmarshalKeyWithSquash(t *testing.T) {
 	confYaml := `
 service:
@@ -1224,6 +1230,52 @@ service:
 		assert.Equal(t, svc.Endpoint.Name, "intake")
 		assert.Equal(t, svc.Endpoint.APIKey, "abc1")
 	})
+}
+
+func TestUnmarshalKeyWithErrorUnused(t *testing.T) {
+	testcases := []struct {
+		name    string
+		conf    string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "ErrUnused flag succeeds without option",
+			conf: `
+service:
+  host: datad0g.com
+`,
+			wantErr: false,
+		},
+		{
+			name: "ErrUnused flag fails with option",
+			conf: `
+service:
+  host: datad0g.com
+  name: intake
+  apikey: abc1
+  foo: bar
+`,
+			wantErr: true,
+			errMsg:  "found unused config keys: [apikey foo name]",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := newConfigFromYaml(t, tc.conf)
+			mockConfig.SetKnown("service")
+
+			svc := &serviceConfig{}
+			err := unmarshalKeyReflection(mockConfig, "service", svc, ErrorUnused)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestUnmarshalKeysToMapOfString(t *testing.T) {

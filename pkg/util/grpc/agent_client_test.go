@@ -7,6 +7,7 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"os"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func TestGetDDAgentClientTimeout(t *testing.T) {
 	defer cancel()
 
 	// Port 0 is use to avoid to bind to a running Agent
-	_, err := GetDDAgentClient(ctx, "127.0.0.1", "0")
+	_, err := GetDDAgentClient(ctx, "127.0.0.1", "0", func() *tls.Config { return &tls.Config{} })
 	assert.Equal(t, context.DeadlineExceeded, err)
 }
 
@@ -34,7 +35,7 @@ func TestGetDDAgentClientWithCmdPort0(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	_, err := GetDDAgentClient(ctx, "127.0.0.1", "-1")
+	_, err := GetDDAgentClient(ctx, "127.0.0.1", "-1", func() *tls.Config { return &tls.Config{} })
 	assert.NotNil(t, err)
 	assert.Equal(t, "grpc client disabled via cmd_port: -1", err.Error())
 }
