@@ -11,7 +11,7 @@ package ksm
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/checkhelpers"
+	"github.com/DataDog/datadog-agent/pkg/collector/checkhelpers/backoff"
 	"maps"
 	"regexp"
 	"strings"
@@ -67,11 +67,7 @@ const (
 	// maxRetryBackoff is the max # of check runs that can be skipped while waiting for API Server to recover
 	maxRetryBackoff = 10
 	// backoffMultiplier is the multiplication factor used in the backoff strategy
-	backoffMultipler = 2
-	// backoffStatus is the map key where the current backoff counter is stored
-	backoffStatus = "status"
-	// backoffMax is the map key where the current max backoff is stored
-	backoffMax = "max"
+	backoffMultiplier = 2
 	// getAPIServerClient is the operation name used to retry the acquisition of an API client
 	getAPIServerClient = "get_api_server_client"
 	// performResourceDiscovery is the operation name used to retry resource discovery
@@ -257,9 +253,9 @@ type KSMCheck struct {
 	metricTransformers   map[string]metricTransformerFunc
 	metadataMetricsRegex *regexp.Regexp
 	resourceDiscovery    *resourceDiscovery
+	backoffStore         *backoff.Store
 	runConfigureOnce     sync.Once
 	initBackoffStoreOnce sync.Once
-	backoffStore         map[string]map[string]int // operation name -> backoffStatus/backoffMax -> int
 	configureError       error
 }
 
@@ -616,69 +612,6 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	return factories
 }
 
-// Init initializes both the "status" and "max" counters associated with an operation's retries
-// We need to track two fields in the map because we need to both:
-// - keep track of the maximum backoff reached (otherwise we couldn't exponentially backoff)
-// - keep track of the current backoff's status, decrementing by 1 each attempt
-func (k *KSMCheck) Init(name string, backoff int) {
-	k.backoffStore[name] = map[string]int{backoffStatus: backoff, backoffMax: backoff}
-}
-
-// Get returns the current backoff's status, i.e. how many checks to skip until retrying
-func (k *KSMCheck) Get(name string) (int, bool) {
-	backoff, found := k.backoffStore[name]
-	if !found {
-		return 0, found
-	}
-
-	b, found := backoff[backoffStatus]
-	if !found {
-		return 0, found
-	}
-
-	return b, found
-}
-
-// Decrement decreases the current backoff's status by 1, called each time an attempt is skipped
-func (k *KSMCheck) Decrement(name string) bool {
-	backoff, ok := k.backoffStore[name]
-	if !ok {
-		return ok
-	}
-
-	if _, ok := backoff[backoffStatus]; !ok {
-		return ok
-	}
-
-	backoff[backoffStatus]--
-
-	return true
-}
-
-// ExponentialIncrease increases the previous max backoff by a supplied factor, and sets the current
-// backoff status to the new max
-// e.g. if the previous max was 2, this would set both max and status to 4
-func (k *KSMCheck) ExponentialIncrease(name string, factor int, max int) bool {
-	backoff, ok := k.backoffStore[name]
-	if !ok {
-		return ok
-	}
-
-	if _, ok := backoff[backoffMax]; !ok {
-		return ok
-	}
-
-	multiplied := backoff[backoffMax] * factor
-	if multiplied > max {
-		multiplied = max
-	}
-
-	backoff[backoffMax] = multiplied
-	backoff[backoffStatus] = multiplied
-
-	return true
-}
-
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
 	var client *apiserver.APIClient
@@ -688,20 +621,20 @@ func (k *KSMCheck) Run() error {
 
 		// Initialize backoff store
 		k.initBackoffStoreOnce.Do(func() {
-			k.backoffStore = make(map[string]map[string]int)
+			k.backoffStore = backoff.New()
 		})
 
 		// Acquire the API Server client, retrying with exponential backoff
 		var err error
-		client, err = checkhelpers.Retry(k, getAPIServerClient, getAPIClient, backoffMultipler, maxRetryBackoff)
+		client, err = backoff.Retry(k.backoffStore, getAPIServerClient, getAPIClient, backoffMultiplier, maxRetryBackoff)
 		if err != nil {
 			return err
 		}
 
 		// Perform resource discovery, retrying with exponential backoff
-		rd, err := checkhelpers.Retry(k, performResourceDiscovery, func() (*resourceDiscovery, error) {
+		rd, err := backoff.Retry(k.backoffStore, performResourceDiscovery, func() (*resourceDiscovery, error) {
 			return k.doResourceDiscovery(client)
-		}, backoffMultipler, maxRetryBackoff)
+		}, backoffMultiplier, maxRetryBackoff)
 		if err != nil {
 			return err
 		}
