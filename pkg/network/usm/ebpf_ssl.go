@@ -553,13 +553,13 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 		var key uint64
 		// The wrapper struct prevents 'Fdump' from accessing content of pointers.
 		a := struct {
-			Ctx            unsafe.Pointer
-			Buf            unsafe.Pointer
-			Size_out_param unsafe.Pointer
+			Ctx          unsafe.Pointer
+			Buf          unsafe.Pointer
+			SizeOutParam unsafe.Pointer
 		}{
-			Ctx:            unsafe.Pointer(http.SslReadExArgs{}.Ctx),
-			Buf:            unsafe.Pointer(http.SslReadExArgs{}.Buf),
-			Size_out_param: unsafe.Pointer(http.SslReadExArgs{}.Out_param),
+			Ctx:          unsafe.Pointer(http.SslReadExArgs{}.Ctx),
+			Buf:          unsafe.Pointer(http.SslReadExArgs{}.Buf),
+			SizeOutParam: unsafe.Pointer(http.SslReadExArgs{}.Out_param),
 		}
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&a)) {
 			spew.Fdump(w, key, a)

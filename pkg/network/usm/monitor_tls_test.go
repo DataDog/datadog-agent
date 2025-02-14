@@ -1044,7 +1044,7 @@ func (s *tlsSuite) TestSSLReadArgsMaps() {
 				err := probeProcExit.Pause()
 				assert.NoError(t, err)
 			},
-			postRun: func(t *testing.T) {
+			postRun: func(*testing.T) {
 				client.CloseIdleConnections()
 			},
 		},
@@ -1074,7 +1074,7 @@ func (s *tlsSuite) TestSSLReadArgsMaps() {
 				err := probeProcExit.Resume()
 				assert.NoError(t, err)
 			},
-			postRun: func(t *testing.T) {
+			postRun: func(*testing.T) {
 				client.CloseIdleConnections()
 				cmd.Process.Kill()
 				cmd.Wait()
@@ -1095,10 +1095,7 @@ func (s *tlsSuite) TestSSLReadArgsMaps() {
 				num, err := ebpfcheck.HashMapNumberOfEntries(readExArgsMap)
 				assert.NoError(t, err)
 
-				if num == unit.expected {
-					return true
-				}
-				return false
+				return num == unit.expected
 			}, 2*time.Second, 200*time.Millisecond, "unexpected map entries")
 		})
 		if t.Failed() {
