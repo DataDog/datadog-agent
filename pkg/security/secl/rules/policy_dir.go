@@ -40,8 +40,14 @@ func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFi
 	defer f.Close()
 
 	name := filepath.Base(filename)
+	var policyType PolicyType
+	if name == DefaultPolicyName {
+		policyType = DefaultPolicyType
+	} else {
+		policyType = CustomPolicyType
+	}
 
-	return LoadPolicy(name, PolicyProviderTypeDir, f, macroFilters, ruleFilters)
+	return LoadPolicy(name, PolicyProviderTypeDir, policyType, f, macroFilters, ruleFilters)
 }
 
 func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
