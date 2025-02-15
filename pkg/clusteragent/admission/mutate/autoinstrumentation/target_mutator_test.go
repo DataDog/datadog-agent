@@ -77,6 +77,7 @@ func TestMutatePod(t *testing.T) {
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
 		expectedEnv                 map[string]string
+		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
 		expectNoChange              bool
 	}{
@@ -99,6 +100,10 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+			},
+			expectedAnnotations: map[string]string{
+				"admission.datadoghq.com/target-name": "Application Namespace",
+				"admission.datadoghq.com/target-hash": "2da3545e09280be7",
 			},
 		},
 		"no matching rule does not mutate pod": {
@@ -133,6 +138,10 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+			},
+			expectedAnnotations: map[string]string{
+				"admission.datadoghq.com/target-name": "Python Apps",
+				"admission.datadoghq.com/target-hash": "7bd556012cf23776",
 			},
 		},
 	}
@@ -194,6 +203,11 @@ func TestMutatePod(t *testing.T) {
 				actualInitContainerImages[i] = ctr.Image
 			}
 			require.ElementsMatch(t, test.expectedInitContainerImages, actualInitContainerImages)
+
+			// Validate the annotations.
+			for k, v := range test.expectedAnnotations {
+				require.Equal(t, v, test.in.Annotations[k])
+			}
 		})
 	}
 }

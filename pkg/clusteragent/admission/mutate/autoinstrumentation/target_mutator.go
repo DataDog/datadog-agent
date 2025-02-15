@@ -8,9 +8,12 @@
 package autoinstrumentation
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -21,6 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	// TargetNameAnnotation is the name of the target that was applied.
+	TargetNameAnnotation = "admission.datadoghq.com/target-name"
+	// TargetHashAnnotation is the hash of the target config that was applied in case the target with the same name
+	// changes.
+	TargetHashAnnotation = "admission.datadoghq.com/target-hash"
+	// TargetTimestampAnnotation is the timestamp for when a target was applied.
+	TargetTimestampAnnotation = "admission.datadoghq.com/target-timestamp"
 )
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -107,6 +120,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 			enabledNamespaces:    enabledNamespaces,
 			libVersions:          libVersions,
 			envVars:              envVars,
+			hash:                 createHash(t),
 		}
 	}
 
@@ -127,6 +141,8 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 
 // MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
 func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
+
 	// Sanitize input.
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
@@ -180,6 +196,11 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		mutatecommon.InjectEnv(pod, envVar)
 	}
 
+	// Add the annotations to the pod.
+	mutatecommon.AddAnnotation(pod, TargetNameAnnotation, target.name)
+	mutatecommon.AddAnnotation(pod, TargetHashAnnotation, target.hash)
+	mutatecommon.AddAnnotation(pod, TargetTimestampAnnotation, timestamp())
+
 	return true, nil
 }
 
@@ -224,6 +245,7 @@ type targetInternal struct {
 	libVersions          []libInfo
 	envVars              []corev1.EnvVar
 	wmeta                workloadmeta.Component
+	hash                 string
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
@@ -245,6 +267,8 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal
 	if len(libVersions) == 0 {
 		return nil
 	}
+
+	log.Debugf("Pod %q has explicit libraries defined as annotations", mutatecommon.PodString(pod))
 
 	return &targetInternal{
 		libVersions: libVersions,
@@ -312,4 +336,26 @@ func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error)
 
 func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
 	return t.podSelector.Matches(labels.Set(podLabels))
+}
+
+// createHash creates a hash of the target. This is used to determine if the target has changed.
+func createHash(t Target) string {
+	data, err := json.Marshal(t)
+	if err != nil {
+		log.Errorf("error marshalling target %q: %v", t.Name, err)
+		return ""
+	}
+	return hashFNV(data)
+}
+
+// hashFNV creates a hash using FNV-1a (64-bit, produces a short hash). The output is a hexidecimal string.
+func hashFNV(data []byte) string {
+	h := fnv.New64a()
+	h.Write(data)
+	return fmt.Sprintf("%x", h.Sum64())
+}
+
+func timestamp() string {
+	epochSeconds := time.Now().Unix()
+	return fmt.Sprintf("%d", epochSeconds)
 }

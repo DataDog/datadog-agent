@@ -76,6 +76,21 @@ func InjectEnv(pod *corev1.Pod, env corev1.EnvVar) (injected bool) {
 	})
 }
 
+// AddAnnotation adds an annotation to a pod if it doesn't already exist.
+func AddAnnotation(pod *corev1.Pod, key string, value string) (injected bool) {
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
+	}
+
+	if _, ok := pod.Annotations[key]; ok {
+		log.Debugf("Ignoring annotation '%s' for %s as it already exists", PodString(pod), key)
+		return false
+	}
+
+	pod.Annotations[key] = value
+	return true
+}
+
 // injectEnvInContainer injects an env var into a container if it doesn't exist.
 func injectEnvInContainer(container *corev1.Container, env corev1.EnvVar) (injected bool) {
 	if contains(container.Env, env.Name) {
