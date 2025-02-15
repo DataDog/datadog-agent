@@ -14,10 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -31,7 +32,7 @@ import (
 type LogReporter struct {
 	hostname         string
 	pipelineProvider pipeline.Provider
-	auditor          auditor.Auditor
+	auditor          auditor.Component
 	logSource        *sources.LogSource
 	logChan          chan *message.Message
 	endpoints        *config.Endpoints
@@ -41,7 +42,7 @@ type LogReporter struct {
 // NewLogReporter instantiates a new log LogReporter
 func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext, compression logscompression.Component) *LogReporter {
 	// setup the auditor
-	auditor := auditor.NewNullAuditor()
+	auditor := auditornoop.NewAuditor()
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender

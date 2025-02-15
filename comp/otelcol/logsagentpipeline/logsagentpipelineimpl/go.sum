@@ -2,6 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.144 h1:WKwLhpxlFJqaeMUnFy70PFlcYcLIRBFIRFSFIxyshio=
 github.com/DataDog/agent-payload/v5 v5.0.144/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/datadog-agent v0.0.0-20250214205634-2a9b77a58ffb h1:kEz00svam2/mT8JF6hws2pQ+AhEKQ9nbZfldANY00xM=
+github.com/DataDog/datadog-agent v0.0.0-20250214205634-2a9b77a58ffb/go.mod h1:wIpHwtNhvH46l1jdxiIB1UcKth5paN7Qxr/BhskbXBE=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
 github.com/DataDog/viper v1.14.0 h1:dIjTe/uJiah+QFqFZ+MXeqgmUvWhg37l37ZxFWxr3is=

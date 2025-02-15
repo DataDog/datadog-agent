@@ -17,13 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	registryMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 type MockJournal struct{}
@@ -66,7 +65,7 @@ func newTestLauncher(t *testing.T) *Launcher {
 	fakeTagger := mock.SetupFakeTagger(t)
 
 	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController(), fakeTagger)
-	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")), tailers.NewTailerTracker())
+	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), registryMock.Mock(), tailers.NewTailerTracker())
 	return launcher
 }
 

@@ -7,25 +7,24 @@ package pipeline
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 type ProviderTestSuite struct {
 	suite.Suite
 	p *provider
-	a *auditor.RegistryAuditor
+	a auditor.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	suite.a = auditor.New("", auditor.DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
+	suite.a = auditorMock.NewAuditor()
 	suite.p = &provider{
 		numberOfPipelines:    3,
 		auditor:              suite.a,
