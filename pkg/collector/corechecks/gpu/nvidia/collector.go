@@ -37,6 +37,13 @@ const (
 	samples      CollectorName = "samples"
 )
 
+// Metric represents a single metric collected from the NVML library.
+type Metric struct {
+	Name  string   // Name holds the name of the metric.
+	Value float64  // Value holds the value of the metric.
+	Tags  []string // Tags holds the tags associated with the metric.
+}
+
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
 type Collector interface {
 	// Collect collects metrics from the given NVML device. This method should not fill the tags
