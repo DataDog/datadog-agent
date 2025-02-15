@@ -22,6 +22,10 @@ type ExporterConfig struct {
 	// It is useful for OSS OpenTelemetry Collector or to use
 	// the serializer exporter with the OCB.
 	API datadogconfig.APIConfig `mapstructure:"api"`
+
+	// HostProvider is the function to get the host name.
+	// OpenTelemetry Collector provides a override for this.
+	HostProvider SourceProviderFunc `mapstructure:"-"`
 }
 
 var _ component.Config = (*ExporterConfig)(nil)

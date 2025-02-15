@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 )
 
+// collectorConsumer is a consumer OSS collector uses to send metrics to the DataDog.
 type collectorConsumer struct {
 	*serializerConsumer
 	seenHosts    map[string]struct{}
@@ -25,7 +26,7 @@ type collectorConsumer struct {
 	getPushTime func() uint64
 }
 
-var _ SerializeConsumer = (*collectorConsumer)(nil)
+var _ SerializerConsumer = (*collectorConsumer)(nil)
 
 func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []string) {
 	timestamp := c.getPushTime()

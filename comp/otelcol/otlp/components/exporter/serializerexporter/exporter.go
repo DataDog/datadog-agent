@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
@@ -30,8 +29,8 @@ func newDefaultConfig() component.Config {
 		APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
 		Tags:                 "",
 	}
-	pkgmcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config).Metrics
-	mcfg.Metrics = pkgmcfg
+	pkgmcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
+	mcfg.Metrics = pkgmcfg.Metrics
 
 	return &ExporterConfig{
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
@@ -40,9 +39,7 @@ func newDefaultConfig() component.Config {
 		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 
 		Metrics: mcfg,
-		API: datadogconfig.APIConfig{
-			Site: "datadoghq.com",
-		},
+		API:     pkgmcfg.API,
 	}
 }
 
@@ -81,6 +78,7 @@ func translatorFromConfig(
 	cfg datadogconfig.MetricsConfig,
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
+	extraOptions ...metrics.TranslatorOption,
 ) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
@@ -89,16 +87,12 @@ func translatorFromConfig(
 	default:
 		return nil, fmt.Errorf("invalid `mode` %q", cfg.HistConfig.Mode)
 	}
-
 	options := []metrics.TranslatorOption{
 		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.DeltaTTL),
 	}
-
-	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
-		options = append(options, metrics.WithOTelPrefix())
-	}
+	options = append(options, extraOptions...)
 
 	if statsIn != nil {
 		options = append(options, metrics.WithStatsOut(statsIn))
@@ -133,21 +127,14 @@ func translatorFromConfig(
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
 func NewExporter(
-	params exporter.Settings,
-	attributesTranslator *attributes.Translator,
 	s serializer.MetricSerializer,
 	cfg *ExporterConfig,
 	enricher tagenricher,
 	hostGetter SourceProviderFunc,
-	statsIn chan []byte,
 	createConsumer createConsumerFunc,
+	tr *metrics.Translator,
 ) (*Exporter, error) {
-	tr, err := translatorFromConfig(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, statsIn)
-	if err != nil {
-		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
-	}
-
-	err = enricher.SetCardinality(cfg.Metrics.TagCardinality)
+	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
 		return nil, err
 	}
