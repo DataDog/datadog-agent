@@ -18,11 +18,9 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -48,11 +46,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(state,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot("TRACE", "OFF", false),
-				}),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))}),
 				core.Bundle(),
-				fetchonlyimpl.Module(),
 			)
 		},
 		Hidden: true,
@@ -61,14 +56,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{remoteConfigCmd}
 }
 
-func state(_ *cliParams, config config.Component, at authtoken.Component) error {
+func state(_ *cliParams, config config.Component) error {
 	if !pkgconfigsetup.IsRemoteConfigEnabled(config) {
 		return errors.New("remote configuration is not enabled")
 	}
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
 
-	token, err := at.Get()
+	token, err := security.FetchAuthToken(config)
 	if err != nil {
 		return fmt.Errorf("couldn't get auth token: %w", err)
 	}
@@ -85,7 +80,7 @@ func state(_ *cliParams, config config.Component, at authtoken.Component) error 
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), at.GetTLSClientConfig)
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
 	if err != nil {
 		return err
 	}

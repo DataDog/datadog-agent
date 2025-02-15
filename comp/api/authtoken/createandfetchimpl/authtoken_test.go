@@ -43,9 +43,6 @@ func TestGet(t *testing.T) {
 	data, err := os.ReadFile(authPath)
 	require.NoError(t, err)
 
-	token, err := comp.Get()
-	require.NoError(t, err)
-
-	assert.Equal(t, string(data), token)
-	assert.Equal(t, util.GetAuthToken(), token)
+	assert.Equal(t, string(data), comp.Get())
+	assert.Equal(t, util.GetAuthToken(), comp.Get())
 }
