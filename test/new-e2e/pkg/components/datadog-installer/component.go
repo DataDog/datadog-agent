@@ -9,8 +9,8 @@ package installer
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
+	"strings"
+
 	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/namer"
@@ -18,7 +18,9 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/command"
 	remoteComp "github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
 // Output is an object that models the output of the resource creation

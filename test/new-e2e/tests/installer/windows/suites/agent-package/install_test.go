@@ -7,8 +7,9 @@
 package agenttests
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -25,18 +26,24 @@ type testAgentInstallSuite struct {
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
 func TestAgentInstalls(t *testing.T) {
 	e2e.Run(t, &testAgentInstallSuite{},
-		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(),
-			)))
+		e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
 func (s *testAgentInstallSuite) TestInstallAgentPackage() {
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "False",
+	}))
+	s.T().Log(out)
+	s.Require().NoError(err)
 	s.Run("Install", func() {
 		s.installAgent()
 		s.Run("Uninstall", s.removeAgentPackage)
 	})
+
+	//purge the installer
+	_, err = s.Installer().Purge()
+	s.Require().NoError(err)
 }
 
 func (s *testAgentInstallSuite) installAgent() {
@@ -66,6 +73,11 @@ func (s *testAgentInstallSuite) removeAgentPackage() {
 
 func (s *testAgentInstallSuite) TestRemoveAgentAfterMSIUninstall() {
 	// Arrange
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "False",
+	}))
+	s.T().Log(out)
+	s.Require().NoError(err)
 	s.installAgent()
 	s.uninstallAgentWithMSI()
 
@@ -73,6 +85,10 @@ func (s *testAgentInstallSuite) TestRemoveAgentAfterMSIUninstall() {
 
 	// Assert
 	s.removeAgentPackage()
+
+	// remove the installer
+	_, err = s.Installer().Purge()
+	s.Require().NoError(err)
 }
 
 func (s *testAgentInstallSuite) uninstallAgentWithMSI() {

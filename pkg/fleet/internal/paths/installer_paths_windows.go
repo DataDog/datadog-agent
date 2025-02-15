@@ -16,9 +16,10 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 )
 
 var (
@@ -41,6 +42,8 @@ var (
 	DefaultUserConfigsDir string
 	// StableInstallerPath is the path to the stable installer binary.
 	StableInstallerPath string
+	// ExperimentInstallerPath is the path to the experiment installer binary.
+	ExperimentInstallerPath string
 	// RunPath is the default run path
 	RunPath string
 )
@@ -51,8 +54,9 @@ func init() {
 	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
 	LocksPath = filepath.Join(datadogInstallerData, "locks")
 	RootTmpDir = filepath.Join(datadogInstallerData, "tmp")
-	datadogInstallerPath := "C:\\Program Files\\Datadog\\Datadog Installer"
-	StableInstallerPath = filepath.Join(datadogInstallerPath, "datadog-installer.exe")
+	datadogInstallerPath := filepath.Join(PackagesPath, "datadog-installer")
+	StableInstallerPath = filepath.Join(datadogInstallerPath, "stable", "bin", "installer", "installer.exe")
+	ExperimentInstallerPath = filepath.Join(datadogInstallerPath, "experiment", "bin", "installer", "installer.exe")
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 	RunPath = filepath.Join(PackagesPath, "run")
 }

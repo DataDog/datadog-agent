@@ -11,12 +11,12 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
 	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
@@ -72,28 +72,12 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
 
-	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-installer-*-1-x86_64.msi"))
+	//set the user in the registry
+	err = winregistry.SetAgentUserName(env.AgentUserName)
 	if err != nil {
-		return nil, err
-	}
-	if len(msis) > 1 {
-		return nil, fmt.Errorf("too many MSIs in package")
-	} else if len(msis) == 0 {
-		return nil, fmt.Errorf("no MSIs in package")
+		return nil, fmt.Errorf("failed to set user in registry: %w", err)
 	}
 
-	cmd, err := msi.Cmd(
-		msi.Install(),
-		msi.WithMsi(msis[0]),
-		msi.WithDdAgentUserName(env.AgentUserName),
-	)
-	var output []byte
-	if err == nil {
-		output, err = cmd.Run()
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
-	}
-	return iexec.NewInstallerExec(env, paths.StableInstallerPath), nil
+	installerBinPath := filepath.Join(tmpDir, installerBinPath)
+	return iexec.NewInstallerExec(env, installerBinPath), nil
 }

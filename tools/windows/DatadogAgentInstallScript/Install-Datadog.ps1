@@ -206,6 +206,11 @@ try {
       Write-Host "Stopping Datadog Installer service"
       Stop-Service "Datadog Installer"
    }
+   
+   if ((Get-Service "Datadog Installer Experiment" -ea silent | Measure-Object).Count -eq 1) {
+      Write-Host "Stopping Datadog Installer Experiment service"
+      Stop-Service "Datadog Installer Experiment"
+   }
 
    $configUpdated = $False
    # Write the config before-hand if it exists, that way if the Agent/Installer services start
@@ -229,7 +234,9 @@ try {
    [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
 
    # If not set the `default-packages` won't contain the Datadog Agent
-   $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT = "True"
+   if (-Not $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT) {
+      $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT = "True"
+   }
 
    Write-Host "Starting bootstrap process"
    $result = Start-ProcessWithOutput -Path $installer -ArgumentList "bootstrap"
@@ -238,14 +245,18 @@ try {
       throw [ExitCodeException]::new("Bootstrap failed", $result)
    }
    Write-Host "Bootstrap execution done"
-
-   if (-Not (Test-DatadogAgentPresence)) {
-      throw "Agent is not installed"
+   
+   # if the agent was not installed, we don't need to check if it's running
+   # or update the config
+   if ($env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT -eq "True") {
+      if (-Not (Test-DatadogAgentPresence)) {
+         throw "Agent is not installed"
+      }
+      if (-Not ($configUpdated)) {
+         Update-DatadogAgentConfig
+      }
    }
-
-   if (-Not ($configUpdated)) {
-      Update-DatadogAgentConfig
-   }
+   
 
    Send-Telemetry @"
 {
@@ -264,12 +275,18 @@ try {
    }
 }
 "@
-   # The datadog.yaml configuration was potentially modified so restart the services
-   Write-Host "Starting Datadog Installer service"
-   Restart-Service "Datadog Installer"
-   # This command handles restarting the dependent services as well
-   Write-Host "Starting Datadog Agent services"
-   & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") restart-service
+   if ($env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT -eq "True") {
+      # The datadog.yaml configuration was potentially modified so restart the services
+      # TODO fix this
+      Write-Host "Starting Datadog Installer service"
+      Restart-Service "Datadog Installer"
+      # This command handles restarting the dependent services as well
+      Write-Host "Starting Datadog Agent services"
+      & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") start-service
+   }
+   else {
+      Write-Host "Datadog Agent was not installed"
+   }
 }
 catch [ExitCodeException] {
    Show-Error $_.Exception.Message $_.Exception.LastExitCode

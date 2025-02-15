@@ -62,6 +62,7 @@ type Daemon interface {
 	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	StartExperiment(ctx context.Context, url string) error
+	StartInstallerExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
@@ -349,6 +350,13 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 	return nil
 }
 
+// StartInstallerExperiment starts an installer experiment with the given package.
+func (d *daemonImpl) StartInstallerExperiment(ctx context.Context, url string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.startInstallerExperiment(ctx, url)
+}
+
 func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_installer_experiment")
 	defer func() { span.Finish(err) }()
@@ -356,11 +364,7 @@ func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting installer experiment for package from %s", url)
-	if runtime.GOOS == "windows" {
-		err = d.installer(d.env).InstallExperiment(ctx, url)
-	} else {
-		err = bootstrap.InstallExperiment(ctx, d.env, url)
-	}
+	err = bootstrap.InstallExperiment(ctx, d.env, url)
 	if err != nil {
 		return fmt.Errorf("could not install installer experiment: %w", err)
 	}

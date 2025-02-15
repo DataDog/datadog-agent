@@ -10,13 +10,14 @@ package packages
 import (
 	"context"
 	"fmt"
+	"os"
+	"path"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"os"
-	"path"
 )
 
 const (
@@ -108,7 +109,9 @@ func installAgentPackage(target string, args []string) error {
 	// and pass it to the Agent MSI
 	agentUser, err := winregistry.GetAgentUserName()
 	if err != nil {
-		return fmt.Errorf("failed to get Agent user: %w", err)
+		// means we don't have a custom user
+		// user default user so we will pass an empty string
+		agentUser = ""
 	}
 
 	rootPath := ""

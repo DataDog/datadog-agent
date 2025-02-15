@@ -6,7 +6,6 @@
 package agenttests
 
 import (
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -32,16 +31,17 @@ func TestAgentInstallsWithAgentUser(t *testing.T) {
 	e2e.Run(t, &testAgentInstallWithAgentUserSuite{
 		agentUser: agentUser,
 	},
-		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(
-					installer.WithAgentUser("customuser"),
-				),
-			)))
+		e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
 func (s *testAgentInstallWithAgentUserSuite) TestInstallAgentPackage() {
+	out, err := s.InstallScript().Run(installerwindows.WithExtraEnvVars(map[string]string{
+		"DD_AGENT_USER_NAME":                             s.agentUser,
+		"DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT": "False",
+	}))
+	s.T().Log(out)
+	s.Require().NoError(err)
 	s.Run("Install", func() {
 		s.installAgent()
 	})

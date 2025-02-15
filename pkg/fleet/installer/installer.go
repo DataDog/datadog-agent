@@ -18,9 +18,10 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -300,7 +301,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not set experiment: %w", err),
 		)
 	}
-
+	fmt.Println("Starting experiment")
 	return i.startExperiment(ctx, pkg.Name)
 }
 
@@ -344,6 +345,16 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	if runtime.GOOS == "windows" && pkg == packageDatadogInstaller {
+		// Special case for the Windows installer
+		// can't switch the files while the service is running
+		// so we stop all services first
+		err := packages.StopAll(ctx)
+		if err != nil {
+			return fmt.Errorf("could not stop all packages: %w", err)
+		}
+	}
 
 	repository := i.packages.Get(pkg)
 	err := repository.PromoteExperiment()
@@ -607,6 +618,12 @@ func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 	case packageDatadogAgent:
 		return packages.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
+		if runtime.GOOS == "windows" {
+			// we don't need the database anymore and need to allow for the promote to use it
+			// as on windows we are going to watch the experiment to make sure it doesn't fail
+			// and the promote will not be able to access the database if we don't close it
+			i.db.Close()
+		}
 		return packages.StartInstallerExperiment(ctx)
 	default:
 		return nil
