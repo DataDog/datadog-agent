@@ -428,6 +428,16 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Log(stdout)
 		}
 	})
+
+	// TODO: remove this assertion when flaky test investigation is done (CONTP-547)
+	suite.Require().EventuallyWithTf(func(_ *assert.CollectT) {
+		stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "workload-list"})
+		suite.Require().NoError(err)
+		suite.Contains(stdout, "=>[python]")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	}, 5*time.Minute, 10*time.Second, "Language python should be in DetectedLangs in deployment entity in workloadmeta.")
 }
 
 func (suite *k8sSuite) TestNginx() {
