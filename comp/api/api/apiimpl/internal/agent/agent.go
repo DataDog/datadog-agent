@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
@@ -147,7 +148,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	if ok {
 		diagnoseResult, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
 	} else {
-		diagnoseResult, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, diagnoseDeps.AC, diagnoseDeps.Tagger))
+		diagnoseResult, err = diagnose.RunInCLIProcess(pkgconfigsetup.Datadog(), diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, diagnoseDeps.AC, diagnoseDeps.Tagger))
 	}
 	if err != nil {
 		httputils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)

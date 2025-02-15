@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -74,7 +75,7 @@ func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Dia
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesendermanager.Component, _ integrations.Component, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], ac autodiscovery.Component, tagger tagger.Component) []diagnosis.Diagnosis {
+func diagnoseChecksInCLIProcess(config config.Component, _ diagnosis.Config, senderManager diagnosesendermanager.Component, _ integrations.Component, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], ac autodiscovery.Component, tagger tagger.Component) []diagnosis.Diagnosis {
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -110,7 +111,7 @@ func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesender
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(option.None[collector.Component](), senderManagerInstance, option.None[integrations.Component](), tagger)
+	pkgcollector.InitCheckScheduler(config, option.None[collector.Component](), senderManagerInstance, option.None[integrations.Component](), tagger)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))

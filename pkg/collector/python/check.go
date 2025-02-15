@@ -63,10 +63,11 @@ type PythonCheck struct {
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+	allSettingsfn  func() ([]byte, error)
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, allSettingsfn func() ([]byte, error)) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -82,6 +83,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 		interval:      defaults.DefaultCheckInterval,
 		lastWarnings:  []error{},
 		telemetry:     utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
+		allSettingsfn: allSettingsfn,
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -313,8 +315,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, rtLoaderError)
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
-		allSettings := pkgconfigsetup.Datadog().AllSettings()
-		agentConfig, err := yaml.Marshal(allSettings)
+		agentConfig, err := c.allSettingsfn()
 		if err != nil {
 			log.Errorf("error serializing agent config: %s", err)
 			return err

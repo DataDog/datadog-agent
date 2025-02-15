@@ -590,7 +590,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rcclient)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, tagger), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(cfg, option.New(collector), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 

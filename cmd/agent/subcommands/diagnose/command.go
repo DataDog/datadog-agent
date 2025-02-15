@@ -12,6 +12,9 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -37,8 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -315,13 +316,15 @@ This command print the security-agent metadata payload. This payload is used by 
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func cmdDiagnose(cliParams *cliParams,
+func cmdDiagnose(
+	cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	_ log.Component,
 	tagger tagger.Component,
+	config config.Component,
 ) error {
 	diagCfg := diagnosis.Config{
 		Verbose:    cliParams.verbose,
@@ -342,13 +345,13 @@ func cmdDiagnose(cliParams *cliParams,
 	// Run command
 
 	// Get the diagnose result
-	diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+	diagnoses, err := diagnose.RunInCLIProcess(config, diagCfg, diagnoseDeps)
 	if err != nil && !diagCfg.RunLocal {
 		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
 		diagCfg.RunLocal = true
-		diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+		diagnoses, err = diagnose.RunInCLIProcess(config, diagCfg, diagnoseDeps)
 		if err != nil {
 			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
 			return err

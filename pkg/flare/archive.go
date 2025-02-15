@@ -370,13 +370,13 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 		}
 
 		diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, deps.AC, deps.Tagger)
-		diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+		diagnoses, err := diagnose.RunInCLIProcess(pkgconfigsetup.Datadog(), diagCfg, diagnoseDeps)
 		if err != nil && !diagCfg.RunLocal {
 			fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
 			diagCfg.RunLocal = true
-			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+			diagnoses, err = diagnose.RunInCLIProcess(pkgconfigsetup.Datadog(), diagCfg, diagnoseDeps)
 			if err != nil {
 				fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
 				return err
