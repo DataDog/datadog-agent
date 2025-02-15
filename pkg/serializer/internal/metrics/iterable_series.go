@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
@@ -213,6 +215,8 @@ func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.Buffer
 		maxPayloadSize:      config.GetInt("serializer_max_series_payload_size"),
 		maxUncompressedSize: config.GetInt("serializer_max_series_uncompressed_payload_size"),
 		maxPointsPerPayload: config.GetInt("serializer_max_series_points_per_payload"),
+
+		stringTable: make(map[string]int),
 	}, nil
 }
 
@@ -233,6 +237,8 @@ type PayloadsBuilder struct {
 	maxPayloadSize      int
 	maxUncompressedSize int
 	maxPointsPerPayload int
+
+	stringTable map[string]int
 }
 
 // Prepare to write the next payload
@@ -313,6 +319,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 				return err
 			}
 
+			pb.stringTable[serie.Host] = 1
 			return ps.String(resourceName, serie.Host)
 		})
 		if err != nil {
@@ -326,6 +333,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 					return err
 				}
 
+				pb.stringTable[serie.Device] = 1
 				return ps.String(resourceName, serie.Device)
 			})
 			if err != nil {
@@ -341,6 +349,8 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 						return err
 					}
 
+					pb.stringTable[r.Type] = 1
+					pb.stringTable[r.Name] = 1
 					return ps.String(resourceName, r.Name)
 				})
 				if err != nil {
@@ -349,12 +359,14 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 			}
 		}
 
+		pb.stringTable[serie.Name] = 1
 		err = ps.String(seriesMetric, serie.Name)
 		if err != nil {
 			return err
 		}
 
 		err = serie.Tags.ForEachErr(func(tag string) error {
+			pb.stringTable[tag] = 1
 			return ps.String(seriesTags, tag)
 		})
 		if err != nil {
@@ -366,6 +378,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 			return err
 		}
 
+		pb.stringTable[serie.SourceTypeName] = 1
 		err = ps.String(seriesSourceTypeName, serie.SourceTypeName)
 		if err != nil {
 			return err
@@ -492,6 +505,21 @@ func (pb *PayloadsBuilder) finishPayload() error {
 	if pb.seriesThisPayload > 0 {
 		pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
+
+	// Sort keys of stringTable and update values to position in the sorted list
+	keys := make([]string, 0, len(pb.stringTable))
+	for key := range pb.stringTable {
+		// try to expand memory use artificially to make sure testing will catch it
+		// TODO: remove this when we're sure that we're testing the real memory use of the string table.
+		key := strings.Repeat(key, 100)
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for i, key := range keys {
+		pb.stringTable[key] = i + 1
+	}
+	fmt.Println("STRING TABLE ENTRIES: ", len(pb.stringTable))
 
 	return nil
 }
