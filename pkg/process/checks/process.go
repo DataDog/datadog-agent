@@ -385,7 +385,7 @@ func (p *ProcessCheck) getGPUTags() map[int32][]string {
 		entityID := types.NewEntityID(types.GPU, uuid)
 		tags, err := p.tagger.Tag(entityID, p.tagger.ChecksCardinality())
 		if err != nil {
-			log.Debugf("Could not collect tags for GPU %q, err: %v", uuid, err, tags)
+			log.Debugf("Could not collect tags for GPU %q, err: %v", uuid, err)
 		}
 
 		// filter tags to remove duplicates

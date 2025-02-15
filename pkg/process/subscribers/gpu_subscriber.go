@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package subscribers implements subscribers to workloadmeta.
 package subscribers
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// GPUSubscriber is a subscriber that listens for GPU events from workloadmeta
 type GPUSubscriber struct {
 	gpuDetected atomic.Bool
 	gpuEventsCh chan workloadmeta.EventBundle

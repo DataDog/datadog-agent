@@ -721,7 +721,7 @@ func TestGetGPUTags(t *testing.T) {
 				core.MockBundle(),
 				fx.Supply(context.Background()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			)).(workloadmetamock.Mock)
+			))
 
 			fakeTagger := taggerMock.SetupFakeTagger(t)
 			gpuDetector := subscribers.NewGPUSubscriber(mockWmeta)
