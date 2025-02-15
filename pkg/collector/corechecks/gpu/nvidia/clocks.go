@@ -13,7 +13,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
-const clocksMetricsPrefix = "clock_throttle_reasons"
+const clocksMetricsPrefix = "clock.throttle_reasons"
 
 // clocksCollector collects clock metrics from an NVML device.
 type clocksCollector struct {
