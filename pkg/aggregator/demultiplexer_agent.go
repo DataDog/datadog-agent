@@ -129,8 +129,7 @@ func InitAndStartAgentDemultiplexer(
 	haAgent haagent.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
-	hostname string,
-) *AgentDemultiplexer {
+	hostname string) *AgentDemultiplexer {
 	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, hostname)
 	go demux.run()
 	return demux
@@ -144,8 +143,7 @@ func initAgentDemultiplexer(log log.Component,
 	haAgent haagent.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
-	hostname string,
-) *AgentDemultiplexer {
+	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
