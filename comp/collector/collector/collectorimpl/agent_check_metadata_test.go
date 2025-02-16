@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	autodiscovernoop "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -43,7 +44,9 @@ func TestExternalHostTags(t *testing.T) {
 		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
-		})))
+		}),
+		autodiscovernoop.Module(),
+	))
 
 	pl := c.GetPayload(context.Background())
 	hpl := pl.ExternalhostTags
