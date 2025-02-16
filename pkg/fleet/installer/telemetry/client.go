@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package internaltelemetry full description in README.md
-package internaltelemetry
+package telemetry
 
 import (
 	"bytes"
@@ -31,14 +30,7 @@ const (
 	defaultSendPayloadTimeout = time.Second * 10
 )
 
-// Client defines the interface for a telemetry client
-type Client interface {
-	SendLog(level string, message string)
-	SendTraces(traces Traces)
-}
-
-// Endpoint defines the endpoint object
-type Endpoint struct {
+type endpoint struct {
 	APIKey string `json:"-"`
 	Host   string
 }
@@ -46,39 +38,34 @@ type Endpoint struct {
 type client struct {
 	m                  sync.Mutex
 	client             httpClient
-	endpoints          []*Endpoint
+	endpoints          []*endpoint
 	sendPayloadTimeout time.Duration
 
 	// we can pre-calculate the host payload structure at init time
-	baseEvent Event
+	baseEvent event
 }
 
-// RequestType defines the request type
-type RequestType string
+type requestType string
 
 const (
-	// RequestTypeLogs defines the logs request type
-	RequestTypeLogs RequestType = "logs"
-	// RequestTypeTraces defines the traces request type
-	RequestTypeTraces RequestType = "traces"
+	requestTypeLogs   requestType = "logs"
+	requestTypeTraces requestType = "traces"
 )
 
-// Event defines the event object
-type Event struct {
+type event struct {
 	APIVersion  string      `json:"api_version"`
-	RequestType RequestType `json:"request_type"`
+	RequestType requestType `json:"request_type"`
 	TracerTime  int64       `json:"tracer_time"` // unix timestamp (in seconds)
 	RuntimeID   string      `json:"runtime_id"`
 	SequenceID  uint64      `json:"seq_id"`
 	DebugFlag   bool        `json:"debug"`
 	Origin      string      `json:"origin"`
-	Host        Host        `json:"host"`
-	Application Application `json:"application"`
+	Host        hostInfo    `json:"host"`
+	Application application `json:"application"`
 	Payload     interface{} `json:"payload"`
 }
 
-// Host defines the host object
-type Host struct {
+type hostInfo struct {
 	Hostname      string `json:"hostname"`
 	OS            string `json:"os"`
 	Arch          string `json:"architecture"`
@@ -87,8 +74,7 @@ type Host struct {
 	KernelVersion string `json:"kernel_version"`
 }
 
-// Application defines the application object
-type Application struct {
+type application struct {
 	ServiceName     string `json:"service_name"`
 	ServiceVersion  string `json:"service_version"`
 	LanguageName    string `json:"language_name"`
@@ -96,9 +82,40 @@ type Application struct {
 	TracerVersion   string `json:"tracer_version"`
 }
 
-// TracePayload defines the trace payload object
-type TracePayload struct {
-	Traces []Trace `json:"traces"`
+type tracePayload struct {
+	Traces []trace `json:"traces"`
+}
+
+type traces []trace
+
+type trace []*span
+
+// span used for installation telemetry
+type span struct {
+	// Service is the name of the service that handled this span.
+	Service string `json:"service"`
+	// Name is the name of the operation this span represents.
+	Name string `json:"name"`
+	// Resource is the name of the resource this span represents.
+	Resource string `json:"resource"`
+	// TraceID is the ID of the trace to which this span belongs.
+	TraceID uint64 `json:"trace_id"`
+	// SpanID is the ID of this span.
+	SpanID uint64 `json:"span_id"`
+	// ParentID is the ID of the parent span.
+	ParentID uint64 `json:"parent_id"`
+	// Start is the start time of this span in nanoseconds since the Unix epoch.
+	Start int64 `json:"start"`
+	// Duration is the duration of this span in nanoseconds.
+	Duration int64 `json:"duration"`
+	// Error is the error status of this span.
+	Error int32 `json:"error"`
+	// Meta is a mapping from tag name to tag value for string-valued tags.
+	Meta map[string]string `json:"meta,omitempty"`
+	// Metrics is a mapping from metric name to metric value for numeric metrics.
+	Metrics map[string]float64 `json:"metrics,omitempty"`
+	// Type is the type of the span.
+	Type string `json:"type"`
 }
 
 // LogPayload defines the log payload object
@@ -118,11 +135,7 @@ type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// NewClient creates a new telemetry client
-// Used in Fleet now (datadog-agent\pkg\fleet\telemetry\telemetry.go)
-// Agentcrashdetect (datadog-agent\comp\checks\agentcrashdetect\agentcrashdetectimpl\agentcrashdetect.go
-// switched to agenttelemetry component usage instead.
-func NewClient(httpClient httpClient, endpoints []*Endpoint, service string, debug bool) Client {
+func newClient(httpClient httpClient, endpoints []*endpoint, service string, debug bool) *client {
 	info, err := host.Info()
 	if err != nil {
 		log.Errorf("failed to retrieve host info: %v", err)
@@ -132,12 +145,12 @@ func NewClient(httpClient httpClient, endpoints []*Endpoint, service string, deb
 		client:             httpClient,
 		endpoints:          endpoints,
 		sendPayloadTimeout: defaultSendPayloadTimeout,
-		baseEvent: Event{
+		baseEvent: event{
 			APIVersion: "v2",
 			DebugFlag:  debug,
 			RuntimeID:  info.HostID,
 			Origin:     "agent",
-			Host: Host{
+			Host: hostInfo{
 				Hostname:      info.Hostname,
 				OS:            info.OS,
 				Arch:          info.KernelArch,
@@ -145,7 +158,7 @@ func NewClient(httpClient httpClient, endpoints []*Endpoint, service string, deb
 				KernelRelease: info.PlatformVersion,
 				KernelVersion: info.PlatformVersion,
 			},
-			Application: Application{
+			Application: application{
 				ServiceName:     service,
 				ServiceVersion:  version.AgentVersion,
 				LanguageName:    "go",
@@ -162,24 +175,24 @@ func (c *client) SendLog(level, message string) {
 	payload := LogPayload{
 		Logs: []LogMessage{{Message: message, Level: level}},
 	}
-	c.sendPayload(RequestTypeLogs, payload)
+	c.sendPayload(requestTypeLogs, payload)
 }
 
-func (c *client) SendTraces(traces Traces) {
+func (c *client) SendTraces(traces traces) {
 	c.m.Lock()
 	defer c.m.Unlock()
-	payload := TracePayload{
+	payload := tracePayload{
 		Traces: c.sampleTraces(traces),
 	}
-	c.sendPayload(RequestTypeTraces, payload)
+	c.sendPayload(requestTypeTraces, payload)
 }
 
 // sampleTraces is a simple uniform sampling function that samples traces based
 // on the sampling rate, given that there is no trace agent to sample the traces
 // We try to keep the tracer behaviour: the first rule that matches apply its rate to the whole trace
-func (c *client) sampleTraces(traces Traces) Traces {
-	tracesWithSampling := Traces{}
-	for _, trace := range traces {
+func (c *client) sampleTraces(ts traces) traces {
+	tracesWithSampling := traces{}
+	for _, trace := range ts {
 		samplingRate := 1.0
 		for _, span := range trace {
 			if val, ok := span.Metrics["_dd.rule_psr"]; ok {
@@ -191,11 +204,11 @@ func (c *client) sampleTraces(traces Traces) Traces {
 			tracesWithSampling = append(tracesWithSampling, trace)
 		}
 	}
-	log.Debugf("sampling telemetry traces (had %d, kept %d)", len(traces), len(tracesWithSampling))
+	log.Debugf("sampling telemetry traces (had %d, kept %d)", len(ts), len(tracesWithSampling))
 	return tracesWithSampling
 }
 
-func (c *client) sendPayload(requestType RequestType, payload interface{}) {
+func (c *client) sendPayload(requestType requestType, payload interface{}) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.sendPayloadTimeout)
 	defer cancel()
 
@@ -211,17 +224,17 @@ func (c *client) sendPayload(requestType RequestType, payload interface{}) {
 		return
 	}
 	group := sync.WaitGroup{}
-	for _, endpoint := range c.endpoints {
+	for _, e := range c.endpoints {
 		group.Add(1)
-		go func(endpoint *Endpoint) {
+		go func(e *endpoint) {
 			defer group.Done()
-			url := fmt.Sprintf("%s%s", endpoint.Host, telemetryEndpoint)
+			url := fmt.Sprintf("%s%s", e.Host, telemetryEndpoint)
 			req, err := http.NewRequest("POST", url, bytes.NewReader(serializedPayload))
 			if err != nil {
 				log.Errorf("failed to create request for endpoint %s: %v", url, err)
 				return
 			}
-			req.Header.Add("dd-api-key", endpoint.APIKey)
+			req.Header.Add("dd-api-key", e.APIKey)
 			req.Header.Add("content-type", "application/json")
 			req.Header.Add("dd-telemetry-api-version", "v2")
 			req.Header.Add("dd-telemetry-request-type", string(event.RequestType))
@@ -242,7 +255,7 @@ func (c *client) sendPayload(requestType RequestType, payload interface{}) {
 			}
 			_, _ = io.Copy(io.Discard, resp.Body)
 
-		}(endpoint)
+		}(e)
 	}
 	group.Wait()
 }
