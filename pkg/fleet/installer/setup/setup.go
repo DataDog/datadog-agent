@@ -13,10 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/defaultscript"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 type flavor struct {
