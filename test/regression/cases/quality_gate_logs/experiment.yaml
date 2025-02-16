@@ -41,3 +41,9 @@ checks:
     bounds:
       series: "connection.current"
       upper_bound: 6
+
+  - name: cpu
+    description: "Asserts CPU won't throttle given current allotment"
+    bounds:
+      series: cgroup.v2.cpu.stat.nr_throttled
+      upper_bound: "1"
