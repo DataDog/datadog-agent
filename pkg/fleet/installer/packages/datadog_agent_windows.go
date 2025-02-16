@@ -10,13 +10,14 @@ package packages
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"path"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -106,7 +107,7 @@ func RemoveAgent(ctx context.Context) (err error) {
 func installAgentPackage(target string, args []string) error {
 	// Lookup Agent user stored in registry by the Installer MSI
 	// and pass it to the Agent MSI
-	agentUser, err := winregistry.GetAgentUserName()
+	agentUser, err := getAgentUserName()
 	if err != nil {
 		return fmt.Errorf("failed to get Agent user: %w", err)
 	}
@@ -161,4 +162,29 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 		log.Debugf("Agent not installed")
 	}
 	return nil
+}
+
+// getAgentUserName returns the user name for the Agent, stored in the registry by the Installer MSI
+func getAgentUserName() (string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Installer", registry.QUERY_VALUE)
+	if err != nil {
+		return "", err
+	}
+	defer k.Close()
+
+	user, _, err := k.GetStringValue("installedUser")
+	if err != nil {
+		return "", fmt.Errorf("could not read installedUser in registry: %w", err)
+	}
+
+	domain, _, err := k.GetStringValue("installedDomain")
+	if err != nil {
+		return "", fmt.Errorf("could not read installedDomain in registry: %w", err)
+	}
+
+	if domain != "" {
+		user = domain + `\` + user
+	}
+
+	return user, nil
 }
