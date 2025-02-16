@@ -1,0 +1,10 @@
+dd_url: http://127.0.0.1:9091
+process_config.process_dd_url: http://localhost:9092
+
+checks_tag_cardinality: high
+dogstatsd_origin_detection: true
+dogstatsd_tag_cardinality: high
+log_enabled: true
+logs_enabled: true
+logs_config:
+  container_collect_all: true
