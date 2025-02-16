@@ -7666,7 +7666,7 @@
 			<property name="go.version" value="go1.21.9 linux/amd64" />
 		</properties>
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry" timestamp="2024-05-10T17:03:43Z">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/fleet/telemetry" timestamp="2024-05-10T17:03:43Z">
 		<properties>
 			<property name="go.version" value="go1.21.9 linux/amd64" />
 		</properties>
