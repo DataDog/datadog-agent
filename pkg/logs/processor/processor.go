@@ -6,7 +6,9 @@
 package processor
 
 import (
+	"bytes"
 	"context"
+	"regexp"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -277,7 +279,9 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				return false
 			}
 		case config.MaskSequences:
-			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+			if isMatchingLiteralPrefix(rule.Regex, content) {
+				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+			}
 		}
 	}
 
@@ -296,6 +300,17 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	msg.SetContent(content)
 	return true // we want to send this message
+}
+
+// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
+// to indicate if the contant even has a chance of matching the regex
+func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
+	prefix, _ := r.LiteralPrefix()
+	if prefix == "" {
+		return true
+	}
+
+	return bytes.Contains(content, []byte(prefix))
 }
 
 // GetHostname returns the hostname to applied the given log message
