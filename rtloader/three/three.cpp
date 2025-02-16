@@ -85,7 +85,10 @@ void Three::initPythonExe(const char *python_exe)
     // ineffective. The workaround API call will be removed at some point in the future (Python
     // 3.12+) so we should convert this initialization to the new`PyConfig API`
     // (https://docs.python.org/3.11/c-api/init_config.html#c.PyConfig) before then.
+#if PY_VERSION_HEX < 0x030D0000
+    // Not available in Python 3.13+
     _Py_SetProgramFullPath(_pythonExe);
+#endif
 
     PyMem_RawFree((void *)oldPythonExe);
 }
