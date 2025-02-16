@@ -17,6 +17,7 @@ import "C"
 type ConnTuple = C.conn_tuple_t
 type SslSock C.ssl_sock_t
 type SslReadArgs C.ssl_read_args_t
+type SslReadExArgs C.ssl_read_ex_args_t
 
 type EbpfEvent C.http_event_t
 type EbpfTx C.http_transaction_t
