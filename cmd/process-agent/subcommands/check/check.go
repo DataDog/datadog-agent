@@ -27,9 +27,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -136,24 +136,12 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				wmcatalog.GetCatalog(),
-				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
-
-					var catalog workloadmeta.AgentType
-					if config.GetBool("process_config.remote_workloadmeta") {
-						catalog = workloadmeta.Remote
-					} else {
-						catalog = workloadmeta.ProcessAgent
-					}
-
-					return workloadmeta.Params{AgentType: catalog}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType: workloadmeta.Remote,
 				}),
 
 				// Tagger must be initialized after agent config has been setup
-				dualTaggerfx.Module(tagger.DualParams{
-					UseRemote: func(c config.Component) bool {
-						return c.GetBool("process_config.remote_tagger")
-					},
-				}, tagger.Params{}, tagger.RemoteParams{
+				remoteTaggerfx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {
 						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 					},
