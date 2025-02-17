@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -41,6 +42,7 @@ type Dependencies struct {
 	Params Params
 	Config coreconfig.Component
 	Tagger tagger.Component
+	At     authtoken.Component
 }
 
 // cfg implements the Component.
@@ -57,6 +59,9 @@ type cfg struct {
 
 	// UpdateAPIKeyFn is the callback func for API Key updates
 	updateAPIKeyFn func(oldKey, newKey string)
+
+	// at is used to retrieve the auth_token to issue authenticated requests
+	at authtoken.Component
 }
 
 // NewConfig is the default constructor for the component, it returns
@@ -74,6 +79,7 @@ func NewConfig(deps Dependencies) (Component, error) {
 	c := cfg{
 		AgentConfig: tracecfg,
 		coreConfig:  deps.Config,
+		at:          deps.At,
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 

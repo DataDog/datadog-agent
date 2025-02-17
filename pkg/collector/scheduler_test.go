@@ -64,16 +64,16 @@ func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Confi
 func TestAddLoader(t *testing.T) {
 	s := CheckScheduler{}
 	assert.Len(t, s.loaders, 0)
-	s.AddLoader(&MockCoreLoader{})
-	s.AddLoader(&MockCoreLoader{}) // noop
+	s.addLoader(&MockCoreLoader{})
+	s.addLoader(&MockCoreLoader{}) // noop
 	assert.Len(t, s.loaders, 1)
 }
 
 func TestGetChecksFromConfigs(t *testing.T) {
 	s := CheckScheduler{}
 	assert.Len(t, s.loaders, 0)
-	s.AddLoader(&MockCoreLoader{})
-	s.AddLoader(&MockPythonLoader{})
+	s.addLoader(&MockCoreLoader{})
+	s.addLoader(&MockPythonLoader{})
 
 	// test instance level loader selection
 	conf1 := integration.Config{
