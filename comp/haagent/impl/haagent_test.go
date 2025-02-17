@@ -128,6 +128,18 @@ func Test_haAgentImpl_onHaAgentUpdate(t *testing.T) {
 			expectedAgentState: haagent.Active,
 		},
 		{
+			name:         "successful update with leader matching current agent with different case sensitivity",
+			initialState: haagent.Unknown,
+			updates: map[string]state.RawConfig{
+				testRCConfigID: {Config: []byte(`{"config_id":"testconfig01","active_agent":"my-agent-hostname"}`)},
+			},
+			expectedApplyID: testRCConfigID,
+			expectedApplyStatus: state.ApplyStatus{
+				State: state.ApplyStateAcknowledged,
+			},
+			expectedAgentState: haagent.Active,
+		},
+		{
 			name:         "successful update with leader NOT matching current agent",
 			initialState: haagent.Unknown,
 			updates: map[string]state.RawConfig{

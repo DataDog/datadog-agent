@@ -109,7 +109,7 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			})
 			continue
 		}
-		if strings.ToLower(haAgentMsg.ConfigID) != strings.ToLower(h.GetConfigID()) {
+		if !strings.EqualFold(haAgentMsg.ConfigID, h.GetConfigID()) {
 			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected configID %s, got %s",
 				configPath, h.GetConfigID(), haAgentMsg.ConfigID)
 			applyStateCallback(configPath, state.ApplyStatus{
