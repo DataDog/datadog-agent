@@ -123,7 +123,7 @@ func NewIPCEndpoint(config config.Component, endpointPath string, options ...End
 		return nil, fmt.Errorf("%s: %s", cmdHostKey, err)
 	}
 
-	client := GetClient(false)
+	client := GetClient()
 
 	ipcPort := config.GetInt("cmd_port")
 	targetURL := url.URL{
