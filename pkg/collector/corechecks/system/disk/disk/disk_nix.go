@@ -36,7 +36,7 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 		return err
 	}
 	log.Debugf("lsblk output: %s", rawOutput)
-	lines := strings.Split(strings.TrimSpace(string(rawOutput)), "\n")
+	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		log.Debugf("processing line: '%s'", line)
@@ -86,7 +86,7 @@ func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 	}
 	log.Debugf("blkid cache output: %s", rawOutput)
 	c.deviceLabels = make(map[string]string)
-	lines := strings.Split(strings.TrimSpace(string(rawOutput)), "\n")
+	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		log.Debugf("processing line: '%s'", line)
@@ -125,7 +125,7 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 	}
 	c.deviceLabels = make(map[string]string)
 	labelRegex := regexp.MustCompile(`LABEL="([^"]+)"`)
-	lines := strings.Split(strings.TrimSpace(string(rawOutput)), "\n")
+	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		log.Debugf("processing line: '%s'", line)
