@@ -1417,6 +1417,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
     current = current_version(ctx, 7)
     current.rc = False
     current.devel = False
+    current.patch = 0
     pr_url = create_datadog_agent_pr(
         commit_message, main_branch, bump_integrations_core_branch, str(current), body=github_workflow_url
     )
