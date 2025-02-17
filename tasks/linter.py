@@ -854,11 +854,21 @@ def flatten_script(script: str | list[str]) -> str:
     if isinstance(script, list):
         return '\n'.join(flatten_script(line) for line in script)
 
+    if script is None:
+        return ''
+
     return script.strip()
 
 
 @task
-def gitlab_ci_shellcheck(ctx, diff_file=None, config_file=None, shellcheck_args="--severity=info -e SC2059 -e SC2028"):
+def gitlab_ci_shellcheck(
+    ctx,
+    diff_file=None,
+    config_file=None,
+    shellcheck_args="--severity=info -e SC2059 -e SC2028",
+    fail_fast=False,
+    verbose=False,
+):
     """Verifies that shell scripts with gitlab config are valid.
 
     Args:
@@ -872,12 +882,34 @@ def gitlab_ci_shellcheck(ctx, diff_file=None, config_file=None, shellcheck_args=
     if not full_config:
         return
 
+    errors = {}
     for job, content in jobs:
-        print('Verifying job:', job)
+        if verbose:
+            print('Verifying job:', job)
 
         # Lint scripts
         # TODO A: before / after
         # TODO A: env variables?
         if 'script' in content:
-            script = flatten_script(content['script'])
-            ctx.run(f"echo '{script}' | shellcheck {shellcheck_args} -")
+            before = (
+                ('# Before script\n' + flatten_script(content['before_script'])) if 'before_script' in content else ''
+            )
+            after = (
+                ('\n\n# After script\n' + flatten_script(content['after_script'])) if 'after_script' in content else ''
+            )
+            script = '\n\n# Script\n' + flatten_script(content['script'])
+            full_script = f"{before}{script}{after}"
+            res = ctx.run(f"echo '{full_script}' | shellcheck {shellcheck_args} -", warn=True, hide=True)
+            if not res:
+                errors[job] = res.stdout
+                if fail_fast:
+                    break
+
+    if errors:
+        for job, error in sorted(errors.items()):
+            print(f"{color_message('Error', Color.RED)}: {job}")
+            print(error)
+
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
+        )
