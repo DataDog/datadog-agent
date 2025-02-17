@@ -39,7 +39,7 @@ type netResource struct {
 	provider    *uint16
 }
 
-var NetAddConnection = func(mountType, localName, remoteName, password, username string) error {
+var NetAddConnection = func(_mountType, localName, remoteName, password, username string) error {
 	return wNetAddConnection2(localName, remoteName, password, username)
 }
 
