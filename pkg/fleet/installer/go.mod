@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/fleet/installer
 
-go 1.23.6
+go 1.23.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.6.0
