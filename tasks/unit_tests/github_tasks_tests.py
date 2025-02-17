@@ -468,7 +468,7 @@ class TestCheckQALabels(unittest.TestCase):
 
 
 class TestCheckPermissions(unittest.TestCase):
-    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coucou'})
     @patch('slack_sdk.WebClient', autospec=True)
     @patch("tasks.libs.ciproviders.github_api.GithubAPI", autospec=True)
     def test_empty_team(self, gh_mock, web_mock):
@@ -504,7 +504,7 @@ class TestCheckPermissions(unittest.TestCase):
             text=":github: antagonist-ai permissions check\nTeams:\n - <http://secret-agent|secret-agent>\n",
         )
 
-    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coucou'})
     @patch('slack_sdk.WebClient', autospec=True)
     @patch("tasks.libs.ciproviders.github_api.GithubAPI", autospec=True)
     def test_idle_team(self, gh_mock, web_mock):
@@ -556,7 +556,7 @@ class TestCheckPermissions(unittest.TestCase):
             text=":github: antagonist-ai permissions check\nTeams:\n - <http://secret-agent|secret-agent>\nContributors: defaultdict(<class 'set'>, {'secret-agent': {'tornado'}})\n",
         )
 
-    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coucou'})
     @patch('slack_sdk.WebClient', autospec=True)
     @patch("tasks.libs.ciproviders.github_api.GithubAPI", autospec=True)
     def test_idle_contributor(self, gh_mock, web_mock):

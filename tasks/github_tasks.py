@@ -144,7 +144,7 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
 
     from slack_sdk import WebClient
 
-    client = WebClient(token=os.environ["SLACK_API_TOKEN"])
+    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     client.chat_postMessage(channel="ci-infra-support", text=message)
     return workflow_conclusion
 
@@ -347,7 +347,7 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
 
     # Post message
-    client = WebClient(os.environ['SLACK_API_TOKEN'])
+    client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     for channel in channels:
         client.chat_postMessage(channel=channel, text=message)
 
@@ -713,7 +713,7 @@ def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
     if idle_teams or idle_contributors:
         from slack_sdk import WebClient
 
-        client = WebClient(token=os.environ['SLACK_API_TOKEN'])
+        client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
         header = f":github: {repo} permissions check\n"
         blocks = [
             {

@@ -476,7 +476,7 @@ EMAIL_SLACK_ID_MAP = {
 def changelog(ctx, new_commit_sha):
     from slack_sdk import WebClient
 
-    client = WebClient(token=os.environ["SLACK_API_TOKEN"])
+    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     # Environment variable to deal with both local and CI environments
     if "CI_PROJECT_DIR" in os.environ:
         parent_dir = os.environ["CI_PROJECT_DIR"]
