@@ -271,7 +271,7 @@ func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis
 
 func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.DiagnoseResult, error) {
 	// Get client to Agent's RPC call
-	c := util.GetClient(false)
+	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)

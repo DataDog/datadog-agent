@@ -82,7 +82,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func triggerDump(config cconfig.Component) (string, error) {
-	c := util.GetClient(false)
+	c := util.GetClient()
 	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err

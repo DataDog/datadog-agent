@@ -166,7 +166,7 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			resp, err := util.GetClient(false).Do(req)
+			resp, err := util.GetClient().Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 

@@ -52,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func stop(config config.Component, _ *cliParams, _ log.Component) error {
 	// Global Agent configuration
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient() // FIX IPC: get certificates right then remove this option
 
 	// Set session token
 	e := util.SetAuthToken(config)
