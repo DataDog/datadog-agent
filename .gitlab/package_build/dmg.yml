@@ -143,7 +143,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  # extends: .macos_gitlab
+  extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
