@@ -18,12 +18,14 @@ import (
 	"golang.org/x/sys/unix"
 
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // The agent loader starts the trace-agent process when required,
@@ -82,9 +84,14 @@ func main() {
 // returns whether to start the trace-agent
 func getListeners() (map[string]uintptr, error) {
 	cfg := pkgconfigsetup.Datadog()
+	cfg.SetConfigFile(os.Args[1])
+	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the configuration: %v", err)
+	}
 
 	logparams := logdef.ForOneShot("TRACE-LOADER", cfg.GetString("log_level"), false)
-	err := pkglogsetup.SetupLogger(
+	err = pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName(logparams.LoggerName()),
 		logparams.LogLevelFn(cfg),
 		logparams.LogFileFn(cfg),
