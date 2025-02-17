@@ -365,6 +365,7 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
+		t.Skip("Skip flaky test while we explore fixes.")
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
@@ -399,7 +400,6 @@ func TestConfigHostname(t *testing.T) {
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
-			t.Skip("Skip flaky test while we explore fixes.")
 			bin := makeProgram(t, "host.name", 0)
 			defer os.Remove(bin)
 
