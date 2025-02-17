@@ -28,6 +28,7 @@ var LsblkCommand = func() (string, error) {
 	}
 	return string(output), nil
 }
+var labelRegex = regexp.MustCompile(`LABEL="([^"]+)"`)
 
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 	log.Debugf("Fetching all device labels from lsblk")
@@ -120,8 +121,6 @@ var BlkidCommand = func() (string, error) {
 	return string(output), nil
 }
 
-const labelRegExpression = `LABEL="([^"]+)"`
-
 func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 	log.Debugf("Fetching all device labels from blkid")
 	rawOutput, err := BlkidCommand()
@@ -129,7 +128,6 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 		return err
 	}
 	c.deviceLabels = make(map[string]string)
-	labelRegex := regexp.MustCompile(labelRegExpression)
 	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
 	c.deviceLabels = make(map[string]string)
 	for _, line := range lines {
