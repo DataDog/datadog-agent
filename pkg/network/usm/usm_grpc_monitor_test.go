@@ -532,7 +532,8 @@ func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, usmMonitor *Monitor, runC
 
 	res := make(map[http.Key]int)
 	assert.Eventually(t, func() bool {
-		stats := usmMonitor.GetProtocolStats()
+		stats, cleaners := usmMonitor.GetProtocolStats()
+		defer cleaners()
 		http2Stats, ok := stats[protocols.HTTP2]
 		if !ok {
 			return false

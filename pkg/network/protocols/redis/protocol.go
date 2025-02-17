@@ -146,13 +146,13 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 }
 
 // GetStats returns a map of Redis stats.
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 
 	return &protocols.ProtocolStats{
 		Type:  protocols.Redis,
 		Stats: p.statskeeper.GetAndResetAllStats(),
-	}
+	}, nil
 }
 
 // IsBuildModeSupported returns always true, as Redis module is supported by all modes.
