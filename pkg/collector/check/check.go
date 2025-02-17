@@ -56,6 +56,8 @@ type Check interface {
 	GetDiagnoses() ([]diagnosis.Diagnosis, error)
 	// IsHAEnabled returns if High Availability is enabled for this check
 	IsHAEnabled() bool
+	// IsHASupported returns if the check is compatible with High Availability
+	IsHASupported() bool
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check

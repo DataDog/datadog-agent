@@ -24,6 +24,10 @@ min_collection_interval: 60
 empty_default_hostname: true
 name: foobar
 `
+	haConfig = `
+foo_init: bar_init
+ha_enabled: true
+`
 )
 
 type dummyCheck struct {

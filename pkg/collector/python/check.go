@@ -64,10 +64,11 @@ type PythonCheck struct {
 	initConfig     string
 	instanceConfig string
 	haEnabled      bool
+	haSupported    bool
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, haSupported bool) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -83,6 +84,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 		interval:      defaults.DefaultCheckInterval,
 		lastWarnings:  []error{},
 		telemetry:     utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
+		haSupported:   haSupported,
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -417,6 +419,11 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 // IsHAEnabled returns if High Availability is enabled for this check
 func (c *PythonCheck) IsHAEnabled() bool {
 	return c.haEnabled
+}
+
+// IsHASupported returns the HA_SUPPORTED class attribute defined at Python Check level
+func (c *PythonCheck) IsHASupported() bool {
+	return c.haSupported
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned

@@ -295,3 +295,8 @@ func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 func (c *CheckBase) IsHAEnabled() bool {
 	return c.haEnabled
 }
+
+// IsHASupported returns if the check is compatible with High Availability
+func (c *CheckBase) IsHASupported() bool {
+	return false
+}

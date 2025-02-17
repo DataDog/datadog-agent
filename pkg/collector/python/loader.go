@@ -208,7 +208,20 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	c, err := NewPythonCheck(senderManager, moduleName, checkClass)
+	var goHASupported bool
+	if pkgconfigsetup.Datadog().GetBool("ha_enabled") {
+		var haSupported *C.char
+
+		haSupportedAttr := TrackedCString("HA_SUPPORTED")
+		defer C._free(unsafe.Pointer(haSupportedAttr))
+		if res := C.get_attr_string(rtloader, checkModule, haSupportedAttr, &haSupported); res != 0 {
+			goHASupported = C.GoString(haSupported) == "true"
+		} else {
+			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", name, getRtLoaderError())
+		}
+	}
+
+	c, err := NewPythonCheck(senderManager, moduleName, checkClass, goHASupported)
 	if err != nil {
 		return c, err
 	}
