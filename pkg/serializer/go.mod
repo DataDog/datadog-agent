@@ -22,7 +22,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.62.2
 	github.com/DataDog/datadog-agent/pkg/version v0.62.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.25.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
