@@ -42,7 +42,7 @@ type deviceCollector struct {
 	metricGetters []deviceMetric
 }
 
-func newDeviceCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newDeviceCollector(device nvml.Device, tags []string) (Collector, error) {
 	c := &deviceCollector{
 		device: device,
 		tags:   tags,
@@ -104,11 +104,6 @@ func (c *deviceCollector) Collect() ([]Metric, error) {
 	}
 
 	return values, err
-}
-
-// Close closes the collector (no-op for this collector).
-func (c *deviceCollector) Close() error {
-	return nil
 }
 
 // Name returns the name of the collector.
