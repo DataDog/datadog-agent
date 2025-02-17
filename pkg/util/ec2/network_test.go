@@ -39,7 +39,7 @@ func TestGetPublicIPv4(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := GetPublicIPv4(ctx)
@@ -72,7 +72,7 @@ func TestGetNetworkID(t *testing.T) {
 	metadataURL = ts.URL
 	tokenURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := GetNetworkID(ctx)
@@ -96,7 +96,7 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 	metadataURL = ts.URL
 	tokenURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	_, err := GetNetworkID(ctx)
@@ -134,7 +134,7 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	metadataURL = ts.URL
 	tokenURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	_, err := GetNetworkID(ctx)

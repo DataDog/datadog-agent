@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -31,9 +30,7 @@ var (
 
 const testIMDSToken = "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
 
-func resetPackageVars(conf model.Config) {
-	initialTimeout := time.Duration(conf.GetInt("ec2_metadata_timeout")) * time.Millisecond
-	conf.SetWithoutSource("ec2_metadata_timeout", initialTimeout)
+func resetPackageVars() {
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
 	token = httputils.NewAPIToken(getToken)
@@ -56,7 +53,7 @@ func setupDMIForNotEC2(t *testing.T) {
 func TestIsDefaultHostname(t *testing.T) {
 	const key = "ec2_use_windows_prefix_detection"
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	prefixDetection := conf.GetBool(key)
 	defer conf.SetDefault(key, prefixDetection)
 
@@ -73,7 +70,7 @@ func TestIsDefaultHostname(t *testing.T) {
 func TestIsDefaultHostnameForIntake(t *testing.T) {
 	const key = "ec2_use_windows_prefix_detection"
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	prefixDetection := conf.GetBool(key)
 	conf.SetDefault(key, true)
 	defer conf.SetDefault(key, prefixDetection)
@@ -113,7 +110,7 @@ func TestGetInstanceID(t *testing.T) {
 	metadataURL = ts.URL
 	tokenURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	// API successful, should return API result
@@ -154,7 +151,7 @@ func TestGetLegacyResolutionInstanceID(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	// API errors out, should return error
@@ -247,7 +244,7 @@ func TestGetHostAliases(t *testing.T) {
 				_, _ = io.WriteString(w, tc.instanceID)
 			}))
 			defer ts.Close()
-			defer resetPackageVars(conf)
+			defer resetPackageVars()
 
 			metadataURL = ts.URL
 			conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -277,7 +274,7 @@ func TestGetHostname(t *testing.T) {
 	metadataURL = ts.URL
 
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
@@ -378,7 +375,7 @@ func TestGetToken(t *testing.T) {
 		}
 	}))
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 
 	defer ts.Close()
 	tokenURL = ts.URL
@@ -459,7 +456,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 
 			// Set test-specific configuration
 			conf := configmock.New(t)
-			defer resetPackageVars(conf)
+			defer resetPackageVars()
 			conf.SetDefault(tc.configKey, tc.configValue)
 			conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
@@ -502,7 +499,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 func TestLegacyMetedataRequestWithoutToken(t *testing.T) {
 	var requestWithoutToken *http.Request
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetDefault("ec2_prefer_imdsv2", false)
 	conf.SetDefault("ec2_imdsv2_transition_payload_enabled", false)
 
@@ -547,8 +544,8 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 		io.WriteString(w, "test")
 	}))
 	defer ts.Close()
-	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	configmock.New(t)
+	defer resetPackageVars()
 
 	metadataURL = ts.URL
 	actualHosts := GetNTPHosts(context.Background())
@@ -557,7 +554,7 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 
 func TestGetNTPHostsDMI(t *testing.T) {
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_use_dmi", true)
 
 	setupDMIForEC2(t)
@@ -569,7 +566,7 @@ func TestGetNTPHostsDMI(t *testing.T) {
 
 func TestGetNTPHostsEC2UUID(t *testing.T) {
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_use_dmi", true)
 
 	dmi.SetupMock(t, "ec2something", "", "", "")
@@ -581,7 +578,7 @@ func TestGetNTPHostsEC2UUID(t *testing.T) {
 
 func TestGetNTPHostsDisabledDMI(t *testing.T) {
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_use_dmi", false)
 
 	// DMI without EC2 UUID
@@ -594,8 +591,8 @@ func TestGetNTPHostsDisabledDMI(t *testing.T) {
 
 func TestGetNTPHostsNotEC2(t *testing.T) {
 	setupDMIForNotEC2(t)
-	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	configmock.New(t)
+	defer resetPackageVars()
 	metadataURL = ""
 
 	actualHosts := GetNTPHosts(context.Background())
@@ -626,7 +623,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	metadataURL = ts.URL
 	tokenURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 	conf.SetWithoutSource("ec2_prefer_imdsv2", true)
 	conf.SetWithoutSource("ec2_imdsv2_transition_payload_enabled", false)
@@ -653,7 +650,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 
 func TestMetadataSourceUUID(t *testing.T) {
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()
@@ -675,7 +672,7 @@ func TestMetadataSourceUUID(t *testing.T) {
 
 func TestMetadataSourceDMI(t *testing.T) {
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()
@@ -689,7 +686,7 @@ func TestMetadataSourceDMI(t *testing.T) {
 
 func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 	conf := configmock.New(t)
-	defer resetPackageVars(conf)
+	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()
