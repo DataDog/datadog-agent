@@ -271,10 +271,14 @@ func (r *HTTPReceiver) Start() {
 		if tcpFDStr, ok := os.LookupEnv("DD_APM_NET_RECEIVER_FD"); ok {
 			//TODO handle error properly
 			unixFD, _ := strconv.Atoi(tcpFDStr)
+			log.Infof("TCP listener: using provided file descriptor %d", unixFD)
 			f := os.NewFile(uintptr(unixFD), "tcp_conn")
 			//TODO: handle f.Close()
 			//TODO handle error properly
-			listener, _ := net.FileListener(f)
+			listener, flerr := net.FileListener(f)
+			if flerr != nil {
+				log.Warnf("file listener: %v", flerr)
+			}
 			ln, err = r.listenTCPListener(listener)
 		} else {
 			ln, err = r.listenTCP(addr)
@@ -303,6 +307,7 @@ func (r *HTTPReceiver) Start() {
 			if unixFDStr, ok := os.LookupEnv("DD_APM_UNIX_RECEIVER_FD"); ok {
 				//TODO handle error properly
 				unixFD, _ := strconv.Atoi(unixFDStr)
+				log.Infof("TCP listener: using provided file descriptor %d", unixFD)
 				f := os.NewFile(uintptr(unixFD), "unix_conn")
 				//TODO: handle f.Close()
 				//TODO: handle error properly

@@ -110,6 +110,7 @@ func (o *OTLPReceiver) Start() {
 		if grpcFDStr, ok := os.LookupEnv("DD_OTLP_CONFIG_GRPC_FD"); ok {
 			//TODO handle error properly
 			grpcFD, _ := strconv.Atoi(grpcFDStr)
+			log.Infof("OTLP listener: using provided file descriptor %d", grpcFD)
 			f := os.NewFile(uintptr(grpcFD), "otlp_conn")
 			//TODO: handle f.Close()
 			ln, err = net.FileListener(f)
