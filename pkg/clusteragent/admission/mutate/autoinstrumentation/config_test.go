@@ -75,7 +75,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						PodSelector: PodSelector{
+						PodSelector: &PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
@@ -87,7 +87,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: NamespaceSelector{
+						NamespaceSelector: &NamespaceSelector{
 							MatchNames: []string{"billing"},
 						},
 						TracerVersions: map[string]string{
@@ -123,7 +123,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						PodSelector: PodSelector{
+						PodSelector: &PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
@@ -135,7 +135,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: NamespaceSelector{
+						NamespaceSelector: &NamespaceSelector{
 							MatchLabels: map[string]string{
 								"app": "billing",
 							},
@@ -203,7 +203,7 @@ func TestTargetEnvVar(t *testing.T) {
 	expected := []Target{
 		{
 			Name: "Billing Service",
-			PodSelector: PodSelector{
+			PodSelector: &PodSelector{
 				MatchLabels: map[string]string{
 					"app": "billing-service",
 				},
@@ -215,7 +215,7 @@ func TestTargetEnvVar(t *testing.T) {
 					},
 				},
 			},
-			NamespaceSelector: NamespaceSelector{
+			NamespaceSelector: &NamespaceSelector{
 				MatchNames: []string{"billing"},
 			},
 			TracerVersions: map[string]string{

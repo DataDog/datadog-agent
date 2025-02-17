@@ -61,17 +61,21 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 	internalTargets := make([]targetInternal, len(config.Instrumentation.Targets))
 	for i, t := range config.Instrumentation.Targets {
 		// Convert the pod selector to a label selector.
-		podSelector, err := t.PodSelector.AsLabelSelector()
-		if err != nil {
-			return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+		podSelector := labels.Everything()
+		var err error
+		if t.PodSelector != nil {
+			podSelector, err = t.PodSelector.AsLabelSelector()
+			if err != nil {
+				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+			}
 		}
 
 		// Determine if we should use the namespace selector or if we should use enabledNamespaces.
-		useNamespaceSelector := len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
+		useNamespaceSelector := t.NamespaceSelector != nil && len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
 
 		// Convert the namespace selector to a label selector.
-		var namespaceSelector labels.Selector
-		if useNamespaceSelector {
+		namespaceSelector := labels.Everything()
+		if useNamespaceSelector && t.NamespaceSelector != nil {
 			namespaceSelector, err = t.NamespaceSelector.AsLabelSelector()
 			if err != nil {
 				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
@@ -80,7 +84,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 
 		// Create a map of enabled namespaces for quick lookups.
 		var enabledNamespaces map[string]bool
-		if !useNamespaceSelector {
+		if !useNamespaceSelector && t.NamespaceSelector != nil {
 			enabledNamespaces = make(map[string]bool, len(t.NamespaceSelector.MatchNames))
 			for _, ns := range t.NamespaceSelector.MatchNames {
 				enabledNamespaces[ns] = true

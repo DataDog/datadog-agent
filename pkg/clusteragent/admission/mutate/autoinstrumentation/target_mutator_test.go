@@ -102,7 +102,7 @@ func TestMutatePod(t *testing.T) {
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
 			},
 			expectedAnnotations: map[string]string{
-				"admission.datadoghq.com/target-last-applied": "{\"name\":\"Application Namespace\",\"podSelector\":{\"matchLabels\":null,\"matchExpressions\":null},\"namespaceSelector\":{\"matchNames\":[\"application\"],\"matchLabels\":null,\"matchExpressions\":null},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				"admission.datadoghq.com/target-last-applied": "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"no matching rule does not mutate pod": {
@@ -139,7 +139,7 @@ func TestMutatePod(t *testing.T) {
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
 			},
 			expectedAnnotations: map[string]string{
-				"admission.datadoghq.com/target-last-applied": "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"},\"matchExpressions\":null},\"namespaceSelector\":{\"matchNames\":null,\"matchLabels\":null,\"matchExpressions\":null},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				"admission.datadoghq.com/target-last-applied": "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 	}
