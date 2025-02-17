@@ -846,3 +846,8 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     gitlab_owners = CodeOwners('\n'.join(parsed_owners))
 
     _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners)
+
+
+@task
+def gitlab_ci_shellcheck(ctx):
+    pass
