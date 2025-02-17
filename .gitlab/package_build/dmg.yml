@@ -159,6 +159,9 @@ new-agent_dmg-x64-a7:
     - brew install gettext -fv || true
     - brew link --overwrite gettext || true
   script:
+    - echo goroot $GOROOT
+    - echo gopath $GOPATH
+    - exit
     - set -e
     - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
