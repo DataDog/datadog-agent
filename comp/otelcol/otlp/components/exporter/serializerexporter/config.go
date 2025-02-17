@@ -26,6 +26,10 @@ type ExporterConfig struct {
 	// HostProvider is the function to get the host name.
 	// OpenTelemetry Collector provides a override for this.
 	HostProvider SourceProviderFunc `mapstructure:"-"`
+
+	// ShutdownFunc is the function to call when the exporter is shutdown.
+	// OpenTelemetry Collector provides additional shutdown logic.
+	ShutdownFunc component.ShutdownFunc `mapstructure:"-"`
 }
 
 var _ component.Config = (*ExporterConfig)(nil)

@@ -168,7 +168,13 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		exporterhelper.WithTimeout(cfg.TimeoutConfig),
 		// the metrics remapping code mutates data
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
-		exporterhelper.WithShutdown(func(context.Context) error {
+		exporterhelper.WithShutdown(func(ctx context.Context) error {
+			if cfg.ShutdownFunc != nil {
+				err = cfg.ShutdownFunc(ctx)
+				if err != nil {
+					return err
+				}
+			}
 			if f.wg != nil {
 				f.wg.Wait() // wait for consumeStatsPayload to exit
 			}
