@@ -153,15 +153,13 @@ new-agent_dmg-x64-a7:
     paths:
       # - $OMNIBUS_PACKAGE_DIR
       - /tmp/celian
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
   after_script:
     - brew install gettext -fv || true
     - brew link --overwrite gettext || true
   script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
     - echo goroot $GOROOT
     - echo gopath $GOPATH
-    - exit
     - set -e
     - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
