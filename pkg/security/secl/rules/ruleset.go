@@ -393,6 +393,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 				if err != nil {
 					return "", err
 				}
+				fmt.Println("Adding field evaluator for", action.Def.Set.Field, reflect.TypeOf(evaluator))
 				rs.fieldEvaluators[action.Def.Set.Field] = evaluator
 			}
 		}

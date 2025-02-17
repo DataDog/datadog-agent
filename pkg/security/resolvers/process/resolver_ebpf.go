@@ -1490,6 +1490,16 @@ func (p *EBPFResolver) SetState(state int64) {
 	p.state.Store(state)
 }
 
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
+	}
+}
+
 // UpdateProcessCGroupContext updates the cgroup context and container ID of the process matching the provided PID
 func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	p.Lock()

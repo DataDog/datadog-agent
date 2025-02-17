@@ -386,24 +386,19 @@ func (e *RuleEngine) notifyAPIServerOfSeclVariables() {
 	for name, value := range rs.GetVariables() {
 
 		if strings.HasPrefix(name, "process.") {
-			p, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
-			if !ok {
-				continue
-			}
-			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
 				entry.Retain()
 				defer entry.Release()
-				event := p.NewEvent()
+				event := e.probe.PlatformProbe.NewEvent()
 				event.ProcessCacheEntry = entry
 				ctx = eval.NewContext(event)
 				name = strings.Replace(name, "process.", fmt.Sprintf("process_%d.", entry.Pid), 1)
-				seclVariables[name] = value.Get(ctx)
+				seclVariables[name] = value.(eval.ScopedVariable).GetValue(ctx)
 			})
 		} else if strings.HasPrefix(name, "container.") {
 			continue // skip container variables for now
 		} else { // global variables
-			ctx = eval.NewContext(nil)
-			seclVariables[name] = value.Get(ctx)
+			seclVariables[name] = value.(eval.Variable).GetValue()
 		}
 
 	}
