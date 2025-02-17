@@ -34,10 +34,11 @@ import (
 )
 
 const (
-	gpuMetricsNs     = "gpu."
-	metricNameMemory = gpuMetricsNs + "memory"
-	metricNameUtil   = gpuMetricsNs + "utilization"
-	metricNameMaxMem = gpuMetricsNs + "memory.max"
+	gpuMetricsNs          = "gpu."
+	metricNameMemory      = gpuMetricsNs + "memory"
+	metricNameUtil        = gpuMetricsNs + "utilization"
+	metricNameMaxMem      = gpuMetricsNs + "memory.max"
+	metricNameDeviceTotal = gpuMetricsNs + "device.total"
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
@@ -290,5 +291,19 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
-	return err
+	return c.emitGlobalNvmlMetrics(snd)
+}
+
+func (c *Check) emitGlobalNvmlMetrics(snd sender.Sender) error {
+	// Collect global metrics such as device count
+	devCount, ret := c.nvmlLib.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
+	}
+
+	snd.Gauge(metricNameDeviceTotal, float64(devCount), "", nil)
+
+	c.telemetry.nvmlMetricsSent.Add(1, "global")
+
+	return nil
 }
