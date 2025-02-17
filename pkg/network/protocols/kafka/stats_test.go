@@ -84,3 +84,31 @@ func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expected
 	assert.GreaterOrEqual(t, val, expectedValue-acceptableError)
 	assert.LessOrEqual(t, val, expectedValue+acceptableError)
 }
+
+func benchmarkRequestStatsPool(b *testing.B, reqNum int) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stats := NewRequestStats()
+		for j := 0; j < reqNum; j++ {
+			stats.AddRequest(1, 1, 1, 1)
+		}
+		stats.Close()
+	}
+}
+
+func BenchmarkRequestStatsPool_10Reqs(b *testing.B) {
+	benchmarkRequestStatsPool(b, 10)
+}
+
+func BenchmarkRequestStatsPool_100Reqs(b *testing.B) {
+	benchmarkRequestStatsPool(b, 100)
+}
+
+func BenchmarkRequestStatsPool_1000Reqs(b *testing.B) {
+	benchmarkRequestStatsPool(b, 1000)
+}
+
+func BenchmarkRequestStatsPool_10000Reqs(b *testing.B) {
+	benchmarkRequestStatsPool(b, 10000)
+}
