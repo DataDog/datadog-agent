@@ -174,8 +174,8 @@ func (a *authArtifactBase) checkAgentLogs(ctx context.Context, agentName string)
 	a.T().Logf("starting reading from %v", agentName)
 
 	scanner := bufio.NewScanner(stdout)
-	var linechan chan string
-	var errchan chan error
+	linechan := make(chan string, 1024)
+	errchan := make(chan error)
 
 	go func() {
 		for scanner.Scan() {
