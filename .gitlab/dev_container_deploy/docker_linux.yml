@@ -240,3 +240,17 @@ dev_branch-ot:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-7-ot-beta-jmx
 
+dev_branch-ot-standalone-distroless:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.manual]
+  needs:
+    - docker_build_ot_agent_standalone_distroless
+    - docker_build_ot_agent_standalone_distroless_arm64
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-distroless-amd64,${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-distroless-arm64
+        IMG_DESTINATIONS: otel-agent-dev:${CI_COMMIT_REF_SLUG}-distroless
