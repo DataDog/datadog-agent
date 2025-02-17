@@ -17,7 +17,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/prometheus/client_golang v1.20.5
 	github.com/samber/lo v1.47.0
-	github.com/spf13/cobra v1.9.0
+	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.5
 	google.golang.org/protobuf v1.36.4
