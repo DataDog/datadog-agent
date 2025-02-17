@@ -61,6 +61,7 @@ func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, dev
 
 	curPayload := newNetworkDevicesMetadata(namespace, "", collectTime)
 	lastProgressPercent := -1
+
 	for i, oid := range deviceOIDs {
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, "", collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.DeviceOIDs = append(curPayload.DeviceOIDs, *oid)
