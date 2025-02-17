@@ -275,7 +275,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
 			tags, err := c.tagger.Tag(entityID, c.tagger.ChecksCardinality())
 			if err != nil {
-				log.Errorf("Error collecting container tags for GPU %s: %s", collector.DeviceUUID(), err)
+				log.Warnf("Error collecting container tags for GPU %s: %s", collector.DeviceUUID(), err)
 				continue
 			}
 
