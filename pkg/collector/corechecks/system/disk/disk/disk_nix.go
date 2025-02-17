@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// LsblkCommand specifies the command used to retrieve block device information.
 var LsblkCommand = func() (string, error) {
 	cmd := exec.Command("lsblk", "--noheadings", "--raw", "--output=NAME,LABEL")
 	output, err := cmd.Output()
@@ -56,12 +57,14 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 	return nil
 }
 
+// Device represents a device entry in an XML structure.
 type Device struct {
 	XMLName xml.Name `xml:"device"`
 	Label   string   `xml:"LABEL,attr"`
 	Text    string   `xml:",chardata"`
 }
 
+// BlkidCacheCommand specifies the command used to query block device UUIDs and labels.
 var BlkidCacheCommand = func(blkidCacheFile string) (string, error) {
 	file, err := os.Open(blkidCacheFile)
 	if err != nil {
@@ -104,6 +107,7 @@ func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 	return nil
 }
 
+// BlkidCommand specifies the command used to retrieve block device attributes.
 var BlkidCommand = func() (string, error) {
 	cmd := exec.Command("blkid")
 	output, err := cmd.Output()
@@ -150,6 +154,7 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 	return nil
 }
 
+// NetAddConnection specifies the command used to add a new network connection.
 var NetAddConnection = func(mountType, localName, remoteName, _password, _username string) error {
 	args := []string{}
 	args = append(args, "-t")

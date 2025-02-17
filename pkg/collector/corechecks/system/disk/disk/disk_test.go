@@ -1743,7 +1743,7 @@ func TestGivenADiskCheckWithUseLsblkAndBlkidCacheFileConfigured_WhenCheckIsConfi
 use_lsblk: true
 blkid_cache_file: /run/blkid/blkid.tab
 `))
-	expectedError := "Only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time."
+	expectedError := "only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time"
 
 	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package disk provides Disk Check.
 package disk
 
 import (
@@ -27,17 +28,22 @@ import (
 )
 
 const (
+	// CheckName is the name of the check
 	CheckName   = "disk"
 	diskMetric  = "system.disk.%s"
 	inodeMetric = "system.fs.inodes.%s"
 )
 
 var (
+	// DiskPartitions returns a list of mounted disk partitions using gopsutil.
 	DiskPartitions = gopsutil_disk.Partitions
-	DiskUsage      = gopsutil_disk.Usage
+	// DiskUsage returns disk usage statistics for the given path using gopsutil.
+	DiskUsage = gopsutil_disk.Usage
+	// DiskIOCounters returns disk I/O statistics for the specified devices using gopsutil.
 	DiskIOCounters = gopsutil_disk.IOCounters
 )
 
+// Mount represents a network mount configuration.
 type Mount struct {
 	Host       string
 	Share      string
@@ -57,20 +63,18 @@ func (m Mount) RemotePath() (string, string) {
 	normalizedType := strings.ToUpper(strings.TrimSpace(m.Type))
 	if normalizedType == "NFS" {
 		return normalizedType, fmt.Sprintf(`%s:%s`, m.Host, m.Share)
-	} else {
-		var userAndPassword string
-		if len(m.User) > 0 {
-			userAndPassword += m.User
-		}
-		if len(m.Password) > 0 {
-			userAndPassword += fmt.Sprintf(":%s", m.Password)
-		}
-		if len(userAndPassword) > 0 {
-			return normalizedType, fmt.Sprintf(`\\%s@%s\%s`, userAndPassword, m.Host, m.Share)
-		} else {
-			return normalizedType, fmt.Sprintf(`\\%s\%s`, m.Host, m.Share)
-		}
 	}
+	var userAndPassword string
+	if len(m.User) > 0 {
+		userAndPassword += m.User
+	}
+	if len(m.Password) > 0 {
+		userAndPassword += fmt.Sprintf(":%s", m.Password)
+	}
+	if len(userAndPassword) > 0 {
+		return normalizedType, fmt.Sprintf(`\\%s@%s\%s`, userAndPassword, m.Host, m.Share)
+	}
+	return normalizedType, fmt.Sprintf(`\\%s\%s`, m.Host, m.Share)
 }
 
 type diskConfig struct {
@@ -101,6 +105,7 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 	return false
 }
 
+// Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
 	cfg          *diskConfig
@@ -128,6 +133,7 @@ func newDiskConfig() *diskConfig {
 	}
 }
 
+// Run executes the check
 func (c *Check) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
@@ -152,6 +158,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
+// Configure parses the check configuration and init the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
@@ -274,7 +281,7 @@ func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data
 		c.cfg.blkidCacheFile = blkidCacheFile
 	}
 	if c.cfg.tagByLabel && c.cfg.useLsblk && c.cfg.blkidCacheFile != "" {
-		return errors.New("Only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time.")
+		return errors.New("only one of 'use_lsblk' and 'blkid_cache_file' can be set at the same time")
 	}
 	serviceCheckRw, found := unmarshalledInstanceConfig["service_check_rw"]
 	if serviceCheckRw, ok := serviceCheckRw.(bool); found && ok {
