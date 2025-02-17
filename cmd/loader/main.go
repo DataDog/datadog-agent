@@ -7,13 +7,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"syscall"
 
 	"golang.org/x/sys/unix"
 
@@ -51,71 +51,28 @@ func main() {
 		return
 	}
 
+	env := os.Environ()
 	var pollfds []unix.PollFd
-	f := func() {
-		log.Debugf("Polling... %+v", pollfds)
-		n, err := unix.Poll(pollfds, -1)
-		if err != nil {
-			log.Warnf("error while polling: %v", err)
-		} else {
-			log.Debugf("Data received on %d sockets", n)
-		}
+	for varname, fd := range listeners {
+		log.Debugf("%s file descriptor is %d", varname, fd)
+		env = append(env, fmt.Sprintf("%s=%d", varname, fd))
+		pollfds = append(pollfds, unix.PollFd{
+			Fd:     int32(fd),
+			Events: unix.POLLIN,
+		})
 	}
 
-	for varname, ln := range listeners {
-		f = func(varname string, ln net.Listener, f func()) func() {
-			return func() {
-				c, ok := ln.(syscall.Conn)
-				if !ok {
-					log.Warnf("Listener %s is not a syscall.Conn", varname)
-					ln.Close()
-					return
-				}
-
-				rc, err := c.SyscallConn()
-				if err != nil {
-					log.Warnf("syscallConn %s: %v", varname, err)
-					ln.Close()
-					return
-				}
-
-				err = rc.Control(func(fd uintptr) {
-					log.Debugf("%s file descriptor is %d", varname, fd)
-					os.Setenv(varname, fmt.Sprintf("%d", fd))
-
-					flag, err := unix.FcntlInt(fd, unix.F_GETFD, 0)
-					if err != nil {
-						log.Warnf("fcntl GETFD: %v\n", err)
-						return
-					}
-
-					if flag&unix.FD_CLOEXEC != 0 {
-						log.Debugf("Removing CLOEXEC on fd %v...\n", fd)
-						_, err := unix.FcntlInt(fd, unix.F_SETFD, flag & ^unix.FD_CLOEXEC)
-						if err != nil {
-							log.Warnf("fcntl SETFD: %v\n", err)
-							return
-						}
-					}
-
-					pollfds = append(pollfds, unix.PollFd{
-						Fd:     int32(fd),
-						Events: unix.POLLIN,
-					})
-					f()
-				})
-				if err != nil {
-					log.Warnf("control: %v", err)
-				}
-			}
-		}(varname, ln, f)
+	log.Debugf("Polling... %+v", pollfds)
+	n, err := unix.Poll(pollfds, -1)
+	if err != nil {
+		log.Warnf("error while polling: %v", err)
+	} else {
+		log.Debugf("Data received on %d sockets", n)
 	}
-
-	f()
 
 	// start the trace-agent whether there was an error or some data on a socket
 	log.Info("starting the trace-agent...")
-	err = unix.Exec(os.Args[1], os.Args[1:], os.Environ())
+	err = unix.Exec(os.Args[1], os.Args[1:], env)
 	if err != nil {
 		log.Errorf("Failed to start the trace-agent: %v", err)
 		os.Exit(1)
@@ -123,7 +80,7 @@ func main() {
 }
 
 // returns whether to start the trace-agent
-func getListeners() (map[string]net.Listener, error) {
+func getListeners() (map[string]uintptr, error) {
 	cfg := pkgconfigsetup.Datadog()
 
 	logparams := logdef.ForOneShot("TRACE-LOADER", cfg.GetString("log_level"), false)
@@ -188,7 +145,7 @@ func getListeners() (map[string]net.Listener, error) {
 		return nil, nil
 	}
 
-	listeners := make(map[string]net.Listener)
+	listeners := make(map[string]uintptr)
 
 	if traceCfgReceiverPort > 0 {
 		log.Debugf("Listening to TCP receiver at port %d...", traceCfgReceiverPort)
@@ -197,8 +154,14 @@ func getListeners() (map[string]net.Listener, error) {
 		if err != nil {
 			return listeners, fmt.Errorf("error listening to tcp receiver: %v", err)
 		}
+		defer ln.Close()
 
-		listeners["DD_APM_NET_RECEIVER_FD"] = ln
+		fd, err := fdFromListener(ln)
+		if err != nil {
+			return listeners, fmt.Errorf("error getting file descriptor from tcp listener: %v", err)
+		}
+
+		listeners["DD_APM_NET_RECEIVER_FD"] = fd
 	} else {
 		log.Info("Tracer-agent TCP receiver is disabled")
 	}
@@ -210,8 +173,14 @@ func getListeners() (map[string]net.Listener, error) {
 			if err != nil {
 				return listeners, fmt.Errorf("error listening to unix receiver: %v", err)
 			}
+			defer ln.Close()
 
-			listeners["DD_APM_UNIX_RECEIVER_FD"] = ln
+			fd, err := fdFromListener(ln)
+			if err != nil {
+				return listeners, fmt.Errorf("error getting file descriptor from unix listener: %v", err)
+			}
+
+			listeners["DD_APM_UNIX_RECEIVER_FD"] = fd
 		} else {
 			log.Errorf("Could not start UDS listener: socket directory does not exist: %s", path)
 		}
@@ -226,11 +195,48 @@ func getListeners() (map[string]net.Listener, error) {
 		if err != nil {
 			return listeners, fmt.Errorf("error listening to otlp receiver: %v", err)
 		}
+		defer ln.Close()
 
-		listeners["DD_OTLP_CONFIG_GRPC_FD"] = ln
+		fd, err := fdFromListener(ln)
+		if err != nil {
+			return listeners, fmt.Errorf("error getting file descriptor from otlp listener: %v", err)
+		}
+
+		listeners["DD_OTLP_CONFIG_GRPC_FD"] = fd
 	} else {
 		log.Info("OTLP trace receiver is disabled")
 	}
 
 	return listeners, nil
+}
+
+func fdFromListener(ln net.Listener) (uintptr, error) {
+	lnf, ok := ln.(interface {
+		File() (*os.File, error)
+	})
+	if !ok {
+		return 0, errors.New("listener does not support File()")
+	}
+
+	f, err := lnf.File()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get file from listener: %v", err)
+	}
+
+	fd := f.Fd()
+
+	flag, err := unix.FcntlInt(fd, unix.F_GETFD, 0)
+	if err != nil {
+		return 0, fmt.Errorf("fcntl GETFD: %v", err)
+	}
+
+	if flag&unix.FD_CLOEXEC != 0 {
+		log.Debugf("Removing CLOEXEC on fd %v...\n", fd)
+		_, err := unix.FcntlInt(fd, unix.F_SETFD, flag & ^unix.FD_CLOEXEC)
+		if err != nil {
+			return 0, fmt.Errorf("fcntl SETFD: %v", err)
+		}
+	}
+
+	return fd, nil
 }
