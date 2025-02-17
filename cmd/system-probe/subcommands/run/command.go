@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -104,6 +105,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				telemetryimpl.Module(),
 				sysprobeconfigimpl.Module(),
 				rcclientimpl.Module(),
+				fetchonlyimpl.Module(),
 				fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
 					return healthprobe.Options{
 						Port:           sysprobeconfig.SysProbeObject().HealthPort,
@@ -272,6 +274,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		fx.Supply(option.None[secrets.Component]()),
 		rcclientimpl.Module(),
+		fetchonlyimpl.Module(),
 		config.Module(),
 		telemetryimpl.Module(),
 		compstatsd.Module(),
