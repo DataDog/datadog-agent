@@ -43,16 +43,17 @@ func NewNodeCollector(metadataAsTags utils.MetadataAsTags) *NodeCollector {
 
 	return &NodeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      nodeName,
-			NodeType:                  orchestrator.K8sNode,
-			Version:                   nodeVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 nodeName,
+			NodeType:                             orchestrator.K8sNode,
+			Version:                              nodeVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NodeHandlers)),
 	}

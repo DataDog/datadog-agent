@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -40,16 +41,17 @@ var (
 // CollectorBundle is a container for a group of collectors. It provides a way
 // to easily run them all.
 type CollectorBundle struct {
-	check               *OrchestratorCheck
-	collectors          []collectors.K8sCollector
-	discoverCollectors  bool
-	extraSyncTimeout    time.Duration
-	inventory           *inventory.CollectorInventory
-	stopCh              chan struct{}
-	runCfg              *collectors.CollectorRunConfig
-	manifestBuffer      *ManifestBuffer
-	collectorDiscovery  *discovery.DiscoveryCollector
-	activatedCollectors map[string]struct{}
+	check                    *OrchestratorCheck
+	collectors               []collectors.K8sCollector
+	discoverCollectors       bool
+	extraSyncTimeout         time.Duration
+	inventory                *inventory.CollectorInventory
+	stopCh                   chan struct{}
+	runCfg                   *collectors.CollectorRunConfig
+	manifestBuffer           *ManifestBuffer
+	collectorDiscovery       *discovery.DiscoveryCollector
+	activatedCollectors      map[string]struct{}
+	terminatedResourceBundle *TerminatedResourceBundle
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -81,6 +83,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		collectorDiscovery:  discovery.NewDiscoveryCollectorForInventory(),
 		activatedCollectors: map[string]struct{}{},
 	}
+	bundle.terminatedResourceBundle = NewTerminatedResourceBundle(chk, bundle.runCfg, bundle.manifestBuffer)
 	bundle.prepare()
 
 	return bundle
@@ -271,6 +274,7 @@ func (cb *CollectorBundle) Initialize() error {
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
 	informerSynced := map[cache.SharedInformer]struct{}{}
+	terminatedResourceCollectionEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_resources.enabled")
 
 	for _, collector := range cb.collectors {
 		collectorFullName := collector.Metadata().FullName()
@@ -285,6 +289,16 @@ func (cb *CollectorBundle) Initialize() error {
 		if _, found := informerSynced[informer]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			informerSynced[informer] = struct{}{}
+
+			// add event handlers for terminated resources
+			if terminatedResourceCollectionEnabled && collector.Metadata().SupportsTerminatedResourceCollection {
+				if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+					DeleteFunc: cb.terminatedResourceHandler(collector),
+				}); err != nil {
+					log.Warnf("Failed to add delete event handler for %s: %s", collectorFullName, err)
+				}
+			}
+
 			// we run each enabled informer individually, because starting them through the factory
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
 			// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
@@ -359,6 +373,8 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 			}
 		}
 	}
+
+	cb.terminatedResourceBundle.Run()
 }
 
 func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
@@ -367,4 +383,15 @@ func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
 		return true
 	}
 	return false
+}
+
+func (cb *CollectorBundle) terminatedResourceHandler(collector collectors.K8sCollector) func(obj interface{}) {
+	return func(obj interface{}) {
+		cb.terminatedResourceBundle.Add(collector, obj)
+	}
+}
+
+// GetTerminatedResourceBundle returns the terminated resource bundle.
+func (cb *CollectorBundle) GetTerminatedResourceBundle() *TerminatedResourceBundle {
+	return cb.terminatedResourceBundle
 }

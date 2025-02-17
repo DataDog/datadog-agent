@@ -44,16 +44,17 @@ func NewServiceAccountCollector(metadataAsTags utils.MetadataAsTags) *ServiceAcc
 
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      serviceAccountName,
-			NodeType:                  orchestrator.K8sServiceAccount,
-			Version:                   serviceAccountVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 serviceAccountName,
+			NodeType:                             orchestrator.K8sServiceAccount,
+			Version:                              serviceAccountVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),
 	}

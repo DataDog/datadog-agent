@@ -48,14 +48,15 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 	}
 	return &CRCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  false,
-			IsManifestProducer:        true,
-			IsMetadataProducer:        false,
-			SupportsManifestBuffering: false,
-			Name:                      name,
-			NodeType:                  orchestrator.K8sCR,
-			Version:                   groupVersion,
+			IsDefaultVersion:                     true,
+			IsStable:                             false,
+			IsManifestProducer:                   true,
+			IsMetadataProducer:                   false,
+			SupportsManifestBuffering:            false,
+			Name:                                 name,
+			NodeType:                             orchestrator.K8sCR,
+			Version:                              groupVersion,
+			SupportsTerminatedResourceCollection: true,
 		},
 		gvr:       gv.WithResource(name),
 		processor: processors.NewProcessor(new(k8sProcessors.CRHandlers)),
