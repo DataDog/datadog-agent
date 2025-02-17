@@ -12,6 +12,7 @@ configure_make(
     lib_source = "@gnutls//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
+            "libgnutls.so"
         ],
     }),
     visibility = ["//visibility:public"],
@@ -20,4 +21,7 @@ configure_make(
         "//deps/libtasn1",
         "//deps/nettle",
     ],
+    env = {
+        "LD": "",
+    },
 )
