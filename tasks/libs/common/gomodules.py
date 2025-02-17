@@ -146,6 +146,8 @@ class GoModule:
     used_by_otel: bool = False
     # Used to load agent 6 modules from agent 7
     legacy_go_mod_version: bool | None = None
+    # Whether the module should replace internal modules
+    should_replace_internal_modules: bool = True
 
     @staticmethod
     def from_dict(path: str, data: dict[str, object]) -> GoModule:
