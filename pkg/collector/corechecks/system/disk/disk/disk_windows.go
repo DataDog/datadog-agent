@@ -28,7 +28,7 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 var mpr = win.NewLazySystemDLL("mpr.dll")
 var procWNetAddConnection2W = mpr.NewProc("WNetAddConnection2W")
 
-type NetResource struct {
+type netResource struct {
 	Scope       uint32
 	Type        uint32
 	DisplayType uint32
@@ -40,25 +40,25 @@ type NetResource struct {
 }
 
 var NetAddConnection = func(mountType, localName, remoteName, password, username string) error {
-	return WNetAddConnection2(localName, remoteName, password, username)
+	return wNetAddConnection2(localName, remoteName, password, username)
 }
 
-func createNetResource(localName, remoteName string) (NetResource, error) {
+func createNetResource(localName, remoteName string) (netResource, error) {
 	lpLocalName, err := win.UTF16PtrFromString(localName)
 	if err != nil {
-		return NetResource{}, fmt.Errorf("failed to convert local name to UTF16: %w", err)
+		return netResource{}, fmt.Errorf("failed to convert local name to UTF16: %w", err)
 	}
 	lpRemoteName, err := win.UTF16PtrFromString(remoteName)
 	if err != nil {
-		return NetResource{}, fmt.Errorf("failed to convert remote name to UTF16: %w", err)
+		return netResource{}, fmt.Errorf("failed to convert remote name to UTF16: %w", err)
 	}
-	return NetResource{
+	return netResource{
 		localName:  lpLocalName,
 		remoteName: lpRemoteName,
 	}, nil
 }
 
-func WNetAddConnection2(localName, remoteName, password, username string) error {
+func wNetAddConnection2(localName, remoteName, password, username string) error {
 	netResource, err := createNetResource(localName, remoteName)
 	if err != nil {
 		return fmt.Errorf("failed to create NetResource: %w", err)
