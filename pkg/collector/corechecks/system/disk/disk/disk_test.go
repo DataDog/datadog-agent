@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AGENTRUN) Fix revive linter
 //go:build !windows
 
 package disk_test
@@ -25,21 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
-
-// 	"bufio"
-// 	"bytes"
-// 	"errors"
-
-// 	"testing"
-
-// 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-// 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-// 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-// 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-// 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-// 	"github.com/stretchr/testify/assert"
-// 	"github.com/stretchr/testify/mock"
 
 var partitionsTrue = []gopsutil_disk.PartitionStat{
 	{
