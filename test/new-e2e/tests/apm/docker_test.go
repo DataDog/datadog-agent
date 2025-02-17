@@ -142,14 +142,24 @@ func (s *DockerFakeintakeSuite) TestIsTraceRootTag() {
 }
 
 func (s *DockerFakeintakeSuite) TestStatsForService() {
+	// Test both normal stats computed by agent, and client stats from tracer
+	s.testStatsForService(false)
+	s.testStatsForService(true)
+}
+
+func (s *DockerFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	service := fmt.Sprintf("tracegen-stats-%t-%s", enableClientSideStats, s.transport)
 	addSpanTags := "peer.hostname:foo,span.kind:client"
 	expectPeerTag := "peer.hostname:foo"
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})()
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{
+		transport:             s.transport,
+		addSpanTags:           addSpanTags,
+		enableClientSideStats: enableClientSideStats,
+	})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")

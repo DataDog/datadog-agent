@@ -41,14 +41,14 @@ def check_teams(_):
 
 
 @task
-def send_message(ctx: Context, pipeline_id: str, dry_run: bool = False):
+def send_message(_: Context, pipeline_id: str, dry_run: bool = False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --dry-run option to test this locally, without sending
     real slack messages.
     """
     if should_notify(pipeline_id):
-        pipeline_status.send_message(ctx, pipeline_id, dry_run)
+        pipeline_status.send_message(pipeline_id, dry_run)
     else:
         print("This pipeline is a non-conductor downstream pipeline, skipping notifications")
 
@@ -277,3 +277,14 @@ def close_failing_tests_stale_issues(_, dry_run=False):
                 print(f'Error closing issue {issue["key"]}: {e}', file=sys.stderr)
 
     print(f'Closed {n_closed} issues without failing tests')
+
+
+@task
+def post_message(_: Context, channel: str, message: str):
+    """
+    Post a message to a slack channel
+    """
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ['SLACK_API_TOKEN'])
+    client.chat_postMessage(channel=channel, text=message)
