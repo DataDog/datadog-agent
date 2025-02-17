@@ -27,7 +27,7 @@ def assign_owner(_, issue_id, dry_run=False):
         # Post message
         from slack_sdk import WebClient
 
-        client = WebClient(os.environ['SLACK_API_TOKEN'])
+        client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
         channel = next((chan for team, chan in GITHUB_SLACK_MAP.items() if owner.lower() in team), HELP_SLACK_CHANNEL)
         message = f':githubstatus_partial_outage: *New Community Issue*\n{issue.title} <{issue.html_url}|{gh.repo.name}#{issue_id}>\n'
         if channel == '#agent-ask-anything':
@@ -55,7 +55,7 @@ def ask_reviews(_, pr_id):
 
         from slack_sdk import WebClient
 
-        client = WebClient(os.environ['SLACK_API_TOKEN'])
+        client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
         emojis = client.emoji_list()
         waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
         for reviewer in reviewers:
