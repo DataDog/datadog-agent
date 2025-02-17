@@ -3,13 +3,13 @@ module github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

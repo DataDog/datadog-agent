@@ -33,9 +33,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-devel.0.20250129182827-bab631c10d61
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-devel.0.20250123185937-1feb84b482c8
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250114151552-463ab54482b4
@@ -85,7 +85,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
 	github.com/fsnotify/fsnotify v1.8.0
-	github.com/go-delve/delve v1.23.1
+	github.com/go-delve/delve v1.24.0
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.3.0
 	github.com/go-sql-driver/mysql v1.8.1
@@ -115,7 +115,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
-	github.com/mailru/easyjson v0.7.7
+	github.com/mailru/easyjson v0.9.0
 	github.com/mdlayher/netlink v1.7.2
 	github.com/miekg/dns v1.1.62
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
@@ -184,7 +184,7 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
-	golang.org/x/arch v0.13.0
+	golang.org/x/arch v0.14.0
 	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
 	golang.org/x/net v0.35.0
 	golang.org/x/sync v0.11.0
@@ -586,7 +586,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/common v0.60.0
+	github.com/DataDog/datadog-agent/pkg/util/common v0.62.3
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
@@ -604,7 +604,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
-	github.com/DataDog/datadog-agent/pkg/version v0.61.0
+	github.com/DataDog/datadog-agent/pkg/version v0.62.3
 	github.com/DataDog/go-libddwaf/v3 v3.5.2
 	github.com/DataDog/go-sqllexer v0.0.20
 	github.com/Datadog/dublin-traceroute v0.0.2
@@ -684,9 +684,7 @@ require (
 	github.com/Showmax/go-fqdn v1.0.0 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
-	github.com/alecthomas/assert/v2 v2.6.0 // indirect
 	github.com/alecthomas/participle/v2 v2.1.1 // indirect
-	github.com/alecthomas/repr v0.4.0 // indirect
 	github.com/anchore/go-struct-converter v0.0.0-20221118182256-c68fdcfa2092 // indirect
 	github.com/antchfx/xmlquery v1.4.3 // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
