@@ -1,0 +1,25 @@
+From cb5732cdf12f9798595169c3104d50724db428d0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Mon, 17 Feb 2025 12:05:06 +0100
+Subject: [PATCH] add missing include dirs
+
+---
+ CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fdeda6eb4..d4f858ebc 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -582,6 +582,8 @@ include_directories(
+ 	${OPENSSL_INCLUDE_DIR}
+ 	${PCRE_INCLUDE_DIRS}
+ 	${PCRE2_INCLUDE_DIRS}
++	${LIBXSLT_INCLUDE_DIR}
++    ${RPM_INCLUDE_DIR}
+ )
+ 
+ # Honor visibility properties for all target types
+-- 
+2.34.1
+
