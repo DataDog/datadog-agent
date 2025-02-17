@@ -70,6 +70,7 @@ http_archive(
     patch_tool = "patch",
     patches = [
         "//deps/python3:patches/0001-don-t-attempt-to-provide-soname.patch",
+        "//deps/python3:patches/0001-remove-inclusions-prior-to-Python.h.patch",
     ],
     sha256 = "85a4c1be906d20e5c5a69f2466b00da769c221d6a684acfd3a514dbf5bf10a66",
     strip_prefix = "Python-{0}".format(PYTHON3_VERSION),
