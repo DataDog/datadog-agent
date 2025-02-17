@@ -200,37 +200,62 @@ func TestNewInstrumentationConfig(t *testing.T) {
 }
 
 func TestTargetEnvVar(t *testing.T) {
-	expected := []Target{
+	tests := []struct {
+		name     string
+		expected []Target
+	}{
 		{
-			Name: "Billing Service",
-			PodSelector: &PodSelector{
-				MatchLabels: map[string]string{
-					"app": "billing-service",
-				},
-				MatchExpressions: []SelectorMatchExpression{
-					{
-						Key:      "env",
-						Operator: "In",
-						Values:   []string{"prod"},
+			name: "valid target",
+			expected: []Target{
+				{
+					Name: "Billing Service",
+					PodSelector: &PodSelector{
+						MatchLabels: map[string]string{
+							"app": "billing-service",
+						},
+						MatchExpressions: []SelectorMatchExpression{
+							{
+								Key:      "env",
+								Operator: "In",
+								Values:   []string{"prod"},
+							},
+						},
+					},
+					NamespaceSelector: &NamespaceSelector{
+						MatchNames: []string{"billing"},
+					},
+					TracerVersions: map[string]string{
+						"java": "default",
 					},
 				},
 			},
-			NamespaceSelector: &NamespaceSelector{
-				MatchNames: []string{"billing"},
-			},
-			TracerVersions: map[string]string{
-				"java": "default",
+		},
+		{
+			name: "target with many omitted fields",
+			expected: []Target{
+				{
+					Name: "Billing Service",
+					PodSelector: &PodSelector{
+						MatchLabels: map[string]string{
+							"app": "billing-service",
+						},
+					},
+				},
 			},
 		},
 	}
 
-	data, err := json.Marshal(expected)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
 
-	t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
+			t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
 
-	actual, err := NewInstrumentationConfig(configmock.New(t))
-	require.NoError(t, err)
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
 
-	require.Equal(t, expected, actual.Targets)
+			require.Equal(t, tt.expected, actual.Targets)
+		})
+	}
 }
