@@ -15,8 +15,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 )
 
 const spanKey = spanContextKey("span_context")
@@ -26,7 +24,7 @@ type spanContextKey string
 // Span represents a span.
 type Span struct {
 	mu       sync.Mutex
-	span     internaltelemetry.Span
+	span     span
 	finished atomic.Bool
 }
 
@@ -38,7 +36,7 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 		}
 	}
 	s := &Span{
-		span: internaltelemetry.Span{
+		span: span{
 			TraceID:  traceID,
 			ParentID: parentID,
 			SpanID:   rand.Uint64(),

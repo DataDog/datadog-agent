@@ -19,51 +19,6 @@ func (_m *mockCollector) EXPECT() *mockCollector_Expecter {
 	return &mockCollector_Expecter{mock: &_m.Mock}
 }
 
-// Close provides a mock function with no fields
-func (_m *mockCollector) Close() error {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for Close")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func() error); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// mockCollector_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
-type mockCollector_Close_Call struct {
-	*mock.Call
-}
-
-// Close is a helper method to define mock.On call
-func (_e *mockCollector_Expecter) Close() *mockCollector_Close_Call {
-	return &mockCollector_Close_Call{Call: _e.mock.On("Close")}
-}
-
-func (_c *mockCollector_Close_Call) Run(run func()) *mockCollector_Close_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *mockCollector_Close_Call) Return(_a0 error) *mockCollector_Close_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *mockCollector_Close_Call) RunAndReturn(run func() error) *mockCollector_Close_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Collect provides a mock function with no fields
 func (_m *mockCollector) Collect() ([]Metric, error) {
 	ret := _m.Called()
@@ -122,18 +77,18 @@ func (_c *mockCollector_Collect_Call) RunAndReturn(run func() ([]Metric, error))
 }
 
 // Name provides a mock function with no fields
-func (_m *mockCollector) Name() string {
+func (_m *mockCollector) Name() CollectorName {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Name")
 	}
 
-	var r0 string
-	if rf, ok := ret.Get(0).(func() string); ok {
+	var r0 CollectorName
+	if rf, ok := ret.Get(0).(func() CollectorName); ok {
 		r0 = rf()
 	} else {
-		r0 = ret.Get(0).(string)
+		r0 = ret.Get(0).(CollectorName)
 	}
 
 	return r0
@@ -156,12 +111,12 @@ func (_c *mockCollector_Name_Call) Run(run func()) *mockCollector_Name_Call {
 	return _c
 }
 
-func (_c *mockCollector_Name_Call) Return(_a0 string) *mockCollector_Name_Call {
+func (_c *mockCollector_Name_Call) Return(_a0 CollectorName) *mockCollector_Name_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *mockCollector_Name_Call) RunAndReturn(run func() string) *mockCollector_Name_Call {
+func (_c *mockCollector_Name_Call) RunAndReturn(run func() CollectorName) *mockCollector_Name_Call {
 	_c.Call.Return(run)
 	return _c
 }

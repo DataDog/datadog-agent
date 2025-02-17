@@ -602,10 +602,7 @@ def get_qualification_rc_tag(ctx, release_branch):
 
 
 @task
-def run_rc_pipeline(ctx, release_branch, gitlab_tag=None, k8s_deployments=False):
-    if not gitlab_tag:
-        gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
-
+def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
     run(
         ctx,
         git_ref=gitlab_tag,
@@ -615,6 +612,15 @@ def run_rc_pipeline(ctx, release_branch, gitlab_tag=None, k8s_deployments=False)
         rc_build=True,
         rc_k8s_deployments=k8s_deployments,
     )
+
+
+@task
+def alert_ci_on_call(ctx, release_branch, slack_webhook):
+    gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
+    payload = {
+        'message': f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ninv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
+    }
+    send_slack_msg(ctx, payload, slack_webhook)
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
