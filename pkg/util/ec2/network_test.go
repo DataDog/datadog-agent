@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetPublicIPv4(t *testing.T) {
@@ -38,8 +38,9 @@ func TestGetPublicIPv4(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+	conf := configmock.New(t)
+	defer resetPackageVars(conf)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := GetPublicIPv4(ctx)
 	require.NoError(t, err)
@@ -70,8 +71,9 @@ func TestGetNetworkID(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	tokenURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+	conf := configmock.New(t)
+	defer resetPackageVars(conf)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := GetNetworkID(ctx)
 	assert.NoError(t, err)
@@ -93,8 +95,9 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	tokenURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+	conf := configmock.New(t)
+	defer resetPackageVars(conf)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
@@ -130,8 +133,9 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	tokenURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+	conf := configmock.New(t)
+	defer resetPackageVars(conf)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
