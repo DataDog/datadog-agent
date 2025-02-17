@@ -9,10 +9,16 @@ configure_make(
     lib_source = "@gmp//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [
+            "libgmp.so",
+            "libgmp.so.10",
+            "libgmp.so.10.5.0",
         ],
     }),
     visibility = ["//visibility:public"],
     deps = [
         "//deps/nettle",
     ],
+    env = {
+        "LD": "",
+    },
 )
