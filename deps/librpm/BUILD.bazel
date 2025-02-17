@@ -29,6 +29,9 @@ configure_make(
             "librpmio.so",
         ],
     }),
+    out_data_dirs = [
+        "lib/pkgconfig",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//deps/elfutils",
