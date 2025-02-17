@@ -51,14 +51,10 @@ func setupDMIForNotEC2(t *testing.T) {
 }
 
 func TestIsDefaultHostname(t *testing.T) {
-	const key = "ec2_use_windows_prefix_detection"
 	conf := configmock.New(t)
-	defer resetPackageVars()
-	prefixDetection := conf.GetBool(key)
-	defer conf.SetDefault(key, prefixDetection)
 
 	for _, prefix := range []bool{true, false} {
-		conf.SetDefault(key, prefix)
+		conf.SetDefault("ec2_use_windows_prefix_detection", prefix)
 
 		assert.True(t, IsDefaultHostname("IP-FOO"))
 		assert.True(t, IsDefaultHostname("domuarigato"))
@@ -68,12 +64,8 @@ func TestIsDefaultHostname(t *testing.T) {
 }
 
 func TestIsDefaultHostnameForIntake(t *testing.T) {
-	const key = "ec2_use_windows_prefix_detection"
 	conf := configmock.New(t)
-	defer resetPackageVars()
-	prefixDetection := conf.GetBool(key)
-	conf.SetDefault(key, true)
-	defer conf.SetDefault(key, prefixDetection)
+	conf.SetDefault("ec2_use_windows_prefix_detection", true)
 
 	assert.True(t, IsDefaultHostnameForIntake("IP-FOO"))
 	assert.True(t, IsDefaultHostnameForIntake("domuarigato"))
@@ -185,6 +177,7 @@ func TestGetLegacyResolutionInstanceID(t *testing.T) {
 }
 
 func TestGetHostAliases(t *testing.T) {
+	conf := configmock.New(t)
 	tests := []struct {
 		name          string
 		instanceID    string
@@ -223,9 +216,7 @@ func TestGetHostAliases(t *testing.T) {
 			} else {
 				setupDMIForNotEC2(t)
 			}
-			conf := configmock.New(t)
 
-			configmock.New(t)
 			if tc.disableDMI {
 				conf.SetWithoutSource("ec2_use_dmi", false)
 			} else {
@@ -387,6 +378,7 @@ func TestGetToken(t *testing.T) {
 }
 
 func TestMetedataRequestWithToken(t *testing.T) {
+	conf := configmock.New(t)
 	testCases := []struct {
 		name        string
 		configKey   string
@@ -455,7 +447,6 @@ func TestMetedataRequestWithToken(t *testing.T) {
 			tokenURL = ts.URL
 
 			// Set test-specific configuration
-			conf := configmock.New(t)
 			defer resetPackageVars()
 			conf.SetDefault(tc.configKey, tc.configValue)
 			conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -591,8 +582,6 @@ func TestGetNTPHostsDisabledDMI(t *testing.T) {
 
 func TestGetNTPHostsNotEC2(t *testing.T) {
 	setupDMIForNotEC2(t)
-	configmock.New(t)
-	defer resetPackageVars()
 	metadataURL = ""
 
 	actualHosts := GetNTPHosts(context.Background())
