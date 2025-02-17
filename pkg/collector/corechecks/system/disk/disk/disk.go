@@ -372,16 +372,24 @@ func (c *Check) configureIncludeDevice(instanceConfig map[interface{}]interface{
 }
 
 func (c *Check) configureExcludeFileSystem(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
+	defaultFileSystems := []interface{}{"iso9660$", "tracefs$"}
+	var fileSystemExclude []interface{}
 	for _, key := range []string{"file_system_global_exclude", "file_system_global_blacklist"} {
-		if fileSystemExclude, ok := initConfig[key].([]interface{}); ok {
-			for _, val := range fileSystemExclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *regexp)
-				}
+		if val, ok := initConfig[key].([]interface{}); ok {
+			fileSystemExclude = val
+			break // Stop at the first valid key found
+		}
+	}
+	// Use default values if neither key was found
+	if fileSystemExclude == nil {
+		fileSystemExclude = defaultFileSystems
+	}
+	for _, val := range fileSystemExclude {
+		if strVal, ok := val.(string); ok {
+			if re, err := regexp.Compile(strVal); err == nil {
+				c.cfg.excludedFilesystems = append(c.cfg.excludedFilesystems, *re)
+			} else {
+				return err
 			}
 		}
 	}
@@ -419,16 +427,24 @@ func (c *Check) configureIncludeFileSystem(conf map[interface{}]interface{}) err
 }
 
 func (c *Check) configureExcludeMountPoint(instanceConfig map[interface{}]interface{}, initConfig map[interface{}]interface{}) error {
+	defaultMountPoints := []interface{}{"(/host)?/proc/sys/fs/binfmt_misc$"}
+	var mountPointExclude []interface{}
 	for _, key := range []string{"mount_point_global_exclude", "mount_point_global_blacklist"} {
-		if mountPointExclude, ok := initConfig[key].([]interface{}); ok {
-			for _, val := range mountPointExclude {
-				if strVal, ok := val.(string); ok {
-					regexp, err := regexp.Compile(strVal)
-					if err != nil {
-						return err
-					}
-					c.cfg.excludedMountpoints = append(c.cfg.excludedMountpoints, *regexp)
-				}
+		if val, ok := initConfig[key].([]interface{}); ok {
+			mountPointExclude = val
+			break // Stop searching after the first valid key is found
+		}
+	}
+	// Use default values if neither key was found
+	if mountPointExclude == nil {
+		mountPointExclude = defaultMountPoints
+	}
+	for _, val := range mountPointExclude {
+		if strVal, ok := val.(string); ok {
+			if re, err := regexp.Compile(strVal); err == nil {
+				c.cfg.excludedMountpoints = append(c.cfg.excludedMountpoints, *re)
+			} else {
+				return err
 			}
 		}
 	}
