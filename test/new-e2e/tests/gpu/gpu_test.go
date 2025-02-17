@@ -163,7 +163,7 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
-		metricNames := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage"}
+		metricNames := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage", "gpu.device.total"}
 		for _, metricName := range metricNames {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
