@@ -70,7 +70,7 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
-	c := util.GetClient() // FIX IPC: get certificates right then remove this option
+	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err

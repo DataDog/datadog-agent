@@ -170,7 +170,7 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	// For first try, ask the agent to build the flare
 	s.log.Debug("Asking the agent to build the flare archive.")
 
-	c := util.GetClient() // FIX IPC: get certificates right then remove this option
+	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
