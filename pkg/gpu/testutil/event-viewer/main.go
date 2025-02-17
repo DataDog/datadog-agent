@@ -27,12 +27,14 @@ func main() {
 		log.Fatalf("Error parsing events file: %v", err)
 	}
 
-	for _, ev := range events {
-		evStr, err := testutil.EventToString(ev)
+	lastTimestamp := uint64(0)
+	for i, ev := range events {
+		evStr, err := testutil.EventToString(ev, lastTimestamp)
 		if err != nil {
 			log.Fatalf("Error converting event to string: %v", err)
 		}
 
-		fmt.Println(evStr)
+		lastTimestamp = testutil.GetEventTimestamp(ev)
+		fmt.Printf("%d: %s\n", i, evStr)
 	}
 }
