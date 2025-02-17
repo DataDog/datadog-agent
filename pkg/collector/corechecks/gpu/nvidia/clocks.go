@@ -37,6 +37,11 @@ func newClocksCollector(device nvml.Device, tags []string) (Collector, error) {
 	}, nil
 }
 
+func (c *clocksCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
+}
+
 // Collect collects clock throttle reason metrics from the NVML device.
 func (c *clocksCollector) Collect() ([]Metric, error) {
 	allReasons, ret := c.device.GetCurrentClocksThrottleReasons()
