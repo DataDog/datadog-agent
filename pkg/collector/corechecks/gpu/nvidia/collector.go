@@ -20,6 +20,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,6 +43,7 @@ type Metric struct {
 	Name  string   // Name holds the name of the metric.
 	Value float64  // Value holds the value of the metric.
 	Tags  []string // Tags holds the tags associated with the metric.
+	Type  metrics.MetricType
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
