@@ -164,10 +164,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 	if err != nil {
 		return err
 	}
-	return c.diskConfigure(data, initConfig)
+	return c.configureDiskCheck(data, initConfig)
 }
 
-func (c *Check) diskConfigure(data integration.Data, initConfig integration.Data) error {
+func (c *Check) configureDiskCheck(data integration.Data, initConfig integration.Data) error {
 	unmarshalledInstanceConfig := make(map[interface{}]interface{})
 	err := yaml.Unmarshal([]byte(data), &unmarshalledInstanceConfig)
 	if err != nil {
