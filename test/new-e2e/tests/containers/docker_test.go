@@ -75,6 +75,78 @@ func (suite *DockerSuite) TestDockerMetrics() {
 			},
 		})
 	}
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "docker.images.available",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{},
+			Value: &testMetricExpectValueArgs{
+				Min: 4,
+				Max: 4,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "docker.images.intermediate",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{},
+			Value: &testMetricExpectValueArgs{
+				Min: 0,
+				Max: 0,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "docker.containers.running",
+			Tags: []string{`^short_image:redis$`},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
+				`^image_id:sha256:`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
+				`^image_tag:latest$`,
+				`^short_image:redis$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Min: 1,
+				Max: 1,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "docker.containers.running.total",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{},
+			Value: &testMetricExpectValueArgs{
+				Min: 5,
+				Max: 5,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "docker.containers.stopped.total",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{},
+			Value: &testMetricExpectValueArgs{
+				Min: 0,
+				Max: 0,
+			},
+		},
+	})
 }
 
 func (suite *DockerSuite) TestDSDWithUDS() {
