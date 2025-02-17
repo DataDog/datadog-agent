@@ -336,7 +336,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
-	fmt.Printf("Successfully connected to SNMP agent on %s:%d\n", snmp.LocalAddr, snmp.Port)
+	fmt.Printf("Successfully connected to SNMP agent on %s:%d\n", snmp.Target, snmp.Port)
 	fmt.Printf("Starting the scan for device: %s\n", deviceAddr)
 	err = snmpScanner.RunDeviceScan(snmp, namespace, deviceID)
 	if err != nil {
