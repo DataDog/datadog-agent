@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package datadog.trace;
+
+option go_package="pkg/proto/pbgo/trace";
+
+// Optional fields, when unset, will be sent to intake with a value of "unknown"
+// protoc-gen-c does not support optional fields, so for now, set the fields
+// marked optional to the empty string.
+message Telemetry {
+  string request_type = 1;
+  uint32 seq_id = 2;
+  string runtime_id = 3;
+  uint64 tracer_time_unix = 4;
+  string payload_namespace = 5;
+  repeated Metric series = 6;
+  string app_service_name = 7; // optional
+  string app_tracer_version = 8; // optional 
+  string app_language_name = 9; // optional
+  string app_language_version = 10; // optional
+  string hostname = 11; // optional
+}
+
+
+
+message Metric {
+  string metric = 1;
+  string type = 2;
+  bool common = 3;
+  repeated string tags = 4;
+  repeated uint64 points = 5;
+}
