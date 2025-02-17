@@ -11,6 +11,8 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 const clocksMetricsPrefix = "clock.throttle_reasons"
@@ -44,19 +46,20 @@ func (c *clocksCollector) Collect() ([]Metric, error) {
 		return nil, fmt.Errorf("cannot get throttle reasons: %s", nvml.ErrorString(ret))
 	}
 
-	metrics := make([]Metric, 0, len(allThrottleReasons))
+	metricValues := make([]Metric, 0, len(allThrottleReasons))
 	for name, bit := range allThrottleReasons {
 		value := boolToFloat((allReasons & bit) != 0)
 		metric := Metric{
 			Name:  fmt.Sprintf("%s.%s", clocksMetricsPrefix, name),
 			Value: value,
 			Tags:  c.tags,
+			Type:  metrics.GaugeType,
 		}
-		metrics = append(metrics, metric)
+		metricValues = append(metricValues, metric)
 	}
 
 	// Return the collected metrics
-	return metrics, nil
+	return metricValues, nil
 }
 
 // Name returns the name of the collector.

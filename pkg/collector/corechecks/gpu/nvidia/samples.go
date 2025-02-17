@@ -14,6 +14,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -143,6 +144,7 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 			Name:  metric.name,
 			Value: total,
 			Tags:  c.tags,
+			Type:  metrics.GaugeType,
 		})
 	}
 

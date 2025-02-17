@@ -14,30 +14,31 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 var allDeviceMetrics = []deviceMetric{
-	{"pci.throughput.tx", getTxPciThroughput},
-	{"pci.throughput.rx", getRxPciThroughput},
-	{"decoder_utiliation", getDecoderUtilization},
-	{"dram_active", getDramActive},
-	{"encoder_utilization", getEncoderUtilization},
-	{"fan_speed", getFanSpeed},
-	{"power.management_limit", getPowerManagementLimit},
-	{"power.usage", getPowerUsage},
-	{"performance_state", getPerformanceState},
-	{"clock.speed.sm", getCurrentSMClockSpeed},
-	{"clock.speed.memory", getCurrentMemoryClockSpeed},
-	{"clock.speed.graphics", getCurrentGraphicsClockSpeed},
-	{"clock.speed.video", getCurrentVideoClockSpeed},
-	{"clock.speed.sm.max", getMaxSMClockSpeed},
-	{"clock.speed.memory.max", getMaxMemoryClockSpeed},
-	{"clock.speed.graphics.max", getMaxGraphicsClockSpeed},
-	{"clock.speed.video.max", getMaxVideoClockSpeed},
-	{"temperature", getTemperature},
-	{"total_energy_consumption", getTotalEnergyConsumption},
-	{"sm_active", getSMActive},
+	{"pci.throughput.tx", getTxPciThroughput, metrics.GaugeType},
+	{"pci.throughput.rx", getRxPciThroughput, metrics.GaugeType},
+	{"decoder_utiliation", getDecoderUtilization, metrics.GaugeType},
+	{"dram_active", getDramActive, metrics.GaugeType},
+	{"encoder_utilization", getEncoderUtilization, metrics.GaugeType},
+	{"fan_speed", getFanSpeed, metrics.GaugeType},
+	{"power.management_limit", getPowerManagementLimit, metrics.GaugeType},
+	{"power.usage", getPowerUsage, metrics.GaugeType},
+	{"performance_state", getPerformanceState, metrics.GaugeType},
+	{"clock.speed.sm", getCurrentSMClockSpeed, metrics.GaugeType},
+	{"clock.speed.memory", getCurrentMemoryClockSpeed, metrics.GaugeType},
+	{"clock.speed.graphics", getCurrentGraphicsClockSpeed, metrics.GaugeType},
+	{"clock.speed.video", getCurrentVideoClockSpeed, metrics.GaugeType},
+	{"clock.speed.sm.max", getMaxSMClockSpeed, metrics.GaugeType},
+	{"clock.speed.memory.max", getMaxMemoryClockSpeed, metrics.GaugeType},
+	{"clock.speed.graphics.max", getMaxGraphicsClockSpeed, metrics.GaugeType},
+	{"clock.speed.video.max", getMaxVideoClockSpeed, metrics.GaugeType},
+	{"temperature", getTemperature, metrics.GaugeType},
+	{"total_energy_consumption", getTotalEnergyConsumption, metrics.CountType},
+	{"sm_active", getSMActive, metrics.GaugeType},
 }
 
 type deviceCollector struct {
@@ -83,8 +84,9 @@ type deviceMetricGetter func(nvml.Device) (float64, nvml.Return)
 // deviceMetric represents a metric that can be collected from an NVML device, using the NVML
 // API on that specific device.
 type deviceMetric struct {
-	name   string
-	getter deviceMetricGetter
+	name       string
+	getter     deviceMetricGetter
+	metricType metrics.MetricType
 }
 
 // Collect collects all the metrics from the given NVML device.
@@ -103,6 +105,7 @@ func (c *deviceCollector) Collect() ([]Metric, error) {
 			Name:  metric.name,
 			Value: value,
 			Tags:  c.tags,
+			Type:  metric.metricType,
 		})
 
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -250,7 +251,14 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 
 		for _, metric := range metrics {
 			metricName := gpuMetricsNs + metric.Name
-			snd.Gauge(metricName, metric.Value, "", metric.Tags)
+			switch metric.Type {
+			case ddmetrics.CountType:
+				snd.Gauge(metricName, metric.Value, "", metric.Tags)
+			case ddmetrics.GaugeType:
+				snd.Gauge(metricName, metric.Value, "", metric.Tags)
+			default:
+				return fmt.Errorf("Unsupported metric type %s for metric %s", metric.Type, metricName)
+			}
 		}
 
 		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), string(collector.Name()))
