@@ -7,6 +7,7 @@
 package middleware
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -78,7 +79,17 @@ func (c *CheckWrapper) Configure(senderManager sender.SenderManager, integration
 	if c.senderManager == nil {
 		c.senderManager = senderManager
 	}
-	return c.inner.Configure(c.senderManager, integrationConfigDigest, config, initConfig, source)
+	err := c.inner.Configure(c.senderManager, integrationConfigDigest, config, initConfig, source)
+
+	if err != nil {
+		return err
+	}
+
+	if c.inner.IsHAEnabled() && !c.inner.IsHASupported() {
+		return fmt.Errorf("High Availability is enabled for check %s but this integration does not support it", string(c.ID()))
+	}
+
+	return nil
 }
 
 // Interval implements Check#Interval

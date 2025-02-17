@@ -72,19 +72,3 @@ func TestCommonConfigureCustomID(t *testing.T) {
 	assert.Equal(t, string(mycheck.ID()), "test:foobar:a934df33209f45f4")
 	mockSender.AssertExpectations(t)
 }
-
-func TestCommonConfigureNotHASupported(t *testing.T) {
-	checkName := "test"
-	mycheck := &dummyCheck{
-		CheckBase: NewCheckBase(checkName),
-	}
-	mockSender := mocksender.NewMockSender(mycheck.ID())
-
-	err := mycheck.CommonConfigure(mockSender.GetSenderManager(), nil, []byte(haConfig), "test")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "High Availability is enabled for check test but this integration does not support it")
-
-	err = mycheck.CommonConfigure(mockSender.GetSenderManager(), []byte(haConfig), nil, "test")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "High Availability is enabled for check test but this integration does not support it")
-}

@@ -693,7 +693,7 @@ func testConfigureHA(t *testing.T) {
 	defer func() { rtloader = nil }()
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	c, err := NewPythonFakeCheck(senderManager)
+	c, err := NewPythonFakeHACheck(senderManager)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -723,7 +723,19 @@ func testConfigureHA(t *testing.T) {
 
 // NewPythonFakeCheck create a fake PythonCheck
 func NewPythonFakeCheck(senderManager sender.SenderManager) (*PythonCheck, error) {
-	c, err := NewPythonCheck(senderManager, "fake_check", nil)
+	c, err := NewPythonCheck(senderManager, "fake_check", nil, false)
+
+	// Remove check finalizer that may trigger race condition while testing
+	if err == nil {
+		runtime.SetFinalizer(c, nil)
+	}
+
+	return c, err
+}
+
+// NewPythonFakeCheck create a fake PythonCheck
+func NewPythonFakeHACheck(senderManager sender.SenderManager) (*PythonCheck, error) {
+	c, err := NewPythonCheck(senderManager, "fake_check", nil, true)
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {

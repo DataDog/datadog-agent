@@ -153,9 +153,6 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConf
 
 		if commonOptions.HAEnabled != nil {
 			c.haEnabled = *commonOptions.HAEnabled
-			if c.haEnabled && !c.IsHASupported() {
-				return fmt.Errorf("High Availability is enabled for check %s but this integration does not support it", string(c.ID()))
-			}
 		}
 
 		c.source = source
