@@ -217,11 +217,7 @@ func TestGetHostAliases(t *testing.T) {
 				setupDMIForNotEC2(t)
 			}
 
-			if tc.disableDMI {
-				conf.SetWithoutSource("ec2_use_dmi", false)
-			} else {
-				conf.SetWithoutSource("ec2_use_dmi", true)
-			}
+			conf.SetWithoutSource("ec2_use_dmi", !tc.disableDMI)
 
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
