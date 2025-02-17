@@ -115,14 +115,14 @@ func TestWithInsecureTransport(t *testing.T) {
 	knownServer := httptest.NewUnstartedServer(http.HandlerFunc(knownHandler))
 	knownServer.TLS = GetTLSServerConfig()
 	knownServer.StartTLS()
-	defer knownServer.Close()
+	t.Cleanup(knownServer.Close)
 
 	// Spinning up server with self-signed cert
 	unknownHandler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("insecure"))
 	}
 	unknownServer := httptest.NewTLSServer(http.HandlerFunc(unknownHandler))
-	defer unknownServer.Close()
+	t.Cleanup(unknownServer.Close)
 
 	t.Run("secure client with known server: must succeed", func(t *testing.T) {
 		// Intenting a secure request

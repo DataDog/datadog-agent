@@ -36,6 +36,7 @@ func TestIPCEndpointTestSuite(t *testing.T) {
 	dcaToken = ""
 	clientTLSConfig = nil
 	serverTLSConfig = nil
+	initSource = uninitialized
 
 	// creating test suite
 	testSuite := new(IPCEndpointTestSuite)
@@ -56,7 +57,7 @@ func TestIPCEndpointTestSuite(t *testing.T) {
 	suite.Run(t, testSuite)
 }
 
-func (suite *IPCEndpointTestSuite) setTestServerAndConfig(t *testing.T, ts *httptest.Server, isHTTPS bool) {
+func (suite *IPCEndpointTestSuite) setTestServerAndConfig(t *testing.T, ts *httptest.Server, isHTTPS bool) func() {
 	if isHTTPS {
 		ts.TLS = GetTLSServerConfig()
 		ts.StartTLS()
@@ -70,6 +71,12 @@ func (suite *IPCEndpointTestSuite) setTestServerAndConfig(t *testing.T, ts *http
 	localHost, localPort, _ := net.SplitHostPort(addr.Host)
 	suite.conf.Set("cmd_host", localHost, pkgconfigmodel.SourceAgentRuntime)
 	suite.conf.Set("cmd_port", localPort, pkgconfigmodel.SourceAgentRuntime)
+
+	return func() {
+		ts.Close()
+		suite.conf.UnsetForSource("cmd_host", pkgconfigmodel.SourceAgentRuntime)
+		suite.conf.UnsetForSource("cmd_port", pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 func (suite *IPCEndpointTestSuite) TestNewIPCEndpoint() {
@@ -81,7 +88,7 @@ func (suite *IPCEndpointTestSuite) TestNewIPCEndpoint() {
 
 	// test the endpoint construction
 	end, err := NewIPCEndpoint(suite.conf, "test/api")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, end.target.String(), "https://localhost:6789/test/api")
 }
 
@@ -102,11 +109,11 @@ func (suite *IPCEndpointTestSuite) TestIPCEndpointDoGet() {
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
 	}))
-	defer ts.Close()
+	clean := suite.setTestServerAndConfig(t, ts, true)
+	defer clean()
 
-	suite.setTestServerAndConfig(t, ts, true)
 	end, err := NewIPCEndpoint(suite.conf, "test/api")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// test that DoGet will hit the endpoint url
 	res, err := end.DoGet()
@@ -124,13 +131,13 @@ func (suite *IPCEndpointTestSuite) TestIPCEndpointGetWithHTTPClientAndNonTLS() {
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
 	}))
-	defer ts.Close()
-
 	// create non-TLS client and use the "http" protocol
-	suite.setTestServerAndConfig(t, ts, false)
+	clean := suite.setTestServerAndConfig(t, ts, false)
+	defer clean()
+
 	client := http.Client{}
 	end, err := NewIPCEndpoint(suite.conf, "test/api", WithHTTPClient(&client), WithURLScheme("http"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// test that DoGet will hit the endpoint url
 	res, err := end.DoGet()
@@ -147,16 +154,16 @@ func (suite *IPCEndpointTestSuite) TestIPCEndpointGetWithValues() {
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
 	}))
-	defer ts.Close()
+	clean := suite.setTestServerAndConfig(t, ts, true)
+	defer clean()
 
-	suite.setTestServerAndConfig(t, ts, true)
 	// set url values for GET request
 	v := url.Values{}
 	v.Set("verbose", "true")
 
 	// test construction with option for url.Values
 	end, err := NewIPCEndpoint(suite.conf, "test/api")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// test that DoGet will use query parameters from the url.Values
 	res, err := end.DoGet(WithValues(v))
@@ -171,15 +178,15 @@ func (suite *IPCEndpointTestSuite) TestIPCEndpointGetWithHostAndPort() {
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
 	}))
-	defer ts.Close()
+	clean := suite.setTestServerAndConfig(t, ts, true)
+	defer clean()
 
-	suite.setTestServerAndConfig(t, ts, true)
 	// modify the config so that it uses a different setting for the cmd_host
 	suite.conf.Set("process_config.cmd_host", "127.0.0.1", pkgconfigmodel.SourceAgentRuntime)
 
 	// test construction with alternate values for the host and port
 	end, err := NewIPCEndpoint(suite.conf, "test/api", WithHostAndPort(suite.conf.GetString("process_config.cmd_host"), suite.conf.GetInt("cmd_port")))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// test that host provided by WithHostAndPort is used for the endpoint
 	res, err := end.DoGet()
@@ -194,9 +201,8 @@ func (suite *IPCEndpointTestSuite) TestIPCEndpointDeprecatedIPCAddress() {
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
 	}))
-	defer ts.Close()
-
-	suite.setTestServerAndConfig(t, ts, true)
+	clean := suite.setTestServerAndConfig(t, ts, true)
+	defer clean()
 	// Use the deprecated (but still supported) option "ipc_address"
 	suite.conf.UnsetForSource("cmd_host", pkgconfigmodel.SourceAgentRuntime)
 	suite.conf.Set("ipc_address", "127.0.0.1", pkgconfigmodel.SourceAgentRuntime)
@@ -204,7 +210,7 @@ func (suite *IPCEndpointTestSuite) TestIPCEndpointDeprecatedIPCAddress() {
 
 	// test construction, uses ipc_address instead of cmd_host
 	end, err := NewIPCEndpoint(suite.conf, "test/api")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// test that host provided by "ipc_address" is used for the endpoint
 	res, err := end.DoGet()
@@ -219,9 +225,9 @@ func (suite *IPCEndpointTestSuite) TestIPCEndpointErrorText() {
 		w.WriteHeader(400)
 		w.Write([]byte("bad request"))
 	}))
-	defer ts.Close()
+	clean := suite.setTestServerAndConfig(t, ts, true)
+	defer clean()
 
-	suite.setTestServerAndConfig(t, ts, true)
 	end, err := NewIPCEndpoint(suite.conf, "test/api")
 	require.NoError(t, err)
 
@@ -239,9 +245,9 @@ func (suite *IPCEndpointTestSuite) TestIPCEndpointErrorMap() {
 		})
 		w.Write(data)
 	}))
-	defer ts.Close()
+	clean := suite.setTestServerAndConfig(t, ts, true)
+	defer clean()
 
-	suite.setTestServerAndConfig(t, ts, true)
 	end, err := NewIPCEndpoint(suite.conf, "test/api")
 	require.NoError(t, err)
 
