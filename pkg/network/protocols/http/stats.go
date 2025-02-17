@@ -10,11 +10,11 @@ import (
 
 	"github.com/DataDog/sketches-go/ddsketch"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Interner is used to intern strings to save memory allocations.
@@ -22,11 +22,6 @@ var Interner = intern.NewStringInterner()
 
 // Method is the type used to represent HTTP request methods
 type Method uint8
-
-// RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
-// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
-// will be between 99 and 101
-const RelativeAccuracy = 0.01
 
 const (
 	// MethodUnknown represents an unknown request method
@@ -131,18 +126,8 @@ type RequestStat struct {
 	DynamicTags []string
 }
 
-var (
-	sketchesPool = ddsync.NewTypedPool[ddsketch.DDSketch](func() *ddsketch.DDSketch {
-		latencies, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
-		if err != nil {
-			return nil
-		}
-		return latencies
-	})
-)
-
 func (r *RequestStat) initSketch() error {
-	latencies := sketchesPool.Get()
+	latencies := protocols.SketchesPool.Get()
 	if latencies == nil {
 		return errors.New("error recording http transaction latency: could not create new ddsketch")
 	}
@@ -153,7 +138,7 @@ func (r *RequestStat) initSketch() error {
 func (r *RequestStat) close() {
 	if r.Latencies != nil {
 		r.Latencies.Clear()
-		sketchesPool.Put(r.Latencies)
+		protocols.SketchesPool.Put(r.Latencies)
 	}
 }
 
