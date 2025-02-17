@@ -36,7 +36,7 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 		return err
 	}
 	log.Debugf("lsblk output: %s", rawOutput)
-	lines := strings.Split(strings.TrimSpace(string(rawOutput)), "\n")
+	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		log.Debugf("processing line: '%s'", line)
