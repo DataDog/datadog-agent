@@ -189,7 +189,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		}
 		main.useSSL = !logsConfig.devModeNoSSL()
 	}
-	enableAPIKeyRefresh(logsConfig)
+	EnableAPIKeyRefresh(logsConfig)
 	additionals := loadTCPAdditionalEndpoints(main, logsConfig)
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
@@ -247,7 +247,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.Port = port
 		main.useSSL = useSSL
 	}
-	enableAPIKeyRefresh(logsConfig)
+	EnableAPIKeyRefresh(logsConfig)
 	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin)
 
 	// Add in the MRF endpoint if MRF is enabled.
