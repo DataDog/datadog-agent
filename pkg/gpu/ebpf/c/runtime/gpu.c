@@ -166,6 +166,42 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
     return 0;
 }
 
+
+SEC("uprobe/cudaDeviceSynchronize")
+int BPF_UPROBE(uprobe__cudaDeviceSynchronize) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    __u64 stream = 0;
+
+    log_debug("cudaDeviceSynchronize: pid=%llu", pid_tgid);
+    bpf_map_update_with_telemetry(cuda_sync_cache, &pid_tgid, &stream, BPF_ANY);
+
+    return 0;
+}
+
+SEC("uretprobe/cudaDeviceSynchronize")
+int BPF_URETPROBE(uretprobe__cudaDeviceSynchronize) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    __u64 *stream = NULL;
+    cuda_sync_t event = { 0 };
+
+    log_debug("cudaStreamSyncronize[ret]: pid=%llx\n", pid_tgid);
+
+    stream = bpf_map_lookup_elem(&cuda_sync_cache, &pid_tgid);
+    if (!stream) {
+        log_debug("cudaStreamSyncronize[ret]: failed to find cudaStreamSyncronize request");
+        return 0;
+    }
+
+    fill_header(&event.header, *stream, cuda_sync);
+
+    log_debug("cudaDeviceSynchronize[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", event.header.pid_tgid, event.header.stream_id);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
+    bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
+
+    return 0;
+}
+
 SEC("uprobe/cudaSetDevice")
 int BPF_UPROBE(uprobe__cudaSetDevice, int device) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();

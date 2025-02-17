@@ -25,8 +25,14 @@ typedef struct {
     char cgroup[MAX_CONTAINER_ID_LEN];
 } cuda_event_header_t;
 
+typedef enum {
+    cudaSyncStream,
+    cudaSyncDevice
+} cuda_sync_type_t;
+
 typedef struct {
     cuda_event_header_t header;
+    cuda_sync_type_t sync_type;
 } cuda_sync_t;
 
 typedef struct {

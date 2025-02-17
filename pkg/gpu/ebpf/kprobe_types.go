@@ -35,6 +35,9 @@ const CudaEventTypeSetDevice CudaEventType = C.cuda_set_device
 const CudaMemAlloc = C.cudaMalloc
 const CudaMemFree = C.cudaFree
 
+const CudaSyncTypeStream = C.cudaSyncStream
+const CudaSyncTypeDevice = C.cudaSyncDevice
+
 const SizeofCudaKernelLaunch = C.sizeof_cuda_kernel_launch_t
 const SizeofCudaMemEvent = C.sizeof_cuda_memory_event_t
 const SizeofCudaEventHeader = C.sizeof_cuda_event_header_t
