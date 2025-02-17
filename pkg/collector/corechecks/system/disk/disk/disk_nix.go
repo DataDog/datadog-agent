@@ -37,17 +37,19 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 	}
 	log.Debugf("lsblk output: %s", rawOutput)
 	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
+	c.deviceLabels = make(map[string]string)
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		log.Debugf("processing line: '%s'", line)
 		if line == "" {
+			log.Debugf("skipping empty line")
 			continue
 		}
 		// Typically line looks like:
 		// sda1  MY_LABEL
 		fields := strings.Fields(line)
 		if len(fields) < 2 {
-			// skip malformed lines
+			log.Debugf("skipping malformed line: '%s'", line)
 			continue
 		}
 		device := "/dev/" + fields[0]
@@ -85,12 +87,13 @@ func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 		return err
 	}
 	log.Debugf("blkid cache output: %s", rawOutput)
-	c.deviceLabels = make(map[string]string)
 	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
+	c.deviceLabels = make(map[string]string)
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		log.Debugf("processing line: '%s'", line)
 		if line == "" {
+			log.Debugf("skipping empty line")
 			continue
 		}
 		var device Device
@@ -117,6 +120,8 @@ var BlkidCommand = func() (string, error) {
 	return string(output), nil
 }
 
+const labelRegExpression = `LABEL="([^"]+)"`
+
 func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 	log.Debugf("Fetching all device labels from blkid")
 	rawOutput, err := BlkidCommand()
@@ -124,19 +129,21 @@ func (c *Check) fetchAllDeviceLabelsFromBlkid() error {
 		return err
 	}
 	c.deviceLabels = make(map[string]string)
-	labelRegex := regexp.MustCompile(`LABEL="([^"]+)"`)
+	labelRegex := regexp.MustCompile(labelRegExpression)
 	lines := strings.Split(strings.TrimSpace(rawOutput), "\n")
+	c.deviceLabels = make(map[string]string)
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		log.Debugf("processing line: '%s'", line)
 		if line == "" {
+			log.Debugf("skipping empty line")
 			continue
 		}
 		// Typically line looks like:
 		// /dev/sda1: UUID="..." TYPE="ext4" LABEL="root"
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) < 2 {
-			// skip malformed lines
+			log.Debugf("skipping malformed line: '%s'", line)
 			continue
 		}
 		device := strings.TrimSpace(parts[0])  // e.g. "/dev/sda1"
