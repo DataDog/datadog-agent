@@ -176,7 +176,7 @@ new-agent_dmg-x64-a7:
       sudo bash -c "rm -rf /Library/Frameworks/Python.framework/Versions/*" || true
       sudo bash -c "rm -rf /usr/local/Cellar/python@*" || true
     - brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
-    - brew link python@$PYTHON_VERSION -n || true
+    - brew link --overwrite python@$PYTHON_VERSION
 
     - echo Verifying libintl
     - sudo find /usr -name "libintl*" || true
@@ -184,7 +184,6 @@ new-agent_dmg-x64-a7:
     - Installed python
     - which python
     - python --version
-    - exit
 
 
     # TODO: Useful?
