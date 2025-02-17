@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -27,7 +26,7 @@ const (
 
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
-	telemetryClient internaltelemetry.Client
+	telemetryClient *client
 	done            chan struct{}
 	flushed         chan struct{}
 
@@ -43,7 +42,7 @@ func NewTelemetry(client *http.Client, apiKey string, site string, service strin
 }
 
 func newTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
-	endpoint := &internaltelemetry.Endpoint{
+	e := &endpoint{
 		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
 		APIKey: apiKey,
 	}
@@ -53,7 +52,7 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 	}
 
 	return &Telemetry{
-		telemetryClient: internaltelemetry.NewClient(client, []*internaltelemetry.Endpoint{endpoint}, service, site == "datad0g.com"),
+		telemetryClient: newClient(client, []*endpoint{e}, service, site == "datad0g.com"),
 		done:            make(chan struct{}),
 		flushed:         make(chan struct{}),
 		env:             env,
@@ -84,24 +83,24 @@ func (t *Telemetry) Stop() {
 	<-t.flushed
 }
 
-func (t *Telemetry) extractCompletedSpans() internaltelemetry.Traces {
+func (t *Telemetry) extractCompletedSpans() traces {
 	spans := globalTracer.flushCompletedSpans()
 	if len(spans) == 0 {
-		return internaltelemetry.Traces{}
+		return traces{}
 	}
-	traces := make(map[uint64][]*internaltelemetry.Span)
+	ts := make(map[uint64][]*span)
 	for _, span := range spans {
 		span.span.Service = t.service
 		span.span.Meta["env"] = t.env
 		span.span.Meta["version"] = version.AgentVersion
 		span.span.Metrics["_sampling_priority_v1"] = 2
-		traces[span.span.TraceID] = append(traces[span.span.TraceID], &span.span)
+		ts[span.span.TraceID] = append(ts[span.span.TraceID], &span.span)
 	}
-	tracesArray := make([]internaltelemetry.Trace, 0, len(traces))
-	for _, trace := range traces {
-		tracesArray = append(tracesArray, internaltelemetry.Trace(trace))
+	tracesArray := make([]trace, 0, len(ts))
+	for _, t := range ts {
+		tracesArray = append(tracesArray, trace(t))
 	}
-	return internaltelemetry.Traces(tracesArray)
+	return traces(tracesArray)
 }
 
 func (t *Telemetry) sendCompletedSpans() {
