@@ -14,6 +14,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -49,6 +50,11 @@ func newSamplesCollector(device nvml.Device, tags []string) (Collector, error) {
 	}
 
 	return c, nil
+}
+
+func (c *samplesCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
 }
 
 func (c *samplesCollector) removeUnsupportedSamples() {
@@ -143,6 +149,7 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 			Name:  metric.name,
 			Value: total,
 			Tags:  c.tags,
+			Type:  metrics.GaugeType,
 		})
 	}
 
