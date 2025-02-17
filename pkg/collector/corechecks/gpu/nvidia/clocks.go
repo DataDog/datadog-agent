@@ -22,7 +22,7 @@ type clocksCollector struct {
 }
 
 // newClocksCollector creates a new clocksMetricsCollector for the given NVML device.
-func newClocksCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newClocksCollector(device nvml.Device, tags []string) (Collector, error) {
 	// Check first if the device supports clock throttle reasons
 	_, ret := device.GetCurrentClocksThrottleReasons()
 	if ret == nvml.ERROR_NOT_SUPPORTED {
@@ -62,11 +62,6 @@ func (c *clocksCollector) Collect() ([]Metric, error) {
 
 	// Return the collected metrics
 	return metrics, nil
-}
-
-// Close closes the collector and releases any resources it might have allocated (no-op for this collector).
-func (c *clocksCollector) Close() error {
-	return nil
 }
 
 // Name returns the name of the collector.

@@ -22,7 +22,7 @@ type fieldsCollector struct {
 	fieldMetrics []fieldValueMetric
 }
 
-func newFieldsCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newFieldsCollector(device nvml.Device, tags []string) (Collector, error) {
 	c := &fieldsCollector{
 		device: device,
 		tags:   tags,
@@ -105,11 +105,6 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 	}
 
 	return metrics, err
-}
-
-// Close cleans up any resources used by the collector (no-op for this collector).
-func (c *fieldsCollector) Close() error {
-	return nil
 }
 
 // Name returns the name of the collector.
