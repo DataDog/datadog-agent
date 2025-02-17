@@ -2768,6 +2768,7 @@ core,golang.org/x/net/http2/h2c,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/http2/hpack,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/icmp,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/idna,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/httpcommon,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/internal/iana,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/internal/socket,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/internal/socks,BSD-3-Clause,Copyright 2009 The Go Authors

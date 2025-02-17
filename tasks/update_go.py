@@ -33,7 +33,6 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
     ("./go.work", "go ", "", False),
-    ("./go.work", "toolchain go", "", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -133,7 +132,7 @@ def update_go(
 
 
 # replace the given pattern with the given string in the file
-def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1, dry_run: bool = False):
+def update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1, dry_run: bool = False):
     # newline='' keeps the file's newline character(s)
     # meaning it keeps '\n' for most files and '\r\n' for windows specific files
 
@@ -188,7 +187,7 @@ def _update_references(warn: bool, version: str, dry_run: bool = False):
         new_version = version if is_bugfix else new_major_minor
         replace = rf'\g<1>{new_version}\g<2>'
 
-        _update_file(warn, path, pattern, replace, dry_run=dry_run)
+        update_file(warn, path, pattern, replace, dry_run=dry_run)
 
 
 def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_run: bool = False):
@@ -201,7 +200,7 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
         major_minor = _get_major_minor_version(version)
         major_minor_zero = f"{major_minor}.0"
         # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
+        update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):
