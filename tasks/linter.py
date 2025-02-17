@@ -848,6 +848,36 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners)
 
 
+def flatten_script(script: str | list[str]) -> str:
+    """Flatten a script into a single string."""
+
+    if isinstance(script, list):
+        return '\n'.join(flatten_script(line) for line in script)
+
+    return script.strip()
+
+
 @task
-def gitlab_ci_shellcheck(ctx):
-    pass
+def gitlab_ci_shellcheck(ctx, diff_file=None, config_file=None, shellcheck_args="--severity=info -e SC2059 -e SC2028"):
+    """Verifies that shell scripts with gitlab config are valid.
+
+    Args:
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+    """
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
+    for job, content in jobs:
+        print('Verifying job:', job)
+
+        # Lint scripts
+        # TODO A: before / after
+        # TODO A: env variables?
+        if 'script' in content:
+            script = flatten_script(content['script'])
+            ctx.run(f"echo '{script}' | shellcheck {shellcheck_args} -")
