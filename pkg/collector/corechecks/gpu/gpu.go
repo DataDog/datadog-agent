@@ -34,10 +34,12 @@ import (
 )
 
 const (
-	gpuMetricsNs     = "gpu."
-	metricNameMemory = gpuMetricsNs + "memory"
-	metricNameUtil   = gpuMetricsNs + "utilization"
-	metricNameMaxMem = gpuMetricsNs + "memory.max"
+	gpuMetricsNs         = "gpu."
+	metricNameUtil       = gpuMetricsNs + "utilization"
+	metricNameMemory     = gpuMetricsNs + "memory.used"
+	metricNameMaxMem     = gpuMetricsNs + "memory.used.max"
+	metricNameMemoryPerc = gpuMetricsNs + "memory.utilization"
+	metricNameMaxMemPerc = gpuMetricsNs + "memory.utilization.max"
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
@@ -187,6 +189,8 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
 		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
+		snd.Gauge(metricNameMemoryPerc, metrics.Memory.CurrentBytesPercentage, "", tags)
+		snd.Gauge(metricNameMaxMemPerc, metrics.Memory.MaxBytesPercentage, "", tags)
 
 		c.activeMetrics[key] = true
 	}

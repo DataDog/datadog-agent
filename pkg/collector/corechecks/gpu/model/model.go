@@ -9,8 +9,10 @@ package model
 
 // MemoryMetrics contains the memory stats for a given memory type
 type MemoryMetrics struct {
-	CurrentBytes uint64 `json:"current_bytes"`
-	MaxBytes     uint64 `json:"max_bytes"`
+	CurrentBytes           uint64  `json:"current_bytes"`
+	MaxBytes               uint64  `json:"max_bytes"`
+	CurrentBytesPercentage float64 `json:"current_bytes_percentage"`
+	MaxBytesPercentage     float64 `json:"max_bytes_percentage"`
 }
 
 // UtilizationMetrics contains the GPU stats for a given device and process

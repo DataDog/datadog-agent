@@ -40,11 +40,15 @@ type aggregator struct {
 
 	// deviceMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization calculations
 	deviceMaxThreads uint64
+
+	// deviceMemory is the total memory available on the GPU, in bytes
+	deviceMemory uint64
 }
 
-func newAggregator(deviceMaxThreads uint64) *aggregator {
+func newAggregator(deviceMaxThreads uint64, deviceMemory uint64) *aggregator {
 	return &aggregator{
 		deviceMaxThreads: deviceMaxThreads,
+		deviceMemory:     deviceMemory,
 	}
 }
 
@@ -121,6 +125,8 @@ func (agg *aggregator) getStats(utilizationNormFactor float64) model.Utilization
 		lastValue, maxValue := memTsBuilder.GetLastAndMax()
 		stats.Memory.CurrentBytes += uint64(lastValue)
 		stats.Memory.MaxBytes += uint64(maxValue)
+		stats.Memory.CurrentBytesPercentage = float64(stats.Memory.CurrentBytes) / float64(agg.deviceMemory)
+		stats.Memory.MaxBytesPercentage = float64(stats.Memory.MaxBytes) / float64(agg.deviceMemory)
 	}
 
 	// Flush the data that we used
