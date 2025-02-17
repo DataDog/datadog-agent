@@ -6,6 +6,7 @@
 package metadata
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
@@ -59,12 +60,19 @@ func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, dev
 	var resourceCount int
 
 	curPayload := newNetworkDevicesMetadata(namespace, "", collectTime)
-
-	for _, oid := range deviceOIDs {
+	lastProgressPercent := -1
+	for i, oid := range deviceOIDs {
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, "", collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.DeviceOIDs = append(curPayload.DeviceOIDs, *oid)
+
+		progressPercent := int(float32(i+1) / float32(len(deviceOIDs)) * 100)
+		if progressPercent != lastProgressPercent {
+			fmt.Printf("\rScanning progress: %d%%", progressPercent)
+			lastProgressPercent = progressPercent
+		}
 	}
 	payloads = append(payloads, curPayload)
+	fmt.Println()
 	return payloads
 }
 
