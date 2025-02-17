@@ -27,10 +27,14 @@ var allDeviceMetrics = []deviceMetric{
 	{"power.management_limit", getPowerManagementLimit},
 	{"power.usage", getPowerUsage},
 	{"performance_state", getPerformanceState},
-	{"clock_speed.sm", getSMClockSpeed},
-	{"clock_speed.memory", getMemoryClockSpeed},
-	{"clock_speed.graphics", getGraphicsClockSpeed},
-	{"clock_speed.video", getVideoClockSpeed},
+	{"clock.speed.sm", getCurrentSMClockSpeed},
+	{"clock.speed.memory", getCurrentMemoryClockSpeed},
+	{"clock.speed.graphics", getCurrentGraphicsClockSpeed},
+	{"clock.speed.video", getCurrentVideoClockSpeed},
+	{"clock.speed.sm.max", getMaxSMClockSpeed},
+	{"clock.speed.memory.max", getMaxMemoryClockSpeed},
+	{"clock.speed.graphics.max", getMaxGraphicsClockSpeed},
+	{"clock.speed.video.max", getMaxVideoClockSpeed},
 	{"temperature", getTemperature},
 	{"total_energy_consumption", getTotalEnergyConsumption},
 	{"sm_active", getSMActive},
@@ -42,7 +46,7 @@ type deviceCollector struct {
 	metricGetters []deviceMetric
 }
 
-func newDeviceCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newDeviceCollector(device nvml.Device, tags []string) (Collector, error) {
 	c := &deviceCollector{
 		device: device,
 		tags:   tags,
@@ -106,11 +110,6 @@ func (c *deviceCollector) Collect() ([]Metric, error) {
 	return values, err
 }
 
-// Close closes the collector (no-op for this collector).
-func (c *deviceCollector) Close() error {
-	return nil
-}
-
 // Name returns the name of the collector.
 func (c *deviceCollector) Name() CollectorName {
 	return device
@@ -166,22 +165,42 @@ func getPerformanceState(dev nvml.Device) (float64, nvml.Return) {
 	return float64(state), ret
 }
 
-func getSMClockSpeed(dev nvml.Device) (float64, nvml.Return) {
+func getCurrentSMClockSpeed(dev nvml.Device) (float64, nvml.Return) {
+	speed, ret := dev.GetClockInfo(nvml.CLOCK_SM)
+	return float64(speed), ret
+}
+
+func getCurrentMemoryClockSpeed(dev nvml.Device) (float64, nvml.Return) {
+	speed, ret := dev.GetClockInfo(nvml.CLOCK_MEM)
+	return float64(speed), ret
+}
+
+func getCurrentGraphicsClockSpeed(dev nvml.Device) (float64, nvml.Return) {
+	speed, ret := dev.GetClockInfo(nvml.CLOCK_GRAPHICS)
+	return float64(speed), ret
+}
+
+func getCurrentVideoClockSpeed(dev nvml.Device) (float64, nvml.Return) {
+	speed, ret := dev.GetClockInfo(nvml.CLOCK_VIDEO)
+	return float64(speed), ret
+}
+
+func getMaxSMClockSpeed(dev nvml.Device) (float64, nvml.Return) {
 	speed, ret := dev.GetMaxClockInfo(nvml.CLOCK_SM)
 	return float64(speed), ret
 }
 
-func getMemoryClockSpeed(dev nvml.Device) (float64, nvml.Return) {
+func getMaxMemoryClockSpeed(dev nvml.Device) (float64, nvml.Return) {
 	speed, ret := dev.GetMaxClockInfo(nvml.CLOCK_MEM)
 	return float64(speed), ret
 }
 
-func getGraphicsClockSpeed(dev nvml.Device) (float64, nvml.Return) {
+func getMaxGraphicsClockSpeed(dev nvml.Device) (float64, nvml.Return) {
 	speed, ret := dev.GetMaxClockInfo(nvml.CLOCK_GRAPHICS)
 	return float64(speed), ret
 }
 
-func getVideoClockSpeed(dev nvml.Device) (float64, nvml.Return) {
+func getMaxVideoClockSpeed(dev nvml.Device) (float64, nvml.Return) {
 	speed, ret := dev.GetMaxClockInfo(nvml.CLOCK_VIDEO)
 	return float64(speed), ret
 }
