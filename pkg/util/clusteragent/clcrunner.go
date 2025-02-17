@@ -70,7 +70,7 @@ func (c *CLCRunnerClient) init() {
 
 	// Set http client
 	// TODO remove insecure
-	c.clcRunnerAPIClient = util.GetClient(false)
+	c.clcRunnerAPIClient = util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 	c.clcRunnerAPIClient.Timeout = 2 * time.Second
 
 	// Set http port used by the CLC Runners

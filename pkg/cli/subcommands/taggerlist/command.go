@@ -76,26 +76,19 @@ func taggerList(_ log.Component, config config.Component, _ *cliParams) error {
 		return err
 	}
 
-	url, err := getTaggerURL(config)
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	return api.GetTaggerList(color.Output, url)
-}
-
-func getTaggerURL(_ config.Component) (string, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return "", err
-	}
-
 	var urlstr string
+	var withInsecure bool
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		urlstr = fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+		withInsecure = true
 	} else {
 		urlstr = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 	}
 
-	return urlstr, nil
+	return api.GetTaggerList(color.Output, urlstr, withInsecure)
 }

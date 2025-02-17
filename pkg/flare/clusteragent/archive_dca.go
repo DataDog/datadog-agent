@@ -165,7 +165,7 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 
 // GetClusterAgentConfigCheck gets config check from the server for cluster agent
 func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 
 	// Set session token
 	err := util.SetAuthToken(pkgconfigsetup.Datadog())
@@ -225,7 +225,7 @@ func getDCAWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return flare.GetWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
+	return flare.GetWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")), true)
 }
 
 func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {
