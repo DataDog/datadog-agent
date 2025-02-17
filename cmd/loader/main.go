@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,15 +33,46 @@ import (
 // in particular only when data is received on the receivers.
 // If anything goes wrong, the trace-agent is started directly.
 
+// os.Args[1] is the path to the configuration file
+// os.Args[2] is the path to the trace-agent binary
+// os.Args[3:] are the arguments to the trace-agent command
+
 func main() {
-	listeners, err := getListeners()
+	cfg := pkgconfigsetup.Datadog()
+	cfg.SetConfigFile(os.Args[1])
+	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), nil)
+	if err != nil {
+		log.Warnf("Failed to load the configuration: %v", err)
+		execOrExit(os.Environ())
+	}
+
+	logparams := logdef.ForOneShot("TRACE-LOADER", cfg.GetString("log_level"), false)
+	err = pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName(logparams.LoggerName()),
+		logparams.LogLevelFn(cfg),
+		logparams.LogFileFn(cfg),
+		logparams.LogSyslogURIFn(cfg),
+		logparams.LogSyslogRFCFn(cfg),
+		logparams.LogToConsoleFn(cfg),
+		logparams.LogFormatJSONFn(cfg),
+		cfg,
+	)
+	if err != nil {
+		log.Warnf("Failed to initialize the logger: %v", err)
+		execOrExit(os.Environ())
+	}
+
+	// log.Debug("Loading trace-agent configuration")
+	// tracecfg, err := traceconfig.LoadConfigFile(cfg.ConfigFileUsed(), cfg, nil)
+	// if err != nil {
+	// 	log.Warnf("Failed to initialize trace-agent configuration: %v", err)
+	// 	execOrExit(os.Environ())
+	// }
+
+	listeners, err := getListeners(cfg)
 	if err != nil {
 		log.Warnf("Failed to pre-load the trace-agent: %v", err)
-		err = unix.Exec(os.Args[1], os.Args[1:], os.Environ())
-		if err != nil {
-			log.Errorf("Failed to start the trace-agent: %v", err)
-			os.Exit(1)
-		}
+		execOrExit(os.Environ())
 	}
 
 	if listeners == nil {
@@ -73,44 +105,18 @@ func main() {
 	}
 
 	// start the trace-agent whether there was an error or some data on a socket
-	log.Info("starting the trace-agent...")
-	err = unix.Exec(os.Args[1], os.Args[1:], env)
-	if err != nil {
-		log.Errorf("Failed to start the trace-agent: %v", err)
-		os.Exit(1)
-	}
+	execOrExit(env)
+}
+
+func execOrExit(env []string) {
+	log.Info("Starting the trace-agent...")
+	err := unix.Exec(os.Args[2], os.Args[2:], env)
+	log.Errorf("Failed to start the trace-agent: %v", err)
+	os.Exit(1)
 }
 
 // returns whether to start the trace-agent
-func getListeners() (map[string]uintptr, error) {
-	cfg := pkgconfigsetup.Datadog()
-	cfg.SetConfigFile(os.Args[1])
-	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load the configuration: %v", err)
-	}
-
-	logparams := logdef.ForOneShot("TRACE-LOADER", cfg.GetString("log_level"), false)
-	err = pkglogsetup.SetupLogger(
-		pkglogsetup.LoggerName(logparams.LoggerName()),
-		logparams.LogLevelFn(cfg),
-		logparams.LogFileFn(cfg),
-		logparams.LogSyslogURIFn(cfg),
-		logparams.LogSyslogRFCFn(cfg),
-		logparams.LogToConsoleFn(cfg),
-		logparams.LogFormatJSONFn(cfg),
-		cfg,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize the logger: %v", err)
-	}
-
-	// log.Debug("Loading trace-agent configuration")
-	// tracecfg, err := traceconfig.LoadConfigFile(cfg.ConfigFileUsed(), cfg, nil)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to initialize configuration: %v", err)
-	// }
-
+func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	// from applyDatadogConfig in comp/trace/config/setup.go
 
 	traceCfgEnabled := true
