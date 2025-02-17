@@ -39,6 +39,7 @@ type netResource struct {
 	provider    *uint16
 }
 
+// NetAddConnection specifies the command used to add a new network connection.
 var NetAddConnection = func(_mountType, localName, remoteName, password, username string) error {
 	return wNetAddConnection2(localName, remoteName, password, username)
 }
