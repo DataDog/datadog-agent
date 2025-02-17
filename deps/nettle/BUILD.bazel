@@ -8,8 +8,12 @@ configure_make(
         "--disable-static",
     ],
     lib_source = "@nettle//:all",
+    out_lib_dir = "lib64",
     out_shared_libs = select({
         "@platforms//os:linux": [
+            "libnettle.so.8",
+            "libnettle.so",
+            "libnettle.so.8.8",
         ],
     }),
     visibility = ["//visibility:public"],
