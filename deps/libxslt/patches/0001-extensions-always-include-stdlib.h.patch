@@ -1,0 +1,26 @@
+From feba4936238458c83f6be3716c439b21cd4f17cc Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Mon, 17 Feb 2025 09:14:14 +0100
+Subject: [PATCH] extensions: always include stdlib.h
+
+---
+ libxslt/extensions.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libxslt/extensions.c b/libxslt/extensions.c
+index 136bb485..03a5449e 100644
+--- a/libxslt/extensions.c
++++ b/libxslt/extensions.c
+@@ -41,8 +41,8 @@
+ #include "imports.h"
+ #include "extensions.h"
+ 
++#include <stdlib.h>             /* for _MAX_PATH & getenv */
+ #ifdef _WIN32
+-#include <stdlib.h>             /* for _MAX_PATH */
+ #ifndef PATH_MAX
+ #define PATH_MAX _MAX_PATH
+ #endif
+-- 
+2.34.1
+
