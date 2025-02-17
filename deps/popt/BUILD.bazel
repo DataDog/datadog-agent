@@ -12,6 +12,9 @@ configure_make(
             "libpopt.so",
         ],
     }),
+    out_data_dirs = [
+        "lib/pkgconfig",
+    ],
     visibility = ["//visibility:public"],
     # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
     env = {"LD": ""},
