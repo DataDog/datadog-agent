@@ -9,22 +9,19 @@ package msi
 
 import (
 	"embed"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/text/encoding/unicode"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/text/encoding/unicode"
 )
 
-//go:embed wixfailwhendeferred.log
-//go:embed missing_password_for_dc.log
-//go:embed file_in_use.log
-//go:embed invalid_credentials.log
-//go:embed service_marked_for_deletion.log
+//go:embed testdata
 var logFilesFS embed.FS
 
 func TestFindAllIndexWithContext(t *testing.T) {
-	data, err := logFilesFS.ReadFile("wixfailwhendeferred.log")
+	data, err := logFilesFS.ReadFile("testdata/wixfailwhendeferred.log")
 	require.NoError(t, err)
 
 	r := regexp.MustCompile("returned actual error")
@@ -54,7 +51,7 @@ Action ended 2:11:49: InstallFinalize. Return value 3.`,
 }
 
 func TestFindAllIndexWithContextOutOfRangeDoesntFail(t *testing.T) {
-	data, err := logFilesFS.ReadFile("wixfailwhendeferred.log")
+	data, err := logFilesFS.ReadFile("testdata/wixfailwhendeferred.log")
 	require.NoError(t, err)
 
 	r := regexp.MustCompile("returned actual error")
@@ -382,7 +379,7 @@ Action ended 6:12:22: InstallFinalize. Return value 3.
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			file, err := logFilesFS.Open(test.input)
+			file, err := logFilesFS.Open("testdata/" + test.input)
 			require.NoError(t, err)
 			got, err := m.processLogFile(file)
 			require.NoError(t, err)
