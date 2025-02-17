@@ -162,6 +162,9 @@ class GoModule:
             independent=data.get("independent", default["independent"]),
             used_by_otel=data.get("used_by_otel", default["used_by_otel"]),
             legacy_go_mod_version=data.get("legacy_go_mod_version", default["legacy_go_mod_version"]),
+            should_replace_internal_modules=data.get(
+                "should_replace_internal_modules", default["should_replace_internal_modules"]
+            ),
         )
 
     @staticmethod
@@ -194,6 +197,7 @@ class GoModule:
             "independent": self.independent,
             "used_by_otel": self.used_by_otel,
             "legacy_go_mod_version": self.legacy_go_mod_version,
+            "should_replace_internal_modules": self.should_replace_internal_modules,
         }
 
         if remove_path:

@@ -349,10 +349,13 @@ def add_all_replace(ctx: Context):
     """
 
     # First we find all go.mod in comp and pkg
-    gomods = [mods for mods in get_default_modules().keys() if mods.split(os.sep)[0] not in ["tools", "internal"]]
-    mod_to_replace = sorted(gomods)
+    gomods = [
+        mods for mods in get_default_modules().values() if mods.path.split(os.sep)[0] not in ["tools", "internal"]
+    ]
+    mod_to_replace = sorted([mod.path for mod in gomods])
     mod_to_replace.remove(".")
 
     # Second we iterate over all go.mod and update them
-    for folder in gomods:
-        update_go_mod(mod_to_replace, folder)
+    for mod in gomods:
+        if mod.should_replace_internal_modules:
+            update_go_mod(mod_to_replace, mod.path)
