@@ -33,10 +33,9 @@ source ~/.build_setup
 
 # Install python deps (invoke, etc.)
 
-# Python 3.12 changes default behavior how packages are installed.
-# In particular, --break-system-packages command line option is
-# required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-python3 -m venv .venv
+if [ -d .venv ]; then
+    python3 -m venv .venv
+fi
 source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 

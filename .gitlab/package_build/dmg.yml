@@ -143,7 +143,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  # extends: .macos_gitlab
+  extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
@@ -181,23 +181,23 @@ new-agent_dmg-x64-a7:
     - echo Verifying libintl
     - sudo find /usr -name "libintl*" || true
     - sudo find /opt -name "libintl*" || true
-    - Installed python
+    - echo Installed python
     - which python
+    - ls -l "$(which python)"
     - python --version
 
 
     # TODO: Useful?
-    - which python3 || true
-    - source .venv/bin/activate
+    # - which python3 || true
+    # - source .venv/bin/activate
+    # - echo goroot $GOROOT
+    # - echo gopath $GOPATH
+    # - set -e
+
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - echo goroot $GOROOT
-    - echo gopath $GOPATH
-    - set -e
     - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
 
-    - python3 --version
-    - ls -l "$(which python3)"
     - |
       echo Removing preinstalled environment
       # brew remove --force --ignore-dependencies --formula aria2

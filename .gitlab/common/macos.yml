@@ -47,6 +47,7 @@
     # Selecting the current Python version
     # TODO A
     # - !reference [.select_python_env_commands]
+    - xcode-select -s /Applications/Xcode_15.2.app
     - python3 -m venv .venv
     - source .venv/bin/activate
     # List Python and Go existing environments and their disk space
