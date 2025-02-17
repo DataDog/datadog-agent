@@ -629,8 +629,6 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 		assert.NoError(t, err)
 		bodyStr := string(body)
 
-		fmt.Printf("\033[33mReceived %s\033[0m\n", bodyStr)
-
 		// Failed the first time for each request
 		if _, found := receivedRequests[bodyStr]; !found {
 			receivedRequests[bodyStr] = struct{}{}
@@ -643,6 +641,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
+	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 10)
 
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond
@@ -684,9 +683,6 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 		}
 	}
 
-	fmt.Println(lowPosition / 50)
-	fmt.Println(highPosition / 50)
-
 	// Ensure the average position of the high priorities is less than the average position of the lows.
 	assert.Greater(t, lowPosition/50, highPosition/50)
 }
@@ -716,6 +712,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
+	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 1)
 
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond

@@ -421,6 +421,8 @@ forwarder_requeue_buffer_size: 1300
 }
 
 func newDomainForwarderForTest(config config.Component, log log.Component, connectionResetInterval time.Duration, ha bool) *domainForwarder {
+	config.SetWithoutSource("forwarder_max_concurrent_requests", 1)
+
 	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
 	transactionRetryQueue := retry.NewTransactionRetryQueue(

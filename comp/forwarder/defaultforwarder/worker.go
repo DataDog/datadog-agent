@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -43,6 +44,9 @@ type Worker struct {
 	pointSuccessfullySent PointSuccessfullySent
 	// If the client is for cluster agent
 	isLocal bool
+
+	// The maximum number of HTTP requests we can have inflight at any one time.
+	maxConcurrentRequests *semaphore.Weighted
 }
 
 // PointSuccessfullySent is called when sending successfully a point to the intake.
@@ -61,6 +65,7 @@ func NewWorker(
 	blocked *blockedEndpoints,
 	pointSuccessfullySent PointSuccessfullySent,
 	isLocal bool,
+	maxConcurrentRequests int64,
 ) *Worker {
 	worker := &Worker{
 		config:                config,
@@ -75,6 +80,7 @@ func NewWorker(
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
 		isLocal:               isLocal,
+		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
 	}
 	if isLocal {
 		worker.Client = newBearerAuthHTTPClient()
@@ -197,9 +203,14 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
+
+	// Block here if we are already sending too many requests
+	w.maxConcurrentRequests.Acquire(ctx, 1)
+
 	done := make(chan interface{})
 	go func() {
 		w.process(ctx, t)
+		w.maxConcurrentRequests.Release(1)
 		done <- nil
 	}()
 
