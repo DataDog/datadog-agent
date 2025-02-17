@@ -140,7 +140,8 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
 }
 
-func enableAPIKeyRefresh(logsConfig *LogsConfigKeys) {
+// EnableAPIKeyRefresh enables API key refresh for additional endpoints
+func EnableAPIKeyRefresh(logsConfig *LogsConfigKeys) {
 	logsConfig.config.OnUpdate(func(setting string, oldValue, newValue any) {
 		if setting != "api_key" {
 			return
