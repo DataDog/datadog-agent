@@ -125,9 +125,9 @@ func (agg *aggregator) getStats(utilizationNormFactor float64) model.Utilization
 		lastValue, maxValue := memTsBuilder.GetLastAndMax()
 		stats.Memory.CurrentBytes += uint64(lastValue)
 		stats.Memory.MaxBytes += uint64(maxValue)
-		stats.Memory.CurrentBytesPercentage = float64(stats.Memory.CurrentBytes) / float64(agg.deviceMemory)
-		stats.Memory.MaxBytesPercentage = float64(stats.Memory.MaxBytes) / float64(agg.deviceMemory)
 	}
+
+	stats.Memory.CurrentBytesPercentage = float64(stats.Memory.CurrentBytes) / float64(agg.deviceMemory)
 
 	// Flush the data that we used
 	agg.flush()
