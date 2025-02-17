@@ -28,8 +28,7 @@ cc_library(name = "rtloader_three",
       'DATADOG_AGENT_THREE',
   ],
   deps = [
-     '@rules_python//python/cc:current_py_cc_headers',
-     '@rules_python//python/cc:current_py_cc_libs',
+     '//deps/python3',
   ],
   copts = [
     '-Irtloader/include',
