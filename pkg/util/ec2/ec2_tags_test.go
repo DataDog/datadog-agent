@@ -38,7 +38,6 @@ func TestGetIAMRole(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := getIAMRole(ctx)
@@ -64,7 +63,6 @@ func TestGetSecurityCreds(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	cred, err := getSecurityCreds(ctx)
@@ -85,7 +83,6 @@ func TestGetInstanceIdentity(t *testing.T) {
 	defer ts.Close()
 	instanceIdentityURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := GetInstanceIdentity(ctx)
@@ -115,11 +112,8 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
-
-	confMock := configmock.New(t)
-	confMock.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
+	conf.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
 
 	tags, err := fetchEc2TagsFromIMDS(ctx)
 	require.NoError(t, err)
@@ -137,7 +131,6 @@ func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 	conf := configmock.New(t)
-	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	_, err := fetchEc2TagsFromIMDS(ctx)
