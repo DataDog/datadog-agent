@@ -87,3 +87,5 @@ COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yam
 # Run the otel-agent
 ENTRYPOINT ["/opt/datadog-agent/embedded/bin/otel-agent"]
 CMD ["run"]
+
+# TODO: Check the content of the image (world writtable files, etc...)

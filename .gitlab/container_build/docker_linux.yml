@@ -17,8 +17,12 @@
     - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
     # Build image, use target none label to avoid replication
     - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" --label "org.opencontainers.image.version=$(inv agent.version)" --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" --label "org.opencontainers.image.vendor=Datadog, Inc." --label "target=none" $BUILD_CONTEXT
-    # Squash image
-    - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
+    - FLATTEN_IMAGE=${FLATTEN_IMAGE:-true}
+    # Squash image if FLATTEN_IMAGE is true
+    - |
+      if [[ "$FLATTEN_IMAGE" == "true" ]]; then
+        crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
+      fi
   # Workaround for temporary network failures
   retry: 2
   timeout: 30m
@@ -195,6 +199,38 @@ docker_build_ot_agent7_arm64:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-arm64.tar.xz
+
+# standalone otel-agent
+docker_build_ot_agent_standalone_distroless:
+  extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    - job: datadog-ot-agent-7-x64
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
+    BUILD_CONTEXT: Dockerfiles/otel-agent
+    TAG_SUFFIX: -distroless
+    # TODO: test the content of the image
+    # BUILD_ARG: --target test
+    FLATTEN_IMAGE: false
+
+
+docker_build_ot_agent_standalone_distroless_arm64:
+  extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    - job: datadog-ot-agent-7-arm64
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
+    BUILD_CONTEXT: Dockerfiles/otel-agent
+    TAG_SUFFIX: -distroless
+    # TODO: test the content of the image
+    # BUILD_ARG: --target test
+    FLATTEN_IMAGE: false
 
 # build agent7 jmx image
 docker_build_ot_agent7_jmx:
