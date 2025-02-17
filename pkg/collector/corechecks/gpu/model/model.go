@@ -17,7 +17,9 @@ type MemoryMetrics struct {
 	// and unit testing.
 	MaxBytes uint64 `json:"max_bytes"`
 
-	// CurrentBytesPercentage is the percentage (0-1) of the current memory usage compared to the total memory available.
+	// CurrentBytesPercentage is the percentage of the current memory
+	// usage compared to the total memory available: CurrentBytesPercentage =
+	// CurrentBytes / Total Device Memory, so it's a value between 0 and 1.
 	CurrentBytesPercentage float64 `json:"current_bytes_percentage"`
 }
 
