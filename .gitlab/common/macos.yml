@@ -45,7 +45,11 @@
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
     # Selecting the current Python version
-    - !reference [.select_python_env_commands]
+    # TODO A
+    # - !reference [.select_python_env_commands]
+    - python3 -m pip install venv
+    - venv .venv
+    - source .venv/bin/activate
     # List Python and Go existing environments and their disk space
     - !reference [.list_go_versions_commands]
     - !reference [.list_python_versions_commands]
