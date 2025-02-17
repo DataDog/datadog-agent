@@ -253,7 +253,7 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 			metricName := gpuMetricsNs + metric.Name
 			switch metric.Type {
 			case ddmetrics.CountType:
-				snd.Gauge(metricName, metric.Value, "", metric.Tags)
+				snd.Count(metricName, metric.Value, "", metric.Tags)
 			case ddmetrics.GaugeType:
 				snd.Gauge(metricName, metric.Value, "", metric.Tags)
 			default:
