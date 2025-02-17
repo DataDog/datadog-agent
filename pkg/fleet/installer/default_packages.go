@@ -26,8 +26,8 @@ type Package struct {
 
 // PackagesList lists all known packages. Not all of them are installable
 var PackagesList = []Package{
-	{Name: "datadog-apm-inject", released: true, condition: apmInjectEnabled},
-	{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-inject", version: apmInjectVersion, released: true, condition: apmInjectEnabled},
+	{Name: "datadog-apm-library-java", version: apmJavaVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-dotnet", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
@@ -35,6 +35,9 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
+
+var apmInjectCentos6Version = "0.30.0-1"
+var apmJavaCentos6Version = "1.45.2-1"
 
 var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-java":   "1",
@@ -121,6 +124,24 @@ func apmLanguageVersion(p Package, e *env.Env) string {
 		return versionTag + "-1"
 	}
 	return versionTag
+}
+
+func apmJavaVersion(p Package, e *env.Env) string {
+	if e.IsCentos6 {
+		apmLibVersion := e.ApmLibraries[packageToLanguage(p.Name)]
+		if apmLibVersion == "" {
+			return apmJavaCentos6Version
+		}
+	}
+	return apmLanguageVersion(p, e)
+}
+
+func apmInjectVersion(p Package, e *env.Env) string {
+	version := "latest"
+	if e.IsCentos6 {
+		return apmInjectCentos6Version
+	}
+	return version
 }
 
 func packageToLanguage(packageName string) env.ApmLibLanguage {
