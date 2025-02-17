@@ -12,19 +12,21 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
-	installerOCILayoutURL = "file://." // the installer OCI layout is written by the downloader in the current directory
+	installerOCILayoutURL  = "file://." // the installer OCI layout is written by the downloader in the current directory
+	commandTimeoutDuration = 10 * time.Second
 )
 
 var (
@@ -39,12 +41,13 @@ type Setup struct {
 	start     time.Time
 	flavor    string
 
-	Out      *Output
-	Env      *env.Env
-	Ctx      context.Context
-	Span     *telemetry.Span
-	Packages Packages
-	Config   Config
+	Out                     *Output
+	Env                     *env.Env
+	Ctx                     context.Context
+	Span                    *telemetry.Span
+	Packages                Packages
+	Config                  Config
+	DdAgentAdditionalGroups []string
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -115,10 +118,18 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}
-	err = installinfo.WriteInstallInfo("installer", fmt.Sprintf("installer-%s", version.AgentVersion), fmt.Sprintf("install-%s.sh", s.flavor))
+	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-%s.sh", s.flavor))
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
+	for _, group := range s.DdAgentAdditionalGroups {
+		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
+		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
+		if err != nil {
+			return fmt.Errorf("failed to add dd-agent to group yarn: %w", err)
+		}
+	}
+
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)
@@ -148,4 +159,27 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", name))
 	return nil
+}
+
+// ExecuteCommandWithTimeout executes a bash command with args and times out if the command has not finished
+var ExecuteCommandWithTimeout = func(s *Setup, command string, args ...string) (output []byte, err error) {
+	span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
+	span.SetResourceName(command)
+	defer func() { span.Finish(err) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeoutDuration)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, command, args...)
+	output, err = cmd.Output()
+	if output != nil {
+		span.SetTag("command_output", string(output))
+	}
+
+	if err != nil {
+		span.SetTag("command_error", err.Error())
+		span.Finish(err)
+		return nil, err
+	}
+	return output, nil
 }

@@ -10,9 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -20,14 +18,12 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -36,8 +32,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
+	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -46,6 +47,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	haagentmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
@@ -123,12 +125,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					defaultpaths.DogstatsDLogFile,
 					defaultpaths.StreamlogsLogFile,
 				)),
+				flareprofilerfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType:  workloadmeta.NodeAgent,
 					InitHelper: common.GetWorkloadmetaInit(),
 				}),
+				fx.Provide(func(config config.Component) coresettings.Params {
+					return coresettings.Params{
+						// A settings object is required to populate some dependencies, but
+						// no values are valid since the flare runs by default in a separate
+						// process from the main agent.
+						Settings: map[string]coresettings.RuntimeSetting{},
+						Config:   config,
+					}
+				}),
+				settingsimpl.Module(),
 				localTaggerfx.Module(tagger.Params{}),
 				autodiscoveryimpl.Module(),
 				fx.Supply(option.None[collector.Component]()),
@@ -138,6 +151,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostimpl.Module(),
 				inventoryhostimpl.Module(),
 				inventoryotelimpl.Module(),
+				haagentmetadatafx.Module(),
 				resourcesimpl.Module(),
 				authtokenimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
@@ -169,147 +183,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func readProfileData(seconds int) (flare.ProfileData, error) {
-	type agentProfileCollector func(service string) error
-
-	pdata := flare.ProfileData{}
-	c := util.GetClient(false)
-
-	type pprofGetter func(path string) ([]byte, error)
-
-	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {
-		endpoint := url.URL{
-			Scheme: "http",
-			Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(pkgconfigsetup.Datadog().GetInt(portConfig))),
-			Path:   "/debug/pprof",
-		}
-		if onHTTPS {
-			endpoint.Scheme = "https"
-		}
-
-		return func(path string) ([]byte, error) {
-			return util.DoGet(c, endpoint.String()+path, util.LeaveConnectionOpen)
-		}
-	}
-
-	serviceProfileCollector := func(get func(url string) ([]byte, error), seconds int) agentProfileCollector {
-		return func(service string) error {
-			fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from %s.", seconds, service))
-			for _, prof := range []struct{ name, path string }{
-				{
-					// 1st heap profile
-					name: service + "-1st-heap.pprof",
-					path: "/heap",
-				},
-				{
-					// CPU profile
-					name: service + "-cpu.pprof",
-					path: fmt.Sprintf("/profile?seconds=%d", seconds),
-				},
-				{
-					// 2nd heap profile
-					name: service + "-2nd-heap.pprof",
-					path: "/heap",
-				},
-				{
-					// mutex profile
-					name: service + "-mutex.pprof",
-					path: "/mutex",
-				},
-				{
-					// goroutine blocking profile
-					name: service + "-block.pprof",
-					path: "/block",
-				},
-				{
-					// Trace
-					name: service + ".trace",
-					path: fmt.Sprintf("/trace?seconds=%d", seconds),
-				},
-			} {
-				b, err := get(prof.path)
-				if err != nil {
-					return err
-				}
-				pdata[prof.name] = b
-			}
-			return nil
-		}
-	}
-
-	agentCollectors := map[string]agentProfileCollector{
-		"core":           serviceProfileCollector(tcpGet("expvar_port", false), seconds),
-		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port", false), seconds),
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("process_config.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("process_config.container_collection.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("process_config.process_collection.enabled") {
-
-		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port", false), seconds)
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") {
-		traceCpusec := pkgconfigsetup.Datadog().GetInt("apm_config.receiver_timeout")
-		if traceCpusec > seconds {
-			// do not exceed requested duration
-			traceCpusec = seconds
-		} else if traceCpusec <= 0 {
-			// default to 4s as maximum connection timeout of trace-agent HTTP server is 5s by default
-			traceCpusec = 4
-		}
-
-		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port", true), traceCpusec)
-	}
-
-	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		client := &http.Client{
-			Transport: &http.Transport{
-				DialContext: sysprobeclient.DialContextFunc(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-			},
-		}
-
-		sysProbeGet := func() pprofGetter {
-			return func(path string) ([]byte, error) {
-				var buf bytes.Buffer
-				pprofURL := sysprobeclient.DebugURL("/pprof" + path)
-				req, err := http.NewRequest(http.MethodGet, pprofURL, &buf)
-				if err != nil {
-					return nil, err
-				}
-
-				res, err := client.Do(req)
-				if err != nil {
-					return nil, err
-				}
-				defer res.Body.Close()
-
-				return io.ReadAll(res.Body)
-			}
-		}
-
-		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
-	}
-
-	var errs error
-	for name, callback := range agentCollectors {
-		if err := callback(name); err != nil {
-			errs = multierror.Append(errs, fmt.Errorf("error collecting %s agent profile: %v", name, err))
-		}
-	}
-
-	return pdata, errs
-}
-
 func makeFlare(flareComp flare.Component,
 	lc log.Component,
 	config config.Component,
 	_ sysprobeconfig.Component,
 	cliParams *cliParams,
 	_ option.Option[workloadmeta.Component],
-	_ tagger.Component) error {
+	_ tagger.Component,
+	flareprofiler flareprofilerdef.Component) error {
 	var (
-		profile flare.ProfileData
+		profile flaretypes.ProfileData
 		err     error
 	)
 
@@ -357,8 +240,13 @@ func makeFlare(flareComp flare.Component,
 			ProfileBlockingRate:  cliParams.profileBlockingRate,
 		}
 
+		logFunc := func(s string, params ...interface{}) error {
+			fmt.Fprintln(color.Output, color.BlueString(s, params...))
+			return nil
+		}
+
 		err = settings.ExecWithRuntimeProfilingSettings(func() {
-			if profile, err = readProfileData(cliParams.profiling); err != nil {
+			if profile, err = flareprofiler.ReadProfileData(cliParams.profiling, logFunc); err != nil {
 				fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
 			}
 		}, profilingOpts, c)
@@ -412,7 +300,7 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(flareComp flare.Component, pdata flare.ProfileData, providerTimeout time.Duration) (string, error) {
+func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
@@ -462,7 +350,7 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData, provider
 	return string(r), nil
 }
 
-func createArchive(flareComp flare.Component, pdata flare.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
 	filePath, err := flareComp.Create(pdata, providerTimeout, ipcError)
 	if err != nil {

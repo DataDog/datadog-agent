@@ -170,49 +170,49 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v53408733-3b43fd22
+  DATADOG_AGENT_BUILDIMAGES: v55944546-15f10f5c
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v53408733-3b43fd22
+  DATADOG_AGENT_WINBUILDIMAGES: v55944546-15f10f5c
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v53408733-3b43fd22
+  DATADOG_AGENT_ARMBUILDIMAGES: v55944546-15f10f5c
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v53408733-3b43fd22
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v55944546-15f10f5c
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v53408733-3b43fd22
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v55944546-15f10f5c
   # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v53408733-3b43fd22
+  CI_IMAGE_BTF_GEN: v55944546-15f10f5c
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v53408733-3b43fd22
+  CI_IMAGE_DEB_X64: v55944546-15f10f5c
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v53408733-3b43fd22
+  CI_IMAGE_DEB_ARM64: v55944546-15f10f5c
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v53408733-3b43fd22
+  CI_IMAGE_DEB_ARMHF: v55944546-15f10f5c
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v53408733-3b43fd22
+  CI_IMAGE_DD_AGENT_TESTING: v55944546-15f10f5c
   CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v53408733-3b43fd22
+  CI_IMAGE_DOCKER_X64: v55944546-15f10f5c
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v53408733-3b43fd22
+  CI_IMAGE_DOCKER_ARM64: v55944546-15f10f5c
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v53408733-3b43fd22
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v55944546-15f10f5c
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v53408733-3b43fd22
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v55944546-15f10f5c
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v53408733-3b43fd22
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v55944546-15f10f5c
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v53408733-3b43fd22
+  CI_IMAGE_SYSTEM_PROBE_X64: v55944546-15f10f5c
   CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v53408733-3b43fd22
+  CI_IMAGE_SYSTEM_PROBE_ARM64: v55944546-15f10f5c
   CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v53408733-3b43fd22
+  CI_IMAGE_RPM_X64: v55944546-15f10f5c
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v53408733-3b43fd22
+  CI_IMAGE_RPM_ARM64: v55944546-15f10f5c
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v53408733-3b43fd22
+  CI_IMAGE_RPM_ARMHF: v55944546-15f10f5c
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_1809_X64: v53408733-3b43fd22
+  CI_IMAGE_WIN_1809_X64: v55944546-15f10f5c
   CI_IMAGE_WIN_1809_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v53408733-3b43fd22
+  CI_IMAGE_WIN_LTSC2022_X64: v55944546-15f10f5c
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -297,6 +297,9 @@ variables:
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
+
+.if_deploy_stable: &if_deploy_stable
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
 
 .if_not_deploy: &if_not_deploy
   if: $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null
@@ -607,6 +610,12 @@ workflow:
     allow_failure: true
   - when: on_success
 
+# Alternative of the above to have an agent-release-management trigger
+# for stable branches in case of failure in any previous job
+.on_deploy_stable_on_failure:
+  - <<: *if_deploy_stable
+    when: on_failure
+
 .except_deploy:
   - <<: *if_deploy
     when: never
@@ -619,6 +628,12 @@ workflow:
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
+
+.not_on_release_branch_or_tagged_commit:
+  - <<: *if_release_branch
+    when: never
+  - <<: *if_tagged_commit
+    when: never
 
 .only_main:
   - <<: *if_not_main_branch
@@ -698,6 +713,7 @@ workflow:
         - omnibus/config/projects/agent.rb
         - omnibus/config/software/**/*
         - omnibus/config/templates/**/*
+        - release.json
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .except_windows_installer_changes:
@@ -815,14 +831,24 @@ workflow:
         - test/new-e2e/tests/remote-config/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_asc_or_e2e_changes:
+.on_arun_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - cmd/**/*
         - pkg/**/*
         - comp/**/*
-        - test/new-e2e/tests/agent-shared-components/**/*
+        - test/new-e2e/tests/agent-runtimes/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_acfg_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/**/*
+        - pkg/**/*
+        - comp/**/*
+        - test/new-e2e/tests/agent-configuration//**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_subcommands_or_e2e_changes:
@@ -860,33 +886,41 @@ workflow:
         - pkg/collector/corechecks/servicediscovery/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_aml_or_e2e_changes:
+.on_amp_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/tests/agent-metrics-logs/**/*
+        - test/new-e2e/tests/agent-metric-pipelines/**/*
         - cmd/agent/subcommands/dogstatsd*/*
-        - cmd/agent/subcommands/streamlogs/*
         - cmd/dogstatsd/**/*
         - comp/agent/jmxlogger/**/*
         - comp/aggregator/**/*
         - comp/collector/**/*
         - comp/core/agenttelemetry/**/*
-        - comp/core/autodiscovery/providers/config_reader*.go
-        - comp/core/autodiscovery/providers/file*.go
         - comp/dogstatsd/**/*
         - comp/forwarder/**/*
-        - comp/logs/**/*
         - comp/serializer/**/*
         - pkg/aggregator/**/*
         - pkg/collector/**/*
         - pkg/commonchecks/**/*
         - pkg/jmxfetch/**/*
-        - pkg/logs/**/*
         - pkg/metrics/**/*
         - pkg/persistentcache/**/*
         - pkg/serializer/**/*
         - rtloader/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_alp_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-log-pipelines/**/*
+        - cmd/agent/subcommands/streamlogs/*
+        - comp/core/agenttelemetry/**/*
+        - comp/core/autodiscovery/providers/config_reader*.go
+        - comp/core/autodiscovery/providers/file*.go
+        - comp/logs/**/*
+        - pkg/logs/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_cws_or_e2e_changes:

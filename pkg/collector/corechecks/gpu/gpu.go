@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -47,21 +48,39 @@ type Check struct {
 	collectors     []nvidia.Collector      // collectors for NVML metrics
 	nvmlLib        nvml.Interface          // NVML library interface
 	tagger         tagger.Component        // Tagger instance to add tags to outgoing metrics
+	telemetry      *checkTelemetry         // Telemetry component to emit internal telemetry
+}
+
+type checkTelemetry struct {
+	nvmlMetricsSent     telemetry.Counter
+	collectorErrors     telemetry.Counter
+	activeMetrics       telemetry.Gauge
+	sysprobeMetricsSent telemetry.Counter
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(tagger)
+		return newCheck(tagger, telemetry)
 	})
 }
 
-func newCheck(tagger tagger.Component) check.Check {
+func newCheck(tagger tagger.Component, telemetry telemetry.Component) check.Check {
 	return &Check{
 		CheckBase:     core.NewCheckBase(CheckName),
 		config:        &CheckConfig{},
 		activeMetrics: make(map[model.StatsKey]bool),
 		tagger:        tagger,
+		telemetry:     newCheckTelemetry(telemetry),
+	}
+}
+
+func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
+	return &checkTelemetry{
+		nvmlMetricsSent:     tm.NewCounter(CheckName, "nvml_metrics_sent", []string{"collector"}, "Number of NVML metrics sent"),
+		collectorErrors:     tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:       tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		sysprobeMetricsSent: tm.NewCounter(CheckName, "sysprobe_metrics_sent", nil, "Number of metrics sent based on system probe data"),
 	}
 }
 
@@ -75,22 +94,45 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	// Initialize NVML collectors. if the config parameter doesn't exist or is
+	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	return nil
+}
+
+func (c *Check) ensureInitNVML() error {
+	if c.nvmlLib != nil {
+		return nil
+	}
+
+	// Initialize NVML library. if the config parameter doesn't exist or is
 	// empty string, the default value is used as defined in go-nvml library
 	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
-	c.nvmlLib = nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
-	ret := c.nvmlLib.Init()
+	nvmlLib := nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
+	ret := nvmlLib.Init()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
 	}
 
-	var err error
-	c.collectors, err = nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
+	c.nvmlLib = nvmlLib
+	return nil
+}
+
+// ensureInitCollectors initializes the NVML library and the collectors if they are not already initialized.
+// It returns an error if the initialization fails.
+func (c *Check) ensureInitCollectors() error {
+	if c.collectors != nil {
+		return nil
+	}
+
+	if err := c.ensureInitNVML(); err != nil {
+		return err
+	}
+
+	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
-	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	c.collectors = collectors
 	return nil
 }
 
@@ -146,6 +188,8 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		c.activeMetrics[key] = true
 	}
 
+	c.telemetry.sysprobeMetricsSent.Add(float64(3 * len(stats.Metrics)))
+
 	// Remove the PIDs that we didn't see in this check
 	for key, active := range c.activeMetrics {
 		if !active {
@@ -157,6 +201,8 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 			delete(c.activeMetrics, key)
 		}
 	}
+
+	c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
 
 	return nil
 }
@@ -189,12 +235,16 @@ func (c *Check) getTagsForKey(key model.StatsKey) []string {
 }
 
 func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
-	var err error
+	err := c.ensureInitCollectors()
+	if err != nil {
+		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
+	}
 
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		metrics, collectErr := collector.Collect()
 		if collectErr != nil {
+			c.telemetry.collectorErrors.Add(1, string(collector.Name()))
 			err = multierror.Append(err, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 
@@ -202,6 +252,8 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 			metricName := gpuMetricsNs + metric.Name
 			snd.Gauge(metricName, metric.Value, "", metric.Tags)
 		}
+
+		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
 	return err

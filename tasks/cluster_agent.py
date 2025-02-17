@@ -133,8 +133,8 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     ctx.run(f"chmod +x {latest_cws_instrumentation_file}")
 
     build_context = "Dockerfiles/cluster-agent"
-    exec_path = f"{build_context}/datadog-cluster-agent.{arch}"
-    cws_instrumentation_base = f"{build_context}/datadog-cws-instrumentation"
+    exec_path = f"{build_context}/datadog-cluster-agent"
+    cws_instrumentation_base = f"{build_context}/cws-instrumentation"
     cws_instrumentation_exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
 
     dockerfile_path = f"{build_context}/Dockerfile"

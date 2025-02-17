@@ -7,6 +7,7 @@ import platform
 import re
 import subprocess
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from functools import lru_cache
 
 import requests
@@ -40,7 +41,7 @@ class GithubAPI:
 
     def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
-        self._github = Github(auth=self._auth)
+        self._github = Github(auth=self._auth, per_page=100)
         org = repository.split("/")
         self._organization = org[0] if len(org) > 1 else None
         self._repository = self._github.get_repo(repository)
@@ -359,6 +360,10 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
+    def latest_release_tag(self) -> str:
+        release = self._repository.get_latest_release()
+        return release.tag_name
+
     def get_releases(self):
         return self._repository.get_releases()
 
@@ -540,14 +545,37 @@ class GithubAPI:
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 
-    def create_label(self, name, color, description=""):
+    def create_label(self, name, color, description="", exist_ok=False):
         """
         Creates a label in the given GitHub repository.
         """
-        return self._repository.create_label(name, color, description)
 
-    def create_milestone(self, title):
-        self._repository.create_milestone(title)
+        try:
+            return self._repository.create_label(name, color, description)
+        except GithubException as e:
+            if not (
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
+            ):
+                raise e
+
+    def create_milestone(self, title, exist_ok=False):
+        """
+        Creates a milestone in the given GitHub repository.
+        """
+
+        try:
+            return self._repository.create_milestone(title)
+        except GithubException as e:
+            if not (
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
+            ):
+                raise e
 
     def create_release(self, tag, message, draft=True):
         return self._repository.create_git_release(
@@ -567,7 +595,7 @@ class GithubAPI:
         # - hard PRs are merged in more than 1 week
         # More details about criteria definition: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
         criteria = {
-            'easy': {'files': 4, 'lines': 150, 'comments': 1},
+            'easy': {'files': 4, 'lines': 150, 'comments': 2},
             'hard': {'files': 12, 'lines': 650, 'comments': 9},
         }
         if (
@@ -583,6 +611,41 @@ class GithubAPI:
         ):
             return 'long review'
         return 'medium review'
+
+    def find_all_teams(self, obj, exclude_teams=None, exclude_permissions=None):
+        """Get all the repositories teams, including the nested ones."""
+        teams = []
+        for team in obj.get_teams():
+            if (
+                exclude_teams
+                and team.name in exclude_teams
+                or exclude_permissions
+                and team.permission in exclude_permissions
+            ):
+                continue
+            teams.append(team)
+            teams.extend(self.find_all_teams(team))
+        return teams
+
+    def get_active_users(self, duration_days=183):
+        """Get the set of reviewers within the last <duration_days>"""
+        actors = set()
+        since_date = datetime.now() - timedelta(days=duration_days)
+        for pr in self._repository.get_pulls(state="all"):
+            actors.add(pr.user.login)
+            if pr.created_at < since_date:
+                break
+            for review in pr.get_reviews():
+                if review.user:
+                    actors.add(review.user.login)
+        return actors
+
+    def get_direct_team_members(self, team):
+        query = '{ organization(login: "datadog") { team(slug: "TEAM")  { members(membership: IMMEDIATE) { nodes { login } } } } }'.replace(
+            "TEAM", team
+        )
+        data = self.graphql(query)
+        return [member["login"] for member in data["data"]["organization"]["team"]["members"]["nodes"]]
 
 
 def get_github_teams(users):
@@ -614,13 +677,10 @@ def get_user_query(login):
     return query + string_var
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
-
-    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = milestone or str(version)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -636,7 +696,7 @@ Make sure that milestone is open before trying again.""",
 
     pr = github.create_pr(
         pr_title=title,
-        pr_body="",
+        pr_body=body,
         base_branch=base_branch,
         target_branch=target_branch,
     )
@@ -652,12 +712,10 @@ Make sure that milestone is open before trying again.""",
     labels = [
         "changelog/no-changelog",
         "qa/no-code-change",
-        "team/agent-delivery",
-        "team/agent-release-management",
     ]
 
-    if changelog_pr:
-        labels.append(f"backport/{get_default_branch()}")
+    if other_labels:
+        labels += other_labels
 
     updated_pr = github.update_pr(
         pull_number=pr.number,
@@ -675,6 +733,19 @@ Make sure that milestone is open before trying again.""",
     print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
 
     return updated_pr.html_url
+
+
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+    milestone_name = milestone or str(version)
+
+    labels = [
+        "team/agent-delivery",
+        "team/agent-release-management",
+    ]
+    if changelog_pr:
+        labels.append(f"backport/{get_default_branch()}")
+
+    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
 
 
 def ask_review_actor(pr):

@@ -18,8 +18,8 @@ import (
 
 const (
 	dataprocInjectorVersion   = "0.26.0-1"
-	dataprocJavaTracerVersion = "1.42.2-1"
-	dataprocAgentVersion      = "7.58.2-1"
+	dataprocJavaTracerVersion = "1.45.2-1"
+	dataprocAgentVersion      = "7.62.2-1"
 )
 
 var (
@@ -82,6 +82,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	}
 	setHostTag(s, "cluster_id", clusterID)
 	setHostTag(s, "dataproc_cluster_id", clusterID)
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	dataprocRole, err := metadataClient.InstanceAttributeValueWithContext(ctx, "dataproc-role")
 	if err != nil {

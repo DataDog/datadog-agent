@@ -205,7 +205,9 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool, extra_flakes_config: str | None = None
+) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path
@@ -225,7 +227,10 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        tw = TestWasher()
+        flakes_configs = ["flakes.yaml"]
+        if extra_flakes_config is not None:
+            flakes_configs.append(extra_flakes_config)
+        tw = TestWasher(flakes_file_paths=flakes_configs)
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
@@ -884,7 +889,8 @@ def check_otel_build(ctx):
 @task
 def check_otel_module_versions(ctx):
     pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
-    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
+    # TODO(songy23): restore to OTEL_UPSTREAM_GO_MOD_PATH once otel v0.120.0 is brought to Agent.
+    r = requests.get("https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod")
     matches = re.findall(pattern, r.text, flags=re.MULTILINE)
     if len(matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")

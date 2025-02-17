@@ -218,12 +218,7 @@
     # setup_env job hasn't finished. This causes instances to be leftover for more time than necessary.
     - inv kmt.wait-for-setup-job --pipeline-id $CI_PIPELINE_ID --arch $ARCH --component $TEST_COMPONENT
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
-    - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
-    - echo ${INSTANCE_ID}
-    - |
-      if [[ "${INSTANCE_ID}" != "" ]] && [[ "${INSTANCE_ID}" != "null" ]]; then
-        aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
-      fi
+    - cat instance.json | jq -r 'map(.[]) | .[]' | grep -v "null" | xargs --no-run-if-empty -n 1 -t aws ec2 terminate-instances --instance-ids
   after_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
@@ -299,7 +294,7 @@
         - $EXTERNAL_LINKS_PATH
 
 notify_ebpf_complexity_changes:
-  stage: notify
+  extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
@@ -338,7 +333,6 @@ notify_ebpf_complexity_changes:
               - suse_12.5
               - fedora_38
             TEST_SET: no_usm
-  allow_failure: true
   before_script:
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is

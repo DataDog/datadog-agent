@@ -7,25 +7,22 @@
 package djm
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	emrInjectorVersion     = "0.26.0-1"
-	emrJavaTracerVersion   = "1.42.2-1"
-	emrAgentVersion        = "7.58.2-1"
-	commandTimeoutDuration = 10 * time.Second
+	emrInjectorVersion   = "0.26.0-1"
+	emrJavaTracerVersion = "1.45.2-1"
+	emrAgentVersion      = "7.62.2-1"
+	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 )
 
 var (
@@ -74,11 +71,11 @@ type extraEmrInstanceInfo struct {
 
 // SetupEmr sets up the DJM environment on EMR
 func SetupEmr(s *common.Setup) error {
-
 	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
+	s.Out.WriteString("Applying specific Data Jobs Monitoring config")
 	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
 
 	hostname, err := os.Hostname()
@@ -96,7 +93,16 @@ func SetupEmr(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster {
+		s.Out.WriteString("Setting up Spark integration config on the Resource Manager")
 		setupResourceManager(s, clusterName)
+	}
+	// Add logs config to both Resource Manager and Workers
+	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
+		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true")
+		enableEmrLogs(s)
+
+	} else {
+		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true")
 	}
 	return nil
 }
@@ -130,6 +136,7 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 	setHostTag(s, "cluster_id", extraInfo.JobFlowID)
 	setHostTag(s, "emr_version", extraInfo.ReleaseLabel)
 	s.Span.SetTag("emr_version", extraInfo.ReleaseLabel)
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	clusterName := resolveEmrClusterName(s, extraInfo.JobFlowID)
 	setHostTag(s, "cluster_name", clusterName)
@@ -138,7 +145,6 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 }
 
 func setupResourceManager(s *common.Setup, clusterName string) {
-
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
 
@@ -161,29 +167,11 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 
 }
 
-var executeCommandWithTimeout = func(s *common.Setup, command string, args ...string) (output []byte, err error) {
-	span, _ := telemetry.StartSpanFromContext(s.Ctx, "setup.command")
-	span.SetResourceName(command)
-	defer func() { span.Finish(err) }()
-
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeoutDuration)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, command, args...)
-	output, err = cmd.Output()
-
-	if err != nil {
-		span.Finish(err)
-		return nil, err
-	}
-	return output, nil
-}
-
 func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	var err error
 	span, _ := telemetry.StartSpanFromContext(s.Ctx, "resolve.cluster_name")
 	defer func() { span.Finish(err) }()
-	emrResponseRaw, err := executeCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
+	emrResponseRaw, err := common.ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
 	if err != nil {
 		log.Warnf("error describing emr cluster, using cluster id as name: %v", err)
 		return jobFlowID
@@ -199,4 +187,28 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 		return jobFlowID
 	}
 	return clusterName
+}
+
+func enableEmrLogs(s *common.Setup) {
+	s.Config.DatadogYAML.LogsEnabled = true
+	// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
+	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
+	// Load the existing integration config and add logs section to it
+	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
+	emrLogs := []common.IntegrationConfigLogs{
+		{
+			Type:    "file",
+			Path:    hadoopLogFolder + "*/*/stdout",
+			Source:  "hadoop-yarn",
+			Service: "emr-logs",
+		},
+		{
+			Type:    "file",
+			Path:    hadoopLogFolder + "*/*/stderr",
+			Source:  "hadoop-yarn",
+			Service: "emr-logs",
+		},
+	}
+	sparkIntegration.Logs = emrLogs
+	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration
 }

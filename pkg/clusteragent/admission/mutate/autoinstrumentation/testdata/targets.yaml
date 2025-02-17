@@ -1,0 +1,26 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    disabled_namespaces:
+      - "hacks"
+    targets:
+      - name: "Billing Service"
+        podSelector:
+          matchLabels:
+            app: "billing-service"
+          matchExpressions:
+            - key: "env"
+              operator: "In"
+              values:
+                - "prod"
+        namespaceSelector:
+          matchNames:
+          - "billing"
+        ddTraceVersions:
+          java: "default"
+        ddTraceConfigs:
+          - name: "DD_PROFILING_ENABLED"
+            value: "true"
+          - name: "DD_DATA_JOBS_ENABLED"
+            value: "true"

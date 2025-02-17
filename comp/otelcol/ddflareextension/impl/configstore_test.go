@@ -38,7 +38,7 @@ import (
 // this is only used for config unmarshalling.
 func addFactories(factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil)
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(nil, nil)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
 }
@@ -74,7 +74,7 @@ func TestGetConfDump(t *testing.T) {
 	}
 
 	t.Run("provided-string", func(t *testing.T) {
-		actualString, _ := ext.configStore.getProvidedConfAsString()
+		actualString := ext.configStore.getProvidedConf()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
 
@@ -87,11 +87,8 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("provided-confmap", func(t *testing.T) {
-		actualConfmap, _ := ext.configStore.getProvidedConf()
-		// marshal to yaml and then to map to drop the types for comparison
-		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
-		assert.NoError(t, err)
-		actualStringMap, err := yamlBytesToMap(bytesConf)
+		providedConf := ext.configStore.getProvidedConf()
+		actualStringMap, err := yamlBytesToMap([]byte(providedConf))
 		assert.NoError(t, err)
 
 		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-provided-result.yaml")
@@ -119,7 +116,7 @@ func TestGetConfDump(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("enhanced-string", func(t *testing.T) {
-		actualString, _ := ext.configStore.getEnhancedConfAsString()
+		actualString := ext.configStore.getEnhancedConf()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
 
@@ -132,11 +129,8 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("enhance-confmap", func(t *testing.T) {
-		actualConfmap, _ := ext.configStore.getEnhancedConf()
-		// marshal to yaml and then to map to drop the types for comparison
-		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
-		assert.NoError(t, err)
-		actualStringMap, err := yamlBytesToMap(bytesConf)
+		actualConfmap := ext.configStore.getEnhancedConf()
+		actualStringMap, err := yamlBytesToMap([]byte(actualConfmap))
 		assert.NoError(t, err)
 
 		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-enhanced-result.yaml")
@@ -149,7 +143,6 @@ func TestGetConfDump(t *testing.T) {
 
 		assertEqual(t, expectedStringMap, actualStringMap)
 	})
-
 }
 
 func confmapFromResolverSettings(t *testing.T, resolverSettings confmap.ResolverSettings) *confmap.Conf {
@@ -165,7 +158,7 @@ func uriFromFile(filename string) []string {
 }
 
 func yamlBytesToMap(bytesConfig []byte) (map[string]any, error) {
-	var configMap = map[string]interface{}{}
+	configMap := map[string]interface{}{}
 	err := yaml.Unmarshal(bytesConfig, configMap)
 	if err != nil {
 		return nil, err

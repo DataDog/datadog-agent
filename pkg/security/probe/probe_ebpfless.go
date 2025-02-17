@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
 
@@ -296,6 +298,46 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	case ebpfless.SyscallTypeUmount:
 		event.Type = uint32(model.FileUmountEventType)
 		event.Umount.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeConnect:
+		event.Type = uint32(model.ConnectEventType)
+		event.Connect.Addr = model.IPPortContext{
+			IPNet: *eval.IPNetFromIP(syscallMsg.Connect.Addr),
+			Port:  syscallMsg.Connect.Port,
+		}
+		event.Connect.AddrFamily = syscallMsg.Connect.AddressFamily
+		event.Connect.Protocol = syscallMsg.Connect.Protocol
+		event.Connect.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeAccept:
+		event.Type = uint32(model.AcceptEventType)
+		event.Accept.Addr = model.IPPortContext{
+			IPNet: *eval.IPNetFromIP(syscallMsg.Accept.Addr),
+			Port:  syscallMsg.Accept.Port,
+		}
+		event.Accept.AddrFamily = syscallMsg.Accept.AddressFamily
+		event.Accept.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeBind:
+		event.Type = uint32(model.BindEventType)
+		if syscallMsg.Bind.AddressFamily == unix.AF_UNIX {
+			event.Bind.Addr = model.IPPortContext{
+				IPNet: net.IPNet{
+					IP:   net.IP(nil),
+					Mask: net.IPMask(nil),
+				},
+				Port: 0,
+			}
+		} else {
+			event.Bind.Addr = model.IPPortContext{
+				IPNet: *eval.IPNetFromIP(syscallMsg.Bind.Addr),
+				Port:  syscallMsg.Bind.Port,
+			}
+		}
+
+		event.Bind.AddrFamily = syscallMsg.Bind.AddressFamily
+		event.Bind.Protocol = syscallMsg.Bind.Protocol
+		event.Bind.Retval = syscallMsg.Retval
 	}
 
 	// container context
@@ -538,11 +580,6 @@ func (p *EBPFLessProbe) Start() error {
 
 // Snapshot the already existing entities
 func (p *EBPFLessProbe) Snapshot() error {
-	return nil
-}
-
-// Setup the probe
-func (p *EBPFLessProbe) Setup() error {
 	return nil
 }
 

@@ -15,11 +15,10 @@ import (
 	"runtime"
 	"time"
 
-	"modernc.org/mathutil"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -125,8 +124,8 @@ func (nc *NetworkContext) IsZero() bool {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64          `field:"-"`
-	TraceID mathutil.Int128 `field:"-"`
+	SpanID  uint64        `field:"-"`
+	TraceID utils.TraceID `field:"-"`
 }
 
 // BaseEvent represents an event sent from the kernel
@@ -505,17 +504,16 @@ func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheE
 
 // ProcessAncestorsIterator defines an iterator of ancestors
 type ProcessAncestorsIterator struct {
+	Root *ProcessCacheEntry
 	prev *ProcessCacheEntry
 }
 
 // Front returns the first element
-func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
-	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
-		it.prev = front
-		return front
+func (it *ProcessAncestorsIterator) Front(_ *eval.Context) *ProcessCacheEntry {
+	if it.Root != nil {
+		it.prev = it.Root
 	}
-
-	return nil
+	return it.prev
 }
 
 // Next returns the next element

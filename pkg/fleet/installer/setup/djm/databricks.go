@@ -18,8 +18,8 @@ import (
 
 const (
 	databricksInjectorVersion   = "0.26.0-1"
-	databricksJavaTracerVersion = "1.42.2-1"
-	databricksAgentVersion      = "7.58.2-1"
+	databricksJavaTracerVersion = "1.45.2-1"
+	databricksAgentVersion      = "7.62.2-1"
 )
 
 var (
@@ -134,6 +134,7 @@ func setupCommonHostTags(s *common.Setup) {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
 	}
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 }
 
 func getJobAndRunIDs() (jobID, runID string, ok bool) {

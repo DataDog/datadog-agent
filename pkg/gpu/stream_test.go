@@ -22,7 +22,7 @@ import (
 )
 
 func getSystemContextForTest(t *testing.T) *systemContext {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t))
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
 
@@ -30,12 +30,12 @@ func getSystemContextForTest(t *testing.T) *systemContext {
 }
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeKernelLaunch,
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
 			Pid_tgid:  1,
 			Ktime_ns:  kernStartTime,
 			Stream_id: 1,
@@ -87,7 +87,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -96,7 +96,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 
 	allocation := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime,
 			Stream_id: 1,
@@ -108,7 +108,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 
 	free := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memFreeTime,
 			Stream_id: 1,
@@ -156,7 +156,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -164,7 +164,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 
 	allocation := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime,
 			Stream_id: 1,
@@ -189,7 +189,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -202,7 +202,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 
 	allocation := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime,
 			Stream_id: 1,
@@ -214,7 +214,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 
 	free := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memFreeTime,
 			Stream_id: 1,
@@ -231,7 +231,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	stream := newStreamHandler(0, "", getSystemContextForTest(t))
+	stream := newStreamHandler(0, "", 90, getSystemContextForTest(t))
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -240,7 +240,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	allocation1 := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime1,
 			Stream_id: 1,
@@ -252,7 +252,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	free1 := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memFreeTime1,
 			Stream_id: 1,
@@ -263,7 +263,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	allocation2 := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memAllocTime2,
 			Stream_id: 1,
@@ -275,7 +275,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	free2 := &gpuebpf.CudaMemEvent{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeMemory,
+			Type:      uint32(gpuebpf.CudaEventTypeMemory),
 			Pid_tgid:  1,
 			Ktime_ns:  memFreeTime2,
 			Stream_id: 1,
@@ -322,7 +322,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 	proc := kernel.ProcFSRoot()
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t))
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), proc, testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 
 	// Set up the caches in system context so no actual queries are done
@@ -350,21 +350,22 @@ func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
 		ConstantMem: constantMem,
 	})
 
-	sysCtx.cudaSymbols[procBinPath] = &symbolsEntry{
+	procBinIdent, err := buildSymbolFileIdentifier(procBinPath)
+	require.NoError(t, err)
+
+	sysCtx.cudaSymbols[procBinIdent] = &symbolsEntry{
 		Symbols: &cuda.Symbols{
 			SymbolTable: map[uint64]string{kernAddress: kernName},
 			Fatbin:      fatbin,
 		},
 	}
 
-	sysCtx.deviceSmVersions = map[int]int{0: int(smVersion)}
-
-	stream := newStreamHandler(uint32(pid), "", sysCtx)
+	stream := newStreamHandler(uint32(pid), "", smVersion, sysCtx)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
 		Header: gpuebpf.CudaEventHeader{
-			Type:      gpuebpf.CudaEventTypeKernelLaunch,
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
 			Pid_tgid:  uint64(pid<<32 + tid),
 			Ktime_ns:  kernStartTime,
 			Stream_id: 1,

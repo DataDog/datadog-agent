@@ -12,6 +12,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -32,8 +33,7 @@ type MultiLineHandler struct {
 	shouldTruncate    bool
 	isBufferTruncated bool
 	linesLen          int
-	status            string
-	timestamp         string
+	msg               *message.Message
 	countInfo         *status.CountInfo
 	linesCombinedInfo *status.CountInfo
 	telemetryEnabled  bool
@@ -97,11 +97,10 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 	isTruncated := h.shouldTruncate
 	h.shouldTruncate = false
 
-	// track the raw data length and the timestamp so that the agent tails
+	// track the raw data length so that the agent tails
 	// from the right place at restart
 	h.linesLen += msg.RawDataLen
-	h.timestamp = msg.ParsingExtra.Timestamp
-	h.status = msg.Status
+	h.msg = msg
 	h.linesCombined++
 
 	if h.buffer.Len() > 0 {
@@ -163,14 +162,26 @@ func (h *MultiLineHandler) sendBuffer() {
 				telemetry.GetStatsTelemetryProvider().Count(linesCombinedTelemetryMetricName, float64(linesCombined), []string{})
 			}
 		}
-		msg := message.NewRawMessage(content, h.status, h.linesLen, h.timestamp)
+
+		msg := h.msg
+		msg.SetContent(content)
+		msg.RawDataLen = h.linesLen
 		msg.ParsingExtra.IsTruncated = h.isBufferTruncated
-		if h.isBufferTruncated && pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("multiline_regex"))
+
+		tlmTags := []string{"false", "single_line"}
+		if h.isBufferTruncated {
+			tlmTags[0] = "true"
+			if pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("multiline_regex"))
+			}
 		}
-		if h.linesCombined > 1 && pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs") {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag(h.multiLineTagValue))
+		if h.linesCombined > 1 {
+			tlmTags[1] = h.multiLineTagValue
+			if pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs") {
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag(h.multiLineTagValue))
+			}
 		}
+		metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
 		h.outputFn(msg)
 	}
 }
