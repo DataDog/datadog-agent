@@ -54,6 +54,9 @@ type Collector interface {
 
 	// Name returns the name of the subsystem
 	Name() CollectorName
+
+	// DeviceUUID returns the UUID of the device this collector is collecting metrics from. Returns an empty string if there's no UUID
+	DeviceUUID() string
 }
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
