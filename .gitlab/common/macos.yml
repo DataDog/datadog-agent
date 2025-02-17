@@ -58,7 +58,7 @@
     # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt --break-system-packages
-    - pyenv rehash
+    # TODO A: - pyenv rehash
     - inv -e rtloader.make
     - inv -e rtloader.install
     - inv -e install-tools
