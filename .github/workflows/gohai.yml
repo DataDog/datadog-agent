@@ -23,7 +23,7 @@ jobs:
         # Use oldest and latest available ubuntu, macos and windows
         os:
           [
-            ubuntu-20.04,
+            ubuntu-22.04,
             ubuntu-latest,
             macos-13,
             macos-latest,

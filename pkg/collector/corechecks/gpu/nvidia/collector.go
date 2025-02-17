@@ -23,6 +23,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CollectorName is the name of the nvml sub-collectors
+type CollectorName string
+
+const (
+	field        CollectorName = "fields"
+	clock        CollectorName = "clocks"
+	device       CollectorName = "device"
+	remappedRows CollectorName = "remapped_rows"
+	samples      CollectorName = "samples"
+)
+
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
 type Collector interface {
 	// Collect collects metrics from the given NVML device. This method should not fill the tags
@@ -32,8 +43,8 @@ type Collector interface {
 	// Close closes the subsystem and releases any resources it might have allocated
 	Close() error
 
-	// name returns the name of the subsystem
-	Name() string
+	// Name returns the name of the subsystem
+	Name() CollectorName
 }
 
 // Metric represents a single metric collected from the NVML library.
@@ -52,11 +63,12 @@ var errUnsupportedDevice = errors.New("device does not support the given collect
 type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
 
 // allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
-var allSubsystems = map[string]subsystemBuilder{
-	fieldsCollectorName:       newFieldsCollector,
-	deviceCollectorName:       newDeviceCollector,
-	remappedRowsCollectorName: newRemappedRowsCollector,
-	clocksCollectorName:       newClocksCollector,
+var allSubsystems = map[CollectorName]subsystemBuilder{
+	field:        newFieldsCollector,
+	device:       newDeviceCollector,
+	remappedRows: newRemappedRowsCollector,
+	clock:        newClocksCollector,
+	samples:      newSamplesCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -73,7 +85,7 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 	return buildCollectors(deps, allSubsystems)
 }
 
-func buildCollectors(deps *CollectorDependencies, subsystems map[string]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, subsystems map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
 	devCount, ret := deps.NVML.DeviceGetCount()
@@ -121,6 +133,12 @@ func getTagsFromDevice(dev nvml.Device, tagger tagger.Component) ([]string, erro
 	tags, err := tagger.Tag(entityID, tagger.ChecksCardinality())
 	if err != nil {
 		log.Warnf("Error collecting GPU tags for GPU UUID %s: %s", uuid, err)
+	}
+
+	if len(tags) == 0 {
+		// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
+		// add at least the UUID as a tag to distinguish the values.
+		tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
 	}
 
 	return tags, nil

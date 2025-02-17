@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -111,7 +112,9 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 
 	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(handler.cfg.languageTTL))
 
+	log.Tracef("Owner Languages state pre merge-and-flush:\n %s", handler.ownersLanguages.String())
 	err = handler.ownersLanguages.mergeAndFlush(ownersLanguagesFromRequest, handler.wlm)
+	log.Tracef("Owner Languages state post merge-and-flush:\n %s", handler.ownersLanguages.String())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
 		ProcessedRequests.Inc(statusError)

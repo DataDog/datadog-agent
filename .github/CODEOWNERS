@@ -209,7 +209,7 @@
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx-infra
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/network_path.d/  @DataDog/Networks @DataDog/network-device-monitoring
+/cmd/agent/dist/conf.d/network_path.d/  @DataDog/Networks
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
@@ -232,7 +232,7 @@
 /cmd/system-probe/modules/process*      @DataDog/container-intake
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
-/cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
+/cmd/system-probe/modules/traceroute*   @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
 /cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/universal-service-monitoring @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
@@ -300,7 +300,7 @@
 /comp/metadata @DataDog/agent-configuration
 /comp/ndmtmp @DataDog/ndm-core
 /comp/netflow @DataDog/ndm-integrations
-/comp/networkpath @DataDog/Networks @DataDog/network-device-monitoring
+/comp/networkpath @DataDog/Networks
 /comp/otelcol @DataDog/opentelemetry @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-intake
 /comp/remote-config @DataDog/remote-config
@@ -567,8 +567,8 @@
 /comp/core/workloadmeta/collectors/internal/nvml @DataDog/ebpf-platform
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 /pkg/internaltelemetry                  @DataDog/windows-kernel-integrations @DataDog/fleet
-/pkg/networkpath/                       @DataDog/network-device-monitoring @DataDog/Networks
-/pkg/collector/corechecks/networkpath/  @DataDog/network-device-monitoring @DataDog/Networks
+/pkg/networkpath/                       @DataDog/Networks
+/pkg/collector/corechecks/networkpath/  @DataDog/Networks
 
 /releasenotes/                          @DataDog/documentation
 /releasenotes-dca/                      @DataDog/documentation
@@ -632,6 +632,8 @@
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/check   @DataDog/agent-metric-pipelines
+/test/new-e2e/tests/agent-subcommands/hostname  @DataDog/agent-runtimes
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
@@ -639,7 +641,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/container-intake
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
-/test/new-e2e/tests/netpath                   @DataDog/Networks @DataDog/network-device-monitoring
+/test/new-e2e/tests/netpath                   @DataDog/Networks
 /test/new-e2e/tests/npm                       @DataDog/Networks
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
