@@ -345,3 +345,15 @@ http_archive(
     strip_prefix = "openscap-{0}".format(OPENSCAP_VERSION),
     url = "https://github.com/OpenSCAP/openscap/releases/download/{0}/openscap-{0}.tar.gz".format(OPENSCAP_VERSION),
 )
+
+
+LIBTOOL_VERSION = "2.5.4"
+
+http_archive(
+    name = "libtool",
+    build_file_content = all_content,
+    sha256 = "da8ebb2ce4dcf46b90098daf962cffa68f4b4f62ea60f798d0ef12929ede6adf",
+    strip_prefix = "libtool-{0}".format(LIBTOOL_VERSION),
+    url = "https://ftpmirror.gnu.org/libtool/libtool-{0}.tar.gz".format(LIBTOOL_VERSION),
+)
+
