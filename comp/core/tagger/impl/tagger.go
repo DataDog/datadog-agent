@@ -365,6 +365,9 @@ func (t *TaggerWrapper) ResetCaptureTagger() {
 // When modifying this function make sure to update the copy `impl-remote` as well.
 // TODO: extract this function to a share function so it can be used in both implementations
 func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
+	// TODO (wassim): Remove debug log
+	t.log.Errorf("wassimdsddebug - In EnrichTags, origin: %+v", originInfo)
+
 	cardinality := taggerCardinality(originInfo.Cardinality, t.dogstatsdCardinality, t.log)
 	metaCollector := metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector()
 

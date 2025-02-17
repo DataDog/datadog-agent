@@ -6,6 +6,7 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strings"
 	"time"
 
@@ -71,6 +72,9 @@ func extractTagsMetadata(tags []string, processID uint32, localData origindetect
 	}
 
 	tags = tags[:n]
+
+	// TODO (wassim): Remove debug log
+	log.Errorf("wassimdsddebug - In extractTagsMetadata, origin: %+v", origin)
 
 	return tags, host, origin, metricSource
 }
