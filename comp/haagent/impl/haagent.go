@@ -8,6 +8,7 @@ package haagentimpl
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -108,7 +109,7 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			})
 			continue
 		}
-		if haAgentMsg.ConfigID != h.GetConfigID() {
+		if strings.ToLower(haAgentMsg.ConfigID) != strings.ToLower(h.GetConfigID()) {
 			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected configID %s, got %s",
 				configPath, h.GetConfigID(), haAgentMsg.ConfigID)
 			applyStateCallback(configPath, state.ApplyStatus{
