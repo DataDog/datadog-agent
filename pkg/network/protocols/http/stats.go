@@ -6,12 +6,15 @@
 package http
 
 import (
+	"errors"
+
 	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Interner is used to intern strings to save memory allocations.
@@ -128,12 +131,30 @@ type RequestStat struct {
 	DynamicTags []string
 }
 
-func (r *RequestStat) initSketch() (err error) {
-	r.Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
-	if err != nil {
-		log.Debugf("error recording http transaction latency: could not create new ddsketch: %v", err)
+var (
+	sketchesPool = ddsync.NewTypedPool[ddsketch.DDSketch](func() *ddsketch.DDSketch {
+		latencies, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+		if err != nil {
+			return nil
+		}
+		return latencies
+	})
+)
+
+func (r *RequestStat) initSketch() error {
+	latencies := sketchesPool.Get()
+	if latencies == nil {
+		return errors.New("error recording http transaction latency: could not create new ddsketch")
 	}
-	return
+	r.Latencies = latencies
+	return nil
+}
+
+func (r *RequestStat) close() {
+	if r.Latencies != nil {
+		r.Latencies.Clear()
+		sketchesPool.Put(r.Latencies)
+	}
 }
 
 // RequestStats stores HTTP request statistics.
@@ -242,6 +263,15 @@ func (r *RequestStats) HalfAllCounts() {
 	for _, stats := range r.Data {
 		if stats != nil {
 			stats.Count = stats.Count / 2
+		}
+	}
+}
+
+// Close releases internal stats resources.
+func (r *RequestStats) Close() {
+	for _, stats := range r.Data {
+		if stats != nil {
+			stats.close()
 		}
 	}
 }
