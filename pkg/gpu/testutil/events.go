@@ -82,28 +82,53 @@ func ParseEventsFile(path string) ([]any, error) {
 	return events, nil
 }
 
-// EventToString converts an event to a human-readable string based on its type
-func EventToString(ev any) (string, error) {
+// GetEventTimestamp returns the timestamp of a gpuebpf event by casting it to the
+// appropriate type and extracting the timestamp field. Not the best way to do this but
+// considering it's just testutil code, it works well enough rather than modifying the ebpf package
+func GetEventTimestamp(ev any) uint64 {
 	switch e := ev.(type) {
 	case *ebpf.CudaKernelLaunch:
-		return fmt.Sprintf("[%s] kernel launch addr 0x%X", headerToString(&e.Header), e.Kernel_addr), nil
+		return e.Header.Ktime_ns
+	case *ebpf.CudaMemEvent:
+		return e.Header.Ktime_ns
+	case *ebpf.CudaSync:
+		return e.Header.Ktime_ns
+	case *ebpf.CudaSetDeviceEvent:
+		return e.Header.Ktime_ns
+	default:
+		return 0
+	}
+}
+
+// EventToString converts an event to a human-readable string based on its type
+func EventToString(ev any, lastTimestamp uint64) (string, error) {
+	switch e := ev.(type) {
+	case *ebpf.CudaKernelLaunch:
+		return fmt.Sprintf("[%s] kernel launch addr 0x%X", headerToString(&e.Header, lastTimestamp), e.Kernel_addr), nil
 	case *ebpf.CudaMemEvent:
 		memName := "allocation"
 		if ebpf.CudaMemEventType(e.Type) == ebpf.CudaMemFree {
 			memName = "free"
 		}
-		return fmt.Sprintf("[%s] memory %s addr 0x%X size %d", headerToString(&e.Header), memName, e.Addr, e.Size), nil
+		return fmt.Sprintf("[%s] memory %s addr 0x%X size %d", headerToString(&e.Header, lastTimestamp), memName, e.Addr, e.Size), nil
 	case *ebpf.CudaSync:
-		return fmt.Sprintf("[%s] sync event", headerToString(&e.Header)), nil
+		return fmt.Sprintf("[%s] sync event", headerToString(&e.Header, lastTimestamp)), nil
 	case *ebpf.CudaSetDeviceEvent:
-		return fmt.Sprintf("[%s] set device event device %d", headerToString(&e.Header), e.Device), nil
+		return fmt.Sprintf("[%s] set device event device %d", headerToString(&e.Header, lastTimestamp), e.Device), nil
 	default:
 		return "", fmt.Errorf("unsupported event type: %T", e)
 	}
 }
 
-func headerToString(header *ebpf.CudaEventHeader) string {
+func headerToString(header *ebpf.CudaEventHeader, lastTimestamp uint64) string {
 	pid := header.Pid_tgid >> 32
 	tid := header.Pid_tgid & 0xffffffff
-	return fmt.Sprintf("PID/TID: %d/%d, Stream ID: %d, Time: %d, Cgroup: %s", pid, tid, header.Stream_id, header.Ktime_ns, string(header.Cgroup[:]))
+
+	var diffStr string
+	if lastTimestamp != 0 {
+		diff := header.Ktime_ns - lastTimestamp
+		diffStr = fmt.Sprintf(" (%+6.3fms)", float64(diff)/1e6)
+	}
+
+	return fmt.Sprintf("PID/TID: %d/%d | STR: %d | T %d%s", pid, tid, header.Stream_id, header.Ktime_ns, diffStr)
 }
