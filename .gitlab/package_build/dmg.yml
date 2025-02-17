@@ -156,19 +156,34 @@ new-agent_dmg-x64-a7:
   after_script:
     - brew install gettext -fv || true
     - brew link --overwrite gettext || true
+    - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
     - export PYTHON_VERSION=3.12.6
+    - which python
     - brew remove --force --ignore-dependencies --formula gettext
-    - echo 'Trying to build python from source now without gettext, install it somewhere else and update path'
     - echo Verifying libintl
     - sudo find /usr -name "libintl*" || true
     - sudo find /opt -name "libintl*" || true
+
+    - echo 'Trying to build python from source now without gettext, install it somewhere else and update path'
+    - brew remove --ignore-dependencies python@$PYTHON_VERSION -f
+    - |
+      sudo bash -c 'rm -f /usr/local/bin/2to3*' || true
+      sudo bash -c 'rm -f /usr/local/bin/idle3*' || true
+      sudo bash -c 'rm -f /usr/local/bin/pydoc3*' || true
+      sudo bash -c 'rm -f /usr/local/bin/python3*' || true
+      sudo bash -c 'rm -f /usr/local/bin/python3*-config' || true
+      sudo bash -c "rm -rf /Library/Frameworks/Python.framework/Versions/*" || true
+      sudo bash -c "rm -rf /usr/local/Cellar/python@*" || true
     - brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
     - brew link python@$PYTHON_VERSION -n || true
-    - Installed python
+
     - echo Verifying libintl
     - sudo find /usr -name "libintl*" || true
     - sudo find /opt -name "libintl*" || true
+    - Installed python
+    - which python
+    - python --version
     - exit
 
 
