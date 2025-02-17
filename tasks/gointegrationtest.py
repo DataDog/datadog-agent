@@ -62,13 +62,6 @@ CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
     ],
 )
 
-DOGSTATSD_IT_CONF = IntegrationTestsConfig(
-    name="DogStatsD",
-    go_build_tags=get_default_build_tags(build="test"),
-    tests=[IntegrationTest(prefix="./test/integration/dogstatsd/...")],
-    is_windows_supported=False,
-)
-
 CLUSTER_AGENT_IT_CONF = IntegrationTestsConfig(
     name="Cluster Agent",
     go_build_tags=get_default_build_tags(build="cluster-agent") + ["docker", "test"],
@@ -132,9 +125,6 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
     tests = {
         "Agent Core": lambda: containerized_integration_tests(
             ctx, core_agent_conf, race=race, remote_docker=remote_docker, timeout=timeout
-        ),
-        "DogStatsD": lambda: containerized_integration_tests(
-            ctx, DOGSTATSD_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
         ),
         "Cluster Agent": lambda: containerized_integration_tests(
             ctx, CLUSTER_AGENT_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
