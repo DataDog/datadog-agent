@@ -221,7 +221,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 
 		"active_flows": {
-			MaxEntries: activeFlowsMaxEntries,
+			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"active_flows_spin_locks": {
