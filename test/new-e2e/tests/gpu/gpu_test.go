@@ -181,7 +181,7 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			}
 
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metric.name)
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metric.name, options...)
 			assert.NoError(c, err)
 
 			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric.name)
