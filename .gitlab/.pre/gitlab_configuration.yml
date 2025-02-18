@@ -59,7 +59,7 @@ lint_gitlab_ci:
     - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
     - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
     # TODO: Do on diff (if so, not on main)
-    - apt-get update && apt-get install bat # TODO A
+    - apt-get update && apt-get install batcat # TODO A
     - inv -e linter.gitlab-ci-shellcheck --config-file artifacts/after.gitlab-ci.yml || status=1
     - |
       if [ $status != 0 ]; then

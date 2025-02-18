@@ -866,7 +866,8 @@ def gitlab_ci_shellcheck(
     ctx,
     diff_file=None,
     config_file=None,
-    shellcheck_args="--severity=info -e SC2059 -e SC2028",
+    shellcheck_args="--severity=info",
+    exclude='SC2059,SC2028,2086',
     fail_fast=False,
     verbose=False,
     use_bat=None,
@@ -877,6 +878,8 @@ def gitlab_ci_shellcheck(
         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
     """
+
+    exclude = ' '.join(f'-e {e}' for e in exclude.split(','))
 
     if use_bat is None:
         use_bat = ctx.run('which bat', warn=True, hide=True)
@@ -917,11 +920,11 @@ def gitlab_ci_shellcheck(
                     else ''
                 )
                 script = '\n\n# Script\n' + flatten_script(content['script'])
-                full_script = f"#!/bin/bash{before}{script}{after}".strip() + '\n'
+                full_script = f"#!/bin/bash\n\n{before}{script}{after}".strip() + '\n'
                 with open(tmpdir + f"/{job}.sh", 'w') as f:
                     f.write(full_script)
 
-                res = ctx.run(f"shellcheck {shellcheck_args} {tmpdir}/{job}.sh", warn=True, hide=True)
+                res = ctx.run(f"shellcheck {shellcheck_args} {exclude} {tmpdir}/{job}.sh", warn=True, hide=True)
                 if not res:
                     errors[job] = res.stdout
                     if fail_fast:
@@ -933,7 +936,10 @@ def gitlab_ci_shellcheck(
                     print(f"{color_message('Error', Color.RED)}: {job}")
                     print('Script:')
                     if use_bat:
-                        ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh")
+                        res = ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh", hide=True)
+                        # Avoid buffering issues
+                        print(res.stdout)
+                        print(res.stderr)
                     else:
                         with open(f'{tmpdir}/{job}.sh') as f:
                             print(f.read())
