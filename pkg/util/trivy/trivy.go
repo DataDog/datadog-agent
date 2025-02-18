@@ -177,9 +177,6 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		analyzer.TypeRpmArchive,
 	)
 
-	// FIXME: the java analyzer requires some javadb, let's skip it for now
-	disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeJar, analyzer.TypeGradleLock, analyzer.TypePom, analyzer.TypeSbtLock)
-
 	return disabledAnalyzers
 }
 
