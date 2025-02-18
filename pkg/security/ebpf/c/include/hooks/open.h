@@ -77,25 +77,7 @@ HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_
     return trace__sys_openat(filename, SYNC_SYSCALL, how.flags, how.mode);
 }
 
-int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
-    if (syscall->open.dentry) {
-        return 0;
-    }
-
-    struct dentry *dentry = get_path_dentry(path);
-
-    syscall->open.dentry = dentry;
-    syscall->open.file.path_key = get_inode_key_path(inode, path);
-
-    set_file_inode(dentry, &syscall->open.file, 0);
-
-    // do not pop, we want to keep track of the mount ref counter later in the stack
-    approve_syscall(syscall, open_approvers);
-
-    return 0;
-}
-
-int __attribute__((always_inline)) handle_truncate_path_dentry(struct path *path, struct dentry *dentry) {
+int __attribute__((always_inline)) handle_truncate_path_dentry(ctx_t *ctx, struct path *path, struct dentry *dentry) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
@@ -118,16 +100,25 @@ int __attribute__((always_inline)) handle_truncate_path_dentry(struct path *path
     // do not pop, we want to keep track of the mount ref counter later in the stack
     approve_syscall(syscall, open_approvers);
 
+    syscall->resolver.key = syscall->open.file.path_key;
+    syscall->resolver.dentry = syscall->open.dentry;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    // tail call
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+
     return 0;
 }
 
-int __attribute__((always_inline)) handle_truncate_path(struct path *path) {
+int __attribute__((always_inline)) handle_truncate_path(ctx_t *ctx, struct path *path) {
     if (path == NULL) {
         return 0;
     }
 
     struct dentry *dentry = get_path_dentry(path);
-    return handle_truncate_path_dentry(path, dentry);
+    return handle_truncate_path_dentry(ctx, path, dentry);
 }
 
 HOOK_ENTRY("do_truncate")
@@ -138,13 +129,13 @@ int hook_do_truncate(ctx_t *ctx) {
         return 0;
     }
     struct path *path = get_file_f_path_addr(f);
-    return handle_truncate_path_dentry(path, dentry);
+    return handle_truncate_path_dentry(ctx, path, dentry);
 }
 
 HOOK_ENTRY("vfs_truncate")
 int hook_vfs_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_truncate_path(path);
+    return handle_truncate_path(ctx, path);
 }
 
 HOOK_ENTRY("security_file_truncate")
@@ -153,33 +144,54 @@ int hook_security_file_truncate(ctx_t *ctx) {
     if (f == NULL) {
         return 0;
     }
-    return handle_truncate_path(get_file_f_path_addr(f));
+    return handle_truncate_path(ctx, get_file_f_path_addr(f));
 }
 
 HOOK_ENTRY("security_path_truncate")
 int hook_security_path_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_truncate_path(path);
+    return handle_truncate_path(ctx, path);
 }
 
-HOOK_ENTRY("vfs_open")
-int hook_vfs_open(ctx_t *ctx) {
+int __attribute__((always_inline)) handle_open(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
     }
 
+    // embedded in struct nameidata
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    struct file *file = (struct file *)CTX_PARM2(ctx);
+
     struct dentry *dentry = get_path_dentry(path);
-    struct inode *inode = get_dentry_inode(dentry);
 
     if (is_non_mountable_dentry(dentry)) {
         pop_syscall(EVENT_OPEN);
         return 0;
     }
 
-    return handle_open_event(syscall, file, path, inode);
+    syscall->open.dentry = dentry;
+    syscall->open.file.path_key = get_dentry_key_path(dentry, path);
+
+    set_file_inode(dentry, &syscall->open.file, 0);
+
+    // do not pop, we want to keep track of the mount ref counter later in the stack
+    approve_syscall(syscall, open_approvers);
+
+    syscall->resolver.key = syscall->open.file.path_key;
+    syscall->resolver.dentry = syscall->open.dentry;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    // tail call
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+
+    return 0;
+}
+
+HOOK_ENTRY("terminate_walk")
+int hook_terminate_walk(ctx_t *ctx) {
+    return handle_open(ctx);
 }
 
 HOOK_ENTRY("do_dentry_open")
@@ -233,106 +245,19 @@ int hook_io_openat2(ctx_t *ctx) {
     return trace_io_openat(ctx);
 }
 
-int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
-    if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_OPEN);
+int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval) {
+ struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall) {
         return 0;
     }
 
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall) {
+    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
 
     // increase mount ref
     inc_mount_ref(syscall->open.file.path_key.mount_id);
     if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_OPEN);
-        return 0;
-    }
-
-    syscall->resolver.key = syscall->open.file.path_key;
-    syscall->resolver.dentry = syscall->open.dentry;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
-    syscall->resolver.callback = select_dr_key(dr_type, DR_OPEN_CALLBACK_KPROBE_KEY, DR_OPEN_CALLBACK_TRACEPOINT_KEY);
-    syscall->resolver.iteration = 0;
-    syscall->resolver.ret = 0;
-    syscall->resolver.sysretval = retval;
-
-    // tail call
-    resolve_dentry(ctx, dr_type);
-
-    // if the tail call fails, we need to pop the syscall cache entry
-    pop_syscall(EVENT_OPEN);
-    return 0;
-}
-
-HOOK_SYSCALL_EXIT(creat) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
-}
-
-HOOK_SYSCALL_COMPAT_EXIT(open_by_handle_at) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
-}
-
-HOOK_SYSCALL_COMPAT_EXIT(truncate) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
-}
-
-HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
-}
-
-HOOK_SYSCALL_COMPAT_EXIT(open) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
-}
-
-HOOK_SYSCALL_COMPAT_EXIT(openat) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
-}
-
-HOOK_SYSCALL_EXIT(openat2) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
-}
-
-SEC("tracepoint/handle_sys_open_exit")
-int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_open_ret(args, args->ret, DR_TRACEPOINT);
-}
-
-HOOK_EXIT("io_openat2")
-int rethook_io_openat2(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
-}
-
-HOOK_ENTRY("filp_close")
-int hook_filp_close(ctx_t *ctx) {
-    struct file *file = (struct file *)CTX_PARM1(ctx);
-    u32 mount_id = get_file_mount_id(file);
-    if (mount_id) {
-        dec_mount_ref(ctx, mount_id);
-    }
-
-    return 0;
-}
-
-int __attribute__((always_inline)) dr_open_callback(void *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
-    if (!syscall) {
-        return 0;
-    }
-
-    s64 retval = syscall->resolver.sysretval;
-
-    if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
 
@@ -371,14 +296,61 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_open_callback")
-int tail_call_target_dr_open_callback(ctx_t *ctx) {
-    return dr_open_callback(ctx);
+HOOK_SYSCALL_EXIT(creat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval);
 }
 
-SEC("tracepoint/dr_open_callback")
-int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_open_callback(args);
+HOOK_SYSCALL_COMPAT_EXIT(open_by_handle_at) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval);
+}
+
+HOOK_SYSCALL_COMPAT_EXIT(truncate) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval);
+}
+
+HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval);
+}
+
+HOOK_SYSCALL_COMPAT_EXIT(open) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval);
+}
+
+HOOK_SYSCALL_COMPAT_EXIT(openat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval);
+}
+
+HOOK_SYSCALL_EXIT(openat2) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval);
+}
+
+SEC("tracepoint/handle_sys_open_exit")
+int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_open_ret(args, args->ret);
+}
+
+HOOK_EXIT("io_openat2")
+int rethook_io_openat2(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_open_ret(ctx, retval);
+}
+
+HOOK_ENTRY("filp_close")
+int hook_filp_close(ctx_t *ctx) {
+    struct file *file = (struct file *)CTX_PARM1(ctx);
+    u32 mount_id = get_file_mount_id(file);
+    if (mount_id) {
+        dec_mount_ref(ctx, mount_id);
+    }
+
+    return 0;
 }
 
 #endif
