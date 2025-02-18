@@ -11,6 +11,8 @@ jobs:
   add_to_merge_queue:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    environment:
+      name: dependabot
 
     steps:
       # Use a token as only the github App can push to the merge queue
