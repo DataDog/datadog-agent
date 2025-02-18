@@ -14,6 +14,7 @@ import (
 	"maps"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -46,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -61,6 +63,9 @@ const (
 	ownerKindKey = "owner_kind"
 	// ownerNameKey represents the KSM label key owner_name
 	ownerNameKey = "owner_name"
+
+	// resource_discovery is the operation name used to retry resource discovery
+	resource_discovery = "resource_discovery"
 )
 
 var extendedCollectors = map[string]string{
@@ -219,22 +224,33 @@ type KSMConfig struct {
 	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
 }
 
+type resourceDiscoveryInfo struct {
+	resources  []*v1.APIResourceList
+	custom     customResources
+	collectors []string
+}
+
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig          model.Config
-	instance             *KSMConfig
-	allStores            [][]cache.Store
-	telemetry            *telemetryCache
-	cancel               context.CancelFunc
-	isCLCRunner          bool
-	isRunningOnNodeAgent bool
-	clusterNameTagValue  string
-	clusterNameRFC1123   string
-	metricNamesMapper    map[string]string
-	metricAggregators    map[string]metricAggregator
-	metricTransformers   map[string]metricTransformerFunc
-	metadataMetricsRegex *regexp.Regexp
+	agentConfig           model.Config
+	instance              *KSMConfig
+	allStores             [][]cache.Store
+	telemetry             *telemetryCache
+	cancel                context.CancelFunc
+	isCLCRunner           bool
+	isRunningOnNodeAgent  bool
+	clusterNameTagValue   string
+	clusterNameRFC1123    string
+	metricNamesMapper     map[string]string
+	metricAggregators     map[string]metricAggregator
+	metricTransformers    map[string]metricTransformerFunc
+	metadataMetricsRegex  *regexp.Regexp
+	resourceDiscoveryInfo *resourceDiscoveryInfo
+	retrier               retry.Retrier
+	initRetry             sync.Once
+	runConfigureOnce      sync.Once
+	configureError        error
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -267,6 +283,150 @@ var labelRegexp *regexp.Regexp
 
 func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
+}
+
+func (k *KSMCheck) discoverResources(client *apiserver.APIClient) error {
+	// Discover resources that are currently available
+	k.initRetry.Do(func() {
+		k.retrier.SetupRetrier(&retry.Config{
+			Name: fmt.Sprintf("%s_%s", CheckName, resource_discovery),
+			AttemptMethod: func() error {
+				resources, err := discoverResources(client.Cl.Discovery())
+				if err != nil {
+					return err
+				}
+
+				var collectors []string
+
+				switch k.instance.PodCollectionMode {
+				case nodeKubeletPodCollection:
+					// In this case we don't need to set up anything related to the API
+					// server.
+					collectors = []string{"pods"}
+				case defaultPodCollection, clusterUnassignedPodCollection:
+					// Prepare the collectors for the resources specified in the configuration file.
+					collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
+					if err != nil {
+						return err
+					}
+
+					// Enable the KSM default collectors if the config collectors list is empty.
+					if len(collectors) == 0 {
+						collectors = options.DefaultResources.AsSlice()
+					}
+				}
+
+				// assign resource discovery field
+				k.resourceDiscoveryInfo = &resourceDiscoveryInfo{
+					resources:  resources,
+					custom:     k.discoverCustomResources(client, collectors, resources),
+					collectors: collectors,
+				}
+
+				return nil
+			},
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: k.Interval(),
+			MaxRetryDelay:     10 * k.Interval(),
+		})
+	})
+
+	if err := k.retrier.TriggerRetry(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// runConfigureOnce executes the builder steps previously in Configure() that depend on resource discovery
+func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient) error {
+	var configureErr error
+	k.runConfigureOnce.Do(func() {
+		builder := kubestatemetrics.New()
+		builder.WithUsingAPIServerCache(k.instance.UseAPIServerCache)
+
+		k.configurePodCollection(builder, k.instance.Collectors)
+
+		if k.instance.PodCollectionMode == defaultPodCollection ||
+			k.instance.PodCollectionMode == clusterUnassignedPodCollection {
+			builder.WithKubeClient(client.InformerCl)
+		}
+
+		// Prepare watched namespaces
+		namespaces := k.instance.Namespaces
+
+		// Enable the KSM default namespaces if the config namespaces list is empty.
+		if len(namespaces) == 0 {
+			namespaces = options.DefaultNamespaces
+		}
+
+		builder.WithNamespaces(namespaces)
+		allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(k.resourceDiscoveryInfo.collectors))
+		if err != nil {
+			configureErr = err
+		}
+
+		if err := allowDenyList.Parse(); err != nil {
+			configureErr = err
+		}
+
+		builder.WithFamilyGeneratorFilter(allowDenyList)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		k.cancel = cancel
+		builder.WithContext(ctx)
+
+		resyncPeriod := k.instance.ResyncPeriod
+		if resyncPeriod == 0 {
+			resyncPeriod = pkgconfigsetup.Datadog().GetInt("kubernetes_informers_resync_period")
+		}
+
+		builder.WithResync(time.Duration(resyncPeriod) * time.Second)
+
+		builder.WithGenerateStoresFunc(builder.GenerateStores)
+
+		// configure custom resources required for extended features and
+		// compatibility across deprecated/removed versions of APIs
+		builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+		builder.WithCustomResourceStoreFactories(k.resourceDiscoveryInfo.custom.factories...)
+		builder.WithCustomResourceClients(k.resourceDiscoveryInfo.custom.clients)
+
+		// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
+		// Equivalent to configuring --metric-annotations-allowlist.
+		allowedAnnotations := map[string][]string{}
+		for _, collector := range k.resourceDiscoveryInfo.collectors {
+			// Any annotation can be used for label joins.
+			allowedAnnotations[collector] = []string{"*"}
+		}
+
+		builder.WithAllowAnnotations(allowedAnnotations)
+
+		// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
+		// Equivalent to configuring --metric-labels-allowlist.
+		allowedLabels := map[string][]string{}
+		for _, collector := range k.resourceDiscoveryInfo.collectors {
+			// Any label can be used for label joins.
+			allowedLabels[collector] = []string{"*"}
+		}
+
+		if err = builder.WithAllowLabels(allowedLabels); err != nil {
+			configureErr = err
+		}
+
+		if err := builder.WithEnabledResources(k.resourceDiscoveryInfo.collectors); err != nil {
+			configureErr = err
+		}
+
+		// Start the collection process
+		k.allStores = builder.BuildStores()
+
+	})
+
+	if configureErr != nil {
+		return configureErr
+	}
+
+	return nil
 }
 
 // Configure prepares the configuration of the KSM check instance
@@ -312,120 +472,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
-
-	builder := kubestatemetrics.New()
-	builder.WithUsingAPIServerCache(k.instance.UseAPIServerCache)
-
-	k.configurePodCollection(builder, k.instance.Collectors)
-
-	var collectors []string
-	var apiServerClient *apiserver.APIClient
-	var resources []*v1.APIResourceList
-
-	switch k.instance.PodCollectionMode {
-	case nodeKubeletPodCollection:
-		// In this case we don't need to set up anything related to the API
-		// server.
-		collectors = []string{"pods"}
-	case defaultPodCollection, clusterUnassignedPodCollection:
-		// Due to how init is done, we cannot use GetAPIClient in `Run()` method
-		// So we are waiting for a reasonable amount of time here in case.
-		// We cannot wait forever as there's no way to be notified of shutdown
-		apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
-		defer apiCancel()
-		apiServerClient, err = apiserver.WaitForAPIClient(apiCtx)
-		if err != nil {
-			return err
-		}
-
-		// Discover resources that are currently available
-		resources, err = discoverResources(apiServerClient.Cl.Discovery())
-		if err != nil {
-			return err
-		}
-
-		// Prepare the collectors for the resources specified in the configuration file.
-		collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
-		if err != nil {
-			return err
-		}
-
-		// Enable the KSM default collectors if the config collectors list is empty.
-		if len(collectors) == 0 {
-			collectors = options.DefaultResources.AsSlice()
-		}
-
-		builder.WithKubeClient(apiServerClient.InformerCl)
-	}
-
-	// Prepare watched namespaces
-	namespaces := k.instance.Namespaces
-
-	// Enable the KSM default namespaces if the config namespaces list is empty.
-	if len(namespaces) == 0 {
-		namespaces = options.DefaultNamespaces
-	}
-
-	builder.WithNamespaces(namespaces)
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
-	if err != nil {
-		return err
-	}
-
-	if err := allowDenyList.Parse(); err != nil {
-		return err
-	}
-
-	builder.WithFamilyGeneratorFilter(allowDenyList)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	k.cancel = cancel
-	builder.WithContext(ctx)
-
-	resyncPeriod := k.instance.ResyncPeriod
-	if resyncPeriod == 0 {
-		resyncPeriod = pkgconfigsetup.Datadog().GetInt("kubernetes_informers_resync_period")
-	}
-
-	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
-
-	builder.WithGenerateStoresFunc(builder.GenerateStores)
-
-	// configure custom resources required for extended features and
-	// compatibility across deprecated/removed versions of APIs
-	cr := k.discoverCustomResources(apiServerClient, collectors, resources)
-	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
-	builder.WithCustomResourceStoreFactories(cr.factories...)
-	builder.WithCustomResourceClients(cr.clients)
-
-	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
-	// Equivalent to configuring --metric-annotations-allowlist.
-	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
-		// Any annotation can be used for label joins.
-		allowedAnnotations[collector] = []string{"*"}
-	}
-
-	builder.WithAllowAnnotations(allowedAnnotations)
-
-	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
-	// Equivalent to configuring --metric-labels-allowlist.
-	allowedLabels := map[string][]string{}
-	for _, collector := range collectors {
-		// Any label can be used for label joins.
-		allowedLabels[collector] = []string{"*"}
-	}
-
-	if err = builder.WithAllowLabels(allowedLabels); err != nil {
-		return err
-	}
-
-	if err := builder.WithEnabledResources(cr.collectors); err != nil {
-		return err
-	}
-
-	// Start the collection process
-	k.allStores = builder.BuildStores()
 
 	return nil
 }
@@ -568,6 +614,39 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
+	var client *apiserver.APIClient
+
+	// Perform resource discovery if it hasn't successfully completed yet
+	if k.resourceDiscoveryInfo == nil {
+		// Acquire the API Server client, retrying with exponential backoff
+		apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
+		defer apiCancel()
+
+		var err error
+		// WaitForAPIClient handles its own retries
+		client, err = apiserver.WaitForAPIClient(apiCtx)
+		if err != nil {
+			return err
+		}
+
+		// Perform resource discovery, retrying with exponential backoff
+		err = k.discoverResources(client)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Run configure as a singleton
+	err := runConfigureOnce(k, client)
+	if err != nil {
+		k.configureError = err
+	}
+
+	// If configuration failed, we always want to return the error as it won't be retried
+	if k.configureError != nil {
+		return k.configureError
+	}
+
 	// this check uses a "raw" sender, for better performance.  That requires
 	// careful consideration of uses of this sender.  In particular, the `tags
 	// []string` arguments must not be used after they are passed to the sender
