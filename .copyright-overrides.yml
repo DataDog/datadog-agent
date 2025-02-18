@@ -390,3 +390,9 @@ github.com/transparency-dev/merkle/proof:
 github.com/transparency-dev/merkle/rfc6962: Copyright 2016 Google LLC. All Rights Reserved.
 
 gopkg.in/go-jose/go-jose.v2: Copyright 2014 Square Inc.
+
+github.com/jaegertracing/jaeger-idl/model/v1: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
+github.com/jaegertracing/jaeger-idl/proto-gen/api_v2: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
+github.com/jaegertracing/jaeger-idl/thrift-gen/agent: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
+github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
+github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore: ["Copyright (c) 2019 The Jaeger Authors.", "Copyright (c) 2017 Uber Technologies, Inc."]
