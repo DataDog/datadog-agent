@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/subscribers"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -46,7 +46,7 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, tagger tagger.Component) *ProcessCheck {
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
@@ -56,7 +56,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		lookupIdProbe:    NewLookupIDProbe(config),
 		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 		wmeta:            wmeta,
-		tagger:           tagger,
+		gpuSubscriber:    gpuSubscriber,
 	}
 
 	return check
@@ -128,7 +128,7 @@ type ProcessCheck struct {
 
 	sysprobeClient *http.Client
 
-	gpuSubscriber *subscribers.GPUSubscriber
+	gpuSubscriber gpusubscriber.Component
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -357,7 +357,6 @@ func (p *ProcessCheck) generateHints() int32 {
 	}
 	return hints
 }
-
 
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 	stats := map[int32]*procutil.Stats{}

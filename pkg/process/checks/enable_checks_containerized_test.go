@@ -14,12 +14,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -42,7 +42,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", false)
 		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.Tagger, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -57,7 +57,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", true)
 		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.Tagger, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -69,7 +69,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.Tagger, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
 
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -83,7 +83,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.Tagger, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -100,12 +100,12 @@ func TestContainerCheck(t *testing.T) {
 		env.SetFeatures(t, env.Docker)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.Tagger, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 
 		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.Tagger, deps.NpCollector)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -138,7 +138,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.SetWithoutSource("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			env.SetFeatures(t, env.Docker)
 
-			enabledChecks := getEnabledChecks(t, mockConfig, configmock.NewSystemProbe(t), deps.WMeta, deps.Tagger, deps.NpCollector)
+			enabledChecks := getEnabledChecks(t, mockConfig, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 		})
 	}
@@ -146,18 +146,16 @@ func TestDisableRealTime(t *testing.T) {
 
 type deps struct {
 	fx.In
-	WMeta       workloadmeta.Component
-	Tagger      tagger.Component
-	NpCollector npcollector.Component
+	WMeta         workloadmeta.Component
+	NpCollector   npcollector.Component
+	GpuSubscriber gpusubscriber.Component
 }
 
 func createDeps(t *testing.T) deps {
 	return fxutil.Test[deps](t,
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		gpusubscribermock.MockModule(),
 		npcollectorimpl.MockModule(),
 	)
 }

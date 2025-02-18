@@ -11,8 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -37,7 +37,7 @@ type dependencies struct {
 	Config    config.Component
 	Sysconfig sysprobeconfig.Component
 	WMmeta    workloadmeta.Component
-	Tagger    tagger.Component
+	GpuSubscriber gpusubscriber.Component
 }
 
 type result struct {
@@ -49,7 +49,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.Tagger),
+		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.GpuSubscriber),
 	}
 	return result{
 		Check: types.ProvidesCheck{

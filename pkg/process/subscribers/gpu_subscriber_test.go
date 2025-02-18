@@ -156,8 +156,8 @@ func TestGPUDetection(t *testing.T) {
 			fakeTagger := taggerMock.SetupFakeTagger(t)
 
 			gpuDetector := NewGPUSubscriber(mockWmeta, fakeTagger)
-			go gpuDetector.Run()
-			defer gpuDetector.Stop()
+			go gpuDetector.Run(context.Background())
+			defer gpuDetector.Stop(context.Background())
 
 			// Notify subscribers of events
 			mockWmeta.Notify(tt.events)
