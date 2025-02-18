@@ -9,6 +9,17 @@ INSTALL_DIR=/opt/datadog-agent
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 
+# Set up `dd-agent` user and group
+if ! getent group dd-agent >/dev/null; then
+    groupadd -r dd-agent
+fi
+if ! getent passwd dd-agent >/dev/null; then
+    useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin -c "Datadog Agent" dd-agent
+    if ! usermod -L dd-agent; then
+        echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"
+    fi
+fi
+
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
