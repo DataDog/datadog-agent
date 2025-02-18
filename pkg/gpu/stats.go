@@ -120,7 +120,12 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) (*aggregator, err
 			return nil, fmt.Errorf("Error getting number of GPU cores: %s", nvml.ErrorString(ret))
 		}
 
-		g.aggregators[aggKey] = newAggregator(uint64(maxThreads))
+		memUsage, ret := gpuDevice.GetMemoryInfo()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("Error getting memory info: %s", nvml.ErrorString(ret))
+		}
+
+		g.aggregators[aggKey] = newAggregator(uint64(maxThreads), memUsage.Total)
 	}
 
 	// Update the last check time and the measured interval, as these change between check runs
