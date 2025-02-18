@@ -59,7 +59,6 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	}
 
 	procInfo.TypeMap = typeMap
-	procInfo.DwarfData = dwarfData
 
 	fieldIDs := make([]bininspect.FieldIdentifier, 0)
 	for _, funcParams := range typeMap.Functions {
