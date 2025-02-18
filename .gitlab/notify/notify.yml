@@ -8,7 +8,13 @@
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
 
+# Notify jobs are allowed to fail but are monitored by https://app.datadoghq.com/monitors/132367692
+.notify-job:
+  stage: notify
+  allow_failure: true
+
 notify-on-tagged-success:
+  extends: .notify-job
   stage: notify
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
@@ -18,10 +24,11 @@ notify-on-tagged-success:
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
-    SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN 
+    SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
     invoke notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
 
 notify:
+  extends: .notify-job
   stage: notify
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   rules: !reference [.on_main_or_release_branch_or_deploy_always]
@@ -35,7 +42,7 @@ notify:
     - invoke -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
 send_pipeline_stats:
-  stage: notify
+  extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   when: always
@@ -45,7 +52,7 @@ send_pipeline_stats:
     - invoke -e notify.send-stats
 
 notify_github:
-  stage: notify
+  extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   rules:
@@ -63,7 +70,6 @@ notify_github:
     - job: "deploy_deb_testing-a7_x64"
       optional: true
   dependencies: []
-  allow_failure: true
   script:
     - !reference [.setup_agent_github_app]
     # Python 3.12 changes default behavior how packages are installed.
@@ -81,7 +87,7 @@ notify_github:
 
 notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  stage: notify
+  extends: .notify-job
   needs: [compute_gitlab_ci_config]
   tags: ["arch:amd64"]
   rules:
@@ -101,7 +107,7 @@ notify_gitlab_ci_changes:
 
 .failure_summary_job:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  stage: notify
+  extends: .notify-job
   dependencies: []
   tags: ["arch:amd64"]
   resource_group: notification
@@ -110,7 +116,7 @@ notify_gitlab_ci_changes:
 
 # Upload failure summary data to S3 at the end of each main pipeline
 notify_failure_summary_on_pipeline:
-  extends: .failure_summary_job
+  extends: [.failure_summary_job, .notify-job]
   rules:
     - if: $CI_PIPELINE_SOURCE != "push" && $CI_PIPELINE_SOURCE != "schedule"
       when: never
@@ -121,7 +127,7 @@ notify_failure_summary_on_pipeline:
 
 # Send failure summary notifications daily and weekly
 notify_failure_summary_daily:
-  extends: .failure_summary_job
+  extends: [.failure_summary_job, .notify-job]
   rules:
     - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
       when: never
@@ -144,7 +150,7 @@ notify_failure_summary_daily:
       fi
 
 close_failing_tests_stale_issues:
-  stage: notify
+  extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   rules:
     # Daily

@@ -64,6 +64,10 @@ func test_struct_pointer(x *nStruct) {}
 
 //nolint:all
 //go:noinline
+func test_nil_struct_pointer(x *nStruct) {}
+
+//nolint:all
+//go:noinline
 func test_complex_type(z *reallyComplexType) {}
 
 //nolint:all
@@ -87,6 +91,10 @@ func test_string_pointer(z *string) {}
 func test_string_slice_pointer(a *[]string) {}
 
 //nolint:all
+//go:noinline
+func test_nil_pointer(z *bool) {}
+
+//nolint:all
 func ExecutePointerFuncs() {
 	var u64F uint64 = 5
 	swp := structWithPointer{a: &u64F}
@@ -100,7 +108,7 @@ func ExecutePointerFuncs() {
 
 	n := nStruct{true, 1, 2}
 	test_struct_pointer(&n)
-
+	test_nil_struct_pointer(nil)
 	ssaw := swsp{
 		a: 1,
 		b: &n,
@@ -139,4 +147,6 @@ func ExecutePointerFuncs() {
 
 	stringSlice := []string{"aaa", "bbb", "ccc", "ddd"}
 	test_string_slice_pointer(&stringSlice)
+
+	test_nil_pointer(nil)
 }

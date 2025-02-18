@@ -11,7 +11,6 @@ package msi
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -20,6 +19,8 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 type msiexecArgs struct {

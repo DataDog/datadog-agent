@@ -7,6 +7,7 @@
 package module
 
 import (
+	"context"
 	"fmt"
 
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -14,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -85,9 +87,14 @@ func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Compo
 		log.Info(status)
 	}
 
+	hostname, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+
 	// we set the hostname to the empty string to take advantage of the out of the box message hostname
 	// resolution
-	reporter, err := reporter.NewCWSReporter("", stopper, endpoints, destinationsCtx, compression)
+	reporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, destinationsCtx, compression)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}
