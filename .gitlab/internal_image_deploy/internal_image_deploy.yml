@@ -187,13 +187,13 @@ docker_trigger_cluster_agent_internal:
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
 
-docker_trigger_internal-otel_standalone_distroless:
+docker_trigger_internal-otel_standalone_alpine:
   stage: internal_image_deploy
   rules: !reference [.on_deploy_internal_or_manual]
   needs:
-    - job: docker_build_ot_agent_standalone_distroless
+    - job: docker_build_ot_agent_standalone_alpine
       artifacts: false
-    - job: docker_build_ot_agent_standalone_distroless_arm64
+    - job: docker_build_ot_agent_standalone_alpine_arm64
       artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -201,9 +201,9 @@ docker_trigger_internal-otel_standalone_distroless:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
     IMAGE_VERSION: tmpl-v1
     IMAGE_NAME: otel-agent
-    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-distroless
-    BUILD_TAG: ${CI_COMMIT_REF_SLUG}-distroless
-    TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-distroless
+    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-alpine
+    BUILD_TAG: ${CI_COMMIT_REF_SLUG}-alpine
+    TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-alpine
     TMPL_SRC_REPO: ci/datadog-agent/otel-agent
     RELEASE_STAGING: "true"
   script:

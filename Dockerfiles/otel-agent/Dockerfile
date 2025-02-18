@@ -24,7 +24,7 @@ RUN apt-get update && \
 
 # TODO: For now we have to clone the whole repository and checkout to a specific commit / ref / branch then recompile the otel-agent
 # Cloning the whole repo is necessary because `get_version` in the build script runs git describe --tags --candidates=50...
-# We should eventually just fetch the binary from s3 or directly the package but distroless doesn't have a service manager
+# We should eventually just fetch the binary from s3 or directly the package but alpine doesn't have a service manager
 RUN git clone --filter=blob:none https://github.com/DataDog/datadog-agent.git datadog-agent && \
     cd datadog-agent && \
     git checkout $DD_GIT_COMMIT_SHA
@@ -75,17 +75,18 @@ RUN . venv/bin/activate && invoke collector.generate
 # Build the OTel agent
 RUN . venv/bin/activate && invoke otel-agent.build
 
-# Use a distroless static image
-# Note: This image does not contain a shell and is not suitable for debugging
-FROM gcr.io/distroless/base-debian12:nonroot
+# The base image could evolve in the future. Notably, using alpine could work as well but would
+# mean that we have no utilities in the image. It is not convenient for debugging purposes.
+FROM alpine:3.21.3
+
+# Install gcompat to get glibc compatibility
+RUN apk add gcompat=1.1.0-r4
 
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 # TODO: confirm if this should be copied to otel-config.yaml.example
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
 
-# Run the otel-agent
-ENTRYPOINT ["/opt/datadog-agent/embedded/bin/otel-agent"]
-CMD ["run"]
+ENV PATH="/opt/datadog-agent/embedded/bin:${PATH}"
 
 # TODO: Check the content of the image (world writtable files, etc...)
