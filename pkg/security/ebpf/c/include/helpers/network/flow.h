@@ -1,0 +1,71 @@
+#ifndef _HELPERS_NETWORK_FLOW_H
+#define _HELPERS_NETWORK_FLOW_H
+
+#include "maps.h"
+
+__attribute__((always_inline)) struct sock_meta_t *get_sock_meta(struct sock *sk) {
+    if (is_sk_storage_supported()) {
+        // This requires kernel v5.11+ (https://github.com/torvalds/linux/commit/8e4597c627fb48f361e2a5b012202cb1b6cbcd5e)
+        return bpf_sk_storage_get(&sk_storage_meta, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
+    } else {
+        struct sock_meta_t zero = {};
+        struct sock_meta_t *meta = bpf_map_lookup_elem(&sock_meta, &sk);
+        if (meta == NULL) {
+            bpf_printk("|    creating a new sock_meta for sock 0x%p", sk);
+            bpf_map_update_elem(&sock_meta, &sk, &zero, BPF_ANY);
+        }
+        return bpf_map_lookup_elem(&sock_meta, &sk);
+    }
+}
+
+__attribute__((always_inline)) struct sock_meta_t *peek_sock_meta(struct sock *sk) {
+    if (is_sk_storage_supported()) {
+        // This requires kernel v5.11+ (https://github.com/torvalds/linux/commit/8e4597c627fb48f361e2a5b012202cb1b6cbcd5e)
+        return bpf_sk_storage_get(&sk_storage_meta, sk, 0, 0);
+    } else {
+        return bpf_map_lookup_elem(&sock_meta, &sk);
+    }
+}
+
+__attribute__((always_inline)) void delete_sock_meta(struct sock *sk) {
+    if (!is_sk_storage_supported()) {
+        bpf_map_delete_elem(&sock_meta, &sk);
+    }
+}
+
+__attribute__((always_inline)) void print_meta(struct sock_meta_t *meta) {
+    bpf_printk("|    sock_meta:");
+    bpf_printk("|        route: p:%d a:%lu a:%lu", meta->existing_route.port, meta->existing_route.addr[0], meta->existing_route.addr[1]);
+    bpf_printk("|        socket_closing:%d accept_created_socket:%d", meta->socket_closing, meta->accept_created_socket);
+}
+
+__attribute__((always_inline)) void print_route_entry(struct pid_route_entry_t *route_entry) {
+    bpf_printk("|    route_entry:");
+    bpf_printk("|        pid:%d type:%d added_by_accept_created_socket:%d", route_entry->pid, route_entry->type, route_entry->added_by_accept_created_socket);
+}
+
+__attribute__((always_inline)) void print_route(struct pid_route_t *route) {
+    bpf_printk("|    route:");
+    bpf_printk("|        p:%d a:%lu a:%lu", route->port, route->addr[0], route->addr[1]);
+    bpf_printk("|        netns:%lu", route->netns);
+}
+
+__attribute__((always_inline)) u8 can_delete_route(struct pid_route_t *route, struct sock_meta_t *meta) {
+    if (meta == NULL) {
+        return 1;
+    }
+
+    struct pid_route_entry_t *existing_entry = bpf_map_lookup_elem(&flow_pid, route);
+    if (existing_entry != NULL) {
+        bpf_printk("|    - attempting to delete:");
+        print_route_entry(existing_entry);
+        if (existing_entry->added_by_accept_created_socket == meta->accept_created_socket) {
+            bpf_printk("|      green light");
+            return 1;
+        }
+        bpf_printk("|      red light");
+    }
+    return 0;
+}
+
+#endif

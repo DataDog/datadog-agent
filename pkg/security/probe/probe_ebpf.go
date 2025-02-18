@@ -2124,6 +2124,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors(probe *Probe, config *confi
 		PathResolutionEnabled:     probe.Opts.PathResolutionEnabled,
 		SecurityProfileMaxCount:   config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled: config.Probe.NetworkFlowMonitorEnabled,
+		NetworkSkStorageEnabled:   config.Probe.NetworkFlowMonitorSKStorageEnabled,
 	}, p.kernelVersion)
 
 	if p.useRingBuffers {

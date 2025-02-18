@@ -9,9 +9,16 @@ struct pid_route_t {
     // u16 l4_protocol;
 };
 
+struct sock_meta_t {
+    struct pid_route_t existing_route;
+    u8 socket_closing;
+    u8 accept_created_socket;
+};
+
 struct pid_route_entry_t {
     u32 pid;
-    u32 type;
+    u16 type;
+    u16 added_by_accept_created_socket;
 };
 
 struct flow_t {
