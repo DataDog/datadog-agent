@@ -6,6 +6,7 @@ import sys
 from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
+from tempfile import TemporaryDirectory
 
 import yaml
 from invoke import Exit, task
@@ -868,6 +869,7 @@ def gitlab_ci_shellcheck(
     shellcheck_args="--severity=info -e SC2059 -e SC2028",
     fail_fast=False,
     verbose=False,
+    use_bat=None,
 ):
     """Verifies that shell scripts with gitlab config are valid.
 
@@ -876,47 +878,63 @@ def gitlab_ci_shellcheck(
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
     """
 
+    if use_bat is None:
+        use_bat = ctx.run('which bat', warn=True, hide=True)
+    elif use_bat.casefold() == 'false':
+        use_bat = False
+
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
         return
 
-    errors = {}
-    contents = {}
-    for job, content in jobs:
-        if verbose:
-            print('Verifying job:', job)
+    with TemporaryDirectory() as tmpdir:
+        errors = {}
+        for job, content in jobs:
+            if verbose:
+                print('Verifying job:', job)
 
-        # Lint scripts
-        # TODO A: before / after
-        # TODO A: env variables?
-        # TODO A: Powershell etc.
-        if 'script' in content:
-            before = (
-                ('# Before script\n' + flatten_script(content['before_script'])) if 'before_script' in content else ''
+            # Lint scripts
+            # TODO A: before / after
+            # TODO A: env variables?
+            # TODO A: Powershell etc.
+            if 'script' in content:
+                before = (
+                    ('# Before script\n' + flatten_script(content['before_script']))
+                    if 'before_script' in content
+                    else ''
+                )
+                after = (
+                    ('\n\n# After script\n' + flatten_script(content['after_script']))
+                    if 'after_script' in content
+                    else ''
+                )
+                script = '\n\n# Script\n' + flatten_script(content['script'])
+                full_script = f"{before}{script}{after}".strip() + '\n'
+                with open(tmpdir + f"/{job}.sh", 'w') as f:
+                    f.write(full_script)
+
+                res = ctx.run(f"shellcheck {shellcheck_args} {tmpdir}/{job}.sh", warn=True, hide=True)
+                if not res:
+                    errors[job] = res.stdout
+                    if fail_fast:
+                        break
+
+        if errors:
+            for job, error in sorted(errors.items()):
+                with gitlab_section(f"Shellcheck errors for {job}"):
+                    print(f"{color_message('Error', Color.RED)}: {job}")
+                    print('Script:')
+                    if use_bat:
+                        # todo: powershell...
+                        ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh")
+                    else:
+                        with open(f'{tmpdir}/{job}.sh') as f:
+                            print(f.read())
+                    print('\nError:')
+                    print(error)
+
+            raise Exit(
+                f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
             )
-            after = (
-                ('\n\n# After script\n' + flatten_script(content['after_script'])) if 'after_script' in content else ''
-            )
-            script = '\n\n# Script\n' + flatten_script(content['script'])
-            full_script = f"{before}{script}{after}"
-            res = ctx.run(f"echo '{full_script}' | shellcheck {shellcheck_args} -", warn=True, hide=True)
-            if not res:
-                errors[job] = res.stdout
-                contents[job] = full_script
-                if fail_fast:
-                    break
-
-    if errors:
-        for job, error in sorted(errors.items()):
-            with gitlab_section(f"Shellcheck errors for {job}"):
-                print(f"{color_message('Error', Color.RED)}: {job}")
-                print('Script:')
-                print(contents[job])
-                print('\nError:')
-                print(error)
-
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
-        )
