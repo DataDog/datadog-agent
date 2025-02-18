@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -26,10 +25,8 @@ import (
 )
 
 const (
-	// TargetLastAppliedAnnotation is the JSON of the target that was last applied.
-	TargetLastAppliedAnnotation = "admission.datadoghq.com/target-last-applied"
-	// TargetTimestampAnnotation is the timestamp for when a target was last applied.
-	TargetTimestampAnnotation = "admission.datadoghq.com/target-last-applied-ts"
+	// LastAppliedTargetAnnotation is the JSON of the target that was last applied.
+	LastAppliedTargetAnnotation = "admission.datadoghq.com/last-applied-target"
 )
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -197,8 +194,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 
 	// Add the annotations to the pod.
-	mutatecommon.AddAnnotation(pod, TargetLastAppliedAnnotation, target.json)
-	mutatecommon.AddAnnotation(pod, TargetTimestampAnnotation, createTimestamp())
+	mutatecommon.AddAnnotation(pod, LastAppliedTargetAnnotation, target.json)
 
 	return true, nil
 }
@@ -342,13 +338,7 @@ func createJSON(t Target) string {
 	data, err := json.Marshal(t)
 	if err != nil {
 		log.Errorf("error marshalling target %q: %v", t.Name, err)
-		return ""
+		return fmt.Sprintf("error marshalling target %q: %v", t.Name, err)
 	}
 	return string(data)
-}
-
-// createTimestamp creates a timestamp string used to apply as an annotation.
-func createTimestamp() string {
-	epochSeconds := time.Now().Unix()
-	return fmt.Sprintf("%d", epochSeconds)
 }
