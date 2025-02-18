@@ -61,9 +61,16 @@ logs:
   - type: file
     path: /var/log/app.log
     tags: a, b:c
+    container_mode: false
+    auto_multi_line_detection: false
+    auto_multi_line_match_threshold: 3.0
+    port: 8080
   - type: udp
     source: foo
     service: bar
+    tags:
+      - a
+      - b:c
   - type: docker
     log_processing_rules:
       - type: include_at_match
