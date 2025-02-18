@@ -63,6 +63,7 @@ type PythonCheck struct {
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+	haEnabled      bool
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -292,6 +293,14 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		}
 	}
 
+	if commonGlobalOptions.HAEnabled != nil {
+		c.haEnabled = *commonGlobalOptions.HAEnabled
+	}
+
+	if commonOptions.HAEnabled != nil {
+		c.haEnabled = *commonOptions.HAEnabled
+	}
+
 	cInitConfig := TrackedCString(string(initConfig))
 	cInstance := TrackedCString(string(data))
 	cCheckID := TrackedCString(string(c.id))
@@ -403,6 +412,11 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	}
 
 	return diagnoses, nil
+}
+
+// IsHAEnabled returns if High Availability is enabled for this check
+func (c *PythonCheck) IsHAEnabled() bool {
+	return c.haEnabled
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned

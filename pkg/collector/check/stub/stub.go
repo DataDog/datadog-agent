@@ -70,3 +70,6 @@ func (c *StubCheck) InstanceConfig() string { return "" }
 
 // GetDiagnoses returns the diagnoses of the check
 func (c *StubCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) { return nil, nil }
+
+// IsHAEnabled returns false
+func (c *StubCheck) IsHAEnabled() bool { return false }
