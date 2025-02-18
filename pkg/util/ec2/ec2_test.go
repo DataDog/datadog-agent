@@ -531,7 +531,6 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 		io.WriteString(w, "test")
 	}))
 	defer ts.Close()
-	configmock.New(t)
 	defer resetPackageVars()
 
 	metadataURL = ts.URL
