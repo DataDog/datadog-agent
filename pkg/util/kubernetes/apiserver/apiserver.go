@@ -586,6 +586,34 @@ func GetMetadataMapBundleOnNode(nodeName string) (*apiv1.MetadataResponse, error
 	return stats, nil
 }
 
+// GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.
+func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
+	cacheKey := cache.BuildAgentKey(MetadataMapperCachePrefix, nodeName)
+	metaBundleInterface, found := cache.Cache.Get(cacheKey)
+	if !found {
+		log.Tracef("no metadata was found for the pod %s on node %s", podName, nodeName)
+		return nil, nil
+	}
+
+	metaBundle, ok := metaBundleInterface.(*MetadataMapperBundle)
+	if !ok {
+		return nil, fmt.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
+	}
+	// The list of metadata collected in the metaBundle is extensible and is handled here.
+	// If new cluster level tags need to be collected by the agent, only this needs to be modified.
+	serviceList, foundServices := metaBundle.ServicesForPod(ns, podName)
+	if !foundServices {
+		log.Tracef("no cached services list found for the pod %s on the node %s", podName, nodeName)
+		return nil, nil
+	}
+	log.Tracef("CacheKey: %s, with %d services", cacheKey, len(serviceList))
+	var metaList []string
+	for _, s := range serviceList {
+		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
+	}
+	return metaList, nil
+}
+
 func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
 	nodeNameCacheKey := cache.BuildAgentKey(MetadataMapperCachePrefix, nodeName)
 	metaBundle, found := cache.Cache.Get(nodeNameCacheKey)

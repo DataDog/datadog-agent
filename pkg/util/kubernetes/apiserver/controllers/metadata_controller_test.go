@@ -807,7 +807,7 @@ func TestMetadataController(t *testing.T) {
 	})
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
-		metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
+		metadataNames, err := apiserver.GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 		if err != nil {
 			return false
 		}
