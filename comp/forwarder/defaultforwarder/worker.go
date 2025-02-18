@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -43,6 +44,9 @@ type Worker struct {
 	pointSuccessfullySent PointSuccessfullySent
 	// If the client is for cluster agent
 	isLocal bool
+
+	// The maximum number of HTTP requests we can have inflight at any one time.
+	maxConcurrentRequests *semaphore.Weighted
 }
 
 // PointSuccessfullySent is called when sending successfully a point to the intake.
@@ -61,6 +65,7 @@ func NewWorker(
 	blocked *blockedEndpoints,
 	pointSuccessfullySent PointSuccessfullySent,
 	isLocal bool,
+	maxConcurrentRequests int64,
 ) *Worker {
 	worker := &Worker{
 		config:                config,
@@ -75,6 +80,7 @@ func NewWorker(
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
 		isLocal:               isLocal,
+		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
 	}
 	if isLocal {
 		worker.Client = newBearerAuthHTTPClient()
@@ -84,7 +90,14 @@ func NewWorker(
 
 // NewHTTPClient creates a new http.Client
 func NewHTTPClient(config config.Component) *http.Client {
-	transport := httputils.CreateHTTPTransport(config)
+	var transport http.RoundTripper
+	if config.GetBool("forwarder_force_h2c") {
+		transport = httputils.CreateH2CTransport(config)
+	} else {
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), func(t *http.Transport) {
+			t.MaxConnsPerHost = 1
+		})
+	}
 
 	return &http.Client{
 		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
@@ -190,23 +203,30 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
+
+	// Block here if we are already sending too many requests
+	w.maxConcurrentRequests.Acquire(ctx, 1)
+
 	done := make(chan interface{})
 	go func() {
 		w.process(ctx, t)
+		w.maxConcurrentRequests.Release(1)
 		done <- nil
 	}()
 
 	select {
-	case <-done:
-		// wait for the Transaction process to be over
+	// wait for the Transaction process to be over
 	case <-w.stopChan:
 		// cancel current Transaction if we need to stop the worker
 		cancel()
 		w.requeue(t)
 		<-done // We still need to wait for the process func to return
 		return fmt.Errorf("Worker was requested to stop")
+
+	default:
+		// Don't block
 	}
-	cancel()
+
 	return nil
 }
 
