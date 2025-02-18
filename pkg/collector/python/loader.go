@@ -214,7 +214,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 		haSupportedAttr := TrackedCString("HA_SUPPORTED")
 		defer C._free(unsafe.Pointer(haSupportedAttr))
-		if res := C.get_attr_string(rtloader, checkModule, haSupportedAttr, &haSupported); res != 0 {
+		if res := C.get_attr_string(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
 			goHASupported = C.GoString(haSupported) == "True"
 		} else {
 			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", name, getRtLoaderError())
