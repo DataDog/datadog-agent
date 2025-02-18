@@ -173,12 +173,12 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	defer func() { span.Finish(err) }()
 	emrResponseRaw, err := common.ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
 	if err != nil {
-		log.Warnf("error describing emr cluster, using cluster id as name: %w", err)
+		log.Warnf("error describing emr cluster, using cluster id as name: %v", err)
 		return jobFlowID
 	}
 	var response emrResponse
 	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
-		log.Warnf("error unmarshalling AWS EMR response,  using cluster id as name: %w", err)
+		log.Warnf("error unmarshalling AWS EMR response,  using cluster id as name: %v", err)
 		return jobFlowID
 	}
 	clusterName := response.Cluster.Name

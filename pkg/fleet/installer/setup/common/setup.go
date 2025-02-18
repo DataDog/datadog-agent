@@ -128,7 +128,7 @@ func (s *Setup) Run() (err error) {
 		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
 		if err != nil {
 			s.Out.WriteString("Failed to add dd-agent to group yarn, Agent may not be able to read logs\n")
-			log.Warnf("failed to add dd-agent to group yarn:  %w", err)
+			log.Warnf("failed to add dd-agent to group yarn:  %v", err)
 		}
 	}
 
