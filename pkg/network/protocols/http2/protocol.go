@@ -420,7 +420,8 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	p.http2InFlightMapCleaner = mapCleaner
 }
 
-// GetStats returns a map of HTTP2 stats stored in the following format:
+// GetStats returns a map of HTTP2 stats and a callback to clean resources.
+// The format of HTTP2 stats:
 // [source, dest tuple, request path] -> RequestStats object
 func (p *Protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()

@@ -228,7 +228,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	}
 }
 
-// GetStats returns a map of Postgres stats.
+// GetStats returns a map of Postgres stats and a callback to clean resources.
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.kernelTelemetry.Log()
