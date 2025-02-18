@@ -127,8 +127,8 @@ func (s *Setup) Run() (err error) {
 		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
 		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
 		if err != nil {
-			s.Out.WriteString("Failed to add dd-agent to group yarn, Agent may not be able to read logs\n")
-			log.Warnf("failed to add dd-agent to group yarn:  %v", err)
+			s.Out.WriteString("Failed to add dd-agent to group" + group + ": " + err.Error())
+			log.Warnf("failed to add dd-agent to group %s:  %v", group, err)
 		}
 	}
 
