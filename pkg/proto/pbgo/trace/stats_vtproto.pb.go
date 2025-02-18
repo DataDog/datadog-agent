@@ -330,6 +330,13 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.GRPCStatusCode != nil {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(*m.GRPCStatusCode))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x90
+	}
 	if m.IsTraceRoot != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IsTraceRoot))
 		i--
@@ -634,6 +641,9 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 	}
 	if m.IsTraceRoot != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.IsTraceRoot))
+	}
+	if m.GRPCStatusCode != nil {
+		n += 2 + protohelpers.SizeOfVarint(uint64(*m.GRPCStatusCode))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1945,6 +1955,26 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 18:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GRPCStatusCode", wireType)
+			}
+			var v uint32
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.GRPCStatusCode = &v
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

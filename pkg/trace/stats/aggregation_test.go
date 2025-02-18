@@ -55,6 +55,63 @@ func TestGetStatusCode(t *testing.T) {
 	}
 }
 
+func TestGetGRPCStatusCodeNonNil(t *testing.T) {
+    grpcArr := [5]uint32{10, 1, 0, 15} // Fixed-size array
+    for i, tt := range []struct {
+        in  *pb.Span
+    }{
+        {
+            &pb.Span{
+                Meta: map[string]string{"rpc.grpc.status_code": "aborted"},
+            },
+        },
+        {
+            &pb.Span{
+                Metrics: map[string]float64{"grpc.code": 1},
+            },
+        },
+        {
+            &pb.Span{
+                Meta:    map[string]string{"grpc.status.code": "0"},
+                Metrics: map[string]float64{"grpc.status.code": 1},
+            },
+        },
+        {
+            &pb.Span{
+                Meta: map[string]string{"rpc.grpc.status.code": "15"},
+            },
+        },
+    } {
+        assert.Equal(t, grpcArr[i], *getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
+    }
+}
+
+func TestGetGRPCStatusCodeNil(t *testing.T) {
+	for _, tt := range []struct {
+		in  *pb.Span
+		out *uint32
+	}{
+		{
+			&pb.Span{},
+			nil,
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.grpc.status_code": "hmm"},
+			},
+			nil,
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"notagrpccode": "1"},
+			},
+			nil,
+		},
+	} {
+		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
+	}
+}
+
 func TestNewAggregation(t *testing.T) {
 	peerSvcOnlyHash := uint64(3430395298086625290)
 	peerTagsHash := uint64(9894752672193411515)
