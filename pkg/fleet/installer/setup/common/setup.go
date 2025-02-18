@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -126,7 +127,8 @@ func (s *Setup) Run() (err error) {
 		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
 		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
 		if err != nil {
-			return fmt.Errorf("failed to add dd-agent to group yarn: %w", err)
+			s.Out.WriteString("Failed to add dd-agent to group yarn, Agent may not be able to read logs\n")
+			log.Warnf("failed to add dd-agent to group yarn:  %w", err)
 		}
 	}
 
