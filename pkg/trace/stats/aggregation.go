@@ -138,11 +138,6 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 	// List of possible keys to check in order
 	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
-	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
-		if code, ok := metrics[key]; ok {
-			return uint32(code)
-		}
-	}
 
 	for _, key := range metaKeys {
 		if strC, exists := meta[key]; exists && strC != "" {
@@ -161,6 +156,11 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint3
 		}
 	}
 
-	log.Debugf("Invalid status code %s. Using 0.")
-	return 0
+	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
+		if code, ok := metrics[key]; ok {
+			return uint32(code)
+		}
+	}
+
+	return 200 // invalid gRPC code
 }

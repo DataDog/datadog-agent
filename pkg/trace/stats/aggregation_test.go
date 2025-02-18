@@ -62,7 +62,7 @@ func TestGetGRPCStatusCode(t *testing.T) {
 	}{
 		{
 			&pb.Span{},
-			0,
+			200,
 		},
 		{
 			&pb.Span{
@@ -81,7 +81,7 @@ func TestGetGRPCStatusCode(t *testing.T) {
 				Meta:    map[string]string{"grpc.status.code": "0"},
 				Metrics: map[string]float64{"grpc.status.code": 1},
 			},
-			1,
+			0,
 		},
 		{
 			&pb.Span{
@@ -90,9 +90,7 @@ func TestGetGRPCStatusCode(t *testing.T) {
 			15,
 		},
 	} {
-		if got := getGRPCStatusCode(tt.in.Meta, tt.in.Metrics); got != tt.out {
-			t.Fatalf("Expected %d, got %d", tt.out, got)
-		}
+		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
 	}
 }
 
