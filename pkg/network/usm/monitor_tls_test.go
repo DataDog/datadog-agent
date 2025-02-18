@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -891,9 +892,9 @@ func reinitializeEventConsumer(t *testing.T) {
 }
 
 const (
-	// useExistingConsumer is used to indicate that we should use the existing consumer instance
+	// reInitEventConsumer is used to indicate that we should create a new consumer instance
 	reInitEventConsumer = true
-	// useExistingConsumer is used to indicate that we should create a new consumer instance
+	// useExistingConsumer is used to indicate that we should use the existing consumer instance
 	useExistingConsumer = false
 )
 
@@ -1015,21 +1016,22 @@ func (s *tlsSuite) TestSSLReadArgsMaps() {
 	}
 
 	// find probes for the programs we want to manipulate
-	probeSSLReadEx := getProbeByName(monitor.ebpfProgram.Manager.Manager, "uretprobe__SSL_read_ex")
-	require.NotNil(t, probeSSLReadEx)
+	sslReadProbe, useEx := getSSLReadProbe(t, monitor)
+	require.NotNil(t, sslReadProbe)
 
-	probeProcExit := getProbeProcExit(t, monitor)
-	require.NotNil(t, probeProcExit)
+	procExitProbe := getProcExitProbe(t, monitor)
+	require.NotNil(t, procExitProbe)
 
 	// find the map
-	readExArgsMap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap("ssl_read_ex_args")
-	require.NotNil(t, readExArgsMap)
+	sslReadMap := getSSLReadMap(t, monitor, useEx)
 
 	// create client
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
+	require.NotNil(t, client)
 
 	units := []struct {
 		name     string
+		found    int64
 		expected int64
 		preRun   func(t *testing.T)
 		postRun  func(t *testing.T)
@@ -1040,8 +1042,8 @@ func (s *tlsSuite) TestSSLReadArgsMaps() {
 			expected: 1,
 			preRun: func(t *testing.T) {
 				cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-				detachProbe(t, monitor.ebpfProgram.Manager.Manager, probeSSLReadEx)
-				err := probeProcExit.Pause()
+				detachProbe(t, monitor.ebpfProgram.Manager.Manager, sslReadProbe)
+				err := procExitProbe.Pause()
 				assert.NoError(t, err)
 			},
 			postRun: func(*testing.T) {
@@ -1054,14 +1056,18 @@ func (s *tlsSuite) TestSSLReadArgsMaps() {
 			expected: 0,
 			preRun: func(t *testing.T) {
 				cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-				detachProbe(t, monitor.ebpfProgram.Manager.Manager, probeSSLReadEx)
-				err := probeProcExit.Pause()
+				detachProbe(t, monitor.ebpfProgram.Manager.Manager, sslReadProbe)
+				err := procExitProbe.Pause()
 				assert.NoError(t, err)
 			},
 			postRun: func(t *testing.T) {
+				// allow eBPF maps to sync with kernel
+				assert.Eventually(t, func() bool {
+					err := monitor.ebpfProgram.cleanDeadPidsInSslMaps()
+					return err == nil
+				}, 200*time.Millisecond, 50*time.Millisecond, "failed to clean up dead processes")
+
 				client.CloseIdleConnections()
-				err := monitor.ebpfProgram.cleanDeadPidsInSslMaps()
-				assert.NoError(t, err)
 			},
 		},
 		{
@@ -1071,13 +1077,13 @@ func (s *tlsSuite) TestSSLReadArgsMaps() {
 			expected: 0,
 			preRun: func(t *testing.T) {
 				cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-				err := probeProcExit.Resume()
+				err := procExitProbe.Resume()
 				assert.NoError(t, err)
 			},
 			postRun: func(*testing.T) {
-				client.CloseIdleConnections()
 				cmd.Process.Kill()
 				cmd.Wait()
+				client.CloseIdleConnections()
 			},
 		},
 	}
@@ -1092,20 +1098,22 @@ func (s *tlsSuite) TestSSLReadArgsMaps() {
 			unit.postRun(t)
 
 			require.Eventually(t, func() bool {
-				num, err := ebpfcheck.HashMapNumberOfEntries(readExArgsMap)
+				num, err := ebpfcheck.HashMapNumberOfEntries(sslReadMap)
 				assert.NoError(t, err)
+				unit.found = num
 
 				return num == unit.expected
 			}, 2*time.Second, 200*time.Millisecond, "unexpected map entries")
 		})
 		if t.Failed() {
-			t.Logf("Unexpect number of entries in the map")
+			t.Logf("'%s' expect number of entries '%d' got '%d' in the map '%v'", unit.name, unit.expected, unit.found, sslReadMap)
 			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "ssl_read_ex_args")
+			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "ssl_read_args")
 		}
 	}
 }
 
-// getProbeByName returns the probe of running or paused program that match the input name
+// getProbeByName returns the probe of running or paused program that match the input name.
 func getProbeByName(m *manager.Manager, name string) *manager.Probe {
 	for _, probe := range m.Probes {
 		if probe.EBPFFuncName == name && probe.IsRunning() {
@@ -1115,8 +1123,21 @@ func getProbeByName(m *manager.Manager, name string) *manager.Probe {
 	return nil
 }
 
-// getProbeProcExit returns the 'Probe' for the process exit program, either as a regular trace or a raw trace.
-func getProbeProcExit(t *testing.T, monitor *Monitor) *manager.Probe {
+// getSSLReadProbe it searches an available 'SSL_read ex' or 'SSL_read' program.
+func getSSLReadProbe(t *testing.T, monitor *Monitor) (*manager.Probe, bool) {
+	probe := getProbeByName(monitor.ebpfProgram.Manager.Manager, "uretprobe__SSL_read_ex")
+	if probe != nil && probe.IsRunning() {
+		t.Logf("found probe: %v", probe.GetEBPFFuncName())
+		return probe, true
+	}
+
+	probe = getProbeByName(monitor.ebpfProgram.Manager.Manager, "uretprobe__SSL_read")
+	t.Logf("found probe: %v", probe.GetEBPFFuncName())
+	return probe, false
+}
+
+// getProcExitProbe returns the 'Probe' for the process exit program, either as a regular trace or a raw trace.
+func getProcExitProbe(t *testing.T, monitor *Monitor) *manager.Probe {
 	probeRawProcExit := getProbeByName(monitor.ebpfProgram.Manager.Manager, "raw_tracepoint__sched_process_exit")
 	if probeRawProcExit != nil {
 		return probeRawProcExit
@@ -1127,6 +1148,20 @@ func getProbeProcExit(t *testing.T, monitor *Monitor) *manager.Probe {
 	}
 	probeProcExit := getProbeByName(monitor.ebpfProgram.Manager.Manager, "tracepoint__sched__sched_process_exit")
 	return probeProcExit
+}
+
+// getSSLReadMap returns a map corresponding to the program under test.
+func getSSLReadMap(t *testing.T, monitor *Monitor, useEx bool) *ebpf.Map {
+	if useEx {
+		sslReadMap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap("ssl_read_ex_args")
+		require.NotNil(t, sslReadMap)
+		t.Logf("check map: %v", sslReadMap)
+		return sslReadMap
+	}
+	sslReadMap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap("ssl_read_args")
+	require.NotNil(t, sslReadMap)
+	t.Logf("check map: %v", sslReadMap)
+	return sslReadMap
 }
 
 func detachProbe(t *testing.T, m *manager.Manager, probe *manager.Probe) {
