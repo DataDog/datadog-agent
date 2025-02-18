@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	
+
 	"github.com/stretchr/testify/assert"
 )
 

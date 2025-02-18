@@ -55,6 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.0.0-20241217122454-175edb6c74f2
 	github.com/shirou/gopsutil/v4 v4.24.12
 	go.opentelemetry.io/collector/component/componenttest v0.119.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287
 )
 
 require go.opentelemetry.io/collector/processor v0.119.0 // indirect
@@ -115,7 +116,6 @@ require (
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
