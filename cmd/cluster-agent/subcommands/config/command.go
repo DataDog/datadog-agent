@@ -36,7 +36,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func newSettingsClient() (settings.Client, error) {
-	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	c := util.GetClient()
 
 	apiConfigURL := fmt.Sprintf(
 		"https://localhost:%v/config",
