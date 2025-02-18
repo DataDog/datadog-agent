@@ -13,8 +13,10 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
@@ -32,6 +34,8 @@ const (
 	maxCharactersPerChunk = 7000
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
 	extraQueryCharacters = 16
+	// maxParallelQueries returns the maximum number of parallel queries to Datadog
+	maxParallelQueries = 300
 )
 
 // ProcessorInterface is used to easily mock the interface for testing
@@ -43,8 +47,9 @@ type ProcessorInterface interface {
 
 // Processor embeds the configuration to refresh metrics from Datadog and process Ref structs to ExternalMetrics.
 type Processor struct {
-	externalMaxAge time.Duration
-	datadogClient  datadogclientcomp.Component
+	externalMaxAge  time.Duration
+	datadogClient   datadogclientcomp.Component
+	parallelQueries int
 }
 
 // queryResponse ensures that we capture all the signals from the call to Datadog's backend.
@@ -56,9 +61,15 @@ type queryResponse struct {
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	externalMaxAge := math.Max(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.max_age"), 3*pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.rollup"))
+	parallelQueries := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.max_parallel_queries")
+	if parallelQueries > maxParallelQueries {
+		parallelQueries = maxParallelQueries
+	}
+
 	return &Processor{
-		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
-		datadogClient:  datadogCl,
+		externalMaxAge:  time.Duration(externalMaxAge) * time.Second,
+		datadogClient:   datadogCl,
+		parallelQueries: parallelQueries,
 	}
 }
 
@@ -180,22 +191,34 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	}
 
 	chunks := makeChunks(queries)
+	log.Warnf("VBDEBUG number of chunks: %d, timeWindow: %v minutes", len(chunks), timeWindow.Minutes())
+
 	log.Tracef("List of batches %v", chunks)
+
+	group := errgroup.Group{}
+	group.SetLimit(p.parallelQueries)
+	log.Warnf("VBDEBUG number of parallel queries: %d", p.parallelQueries)
+
+	var counter atomic.Uint64
 
 	// we have a number of chunks with `chunkSize` metrics.
 	responses := make(chan queryResponse, len(queries))
-
-	var waitResp sync.WaitGroup
-	waitResp.Add(len(chunks))
 	for _, c := range chunks {
-		go func(chunk []string) {
-			defer waitResp.Done()
-			resp, err := p.queryDatadogExternal(chunk, timeWindow)
+		// Go will wait until a slot is available in the semaphore
+		group.Go(func() error {
+			id := counter.Add(1)
+			start := time.Now()
+			log.Warnf("VBDEBUG processing id: %d at: %v", id, start)
+			resp, err := p.queryDatadogExternal(c, timeWindow)
+			log.Warnf("VBDEBUG processed id: %d in: %v", id, time.Since(start))
 			responses <- queryResponse{resp, err}
-		}(c)
+			return nil
+		})
 	}
-	waitResp.Wait()
+	// Errors are handled in the channel responses
+	_ = group.Wait()
 	close(responses)
+
 	var errors []error
 	for elem := range responses {
 		for k, v := range elem.metrics {
