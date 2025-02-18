@@ -165,8 +165,8 @@ func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.
 	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscalerSpec.Policy, longestScalingRulePeriodAllowed)
 }
 
-// UpdateFromValues updates the PodAutoscalerInternal scaling values based on the desired source of recommendations
-func (p *PodAutoscalerInternal) UpdateFromValues(source datadoghq.DatadogPodAutoscalerValueSource) {
+// SwitchActiveScalingValues updates the PodAutoscalerInternal scaling values based on the desired source of recommendations
+func (p *PodAutoscalerInternal) SwitchActiveScalingValues(source datadoghq.DatadogPodAutoscalerValueSource) {
 	switch source {
 	case datadoghq.DatadogPodAutoscalerLocalValueSource:
 		p.scalingValues = p.fallbackScalingValues

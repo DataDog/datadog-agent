@@ -327,7 +327,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
 	// Update the scaling values based on the staleness of recommendations
 	desiredScalingSource := c.updateActiveScalingSource(podAutoscalerInternal)
-	podAutoscalerInternal.UpdateFromValues(desiredScalingSource)
+	podAutoscalerInternal.SwitchActiveScalingValues(desiredScalingSource)
 
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal upscale
