@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -21,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	// AppliedTargetAnnotation is the JSON of the target that was applied to the pod.
+	AppliedTargetAnnotation = "internal.apm.datadoghq.com/applied-target"
 )
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -52,17 +58,21 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 	internalTargets := make([]targetInternal, len(config.Instrumentation.Targets))
 	for i, t := range config.Instrumentation.Targets {
 		// Convert the pod selector to a label selector.
-		podSelector, err := t.PodSelector.AsLabelSelector()
-		if err != nil {
-			return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+		podSelector := labels.Everything()
+		var err error
+		if t.PodSelector != nil {
+			podSelector, err = t.PodSelector.AsLabelSelector()
+			if err != nil {
+				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
+			}
 		}
 
 		// Determine if we should use the namespace selector or if we should use enabledNamespaces.
-		useNamespaceSelector := len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
+		useNamespaceSelector := t.NamespaceSelector != nil && len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
 
 		// Convert the namespace selector to a label selector.
-		var namespaceSelector labels.Selector
-		if useNamespaceSelector {
+		namespaceSelector := labels.Everything()
+		if useNamespaceSelector && t.NamespaceSelector != nil {
 			namespaceSelector, err = t.NamespaceSelector.AsLabelSelector()
 			if err != nil {
 				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
@@ -71,7 +81,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 
 		// Create a map of enabled namespaces for quick lookups.
 		var enabledNamespaces map[string]bool
-		if !useNamespaceSelector {
+		if !useNamespaceSelector && t.NamespaceSelector != nil {
 			enabledNamespaces = make(map[string]bool, len(t.NamespaceSelector.MatchNames))
 			for _, ns := range t.NamespaceSelector.MatchNames {
 				enabledNamespaces[ns] = true
@@ -107,6 +117,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 			enabledNamespaces:    enabledNamespaces,
 			libVersions:          libVersions,
 			envVars:              envVars,
+			json:                 createJSON(t),
 		}
 	}
 
@@ -127,6 +138,8 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 
 // MutatePod mutates the pod if it matches the target based workload selection or has the appropriate annotations.
 func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
+
 	// Sanitize input.
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
@@ -180,6 +193,9 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		mutatecommon.InjectEnv(pod, envVar)
 	}
 
+	// Add the annotations to the pod.
+	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)
+
 	return true, nil
 }
 
@@ -224,6 +240,7 @@ type targetInternal struct {
 	libVersions          []libInfo
 	envVars              []corev1.EnvVar
 	wmeta                workloadmeta.Component
+	json                 string
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
@@ -245,6 +262,8 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal
 	if len(libVersions) == 0 {
 		return nil
 	}
+
+	log.Debugf("Pod %q has explicit libraries defined as annotations", mutatecommon.PodString(pod))
 
 	return &targetInternal{
 		libVersions: libVersions,
@@ -312,4 +331,14 @@ func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error)
 
 func (t targetInternal) matchesPodSelector(podLabels map[string]string) bool {
 	return t.podSelector.Matches(labels.Set(podLabels))
+}
+
+// createJSON creates a json string of the target used to apply as an annotation.
+func createJSON(t Target) string {
+	data, err := json.Marshal(t)
+	if err != nil {
+		log.Errorf("error marshalling target %q: %v", t.Name, err)
+		return fmt.Sprintf("error marshalling target %q: %v", t.Name, err)
+	}
+	return string(data)
 }
