@@ -5,7 +5,7 @@
 
 //go:build test
 
-// Package mocks implements a component to provide gpusubscriber used by the core agent.
+// Package gpusubscribermock implements a component to provide gpusubscriber used by the core agent.
 package gpusubscribermock
 
 import (
@@ -15,17 +15,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule is the mock module for process forwarders
+// MockModule defines the fx options for this component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMockGpuSubscriber),
 	)
 }
 
-// NoopSubscriber is a no-op implementation of the gpusubscriber.Component interface.
+// MockSubscriber is a mock implementation of the gpusubscriber.Component interface.
 type MockSubscriber struct{}
 
-// GetGPUTags returns an empty map as a no-op implementation.
+// GetGPUTags returns empty in mocked implementation.
 func (m *MockSubscriber) GetGPUTags() map[int32][]string {
 	return nil
 }

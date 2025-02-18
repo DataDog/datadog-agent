@@ -49,9 +49,6 @@ func TestBundleDependencies(t *testing.T) {
 		coreStatusImpl.Module(),
 		settingsimpl.MockModule(),
 		statusimpl.Module(),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: python.GetPythonVersion,
