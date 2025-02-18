@@ -387,11 +387,11 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 	assert.True(t, ok)
 
 	// three successful events
-	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "", 0)
-	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "", 0)
-	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "", 0)
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), 0)
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), 0)
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), 0)
 	// one error event
-	_, err := s.parseEventMessage(parser, nil, "", 0)
+	_, err := s.parseEventMessage(parser, nil, 0)
 	assert.Error(t, err)
 
 	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
@@ -423,11 +423,11 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 	assert.True(t, ok)
 
 	// three successful events
-	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "", 0)
-	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "", 0)
-	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "", 0)
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), 0)
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), 0)
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), 0)
 	// one error event
-	_, err := s.parseServiceCheckMessage(parser, nil, "", 0)
+	_, err := s.parseServiceCheckMessage(parser, nil, 0)
 	assert.Error(t, err)
 
 	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
