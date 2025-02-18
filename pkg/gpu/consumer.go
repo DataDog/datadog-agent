@@ -282,18 +282,16 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) (strea
 		containerID: containerID,
 	}
 
-	// Try to get the GPU device if we can, but do not fail if we can't as we want to report
-	// the data even if we can't get the GPU UUID
 	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerID)
 	if err != nil {
 		c.telemetry.missingDevices.Inc()
 		return streamKey{}, fmt.Errorf("Error getting GPU device for process %d: %w", pid, err)
-	} else {
-		var ret nvml.Return
-		key.gpuUUID, ret = gpuDevice.GetUUID()
-		if ret != nvml.SUCCESS {
-			return streamKey{}, fmt.Errorf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
-		}
+	}
+
+	var ret nvml.Return
+	key.gpuUUID, ret = gpuDevice.GetUUID()
+	if ret != nvml.SUCCESS {
+		return streamKey{}, fmt.Errorf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
 	}
 
 	if header.Stream_id != 0 {
