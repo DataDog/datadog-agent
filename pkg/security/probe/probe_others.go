@@ -121,5 +121,5 @@ func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
 }
 
 // Walk iterates through the entire tree and call the provided callback on each entry
-func (p *Probe) Walk(callback func(*model.ProcessCacheEntry)) {
+func (p *Probe) Walk(_ func(*model.ProcessCacheEntry)) {
 }
