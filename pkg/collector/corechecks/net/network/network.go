@@ -40,49 +40,6 @@ const (
 )
 
 var (
-	protocolsMetricsMapping = map[string]map[string]string{
-		"tcp": {
-			"RetransSegs":  "system.net.tcp.retrans_segs",
-			"InSegs":       "system.net.tcp.in_segs",
-			"OutSegs":      "system.net.tcp.out_segs",
-			"ActiveOpens":  "system.net.tcp.active_opens",
-			"PassiveOpens": "system.net.tcp.passive_opens",
-			"AttemptFails": "system.net.tcp.attempt_fails",
-			"EstabResets":  "system.net.tcp.established_resets",
-			"InErrs":       "system.net.tcp.in_errors",
-			"OutRsts":      "system.net.tcp.out_resets",
-			"InCsumErrors": "system.net.tcp.in_csum_errors",
-			// below here are TcpExt metrics:
-			// https://github.com/DataDog/integrations-core/blob/master/network/datadog_checks/network/check_linux.py#L220
-			"ListenOverflows":      "system.net.tcp.listen_overflows",
-			"ListenDrops":          "system.net.tcp.listen_drops",
-			"TCPBacklogDrop":       "system.net.tcp.backlog_drops",
-			"TCPRetransFail":       "system.net.tcp.failed_retransmits",
-			"IPReversePathFilter":  "system.net.ip.reverse_path_filter",
-			"PruneCalled":          "system.net.tcp.prune_called",
-			"RcvPruned":            "system.net.tcp.prune_rcv_drops",
-			"OfoPruned":            "system.net.tcp.prune_ofo_called",
-			"PAWSActive":           "system.net.tcp.paws_connection_drops",
-			"PAWSEstab":            "system.net.tcp.paws_established_drops",
-			"SyncookiesSent":       "system.net.tcp.syn_cookies_sent",
-			"SyncookiesRecv":       "system.net.tcp.syn_cookies_recv",
-			"SyncookiesFailed":     "system.net.tcp.syn_cookies_failed",
-			"TCPAbortOnTimeout":    "system.net.tcp.abort_on_timeout",
-			"TCPSynRetrans":        "system.net.tcp.syn_retrans",
-			"TCPFromZeroWindowAdv": "system.net.tcp.from_zero_window",
-			"TCPToZeroWindowAdv":   "system.net.tcp.to_zero_window",
-			"TWRecycled":           "system.net.tcp.tw_reused",
-		},
-		"udp": {
-			"InDatagrams":  "system.net.udp.in_datagrams",
-			"NoPorts":      "system.net.udp.no_ports",
-			"InErrors":     "system.net.udp.in_errors",
-			"OutDatagrams": "system.net.udp.out_datagrams",
-			"RcvbufErrors": "system.net.udp.rcv_buf_errors",
-			"SndbufErrors": "system.net.udp.snd_buf_errors",
-			"InCsumErrors": "system.net.udp.in_csum_errors",
-		},
-	}
 	tcpStateMetricsSuffixMapping_ss = map[string]string{
 		"ESTAB":      "established",
 		"SYN-SENT":   "opening",
@@ -157,7 +114,7 @@ type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
 	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
-	NetstatTCPExtCounters() (map[string]int64, error)
+	NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error)
 	GetProcPath() string
 }
 
@@ -177,8 +134,8 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 	return net.Connections(kind)
 }
 
-func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
-	return netstatTCPExtCounters(n.procPath)
+func (n defaultNetworkStats) NetstatAndSnmpCounters(protocols []string) (map[string]net.ProtoCountersStat, error) {
+	return netstatAndSnmpCounters(n.procPath, protocols)
 }
 
 func (n defaultNetworkStats) GetProcPath() string {
@@ -196,6 +153,19 @@ func (c *NetworkCheck) Run() error {
 	if err != nil {
 		return err
 	}
+
+	protocols := []string{"Tcp", "TcpExt", "Ip", "IpExt", "Udp"}
+	counters, err := c.net.NetstatAndSnmpCounters(protocols)
+	if err != nil {
+		log.Debug(err)
+	} else {
+		for _, protocol := range protocols {
+			if _, ok := counters[protocol]; ok {
+				submitProtocolMetrics(sender, counters[protocol])
+			}
+		}
+	}
+
 	for _, interfaceIO := range ioByInterface {
 		if !c.isDeviceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
@@ -206,26 +176,6 @@ func (c *NetworkCheck) Run() error {
 				}
 			}
 		}
-	}
-
-	protocols := []string{"tcp", "udp"}
-	protocolsStats, err := c.net.ProtoCounters(protocols)
-	if err != nil {
-		return err
-	}
-	for _, protocolStats := range protocolsStats {
-		// For TCP we want some extra counters coming from /proc/net/netstat if available
-		if protocolStats.Protocol == "tcp" {
-			counters, err := c.net.NetstatTCPExtCounters()
-			if err != nil {
-				log.Debug(err)
-			} else {
-				for counter, value := range counters {
-					protocolStats.Stats[counter] = value
-				}
-			}
-		}
-		submitProtocolMetrics(sender, protocolStats)
 	}
 
 	if c.config.instance.CollectConnectionState {
@@ -583,45 +533,55 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMe
 	}
 }
 
-func netstatTCPExtCounters(procfsPath string) (map[string]int64, error) {
-	fs := filesystem
-	f, err := fs.Open(procfsPath + "/net/netstat")
-	if err != nil {
-		return nil, err
+func netstatAndSnmpCounters(procfsPath string, protocolNames []string) (map[string]net.ProtoCountersStat, error) {
+	counters := make(map[string]net.ProtoCountersStat)
+	for _, protocol := range protocolNames {
+		counters[protocol] = net.ProtoCountersStat{Protocol: protocol, Stats: make(map[string]int64)}
 	}
-	defer f.Close()
 
-	counters := map[string]int64{}
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		i := strings.IndexRune(line, ':')
-		if i == -1 {
-			return nil, errors.New(procfsPath + "/net/netstat is not fomatted correctly, expected ':'")
-		}
-		proto := strings.ToLower(line[:i])
-		if proto != "tcpext" {
-			continue
-		}
-
-		counterNames := strings.Split(line[i+2:], " ")
-
-		if !scanner.Scan() {
-			return nil, errors.New(procfsPath + "/net/netstat is not fomatted correctly, not data line")
-		}
-		line = scanner.Text()
-
-		counterValues := strings.Split(line[i+2:], " ")
-		if len(counterNames) != len(counterValues) {
-			return nil, errors.New(procfsPath + "/net/netstat is not fomatted correctly, expected same number of columns")
-		}
-
-		for j := range counterNames {
-			value, err := strconv.ParseInt(counterValues[j], 10, 64)
-			if err != nil {
-				return nil, err
+	for _, subdirectory := range []string{"netstat", "snmp"} {
+		fs := filesystem
+		f, err := fs.Open(procfsPath + "/net/" + subdirectory)
+		if err != nil {
+			if subdirectory == "snmp" {
+				continue
 			}
-			counters[counterNames[j]] = value
+			return nil, err
+		}
+		defer f.Close()
+
+		scanner := bufio.NewScanner(f)
+		var protocolName string
+		for scanner.Scan() {
+			line := scanner.Text()
+			i := strings.IndexRune(line, ':')
+			if i == -1 {
+				return nil, errors.New(procfsPath + "/net/" + subdirectory + " is not fomatted correctly, expected ':'")
+			}
+			if contains(protocolNames, line[:i]) {
+				protocolName = line[:i]
+			} else {
+				continue
+			}
+
+			counterNames := strings.Split(line[i+2:], " ")
+
+			if !scanner.Scan() {
+				return nil, errors.New(procfsPath + "/net/" + subdirectory + " is not fomatted correctly, not data line")
+			}
+			line = scanner.Text()
+
+			counterValues := strings.Split(line[i+2:], " ")
+			if len(counterNames) != len(counterValues) {
+				return nil, errors.New(procfsPath + "/net/" + subdirectory + " is not fomatted correctly, expected same number of columns")
+			}
+			for j := range counterNames {
+				value, err := strconv.ParseInt(counterValues[j], 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				counters[protocolName].Stats[counterNames[j]] = value
+			}
 		}
 	}
 	return counters, nil

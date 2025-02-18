@@ -27,20 +27,21 @@ import (
 )
 
 type fakeNetworkStats struct {
-	counterStats                []net.IOCountersStat
-	counterStatsError           error
-	protoCountersStats          []net.ProtoCountersStat
-	protoCountersStatsError     error
-	connectionStatsUDP4         []net.ConnectionStat
-	connectionStatsUDP4Error    error
-	connectionStatsUDP6         []net.ConnectionStat
-	connectionStatsUDP6Error    error
-	connectionStatsTCP4         []net.ConnectionStat
-	connectionStatsTCP4Error    error
-	connectionStatsTCP6         []net.ConnectionStat
-	connectionStatsTCP6Error    error
-	netstatTCPExtCountersValues map[string]int64
-	netstatTCPExtCountersError  error
+	counterStats                 []net.IOCountersStat
+	counterStatsError            error
+	protoCountersStats           []net.ProtoCountersStat
+	protoCountersStatsError      error
+	connectionStatsUDP4          []net.ConnectionStat
+	connectionStatsUDP4Error     error
+	connectionStatsUDP6          []net.ConnectionStat
+	connectionStatsUDP6Error     error
+	connectionStatsTCP4          []net.ConnectionStat
+	connectionStatsTCP4Error     error
+	connectionStatsTCP6          []net.ConnectionStat
+	connectionStatsTCP6Error     error
+	netstatAndSnmpCountersValues map[string]net.ProtoCountersStat
+	netstatAndSnmpCountersError  error
+	getProcPath                  string
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
@@ -72,12 +73,12 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 	return nil, nil
 }
 
-func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
-	return n.netstatTCPExtCountersValues, n.netstatTCPExtCountersError
+func (n *fakeNetworkStats) NetstatAndSnmpCounters(_ []string) (map[string]net.ProtoCountersStat, error) {
+	return n.netstatAndSnmpCountersValues, n.netstatAndSnmpCountersError
 }
 
 func (n *fakeNetworkStats) GetProcPath() string {
-	return "/mocked/procfs"
+	return n.getProcPath
 }
 
 type MockEthtool struct {
@@ -190,9 +191,9 @@ func TestNetworkCheck(t *testing.T) {
 				Errout:      25,
 			},
 		},
-		protoCountersStats: []net.ProtoCountersStat{
-			{
-				Protocol: "tcp",
+		netstatAndSnmpCountersValues: map[string]net.ProtoCountersStat{
+			"Tcp": {
+				Protocol: "Tcp",
 				Stats: map[string]int64{
 					"RetransSegs":  22,
 					"InSegs":       23,
@@ -206,8 +207,8 @@ func TestNetworkCheck(t *testing.T) {
 					"InCsumErrors": 38,
 				},
 			},
-			{
-				Protocol: "udp",
+			"Udp": {
+				Protocol: "Udp",
 				Stats: map[string]int64{
 					"InDatagrams":  25,
 					"NoPorts":      26,
@@ -216,6 +217,29 @@ func TestNetworkCheck(t *testing.T) {
 					"RcvbufErrors": 29,
 					"SndbufErrors": 30,
 					"InCsumErrors": 31,
+				},
+			},
+			"TcpExt": {
+				Protocol: "TcpExt",
+				Stats: map[string]int64{
+					"ListenOverflows":      32,
+					"ListenDrops":          33,
+					"TCPBacklogDrop":       34,
+					"TCPRetransFail":       35,
+					"IPReversePathFilter":  43,
+					"PruneCalled":          44,
+					"RcvPruned":            45,
+					"OfoPruned":            46,
+					"PAWSActive":           47,
+					"PAWSEstab":            48,
+					"SyncookiesSent":       49,
+					"SyncookiesRecv":       50,
+					"SyncookiesFailed":     51,
+					"TCPAbortOnTimeout":    52,
+					"TCPSynRetrans":        53,
+					"TCPFromZeroWindowAdv": 54,
+					"TCPToZeroWindowAdv":   55,
+					"TWRecycled":           56,
 				},
 			},
 		},
@@ -335,26 +359,6 @@ func TestNetworkCheck(t *testing.T) {
 			{
 				Status: "CLOSING",
 			},
-		},
-		netstatTCPExtCountersValues: map[string]int64{
-			"ListenOverflows":      32,
-			"ListenDrops":          33,
-			"TCPBacklogDrop":       34,
-			"TCPRetransFail":       35,
-			"IPReversePathFilter":  43,
-			"PruneCalled":          44,
-			"RcvPruned":            45,
-			"OfoPruned":            46,
-			"PAWSActive":           47,
-			"PAWSEstab":            48,
-			"SyncookiesSent":       49,
-			"SyncookiesRecv":       50,
-			"SyncookiesFailed":     51,
-			"TCPAbortOnTimeout":    52,
-			"TCPSynRetrans":        53,
-			"TCPFromZeroWindowAdv": 54,
-			"TCPToZeroWindowAdv":   55,
-			"TWRecycled":           56,
 		},
 	}
 
@@ -744,7 +748,7 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
 }
 
-func TestNetStatTCPExtCountersUsingCorrectMockedProcfsPath(t *testing.T) {
+func TestNetstatAndSnmpCountersUsingCorrectMockedProcfsPath(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
 	networkCheck := NetworkCheck{
 		net: net,
@@ -766,8 +770,8 @@ procfs_path: "/mocked/procfs"
 	filesystem = afero.NewMemMapFs()
 	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TCPExt: ListenOverflows ListenDrops TCPBacklogDrop TCPRetransFail
-TCPExt: 32 33 34 35
+		`TcpExt: ListenOverflows ListenDrops TCPBacklogDrop TCPRetransFail
+TcpExt: 32 33 34 35
 IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 		0644)
@@ -782,7 +786,7 @@ IpExt: 801 439 120 439`),
 	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
 }
 
-func TestNetStatTCPExtCountersWrongConfiguredLocation(t *testing.T) {
+func TestNetstatAndSnmpCountersWrongConfiguredLocation(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/wrong_mocked/procfs"}
 	networkCheck := NetworkCheck{
 		net: net,
@@ -803,8 +807,8 @@ procfs_path: "/wrong_mocked/procfs"
 	filesystem = afero.NewMemMapFs()
 	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TCPExt: ListenOverflows ListenDrops TCPBacklogDrop TCPRetransFail
-TCPExt: 32 33 34 35
+		`TcpExt: ListenOverflows ListenDrops TCPBacklogDrop TCPRetransFail
+TcpExt: 32 33 34 35
 IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 		0644)
@@ -814,7 +818,7 @@ IpExt: 801 439 120 439`),
 	assert.Equal(t, err, nil)
 }
 
-func TestNetStatTCPExtCountersNoColonFile(t *testing.T) {
+func TestNetstatAndSnmpCountersNoColonFile(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
 	networkCheck := NetworkCheck{
 		net: net,
@@ -851,7 +855,7 @@ procfs_path: "/mocked/procfs"
 	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, expected ':'")
 }
 
-func TestNetStatTCPExtCountersBadDataLine(t *testing.T) {
+func TestNetstatAndSnmpCountersBadDataLine(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
 	networkCheck := NetworkCheck{
 		net: net,
@@ -878,7 +882,7 @@ procfs_path: "/mocked/procfs"
 	filesystem = afero.NewMemMapFs()
 	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TCPExt: `),
+		`TcpExt: `),
 		0644)
 	assert.Nil(t, err)
 	_ = networkCheck.Run()
@@ -887,7 +891,7 @@ procfs_path: "/mocked/procfs"
 	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, not data line")
 }
 
-func TestNetStatTCPExtCountersMismatchedColumns(t *testing.T) {
+func TestNetstatAndSnmpCountersMismatchedColumns(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
 	networkCheck := NetworkCheck{
 		net: net,
@@ -914,8 +918,8 @@ procfs_path: "/mocked/procfs"
 	filesystem = afero.NewMemMapFs()
 	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TCPExt: 1 0 46 79
-TCPExt: 32 34 192
+		`TcpExt: 1 0 46 79
+TcpExt: 32 34 192
 IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 		0644)
@@ -926,7 +930,7 @@ IpExt: 801 439 120 439`),
 	assert.Contains(t, b.String(), "/mocked/procfs/net/netstat is not fomatted correctly, expected same number of columns")
 }
 
-func TestNetStatTCPExtCountersLettersForNumbers(t *testing.T) {
+func TestNetstatAndSnmpCountersLettersForNumbers(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
 	networkCheck := NetworkCheck{
 		net: net,
@@ -948,8 +952,8 @@ procfs_path: "/mocked/procfs"
 	filesystem = afero.NewMemMapFs()
 	fs := filesystem
 	err = afero.WriteFile(fs, "/mocked/procfs/net/netstat", []byte(
-		`TCPExt: 1 0 46 79
-TCPExt: ab cd ef gh
+		`TcpExt: 1 0 46 79
+TcpExt: ab cd ef gh
 IpExt: 800 4343 4342 304
 IpExt: 801 439 120 439`),
 
