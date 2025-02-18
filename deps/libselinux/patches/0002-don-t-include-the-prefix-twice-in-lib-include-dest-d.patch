@@ -1,0 +1,43 @@
+From 2a674da4a618299a224bdf6e854d5ce01d12d056 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Thu, 30 Jan 2025 14:50:02 +0100
+Subject: [PATCH 2/2] don't include the prefix twice in lib & include dest dir
+
+the libs and headers are installed in $(DESTDIR)/$(LIBDIR) but PREFIX
+already contains the value in DESTDIR
+---
+ libselinux/include/Makefile | 2 +-
+ libselinux/src/Makefile     | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/libselinux/include/Makefile b/libselinux/include/Makefile
+index 8ab9ce92..10c26346 100644
+--- a/libselinux/include/Makefile
++++ b/libselinux/include/Makefile
+@@ -1,6 +1,6 @@
+ # Installation directories.
+ PREFIX ?= /usr
+-INCDIR = $(PREFIX)/include/selinux
++INCDIR = /include/selinux
+ 
+ all:
+ 
+diff --git a/libselinux/src/Makefile b/libselinux/src/Makefile
+index 34a6033e..5826ab75 100644
+--- a/libselinux/src/Makefile
++++ b/libselinux/src/Makefile
+@@ -9,9 +9,9 @@ PKG_CONFIG ?= pkg-config
+ 
+ # Installation directories.
+ PREFIX ?= /usr
+-LIBDIR ?= $(PREFIX)/lib
++LIBDIR ?= /lib
+ SHLIBDIR ?= /lib
+-INCLUDEDIR ?= $(PREFIX)/include
++INCLUDEDIR ?= /include
+ PYINC ?= $(shell $(PKG_CONFIG) --cflags $(PYPREFIX))
+ PYLIBS ?= $(shell $(PKG_CONFIG) --libs $(PYPREFIX))
+ PYTHONLIBDIR ?= $(shell $(PYTHON) -c "import sysconfig; print(sysconfig.get_path('platlib', vars={'platbase': '$(PREFIX)', 'base': '$(PREFIX)'}))")
+-- 
+2.34.1
+

@@ -178,6 +178,11 @@ http_archive(
     sha256 = "0c3756bca047c9270281d7c4dcdecd000b72e38a183c930661eba9690839b541",
     strip_prefix = "libselinux-{0}".format(LIBSELINUX_VERSION),
     url = "https://github.com/SELinuxProject/selinux/releases/download/{0}/libselinux-{0}.tar.gz".format(LIBSELINUX_VERSION),
+    patch_args = ["-p2"],
+    patch_tool = "patch",
+    patches = [
+        "//deps/libselinux:patches/0002-don-t-include-the-prefix-twice-in-lib-include-dest-d.patch"
+    ]
 )
 
 LIBXML2_VERSION = "2.12.6"
