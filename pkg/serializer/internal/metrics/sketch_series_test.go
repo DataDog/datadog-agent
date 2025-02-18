@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -72,7 +73,6 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 
 		require.Len(t, pb.Dogsketches, len(in.Points))
 		for j, pointPb := range pb.Dogsketches {
-
 			check(t, in.Points[j], pointPb)
 			// require.Equal(t, pointIn.Ts, pointPb.Ts)
 			// require.Equal(t, pointIn.Ts, pointPb.Ts)
@@ -104,7 +104,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			payload, _ := sl.Marshal()
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor)
+			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logmock.New(t))
 
 			assert.Nil(t, err)
 
@@ -147,7 +147,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 			serializer := SketchSeriesList{SketchesSource: sl}
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor)
+			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logmock.New(t))
 
 			assert.Nil(t, err)
 
@@ -165,7 +165,6 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 			require.Len(t, pl.Sketches, 1)
 		})
 	}
-
 }
 
 func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
@@ -189,7 +188,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 			serializer2 := SketchSeriesList{SketchesSource: sl}
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor)
+			payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logmock.New(t))
 			require.NoError(t, err)
 
 			firstPayload := payloads[0]
@@ -214,17 +213,14 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 				require.Len(t, pb.Dogsketches, len(in.Points))
 				for j, pointPb := range pb.Dogsketches {
-
 					check(t, in.Points[j], pointPb)
 				}
 			}
 		})
 	}
-
 }
 
 func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
-
 	tests := map[string]struct {
 		kind                string
 		maxUncompressedSize int
@@ -249,7 +245,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 			serializer := SketchSeriesList{SketchesSource: sl}
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor)
+			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logmock.New(t))
 			assert.Nil(t, err)
 
 			recoveredSketches := []gogen.SketchPayload{}
@@ -283,7 +279,6 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 
 					require.Len(t, pb.Dogsketches, len(in.Points))
 					for j, pointPb := range pb.Dogsketches {
-
 						check(t, in.Points[j], pointPb)
 					}
 					i++
@@ -315,7 +310,7 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 			payloads, filteredPayloads, err := serializer2.MarshalSplitCompressMultiple(mockConfig, compressor, func(ss *metrics.SketchSeries) bool {
 				return ss.Name == "name.0"
-			})
+			}, logmock.New(t))
 			require.NoError(t, err)
 
 			assert.Equal(t, 1, len(payloads))
@@ -328,5 +323,4 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 			assert.Equal(t, 5, firstFilteredPayload.GetPointCount())
 		})
 	}
-
 }

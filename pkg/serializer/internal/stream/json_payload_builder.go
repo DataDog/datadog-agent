@@ -15,11 +15,11 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -69,10 +69,11 @@ type JSONPayloadBuilder struct {
 	mu                            sync.Mutex
 	config                        config.Component
 	compressor                    compression.Component
+	logger                        log.Component
 }
 
 // NewJSONPayloadBuilder returns a new JSONPayloadBuilder
-func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, compressor compression.Component) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, compressor compression.Component, logger log.Component) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
 		return &JSONPayloadBuilder{
 			inputSizeHint:       4096,
@@ -82,6 +83,7 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, co
 			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
 			config:              config,
 			compressor:          compressor,
+			logger:              logger,
 		}
 	}
 	return &JSONPayloadBuilder{
@@ -90,6 +92,7 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, co
 		shareAndLockBuffers: false,
 		config:              config,
 		compressor:          compressor,
+		logger:              logger,
 	}
 }
 
@@ -107,7 +110,8 @@ const (
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
-	policy OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
+	policy OnErrItemTooBigPolicy,
+) (transaction.BytesPayloads, error) {
 	var input, output *bytes.Buffer
 
 	// the backend accepts payloads up to specific compressed / uncompressed
@@ -173,7 +177,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		jsonStream.Reset(nil)
 		err := m.WriteCurrentItem(jsonStream)
 		if err != nil {
-			log.Warnf("error marshalling an item, skipping: %s", err)
+			b.logger.Warnf("error marshalling an item, skipping: %s", err)
 			ok = m.MoveNext()
 			expvarsWriteItemErrors.Add(1)
 			tlmWriteItemErrors.Inc()
@@ -215,7 +219,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			fallthrough
 		default:
 			// Unexpected error, drop the item
-			log.Warnf("Dropping an item, %s: %s", m.DescribeCurrentItem(), err)
+			b.logger.Warnf("Dropping an item, %s: %s", m.DescribeCurrentItem(), err)
 			ok = m.MoveNext()
 			expvarsItemDrops.Add(1)
 			tlmItemDrops.Inc()

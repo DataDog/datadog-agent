@@ -16,9 +16,9 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
@@ -29,8 +29,8 @@ func newDefaultConfig() component.Config {
 		APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
 		Tags:                 "",
 	}
-	pkgmcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config).Metrics
-	mcfg.Metrics = pkgmcfg
+	pkgmcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
+	mcfg.Metrics = pkgmcfg.Metrics
 
 	return &ExporterConfig{
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
@@ -39,6 +39,7 @@ func newDefaultConfig() component.Config {
 		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 
 		Metrics: mcfg,
+		API:     pkgmcfg.API,
 	}
 }
 
@@ -66,6 +67,8 @@ type Exporter struct {
 	extraTags       []string
 	enricher        tagenricher
 	apmReceiverAddr string
+	createConsumer  createConsumerFunc
+	params          exporter.Settings
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -75,6 +78,7 @@ func translatorFromConfig(
 	cfg datadogconfig.MetricsConfig,
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
+	extraOptions ...metrics.TranslatorOption,
 ) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
@@ -83,16 +87,12 @@ func translatorFromConfig(
 	default:
 		return nil, fmt.Errorf("invalid `mode` %q", cfg.HistConfig.Mode)
 	}
-
 	options := []metrics.TranslatorOption{
 		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.DeltaTTL),
 	}
-
-	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
-		options = append(options, metrics.WithOTelPrefix())
-	}
+	options = append(options, extraOptions...)
 
 	if statsIn != nil {
 		options = append(options, metrics.WithStatsOut(statsIn))
@@ -127,20 +127,14 @@ func translatorFromConfig(
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
 func NewExporter(
-	set component.TelemetrySettings,
-	attributesTranslator *attributes.Translator,
 	s serializer.MetricSerializer,
 	cfg *ExporterConfig,
 	enricher tagenricher,
 	hostGetter SourceProviderFunc,
-	statsIn chan []byte,
+	createConsumer createConsumerFunc,
+	tr *metrics.Translator,
 ) (*Exporter, error) {
-	tr, err := translatorFromConfig(set, attributesTranslator, cfg.Metrics.Metrics, hostGetter, statsIn)
-	if err != nil {
-		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
-	}
-
-	err = enricher.SetCardinality(cfg.Metrics.TagCardinality)
+	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
 		return nil, err
 	}
@@ -155,12 +149,13 @@ func NewExporter(
 		enricher:        enricher,
 		apmReceiverAddr: cfg.Metrics.APMStatsReceiverAddr,
 		extraTags:       extraTags,
+		createConsumer:  createConsumer,
 	}, nil
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
-	consumer := &serializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
+	consumer := e.createConsumer(e.enricher, e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, nil)
 	if err != nil {
 		return err

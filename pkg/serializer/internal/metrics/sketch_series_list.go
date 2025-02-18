@@ -13,13 +13,13 @@ import (
 	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
@@ -51,10 +51,10 @@ func init() {
 // compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
 // it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
 // The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
-func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (transaction.BytesPayloads, error) {
+func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) (transaction.BytesPayloads, error) {
 	var err error
 
-	pb := newPayloadsBuilder(bufferContext, config, strategy)
+	pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
 
 	// start things off
 	err = pb.startPayload()
@@ -72,7 +72,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 
 	err = pb.finishPayload()
 	if err != nil {
-		log.Debugf("Failed to finish payload with err %v", err)
+		logger.Debugf("Failed to finish payload with err %v", err)
 		return nil, err
 	}
 
@@ -85,14 +85,14 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 // provided filter function.  This function exists because we need a way to
 // build both payloads in a single pass over the input data, which cannot be
 // iterated over twice.
-func (sl SketchSeriesList) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFunc func(ss *metrics.SketchSeries) bool) (transaction.BytesPayloads, transaction.BytesPayloads, error) {
+func (sl SketchSeriesList) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFunc func(ss *metrics.SketchSeries) bool, logger log.Component) (transaction.BytesPayloads, transaction.BytesPayloads, error) {
 	var err error
 
 	bufferContext := marshaler.NewBufferContext()
 	bufferContext2 := marshaler.NewBufferContext()
 
-	pb := newPayloadsBuilder(bufferContext, config, strategy)
-	pb2 := newPayloadsBuilder(bufferContext2, config, strategy)
+	pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
+	pb2 := newPayloadsBuilder(bufferContext2, config, strategy, logger)
 
 	// start things off
 	err = pb.startPayload()
@@ -120,20 +120,20 @@ func (sl SketchSeriesList) MarshalSplitCompressMultiple(config config.Component,
 
 	err = pb.finishPayload()
 	if err != nil {
-		log.Debugf("Failed to finish payload with err %v", err)
+		logger.Debugf("Failed to finish payload with err %v", err)
 		return nil, nil, err
 	}
 
 	err = pb2.finishPayload()
 	if err != nil {
-		log.Debugf("Failed to finish payload with err %v", err)
+		logger.Debugf("Failed to finish payload with err %v", err)
 		return nil, nil, err
 	}
 
 	return pb.payloads, pb2.payloads, nil
 }
 
-func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) payloadsBuilder {
+func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) payloadsBuilder {
 	buf := bufferContext.PrecompressionBuf
 	pb := payloadsBuilder{
 		bufferContext: bufferContext,
@@ -147,6 +147,7 @@ func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Co
 		maxPayloadSize:      config.GetInt("serializer_max_payload_size"),
 		maxUncompressedSize: config.GetInt("serializer_max_uncompressed_payload_size"),
 		pointCount:          0,
+		logger:              logger,
 	}
 	return pb
 }
@@ -161,6 +162,7 @@ type payloadsBuilder struct {
 	maxPayloadSize      int
 	maxUncompressedSize int
 	pointCount          int
+	logger              log.Component
 }
 
 // Prepare to write the next payload
@@ -383,7 +385,7 @@ func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
 			// Unexpected error bail out
 			expvarsUnexpectedItemDrops.Add(1)
 			tlmUnexpectedItemDrops.Inc()
-			log.Debugf("Unexpected error trying to addItem to new payload after previous payload filled up: %v", err)
+			pb.logger.Debugf("Unexpected error trying to addItem to new payload after previous payload filled up: %v", err)
 			return err
 		}
 		pb.pointCount += len(ss.Points)
@@ -398,7 +400,7 @@ func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
 		// Unexpected error bail out
 		expvarsUnexpectedItemDrops.Add(1)
 		tlmUnexpectedItemDrops.Inc()
-		log.Debugf("Unexpected error: %v", err)
+		pb.logger.Debugf("Unexpected error: %v", err)
 		return err
 	}
 
