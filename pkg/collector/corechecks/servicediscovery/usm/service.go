@@ -7,6 +7,7 @@
 package usm
 
 import (
+	"archive/zip"
 	"errors"
 	"fmt"
 	"io"
@@ -205,6 +206,24 @@ func SizeVerifiedReader(file fs.File) (io.Reader, error) {
 	// Additional limit the reader to avoid suprises if the file size changes
 	// while reading it.
 	return io.LimitReader(file, min(size, maxParseFileSize)), nil
+}
+
+// VerifiedZipReader returns a reader for a zip file after ensuring that the
+// file is a regular file.
+func VerifiedZipReader(file fs.File) (*zip.Reader, error) {
+	fi, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+	reader, err := zip.NewReader(file.(io.ReaderAt), fi.Size())
+	if err != nil {
+		return nil, err
+	}
+
+	return reader, nil
 }
 
 // Map languages to their context detectors

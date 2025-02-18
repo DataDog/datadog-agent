@@ -1,26 +1,26 @@
 # Package gates
 static_quality_gate_agent_deb_amd64:
-  max_on_wire_size: "212.83 MiB"
+  max_on_wire_size: "212.33 MiB"
   max_on_disk_size: "847.49 MiB"
 
 static_quality_gate_agent_deb_arm64:
-  max_on_wire_size: "192.17 MiB"
+  max_on_wire_size: "192.5 MiB"
   max_on_disk_size: "836.66 MiB"
 
 static_quality_gate_agent_rpm_amd64:
-  max_on_wire_size: "214.3 MiB"
-  max_on_disk_size: "858.45 MiB"
+  max_on_wire_size: "215.76 MiB"
+  max_on_disk_size: "847.82 MiB"
 
 static_quality_gate_agent_rpm_arm64:
-  max_on_wire_size: "194.46 MiB"
+  max_on_wire_size: "194.24 MiB"
   max_on_disk_size: "836.66 MiB"
 
 static_quality_gate_agent_suse_amd64:
-  max_on_wire_size: "214.3 MiB"
-  max_on_disk_size: "858.45 MiB"
+  max_on_wire_size: "215.76 MiB"
+  max_on_disk_size: "847.82 MiB"
 
 static_quality_gate_agent_suse_arm64:
-  max_on_wire_size: "194.46 MiB"
+  max_on_wire_size: "194.24 MiB"
   max_on_disk_size: "836.66 MiB"
 
 static_quality_gate_dogstatsd_deb_amd64:
@@ -85,10 +85,10 @@ static_quality_gate_docker_dogstatsd_arm64:
   max_on_disk_size: "56.27 MiB"
 
 static_quality_gate_docker_cluster_agent_amd64:
-  max_on_wire_size: "117.28 MiB"
-  max_on_disk_size: "277.7 MiB"
+  max_on_wire_size: "116.28 MiB"
+  max_on_disk_size: "274.78 MiB"
 
 static_quality_gate_docker_cluster_agent_arm64:
-  max_on_wire_size: "112.12 MiB"
-  max_on_disk_size: "293.73 MiB"
+  max_on_wire_size: "111.12 MiB"
+  max_on_disk_size: "290.82 MiB"
 
