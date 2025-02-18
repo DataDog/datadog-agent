@@ -9,7 +9,10 @@ package subscribers
 import (
 	"sync/atomic"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -19,18 +22,21 @@ type GPUSubscriber struct {
 	gpuEventsCh chan workloadmeta.EventBundle
 	stopCh      chan struct{}
 	wmeta       workloadmeta.Component
+	tagger 		tagger.Component
 }
 
 // NewGPUSubscriber creates a new GPUDetector instance
-func NewGPUSubscriber(wmeta workloadmeta.Component) *GPUSubscriber {
+func NewGPUSubscriber(wmeta workloadmeta.Component, tagger tagger.Component) *GPUSubscriber {
 	return &GPUSubscriber{
 		stopCh: make(chan struct{}),
 		wmeta:  wmeta,
+		tagger:tagger,
 	}
 }
 
 // Run starts the GPU detector, which listens for workloadmeta events to detect GPUs on the host
 func (g *GPUSubscriber) Run() {
+	log.Info("Starting GPU detector")
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).
 		SetEventType(workloadmeta.EventTypeSet).
@@ -86,7 +92,50 @@ func (g *GPUSubscriber) processEvents(eventBundle workloadmeta.EventBundle) {
 	}
 }
 
+
+// GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
+func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
+	if !g.IsGPUDetected() {
+		log.Info("GPU not detected, skipping GPU tag creation")
+		return nil
+	}
+
+	wmetaGPUs := g.wmeta.ListGPUs()
+
+	pidToTagSet := make(map[int32]common.StringSet)
+	for _, gpu := range wmetaGPUs {
+		uuid := gpu.ID
+
+		// use tagger to get gpu tags
+		entityID := types.NewEntityID(types.GPU, uuid)
+		tags, err := g.tagger.Tag(entityID, g.tagger.ChecksCardinality())
+		if err != nil {
+			log.Debugf("Could not collect tags for GPU %q, err: %v", uuid, err)
+		}
+
+		// filter tags to remove duplicates
+		for _, pid := range gpu.ActivePIDs {
+			if _, ok := pidToTagSet[int32(pid)]; !ok {
+				pidToTagSet[int32(pid)] = common.NewStringSet()
+			}
+			for _, tag := range tags {
+				pidToTagSet[int32(pid)].Add(tag)
+			}
+		}
+	}
+
+	// Convert StringSet to []string
+	pidToGPUTags := make(map[int32][]string)
+	for pid, tagSet := range pidToTagSet {
+		pidToGPUTags[pid] = tagSet.GetAll()
+	}
+
+	log.Info("GPU tags created for active pids:", pidToGPUTags)
+	return pidToGPUTags
+}
+
 // Stop stops the GPU detector
 func (g *GPUSubscriber) Stop() {
+	log.Info("Stopping GPU detector")
 	close(g.stopCh)
 }
