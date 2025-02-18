@@ -10,9 +10,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -108,9 +108,9 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-func All(config, sysprobeYamlCfg pkgconfigmodel.ReaderWriter, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, tagger tagger.Component, npCollector npcollector.Component) []Check {
+func All(config, sysprobeYamlCfg pkgconfigmodel.ReaderWriter, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, gpuSubscriber gpusubscriber.Component, npCollector npcollector.Component) []Check {
 	return []Check{
-		NewProcessCheck(config, sysprobeYamlCfg, wmeta, tagger),
+		NewProcessCheck(config, sysprobeYamlCfg, wmeta, gpuSubscriber),
 		NewContainerCheck(config, wmeta),
 		NewRTContainerCheck(config, wmeta),
 		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg, wmeta, npCollector),

@@ -6,8 +6,10 @@
 // Package gpusubscriberimpl implements a no-op component to handle GPU detection in the Core Agent.
 package gpusubscriberimpl
 
+// NoopSubscriber is a no-op implementation of the gpusubscriber.Component interface.
 type NoopSubscriber struct{}
 
+// GetGPUTags returns an empty map as a no-op implementation.
 func (s NoopSubscriber) GetGPUTags() map[int32][]string {
 	return nil
 }
