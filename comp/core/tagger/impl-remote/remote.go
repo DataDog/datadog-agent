@@ -50,6 +50,7 @@ const (
 
 var (
 	errTaggerStreamNotStarted = errors.New("tagger stream not started")
+	errFetchAuthToken         = errors.New("failed to fetch auth token")
 )
 
 // Requires defines the dependencies for the remote tagger.
@@ -194,12 +195,34 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 	}
 
 	// Fetch the auth token
-	for t.token == "" {
+	t.log.Debug("fetching auth token")
+
+	retries := 0
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 50 * time.Millisecond
+	expBackoff.MaxInterval = 200 * time.Millisecond
+	expBackoff.MaxElapsedTime = 5 * time.Second
+	err = backoff.Retry(func() error {
+		select {
+		case <-t.ctx.Done():
+			return &backoff.PermanentError{Err: errFetchAuthToken}
+		default:
+		}
+
 		t.token, err = t.options.TokenFetcher()
 		if err != nil {
-			t.log.Warnf("unable to fetch auth token. Error: %s", err)
+			retries++
+			t.log.Warnf("unable to fetch auth token, will possibly retry: %s", err)
+			return err
 		}
+		return nil
+	}, expBackoff)
+	if err != nil {
+		t.log.Errorf("unable to fetch auth token after %d retries: %s", retries, err)
+		return err
 	}
+
+	t.log.Debugf("auth token fetched after %d retries", retries)
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
