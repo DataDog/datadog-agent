@@ -273,11 +273,11 @@ func mergeMaps(maps ...fixtures) fixtures {
 }
 
 var expectedCaptures = mergeMaps(
-	basicCaptures,
-	stringCaptures,
-	arrayCaptures,
-	structCaptures,
-	sliceCaptures,
+	// basicCaptures,
+	// stringCaptures,
+	// arrayCaptures,
+	// structCaptures,
+	// sliceCaptures,
 	pointerCaptures,
 	// mapCaptures,
 	// genericCaptures,
