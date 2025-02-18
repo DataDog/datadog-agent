@@ -330,10 +330,7 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (
 		return oq, err
 	}
 
-	cached := o.queryCache.Set(cacheKey, oq, oq.Cost())
-	if !cached {
-		fmt.Sprintf("failed to cache obfuscated query: %s", in)
-	}
+	o.queryCache.Set(cacheKey, oq, oq.Cost())
 	return oq, nil
 }
 
