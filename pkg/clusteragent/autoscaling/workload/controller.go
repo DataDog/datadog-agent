@@ -40,7 +40,7 @@ const (
 
 	controllerID = "dpa-c"
 
-	staleRecommendationThreshold = time.Second * 180
+	staleRecommendationThreshold = time.Minute * 10
 )
 
 var (
