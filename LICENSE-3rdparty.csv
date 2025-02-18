@@ -2135,6 +2135,7 @@ core,github.com/sijms/go-ora/v2/advanced_nego,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/advanced_nego/ntlmssp,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/configurations,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/converters,MIT,Copyright (c) 2020 Samy Sultan
+core,github.com/sijms/go-ora/v2/lazy_init,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/network,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/network/security,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/network/security/md4,MIT,Copyright (c) 2020 Samy Sultan
