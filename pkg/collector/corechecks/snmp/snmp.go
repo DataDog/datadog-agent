@@ -8,9 +8,10 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"go.uber.org/atomic"
@@ -195,6 +196,11 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	}
 
 	return c.singleDeviceCk.GetDiagnoses(), nil
+}
+
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
 }
 
 // Factory creates a new check factory
