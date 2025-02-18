@@ -38,6 +38,8 @@ use (
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
 	comp/logs/agent/config
+	comp/logs/auditor/def
+	comp/logs/auditor/impl-none
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
 	comp/otelcol/collector-contrib/impl
@@ -91,7 +93,6 @@ use (
 	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
-	pkg/logs/auditor
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message

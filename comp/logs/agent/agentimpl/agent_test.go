@@ -33,7 +33,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 

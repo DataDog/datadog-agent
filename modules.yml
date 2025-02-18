@@ -68,7 +68,9 @@ modules:
     used_by_otel: true
   comp/logs/agent/config:
     used_by_otel: true
-  comp/logs/auditor:
+  comp/logs/auditor/def:
+    used_by_otel: true
+  comp/logs/auditor/impl-none:
     used_by_otel: true
   comp/netflow/payload: default
   comp/otelcol/collector-contrib/def: default
