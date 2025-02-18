@@ -220,10 +220,15 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
+	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.HTTP,
-		Stats: p.statkeeper.GetAndResetAllStats(),
-	}, nil
+			Type:  protocols.HTTP,
+			Stats: stats,
+		}, func() {
+			for _, elem := range stats {
+				elem.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as http module is supported by all modes.
