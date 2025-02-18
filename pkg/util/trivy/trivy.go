@@ -54,7 +54,6 @@ const (
 type collectorConfig struct {
 	clearCacheOnClose bool
 	maxCacheSize      int
-	overlayFSSupport  bool
 }
 
 // Collector uses trivy to generate a SBOM
@@ -158,7 +157,6 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
 			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
-			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 		wmeta:     wmeta,
