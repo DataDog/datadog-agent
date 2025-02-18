@@ -13,10 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"crypto/rand"
+
 	"github.com/gofrs/flock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/rand"
 	"golang.org/x/sync/errgroup"
 )
 
