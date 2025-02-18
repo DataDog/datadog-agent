@@ -154,14 +154,14 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 
 	// serieBySignature is reused for each call of dedupSerieBySerieSignature to avoid allocations.
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
-	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
+	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []metrics.SerieData) {
 		// Note: rawSeries is reused at each call
 		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature)
 	})
 }
 
 func (s *TimeSampler) dedupSerieBySerieSignature(
-	rawSeries []*metrics.Serie,
+	rawSeries []metrics.SerieData,
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
 ) {
@@ -175,7 +175,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 		serieSignature := SerieSignature{serie.MType, serie.NameSuffix}
 
 		if existingSerie, ok := serieBySignature[serieSignature]; ok {
-			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
+			existingSerie.Points = append(existingSerie.Points, serie.Point)
 		} else {
 			// Resolve context and populate new Serie
 			context, ok := s.contextResolver.get(serie.ContextKey)
@@ -183,14 +183,20 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 				log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, serie.ContextKey)
 				continue
 			}
-			serie.Name = context.Name + serie.NameSuffix
-			serie.Tags = context.Tags()
-			serie.Host = context.Host
-			serie.NoIndex = context.noIndex
-			serie.Interval = s.interval
-			serie.Source = context.source
+			actualSerie := &metrics.Serie{
+				Points:     []metrics.Point{serie.Point},
+				MType:      serie.MType,
+				NameSuffix: serie.NameSuffix,
 
-			serieBySignature[serieSignature] = serie
+				Name:     context.Name,
+				Tags:     context.Tags(),
+				Host:     context.Host,
+				NoIndex:  context.noIndex,
+				Interval: s.interval,
+				Source:   context.source,
+			}
+
+			serieBySignature[serieSignature] = actualSerie
 		}
 	}
 
@@ -252,7 +258,7 @@ func (s *TimeSampler) updateMetrics() {
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,
 // and call several times `callback`, each time with series with same context key
-func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.ContextMetricsFlusher, callback func([]*metrics.Serie)) {
+func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.ContextMetricsFlusher, callback func([]metrics.SerieData)) {
 	errors := contextMetricsFlusher.FlushAndClear(callback)
 	for ckey, err := range errors {
 		context, ok := s.contextResolver.get(ckey)

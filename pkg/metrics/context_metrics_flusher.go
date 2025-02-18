@@ -41,9 +41,9 @@ func (f *ContextMetricsFlusher) Append(bucketTimestamp float64, contextMetrics C
 // a slice containing all Serie instances with that context key, and passes that slice to
 // `callback`. Any errors encountered flushing the Metric instances are returned,
 // but such errors do not interrupt the flushing operation.
-func (f *ContextMetricsFlusher) FlushAndClear(callback func([]*Serie)) map[ckey.ContextKey][]error {
+func (f *ContextMetricsFlusher) FlushAndClear(callback func([]SerieData)) map[ckey.ContextKey][]error {
 	errors := make(map[ckey.ContextKey][]error)
-	var series []*Serie
+	var series []SerieData
 
 	contextMetricsCollection := make([]ContextMetrics, 0, len(f.metrics))
 	for _, m := range f.metrics {
