@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {} # the workflow uses the GitHub App token to create the PR so no specific permissions needed here
     steps:
-      - uses: actions/create-github-app-token@67e27a7eb7db372a1c61a7f9bdab8699e9ee57f7 # v1.11.3
+      - uses: actions/create-github-app-token@0d564482f06ca65fa9e77e2510873638c82206f2 # v1.11.5
         id: app-token
         with:
           app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}

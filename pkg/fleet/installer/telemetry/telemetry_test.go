@@ -13,7 +13,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -200,7 +199,7 @@ func TestRemapOnFlush(t *testing.T) {
 			assert.Equal(t, "staging", span.Meta["env"])
 			assert.Equal(t, 2.0, span.Metrics["_sampling_priority_v1"])
 		}
-		var parent, child *internaltelemetry.Span
+		var parent, child *span
 		if trace[0].Name == "parent" {
 			parent = trace[0]
 			child = trace[1]

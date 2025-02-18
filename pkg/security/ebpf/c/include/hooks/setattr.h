@@ -60,28 +60,24 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     set_file_inode(dentry, &syscall->setattr.file, 0);
 
-    u64 event_type = 0;
     switch (syscall->type) {
     case EVENT_UTIME:
         if (approve_syscall(syscall, utime_approvers) == DISCARDED) {
             pop_syscall(EVENT_UTIME);
             return 0;
         }
-        event_type = EVENT_UTIME;
         break;
     case EVENT_CHMOD:
         if (approve_syscall(syscall, chmod_approvers) == DISCARDED) {
             pop_syscall(EVENT_CHMOD);
             return 0;
         }
-        event_type = EVENT_CHMOD;
         break;
     case EVENT_CHOWN:
         if (approve_syscall(syscall, chown_approvers) == DISCARDED) {
             pop_syscall(EVENT_CHOWN);
             return 0;
         }
-        event_type = EVENT_CHOWN;
         break;
     }
 
