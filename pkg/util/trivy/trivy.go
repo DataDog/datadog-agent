@@ -95,6 +95,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
 		WalkerOption:      walker.Option{},
+		FileChecksum:      true,
 	}
 
 	option.WalkerOption.SkipDirs = trivyDefaultSkipDirs
