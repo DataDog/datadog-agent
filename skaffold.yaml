@@ -1,0 +1,65 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: datadog-agent
+build:
+  platforms: [ "linux/arm64" ]
+  tagPolicy:
+    gitCommit: {
+        variant: "AbbrevCommitSha"
+    }
+  local:
+    push: false
+    concurrency: 0
+deploy:
+  helm:
+    releases:
+      - name: datadog-agent
+        remoteChart: datadog/datadog
+        version: 3.88.1
+        setValueTemplates:
+          datadog:
+            apiKey: "{{cmd \"bash\" \"-c\" \"echo $DD_API_KEY\"}}"
+            appKey: "{{cmd \"bash\" \"-c\" \"echo $DD_APP_KEY\"}}"
+            kubelet:
+              tlsVerify: false
+          agents.image:
+            repository: "{{.IMAGE_REPO_agent}}"
+            tag: "{{.IMAGE_TAG_agent}}@{{.IMAGE_DIGEST_agent}}"
+            doNotCheckTag: true
+          clusterAgent:
+            image:
+              repository: "{{.IMAGE_REPO_clusteragent}}"
+              tag: "{{.IMAGE_TAG_clusteragent}}"
+              doNotCheckTag: true
+          clusterCheckRunner.image:
+            repository: "{{.IMAGE_REPO_agent}}"
+            tag: "{{.IMAGE_TAG_agent}}"
+            doNotCheckTag: true
+profiles:
+  - name: kind
+    activation:
+    - kubeContext: kind
+      command: dev
+    build:
+      artifacts:
+      - image: agent
+        custom:
+          buildCommand: "inv agent.hacky-dev-image-build --target-image=$IMAGE"
+      - image: clusteragent
+        custom:
+          buildCommand: "inv cluster-agent.hacky-dev-image-build --target-image=$IMAGE"
+  - name: minikube
+    activation:
+    - kubeContext: minikube
+      command: dev
+    build:
+      artifacts:
+      - image: agent
+        custom:
+          buildCommand: "docker exec datadog_agent_devcontainer bash -c \"
+            inv agent.hacky-dev-image-build --target-image=$IMAGE\""
+      - image: clusteragent
+        custom:
+          buildCommand: "docker exec datadog_agent_devcontainer bash -c \"
+            inv cluster-agent.hacky-dev-image-build --target-image=$IMAGE\""
