@@ -67,7 +67,6 @@ func processFile(rdr io.Reader, out io.Writer) error {
 	convertPointerToUint64Regex := regexp.MustCompile(`\*_Ctype_struct_(\w+)`)
 	b = convertPointerToUint64Regex.ReplaceAll(b, []byte("uint64"))
 
-	// Convert *byte pointers to uint64 (original void * in C)
 	// Convert *byte and *uint64 pointers to uint64 (original void * in C)
 	convertBytePointerToUint64Regex := regexp.MustCompile(`(\s+)(\*(byte|uint64))`)
 	b = convertBytePointerToUint64Regex.ReplaceAll(b, []byte("${1}uint64"))
