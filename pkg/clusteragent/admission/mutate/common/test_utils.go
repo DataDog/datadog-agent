@@ -227,6 +227,14 @@ func FakePodWithNamespaceAndLabel(namespace, k, v string) *corev1.Pod {
 	return pod
 }
 
+// FakePodWithNamespace returns a pod with a namespace.
+func FakePodWithNamespace(name, namespace string) *corev1.Pod {
+	pod := FakePod(name)
+	pod.Namespace = namespace
+
+	return pod
+}
+
 func fakePodWithVolume(podName, volumeName, mountPath string) *corev1.Pod {
 	pod := FakePod(podName)
 	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: volumeName})

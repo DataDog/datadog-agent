@@ -40,6 +40,8 @@ const (
 	OverrideEveryField OverrideField = "every"
 	// OverrideTagsField used to override the tags
 	OverrideTagsField OverrideField = "tags"
+	// OverrideProductTagsField used to override the product_tags field
+	OverrideProductTagsField OverrideField = "product_tags"
 )
 
 // OverrideOptions defines combine options
@@ -68,6 +70,7 @@ type RuleDefinition struct {
 	Expression             string                 `yaml:"expression" json:"expression,omitempty"`
 	Description            string                 `yaml:"description,omitempty" json:"description,omitempty"`
 	Tags                   map[string]string      `yaml:"tags,omitempty" json:"tags,omitempty"`
+	ProductTags            []string               `yaml:"product_tags,omitempty" json:"product_tags,omitempty"`
 	AgentVersionConstraint string                 `yaml:"agent_version,omitempty" json:"agent_version,omitempty"`
 	Filters                []string               `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Disabled               bool                   `yaml:"disabled,omitempty" json:"disabled,omitempty"`

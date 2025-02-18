@@ -20,8 +20,8 @@ type SslSock struct {
 	Pad_cgo_0 [4]byte
 }
 type SslReadArgs struct {
-	Ctx *byte
-	Buf *byte
+	Ctx uint64
+	Buf uint64
 }
 type SslReadExArgs struct {
 	Ctx       *byte

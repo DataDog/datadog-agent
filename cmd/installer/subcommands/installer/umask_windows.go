@@ -7,7 +7,7 @@
 
 package installer
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+import "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
 // setInstallerUmask no-op on Windows
 func setInstallerUmask(_ *telemetry.Span) {}
