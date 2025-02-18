@@ -41,7 +41,7 @@ type StatSpan struct {
 	statusCode       uint32
 	isTopLevel       bool
 	matchingPeerTags []string
-	grpcStatusCode   uint32
+	grpcStatusCode   *uint32
 }
 
 func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {

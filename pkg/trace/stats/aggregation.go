@@ -43,7 +43,7 @@ type BucketsAggregationKey struct {
 	Synthetics     bool
 	PeerTagsHash   uint64
 	IsTraceRoot    pb.Trilean
-	GRPCStatusCode uint32
+	GRPCStatusCode *uint32
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -120,22 +120,38 @@ func peerTagsHash(tags []string) uint64 {
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
+	if g.GRPCStatusCode != nil {
+		return Aggregation{
+			BucketsAggregationKey: BucketsAggregationKey{
+				Resource:       g.Resource,
+				Service:        g.Service,
+				Name:           g.Name,
+				SpanKind:       g.SpanKind,
+				StatusCode:     g.HTTPStatusCode,
+				Synthetics:     g.Synthetics,
+				PeerTagsHash:   peerTagsHash(g.PeerTags),
+				IsTraceRoot:    g.IsTraceRoot,
+				GRPCStatusCode: g.GRPCStatusCode,
+			},
+		}
+
+	}
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:       g.Resource,
-			Service:        g.Service,
-			Name:           g.Name,
-			SpanKind:       g.SpanKind,
-			StatusCode:     g.HTTPStatusCode,
-			Synthetics:     g.Synthetics,
-			PeerTagsHash:   peerTagsHash(g.PeerTags),
-			IsTraceRoot:    g.IsTraceRoot,
-			GRPCStatusCode: g.GRPCStatusCode,
+			Resource:     g.Resource,
+			Service:      g.Service,
+			Name:         g.Name,
+			SpanKind:     g.SpanKind,
+			StatusCode:   g.HTTPStatusCode,
+			Synthetics:   g.Synthetics,
+			PeerTagsHash: peerTagsHash(g.PeerTags),
+			IsTraceRoot:  g.IsTraceRoot,
 		},
 	}
+
 }
 
-func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
+func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) *uint32 {
 	// List of possible keys to check in order
 	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
@@ -143,24 +159,27 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint3
 		if strC, exists := meta[key]; exists && strC != "" {
 			c, err := strconv.ParseUint(strC, 10, 32)
 			if err == nil {
-				return uint32(c)
+				res := uint32(c)
+				return &res
 			}
 
 			// If not integer, check for valid gRPC status string
 			if codeStr, found := code.Code_value[strings.ToUpper(strC)]; found {
-				return uint32(codes.Code(codeStr))
+				res := uint32(codes.Code(codeStr))
+				return &res
 			}
 
-			log.Debugf("Invalid status code %s. Using 0.", strC)
-			return 0
+			log.Debugf("Invalid status code %s.", strC)
+			return nil
 		}
 	}
 
 	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
 		if code, ok := metrics[key]; ok {
-			return uint32(code)
+			res := uint32(code)
+			return &res
 		}
 	}
 
-	return 200 // invalid gRPC code
+	return nil // invalid gRPC code
 }

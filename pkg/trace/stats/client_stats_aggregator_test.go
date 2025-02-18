@@ -81,7 +81,6 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, versi
 						Hits:           hits,
 						Errors:         errors,
 						Duration:       duration,
-						GRPCStatusCode: k.GRPCStatusCode,
 					},
 				},
 			},
@@ -391,11 +390,6 @@ func TestCountAggregation(t *testing.T) {
 		{
 			BucketsAggregationKey{StatusCode: 10},
 			&pb.ClientGroupedStats{HTTPStatusCode: 10},
-			"status",
-		},
-		{
-			BucketsAggregationKey{GRPCStatusCode: 2},
-			&pb.ClientGroupedStats{GRPCStatusCode: 2},
 			"status",
 		},
 	}
@@ -760,7 +754,6 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 			SpanKind:       b.GetSpanKind(),
 			PeerTags:       b.GetPeerTags(),
 			IsTraceRoot:    b.GetIsTraceRoot(),
-			GRPCStatusCode: b.GetGRPCStatusCode(),
 		}
 		if b.OkSummary != nil {
 			stats[i].OkSummary = make([]byte, len(b.OkSummary))
