@@ -32,9 +32,13 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env
+    command "inv -e installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
+    command "inv -e installer.build-setup agent #{ENV["RELEASE_VERSION"]}", env: env
+    command "inv -e installer.build-setup databricks #{ENV["RELEASE_VERSION"]}", env: env
+    command "inv -e installer.build-setup emr #{ENV["RELEASE_VERSION"]}", env: env
+    command "inv -e installer.build-setup dataproc #{ENV["RELEASE_VERSION"]}", env: env
   elsif windows_target?
     command "inv -e installer.build --install-path=#{install_dir}", env: env
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
