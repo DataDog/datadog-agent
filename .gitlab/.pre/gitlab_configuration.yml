@@ -58,13 +58,14 @@ lint_gitlab_ci:
     - status=0
     - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
     - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
-    # TODO: Do on diff (if so, not on main)
-    - apt-get update && apt-get install batcat # TODO A
-    - inv -e linter.gitlab-ci-shellcheck --config-file artifacts/after.gitlab-ci.yml || status=1
+    # Do only on diff and not on main
     - |
-      if [ $status != 0 ]; then
-        echo "At least one linter failed, exiting..." >& 2
-        exit $status
+      if [ -f artifacts/diff.gitlab-ci.yml ] && [ "$CI_COMMIT_BRANCH" != "main" ]; then
+        inv -e linter.gitlab-ci-shellcheck --config-file artifacts/after.gitlab-ci.yml || status=1
+        if [ $status != 0 ]; then
+          echo "At least one linter failed, exiting..." >& 2
+          exit $status
+        fi
       fi
 
 lint_gitlab_ci_jobs_codeowners:
