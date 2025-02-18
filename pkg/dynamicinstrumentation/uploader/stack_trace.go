@@ -64,17 +64,11 @@ func pcToLine(procInfo *ditypes.ProcessInfo, pc uint64) (*funcInfo, error) {
 	}
 	funcEntry := typeMap.FunctionsByPC[functionIndex]
 
-	compileUnitIndex, _ := slices.BinarySearchFunc(typeMap.DeclaredFiles, &ditypes.LowPCEntry{LowPC: pc}, func(a, b *ditypes.LowPCEntry) int {
+	compileUnitIndex, _ := slices.BinarySearchFunc(typeMap.DeclaredFiles, &ditypes.DwarfFilesEntry{LowPC: pc}, func(a, b *ditypes.DwarfFilesEntry) int {
 		return cmp.Compare(b.LowPC, a.LowPC)
 	})
 
-	compileUnitEntry := typeMap.DeclaredFiles[compileUnitIndex].Entry
-
-	cuLineReader, err := procInfo.DwarfData.LineReader(compileUnitEntry)
-	if err != nil {
-		return nil, fmt.Errorf("could not get file line reader for compile unit: %w", err)
-	}
-	files := cuLineReader.Files()
+	files := typeMap.DeclaredFiles[compileUnitIndex].Files
 	if len(files) < int(funcEntry.FileNumber) {
 		return nil, fmt.Errorf("invalid file number in dwarf function entry associated with compile unit")
 	}
