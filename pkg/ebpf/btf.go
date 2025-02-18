@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const btfFlushDelay = 1 * time.Minute
@@ -128,7 +129,7 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 	btfLoader := &orderedBTFLoader{
 		userBTFPath:  cfg.BTFPath,
 		embeddedDir:  filepath.Join(cfg.BPFDir, "co-re", "btf"),
-		btfOutputDir: cfg.BTFOutputDir,
+		btfOutputDir: filepath.Join(cfg.BTFOutputDir, version.AgentVersion),
 		result:       BtfNotFound,
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
