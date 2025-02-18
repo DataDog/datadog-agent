@@ -10,6 +10,7 @@ package probe
 
 import (
 	"encoding/binary"
+	"fmt"
 	"path"
 	"strings"
 	"syscall"
@@ -550,8 +551,10 @@ func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGro
 
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
+	fmt.Println("ResolveContainerID", e.ContainerID)
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
+			fmt.Printf("pce: %+v\n", entry)
 			if entry.CGroup.CGroupFlags.IsContainer() {
 				e.ContainerID = containerutils.ContainerID(entry.ContainerID)
 			} else {

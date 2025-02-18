@@ -693,6 +693,13 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			opts.staticOpts.preStartCallback(testMod)
 		}
 
+		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
+			opts.dynamicOpts.snapshotRuleMatchHandler(testMod, e, r)
+		})
+		t.Cleanup(func() {
+			testMod.RegisterRuleEventHandler(nil)
+		})
+
 		if !opts.staticOpts.disableRuntimeSecurity {
 			if err = testMod.reloadPolicies(); err != nil {
 				return testMod, err
@@ -802,9 +809,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		}
 	}
 
-	if opts.staticOpts.snapshotRuleMatchHandler != nil {
+	if opts.dynamicOpts.snapshotRuleMatchHandler != nil {
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
+			opts.dynamicOpts.snapshotRuleMatchHandler(testMod, e, r)
 		})
 		t.Cleanup(func() {
 			testMod.RegisterRuleEventHandler(nil)
