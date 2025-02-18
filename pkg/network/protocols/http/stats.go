@@ -228,6 +228,7 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 
 	if stats.Latencies == nil {
 		if err := stats.initSketch(); err != nil {
+			log.Warnf("could not add request latency to ddsketch: %v", err)
 			return
 		}
 
