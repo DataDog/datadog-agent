@@ -22,8 +22,7 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dialer:
-        timeout: 0s
+
       dump_payloads: false
       endpoint: https://agent-http-intake.logs.datadoghq.com
       use_compression: true
@@ -33,8 +32,7 @@ exporters:
     metrics:
       apm_stats_receiver_addr: ""
       delta_ttl: 3600
-      dialer:
-        timeout: 0s
+
       enabled: false
       endpoint: https://api.datadoghq.com
       histograms:
@@ -83,8 +81,7 @@ exporters:
       server_name_override: ""
     traces:
       compute_top_level_by_span_kind: true
-      dialer:
-        timeout: 0s
+
       endpoint: https://trace.agent.datadoghq.com
       ignore_resources: []
       span_name_as_resource_name: true
@@ -167,6 +164,7 @@ receivers:
         scrape_protocols:
           - OpenMetricsText1.0.0
           - OpenMetricsText0.0.1
+          - PrometheusText1.0.0
           - PrometheusText0.0.4
         scrape_timeout: 10s
       runtime:
@@ -183,6 +181,7 @@ receivers:
           scrape_protocols:
             - OpenMetricsText1.0.0
             - OpenMetricsText0.0.1
+            - PrometheusText1.0.0
             - PrometheusText0.0.4
           scrape_timeout: 5s
           static_configs:
