@@ -75,7 +75,7 @@ func SetupEmr(s *common.Setup) error {
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
-	s.Out.WriteString("Applying specific Data Jobs Monitoring config")
+	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
 	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
 
 	hostname, err := os.Hostname()
@@ -93,16 +93,16 @@ func SetupEmr(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster {
-		s.Out.WriteString("Setting up Spark integration config on the Resource Manager")
+		s.Out.WriteString("Setting up Spark integration config on the Resource Manager\n")
 		setupResourceManager(s, clusterName)
 	}
 	// Add logs config to both Resource Manager and Workers
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
-		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true")
+		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true\n")
 		enableEmrLogs(s)
 
 	} else {
-		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true")
+		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true\n")
 	}
 	return nil
 }
@@ -173,12 +173,12 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	defer func() { span.Finish(err) }()
 	emrResponseRaw, err := common.ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
 	if err != nil {
-		log.Warnf("error describing emr cluster, using cluster id as name: %v", err)
+		log.Warnf("error describing emr cluster, using cluster id as name: %w", err)
 		return jobFlowID
 	}
 	var response emrResponse
 	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
-		log.Warnf("error unmarshalling AWS EMR response,  using cluster id as name: %v", err)
+		log.Warnf("error unmarshalling AWS EMR response,  using cluster id as name: %w", err)
 		return jobFlowID
 	}
 	clusterName := response.Cluster.Name
