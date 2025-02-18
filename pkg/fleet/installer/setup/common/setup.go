@@ -53,7 +53,7 @@ type Setup struct {
 // NewSetup creates a new Setup structure with some default values.
 func NewSetup(ctx context.Context, env *env.Env, flavor string, flavorPath string, logOutput io.Writer) (*Setup, error) {
 	header := `Datadog Installer %s - https://www.datadoghq.com
-Running the %s installation script (https://github.com/DataDog/datadog-agent/tree/%s/pkg/fleet/installer/setup/%s) - %s
+Running the %s installation script (https://github.com/DataDog/datadog-agent/tree/%s/%s) - %s
 `
 	start := time.Now()
 	output := &Output{tty: logOutput}
