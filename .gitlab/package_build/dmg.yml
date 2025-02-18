@@ -46,6 +46,9 @@ new-agent_dmg-x64-a7:
     paths:
   script:
     - set -e
+    # TODO: Do it in runner
+    - |
+      brew install curl
     - |
       export PKG_CONFIG_VERSION=0.29.2
       export RUBY_VERSION=2.7.4
