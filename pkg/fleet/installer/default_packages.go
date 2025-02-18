@@ -36,8 +36,15 @@ var PackagesList = []Package{
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
 
-var apmInjectCentos6Version = "0.30.0-1"
-var apmJavaCentos6Version = "1.45.2-1"
+// Default versions pinned for CentOS 6
+// This is in place to make sure we don't break backward compatibility for the few
+// customers using SSI that are still using CentOS 6
+// No manual testing is done on CentOS 6, so we can't guarantee that the latest versions will continue working.
+// Before updating the pin, please make sure the pinned packages still work.
+var (
+	apmInjectCentos6Version = "0.30.0-1"
+	apmJavaCentos6Version   = "1.45.2-1"
+)
 
 var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-java":   "1",
@@ -129,13 +136,16 @@ func apmLanguageVersion(p Package, e *env.Env) string {
 func apmJavaVersion(p Package, e *env.Env) string {
 	if e.IsCentos6 {
 		apmLibVersion := e.ApmLibraries[packageToLanguage(p.Name)]
-		if apmLibVersion == "" {
+		// If no version is set, or the customer specifies major version 1, return the pinned version
+		if apmLibVersion == "" || apmLibVersion == "1" {
 			return apmJavaCentos6Version
 		}
 	}
 	return apmLanguageVersion(p, e)
 }
 
+// apmInjectVersion returns the version of the apm-inject package to install
+// If centos6 is detected return the pin, otherwise alwasys return latest
 func apmInjectVersion(p Package, e *env.Env) string {
 	version := "latest"
 	if e.IsCentos6 {
