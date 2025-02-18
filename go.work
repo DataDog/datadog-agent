@@ -3,7 +3,6 @@ go 1.23.5
 toolchain go1.23.6
 
 use (
-
 	.
 	comp/api/api/def
 	comp/api/authtoken
