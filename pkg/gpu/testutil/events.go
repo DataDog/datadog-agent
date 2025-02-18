@@ -13,9 +13,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
 type partialEvent struct {
@@ -45,6 +51,18 @@ func parseCompleteEvent(eventType ebpf.CudaEventType, data []byte) (any, error) 
 	default:
 		return nil, fmt.Errorf("unsupported event type %d", eventType)
 	}
+}
+
+func GetGPUTestEvents(tb testing.TB, datasetName string) *EventCollection {
+	curDir, err := usmtestutil.CurDir()
+	require.NoError(tb, err)
+
+	eventsFile := filepath.Join(curDir, "..", "testdata", datasetName)
+	events, err := NewEventCollection(eventsFile)
+	require.NoError(tb, err)
+	require.NotEmpty(tb, events)
+
+	return events
 }
 
 // EventCollection represents a collection of recorded CUDA events from the system-probe
@@ -179,6 +197,22 @@ func (c *EventCollection) OutputEvents(writer io.Writer) error {
 	}
 
 	return nil
+}
+
+// GetEventHeader returns the header of the given event. Panics if the type is not supported.
+func GetEventHeader(ev any) *ebpf.CudaEventHeader {
+	switch e := ev.(type) {
+	case *ebpf.CudaKernelLaunch:
+		return &e.Header
+	case *ebpf.CudaMemEvent:
+		return &e.Header
+	case *ebpf.CudaSync:
+		return &e.Header
+	case *ebpf.CudaSetDeviceEvent:
+		return &e.Header
+	default:
+		panic(fmt.Sprintf("unsupported event type %T", ev)) // Only used for tests, so ok to panic with explicit message
+	}
 }
 
 // eventGrouper is just a small helper function to have a running count of subsequent events of the same type

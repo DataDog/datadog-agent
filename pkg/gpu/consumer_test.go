@@ -108,3 +108,19 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.Equal(t, globalStreamID, globalStream.metadata.streamID)
 	require.Equal(t, testutil.GPUUUIDs[1], globalStream.metadata.gpuUUID)
 }
+
+func BenchmarkConsumer(b *testing.B) {
+	events := testutil.GetGPUTestEvents(b, "pytorch_batched_kernels.ndjson")
+	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
+	require.NoError(b, err)
+
+	cfg := config.New()
+	// The only process in the test data is 24920
+	ctx.visibleDevicesCache[24920] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.pidMaps[24920] = nil
+
+	for i := 0; i < b.N; i++ {
+		consumer := newCudaEventConsumer(ctx, nil, cfg, testutil.GetTelemetryMock(b))
+		injectEventsToConsumer(b, consumer, events)
+	}
+}
