@@ -579,9 +579,9 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 
 }
 
-// GetStats returns the latest monitoring stats from a protocol implementation.
-func (o *sslProgram) GetStats() *protocols.ProtocolStats {
-	return nil
+// GetStats is a no-op.
+func (o *sslProgram) GetStats() (*protocols.ProtocolStats, func()) {
+	return nil, nil
 }
 
 const (
