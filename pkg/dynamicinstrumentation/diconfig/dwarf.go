@@ -223,6 +223,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		if err != nil {
 			return nil, fmt.Errorf("could not find pointer type: %w", err)
 		}
+		typeHeader.ID = randomLabel()
 		typeHeader.ParameterPieces = pointerElements
 	}
 

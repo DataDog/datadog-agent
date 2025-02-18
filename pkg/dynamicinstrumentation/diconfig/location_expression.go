@@ -35,7 +35,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 		}
 		return nil
 	}
-
+	seenPointers := map[string]bool{}
 	// Go through each target type/field which needs to be captured
 	for i := range expressionTargets {
 		pathToInstrumentationTarget, instrumentationTarget := expressionTargets[i].TypePath, expressionTargets[i].Parameter
@@ -84,9 +84,15 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 				} else if elementParam.Kind == uint(reflect.Pointer) {
 					targetExpressions = append(targetExpressions,
 						ditypes.DirectReadLocationExpression(elementParam),
-						ditypes.CopyLocationExpression(),
-						ditypes.PopLocationExpression(1, 8),
 					)
+					_, ok := seenPointers[elementParam.ID]
+					if !ok {
+						targetExpressions = append(targetExpressions,
+							ditypes.CopyLocationExpression(),
+							ditypes.PopLocationExpression(1, 8),
+						)
+						seenPointers[elementParam.ID] = true
+					}
 				} else {
 					targetExpressions = append(targetExpressions,
 						ditypes.DirectReadLocationExpression(elementParam),
@@ -99,9 +105,15 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 				if elementParam.Kind == uint(reflect.Pointer) {
 					targetExpressions = append(targetExpressions,
 						ditypes.DereferenceLocationExpression(uint(elementParam.TotalSize)),
-						ditypes.CopyLocationExpression(),
-						ditypes.PopLocationExpression(1, 8),
 					)
+					_, ok := seenPointers[elementParam.ID]
+					if !ok {
+						targetExpressions = append(targetExpressions,
+							ditypes.CopyLocationExpression(),
+							ditypes.PopLocationExpression(1, 8),
+						)
+						seenPointers[elementParam.ID] = true
+					}
 				} else if elementParam.Kind == uint(reflect.Struct) {
 					// Structs don't provide context on location, or have values themselves
 					// but we know that if there's a struct, the next element will have to have
