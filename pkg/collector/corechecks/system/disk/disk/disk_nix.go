@@ -61,7 +61,7 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 }
 
 // Device represents a device entry in an XML structure.
-type Device struct {
+type device struct {
 	XMLName xml.Name `xml:"device"`
 	Label   string   `xml:"LABEL,attr"`
 	Text    string   `xml:",chardata"`
