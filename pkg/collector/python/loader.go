@@ -209,13 +209,13 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	var goHASupported bool
-	if pkgconfigsetup.Datadog().GetBool("ha_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("ha_agent.enabled") {
 		var haSupported *C.char
 
 		haSupportedAttr := TrackedCString("HA_SUPPORTED")
 		defer C._free(unsafe.Pointer(haSupportedAttr))
 		if res := C.get_attr_string(rtloader, checkModule, haSupportedAttr, &haSupported); res != 0 {
-			goHASupported = C.GoString(haSupported) == "true"
+			goHASupported = C.GoString(haSupported) == "True"
 		} else {
 			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", name, getRtLoaderError())
 		}
