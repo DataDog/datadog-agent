@@ -18,8 +18,8 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
-	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
-	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber/mock"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
+	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -155,7 +155,7 @@ func createDeps(t *testing.T) deps {
 	return fxutil.Test[deps](t,
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		gpusubscribermock.MockModule(),
+		gpusubscriberfxmock.MockModule(),
 		npcollectorimpl.MockModule(),
 	)
 }

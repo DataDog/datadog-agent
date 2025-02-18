@@ -9,17 +9,10 @@
 package gpusubscriberimpl
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(fx.Provide(newGpuSubscriber))
-}
-
-func newGpuSubscriber() gpusubscriber.Component {
-	return NoopSubscriber{}
+// NewComponent returns a new gpu subscriber.
+func NewComponent() gpusubscriber.Component {
+	return &NoopSubscriber{}
 }

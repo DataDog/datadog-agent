@@ -9,38 +9,32 @@
 package gpusubscriberimpl
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	procSubscribers "github.com/DataDog/datadog-agent/pkg/process/subscribers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newGpuSubscriber))
-}
 
 type gpusubscriberimpl struct {
 	gpuSubscriber *procSubscribers.GPUSubscriber
 }
 
-type dependencies struct {
-	fx.In
-	Lc fx.Lifecycle
+// Requires defines the dependencies of the gpu subscriber component.
+type Requires struct {
+	compdef.In
+	Lc compdef.Lifecycle
 
 	WMeta  workloadmeta.Component
 	Tagger tagger.Component
 }
 
-func newGpuSubscriber(deps dependencies) gpusubscriber.Component {
-	gpuSubscriber := procSubscribers.NewGPUSubscriber(deps.WMeta, deps.Tagger)
+// NewComponent returns a new gpu subscriber.
+func NewComponent(reqs Requires) gpusubscriber.Component {
+	gpuSubscriber := procSubscribers.NewGPUSubscriber(reqs.WMeta, reqs.Tagger)
 	gpuSubComponent := gpusubscriberimpl{
 		gpuSubscriber: gpuSubscriber,
 	}
@@ -50,7 +44,7 @@ func newGpuSubscriber(deps dependencies) gpusubscriber.Component {
 		return NoopSubscriber{}
 	}
 
-	deps.Lc.Append(fx.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: gpuSubscriber.Run,
 		OnStop:  gpuSubscriber.Stop,
 	})

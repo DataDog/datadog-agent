@@ -5,22 +5,12 @@
 
 //go:build test
 
-// Package gpusubscribermock implements a component to provide gpusubscriber used by the core agent.
-package gpusubscribermock
+// Package gpusubscriberimpl implements a component to provide gpusubscriber used by the core agent.
+package gpusubscriberimpl
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 )
-
-// MockModule defines the fx options for this component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockGpuSubscriber),
-	)
-}
 
 // MockSubscriber is a mock implementation of the gpusubscriber.Component interface.
 type MockSubscriber struct{}
@@ -30,6 +20,7 @@ func (m *MockSubscriber) GetGPUTags() map[int32][]string {
 	return nil
 }
 
-func newMockGpuSubscriber() gpusubscriber.Component {
+// NewGpuSubscriberMock returns a new instance of the mock GPU subscriber.
+func NewGpuSubscriberMock() gpusubscriber.Component {
 	return &MockSubscriber{}
 }

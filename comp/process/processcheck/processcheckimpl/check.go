@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
+	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -34,9 +34,9 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	Config    config.Component
-	Sysconfig sysprobeconfig.Component
-	WMmeta    workloadmeta.Component
+	Config        config.Component
+	Sysconfig     sysprobeconfig.Component
+	WMmeta        workloadmeta.Component
 	GpuSubscriber gpusubscriber.Component
 }
 

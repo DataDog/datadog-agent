@@ -5,9 +5,14 @@
 
 //go:build test
 
-package gpusubscriber
+// Package mock provides the gpu subscriber mock component for the Datadog Agent
+package mock
+
+import (
+	gsdef "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
+)
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	gsdef.Component
 }
