@@ -41,48 +41,77 @@ func OtelSpanToDDSpanMinimal(
 	conf *config.AgentConfig,
 	peerTagKeys []string,
 ) *pb.Span {
-	var operationName string
-	var resourceName string
-	if OperationAndResourceNameV2Enabled(conf) {
-		operationName = traceutil.GetOTelOperationNameV2(otelspan)
-		resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
-	} else {
-		operationName = traceutil.GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
-		resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
-	}
-
-	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
-	var spanType string
-	if conf.HasFeature("disable_receive_resource_spans_v2") {
-		spanType = traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
-		if spanType == "" {
-			spanType = traceutil.SpanKind2Type(otelspan, otelres)
-		}
-	} else {
-		spanType = traceutil.GetOTelSpanType(otelspan, otelres)
-	}
+	spanKind := otelspan.Kind()
 
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelService(otelres, true),
-		Name:     operationName,
-		Resource: resourceName,
+		Service:  traceutil.GetOTelAttrVal(otelspan.Attributes(), true, "datadog.service"),
+		Name:     traceutil.GetOTelAttrVal(otelspan.Attributes(), true, "datadog.name"),
+		Resource: traceutil.GetOTelAttrVal(otelspan.Attributes(), true, "datadog.resource"),
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
 		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
 		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
 		Start:    int64(otelspan.StartTimestamp()),
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
-		Type:     spanType,
-		Meta:     make(map[string]string, otelres.Attributes().Len()+otelspan.Attributes().Len()),
-		Metrics:  map[string]float64{},
+		Meta:     make(map[string]string, otelspan.Attributes().Len()+otelres.Attributes().Len()),
+		Metrics:  make(map[string]float64),
 	}
-	spanKind := otelspan.Kind()
-	ddspan.Meta["span.kind"] = traceutil.OTelSpanKindName(spanKind)
-	code := traceutil.GetOTelStatusCode(otelspan)
-	if code != 0 {
-		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
+	if isErrorVal, ok := otelspan.Attributes().Get("datadog.error"); ok {
+		ddspan.Error = int32(isErrorVal.Int())
+	} else {
+		if otelspan.Status().Code() == ptrace.StatusCodeError {
+			ddspan.Error = 1
+		}
 	}
-	if otelspan.Status().Code() == ptrace.StatusCodeError {
-		ddspan.Error = 1
+
+	if incomingSpanKindName := traceutil.GetOTelAttrVal(otelspan.Attributes(), true, "datadog.span.kind"); incomingSpanKindName != "" {
+		ddspan.Meta["span.kind"] = incomingSpanKindName
+	}
+
+	if !conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		if ddspan.Service == "" {
+			ddspan.Service = traceutil.GetOTelService(otelres, true)
+		}
+
+		if OperationAndResourceNameV2Enabled(conf) {
+			if ddspan.Name == "" {
+				ddspan.Name = traceutil.GetOTelOperationNameV2(otelspan)
+			}
+			if ddspan.Resource == "" {
+				ddspan.Resource = traceutil.GetOTelResourceV2(otelspan, otelres)
+			}
+		} else {
+			if ddspan.Name == "" {
+				ddspan.Name = traceutil.GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
+			}
+			if ddspan.Resource == "" {
+				ddspan.Resource = traceutil.GetOTelResourceV1(otelspan, otelres)
+			}
+		}
+
+		if ddspan.Type == "" {
+			// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
+			if conf.HasFeature("enable_receive_resource_spans_v2") {
+				ddspan.Type = traceutil.GetOTelSpanType(otelspan, otelres)
+			} else {
+				ddspan.Type = traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
+				if ddspan.Type == "" {
+					ddspan.Type = traceutil.SpanKind2Type(otelspan, otelres)
+				}
+			}
+		}
+
+		if !spanMetaHasKey(ddspan, "span.kind") {
+			ddspan.Meta["span.kind"] = traceutil.OTelSpanKindName(spanKind)
+		}
+		var code uint32
+		if incomingCode, ok := otelspan.Attributes().Get("datadog.status_code"); ok {
+			code = uint32(incomingCode.Int())
+		} else {
+			code = traceutil.GetOTelStatusCode(otelspan)
+		}
+		if code != 0 {
+			ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
+		}
 	}
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
@@ -102,24 +131,70 @@ func OtelSpanToDDSpanMinimal(
 }
 
 func isDatadogAPMConventionKey(k string) bool {
-	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || k == "http.method" || k == "http.status_code"
+	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || strings.HasPrefix(k, "datadog.")
 }
 
-func setMetaOTLPWithHTTPMappings(k string, value string, ddspan *pb.Span) {
-	datadogKey, found := attributes.HTTPMappings[k]
+// GetDDKeyForOTLPAttribute looks for a key in the Datadog HTTP convention that matches the given key from the
+// OTLP HTTP convention
+func GetDDKeyForOTLPAttribute(k string) string {
+	mappedKey, found := attributes.HTTPMappings[k]
 	switch {
-	case found && value != "":
-		ddspan.Meta[datadogKey] = value
+	case found:
+		break
 	case strings.HasPrefix(k, "http.request.header."):
-		key := fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
-		ddspan.Meta[key] = value
-		// Exclude Datadog APM conventions.
-		// These are handled above explicitly.
+		mappedKey = fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
 	case !isDatadogAPMConventionKey(k):
-		SetMetaOTLP(ddspan, k, value)
+		mappedKey = k
 	default:
-		return
+		return ""
 	}
+	return mappedKey
+}
+
+func setMetaOTLPWithSemConvMappings(k string, value string, ddspan *pb.Span, ignoreMissingDatadogFields bool) {
+	mappedKey := GetDDKeyForOTLPAttribute(k)
+	// Exclude Datadog APM conventions.
+	// These are handled above explicitly.
+	if mappedKey != "" {
+		if _, ok := metaKeysToDDSemanticsKeys[mappedKey]; ok {
+			if ddspan.Meta[mappedKey] != "" || ignoreMissingDatadogFields {
+				return
+			}
+		}
+		SetMetaOTLP(ddspan, mappedKey, value)
+	}
+}
+
+func setMetricOTLPWithSemConvMappings(k string, value float64, ddspan *pb.Span, ignoreMissingDatadogFields bool) {
+	mappedKey := GetDDKeyForOTLPAttribute(k)
+	// Exclude Datadog APM conventions.
+	// These are handled above explicitly.
+	if mappedKey != "" {
+		if _, ok := metaKeysToDDSemanticsKeys[mappedKey]; ok {
+			if _, ok := ddspan.Metrics[mappedKey]; ok || ignoreMissingDatadogFields {
+				return
+			}
+		}
+		SetMetricOTLP(ddspan, mappedKey, value)
+	}
+}
+
+var ddSemanticsKeysToMetaKeys = map[string]string{
+	"datadog.env":         "env",
+	"datadog.version":     "version",
+	"datadog.status_code": "http.status_code",
+	"datadog.error.msg":   "error.msg",
+	"datadog.error.type":  "error.type",
+	"datadog.error.stack": "error.stack",
+}
+
+var metaKeysToDDSemanticsKeys = map[string]string{
+	"env":              "datadog.env",
+	"version":          "datadog.version",
+	"http.status_code": "datadog.status_code",
+	"error.msg":        "datadog.error.msg",
+	"error.type":       "datadog.error.type",
+	"error.stack":      "datadog.error.stack",
 }
 
 // OtelSpanToDDSpan converts an OTel span to a DD span.
@@ -128,7 +203,6 @@ func OtelSpanToDDSpan(
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
 	conf *config.AgentConfig,
-	peerTagKeys []string,
 ) *pb.Span {
 	spanKind := otelspan.Kind()
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
@@ -136,25 +210,25 @@ func OtelSpanToDDSpan(
 	if topLevelByKind {
 		isTopLevel = otelspan.ParentSpanID() == pcommon.NewSpanIDEmpty() || spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer
 	}
-	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
+	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
+
+	for k, v := range ddSemanticsKeysToMetaKeys {
+		if incomingValue := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, k); incomingValue != "" {
+			ddspan.Meta[v] = incomingValue
+		}
+	}
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
 		value := v.AsString()
-		setMetaOTLPWithHTTPMappings(k, value, ddspan)
+		setMetaOTLPWithSemConvMappings(k, value, ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		return true
 	})
 
 	traceID := otelspan.TraceID()
 	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
-	if _, ok := ddspan.Meta["version"]; !ok {
+	if !spanMetaHasKey(ddspan, "version") {
 		if serviceVersion, ok := otelres.Attributes().Get(semconv.AttributeServiceVersion); ok {
 			ddspan.Meta["version"] = serviceVersion.AsString()
-		}
-	}
-
-	if _, ok := ddspan.Meta["env"]; !ok {
-		if env := traceutil.GetOTelEnv(otelres); env != "" {
-			ddspan.Meta["env"] = env
 		}
 	}
 
@@ -166,40 +240,17 @@ func OtelSpanToDDSpan(
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
 
-	var gotMethodFromNewConv bool
-	var gotStatusCodeFromNewConv bool
-
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
-		value := v.AsString()
+		if strings.HasPrefix(k, "datadog.") {
+			return true
+		}
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
-			SetMetricOTLP(ddspan, k, v.Double())
+			setMetricOTLPWithSemConvMappings(k, v.Double(), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		case pcommon.ValueTypeInt:
-			SetMetricOTLP(ddspan, k, float64(v.Int()))
+			setMetricOTLPWithSemConvMappings(k, float64(v.Int()), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		default:
-			setMetaOTLPWithHTTPMappings(k, value, ddspan)
-		}
-
-		// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
-		// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
-		// `http.method` is also the Datadog APM convention for the HTTP method.
-		// We check both conventions and use the new one if it is present.
-		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
-		if k == "http.request.method" {
-			gotMethodFromNewConv = true
-		} else if k == "http.method" && !gotMethodFromNewConv {
-			ddspan.Meta["http.method"] = value
-		}
-
-		// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
-		// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
-		// `http.status_code` is also the Datadog APM convention for the HTTP status code.
-		// We check both conventions and use the new one if it is present.
-		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
-		if k == "http.response.status_code" {
-			gotStatusCodeFromNewConv = true
-		} else if k == "http.status_code" && !gotStatusCodeFromNewConv {
-			ddspan.Meta["http.status_code"] = value
+			setMetaOTLPWithSemConvMappings(k, v.AsString(), ddspan, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		}
 
 		return true
@@ -218,7 +269,18 @@ func OtelSpanToDDSpan(
 	if msg := otelspan.Status().Message(); msg != "" {
 		ddspan.Meta[semconv.OtelStatusDescription] = msg
 	}
-	Status2Error(otelspan.Status(), otelspan.Events(), ddspan)
+
+	if !conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		if !spanMetaHasKey(ddspan, "error.msg") || !spanMetaHasKey(ddspan, "error.type") || !spanMetaHasKey(ddspan, "error.stack") {
+			ddspan.Error = Status2Error(otelspan.Status(), otelspan.Events(), ddspan.Meta)
+		}
+
+		if !spanMetaHasKey(ddspan, "env") {
+			if env := traceutil.GetOTelEnv(otelres); env != "" {
+				ddspan.Meta["env"] = env
+			}
+		}
+	}
 
 	return ddspan
 }
@@ -391,11 +453,10 @@ func SetMetricOTLP(s *pb.Span, k string, v float64) {
 
 // Status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.Span) {
+func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, metaMap map[string]string) int32 {
 	if status.Code() != ptrace.StatusCodeError {
-		return
+		return 0
 	}
-	span.Error = 1
 	for i := 0; i < events.Len(); i++ {
 		e := events.At(i)
 		if strings.ToLower(e.Name()) != "exception" {
@@ -403,33 +464,34 @@ func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.S
 		}
 		attrs := e.Attributes()
 		if v, ok := attrs.Get(semconv.AttributeExceptionMessage); ok {
-			span.Meta["error.msg"] = v.AsString()
+			metaMap["error.msg"] = v.AsString()
 		}
 		if v, ok := attrs.Get(semconv.AttributeExceptionType); ok {
-			span.Meta["error.type"] = v.AsString()
+			metaMap["error.type"] = v.AsString()
 		}
 		if v, ok := attrs.Get(semconv.AttributeExceptionStacktrace); ok {
-			span.Meta["error.stack"] = v.AsString()
+			metaMap["error.stack"] = v.AsString()
 		}
 	}
-	if _, ok := span.Meta["error.msg"]; !ok {
+	if _, ok := metaMap["error.msg"]; !ok {
 		// no error message was extracted, find alternatives
 		if status.Message() != "" {
 			// use the status message
-			span.Meta["error.msg"] = status.Message()
-		} else if _, httpcode := GetFirstFromMap(span.Meta, "http.response.status_code", "http.status_code"); httpcode != "" {
+			metaMap["error.msg"] = status.Message()
+		} else if _, httpcode := GetFirstFromMap(metaMap, "http.response.status_code", "http.status_code"); httpcode != "" {
 			// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
 			// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
 
 			// http.status_text was removed in spec v0.7.0 (https://github.com/open-telemetry/opentelemetry-specification/pull/972)
 			// TODO (OTEL-1791) Remove this and use a map from status code to status text.
-			if httptext, ok := span.Meta["http.status_text"]; ok {
-				span.Meta["error.msg"] = fmt.Sprintf("%s %s", httpcode, httptext)
+			if httptext, ok := metaMap["http.status_text"]; ok {
+				metaMap["error.msg"] = fmt.Sprintf("%s %s", httpcode, httptext)
 			} else {
-				span.Meta["error.msg"] = httpcode
+				metaMap["error.msg"] = httpcode
 			}
 		}
 	}
+	return 1
 }
 
 // GetFirstFromMap checks each key in the given keys in the map and returns the first key-value pair whose
@@ -441,4 +503,9 @@ func GetFirstFromMap(m map[string]string, keys ...string) (string, string) {
 		}
 	}
 	return "", ""
+}
+
+func spanMetaHasKey(s *pb.Span, k string) bool {
+	_, ok := s.Meta[k]
+	return ok
 }
