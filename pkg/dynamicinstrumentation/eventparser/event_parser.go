@@ -80,13 +80,16 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 		return nil, 0
 	}
 	if definition.Size == 0 {
+		// The definitions size can be zero in cases like empty slices or
+		// structs with no fields
 		definition.Fields = nil
 		return definition, 0
 	}
-	var bufferIndex int
+
 	// Start by creating a stack with each layer of the definition
 	// which will correspond with the layers of the values read from buffer.
 	// This is done using a temporary stack to reverse the order.
+	var bufferIndex int
 	tempStack := newParamStack()
 	definitionStack := newParamStack()
 	tempStack.push(definition)
@@ -115,12 +118,15 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 	}
 
 	valueStack := newParamStack()
+	// Iterate over buffer and parameter definition stack to parse values
+	// into corresponding types.
 	for bufferIndex <= len(buffer) {
 		paramDefinition := definitionStack.pop()
 		if paramDefinition == nil {
 			break
 		}
 		nextIndex := bufferIndex + int(paramDefinition.Size)
+
 		if reflect.Kind(paramDefinition.Kind) == reflect.String {
 			if nextIndex > len(buffer) {
 				break
@@ -128,6 +134,7 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			paramDefinition.ValueStr = string(buffer[bufferIndex:nextIndex])
 			bufferIndex += int(paramDefinition.Size)
 			valueStack.push(paramDefinition)
+
 		} else if !isTypeWithHeader(paramDefinition.Kind) {
 			if nextIndex > len(buffer) {
 				break
@@ -137,12 +144,12 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[bufferIndex:nextIndex])
 			bufferIndex += int(paramDefinition.Size)
 			valueStack.push(paramDefinition)
+
 		} else if reflect.Kind(paramDefinition.Kind) == reflect.Pointer {
 			if nextIndex > len(buffer) {
 				break
 			}
 			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[bufferIndex:nextIndex])
-
 			bufferIndex += int(paramDefinition.Size)
 			pointerActualValueDefinition := definitionStack.pop()
 			pointerActualValue, ind := parseParamValue(pointerActualValueDefinition, buffer[bufferIndex:])
@@ -151,6 +158,7 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 				paramDefinition.Fields = append(paramDefinition.Fields, pointerActualValue)
 			}
 			valueStack.push(paramDefinition)
+
 		} else {
 			// This is a type with sub-fields which have already been parsed and push
 			// onto the value stack. We pop those and set them as fields in this type.
@@ -163,6 +171,7 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			valueStack.push(paramDefinition)
 		}
 	}
+
 	return valueStack.pop(), bufferIndex
 }
 
