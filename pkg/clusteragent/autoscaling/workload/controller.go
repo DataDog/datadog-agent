@@ -300,10 +300,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, validationErr, podAutoscalerInternal, podAutoscaler)
 	}
 
-	// Update the scaling values based on the staleness of recommendations
-	desiredScalingSource := c.updateActiveScalingSource(podAutoscalerInternal)
-	podAutoscalerInternal.UpdateFromValues(desiredScalingSource)
-
 	// Get autoscaler target
 	targetGVK, targetErr := podAutoscalerInternal.TargetGVK()
 	if targetErr != nil {
@@ -329,6 +325,10 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
+	// Update the scaling values based on the staleness of recommendations
+	desiredScalingSource := c.updateActiveScalingSource(podAutoscalerInternal)
+	podAutoscalerInternal.UpdateFromValues(desiredScalingSource)
+
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal upscale
 	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
@@ -458,7 +458,7 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	return nil
 }
 
-func (c *Controller) updateActiveScalingSource(podAutoscalerInternal model.PodAutoscalerInternal) datadoghq.DatadogPodAutoscalerValueSource {
+func (c *Controller) updateActiveScalingSource(podAutoscalerInternal *model.PodAutoscalerInternal) datadoghq.DatadogPodAutoscalerValueSource {
 	currentTime := c.clock.Now()
 	activeSource := getActiveSource(currentTime, podAutoscalerInternal.MainScalingValues().Horizontal)
 
@@ -471,7 +471,7 @@ func (c *Controller) updateActiveScalingSource(podAutoscalerInternal model.PodAu
 		c.isFallbackEnabled = true
 	}
 
-	trackLocalFallbackEnabled(activeSource, podAutoscalerInternal)
+	trackLocalFallbackEnabled(activeSource, *podAutoscalerInternal)
 	return activeSource
 }
 
