@@ -182,9 +182,6 @@ func (s *ScopedStringArrayVariable) Set(ctx *Context, value interface{}) error {
 
 // Append a value to the array
 func (s *ScopedStringArrayVariable) Append(ctx *Context, value interface{}) error {
-	if val, ok := value.(string); ok {
-		value = []string{val}
-	}
 	return s.Set(ctx, append(s.strFnc(ctx), value.([]string)...))
 }
 
@@ -226,9 +223,6 @@ func (v *ScopedIntArrayVariable) Set(ctx *Context, value interface{}) error {
 
 // Append a value to the array
 func (v *ScopedIntArrayVariable) Append(ctx *Context, value interface{}) error {
-	if val, ok := value.(int); ok {
-		value = []int{val}
-	}
 	return v.Set(ctx, append(v.intFnc(ctx), value.([]int)...))
 }
 
