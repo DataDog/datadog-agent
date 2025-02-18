@@ -10,6 +10,7 @@ package usm
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	krpretty "github.com/kr/pretty"
@@ -48,7 +50,6 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 	manager "github.com/DataDog/ebpf-manager"
@@ -996,192 +997,107 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	}
 }
 
-// TestSSLReadArgsMaps verifies proper clearance of SSL-related kernel maps.
-func (s *tlsSuite) TestSSLReadArgsMaps() {
+// TestSSLMapsCleaner verifies that SSL-related kernel maps are cleared correctly.
+// the map entry is deleted when the thread exits, and periodic map cleaner removes dead threads.
+func (s *tlsSuite) TestSSLMapsCleaner() {
 	t := s.T()
 	// setup monitor
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 
-	addressOfHTTPPythonServer := "127.0.0.1:4443"
-	cmd := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
-		EnableTLS: true,
-	})
-
 	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
-	// Giving the tracer time to install the hooks
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackEnabled)
-	if !utils.IsProgramTraced(consts.USMModuleName, "shared_libraries", cmd.Process.Pid) {
-		return
-	}
-
-	// find probes for the programs we want to manipulate
-	sslReadProbe, useEx := getSSLReadProbe(t, monitor)
-	require.NotNil(t, sslReadProbe)
-
-	procExitProbe := getProcExitProbe(t, monitor)
-	require.NotNil(t, procExitProbe)
-
-	// find the map
-	sslReadMap := getSSLReadMap(t, monitor, useEx)
-
-	// create client
-	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
-	require.NotNil(t, client)
 
 	units := []struct {
-		name     string
-		found    int64
-		expected int64
-		preRun   func(t *testing.T)
-		postRun  func(t *testing.T)
+		mapName string
 	}{
 		{
-			// disable both 'SSL_read_ex' and 'sched_process_exit', check the map is not empty
-			name:     "eBPF programs disabled",
-			expected: 1,
-			preRun: func(t *testing.T) {
-				cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-				detachProbe(t, monitor.ebpfProgram.Manager.Manager, sslReadProbe)
-				err := procExitProbe.Pause()
-				assert.NoError(t, err)
-			},
-			postRun: func(*testing.T) {
-				client.CloseIdleConnections()
-			},
+			mapName: "ssl_read_args",
 		},
 		{
-			// disable both 'SSL_read_ex' and 'sched_process_exit', ensure the cleaner properly clears the map
-			name:     "periodic cleaner",
-			expected: 0,
-			preRun: func(t *testing.T) {
-				cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-				detachProbe(t, monitor.ebpfProgram.Manager.Manager, sslReadProbe)
-				err := procExitProbe.Pause()
-				assert.NoError(t, err)
-			},
-			postRun: func(t *testing.T) {
-				// allow eBPF maps to sync with kernel
-				assert.Eventually(t, func() bool {
-					err := monitor.ebpfProgram.cleanDeadPidsInSslMaps()
-					return err == nil
-				}, 200*time.Millisecond, 50*time.Millisecond, "failed to clean up dead processes")
-
-				client.CloseIdleConnections()
-			},
-		},
-		{
-			// check if only 'sched_process_exit' is present and process terminates then the map is empty.
-			// must be last test case, because it terminates the server
-			name:     "check terminated server",
-			expected: 0,
-			preRun: func(t *testing.T) {
-				cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-				err := procExitProbe.Resume()
-				assert.NoError(t, err)
-			},
-			postRun: func(*testing.T) {
-				cmd.Process.Kill()
-				cmd.Wait()
-				client.CloseIdleConnections()
-			},
+			mapName: "ssl_read_ex_args",
 		},
 	}
 	for _, unit := range units {
-		t.Run(unit.name, func(t *testing.T) {
-			unit.preRun(t)
+		testName := fmt.Sprintf("verify %s", unit.mapName)
+		t.Run(testName, func(t *testing.T) {
+			cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
+			// find map by name
+			emap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap(unit.mapName)
+			require.NotNil(t, emap)
 
-			// send requests to server
-			for i := 0; i < numberOfRequests; i++ {
-				requestFn()
-			}
-			unit.postRun(t)
+			// add random pid to the map
+			addPidEntryToMap(t, emap, 100)
+			verifyMap(t, emap, 1)
 
-			require.Eventually(t, func() bool {
-				num, err := ebpfcheck.HashMapNumberOfEntries(sslReadMap)
-				assert.NoError(t, err)
-				unit.found = num
+			// call SSL map cleaner and verify that map is empty
+			cleanDeadPids(t, monitor, unit.mapName)
+			verifyMap(t, emap, 0)
 
-				return num == unit.expected
-			}, 2*time.Second, 200*time.Millisecond, "unexpected map entries")
+			// start dummy program and add it's pid to the map
+			cmd, cancel := startDummyProgram(t)
+			addPidEntryToMap(t, emap, cmd.Process.Pid)
+			verifyMap(t, emap, 1)
+
+			// verify exit of process cleans the map
+			cancel()
+			_ = cmd.Wait()
+			verifyMap(t, emap, 0)
 		})
 		if t.Failed() {
-			t.Logf("'%s' expect number of entries '%d' got '%d' in the map '%v'", unit.name, unit.expected, unit.found, sslReadMap)
-			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "ssl_read_ex_args")
-			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "ssl_read_args")
+			t.Logf("unexpect number of entries in the map '%s'", unit.mapName)
+			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, unit.mapName)
 		}
 	}
 }
 
-// getProbeByName returns the probe of running or paused program that match the input name.
-func getProbeByName(m *manager.Manager, name string) *manager.Probe {
-	for _, probe := range m.Probes {
-		if probe.EBPFFuncName == name && probe.IsRunning() {
-			return probe
-		}
-	}
-	return nil
+// verifyMap checks if the number of entries in the map matches the expected number.
+func verifyMap(t *testing.T, m *ebpf.Map, expected int64) {
+	require.Eventually(t, func() bool {
+		num, err := ebpfcheck.HashMapNumberOfEntries(m)
+		assert.NoError(t, err)
+		return num == expected
+	}, 1*time.Second, 100*time.Millisecond, "unexpected map entries")
 }
 
-// getSSLReadProbe it searches an available 'SSL_read ex' or 'SSL_read' program.
-func getSSLReadProbe(t *testing.T, monitor *Monitor) (*manager.Probe, bool) {
-	probe := getProbeByName(monitor.ebpfProgram.Manager.Manager, "uretprobe__SSL_read_ex")
-	if probe != nil && probe.IsRunning() {
-		t.Logf("found probe: %v", probe.GetEBPFFuncName())
-		return probe, true
-	}
+// addPidEntryToMap adds an entry to the map using the PID as a key.
+func addPidEntryToMap(t *testing.T, m *ebpf.Map, pid int) {
+	require.Equal(t, m.KeySize(), uint32(unsafe.Sizeof(uint64(0))), "wrong key size")
 
-	probe = getProbeByName(monitor.ebpfProgram.Manager.Manager, "uretprobe__SSL_read")
-	t.Logf("found probe: %v", probe.GetEBPFFuncName())
-	return probe, false
+	// make the key for single thread process when pid and tgid are the same
+	key := uint64(pid)<<32 | uint64(pid)
+	value := make([]byte, m.ValueSize())
+
+	err := m.Put(&key, value)
+	require.NoError(t, err)
 }
 
-// getProcExitProbe returns the 'Probe' for the process exit program, either as a regular trace or a raw trace.
-func getProcExitProbe(t *testing.T, monitor *Monitor) *manager.Probe {
-	probeRawProcExit := getProbeByName(monitor.ebpfProgram.Manager.Manager, "raw_tracepoint__sched_process_exit")
-	if probeRawProcExit != nil {
-		return probeRawProcExit
-	}
-	if kversion, err := kernel.HostVersion(); err == nil && kversion >= kernel.VersionCode(4, 17, 0) {
-		// raw tracepoints are supported on kernel>=4.17
-		require.FailNow(t, "raw tracepoint missing despite kernel supports it")
-	}
-	probeProcExit := getProbeByName(monitor.ebpfProgram.Manager.Manager, "tracepoint__sched__sched_process_exit")
-	return probeProcExit
+// startDummyProgram starts sleeping thread.
+func startDummyProgram(t *testing.T) (*exec.Cmd, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	return cmd, cancel
 }
 
-// getSSLReadMap returns a map corresponding to the program under test.
-func getSSLReadMap(t *testing.T, monitor *Monitor, useEx bool) *ebpf.Map {
-	if useEx {
-		sslReadMap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap("ssl_read_ex_args")
-		require.NotNil(t, sslReadMap)
-		t.Logf("check map: %v", sslReadMap)
-		return sslReadMap
-	}
-	sslReadMap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap("ssl_read_args")
-	require.NotNil(t, sslReadMap)
-	t.Logf("check map: %v", sslReadMap)
-	return sslReadMap
+// cleanDeadPids calls the map cleaner for map 'name', as the periodic job does.
+func cleanDeadPids(t *testing.T, monitor *Monitor, name string) {
+	err := monitor.ebpfProgram.cleanDeadPidsInSslMap(name)
+	require.NoError(t, err)
 }
 
-func detachProbe(t *testing.T, m *manager.Manager, probe *manager.Probe) {
-	id := manager.ProbeIdentificationPair{
-		UID:          probe.UID,
-		EBPFFuncName: probe.EBPFFuncName,
-	}
-	err := m.DetachHook(id)
-	assert.NoError(t, err)
-}
-
-// cleanDeadPidsInSslMaps finds activated 'sslProgram' and calls map cleaner.
-func (e *ebpfProgram) cleanDeadPidsInSslMaps() error {
+// cleanDeadPidsInSslMap finds activated 'sslProgram' and calls map cleaner.
+func (e *ebpfProgram) cleanDeadPidsInSslMap(name string) error {
 	for _, prot := range e.enabledProtocols {
 		if prot.Instance.Name() == "openssl" {
 			switch prot.Instance.(type) {
 			case *sslProgram:
 				p, ok := prot.Instance.(*sslProgram)
 				if ok {
-					return p.cleanDeadPidsInMaps(e.Manager.Manager)
+					return p.cleanDeadPidsInMap(e.Manager.Manager, name)
 				}
 			default:
 			}
@@ -1190,7 +1106,7 @@ func (e *ebpfProgram) cleanDeadPidsInSslMaps() error {
 	return nil
 }
 
-// cleanDeadPidsInMaps clears terminated processes from SSL-related kernel maps.
-func (o *sslProgram) cleanDeadPidsInMaps(manager *manager.Manager) error {
-	return o.watcher.CleanDeadPidsInMaps(manager, []string{"ssl_read_args", "ssl_read_ex_args"}, nil)
+// cleanDeadPidsInMap clears terminated processes from SSL-related kernel map.
+func (o *sslProgram) cleanDeadPidsInMap(manager *manager.Manager, mapName string) error {
+	return o.watcher.CleanDeadPidsInMaps(manager, []string{mapName}, nil)
 }
