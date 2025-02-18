@@ -284,7 +284,7 @@ func IsIPv6(ip string) bool {
 
 func generateSelfSignedCert() (tls.Config, error) {
 	// create cert
-	hosts := []string{"127.0.0.1", "localhost"}
+	hosts := []string{"127.0.0.1", "localhost", "::1"}
 	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
 	if err != nil {
 		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)

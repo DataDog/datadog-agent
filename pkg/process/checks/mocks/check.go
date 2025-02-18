@@ -12,9 +12,44 @@ type Check struct {
 	mock.Mock
 }
 
+type Check_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Check) EXPECT() *Check_Expecter {
+	return &Check_Expecter{mock: &_m.Mock}
+}
+
 // Cleanup provides a mock function with no fields
 func (_m *Check) Cleanup() {
 	_m.Called()
+}
+
+// Check_Cleanup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Cleanup'
+type Check_Cleanup_Call struct {
+	*mock.Call
+}
+
+// Cleanup is a helper method to define mock.On call
+func (_e *Check_Expecter) Cleanup() *Check_Cleanup_Call {
+	return &Check_Cleanup_Call{Call: _e.mock.On("Cleanup")}
+}
+
+func (_c *Check_Cleanup_Call) Run(run func()) *Check_Cleanup_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Check_Cleanup_Call) Return() *Check_Cleanup_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *Check_Cleanup_Call) RunAndReturn(run func()) *Check_Cleanup_Call {
+	_c.Run(run)
+	return _c
 }
 
 // Init provides a mock function with given fields: syscfg, info, oneShot
@@ -35,6 +70,36 @@ func (_m *Check) Init(syscfg *checks.SysProbeConfig, info *checks.HostInfo, oneS
 	return r0
 }
 
+// Check_Init_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Init'
+type Check_Init_Call struct {
+	*mock.Call
+}
+
+// Init is a helper method to define mock.On call
+//   - syscfg *checks.SysProbeConfig
+//   - info *checks.HostInfo
+//   - oneShot bool
+func (_e *Check_Expecter) Init(syscfg interface{}, info interface{}, oneShot interface{}) *Check_Init_Call {
+	return &Check_Init_Call{Call: _e.mock.On("Init", syscfg, info, oneShot)}
+}
+
+func (_c *Check_Init_Call) Run(run func(syscfg *checks.SysProbeConfig, info *checks.HostInfo, oneShot bool)) *Check_Init_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*checks.SysProbeConfig), args[1].(*checks.HostInfo), args[2].(bool))
+	})
+	return _c
+}
+
+func (_c *Check_Init_Call) Return(_a0 error) *Check_Init_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Check_Init_Call) RunAndReturn(run func(*checks.SysProbeConfig, *checks.HostInfo, bool) error) *Check_Init_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // IsEnabled provides a mock function with no fields
 func (_m *Check) IsEnabled() bool {
 	ret := _m.Called()
@@ -51,6 +116,33 @@ func (_m *Check) IsEnabled() bool {
 	}
 
 	return r0
+}
+
+// Check_IsEnabled_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsEnabled'
+type Check_IsEnabled_Call struct {
+	*mock.Call
+}
+
+// IsEnabled is a helper method to define mock.On call
+func (_e *Check_Expecter) IsEnabled() *Check_IsEnabled_Call {
+	return &Check_IsEnabled_Call{Call: _e.mock.On("IsEnabled")}
+}
+
+func (_c *Check_IsEnabled_Call) Run(run func()) *Check_IsEnabled_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Check_IsEnabled_Call) Return(_a0 bool) *Check_IsEnabled_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Check_IsEnabled_Call) RunAndReturn(run func() bool) *Check_IsEnabled_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Name provides a mock function with no fields
@@ -71,6 +163,33 @@ func (_m *Check) Name() string {
 	return r0
 }
 
+// Check_Name_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Name'
+type Check_Name_Call struct {
+	*mock.Call
+}
+
+// Name is a helper method to define mock.On call
+func (_e *Check_Expecter) Name() *Check_Name_Call {
+	return &Check_Name_Call{Call: _e.mock.On("Name")}
+}
+
+func (_c *Check_Name_Call) Run(run func()) *Check_Name_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Check_Name_Call) Return(_a0 string) *Check_Name_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Check_Name_Call) RunAndReturn(run func() string) *Check_Name_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Realtime provides a mock function with no fields
 func (_m *Check) Realtime() bool {
 	ret := _m.Called()
@@ -87,6 +206,33 @@ func (_m *Check) Realtime() bool {
 	}
 
 	return r0
+}
+
+// Check_Realtime_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Realtime'
+type Check_Realtime_Call struct {
+	*mock.Call
+}
+
+// Realtime is a helper method to define mock.On call
+func (_e *Check_Expecter) Realtime() *Check_Realtime_Call {
+	return &Check_Realtime_Call{Call: _e.mock.On("Realtime")}
+}
+
+func (_c *Check_Realtime_Call) Run(run func()) *Check_Realtime_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Check_Realtime_Call) Return(_a0 bool) *Check_Realtime_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Check_Realtime_Call) RunAndReturn(run func() bool) *Check_Realtime_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // Run provides a mock function with given fields: nextGroupID, options
@@ -119,6 +265,35 @@ func (_m *Check) Run(nextGroupID func() int32, options *checks.RunOptions) (chec
 	return r0, r1
 }
 
+// Check_Run_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Run'
+type Check_Run_Call struct {
+	*mock.Call
+}
+
+// Run is a helper method to define mock.On call
+//   - nextGroupID func() int32
+//   - options *checks.RunOptions
+func (_e *Check_Expecter) Run(nextGroupID interface{}, options interface{}) *Check_Run_Call {
+	return &Check_Run_Call{Call: _e.mock.On("Run", nextGroupID, options)}
+}
+
+func (_c *Check_Run_Call) Run(run func(nextGroupID func() int32, options *checks.RunOptions)) *Check_Run_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(func() int32), args[1].(*checks.RunOptions))
+	})
+	return _c
+}
+
+func (_c *Check_Run_Call) Return(_a0 checks.RunResult, _a1 error) *Check_Run_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *Check_Run_Call) RunAndReturn(run func(func() int32, *checks.RunOptions) (checks.RunResult, error)) *Check_Run_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ShouldSaveLastRun provides a mock function with no fields
 func (_m *Check) ShouldSaveLastRun() bool {
 	ret := _m.Called()
@@ -137,6 +312,33 @@ func (_m *Check) ShouldSaveLastRun() bool {
 	return r0
 }
 
+// Check_ShouldSaveLastRun_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ShouldSaveLastRun'
+type Check_ShouldSaveLastRun_Call struct {
+	*mock.Call
+}
+
+// ShouldSaveLastRun is a helper method to define mock.On call
+func (_e *Check_Expecter) ShouldSaveLastRun() *Check_ShouldSaveLastRun_Call {
+	return &Check_ShouldSaveLastRun_Call{Call: _e.mock.On("ShouldSaveLastRun")}
+}
+
+func (_c *Check_ShouldSaveLastRun_Call) Run(run func()) *Check_ShouldSaveLastRun_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Check_ShouldSaveLastRun_Call) Return(_a0 bool) *Check_ShouldSaveLastRun_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Check_ShouldSaveLastRun_Call) RunAndReturn(run func() bool) *Check_ShouldSaveLastRun_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SupportsRunOptions provides a mock function with no fields
 func (_m *Check) SupportsRunOptions() bool {
 	ret := _m.Called()
@@ -153,6 +355,33 @@ func (_m *Check) SupportsRunOptions() bool {
 	}
 
 	return r0
+}
+
+// Check_SupportsRunOptions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SupportsRunOptions'
+type Check_SupportsRunOptions_Call struct {
+	*mock.Call
+}
+
+// SupportsRunOptions is a helper method to define mock.On call
+func (_e *Check_Expecter) SupportsRunOptions() *Check_SupportsRunOptions_Call {
+	return &Check_SupportsRunOptions_Call{Call: _e.mock.On("SupportsRunOptions")}
+}
+
+func (_c *Check_SupportsRunOptions_Call) Run(run func()) *Check_SupportsRunOptions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Check_SupportsRunOptions_Call) Return(_a0 bool) *Check_SupportsRunOptions_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *Check_SupportsRunOptions_Call) RunAndReturn(run func() bool) *Check_SupportsRunOptions_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewCheck creates a new instance of Check. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
