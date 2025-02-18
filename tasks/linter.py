@@ -892,13 +892,19 @@ def gitlab_ci_shellcheck(
     with TemporaryDirectory() as tmpdir:
         errors = {}
         for job, content in jobs:
+            # Skip jobs that are not executed
+            if not is_leaf_job(job, content):
+                continue
+
+            # Shellcheck is only for bash like scripts
+            is_powershell = 'tags' in content and any('win' in tag for tag in content['tags'])
+            if is_powershell:
+                continue
+
             if verbose:
                 print('Verifying job:', job)
 
             # Lint scripts
-            # TODO A: before / after
-            # TODO A: env variables?
-            # TODO A: Powershell etc.
             if 'script' in content:
                 before = (
                     ('# Before script\n' + flatten_script(content['before_script']))
@@ -911,7 +917,7 @@ def gitlab_ci_shellcheck(
                     else ''
                 )
                 script = '\n\n# Script\n' + flatten_script(content['script'])
-                full_script = f"{before}{script}{after}".strip() + '\n'
+                full_script = f"#!/bin/bash{before}{script}{after}".strip() + '\n'
                 with open(tmpdir + f"/{job}.sh", 'w') as f:
                     f.write(full_script)
 
@@ -927,7 +933,6 @@ def gitlab_ci_shellcheck(
                     print(f"{color_message('Error', Color.RED)}: {job}")
                     print('Script:')
                     if use_bat:
-                        # todo: powershell...
                         ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh")
                     else:
                         with open(f'{tmpdir}/{job}.sh') as f:
