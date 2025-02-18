@@ -153,6 +153,8 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 
 // NewCollector returns a new collector
 func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
+	ensureTrivyInit()
+
 	return &Collector{
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),

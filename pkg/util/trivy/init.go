@@ -9,6 +9,10 @@
 package trivy
 
 import (
+	"sync"
+
+	trivyhandler "github.com/aquasecurity/trivy/pkg/fanal/handler"
+	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	trivylog "github.com/aquasecurity/trivy/pkg/log"
 )
 
@@ -17,3 +21,9 @@ func init() {
 	// we call it as soon as possible, asking to disable trivy logs
 	trivylog.InitLogger(false, true)
 }
+
+var ensureTrivyInit = sync.OnceFunc(func() {
+	// making sure the Unpackaged post handler relying on external DBs is
+	// deregistered
+	trivyhandler.DeregisterPostHandler(ftypes.UnpackagedPostHandler)
+})
