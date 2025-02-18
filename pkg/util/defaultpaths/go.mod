@@ -10,15 +10,15 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.63.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.63.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.63.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.63.0
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.63.0
 	golang.org/x/sys v0.29.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.63.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.63.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.63.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
