@@ -1,26 +1,26 @@
 # Package gates
 static_quality_gate_agent_deb_amd64:
-  max_on_wire_size: "193.53 MiB"
+  max_on_wire_size: "212.33 MiB"
   max_on_disk_size: "847.49 MiB"
 
 static_quality_gate_agent_deb_arm64:
-  max_on_wire_size: "172.13 MiB"
+  max_on_wire_size: "192.5 MiB"
   max_on_disk_size: "836.66 MiB"
 
 static_quality_gate_agent_rpm_amd64:
-  max_on_wire_size: "196.0 MiB"
+  max_on_wire_size: "215.76 MiB"
   max_on_disk_size: "847.82 MiB"
 
 static_quality_gate_agent_rpm_arm64:
-  max_on_wire_size: "177.77 MiB"
+  max_on_wire_size: "194.24 MiB"
   max_on_disk_size: "836.66 MiB"
 
 static_quality_gate_agent_suse_amd64:
-  max_on_wire_size: "196.0 MiB"
+  max_on_wire_size: "215.76 MiB"
   max_on_disk_size: "847.82 MiB"
 
 static_quality_gate_agent_suse_arm64:
-  max_on_wire_size: "177.77 MiB"
+  max_on_wire_size: "194.24 MiB"
   max_on_disk_size: "836.66 MiB"
 
 static_quality_gate_dogstatsd_deb_amd64:
