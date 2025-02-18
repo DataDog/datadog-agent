@@ -85,6 +85,10 @@ var customLogsConfigTmplFile string
 //go:embed testfixtures/config.yaml.tmpl
 var configTmplFile string
 
+func pullTraceGeneratorImage(h *components.RemoteHost) {
+	h.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:main")
+}
+
 func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags string) func() {
 	rm := "docker rm -f " + service
 	h.MustExecute(rm) // kill any existing leftover container
@@ -179,6 +183,9 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	customLogsConfig, err := readTmplConfig(customLogsConfigTmplFile)
 	v.NoError(err)
 
+	// pull tracegen docker image
+	pullTraceGeneratorImage(v.Env().Host)
+
 	// ensure host uses files for NSS
 	enforceNSSwitchFiles(v.T(), v.Env().Host)
 
@@ -226,7 +233,7 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 		assert.NotEmpty(t, logs)
 
 		// check traces
-		runUDSTraceGenerator(v.Env().Host, "test", "extratags")
+		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
 		traces, err := intake.GetTraces()
 		require.NoError(t, err)
 		assert.NotEmpty(t, traces)
@@ -238,6 +245,8 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
 		}
 		assert.NoError(t, err)
+
+		teardownTraceGen()
 	}
 
 	v.T().Logf("checking that the agent contacts intake at %s", intake.URL())
@@ -257,15 +266,17 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMax
 		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 		// send traces
-		runUDSTraceGenerator(v.Env().Host, "test", "extratags")
+		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
 
-		// give time to the agent to send things
+		// give time to the agent to flush to the intake
 		time.Sleep(intakeUnusedWaitTime)
 
 		stats, err := intake.RouteStats()
 		require.NoError(t, err)
 
 		assert.Empty(t, stats)
+
+		teardownTraceGen()
 	}
 
 	v.T().Logf("checking that the agent doesn't contact intake at %s", intake.URL())
