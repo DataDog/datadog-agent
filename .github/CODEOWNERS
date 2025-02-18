@@ -689,5 +689,8 @@
 /internal/tools/**/go.mod                @DataDog/agent-devx-loops
 /internal/tools/**/go.sum                @DataDog/agent-devx-loops
 
+/pkg/fleet/installer/go.mod              @DataDog/fleet
+/pkg/fleet/installer/go.sum              @DataDog/fleet
+
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
