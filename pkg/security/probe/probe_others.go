@@ -26,8 +26,9 @@ type PlatformProbe interface {
 
 // Probe represents the runtime security probe
 type Probe struct {
-	Config *config.Config
-	Opts   Opts
+	PlatformProbe PlatformProbe
+	Config        *config.Config
+	Opts          Opts
 }
 
 // Origin returns origin
