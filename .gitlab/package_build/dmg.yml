@@ -58,14 +58,15 @@ new-agent_dmg-x64-a7:
       export GPG_VERSION=1.4.23
       export CODECOV_VERSION=v0.6.1
       export OPENSSL_VERSION=1.1
-    - |
-      echo Setup env
-      mkdir bin
-      binaries="curl chmod cp mkdir tar rm mv ls bash make xz"
-      for binary in $binaries; do
-        echo Using $binary
-        ln -s "$(which $binary)" bin/$binary
-      done
+    # - |
+    #   echo Setup env
+    #   mkdir bin
+    #   binaries="curl chmod cp mkdir tar rm mv ls bash make xz"
+    #   for binary in $binaries; do
+    #     echo Using $binary
+    #     ln -s "$(which $binary)" bin/$binary
+    #   done
+    #   # TODO A: PATH="$PWD/bin"
     - |
       echo Setup homebrew
       mkdir homebrew
