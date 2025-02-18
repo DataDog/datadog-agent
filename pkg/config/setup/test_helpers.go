@@ -11,11 +11,12 @@ import (
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 // newTestConf generates and returns a new configuration
 func newTestConf() pkgconfigmodel.Config {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	InitConfig(conf)
 	conf.SetConfigFile("")
 	pkgconfigmodel.ApplyOverrideFuncs(conf)

@@ -66,6 +66,7 @@ from tasks.libs.releasing.json import (
     set_new_release_branch,
     update_release_json,
 )
+from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
     FINAL_VERSION_RE,
     MINOR_RC_VERSION_RE,
@@ -336,7 +337,24 @@ def finish(ctx, release_branch, upstream="origin"):
                 code=1,
             )
 
-        # Step 4: Push branch and create PR
+        # Step 4: Add release changelog preludes
+        print(color_message("Adding Agent release changelog prelude", "bold"))
+        _add_prelude(ctx, str(new_version))
+
+        print(color_message("Adding DCA release changelog prelude", "bold"))
+        _add_dca_prelude(ctx, str(new_version))
+
+        ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        # Step 5: Push branch and create PR
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
         if res.exited is None or res.exited > 0:
@@ -349,7 +367,7 @@ def finish(ctx, release_branch, upstream="origin"):
             )
 
         create_release_pr(
-            f"Final updates for release.json and Go modules for {new_version} release",
+            f"Final updates for release.json and Go modules for {new_version} release + preludes",
             release_branch,
             final_branch,
             new_version,
@@ -602,10 +620,7 @@ def get_qualification_rc_tag(ctx, release_branch):
 
 
 @task
-def run_rc_pipeline(ctx, release_branch, gitlab_tag=None, k8s_deployments=False):
-    if not gitlab_tag:
-        gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
-
+def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
     run(
         ctx,
         git_ref=gitlab_tag,
@@ -615,6 +630,15 @@ def run_rc_pipeline(ctx, release_branch, gitlab_tag=None, k8s_deployments=False)
         rc_build=True,
         rc_k8s_deployments=k8s_deployments,
     )
+
+
+@task
+def alert_ci_on_call(ctx, release_branch, slack_webhook):
+    gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
+    payload = {
+        'message': f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ninv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
+    }
+    send_slack_msg(ctx, payload, slack_webhook)
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
@@ -1393,6 +1417,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
     current = current_version(ctx, 7)
     current.rc = False
     current.devel = False
+    current.patch = 0
     pr_url = create_datadog_agent_pr(
         commit_message, main_branch, bump_integrations_core_branch, str(current), body=github_workflow_url
     )

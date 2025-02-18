@@ -20,8 +20,31 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// errUnsupportedDevice is returned when the device does not support the given collector
+var errUnsupportedDevice = errors.New("device does not support the given collector")
+
+// CollectorName is the name of the nvml sub-collectors
+type CollectorName string
+
+const (
+	field        CollectorName = "fields"
+	clock        CollectorName = "clocks"
+	device       CollectorName = "device"
+	remappedRows CollectorName = "remapped_rows"
+	samples      CollectorName = "samples"
+)
+
+// Metric represents a single metric collected from the NVML library.
+type Metric struct {
+	Name  string   // Name holds the name of the metric.
+	Value float64  // Value holds the value of the metric.
+	Tags  []string // Tags holds the tags associated with the metric.
+	Type  metrics.MetricType
+}
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
 type Collector interface {
@@ -29,35 +52,24 @@ type Collector interface {
 	// unless they're metric-specific (i.e., all device-specific tags will be added by the Collector itself)
 	Collect() ([]Metric, error)
 
-	// Close closes the subsystem and releases any resources it might have allocated
-	Close() error
+	// Name returns the name of the subsystem
+	Name() CollectorName
 
-	// name returns the name of the subsystem
-	Name() string
+	// DeviceUUID returns the UUID of the device this collector is collecting metrics from. Returns an empty string if there's no UUID
+	DeviceUUID() string
 }
 
-// Metric represents a single metric collected from the NVML library.
-type Metric struct {
-	Name  string   // Name holds the name of the metric.
-	Value float64  // Value holds the value of the metric.
-	Tags  []string // Tags holds the tags associated with the metric.
-}
-
-// errUnsupportedDevice is returned when the device does not support the given collector
-var errUnsupportedDevice = errors.New("device does not support the given collector")
-
-// subsystemBuilder is a function that creates a new subsystemCollector. lib is the NVML
-// library interface, and device the device it should collect metrics from. It also receives
+// subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(lib nvml.Interface, device nvml.Device, tags []string) (Collector, error)
+type subsystemBuilder func(device nvml.Device, tags []string) (Collector, error)
 
-// allSubsystems is a map of all the subsystems that can be used to collect metrics from NVML.
-var allSubsystems = map[string]subsystemBuilder{
-	fieldsCollectorName:       newFieldsCollector,
-	deviceCollectorName:       newDeviceCollector,
-	remappedRowsCollectorName: newRemappedRowsCollector,
-	clocksCollectorName:       newClocksCollector,
-	samplesCollectorName:      newSamplesCollector,
+// factory is a map of all the subsystems that can be used to collect metrics from NVML.
+var factory = map[CollectorName]subsystemBuilder{
+	field:        newFieldsCollector,
+	device:       newDeviceCollector,
+	remappedRows: newRemappedRowsCollector,
+	clock:        newClocksCollector,
+	samples:      newSamplesCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -71,10 +83,10 @@ type CollectorDependencies struct {
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
 func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
-	return buildCollectors(deps, allSubsystems)
+	return buildCollectors(deps, factory)
 }
 
-func buildCollectors(deps *CollectorDependencies, subsystems map[string]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
 	devCount, ret := deps.NVML.DeviceGetCount()
@@ -94,17 +106,17 @@ func buildCollectors(deps *CollectorDependencies, subsystems map[string]subsyste
 			continue
 		}
 
-		for name, builder := range subsystems {
-			subsystem, err := builder(deps.NVML, dev, tags)
+		for name, builder := range builders {
+			c, err := builder(dev, tags)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev, name)
 				continue
 			} else if err != nil {
-				log.Warnf("failed to create subsystem %s: %s", name, err)
+				log.Warnf("failed to create collector %s: %s", name, err)
 				continue
 			}
 
-			collectors = append(collectors, subsystem)
+			collectors = append(collectors, c)
 		}
 	}
 

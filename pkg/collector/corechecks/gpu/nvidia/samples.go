@@ -14,10 +14,9 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
-
-const samplesCollectorName = "samples"
 
 var allSamples = []sampleMetric{
 	{"gr_engine_active", nvml.GPU_UTILIZATION_SAMPLES, 0},
@@ -38,7 +37,7 @@ type samplesCollector struct {
 	samplesToCollect []sampleMetric
 }
 
-func newSamplesCollector(_ nvml.Interface, device nvml.Device, tags []string) (Collector, error) {
+func newSamplesCollector(device nvml.Device, tags []string) (Collector, error) {
 	c := &samplesCollector{
 		device: device,
 		tags:   tags,
@@ -51,6 +50,11 @@ func newSamplesCollector(_ nvml.Interface, device nvml.Device, tags []string) (C
 	}
 
 	return c, nil
+}
+
+func (c *samplesCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
 }
 
 func (c *samplesCollector) removeUnsupportedSamples() {
@@ -69,12 +73,8 @@ func (c *samplesCollector) removeUnsupportedSamples() {
 	}
 }
 
-func (c *samplesCollector) Close() error {
-	return nil
-}
-
-func (samplesCollector) Name() string {
-	return samplesCollectorName
+func (c *samplesCollector) Name() CollectorName {
+	return samples
 }
 
 // Collect collects all the metrics from the given NVML device. This function
@@ -84,8 +84,8 @@ func (samplesCollector) Name() string {
 func (c *samplesCollector) Collect() ([]Metric, error) {
 	var err error
 
-	values := make([]Metric, 0, len(allSamples)) // preallocate to reduce allocations
-	for _, metric := range allSamples {
+	values := make([]Metric, 0, len(c.samplesToCollect)) // preallocate to reduce allocations
+	for _, metric := range c.samplesToCollect {
 		prevTimestamp := metric.lastTimestamp
 
 		// GetSamples returns a list of samples (timestamp + value) for the
@@ -149,6 +149,7 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 			Name:  metric.name,
 			Value: total,
 			Tags:  c.tags,
+			Type:  metrics.GaugeType,
 		})
 	}
 
