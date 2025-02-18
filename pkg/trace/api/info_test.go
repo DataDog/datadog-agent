@@ -230,6 +230,7 @@ func TestInfoHandler(t *testing.T) {
 		},
 		RemoveStackTraces: false,
 		Redis:             obfuscate.RedisConfig{Enabled: true},
+		Valkey:            obfuscate.ValkeyConfig{Enabled: true},
 		Memcached:         obfuscate.MemcachedConfig{Enabled: false},
 	}
 	conf := &config.AgentConfig{
@@ -328,6 +329,7 @@ func TestInfoHandler(t *testing.T) {
 				},
 				"remove_stack_traces": nil,
 				"redis":               nil,
+				"valkey":              nil,
 				"memcached":           nil,
 			},
 		},

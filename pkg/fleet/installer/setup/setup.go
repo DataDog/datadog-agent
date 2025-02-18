@@ -12,11 +12,11 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/defaultscript"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 type flavor struct {
@@ -56,7 +56,7 @@ func Agent7InstallScript(ctx context.Context, env *env.Env) error {
 		return fmt.Errorf("failed to get default packages: %w", err)
 	}
 	for _, url := range defaultPackages {
-		err = cmd.Install(ctx, url, nil)
+		err = cmd.ForceInstall(ctx, url, nil)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}

@@ -41,6 +41,8 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.remove_stack_traces", false, "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.redis.enabled", true, "DD_APM_OBFUSCATION_REDIS_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.redis.remove_all_args", false, "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS")
+	config.BindEnvAndSetDefault("apm_config.obfuscation.valkey.enabled", true, "DD_APM_OBFUSCATION_VALKEY_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.obfuscation.valkey.remove_all_args", false, "DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.enabled", true, "DD_APM_OBFUSCATION_MEMCACHED_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.keep_command", false, "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.enabled", true, "DD_APM_OBFUSCATION_CACHE_ENABLED")
@@ -129,6 +131,14 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
+	config.BindEnv("apm_config.instrumentation.targets", "DD_APM_INSTRUMENTATION_TARGETS")
+	config.ParseEnvAsSlice("apm_config.instrumentation.targets", func(in string) []interface{} {
+		var mappings []interface{}
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.targets" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")

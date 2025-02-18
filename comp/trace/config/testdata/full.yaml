@@ -84,6 +84,9 @@ apm_config:
     redis:
       enabled: true
       remove_all_args: true
+    valkey:
+      enabled: true
+      remove_all_args: true
     memcached:
       enabled: true
       keep_command: true

@@ -38,6 +38,9 @@ type Endpoint struct {
 	// NoProxy will be set to true when the proxy setting for the trace API endpoint
 	// needs to be ignored (e.g. it is part of the "no_proxy" list in the yaml settings).
 	NoProxy bool
+
+	// IsMRF determines whether this is a Multi-Region Failover endpoint.
+	IsMRF bool `mapstructure:"-" json:"-"`
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
@@ -110,6 +113,10 @@ type ObfuscationConfig struct {
 	// for spans of type "redis".
 	Redis obfuscate.RedisConfig `mapstructure:"redis"`
 
+	// Valkey holds the configuration for obfuscating the "valkey.raw_command" tag
+	// for spans of type "valkey".
+	Valkey obfuscate.ValkeyConfig `mapstructure:"valkey"`
+
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
 	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
@@ -152,6 +159,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 		SQLExecPlanNormalize: o.SQLExecPlanNormalize,
 		HTTP:                 o.HTTP,
 		Redis:                o.Redis,
+		Valkey:               o.Valkey,
 		Memcached:            o.Memcached,
 		CreditCard:           o.CreditCards,
 		Logger:               new(debugLogger),
@@ -480,6 +488,10 @@ type AgentConfig struct {
 	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
 	// Function will be nil if in an environment without an auth token
 	GetAgentAuthToken func() string `json:"-"`
+
+	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
+	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
+	IsMRFEnabled func() bool `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -559,9 +571,10 @@ func New() *AgentConfig {
 
 		GlobalTags: computeGlobalTags(),
 
-		Proxy:         http.ProxyFromEnvironment,
-		OTLPReceiver:  &OTLP{},
-		ContainerTags: noopContainerTagsFunc,
+		Proxy:                     http.ProxyFromEnvironment,
+		OTLPReceiver:              &OTLP{},
+		ContainerTags:             noopContainerTagsFunc,
+		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
@@ -588,6 +601,14 @@ var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defi
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
 	return nil, ErrContainerTagsFuncNotDefined
+}
+
+// ErrContainerIDFromOriginInfoFuncNotDefined is returned when the ContainerIDFromOriginInfo function is not defined.
+var ErrContainerIDFromOriginInfoFuncNotDefined = errors.New("ContainerIDFromOriginInfo function not defined")
+
+// NoopContainerIDFromOriginInfoFunc is used when the ContainerIDFromOriginInfo function is not defined.
+func NoopContainerIDFromOriginInfoFunc(_ origindetection.OriginInfo) (string, error) {
+	return "", ErrContainerIDFromOriginInfoFuncNotDefined
 }
 
 // APIKey returns the first (main) endpoint's API key.

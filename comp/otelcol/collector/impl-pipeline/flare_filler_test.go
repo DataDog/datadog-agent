@@ -140,7 +140,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 
 	// Fill the flare
 	f := helpers.NewFlareBuilderMock(t, false)
-	col.fillFlare(f.Fb)
+	col.fillFlare(f)
 
 	f.AssertFileExists("otel", "otel-response.json")
 
