@@ -72,6 +72,16 @@ type Collector struct {
 
 var globalCollector *Collector
 
+var trivyDefaultSkipDirs = []string{
+	// already included in Trivy's defaultSkipDirs
+	// "**/.git",
+	// "proc",
+	// "sys",
+	// "dev",
+
+	"**/.cargo/git/**",
+}
+
 func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 	parallel := 1
 	if opts.Fast {
@@ -88,7 +98,9 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		WalkerOption:      walker.Option{},
 	}
 
-	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
+	option.WalkerOption.SkipDirs = trivyDefaultSkipDirs
+
+	if slicesEqualOrderless(opts.Analyzers, []string{OSAnalyzers}) {
 		option.WalkerOption.OnlyDirs = []string{
 			"/etc/*",
 			"/lib/apk/db/*",
@@ -97,6 +109,31 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
 		}
+	} else if slicesEqualOrderless(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
+		option.WalkerOption.SkipDirs = append(
+			option.WalkerOption.SkipDirs,
+			"bin/**",
+			"boot/**",
+			"dev/**",
+			"media/**",
+			"mnt/**",
+			"proc/**",
+			"run/**",
+			"sbin/**",
+			"sys/**",
+			"tmp/**",
+			"usr/bin/**",
+			"usr/sbin/**",
+			"var/cache/**",
+			"var/lib/containerd/**",
+			"var/lib/containers/**",
+			"var/lib/docker/**",
+			"var/lib/libvirt/**",
+			"var/lib/snapd/**",
+			"var/log/**",
+			"var/run/**",
+			"var/tmp/**",
+		)
 	}
 
 	return option
@@ -312,4 +349,18 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		id:        trivyReport.Metadata.ImageID,
 		marshaler: c.marshaler,
 	}, nil
+}
+
+func slicesEqualOrderless(a []string, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for _, ia := range a {
+		if !slices.Contains(b, ia) {
+			return false
+		}
+	}
+
+	return true
 }
