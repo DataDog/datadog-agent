@@ -925,8 +925,8 @@ def gitlab_ci_shellcheck(
                     f.write(full_script)
 
                 res = ctx.run(f"shellcheck {shellcheck_args} {exclude} {tmpdir}/{job}.sh", warn=True, hide=True)
-                if not res:
-                    errors[job] = res.stdout
+                if res.stderr or res.stdout:
+                    errors[job] = (res.stderr + '\n' + res.stdout).strip()
                     if fail_fast:
                         break
 
