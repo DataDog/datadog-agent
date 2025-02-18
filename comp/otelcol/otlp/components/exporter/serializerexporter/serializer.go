@@ -18,6 +18,7 @@ import (
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -96,11 +97,14 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := pkgconfigmodel.NewConfig("DD", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+			pkgconfig := viperconfig.NewConfig("DD", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 			// Set the API Key
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
 			pkgconfig.Set("site", cfg.API.Site, pkgconfigmodel.SourceFile)
+			if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
+				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceDefault)
+			}
 			setupSerializer(pkgconfig)
 			setupForwarder(pkgconfig)
 			pkgconfig.Set("logging_frequency", int64(500), pkgconfigmodel.SourceDefault)
