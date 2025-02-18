@@ -64,27 +64,10 @@ exporters:
       queue_size: 1000
       storage: null
     timeout: 15s
-    tls:
-      ca_file: ""
-      ca_pem: '[REDACTED]'
-      cert_file: ""
-      cert_pem: '[REDACTED]'
-      cipher_suites: []
-      curve_preferences: []
-      include_system_ca_certs_pool: false
-      insecure: false
-      insecure_skip_verify: false
-      key_file: ""
-      key_pem: '[REDACTED]'
-      max_version: ""
-      min_version: ""
-      reload_interval: 0s
-      server_name_override: ""
+    tls: {}
     traces:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
-      dialer:
-        timeout: 0s
       ignore_resources: []
       peer_service_aggregation: true
       peer_tags: []
