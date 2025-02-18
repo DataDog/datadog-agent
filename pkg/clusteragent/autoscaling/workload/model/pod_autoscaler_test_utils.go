@@ -31,6 +31,7 @@ type FakePodAutoscalerInternal struct {
 	SettingsTimestamp              time.Time
 	CreationTimestamp              time.Time
 	ScalingValues                  ScalingValues
+	MainScalingValues              ScalingValues
 	HorizontalLastActions          []datadoghq.DatadogPodAutoscalerHorizontalAction
 	HorizontalLastLimitReason      string
 	HorizontalLastActionError      error
@@ -55,6 +56,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		settingsTimestamp:              f.SettingsTimestamp,
 		creationTimestamp:              f.CreationTimestamp,
 		scalingValues:                  f.ScalingValues,
+		mainScalingValues:              f.MainScalingValues,
 		horizontalLastActions:          f.HorizontalLastActions,
 		horizontalLastLimitReason:      f.HorizontalLastLimitReason,
 		horizontalLastActionError:      f.HorizontalLastActionError,

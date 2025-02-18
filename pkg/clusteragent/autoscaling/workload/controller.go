@@ -10,6 +10,7 @@ package workload
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -38,6 +39,8 @@ const (
 	maxRetry int = 5
 
 	controllerID = "dpa-c"
+
+	staleRecommendationThreshold = time.Second * 180
 )
 
 var (
@@ -67,6 +70,8 @@ type Controller struct {
 	verticalController   *verticalController
 
 	localSender sender.Sender
+
+	isFallbackEnabled bool
 }
 
 // NewController returns a new workload autoscaling controller
@@ -84,10 +89,11 @@ func NewController(
 	limitHeap *autoscaling.HashHeap,
 ) (*Controller, error) {
 	c := &Controller{
-		clusterID:     clusterID,
-		clock:         clock.RealClock{},
-		eventRecorder: eventRecorder,
-		localSender:   localSender,
+		clusterID:         clusterID,
+		clock:             clock.RealClock{},
+		eventRecorder:     eventRecorder,
+		localSender:       localSender,
+		isFallbackEnabled: false, // keep fallback disabled by default
 	}
 
 	autoscalingWorkqueue := workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -284,7 +290,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		}
 	}
 
-	// Reaching this point, we had an error in processing, clearing up global error
+	// Reaching this point, we had no errors in processing, clearing up global error
 	podAutoscalerInternal.SetError(nil)
 
 	// Validate autoscaler requirements
@@ -293,6 +299,10 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		podAutoscalerInternal.SetError(validationErr)
 		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, validationErr, podAutoscalerInternal, podAutoscaler)
 	}
+
+	// Update the scaling values based on the staleness of recommendations
+	desiredScalingSource := c.updateActiveScalingSource(podAutoscalerInternal)
+	podAutoscalerInternal.UpdateFromValues(desiredScalingSource)
 
 	// Get autoscaler target
 	targetGVK, targetErr := podAutoscalerInternal.TargetGVK()
@@ -448,6 +458,23 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	return nil
 }
 
+func (c *Controller) updateActiveScalingSource(podAutoscalerInternal model.PodAutoscalerInternal) datadoghq.DatadogPodAutoscalerValueSource {
+	currentTime := c.clock.Now()
+	activeSource := getActiveSource(currentTime, podAutoscalerInternal.MainScalingValues().Horizontal)
+
+	// Logic when local fallback is activated/deactivated
+	if c.isFallbackEnabled && activeSource == datadoghq.DatadogPodAutoscalerAutoscalingValueSource {
+		log.Debugf("Product horizontal scaling values are no longer stale, deactivating local fallback")
+		c.isFallbackEnabled = false
+	} else if !c.isFallbackEnabled && activeSource == datadoghq.DatadogPodAutoscalerLocalValueSource {
+		log.Debugf("Product horizontal scaling values are stale, activating local fallback")
+		c.isFallbackEnabled = true
+	}
+
+	trackLocalFallbackEnabled(activeSource, podAutoscalerInternal)
+	return activeSource
+}
+
 func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
 	// Update status based on latest state
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
@@ -462,4 +489,15 @@ func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, n
 
 	c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
 	return err
+}
+
+func getActiveSource(currentTime time.Time, mainHorizontalScalingValues *model.HorizontalScalingValues) datadoghq.DatadogPodAutoscalerValueSource {
+	if mainHorizontalScalingValues == nil {
+		return datadoghq.DatadogPodAutoscalerLocalValueSource
+	}
+	lastReceivedTimestamp := mainHorizontalScalingValues.Timestamp
+	if currentTime.Sub(lastReceivedTimestamp) > staleRecommendationThreshold {
+		return datadoghq.DatadogPodAutoscalerLocalValueSource
+	}
+	return datadoghq.DatadogPodAutoscalerAutoscalingValueSource
 }
