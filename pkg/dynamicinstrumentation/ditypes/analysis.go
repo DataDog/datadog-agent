@@ -19,12 +19,12 @@ type TypeMap struct {
 
 	// FunctionsByPC places DWARF subprogram (function) entries in order by
 	// its low program counter which is necessary for resolving stack traces
-	FunctionsByPC []*LowPCEntry
+	FunctionsByPC []*FuncByPCEntry
 
 	// DeclaredFiles places DWARF compile unit entries in order by its
 	// low program counter which is necessary for resolving declared file
 	// for the sake of stack traces
-	DeclaredFiles []*LowPCEntry
+	DeclaredFiles []*DwarfFilesEntry
 }
 
 // Parameter represents a function parameter as read from DWARF info
@@ -383,10 +383,10 @@ func (l Location) String() string {
 	return fmt.Sprintf("Location{InReg: %t, StackOffset: %d, Register: %d}", l.InReg, l.StackOffset, l.Register)
 }
 
-// LowPCEntry is a helper type used to sort DWARF entries by their low program counter
-type LowPCEntry struct {
+// DwarfFilesEntry represents the list of files used in a DWARF compile unit
+type DwarfFilesEntry struct {
 	LowPC uint64
-	Entry *dwarf.Entry
+	Files []*dwarf.LineFile
 }
 
 // BPFProgram represents a bpf program that's created for a single probe
@@ -409,4 +409,12 @@ func PrintLocationExpressions(expressions []LocationExpression) {
 			expressions[i].CollectionIdentifier,
 		)
 	}
+}
+
+// FuncByPCEntry represents useful data associated with a function entry in DWARF
+type FuncByPCEntry struct {
+	LowPC      uint64
+	Fn         string
+	FileNumber int64
+	Line       int64
 }
