@@ -2,6 +2,46 @@
 Release Notes
 =============
 
+.. _Release Notes_7.63.0:
+
+7.63.0
+======
+
+.. _Release Notes_7.63.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-19
+
+- Please refer to the `7.63.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7630>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.63.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Language detection adds support for detecting PHP.
+
+
+.. _Release Notes_7.63.0_Security Notes:
+
+Security Notes
+--------------
+
+- Update OpenSSL from 3.3.2 to 3.3.3 addressing CVE-2024-12797. 
+
+
+.. _Release Notes_7.63.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an issue where the "source" and "service" tags were incorrectly set to
+  "kubernetes" in logs when the Agent runs on ECS EC2.
+
+
 .. _Release Notes_7.62.3:
 
 7.62.3
