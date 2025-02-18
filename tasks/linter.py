@@ -6,6 +6,7 @@ import sys
 from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
+from tempfile import TemporaryDirectory
 
 import yaml
 from invoke import Exit, task
@@ -846,3 +847,105 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     gitlab_owners = CodeOwners('\n'.join(parsed_owners))
 
     _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners)
+
+
+def flatten_script(script: str | list[str]) -> str:
+    """Flatten a script into a single string."""
+
+    if isinstance(script, list):
+        return '\n'.join(flatten_script(line) for line in script)
+
+    if script is None:
+        return ''
+
+    return script.strip()
+
+
+@task
+def gitlab_ci_shellcheck(
+    ctx,
+    diff_file=None,
+    config_file=None,
+    exclude='SC2059,SC2028,2086',
+    shellcheck_args="",
+    fail_fast=False,
+    verbose=False,
+    use_bat=None,
+):
+    """Verifies that shell scripts with gitlab config are valid.
+
+    Args:
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+    """
+
+    exclude = ' '.join(f'-e {e}' for e in exclude.split(','))
+
+    if use_bat is None:
+        use_bat = ctx.run('which bat', warn=True, hide=True)
+    elif use_bat.casefold() == 'false':
+        use_bat = False
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
+    with TemporaryDirectory() as tmpdir:
+        errors = {}
+        for job, content in jobs:
+            # Skip jobs that are not executed
+            if not is_leaf_job(job, content):
+                continue
+
+            # Shellcheck is only for bash like scripts
+            is_powershell = 'tags' in content and any('win' in tag for tag in content['tags'])
+            if is_powershell:
+                continue
+
+            if verbose:
+                print('Verifying job:', job)
+
+            # Lint scripts
+            if 'script' in content:
+                before = (
+                    ('# Before script\n' + flatten_script(content['before_script']))
+                    if 'before_script' in content
+                    else ''
+                )
+                after = (
+                    ('\n\n# After script\n' + flatten_script(content['after_script']))
+                    if 'after_script' in content
+                    else ''
+                )
+                script = '\n\n# Script\n' + flatten_script(content['script'])
+                full_script = f"#!/bin/bash\n\n{before}{script}{after}".strip() + '\n'
+                with open(tmpdir + f"/{job}.sh", 'w') as f:
+                    f.write(full_script)
+
+                res = ctx.run(f"shellcheck {shellcheck_args} {exclude} {tmpdir}/{job}.sh", warn=True, hide=True)
+                if res.stderr or res.stdout:
+                    errors[job] = (res.stderr + '\n' + res.stdout).strip()
+                    if fail_fast:
+                        break
+
+        if errors:
+            for job, error in sorted(errors.items()):
+                with gitlab_section(f"Shellcheck errors for {job}"):
+                    print(f"{color_message('Error', Color.RED)}: {job}")
+                    print('Script:')
+                    if use_bat:
+                        res = ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh", hide=True)
+                        # Avoid buffering issues
+                        print(res.stdout)
+                        print(res.stderr)
+                    else:
+                        with open(f'{tmpdir}/{job}.sh') as f:
+                            print(f.read())
+                    print('\nError:')
+                    print(error)
+
+            raise Exit(
+                f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
+            )
