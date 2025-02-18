@@ -467,11 +467,6 @@ class TestCheckQALabels(unittest.TestCase):
                 self.fail(f"Test case: {tc.name} should not have raised an error")
 
 
-class Member:
-    def __init__(self, login):
-        self.login = login
-
-
 class TestCheckPermissions(unittest.TestCase):
     @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
     @patch('slack_sdk.WebClient', autospec=True)
@@ -516,10 +511,9 @@ class TestCheckPermissions(unittest.TestCase):
         gh_api, team_a, client_mock = MagicMock(), MagicMock(), MagicMock()
         team_a.name = "secret-agent"
         team_a.html_url = "http://secret-agent"
-        team_a.get_members.return_value = [Member('tornado')]
         gh_api.find_all_teams.return_value = [team_a]
-        gh_api.get_committers.return_value = {'zorro', 'bernardo'}
-        gh_api.get_reviewers.return_value = {'garcia'}
+        gh_api.get_active_users.return_value = {'zorro', 'bernardo', 'garcia'}
+        gh_api.get_direct_team_members.return_value = ['tornado']
         gh_mock.return_value = gh_api
         web_mock.return_value = client_mock
         check_permissions(Context(), "antagonist-ai")
@@ -541,7 +535,14 @@ class TestCheckPermissions(unittest.TestCase):
                     'type': 'section',
                     'text': {
                         'type': 'mrkdwn',
-                        'text': 'Users with no contribution:\n - <https://github.com/tornado|tornado>\n\n',
+                        'text': 'Users with no contribution:\n',
+                    },
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': ' - <https://github.com/orgs/DataDog/teams/secret-agent|secret-agent>: tornado',
                     },
                 },
                 {
@@ -552,7 +553,7 @@ class TestCheckPermissions(unittest.TestCase):
                     },
                 },
             ],
-            text=':github: antagonist-ai permissions check\nTeams:\n - <http://secret-agent|secret-agent>\nContributors:\n - <https://github.com/tornado|tornado>\n',
+            text=":github: antagonist-ai permissions check\nTeams:\n - <http://secret-agent|secret-agent>\nContributors: defaultdict(<class 'set'>, {'secret-agent': {'tornado'}})\n",
         )
 
     @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
@@ -562,10 +563,9 @@ class TestCheckPermissions(unittest.TestCase):
         gh_api, team_a, client_mock = MagicMock(), MagicMock(), MagicMock()
         team_a.name = "secret-agent"
         team_a.html_url = "http://secret-agent"
-        team_a.get_members.return_value = [Member('tornado'), Member('DonDiegoDeLaVega')]
         gh_api.find_all_teams.return_value = [team_a]
-        gh_api.get_committers.return_value = {'zorro', 'bernardo', 'DonDiegoDeLaVega'}
-        gh_api.get_reviewers.return_value = {'garcia'}
+        gh_api.get_active_users.return_value = {'zorro', 'bernardo', 'DonDiegoDeLaVega', 'garcia'}
+        gh_api.get_direct_team_members.return_value = ['tornado', 'DonDiegoDeLaVega']
         gh_mock.return_value = gh_api
         web_mock.return_value = client_mock
         check_permissions(Context(), "antagonist-ai")
@@ -580,7 +580,14 @@ class TestCheckPermissions(unittest.TestCase):
                     'type': 'section',
                     'text': {
                         'type': 'mrkdwn',
-                        'text': 'Users with no contribution:\n - <https://github.com/tornado|tornado>\n\n',
+                        'text': 'Users with no contribution:\n',
+                    },
+                },
+                {
+                    'type': 'section',
+                    'text': {
+                        'type': 'mrkdwn',
+                        'text': ' - <https://github.com/orgs/DataDog/teams/secret-agent|secret-agent>: tornado',
                     },
                 },
                 {
@@ -591,5 +598,5 @@ class TestCheckPermissions(unittest.TestCase):
                     },
                 },
             ],
-            text=':github: antagonist-ai permissions check\nContributors:\n - <https://github.com/tornado|tornado>\n',
+            text=":github: antagonist-ai permissions check\nContributors: defaultdict(<class 'set'>, {'secret-agent': {'tornado'}})\n",
         )

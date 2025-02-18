@@ -4,7 +4,7 @@ import json
 import os
 import re
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from functools import lru_cache
 
 from invoke.context import Context
@@ -25,7 +25,6 @@ from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_git_pretty_ref
-from tasks.libs.notify.pipeline_status import send_slack_message
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
@@ -143,7 +142,10 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
 
     message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
 
-    send_slack_message("ci-infra-support", message)
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ["SLACK_API_TOKEN"])
+    client.chat_postMessage(channel="ci-infra-support", text=message)
     return workflow_conclusion
 
 
@@ -677,7 +679,7 @@ query {
 
 
 @task
-def check_permissions(_, repo: str):
+def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
     """
     Check the permissions on a given repository
     - list members without any contribution in the last 6 months
@@ -691,19 +693,19 @@ def check_permissions(_, repo: str):
         exclude_teams=['Dev', 'apm', 'agent-supply-chain', 'agent-platform'],
         exclude_permissions=['pull'],
     )
+    print(f"Found {len(all_teams)} teams")
     idle_teams = []
-    idle_contributors = set()
-    committers = gh.get_committers()
-    reviewers = gh.get_reviewers()
-    print(f"Checking permissions for {repo}, {len(committers)} committers, {len(reviewers)} reviewers")
+    idle_contributors = defaultdict(set)
+    active_users = gh.get_active_users(duration_days=90)
+    print(f"Checking permissions for {repo}, {len(active_users)} active users")
     for team in all_teams:
-        members = team.get_members()
+        members = gh.get_direct_team_members(team.slug)
         has_contributors = False
         for member in members:
-            if member.login in committers or member.login in reviewers:
-                has_contributors = True
+            if member not in active_users:
+                idle_contributors[team.name].add(member)
             else:
-                idle_contributors.add(member.login)
+                has_contributors = True
         if not has_contributors:
             idle_teams.append((team.name, team.html_url))
 
@@ -730,16 +732,23 @@ def check_permissions(_, repo: str):
                 }
             )
         if idle_contributors:
-            contributors = [
-                f" - <https://github.com/{contributor}|{contributor}>\n" for contributor in idle_contributors
-            ]
-            message += f"Contributors:\n{''.join(contributors)}"
+            message += f"Contributors: {idle_contributors}\n"
             blocks.append(
                 {
                     "type": "section",
-                    "text": {"type": "mrkdwn", "text": f"Users with no contribution:\n{''.join(contributors)}\n"},
+                    "text": {"type": "mrkdwn", "text": "Users with no contribution:\n"},
                 }
             )
+            for team, members in idle_contributors.items():
+                blocks.append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f" - <https://github.com/orgs/DataDog/teams/{team}|{team}>: {', '.join(members)}",
+                        },
+                    }
+                )
         blocks.append(
             {
                 "type": "section",
@@ -749,5 +758,7 @@ def check_permissions(_, repo: str):
                 },
             }
         )
-        client.chat_postMessage(channel="agent-devx-help", blocks=blocks, text=message)
+        MAX_BLOCKS = 50
+        for idx in range(0, len(blocks), MAX_BLOCKS):
+            client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
         print("Message sent to slack")

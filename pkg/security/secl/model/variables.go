@@ -13,7 +13,7 @@ import (
 var (
 	// SECLVariables set of variables
 	SECLVariables = map[string]eval.SECLVariable{
-		"process.pid": eval.NewIntVariable(func(ctx *eval.Context) int {
+		"process.pid": eval.NewScopedIntVariable(func(ctx *eval.Context) int {
 			pc := ctx.Event.(*Event).ProcessContext
 			if pc == nil {
 				return 0
