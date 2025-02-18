@@ -20,7 +20,8 @@ import (
 )
 
 // PlatformProbe represents the no-op platform probe on unsupported platforms
-type PlatformProbe struct {
+type PlatformProbe interface {
+	NewEvent() *model.Event
 }
 
 // Probe represents the runtime security probe
