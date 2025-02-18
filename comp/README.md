@@ -468,6 +468,10 @@ Package expvars initializes the expvar server of the process agent.
 
 Package forwarders implements a component to provide forwarders used by the process agent.
 
+### [comp/process/gpusubscriber](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/gpusubscriber)
+
+Package gpusubscriber implements a component to subscribe to WorkloadMeta GPU events in the Agent.
+
 ### [comp/process/hostinfo](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/hostinfo)
 
 Package hostinfo wraps the hostinfo inside a component. This is useful because it is relied on by other components.
