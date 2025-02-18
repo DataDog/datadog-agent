@@ -219,11 +219,15 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		}
 		typeHeader.ParameterPieces = arrayElements
 	} else if typeEntry.Tag == dwarf.TagPointerType {
+		// Get underlying type that the pointer points to
 		pointerElements, err := getPointerLayers(typeEntry.Offset, dwarfData, seenTypes)
 		if err != nil {
 			return nil, fmt.Errorf("could not find pointer type: %w", err)
 		}
 		typeHeader.ParameterPieces = pointerElements
+		// pointers have a unique ID so we only capture the address once when generating
+		// location expressions
+		typeHeader.ID = randomLabel()
 	}
 
 	return &typeHeader, nil
@@ -373,6 +377,8 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[s
 	return structFields, nil
 }
 
+// getPointerLayers is used to populate the underlying type of pointers. The returned slice of parameters
+// would contain a single element which represents the entire type tree that the pointer points to.
 func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) ([]*ditypes.Parameter, error) {
 	typeReader := dwarfData.Reader()
 	typeReader.Seek(offset)
