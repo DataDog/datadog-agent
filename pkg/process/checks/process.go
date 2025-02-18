@@ -18,7 +18,6 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -123,8 +122,6 @@ type ProcessCheck struct {
 	serviceExtractor *parser.ServiceExtractor
 
 	wmeta workloadmetacomp.Component
-
-	tagger tagger.Component
 
 	sysprobeClient *http.Client
 
