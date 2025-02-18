@@ -107,8 +107,7 @@ type Process struct {
 	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
-	Variables               eval.NamedVariables `field:"-"`
-	ScrubbedCmdLineResolved bool                `field:"-"`
+	ScrubbedCmdLineResolved bool `field:"-"`
 }
 
 // ExecEvent represents a exec event

@@ -178,6 +178,8 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					// element of this slice
 					sliceElementType := slicePointer.ParameterPieces[0]
 
+					labelName := randomLabel()
+
 					if slicePointer.Location != nil && sliceLength.Location != nil {
 						// Fields of the slice are directly assigned
 						targetExpressions = append(targetExpressions,
@@ -188,7 +190,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
 							GenerateLocationExpression(limitsInfo, sliceElementType)
 							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
-							labelName := randomLabel()
 							targetExpressions = append(targetExpressions,
 								ditypes.PrintStatement("%s", "Reading slice element "+fmt.Sprintf("%d", i)),
 								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),
@@ -196,7 +197,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 								ditypes.ApplyOffsetLocationExpression(uint(sliceElementType.TotalSize)*uint(i)),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
-							targetExpressions = append(targetExpressions, ditypes.InsertLabel(labelName))
 						}
 					} else {
 						// Expect address of the slice struct on stack, use offsets accordingly
@@ -220,9 +220,9 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 								ditypes.ApplyOffsetLocationExpression(uint(i*(int(sliceElementType.TotalSize)))),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
-							targetExpressions = append(targetExpressions, ditypes.InsertLabel(labelName))
 						}
 					}
+					targetExpressions = append(targetExpressions, ditypes.InsertLabel(labelName))
 					continue
 					/* end parsing slices */
 				} else if elementParam.Kind == uint(reflect.Array) {
@@ -268,20 +268,6 @@ func collectAllLocationExpressions(parameter *ditypes.Parameter, remove bool) []
 	return expressions
 }
 
-//nolint:all
-func printLocationExpressions(expressions []ditypes.LocationExpression) {
-	for i := range expressions {
-		fmt.Printf("%s %d %d %d %s %s\n",
-			expressions[i].Opcode.String(),
-			expressions[i].Arg1,
-			expressions[i].Arg2,
-			expressions[i].Arg3,
-			expressions[i].Label,
-			expressions[i].CollectionIdentifier,
-		)
-	}
-}
-
 type expressionParamTuple struct {
 	TypePath  string
 	Parameter *ditypes.Parameter
@@ -296,7 +282,7 @@ func generateLocationVisitsMap(parameter *ditypes.Parameter) (trieKeys, needsExp
 
 	var visit func(param *ditypes.Parameter, path string)
 	visit = func(param *ditypes.Parameter, path string) {
-		if param == nil {
+		if param == nil || param.DoNotCapture {
 			return
 		}
 		trieKeys = append(trieKeys, expressionParamTuple{path + param.Type, param})

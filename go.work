@@ -1,6 +1,6 @@
-go 1.23.3
+go 1.23.5
 
-toolchain go1.23.5
+toolchain go1.23.6
 
 use (
 	.
@@ -40,6 +40,7 @@ use (
 	comp/otelcol/converter/impl
 	comp/otelcol/ddflareextension/def
 	comp/otelcol/ddflareextension/impl
+	comp/otelcol/ddflareextension/types
 	comp/otelcol/ddprofilingextension/def
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
@@ -75,6 +76,7 @@ use (
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
+	pkg/config/viperconfig
 	pkg/errors
 	pkg/fips
 	pkg/gohai

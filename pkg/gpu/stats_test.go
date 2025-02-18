@@ -95,6 +95,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	require.NotNil(t, metrics)
 	require.Equal(t, allocSize*2, metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize*2, metrics.Memory.MaxBytes)
+	require.Equal(t, float64(allocSize*2)/float64(testutil.DefaultTotalMemory), metrics.Memory.CurrentBytesPercentage)
 
 	// defined kernel is using only 1 core for 9 of the 10 seconds
 	expectedUtil := 1.0 / testutil.DefaultGpuCores * 0.9
@@ -148,6 +149,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	require.NotNil(t, metrics)
 	require.Equal(t, uint64(0), metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize, metrics.Memory.MaxBytes)
+	require.Equal(t, 0.0, metrics.Memory.CurrentBytesPercentage)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
@@ -224,6 +226,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	require.NotNil(t, metrics)
 	require.Equal(t, allocSize+shmemSize, metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize*2+shmemSize, metrics.Memory.MaxBytes)
+	require.Equal(t, float64(allocSize+shmemSize)/float64(testutil.DefaultTotalMemory), metrics.Memory.CurrentBytesPercentage)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9

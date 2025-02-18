@@ -72,6 +72,11 @@ func TestConvert(t *testing.T) {
 			expectedResult: "connectors/set-default/config-result.yaml",
 		},
 		{
+			name:           "extensions/empty-extensions",
+			provided:       "extensions/empty-extensions/config.yaml",
+			expectedResult: "extensions/empty-extensions/config-result.yaml",
+		},
+		{
 			name:           "extensions/no-extensions",
 			provided:       "extensions/no-extensions/config.yaml",
 			expectedResult: "extensions/no-extensions/config-result.yaml",
@@ -85,6 +90,11 @@ func TestConvert(t *testing.T) {
 			name:           "extensions/no-changes",
 			provided:       "extensions/no-changes/config.yaml",
 			expectedResult: "extensions/no-changes/config.yaml",
+		},
+		{
+			name:           "processors/empty-processors",
+			provided:       "processors/empty-processors/config.yaml",
+			expectedResult: "processors/empty-processors/config-result.yaml",
 		},
 		{
 			name:           "processors/no-processors",
@@ -105,6 +115,11 @@ func TestConvert(t *testing.T) {
 			name:           "processors/no-changes",
 			provided:       "processors/no-changes/config.yaml",
 			expectedResult: "processors/no-changes/config.yaml",
+		},
+		{
+			name:           "receivers/empty-receivers",
+			provided:       "receivers/empty-receivers/config.yaml",
+			expectedResult: "receivers/empty-receivers/config-result.yaml",
 		},
 		{
 			name:           "receivers/job-name-change",
