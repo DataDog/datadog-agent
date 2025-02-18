@@ -27,23 +27,24 @@ type Report interface {
 	ID() string
 }
 
-// ScanOptionsFromConfig loads the scanning options from the configuration
-func ScanOptionsFromConfig(cfg config.Component, containers bool) (scanOpts ScanOptions) {
-	if containers {
-		scanOpts.CheckDiskUsage = cfg.GetBool("sbom.container_image.check_disk_usage")
-		scanOpts.MinAvailableDisk = uint64(cfg.GetSizeInBytes("sbom.container_image.min_available_disk"))
-		scanOpts.Timeout = time.Duration(cfg.GetInt("sbom.container_image.scan_timeout")) * time.Second
-		scanOpts.WaitAfter = time.Duration(cfg.GetInt("sbom.container_image.scan_interval")) * time.Second
-		scanOpts.Analyzers = cfg.GetStringSlice("sbom.container_image.analyzers")
-		scanOpts.UseMount = cfg.GetBool("sbom.container_image.use_mount")
-		scanOpts.OverlayFsScan = cfg.GetBool("sbom.container_image.overlayfs_direct_scan")
+// ScanOptionsFromConfigForContainers loads the scanning options from the configuration
+func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
+	return ScanOptions{
+		CheckDiskUsage:   cfg.GetBool("sbom.container_image.check_disk_usage"),
+		MinAvailableDisk: uint64(cfg.GetSizeInBytes("sbom.container_image.min_available_disk")),
+		Timeout:          time.Duration(cfg.GetInt("sbom.container_image.scan_timeout")) * time.Second,
+		WaitAfter:        time.Duration(cfg.GetInt("sbom.container_image.scan_interval")) * time.Second,
+		Analyzers:        cfg.GetStringSlice("sbom.container_image.analyzers"),
+		UseMount:         cfg.GetBool("sbom.container_image.use_mount"),
+		OverlayFsScan:    cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 	}
+}
 
-	if len(scanOpts.Analyzers) == 0 {
-		scanOpts.Analyzers = cfg.GetStringSlice("sbom.host.analyzers")
+// ScanOptionsFromConfigForHosts loads the scanning options from the configuration
+func ScanOptionsFromConfigForHosts(cfg config.Component) ScanOptions {
+	return ScanOptions{
+		Analyzers: cfg.GetStringSlice("sbom.host.analyzers"),
 	}
-
-	return
 }
 
 // ScanRequest defines the scan request interface
