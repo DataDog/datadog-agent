@@ -2,7 +2,7 @@
 
 From the repository root run the following:
 ```
-inv install-tools
+deva inv install-tools
 ```
 to install the correct version of required tools
 
@@ -11,5 +11,5 @@ to install the correct version of required tools
 
 From the repository root run the following:
 ```
-inv -e security-agent.generate-cws-proto
+deva inv -e security-agent.generate-cws-proto
 ```

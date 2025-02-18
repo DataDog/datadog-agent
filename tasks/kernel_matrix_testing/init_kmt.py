@@ -34,9 +34,6 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
         if resp.lower().strip() != "y":
             raise Exit("Aborted by user")
 
-    reqs_file = Path(__file__).parent / "requirements.txt"
-    ctx.run(f"pip3 install -r {reqs_file.absolute()}")
-
     if shutil.which("pulumi") is None:
         if Path("~/.pulumi/bin/pulumi").expanduser().exists():
             raise Exit("pulumi is installed in ~/.pulumi/bin/pulumi, but not in $PATH. Add it to $PATH.")
