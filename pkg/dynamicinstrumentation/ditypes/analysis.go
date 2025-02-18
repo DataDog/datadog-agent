@@ -19,7 +19,7 @@ type TypeMap struct {
 
 	// FunctionsByPC places DWARF subprogram (function) entries in order by
 	// its low program counter which is necessary for resolving stack traces
-	FunctionsByPC []*LowPCEntry
+	FunctionsByPC []*FuncByPCEntry
 
 	// DeclaredFiles places DWARF compile unit entries in order by its
 	// low program counter which is necessary for resolving declared file
@@ -409,4 +409,12 @@ func PrintLocationExpressions(expressions []LocationExpression) {
 			expressions[i].CollectionIdentifier,
 		)
 	}
+}
+
+// FuncByPCEntry represents useful data associated with a function entry in DWARF
+type FuncByPCEntry struct {
+	LowPC      uint64
+	Fn         string
+	FileNumber int64
+	Line       int64
 }

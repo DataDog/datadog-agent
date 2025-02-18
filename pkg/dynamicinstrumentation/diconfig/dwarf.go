@@ -83,11 +83,32 @@ entryLoop:
 		}
 
 		if entry.Tag == dwarf.TagSubprogram {
+			var (
+				fn         string
+				fileNumber int64
+				line       int64
+			)
+			for _, field := range entry.Field {
+				if field.Attr == dwarf.AttrName {
+					fn = field.Val.(string)
+				}
+				if field.Attr == dwarf.AttrDeclFile {
+					fileNumber = field.Val.(int64)
+				}
+				if field.Attr == dwarf.AttrDeclLine {
+					line = field.Val.(int64)
+				}
+			}
 
 			for _, field := range entry.Field {
 				if field.Attr == dwarf.AttrLowpc {
 					lowpc := field.Val.(uint64)
-					result.FunctionsByPC = append(result.FunctionsByPC, &ditypes.LowPCEntry{LowPC: lowpc, Entry: entry})
+					result.FunctionsByPC = append(result.FunctionsByPC, &ditypes.FuncByPCEntry{
+						LowPC:      lowpc,
+						Fn:         fn,
+						FileNumber: fileNumber,
+						Line:       line,
+					})
 				}
 			}
 
@@ -153,7 +174,7 @@ entryLoop:
 	}
 
 	// Sort program counter slice for lookup when resolving pcs->functions
-	slices.SortFunc(result.FunctionsByPC, func(a, b *ditypes.LowPCEntry) int {
+	slices.SortFunc(result.FunctionsByPC, func(a, b *ditypes.FuncByPCEntry) int {
 		return cmp.Compare(b.LowPC, a.LowPC)
 	})
 	slices.SortFunc(result.DeclaredFiles, func(a, b *ditypes.LowPCEntry) int {
