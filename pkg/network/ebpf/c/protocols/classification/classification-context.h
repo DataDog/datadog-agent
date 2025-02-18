@@ -23,6 +23,7 @@ typedef struct {
     // bit mask with layers that should be skipped
     u16 routing_skip_layers;
     classification_prog_t routing_current_program;
+    bool tls_handshake_half_processed;
 } classification_context_t;
 
 // Kernels before 4.7 do not know about per-cpu array maps.
