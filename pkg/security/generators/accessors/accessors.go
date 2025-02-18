@@ -1078,7 +1078,7 @@ func getFieldReflectType(field *common.StructField) string {
 }
 
 func isReadOnly(field *common.StructField) bool {
-	return field.IsLength || field.Helper || field.ReadOnly
+	return field.IsLength || field.ReadOnly
 }
 
 func genGetter(getters []string, getter string) bool {

@@ -6,12 +6,113 @@
 package model
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"time"
 
-	"github.com/DataDog/viper"
+	"github.com/mitchellh/mapstructure"
 )
+
+// ConfigFileNotFoundError wrapper error for when a config file is not found
+type ConfigFileNotFoundError struct {
+	Err error
+}
+
+// Error returns the error message
+func (e ConfigFileNotFoundError) Error() string {
+	return fmt.Sprintf("Config File Not Found %v", e.Err.Error())
+}
+
+// Source stores what edits a setting as a string
+type Source string
+
+// Declare every known Source
+const (
+	// SourceSchema are settings define in the schema for the configuration but without any default.
+	SourceSchema Source = "schema"
+	// SourceDefault are the values from defaults.
+	SourceDefault Source = "default"
+	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
+	// SetWithoutSource.
+	SourceUnknown Source = "unknown"
+	// SourceFile are the values loaded from configuration file.
+	SourceFile Source = "file"
+	// SourceEnvVar are the values loaded from the environment variables.
+	SourceEnvVar Source = "environment-variable"
+	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
+	// value for some settings when not set by the user.
+	SourceAgentRuntime Source = "agent-runtime"
+	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
+	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
+	// the core-agent.
+	SourceLocalConfigProcess Source = "local-config-process"
+	// SourceRC are the values loaded from remote-config (aka Datadog backend)
+	SourceRC Source = "remote-config"
+	// SourceFleetPolicies are the values loaded from remote-config file
+	SourceFleetPolicies Source = "fleet-policies"
+	// SourceCLI are the values set by the user at runtime through the CLI.
+	SourceCLI Source = "cli"
+	// SourceProvided are all values set by any source but default.
+	SourceProvided Source = "provided" // everything but defaults
+)
+
+// Sources list the known sources, following the order of hierarchy between them
+var Sources = []Source{
+	SourceDefault,
+	SourceUnknown,
+	SourceFile,
+	SourceEnvVar,
+	SourceFleetPolicies,
+	SourceAgentRuntime,
+	SourceLocalConfigProcess,
+	SourceRC,
+	SourceCLI,
+}
+
+// sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
+// configuration tree (a higher priority overwrites a lower one).
+var sourcesPriority = map[Source]int{
+	SourceSchema:             -1,
+	SourceDefault:            0,
+	SourceUnknown:            1,
+	SourceFile:               2,
+	SourceEnvVar:             3,
+	SourceFleetPolicies:      4,
+	SourceAgentRuntime:       5,
+	SourceLocalConfigProcess: 6,
+	SourceRC:                 7,
+	SourceCLI:                8,
+}
+
+// ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
+type ValueWithSource struct {
+	Source Source
+	Value  interface{}
+}
+
+// IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
+func (s Source) IsGreaterThan(x Source) bool {
+	return sourcesPriority[s] > sourcesPriority[x]
+}
+
+// PreviousSource returns the source before the current one, or Default (lowest priority) if there isn't one
+func (s Source) PreviousSource() Source {
+	previous := sourcesPriority[s]
+	if previous == 0 {
+		return Sources[previous]
+	}
+	return Sources[previous-1]
+}
+
+// String casts Source into a string
+func (s Source) String() string {
+	// Safeguard: if we don't know the Source, we assume SourceUnknown
+	if s == "" {
+		return string(SourceUnknown)
+	}
+	return string(s)
+}
 
 // Proxy represents the configuration for proxies in the agent
 type Proxy struct {
@@ -68,7 +169,7 @@ type Reader interface {
 	IsConfigured(key string) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct
-	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
+	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
@@ -152,7 +253,7 @@ type Setup interface {
 // Compound is an interface for retrieving compound elements from the config, plus
 // some misc functions, that should likely be split into another interface
 type Compound interface {
-	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
+	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
 
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error

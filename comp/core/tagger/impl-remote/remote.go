@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -289,9 +290,9 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
 func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 200 * time.Millisecond
-	expBackoff.MaxInterval = 1 * time.Second
-	expBackoff.MaxElapsedTime = 15 * time.Second
+	expBackoff.InitialInterval = 50 * time.Millisecond
+	expBackoff.MaxInterval = 200 * time.Millisecond
+	expBackoff.MaxElapsedTime = 500 * time.Millisecond
 
 	err = backoff.Retry(func() error {
 		select {
@@ -318,8 +319,14 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 		)
 		defer queryCancel()
 
-		// Call the gRPC method to get the container ID from the origin info
+		// Call the gRPC method to get the container ID from the OriginInfo.
 		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+			LocalData: &pb.GenerateContainerIDFromOriginInfoRequest_LocalData{
+				ProcessID:   &originInfo.LocalData.ProcessID,
+				ContainerID: &originInfo.LocalData.ContainerID,
+				Inode:       &originInfo.LocalData.Inode,
+				PodUID:      &originInfo.LocalData.PodUID,
+			},
 			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
 				Init:          &originInfo.ExternalData.Init,
 				ContainerName: &originInfo.ExternalData.ContainerName,
@@ -327,12 +334,12 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 			},
 		})
 		if err != nil {
-			_ = t.log.Errorf("unable to generate container ID from origin info, will retry: %s", err)
+			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
 			return err
 		}
 
 		if containerIDResponse == nil {
-			_ = t.log.Warnf("unable to generate container ID from origin info, will retry: %s", err)
+			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
 			return errors.New("containerIDResponse is nil")
 		}
 		containerID = containerIDResponse.ContainerID

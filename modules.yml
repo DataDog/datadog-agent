@@ -74,6 +74,11 @@ modules:
   comp/otelcol/converter/impl: default
   comp/otelcol/ddflareextension/def: default
   comp/otelcol/ddflareextension/impl: default
+  comp/otelcol/ddflareextension/types: default
+  comp/otelcol/ddprofilingextension/def:
+    used_by_otel: true
+  comp/otelcol/ddprofilingextension/impl:
+    used_by_otel: true
   comp/otelcol/logsagentpipeline:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
@@ -153,6 +158,8 @@ modules:
   pkg/config/teeconfig:
     used_by_otel: true
   pkg/config/utils:
+    used_by_otel: true
+  pkg/config/viperconfig:
     used_by_otel: true
   pkg/errors: default
   pkg/fips: default
@@ -275,7 +282,8 @@ modules:
     used_by_otel: true
   pkg/util/utilizationtracker:
     used_by_otel: true
-  pkg/util/uuid: default
+  pkg/util/uuid:
+    used_by_otel: true
   pkg/util/winutil:
     used_by_otel: true
   pkg/version:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import sys
 import unittest
@@ -701,6 +702,16 @@ class TestGenerateRepoData(unittest.TestCase):
         self.assertEqual("9.1.x", repo_data["datadog-agent-macos-build"]["branch"])
         self.assertEqual("9.1.x", repo_data["datadog-agent"]["branch"])
 
+    @patch('tasks.libs.releasing.json.find_previous_tags', new=MagicMock(return_value={'datadog-agent': '6.53.4-rc.2'}))
+    def test_agent_6(self):
+        next_version = MagicMock()
+        next_version.major = 6
+        next_version.branch.return_value = "6.53.x"
+        repo_data = generate_repo_data(Context(), False, next_version, "6.53.x")
+        self.assertEqual(len(repo_data), 1)
+        self.assertEqual("6.53.x", repo_data["datadog-agent"]["branch"])
+        self.assertEqual("6.53.4-rc.2", repo_data["datadog-agent"]["previous_tag"])
+
 
 class TestCheckForChanges(unittest.TestCase):
     @patch('tasks.release.agent_context')
@@ -725,6 +736,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                     "4n0th3rc0mm1t0        refs/heads/main"
                 ),
@@ -775,6 +787,7 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
+    @patch.dict(os.environ, {'GITLAB_CI': 'true', 'GITHUB_ACTIONS': 'true'})
     @patch('os.chdir', new=MagicMock())
     def test_changes_new_commit_first_repo(self, version_mock, print_mock, _):
         with mock_git_clone():
@@ -784,6 +797,9 @@ class TestCheckForChanges(unittest.TestCase):
             version_mock.return_value = next
             c = MockContext(
                 run={
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
+                    'git config user.name github-actions[bot]': Result(""),
+                    'git config user.email github-actions[bot]@users.noreply.github.com': Result(""),
                     'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                         "4n0th3rc0mm1t9        refs/heads/main"
                     ),
@@ -855,6 +871,7 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_changes_new_commit_all_repo(self, version_mock, print_mock, _):
         with mock_git_clone():
             next = MagicMock()
@@ -863,6 +880,7 @@ class TestCheckForChanges(unittest.TestCase):
             version_mock.return_value = next
             c = MockContext(
                 run={
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
                     'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                         "4n0th3rc0mm1t9        refs/heads/main"
                     ),
@@ -946,6 +964,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                     "4n0th3rc0mm1t0        refs/heads/main"
                 ),
@@ -1004,6 +1023,7 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
+    @patch.dict(os.environ, {'GITLAB_CI': 'true', 'GITHUB_ACTIONS': 'true'})
     @patch('os.chdir', new=MagicMock())
     def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock, _):
         with mock_git_clone():
@@ -1013,6 +1033,9 @@ class TestCheckForChanges(unittest.TestCase):
             version_mock.return_value = next
             c = MockContext(
                 run={
+                    'git rev-parse --abbrev-ref HEAD': Result("main"),
+                    'git config user.name github-actions[bot]': Result(""),
+                    'git config user.email github-actions[bot]@users.noreply.github.com': Result(""),
                     'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/7.55.x"': Result(
                         "4n0th3rc0mm1t0        refs/heads/main"
                     ),
@@ -1087,6 +1110,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
@@ -1118,6 +1142,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
@@ -1149,6 +1174,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
@@ -1185,6 +1211,7 @@ class TestCheckForChanges(unittest.TestCase):
         version_mock.return_value = next
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
@@ -1245,6 +1272,7 @@ class TestUpdateModules(unittest.TestCase):
 class TestTagModules(unittest.TestCase):
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(2)]))
     @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_2_tags(self):
         c = MockContext(run=Result("yolo"))
         with patch('tasks.release.get_default_modules') as mock_modules:
@@ -1257,6 +1285,7 @@ class TestTagModules(unittest.TestCase):
 
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(3)]))
     @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_3_tags(self):
         c = MockContext(run=Result("yolo"))
         with patch('tasks.release.get_default_modules') as mock_modules:
@@ -1269,6 +1298,7 @@ class TestTagModules(unittest.TestCase):
 
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(4)]))
     @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_4_tags(self):
         c = MockContext(run=Result("yolo"))
         with patch('tasks.release.get_default_modules') as mock_modules:
@@ -1285,6 +1315,7 @@ class TestTagModules(unittest.TestCase):
 
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(100)]))
     @patch('tasks.release.agent_context', new=MagicMock())
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
     def test_100_tags(self):
         c = MockContext(run=Result("yolo"))
         with patch('tasks.release.get_default_modules') as mock_modules:

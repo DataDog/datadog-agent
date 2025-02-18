@@ -26,7 +26,6 @@ from tasks.libs.common.utils import (
     is_allowed_repo_branch,
 )
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.pipeline.notifications import send_slack_message
 from tasks.libs.pipeline.tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
@@ -475,6 +474,10 @@ EMAIL_SLACK_ID_MAP = {
 
 @task
 def changelog(ctx, new_commit_sha):
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+
+    client = WebClient(token=os.environ["SLACK_API_TOKEN"])
     # Environment variable to deal with both local and CI environments
     if "CI_PROJECT_DIR" in os.environ:
         parent_dir = os.environ["CI_PROJECT_DIR"]
@@ -502,7 +505,7 @@ def changelog(ctx, new_commit_sha):
     if old_commit_sha == new_commit_sha:
         print("No new commits found, exiting")
         slack_message += no_commits_msg
-        send_slack_message("system-probe-ops", slack_message)
+        client.chat_postMessage(channel="system-probe-ops", text=slack_message)
         return
 
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
@@ -513,7 +516,7 @@ def changelog(ctx, new_commit_sha):
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
-        title, author, author_email, files, url = parse(commit_str)
+        title, _, author_email, files, url = parse(commit_str)
         if not is_system_probe(owners, files):
             continue
         message_link = f"• <{url}|{title}>" if url else f"• {title}"
@@ -523,7 +526,12 @@ def changelog(ctx, new_commit_sha):
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
         else:
-            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
+            try:
+                recipient = client.users_lookupByEmail(email=author_email)
+                author_handle = recipient.data["user"]["id"]
+            except SlackApiError:
+                # The email on the Github account is not a datadoghhq.com address, it cannot be decoded by slack.
+                pass
         if author_handle:
             author_handle = f"<@{author_handle}>"
         else:
@@ -543,7 +551,7 @@ def changelog(ctx, new_commit_sha):
         slack_message += empty_changelog_msg
 
     print(f"Posting message to slack: \n {slack_message}")
-    send_slack_message("system-probe-ops", slack_message)
+    client.chat_postMessage(channel="system-probe-ops", text=slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
     res = ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
@@ -720,15 +728,16 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     """
     Trigger a pipeline from an external owner.
     """
-    # Verify parameters
-    owner_branch_name = owner_branch_name.lower()
+
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
+    match = branch_re.match(owner_branch_name)
 
     assert (
-        owner_branch_name.count('/') >= 1
-    ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
+        match is not None
+    ), f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
     assert "'" not in owner_branch_name
 
-    owner, branch = owner_branch_name.split('/', 1)
+    owner, branch = match.group('owner'), match.group('branch_name')
     no_verify_flag = ' --no-verify' if no_verify else ''
 
     # Can checkout

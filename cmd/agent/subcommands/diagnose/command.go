@@ -12,6 +12,9 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -37,8 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -206,7 +207,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 		Use:   "inventory-otel",
 		Short: "Print the Inventory otel metadata payload.",
 		Long: `
-This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
+This command print the inventory-otel metadata payload. This payload is used by the 'OTel Agent' product.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-otel")),
@@ -218,7 +219,7 @@ This command print the inventory-otel metadata payload. This payload is used by 
 
 	payloadInventoriesHaAgentCmd := &cobra.Command{
 		Use:   "ha-agent",
-		Short: "Print the HA Agent metadata payload.",
+		Short: "Print the HA Agent Metadata payload.",
 		Long: `
 This command print the ha-agent metadata payload. This payload is used by the 'HA Agent' feature.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
