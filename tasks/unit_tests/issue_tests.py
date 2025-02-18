@@ -72,6 +72,29 @@ pkg/network/usm/tests/tracer_usm_linux_test.go
 
     @patch('builtins.print')
     @patch('tasks.issue.GithubAPI')
+    def test_single_dependency_with_folder(self, gh_mock, print_mock):
+        pr_mock = MagicMock()
+        pr_mock.user.login = "dependabot[bot]"
+        pr_mock.title = "Bump golang from 1.23.6-alpine3.20 to 1.24.0-alpine3.20 in /test/fakeintake"
+        gh_instance = MagicMock()
+        gh_instance.repo.get_pull.return_value = pr_mock
+        gh_mock.return_value = gh_instance
+        c = MockContext(
+            run={
+                "git ls-files | grep -e \"^.*.go$\"": Result("""pkg/network/protocols/redis/client.go
+pkg/network/usm/tests/tracer_usm_linux_test.go
+test/fakeintake/server/server.go
+""")
+            }
+        )
+        add_reviewers(c, 1234)
+        print_mock.assert_not_called()
+        self.assertCountEqual(
+            pr_mock.create_review_request.call_args[1]['team_reviewers'], ['agent-e2e-testing', 'agent-devx-loops']
+        )
+
+    @patch('builtins.print')
+    @patch('tasks.issue.GithubAPI')
     def test_single_dependency_several_reviewers(self, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.user.login = "dependabot[bot]"

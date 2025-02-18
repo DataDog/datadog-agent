@@ -9,8 +9,10 @@ on:
 
 jobs:
   check_comment:
-    if: github.actor == 'dd-devflow[bot]'
+    if: github.event.comment.user.id == 'dd-devflow[bot]' && github.event.issue.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    environment:
+      name: dependabot
     steps:
       - name: Check for error in comment
         id: check-comment
@@ -26,4 +28,4 @@ jobs:
         if: ${{ steps.check-comment.outputs.not_merged == 'true' }}
         run: |
           message="Hi!\nThis dependabot PR ${{github.event.issue.html_url}} was not merged.\nPlease have a look."
-          curl -X POST -H "Content-Type: application/json" --data '{"message": "$message"}' ${{ secrets.SLACK_AGENT_DEVX_WEBHOOK }}
+          curl -X POST -H "Content-Type: application/json" --data '{"message": "'"$message"'"}' ${{ secrets.SLACK_DEPENDABOT_WEBHOOK }}
