@@ -85,6 +85,14 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 					}
 				}
 
+				if arg == springBootLauncher || arg == springBootOldLauncher {
+					if springAppName, ok := newSpringBootParser(jd.ctx).GetSpringBootLauncherAppName(); ok {
+						success = true
+						metadata.SetNames(springAppName, Spring)
+						return
+					}
+				}
+
 				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {
 					// take just the class name without the package
 					success = true
