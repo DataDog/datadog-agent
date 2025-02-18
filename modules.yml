@@ -68,6 +68,8 @@ modules:
     used_by_otel: true
   comp/logs/agent/config:
     used_by_otel: true
+  comp/logs/auditor:
+    used_by_otel: true
   comp/netflow/payload: default
   comp/otelcol/collector-contrib/def: default
   comp/otelcol/collector-contrib/impl: default
@@ -177,8 +179,6 @@ modules:
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false
-  pkg/logs/auditor:
-    used_by_otel: true
   pkg/logs/client:
     used_by_otel: true
   pkg/logs/diagnostic:
