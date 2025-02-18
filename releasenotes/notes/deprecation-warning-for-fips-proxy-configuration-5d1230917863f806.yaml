@@ -8,6 +8,6 @@
 ---
 deprecations:
   - |
-    Deprecation warnings added for the fips-proxy configuration keys (eg. `fips.*`)
+    Deprecation warnings added for the fips-proxy configuration keys (e.g. `fips.*`)
     as this is planned to be unsupported in 7.65+ releases of the `datadog-agent`.
-    Please use the `datadog-fips-agent` instead.
+    Please use the `datadog-fips-agent` for FIPS compliance instead.
