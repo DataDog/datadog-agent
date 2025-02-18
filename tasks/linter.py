@@ -890,6 +890,7 @@ def gitlab_ci_shellcheck(
         # Lint scripts
         # TODO A: before / after
         # TODO A: env variables?
+        # TODO A: Powershell etc.
         if 'script' in content:
             before = (
                 ('# Before script\n' + flatten_script(content['before_script'])) if 'before_script' in content else ''
@@ -907,8 +908,9 @@ def gitlab_ci_shellcheck(
 
     if errors:
         for job, error in sorted(errors.items()):
-            print(f"{color_message('Error', Color.RED)}: {job}")
-            print(error)
+            with gitlab_section(f"Shellcheck errors for {job}"):
+                print(f"{color_message('Error', Color.RED)}: {job}")
+                print(error)
 
         raise Exit(
             f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
