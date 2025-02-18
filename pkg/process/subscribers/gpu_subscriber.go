@@ -110,14 +110,14 @@ func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 	for _, gpu := range wmetaGPUs {
 		uuid := gpu.ID
 
-		// use tagger to get gpu tags
+		// Use tagger to get gpu tags
 		entityID := types.NewEntityID(types.GPU, uuid)
 		tags, err := g.tagger.Tag(entityID, g.tagger.ChecksCardinality())
 		if err != nil {
 			log.Debugf("Could not collect tags for GPU %q, err: %v", uuid, err)
 		}
 
-		// filter tags to remove duplicates
+		// Filter tags to remove duplicates
 		for _, pid := range gpu.ActivePIDs {
 			if _, ok := pidToTagSet[int32(pid)]; !ok {
 				pidToTagSet[int32(pid)] = common.NewStringSet()

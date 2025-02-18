@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package gpusubscriberimpl implements a no-op component to handle GPU detection in the Core Agent.
 package gpusubscriberimpl
 
-// TODO: Comments
-type NoopSubscriber struct {
-}
+type NoopSubscriber struct{}
 
-func (s NoopSubscriber) GetGPUTags() map[string]string {
+func (s NoopSubscriber) GetGPUTags() map[int32][]string {
 	return nil
 }

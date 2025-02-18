@@ -9,5 +9,5 @@ package gpusubscriber
 // team: container-intake
 
 type Component interface {
-	GetGPUTags() map[string]string
+	GetGPUTags() map[int32][]string
 }
