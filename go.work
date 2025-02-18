@@ -1,8 +1,7 @@
-go 1.23.3
-
-toolchain go1.23.6
+go 1.23.6
 
 use (
+
 	.
 	comp/api/api/def
 	comp/api/authtoken
@@ -33,6 +32,7 @@ use (
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
 	comp/logs/agent/config
+	comp/logs/auditor/def
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
 	comp/otelcol/collector-contrib/impl
@@ -80,7 +80,6 @@ use (
 	pkg/fips
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
-	pkg/logs/auditor
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
