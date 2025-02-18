@@ -219,6 +219,24 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
+			name: "java ignore @",
+			cmdline: []string{
+				"java", "@/tmp/foo21321312.tmp",
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "java",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "java ignore @2",
+			cmdline: []string{
+				"java", "@foo.extra", "myapp",
+			},
+			lang:                        language.Java,
+			expectedGeneratedName:       "myapp",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
 			name: "java kafka",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
