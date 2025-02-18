@@ -9,6 +9,8 @@
 package gpusubscriberimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"go.uber.org/fx"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -33,6 +35,7 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
+	Checks []types.CheckComponent `group:"check"`
 	WMeta  workloadmeta.Component
 	Tagger tagger.Component
 }
@@ -44,8 +47,8 @@ func newGpuSubscriber(deps dependencies) gpusubscriber.Component {
 	}
 
 	// TODO: only run in core agent (not process agent), when gpu & process check is enabled?
-	if flavor.GetFlavor() == flavor.ProcessAgent {
-		// TODO: put a debug statement here to indicate we're in the process-agent and this is not enabled
+	// TODO: put a debug statement here to indicate we're in the process-agent and this is not enabled
+	if flavor.GetFlavor() == flavor.ProcessAgent || !processCheckEnabled(deps.Checks) {
 		return NoopSubscriber{}
 	}
 
@@ -54,4 +57,13 @@ func newGpuSubscriber(deps dependencies) gpusubscriber.Component {
 		OnStop:  gpuSubscriber.Stop,
 	})
 	return gpuSubComponent
+}
+
+func processCheckEnabled(checkComponents []types.CheckComponent) bool {
+	for _, check := range checkComponents {
+		if check.Object().Name() == checks.ProcessCheckName && check.Object().IsEnabled() {
+			return true
+		}
+	}
+	return false
 }
