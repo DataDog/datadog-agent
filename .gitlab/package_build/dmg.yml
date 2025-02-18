@@ -108,107 +108,104 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    - python3 --version
-    - ls -l "$(which python3)"
-    - exit
-    - export PYTHON_VERSION=3.12.6
-    - which python
-    - brew remove --force --ignore-dependencies --formula gettext
     - echo Verifying libintl
     - sudo find /usr -name "libintl*" || true
     - sudo find /opt -name "libintl*" || true
 
-    - echo 'Trying to build python from source now without gettext, install it somewhere else and update path'
-    - brew remove --ignore-dependencies python@$PYTHON_VERSION -f
-    - |
-      sudo bash -c 'rm -f /usr/local/bin/2to3*' || true
-      sudo bash -c 'rm -f /usr/local/bin/idle3*' || true
-      sudo bash -c 'rm -f /usr/local/bin/pydoc3*' || true
-      sudo bash -c 'rm -f /usr/local/bin/python3*' || true
-      sudo bash -c 'rm -f /usr/local/bin/python3*-config' || true
-      sudo bash -c "rm -rf /Library/Frameworks/Python.framework/Versions/*" || true
-      sudo bash -c "rm -rf /usr/local/Cellar/python@*" || true
-    - brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
-    - brew link --overwrite python@$PYTHON_VERSION
+    # - export PYTHON_VERSION=3.12.6
+    # - which python
+    # - brew remove --force --ignore-dependencies --formula gettext
+    # - echo 'Trying to build python from source now without gettext, install it somewhere else and update path'
+    # - brew remove --ignore-dependencies python@$PYTHON_VERSION -f
+    # - |
+    #   sudo bash -c 'rm -f /usr/local/bin/2to3*' || true
+    #   sudo bash -c 'rm -f /usr/local/bin/idle3*' || true
+    #   sudo bash -c 'rm -f /usr/local/bin/pydoc3*' || true
+    #   sudo bash -c 'rm -f /usr/local/bin/python3*' || true
+    #   sudo bash -c 'rm -f /usr/local/bin/python3*-config' || true
+    #   sudo bash -c "rm -rf /Library/Frameworks/Python.framework/Versions/*" || true
+    #   sudo bash -c "rm -rf /usr/local/Cellar/python@*" || true
+    # - brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
+    # - brew link --overwrite python@$PYTHON_VERSION
 
-    - echo Verifying libintl
-    - sudo find /usr -name "libintl*" || true
-    - sudo find /opt -name "libintl*" || true
-    - echo Installed python
-    - which python
-    - ls -l "$(which python)"
-    - python --version
+    # - echo Verifying libintl
+    # - sudo find /usr -name "libintl*" || true
+    # - sudo find /opt -name "libintl*" || true
+    # - echo Installed python
+    # - which python
+    # - ls -l "$(which python)"
+    # - python --version
 
 
-    # TODO: Useful?
-    # - which python3 || true
-    # - source .venv/bin/activate
-    # - echo goroot $GOROOT
-    # - echo gopath $GOPATH
-    # - set -e
+    # # TODO: Useful?
+    # # - which python3 || true
+    # # - source .venv/bin/activate
+    # # - echo goroot $GOROOT
+    # # - echo gopath $GOPATH
+    # # - set -e
 
     - export RELEASE_VERSION=$RELEASE_VERSION_7
     - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
 
-    - |
-      echo Removing preinstalled environment
-      # brew remove --force --ignore-dependencies --formula aria2
-      # # TODO: brew remove --force --ignore-dependencies --formula git
-      # brew remove --force --ignore-dependencies --formula libidn2
-      # brew remove --force --ignore-dependencies --formula wget
-      brew remove --force --ignore-dependencies --formula gettext
+    # - |
+    #   echo Removing preinstalled environment
+    #   # brew remove --force --ignore-dependencies --formula aria2
+    #   # # TODO: brew remove --force --ignore-dependencies --formula git
+    #   # brew remove --force --ignore-dependencies --formula libidn2
+    #   # brew remove --force --ignore-dependencies --formula wget
+    #   brew remove --force --ignore-dependencies --formula gettext
 
     # - ls /usr/local/opt/python@3.12.6/libexec/bin || true
     # - export PATH="/usr/local/opt/python@3.12.6/libexec/bin:$PATH"
-    - which python3 || true
-    - python3 --help || true
-    - exit
+    # - which python3 || true
+    # - python3 --help || true
+    # - exit
 
-    - |
-      debug()
-      {
-        echo Searching for libintl
-        sudo find /usr -name "libintl*" || true
-        sudo find /opt -name "libintl*" || true
-      }
-      echo After preinstall removal
-      debug
+    # - |
+    #   debug()
+    #   {
+    #     echo Searching for libintl
+    #     sudo find /usr -name "libintl*" || true
+    #     sudo find /opt -name "libintl*" || true
+    #   }
+    #   echo After preinstall removal
+    #   debug
 
-    # Install custom git to avoid libintl dependencies provided by gettext
-    - |
-      install_git()
-      {
-        GIT_VERSION=2.48.1
-        curl -LO https://github.com/git/git/archive/refs/tags/v${GIT_VERSION}.tar.gz
-        # TODO: Remove etc.
-        tar -xzf v${GIT_VERSION}.tar.gz
-        pushd git-$GIT_VERSION
+    # # Install custom git to avoid libintl dependencies provided by gettext
+    # - |
+    #   install_git()
+    #   {
+    #     GIT_VERSION=2.48.1
+    #     curl -LO https://github.com/git/git/archive/refs/tags/v${GIT_VERSION}.tar.gz
+    #     # TODO: Remove etc.
+    #     tar -xzf v${GIT_VERSION}.tar.gz
+    #     pushd git-$GIT_VERSION
 
-        make configure -j "$NCPU"
-        ./configure
-        echo Git Configured
+    #     make configure -j "$NCPU"
+    #     ./configure
+    #     echo Git Configured
 
-        make all -j "$NCPU"
-        echo Git Built
+    #     make all -j "$NCPU"
+    #     echo Git Built
 
-        echo "$PWD/git"
+    #     echo "$PWD/git"
 
-        popd
+    #     popd
 
-        # TODO A: Install?
-        # sudo make install -j "$NCPU"
-      }
+    #     # TODO A: Install?
+    #     # sudo make install -j "$NCPU"
+    #   }
 
-      echo Installing git
-      install_git
+    #   echo Installing git
+    #   install_git
 
-      # Use this local git
-      export PATH="$PWD/git-$GIT_VERSION:$PATH"
-      git --version
+    #   # Use this local git
+    #   export PATH="$PWD/git-$GIT_VERSION:$PATH"
+    #   git --version
 
-      echo After git install
-      debug
+    #   echo After git install
+    #   debug
 
     # # Setup builder
     # - |
