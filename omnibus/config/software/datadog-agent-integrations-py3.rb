@@ -254,6 +254,30 @@ build do
     end
   end
 
+  # Remove openssl copies from cryptography, and patch as necessary.
+  # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder
+  # to control FIPS initialization; this has surfaced as problems with `cryptography` specifically, because
+  # it's the only dependency that links to openssl needed to enable FIPS on the subset of integrations
+  # that we target.
+  # This is intended as a temporary kludge while we make a decision on how to handle the multiplicity
+  # of openssl copies in a more general way while keeping risk low.
+  if fips_mode?
+    block "Patch cryptography's openssl linking" do
+      if linux_target?
+        # We delete the libraries shipped with the wheel and replace references to those names
+        # in the binary that refrences it using patchelf
+        cryptography_folder = "#{install_dir}/embedded/lib/python#{python_version}/site-packages/cryptography"
+        so_to_patch = "#{cryptography_folder}/hazmat/bindings/_rust.abi3.so"
+        libssl_match = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")[0]
+        libcrypto_match = Dir.glob("#{cryptography_folder}.libs/libcrypto-*.so.3")[0]
+        shellout! "patchelf --replace-needed #{File.basename(libssl_match)} libssl.so.3 #{so_to_patch}"
+        shellout! "patchelf --replace-needed #{File.basename(libcrypto_match)} libcrypto.so.3 #{so_to_patch}"
+        shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
+        FileUtils.rm([libssl_match, libcrypto_match])
+      end
+    end
+  end
+
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
