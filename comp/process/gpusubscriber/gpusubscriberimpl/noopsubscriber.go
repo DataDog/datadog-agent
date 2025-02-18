@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package gpusubscriber implements a component to subscribe to WorkloadMeta in the Agent.
-package gpusubscriber
+package gpusubscriberimpl
 
-// team: container-intake
+// TODO: Comments
+type NoopSubscriber struct {
+}
 
-type Component interface {
-	GetGPUTags() map[string]string
+func (s NoopSubscriber) GetGPUTags() map[string]string {
+	return nil
 }

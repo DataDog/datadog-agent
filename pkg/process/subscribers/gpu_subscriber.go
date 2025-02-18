@@ -7,6 +7,7 @@
 package subscribers
 
 import (
+	"context"
 	"sync/atomic"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -22,7 +23,7 @@ type GPUSubscriber struct {
 	gpuEventsCh chan workloadmeta.EventBundle
 	stopCh      chan struct{}
 	wmeta       workloadmeta.Component
-	tagger 		tagger.Component
+	tagger      tagger.Component
 }
 
 // NewGPUSubscriber creates a new GPUDetector instance
@@ -30,12 +31,12 @@ func NewGPUSubscriber(wmeta workloadmeta.Component, tagger tagger.Component) *GP
 	return &GPUSubscriber{
 		stopCh: make(chan struct{}),
 		wmeta:  wmeta,
-		tagger:tagger,
+		tagger: tagger,
 	}
 }
 
 // Run starts the GPU detector, which listens for workloadmeta events to detect GPUs on the host
-func (g *GPUSubscriber) Run() {
+func (g *GPUSubscriber) Run(_ context.Context) error {
 	log.Info("Starting GPU detector")
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).
@@ -48,23 +49,27 @@ func (g *GPUSubscriber) Run() {
 		workloadmeta.NormalPriority,
 		filter,
 	)
-	for {
-		select {
-		case eventBundle, ok := <-g.gpuEventsCh:
-			if !ok {
+	go func() {
+		for {
+			select {
+			case eventBundle, ok := <-g.gpuEventsCh:
+				if !ok {
+					return
+				}
+				g.processEvents(eventBundle)
+				eventBundle.Acknowledge()
+
+				if g.IsGPUDetected() {
+					log.Info("GPU detected in event bundle")
+				}
+			case <-g.stopCh:
+				g.wmeta.Unsubscribe(g.gpuEventsCh)
 				return
 			}
-			g.processEvents(eventBundle)
-			eventBundle.Acknowledge()
-
-			if g.IsGPUDetected() {
-				log.Info("GPU detected in event bundle")
-			}
-		case <-g.stopCh:
-			g.wmeta.Unsubscribe(g.gpuEventsCh)
-			return
 		}
-	}
+	}()
+
+	return nil
 }
 
 // IsGPUDetected checks if a GPU has been detected
@@ -91,7 +96,6 @@ func (g *GPUSubscriber) processEvents(eventBundle workloadmeta.EventBundle) {
 		break
 	}
 }
-
 
 // GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
 func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
@@ -135,7 +139,8 @@ func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 }
 
 // Stop stops the GPU detector
-func (g *GPUSubscriber) Stop() {
+func (g *GPUSubscriber) Stop(_ context.Context) error {
 	log.Info("Stopping GPU detector")
 	close(g.stopCh)
+	return nil
 }
