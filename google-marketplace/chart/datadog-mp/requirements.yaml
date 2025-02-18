@@ -1,5 +1,5 @@
 dependencies:
 - name: datadog-operator
   # Helm chart version
-  version: 2.5.x
+  version: 2.7.x
   repository: https://helm.datadoghq.com

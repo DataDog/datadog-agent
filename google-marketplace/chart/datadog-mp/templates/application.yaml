@@ -12,7 +12,7 @@ metadata:
 spec:
   descriptor:
     type: 'Datadog Agent'
-    version: '1.11.1'
+    version: '1.12.1'
     description: |-
       Datadog provides infrastructure monitoring, application performance monitoring,
       and log management in a single-pane-of-glass view so teams can

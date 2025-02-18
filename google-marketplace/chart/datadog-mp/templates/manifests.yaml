@@ -255,6 +255,11 @@ spec:
                           type: boolean
                         failurePolicy:
                           type: string
+                        kubernetesAdmissionEvents:
+                          properties:
+                            enabled:
+                              type: boolean
+                          type: object
                         mutateUnlabelled:
                           type: boolean
                         mutation:
@@ -701,6 +706,69 @@ spec:
                           x-kubernetes-list-type: set
                         scrubContainers:
                           type: boolean
+                      type: object
+                    otelCollector:
+                      properties:
+                        conf:
+                          properties:
+                            configData:
+                              type: string
+                            configMap:
+                              properties:
+                                items:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      mode:
+                                        format: int32
+                                        type: integer
+                                      path:
+                                        type: string
+                                    required:
+                                      - key
+                                      - path
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-map-keys:
+                                    - key
+                                  x-kubernetes-list-type: map
+                                name:
+                                  type: string
+                              type: object
+                          type: object
+                        coreConfig:
+                          properties:
+                            enabled:
+                              type: boolean
+                            extensionTimeout:
+                              type: integer
+                            extensionURL:
+                              type: string
+                          type: object
+                        enabled:
+                          type: boolean
+                        ports:
+                          items:
+                            properties:
+                              containerPort:
+                                format: int32
+                                type: integer
+                              hostIP:
+                                type: string
+                              hostPort:
+                                format: int32
+                                type: integer
+                              name:
+                                type: string
+                              protocol:
+                                default: TCP
+                                type: string
+                            required:
+                              - containerPort
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
                       type: object
                     otlp:
                       properties:
@@ -2438,6 +2506,8 @@ spec:
                       replicas:
                         format: int32
                         type: integer
+                      runtimeClassName:
+                        type: string
                       securityContext:
                         properties:
                           appArmorProfile:
@@ -3735,6 +3805,11 @@ spec:
                               type: boolean
                             failurePolicy:
                               type: string
+                            kubernetesAdmissionEvents:
+                              properties:
+                                enabled:
+                                  type: boolean
+                              type: object
                             mutateUnlabelled:
                               type: boolean
                             mutation:
@@ -4181,6 +4256,69 @@ spec:
                               x-kubernetes-list-type: set
                             scrubContainers:
                               type: boolean
+                          type: object
+                        otelCollector:
+                          properties:
+                            conf:
+                              properties:
+                                configData:
+                                  type: string
+                                configMap:
+                                  properties:
+                                    items:
+                                      items:
+                                        properties:
+                                          key:
+                                            type: string
+                                          mode:
+                                            format: int32
+                                            type: integer
+                                          path:
+                                            type: string
+                                        required:
+                                          - key
+                                          - path
+                                        type: object
+                                      type: array
+                                      x-kubernetes-list-map-keys:
+                                        - key
+                                      x-kubernetes-list-type: map
+                                    name:
+                                      type: string
+                                  type: object
+                              type: object
+                            coreConfig:
+                              properties:
+                                enabled:
+                                  type: boolean
+                                extensionTimeout:
+                                  type: integer
+                                extensionURL:
+                                  type: string
+                              type: object
+                            enabled:
+                              type: boolean
+                            ports:
+                              items:
+                                properties:
+                                  containerPort:
+                                    format: int32
+                                    type: integer
+                                  hostIP:
+                                    type: string
+                                  hostPort:
+                                    format: int32
+                                    type: integer
+                                  name:
+                                    type: string
+                                  protocol:
+                                    default: TCP
+                                    type: string
+                                required:
+                                  - containerPort
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
                           type: object
                         otlp:
                           properties:
