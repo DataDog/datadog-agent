@@ -3,6 +3,7 @@ go 1.23.5
 toolchain go1.23.6
 
 use (
+
 	.
 	comp/api/api/def
 	comp/api/authtoken
@@ -80,6 +81,7 @@ use (
 	pkg/errors
 	pkg/fleet/installer
 	pkg/fips
+	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor
