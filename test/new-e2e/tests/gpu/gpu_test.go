@@ -163,14 +163,28 @@ func (v *gpuSuite) TestNvmlMetricsPresent() {
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
-		metricNames := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage"}
-		for _, metricName := range metricNames {
+		metrics := []struct {
+			name           string
+			deviceSpecific bool
+		}{
+			{"gpu.temperature", true},
+			{"gpu.pci.throughput.tx", true},
+			{"gpu.power.usage", true},
+			{"gpu.device.total", false},
+		}
+		for _, metric := range metrics {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			var options []client.MatchOpt[*aggregator.MetricSeries]
+			if metric.deviceSpecific {
+				// device-specific metrics should be tagged with device tags
+				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			}
+
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metric.name, options...)
 			assert.NoError(c, err)
 
-			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metricName)
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric.name)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
