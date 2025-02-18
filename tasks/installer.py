@@ -3,16 +3,16 @@ installer namespaced tasks
 """
 
 import hashlib
-import os
+from os import path
 
 from invoke import task
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 
-DIR_BIN = os.path.join(".", "bin", "installer")
-INSTALLER_BIN = os.path.join(DIR_BIN, bin_name("installer"))
-INSTALL_SCRIPT_TEMPLATE = os.path.join("pkg", "fleet", "installer", "setup", "install.sh")
+DIR_BIN = path.join(".", "bin", "installer")
+INSTALLER_BIN = path.join(DIR_BIN, bin_name("installer"))
+INSTALL_SCRIPT_TEMPLATE = path.join("pkg", "fleet", "installer", "setup", "install.sh")
 SETUP_MAIN_PACKAGE = "cmd/installer-downloader"
 
 MAJOR_VERSION = '7'
@@ -85,8 +85,9 @@ def build_setup(
     version_flag = f'-X main.Version={version}'
     flavor_flag = f'-X main.Flavor={flavor}'
     output = output or f'setup-{flavor}-{os}-{arch}'
+    build_tags = f'setup_{flavor}'
     ctx.run(
-        f'go build -ldflags="-s -w {version_flag} {flavor_flag}" -o {os.path.join(DIR_BIN, output)} {REPO_PATH}/{DOWNLOADER_MAIN_PACKAGE}',
+        f'go build -tags {build_tags} -ldflags="-s -w {version_flag} {flavor_flag}" -o {path.join(DIR_BIN, output)} {REPO_PATH}/{SETUP_MAIN_PACKAGE}',
         env={'GOOS': os, 'GOARCH': arch, 'CGO_ENABLED': '0'},
     )
 
@@ -112,5 +113,5 @@ def build_linux_script(ctx, domain, flavor, bin_amd64, bin_arm64, output):
     install_script = install_script.replace('INSTALLER_AMD64_SHA256', bin_amd64_sha256)
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
 
-    with open(os.path.join(DIR_BIN, output), 'w') as f:
+    with open(path.join(DIR_BIN, output), 'w') as f:
         f.write(install_script)

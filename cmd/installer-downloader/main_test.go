@@ -3,15 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build setup_databricks
-
 package main
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
+	"os"
+	"testing"
 )
 
-func run(s *common.Setup) error {
-	return djm.SetupDatabricks(s)
+func TestFlavorPaths(t *testing.T) {
+	for _, path := range flavorPaths {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			t.Errorf("file %q does not exist", path)
+		} else if err != nil {
+			t.Errorf("error checking file %q: %v", path, err)
+		}
+	}
 }
