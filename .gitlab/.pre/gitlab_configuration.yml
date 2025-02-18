@@ -61,7 +61,7 @@ lint_gitlab_ci:
     # Do only on diff and not on main
     - |
       if [ -f artifacts/diff.gitlab-ci.yml ] && [ "$CI_COMMIT_BRANCH" != "main" ]; then
-        inv -e linter.gitlab-ci-shellcheck --config-file artifacts/after.gitlab-ci.yml || status=1
+        inv -e linter.gitlab-ci-shellcheck --diff-file artifacts/diff.gitlab-ci.yml || status=1
         if [ $status != 0 ]; then
           echo "At least one linter failed, exiting..." >& 2
           exit $status
