@@ -53,8 +53,6 @@ func (g *GPUSubscriber) Run() {
 
 			if g.IsGPUDetected() {
 				log.Info("GPU detected in event bundle")
-			} else {
-				log.Info("GPU not detected in event bundle, continuing to listen")
 			}
 		case <-g.stopCh:
 			g.wmeta.Unsubscribe(g.gpuEventsCh)
