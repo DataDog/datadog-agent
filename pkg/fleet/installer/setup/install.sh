@@ -1,4 +1,7 @@
 #!/bin/bash
+# Installer for Datadog (www.datadoghq.com).
+# Copyright 2016-present Datadog, Inc.
+#
 set -e
 
 os=$(uname -s)
@@ -16,12 +19,12 @@ fi
 
 case "$arch" in
 x86_64)
-  installer_url="LINUX_INSTALLER_URL_AMD64"
-  installer_sha256="LINUX_INSTALLER_URL_AMD64_SHA256"
+  installer_url="INSTALLER_AMD64_URL"
+  installer_sha256="INSTALLER_AMD64_SHA256"
   ;;
 aarch64)
-  installer_url="LINUX_INSTALLER_URL_ARM64"
-  installer_sha256="LINUX_INSTALLER_URL_ARM64_SHA256"
+  installer_url="INSTALLER_ARM64_URL"
+  installer_sha256="INSTALLER_ARM64_SHA256"
   ;;
 esac
 

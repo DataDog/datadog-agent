@@ -48,6 +48,13 @@
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
           EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
         fi
+        if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
+          EXTRA_FLAGS= "--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
+          EXTRA_FLAGS="${EXTRA_FLAGS} --setup ${INPUT_DIR}/setup/setup"
+          EXTRA_FLAGS="${EXTRA_FLAGS} --setup ${INPUT_DIR}/setup/setup-databricks"
+          EXTRA_FLAGS="${EXTRA_FLAGS} --setup ${INPUT_DIR}/setup/setup-emr"
+          EXTRA_FLAGS="${EXTRA_FLAGS} --setup ${INPUT_DIR}/setup/setup-dataproc"
+        fi
         datadog-package create \
           --version ${PACKAGE_VERSION} \
           --package ${OCI_PRODUCT} \
