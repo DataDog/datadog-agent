@@ -523,6 +523,7 @@ def changelog(ctx, new_commit_sha):
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
+        author_handle = ""
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
         else:
