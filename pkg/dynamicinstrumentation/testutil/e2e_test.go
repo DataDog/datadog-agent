@@ -193,7 +193,7 @@ func scrubPointerValues(captures ditypes.CapturedValueMap) {
 }
 
 func scrubPointerValue(capture *ditypes.CapturedValue) {
-	if capture.Type == "ptr" {
+	if strings.HasPrefix(capture.Type, "*") {
 		capture.Value = nil
 	}
 	scrubPointerValues(capture.Fields)
