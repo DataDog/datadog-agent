@@ -535,34 +535,18 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
-		// The wrapper struct prevents 'Fdump' from accessing content of pointers.
-		a := struct {
-			Ctx unsafe.Pointer
-			Buf unsafe.Pointer
-		}{
-			Ctx: unsafe.Pointer(http.SslReadArgs{}.Ctx),
-			Buf: unsafe.Pointer(http.SslReadArgs{}.Buf),
-		}
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&a)) {
-			spew.Fdump(w, key, a)
+		var value http.SslReadArgs
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
 		}
 
 	case "ssl_read_ex_args": // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_ex_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
-		// The wrapper struct prevents 'Fdump' from accessing content of pointers.
-		a := struct {
-			Ctx          unsafe.Pointer
-			Buf          unsafe.Pointer
-			SizeOutParam unsafe.Pointer
-		}{
-			Ctx:          unsafe.Pointer(http.SslReadExArgs{}.Ctx),
-			Buf:          unsafe.Pointer(http.SslReadExArgs{}.Buf),
-			SizeOutParam: unsafe.Pointer(http.SslReadExArgs{}.Out_param),
-		}
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&a)) {
-			spew.Fdump(w, key, a)
+		var value http.SslReadExArgs
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
 		}
 
 	case "bio_new_socket_args": // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32

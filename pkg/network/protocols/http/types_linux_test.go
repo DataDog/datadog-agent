@@ -16,6 +16,10 @@ func TestCgoAlignment_SslReadArgs(t *testing.T) {
 	ebpftest.TestCgoAlignment[SslReadArgs](t)
 }
 
+func TestCgoAlignment_SslReadExArgs(t *testing.T) {
+	ebpftest.TestCgoAlignment[SslReadExArgs](t)
+}
+
 func TestCgoAlignment_EbpfEvent(t *testing.T) {
 	ebpftest.TestCgoAlignment[EbpfEvent](t)
 }
