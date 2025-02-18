@@ -42,6 +42,17 @@
           {{- end }}
     {{ end }}
 
+
+  SECL Variables
+  ==============
+  
+  {{ range $variable := .seclVariables }}
+    - {{ $variable.Name }}: {{ $variable.Value }}
+  {{ end }}
+  {{if not .seclVariables}}
+    No SECL variables found
+  {{end}}
+  
   {{- with .environment }}
 
   Environment

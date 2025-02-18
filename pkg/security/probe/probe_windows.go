@@ -1070,6 +1070,11 @@ func (p *WindowsProbe) Snapshot() error {
 	return p.Resolvers.Snapshot()
 }
 
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *WindowsProbe) Walk(callback func(*model.ProcessCacheEntry)) {
+	p.Resolvers.ProcessResolver.Walk(callback)
+}
+
 // Close the probe
 func (p *WindowsProbe) Close() error {
 	if p.pm != nil {

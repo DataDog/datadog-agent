@@ -583,6 +583,11 @@ func (p *EBPFLessProbe) Snapshot() error {
 	return nil
 }
 
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFLessProbe) Walk(callback func(*model.ProcessCacheEntry)) {
+	p.Resolvers.ProcessResolver.Walk(callback)
+}
+
 // OnNewDiscarder handles discarders
 func (p *EBPFLessProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }
