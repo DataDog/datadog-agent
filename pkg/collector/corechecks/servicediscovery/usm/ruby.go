@@ -48,6 +48,10 @@ func (r railsDetector) detect(_ []string) (ServiceMetadata, bool) {
 		}
 	}
 
+	if proc == nil {
+		return ServiceMetadata{}, false
+	}
+
 	cwd, err := proc.Cwd()
 	if err != nil {
 		log.Debugf("could not get cwd of process: %s", err)

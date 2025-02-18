@@ -339,10 +339,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		return err
 	}
 
-	if currentRuleSet := e.currentRuleSet.Load(); currentRuleSet != nil {
-		currentRuleSet.(*rules.RuleSet).Release()
-	}
-
 	e.currentRuleSet.Store(rs)
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
