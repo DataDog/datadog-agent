@@ -7,6 +7,7 @@
 package env
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/http"
@@ -131,6 +132,8 @@ type Env struct {
 	HTTPProxy  string
 	HTTPSProxy string
 	NoProxy    string
+
+	IsCentos6 bool
 }
 
 // HTTPClient returns an HTTP client with the proxy settings from the environment.
@@ -203,6 +206,8 @@ func FromEnv() *Env {
 		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
 		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
 		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
+
+		IsCentos6: DetectCentos6(),
 	}
 }
 
@@ -291,6 +296,23 @@ func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
 	}
 	return apmLibrariesVersion
+}
+
+// DetectCentos6 checks if the machine the installer is currently on is running centos 6
+func DetectCentos6() bool {
+	sources := []string{
+		"/etc/system-release",
+		"/etc/centos-release",
+		"/etc/redhat-release",
+	}
+	for _, s := range sources {
+		b, _ := os.ReadFile(s)
+		if (bytes.Contains(b, []byte("CentOS")) || bytes.Contains(b, []byte("Red Hat"))) &&
+			bytes.Contains(b, []byte("release 6")) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseAPMLanguagesEnv() map[ApmLibLanguage]ApmLibVersion {
