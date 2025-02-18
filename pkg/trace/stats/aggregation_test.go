@@ -55,6 +55,47 @@ func TestGetStatusCode(t *testing.T) {
 	}
 }
 
+func TestGetGRPCStatusCode(t *testing.T) {
+	for _, tt := range []struct {
+		in  *pb.Span
+		out uint32
+	}{
+		{
+			&pb.Span{},
+			0,
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.grpc.status_code": "aborted"},
+			},
+			10,
+		},
+		{
+			&pb.Span{
+				Metrics: map[string]float64{"grpc.code": 1},
+			},
+			1,
+		},
+		{
+			&pb.Span{
+				Meta:    map[string]string{"grpc.status.code": "0"},
+				Metrics: map[string]float64{"grpc.status.code": 1},
+			},
+			1,
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.grpc.status.code": "15"},
+			},
+			15,
+		},
+	} {
+		if got := getGRPCStatusCode(tt.in.Meta, tt.in.Metrics); got != tt.out {
+			t.Fatalf("Expected %d, got %d", tt.out, got)
+		}
+	}
+}
+
 func TestNewAggregation(t *testing.T) {
 	peerSvcOnlyHash := uint64(3430395298086625290)
 	peerTagsHash := uint64(9894752672193411515)

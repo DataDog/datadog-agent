@@ -16,6 +16,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/grpc/codes"
 )
 
@@ -53,26 +54,6 @@ type PayloadAggregationKey struct {
 	ContainerID  string
 	GitCommitSha string
 	ImageTag     string
-}
-
-var grpcStatusMap = map[string]codes.Code{
-	"OK":                  codes.OK,
-	"CANCELLED":           codes.Canceled,
-	"UNKNOWN":             codes.Unknown,
-	"INVALID_ARGUMENT":    codes.InvalidArgument,
-	"DEADLINE_EXCEEDED":   codes.DeadlineExceeded,
-	"NOT_FOUND":           codes.NotFound,
-	"ALREADY_EXISTS":      codes.AlreadyExists,
-	"PERMISSION_DENIED":   codes.PermissionDenied,
-	"UNAUTHENTICATED":     codes.Unauthenticated,
-	"RESOURCE_EXHAUSTED":  codes.ResourceExhausted,
-	"FAILED_PRECONDITION": codes.FailedPrecondition,
-	"ABORTED":             codes.Aborted,
-	"OUT_OF_RANGE":        codes.OutOfRange,
-	"UNIMPLEMENTED":       codes.Unimplemented,
-	"INTERNAL":            codes.Internal,
-	"UNAVAILABLE":         codes.Unavailable,
-	"DATA_LOSS":           codes.DataLoss,
 }
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
@@ -157,7 +138,6 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 	// List of possible keys to check in order
 	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
-
 	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
 		if code, ok := metrics[key]; ok {
 			return uint32(code)
@@ -172,7 +152,7 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint3
 			}
 
 			// If not integer, check for valid gRPC status string
-			if codeStr, found := grpcStatusMap[strings.ToUpper(strC)]; found {
+			if codeStr, found := code.Code_value[strings.ToUpper(strC)]; found {
 				return uint32(codes.Code(codeStr))
 			}
 

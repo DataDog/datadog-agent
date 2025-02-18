@@ -393,6 +393,11 @@ func TestCountAggregation(t *testing.T) {
 			&pb.ClientGroupedStats{HTTPStatusCode: 10},
 			"status",
 		},
+		{
+			BucketsAggregationKey{GRPCStatusCode: 2},
+			&pb.ClientGroupedStats{GRPCStatusCode: 2},
+			"status",
+		},
 	}
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
