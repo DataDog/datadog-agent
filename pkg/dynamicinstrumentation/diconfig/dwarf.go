@@ -74,10 +74,17 @@ entryLoop:
 				continue entryLoop
 			}
 
+			cuLineReader, err := dwarfData.LineReader(entry)
+			if err != nil {
+				log.Errorf("could not get file line reader for compile unit: %v", err)
+				continue entryLoop
+			}
+			files := cuLineReader.Files()
+
 			for i := range ranges {
-				result.DeclaredFiles = append(result.DeclaredFiles, &ditypes.LowPCEntry{
+				result.DeclaredFiles = append(result.DeclaredFiles, &ditypes.DwarfFilesEntry{
 					LowPC: ranges[i][0],
-					Entry: entry,
+					Files: files,
 				})
 			}
 		}
@@ -177,7 +184,7 @@ entryLoop:
 	slices.SortFunc(result.FunctionsByPC, func(a, b *ditypes.FuncByPCEntry) int {
 		return cmp.Compare(b.LowPC, a.LowPC)
 	})
-	slices.SortFunc(result.DeclaredFiles, func(a, b *ditypes.LowPCEntry) int {
+	slices.SortFunc(result.DeclaredFiles, func(a, b *ditypes.DwarfFilesEntry) int {
 		return cmp.Compare(b.LowPC, a.LowPC)
 	})
 
