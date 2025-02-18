@@ -706,6 +706,7 @@ core,github.com/beevik/ntp,BSD-2-Clause,Al Cutter (AlCutter) | Andrey Smirnov (s
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
 core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,Copyright (c) 2018 bhmj
+core,github.com/bhmj/xpression,MIT,Copyright 2021-2022 Michael Gurov (github.com/bhmj)
 core,github.com/bitnami/go-version/pkg/version,Apache-2.0,Copyright (c) 2023-2024 Carlos Rodríguez Hernández
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Copyright (c) 2014-2020 by Tobias Rehbein <tobias.rehbein@web.de>
 core,github.com/blang/semver,MIT,Copyright (c) 2014 Benedikt Lang <github at benediktlang.de>
