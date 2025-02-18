@@ -34,3 +34,5 @@
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+    - aws ssm get-parameter --region us-east-1 --name ci.agent-release-management.gsheets-account --with-decryption --query "Parameter.Value" --out text > ./service-account.json
+    - inv google.register-deployment-to-sheet --spreadsheet-id="1SGuMlaBn"

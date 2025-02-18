@@ -1,5 +1,3 @@
-from googleapiclient import discovery
-from oauth2client.service_account import ServiceAccountCredentials
 import os
 
 from invoke import task
@@ -22,7 +20,12 @@ def register_deployment_to_sheet(
     dynamic_build_render=None,
     spreadsheet_id=None,
 ):
-    pipeline_id = os.environ.get("CI_PIPELINE_ID") if not pipeline_id else pipeline_id if not pipeline_id else pipeline_id
+    from googleapiclient import discovery
+    from oauth2client.service_account import ServiceAccountCredentials
+
+    pipeline_id = (
+        os.environ.get("CI_PIPELINE_ID") if not pipeline_id else pipeline_id if not pipeline_id else pipeline_id
+    )
     img_variables = os.environ.get("IMG_VARIABLES") if not img_variables else img_variables
     img_registries = os.environ.get("IMG_REGISTRIES") if not img_registries else img_registries
     img_sources = os.environ.get("IMG_SOURCES") if not img_sources else img_sources
@@ -33,7 +36,11 @@ def register_deployment_to_sheet(
     ddr = os.environ.get("DDR") if not ddr else ddr
     ddr_workflow_id = os.environ.get("DDR_WORKFLOW_ID") if not ddr_workflow_id else ddr_workflow_id
     target_env = os.environ.get("TARGET_ENV") if not target_env else target_env
-    dynamic_build_render = os.environ.get("DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS") if not dynamic_build_render else dynamic_build_render
+    dynamic_build_render = (
+        os.environ.get("DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS")
+        if not dynamic_build_render
+        else dynamic_build_render
+    )
     spreadsheet_id = os.environ.get("SHEET_ID") if not spreadsheet_id else spreadsheet_id
 
     scope = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -66,7 +73,7 @@ def register_deployment_to_sheet(
         .append(
             spreadsheetId=spreadsheet_id,
             valueInputOption="USER_ENTERED",
-            range="Sheet2!A1:H1",
+            range="Sheet1!A1:L1",
             body=body,
         )
     )

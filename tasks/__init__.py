@@ -33,6 +33,7 @@ from tasks import (
     github_tasks,
     gitlab_helpers,
     go_deps,
+    google,
     installer,
     invoke_unit_tests,
     issue,
@@ -177,6 +178,7 @@ ns.add_collection(emacs)
 ns.add_collection(vim)
 ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
+ns.add_collection(google)
 ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(git)
