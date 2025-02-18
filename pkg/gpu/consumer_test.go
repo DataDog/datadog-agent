@@ -59,7 +59,8 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	// Configure the visible devices for our process
 	ctx.visibleDevicesCache[int(pid)] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
 
-	streamKey := consumer.getStreamKey(&headerStreamSpecific)
+	streamKey, err := consumer.getStreamKey(&headerStreamSpecific)
+	require.NoError(t, err)
 	require.NotNil(t, streamKey)
 	require.Equal(t, pid, streamKey.pid)
 	require.Equal(t, streamID, streamKey.stream)
@@ -68,7 +69,9 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.Equal(t, testutil.GPUUUIDs[0], streamKey.gpuUUID)
 
 	// Check the same thing happens with the global stream
-	globalStreamKey := consumer.getStreamKey(&headerGlobalStream)
+	globalStreamKey, err := consumer.getStreamKey(&headerGlobalStream)
+
+	require.NoError(t, err)
 	require.NotNil(t, globalStreamKey)
 	require.Equal(t, pid, globalStreamKey.pid)
 	require.Equal(t, globalStream, globalStreamKey.stream)
@@ -87,14 +90,16 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 
 	// The stream key for the specific stream should not change, as streams are per-device
 	// and cannot change devices during its lifetime
-	streamKey = consumer.getStreamKey(&headerStreamSpecific)
+	streamKey, err = consumer.getStreamKey(&headerStreamSpecific)
+	require.NoError(t, err)
 	require.NotNil(t, streamKey)
 	require.Equal(t, pid, streamKey.pid)
 	require.Equal(t, streamID, streamKey.stream)
 	require.Equal(t, testutil.GPUUUIDs[0], streamKey.gpuUUID)
 
 	// The global stream should change, as the global stream can change devices
-	globalStreamKey = consumer.getStreamKey(&headerGlobalStream)
+	globalStreamKey, err = consumer.getStreamKey(&headerGlobalStream)
+	require.NoError(t, err)
 	require.NotNil(t, globalStreamKey)
 	require.Equal(t, pid, globalStreamKey.pid)
 	require.Equal(t, globalStream, globalStreamKey.stream)

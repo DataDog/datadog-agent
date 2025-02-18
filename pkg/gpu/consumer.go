@@ -198,8 +198,12 @@ func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType g
 }
 
 func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
-	streamHandler := c.getStreamHandler(header)
 	eventType := gpuebpf.CudaEventType(header.Type)
+	streamHandler, err := c.getStreamHandler(header)
+
+	if err != nil {
+		return fmt.Errorf("error getting stream handler: %w", err)
+	}
 
 	switch eventType {
 	case gpuebpf.CudaEventTypeKernelLaunch:
@@ -247,7 +251,7 @@ func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	}
 }
 
-func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) streamKey {
+func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) (streamKey, error) {
 	pid, tid := getPidTidFromHeader(header)
 
 	var nonGlobalKey nonGlobalStreamKey
@@ -257,7 +261,7 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 		nonGlobalKey.stream = header.Stream_id
 
 		if key, ok := c.nonGlobalStreamKeys[nonGlobalKey]; ok {
-			return key
+			return key, nil
 		}
 	}
 
@@ -282,13 +286,13 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 	// the data even if we can't get the GPU UUID
 	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerID)
 	if err != nil {
-		log.Warnf("Error getting GPU device for process %d: %v", pid, err)
 		c.telemetry.missingDevices.Inc()
+		return streamKey{}, fmt.Errorf("Error getting GPU device for process %d: %w", pid, err)
 	} else {
 		var ret nvml.Return
 		key.gpuUUID, ret = gpuDevice.GetUUID()
 		if ret != nvml.SUCCESS {
-			log.Warnf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
+			return streamKey{}, fmt.Errorf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
 		}
 	}
 
@@ -296,11 +300,15 @@ func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) stream
 		c.nonGlobalStreamKeys[nonGlobalKey] = key
 	}
 
-	return key
+	return key, nil
 }
 
-func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) *StreamHandler {
-	key := c.getStreamKey(header)
+func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
+	key, err := c.getStreamKey(header)
+	if err != nil {
+		return nil, err
+	}
+
 	if _, ok := c.streamHandlers[key]; !ok {
 		smVersion, ok := c.sysCtx.deviceSmVersions[key.gpuUUID]
 		if !ok {
@@ -316,7 +324,7 @@ func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) *S
 		c.telemetry.activeHandlers.Set(float64(len(c.streamHandlers)))
 	}
 
-	return c.streamHandlers[key]
+	return c.streamHandlers[key], nil
 }
 
 func (c *cudaEventConsumer) checkClosedProcesses() {
