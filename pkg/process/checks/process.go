@@ -146,10 +146,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	}
 	p.containerProvider = sharedContainerProvider
 
-	log.Info("Initializing gpu detector from process check")
-	p.gpuSubscriber = subscribers.NewGPUSubscriber(p.wmeta)
-	log.Info("Finish initializing gpu detector from process check")
-
 	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	if syscfg.NetworkTracerModuleEnabled || syscfg.ProcessModuleEnabled {
@@ -224,10 +220,6 @@ func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 func (p *ProcessCheck) Cleanup() {
 	if p.workloadMetaServer != nil {
 		p.workloadMetaServer.Stop()
-	}
-	if p.gpuSubscriber != nil {
-		log.Info("Cleaning up gpu detector from process check")
-		p.gpuSubscriber.Stop()
 	}
 }
 
@@ -305,7 +297,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	pidToGPUTags := make(map[int32][]string)
 	if p.gpuSubscriber != nil {
 		log.Info("GPU detected in process check, populating pidToGPUTags mapping")
-		pidToGPUTags = p.getGPUTags()
+		pidToGPUTags = p.gpuSubscriber.GetGPUTags()
 	}
 
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
@@ -368,46 +360,6 @@ func (p *ProcessCheck) generateHints() int32 {
 	return hints
 }
 
-// GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
-func (p *ProcessCheck) getGPUTags() map[int32][]string {
-	if !p.gpuSubscriber.IsGPUDetected() {
-		log.Info("GPU not detected, skipping GPU tag creation")
-		return nil
-	}
-
-	wmetaGPUs := p.wmeta.ListGPUs()
-
-	pidToTagSet := make(map[int32]common.StringSet)
-	for _, gpu := range wmetaGPUs {
-		uuid := gpu.ID
-
-		// use tagger to get gpu tags
-		entityID := types.NewEntityID(types.GPU, uuid)
-		tags, err := p.tagger.Tag(entityID, p.tagger.ChecksCardinality())
-		if err != nil {
-			log.Debugf("Could not collect tags for GPU %q, err: %v", uuid, err)
-		}
-
-		// filter tags to remove duplicates
-		for _, pid := range gpu.ActivePIDs {
-			if _, ok := pidToTagSet[int32(pid)]; !ok {
-				pidToTagSet[int32(pid)] = common.NewStringSet()
-			}
-			for _, tag := range tags {
-				pidToTagSet[int32(pid)].Add(tag)
-			}
-		}
-	}
-
-	// Convert StringSet to []string
-	pidToGPUTags := make(map[int32][]string)
-	for pid, tagSet := range pidToTagSet {
-		pidToGPUTags[pid] = tagSet.GetAll()
-	}
-
-	log.Info("GPU tags created for active pids:", pidToGPUTags)
-	return pidToGPUTags
-}
 
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 	stats := map[int32]*procutil.Stats{}
@@ -419,12 +371,6 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 
 // Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
-	// start running GPU detector
-	if p.gpuSubscriber != nil {
-		log.Tracef("Starting process check gpu detector in go routine")
-		go p.gpuSubscriber.Run()
-	}
-
 	if options == nil {
 		return p.run(nextGroupID(), false)
 	}
