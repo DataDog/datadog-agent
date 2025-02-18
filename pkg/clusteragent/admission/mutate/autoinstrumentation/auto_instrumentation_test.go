@@ -420,47 +420,6 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 	}
 }
 
-func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, envVal string) {
-	// Empty dir volume
-	volumeFound := false
-	for _, volume := range pod.Spec.Volumes {
-		if volume.Name == "datadog-auto-instrumentation" {
-			require.NotNil(t, volume.VolumeSource.EmptyDir)
-			volumeFound = true
-			break
-		}
-	}
-	require.True(t, volumeFound)
-
-	// Init container
-	initContainerFound := false
-	for _, container := range pod.Spec.InitContainers {
-		if container.Name == fmt.Sprintf("datadog-lib-%s-init", lang) {
-			require.Equal(t, image, container.Image)
-			require.Equal(t, []string{"sh", "copy-lib.sh", "/datadog-lib"}, container.Command)
-			require.Equal(t, "datadog-auto-instrumentation", container.VolumeMounts[0].Name)
-			require.Equal(t, "/datadog-lib", container.VolumeMounts[0].MountPath)
-			initContainerFound = true
-			break
-		}
-	}
-	require.True(t, initContainerFound)
-
-	// App container
-	container := pod.Spec.Containers[0]
-	require.Equal(t, "datadog-auto-instrumentation", container.VolumeMounts[0].Name)
-	require.Equal(t, "/datadog-lib", container.VolumeMounts[0].MountPath)
-	envFound := false
-	for _, env := range container.Env {
-		if env.Name == envKey {
-			require.Equal(t, envVal, env.Value)
-			envFound = true
-			break
-		}
-	}
-	require.True(t, envFound, "expected to find env %s with value %s", envKey, envVal)
-}
-
 func TestExtractLibInfo(t *testing.T) {
 	defaultLibImageVersions := map[string]string{
 		"java":   "registry/dd-lib-java-init:v1",
