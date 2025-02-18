@@ -161,10 +161,10 @@ func provideExtraFiles(fb flaretypes.FlareBuilder) error {
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?")) //nolint:errcheck
 	} else {
-		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)                      //nolint:errcheck
-		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)                   //nolint:errcheck
-		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList) //nolint:errcheck
+		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)    //nolint:errcheck
+		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList) //nolint:errcheck
 		if !pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
+			fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList) //nolint:errcheck
 			getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
 		}
 	}
