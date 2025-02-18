@@ -1,0 +1,27 @@
+From ed3d297658a3733af005e273a95ca771b2638efc Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Tue, 18 Feb 2025 09:43:03 +0100
+Subject: [PATCH 2/2] ensure we know where to find ACL headers
+
+---
+ CMakeLists.txt | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c3c49d929..bf586d64d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -83,9 +83,10 @@ include(CMakeDependentOption)
+
+ find_package(ACL)
+ if(ACL_FOUND)
++	include_directories(${ACL_INCLUDE_DIRS})
+ 	check_library_exists("${ACL_LIBRARY}" acl_extended_file "" HAVE_ACL_EXTENDED_FILE)
+ 	check_include_file(acl/libacl.h HAVE_ACL_LIBACL_H)
+ 	check_include_file(sys/acl.h HAVE_SYS_ACL_H)
+ endif()
+
+ find_package(AptPkg)
+--
+2.34.1
+
