@@ -33,93 +33,239 @@ agent_dmg-x64-a7:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
+
+new-agent_dmg-x64-a7:
+  stage: package_build
+  # extends: .macos_gitlab
+  # tags: ["macos:ventura-amd64-test", "specific:true"]
+  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
+  needs: []
+  timeout: 6h
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+  script:
+    - set -e
+    - |
+      export PKG_CONFIG_VERSION=0.29.2
+      export RUBY_VERSION=2.7.4
+      export BUNDLER_VERSION=2.3.18
+      export PYTHON_VERSION=3.12.6
+      export RUST_VERSION=1.74.0
+      export RUSTUP_VERSION=1.25.1
+      export CMAKE_VERSION=3.30.2
+      export GIMME_VERSION=1.5.4
+      export GPG_VERSION=1.4.23
+      export CODECOV_VERSION=v0.6.1
+      export OPENSSL_VERSION=1.1
+    - |
+      echo Setup env
+      mkdir bin
+      binaries="curl chmod cp mkdir tar rm mv ls bash make xz"
+      for binary in $binaries; do
+        echo Using $binary
+        ln -s "$(which $binary)" bin/$binary
+      done
+    - |
+      echo Setup homebrew
+      mkdir homebrew
+      curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip-components 1 -C homebrew
+      eval "$(homebrew/bin/brew shellenv)"
+      brew update --force
+      chmod -R go-w "$(brew --prefix)/share/zsh"
+      brew tap DataDog/datadog-agent-macos-build
+    - |
+      echo Install cmake
+      brew install DataDog/datadog-agent-macos-build/cmake@$CMAKE_VERSION -f
+      brew link --overwrite cmake@$CMAKE_VERSION
+    - |
+      echo Install pkg-config
+      brew install DataDog/datadog-agent-macos-build/pkg-config@$PKG_CONFIG_VERSION -f
+      brew link --overwrite pkg-config@$PKG_CONFIG_VERSION
+    - |
+      echo Install python
+      brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
+      brew link --overwrite python@$PYTHON_VERSION
+
 # new-agent_dmg-x64-a7:
 #   stage: package_build
-#   tags: ["macos:ventura-arm64-test", "specific:true"]
-#   extends: [.macos_gitlab]
-#   # TODO
-#   # rules:
-#   #   - !reference [.on_macos_gui_change]
-#   #   - !reference [.on_packaging_change]
-#   #   - !reference [.on_main_or_release_branch]
-#   #   - !reference [.on_all_builds]
-#   #   - !reference [.manual]
-#   # needs: ["go_mod_tidy_check"] # TODO
+#   # extends: .macos_gitlab
+#   tags: ["macos:ventura-amd64-test", "specific:true"]
+#   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
 #   needs: []
-#   # needs: ["go_deps", "go_tools_deps"]
 #   timeout: 6h
 #   artifacts:
 #     expire_in: 2 weeks
 #     paths:
 #       # - $OMNIBUS_PACKAGE_DIR
 #       - /tmp/celian
-#   # before_script:
-#   #   - export RELEASE_VERSION=$RELEASE_VERSION_7
-#   # before_script: [] # TODO
+#   # after_script:
+#   #   - brew install gettext -fv || true
+#   #   - brew link --overwrite gettext || true
+#   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
 #   script:
-#     # - !reference [.retrieve_linux_go_deps]
-#     # - !reference [.retrieve_linux_go_tools_deps]
-#     # - echo $GOPATH
-#     # - exit
-#     # TODO
-#     # - sudo xcode-select -s /Applications/Xcode_14.2.app # Available: /Applications/Xcode-14.3.1.app /Applications/Xcode-15.2.0.app
-#     - !reference [.vault_login]
+#     - python3 --version
+#     - ls -l "$(which python3)"
+#     - exit
+#     - export PYTHON_VERSION=3.12.6
+#     - which python
+#     - brew remove --force --ignore-dependencies --formula gettext
+#     - echo Verifying libintl
+#     - sudo find /usr -name "libintl*" || true
+#     - sudo find /opt -name "libintl*" || true
+
+#     - echo 'Trying to build python from source now without gettext, install it somewhere else and update path'
+#     - brew remove --ignore-dependencies python@$PYTHON_VERSION -f
 #     - |
-#       echo AGENT_MAJOR_VERSION: $AGENT_MAJOR_VERSION
-#       echo RELEASE_VERSION: $RELEASE_VERSION
-#       echo OMNIBUS_BASE_DIR: $OMNIBUS_BASE_DIR
-#       echo USE_S3_CACHING: $USE_S3_CACHING
-#       echo GOPATH: $GOPATH
-#     -  |
-#       export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
-#       export INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD="true"
-#       export S3_OMNIBUS_CACHE_BUCKET="dd-ci-datadog-agent-omnibus-cache-build-stable"
-#       export S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS="true"
+#       sudo bash -c 'rm -f /usr/local/bin/2to3*' || true
+#       sudo bash -c 'rm -f /usr/local/bin/idle3*' || true
+#       sudo bash -c 'rm -f /usr/local/bin/pydoc3*' || true
+#       sudo bash -c 'rm -f /usr/local/bin/python3*' || true
+#       sudo bash -c 'rm -f /usr/local/bin/python3*-config' || true
+#       sudo bash -c "rm -rf /Library/Frameworks/Python.framework/Versions/*" || true
+#       sudo bash -c "rm -rf /usr/local/Cellar/python@*" || true
+#     - brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
+#     - brew link --overwrite python@$PYTHON_VERSION
+
+#     - echo Verifying libintl
+#     - sudo find /usr -name "libintl*" || true
+#     - sudo find /opt -name "libintl*" || true
+#     - echo Installed python
+#     - which python
+#     - ls -l "$(which python)"
+#     - python --version
+
+
+#     # TODO: Useful?
+#     # - which python3 || true
+#     # - source .venv/bin/activate
+#     # - echo goroot $GOROOT
+#     # - echo gopath $GOPATH
+#     # - set -e
+
+#     - export RELEASE_VERSION=$RELEASE_VERSION_7
+#     - !reference [.vault_login]
+#     - NCPU="$(sysctl -n hw.ncpu)"
+
+#     - |
+#       echo Removing preinstalled environment
+#       # brew remove --force --ignore-dependencies --formula aria2
+#       # # TODO: brew remove --force --ignore-dependencies --formula git
+#       # brew remove --force --ignore-dependencies --formula libidn2
+#       # brew remove --force --ignore-dependencies --formula wget
+#       brew remove --force --ignore-dependencies --formula gettext
+
+#     # - ls /usr/local/opt/python@3.12.6/libexec/bin || true
+#     # - export PATH="/usr/local/opt/python@3.12.6/libexec/bin:$PATH"
+#     - which python3 || true
+#     - python3 --help || true
+#     - exit
+
+#     - |
+#       debug()
+#       {
+#         echo Searching for libintl
+#         sudo find /usr -name "libintl*" || true
+#         sudo find /opt -name "libintl*" || true
+#       }
+#       echo After preinstall removal
+#       debug
+
+#     # Install custom git to avoid libintl dependencies provided by gettext
+#     - |
+#       install_git()
+#       {
+#         GIT_VERSION=2.48.1
+#         curl -LO https://github.com/git/git/archive/refs/tags/v${GIT_VERSION}.tar.gz
+#         # TODO: Remove etc.
+#         tar -xzf v${GIT_VERSION}.tar.gz
+#         pushd git-$GIT_VERSION
+
+#         make configure -j "$NCPU"
+#         ./configure
+#         echo Git Configured
+
+#         make all -j "$NCPU"
+#         echo Git Built
+
+#         echo "$PWD/git"
+
+#         popd
+
+#         # TODO A: Install?
+#         # sudo make install -j "$NCPU"
+#       }
+
+#       echo Installing git
+#       install_git
+
+#       # Use this local git
+#       export PATH="$PWD/git-$GIT_VERSION:$PATH"
+#       git --version
+
+#       echo After git install
+#       debug
+
+#     # # Setup builder
+#     # - |
+#     #   for dependency in $(brew list --formula); do
+#     #     brew remove --force --ignore-dependencies $dependency || echo "Warning: $dependency could not be removed"
+#     #   done
+#     # - rm -rf /usr/local/lib/ruby
+#     # - rm -rf /Library/Frameworks/Python.framework/Versions/*
+#     # # TODO
+#     # - bash .gitlab/package_build/builder_setup.sh
+#     # Setup
+#     - |
+#       # TODO A: Omnibus cache
+#       unset INTEGRATION_WHEELS_CACHE_BUCKET || true
+#       unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
+#       unset S3_OMNIBUS_CACHE_BUCKET || true
+#       unset S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS || true
+#       # export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
+#       # export INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD="true"
+#       # export S3_OMNIBUS_CACHE_BUCKET="dd-ci-datadog-agent-omnibus-cache-build-stable"
+#       # export S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS="true"
 #       export RELEASE_VERSION=$RELEASE_VERSION_7
 #       export AGENT_MAJOR_VERSION=7
 #       export PYTHON_RUNTIMES=3
 #       export INSTALL_DIR=/tmp/celian/bin
 #       export CONFIG_DIR=/tmp/celian/config
-#     #
+#       export GOPATH="$GOROOT"
+#       export OMNIBUS_DIR=omnibus_build
+#     - rm -f ~/.build_setup; touch ~/.build_setup
+#     - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
 #     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
-#     # LINUX: - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
-#     # MACOS SIGN: inv -e $INVOKE_TASK --hardened-runtime --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
-#     # MACOS NO SIGN: inv -e $INVOKE_TASK --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR" || exit 1
-#     # TODO
-#     # - FLAVOR=datadog-agent
-#     # - 'echo FLAVOR: $FLAVOR'
-#     # - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
-#     - inv -e omnibus.build --skip-sign --major-version "$AGENT_MAJOR_VERSION" --release-version "$RELEASE_VERSION" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
-#     - echo Done
-#     - ls -la /tmp/celian/bin
-#     - ls -la /tmp/celian/config
-#     - du /tmp/celian
-
-#     # # TODO: xcode 14.2
-#     # - echo /Applications/Xcode*.app
-#     # # Remove preinstalled environment
-#     # -  |
-#     #    # The base box ships a few things that can have unwanted effects on the MacOS build.
-#     #     # For instance, we compile Python in the pipeline. If Python finds some libraries while
-#     #     # it's being compiled, then it will add a dynamic link to them and add some features.
-#     #     # In this particular case, Python sees that there is libintl.8.dylib (provided by the gettext brew package)
-#     #     # in the default include path, thus links to it. However, that's not something we need, so we don't actually
-#     #     # ship that library in the MacOS package. Since we have a feature to make a build fail if we depend on
-#     #     # something we don't ship, this made the build fail (see: https://github.com/DataDog/datadog-agent-macos-build/runs/1011733463?check_suite_focus=true).
-
-#     #     # In order to avoid such cases in the future where we use things we didn't expect to, we'd rather
-#     #     # start with a "clean" runner with the bare minimum, and only install the brew packages we require.
-#     #     brew remove --force --ignore-dependencies $(brew list --formula)
-
-#     #     # Also completely remove the ruby env, otherwise some files remain after the formula uninstall,
-#     #     # possibly causing gem version mismatch issues (eg. bundler).
-#     #     rm -rf /usr/local/lib/ruby
-#     #     # Remove existing Python installation as it may otherwise interfere
-#     #     sudo rm -rf /Library/Frameworks/Python.framework/Versions/*
-#     # # TODO: Cache brew deps
-#     # # TODO: Cache _omnibus_cache_key
-#     # - bash .gitlab/package_build/builder_setup.sh
-
+#     # Omnibus TODO: Useless?
+#     - |
+#       rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
+#       echo Ignoring omnibus build cache
+#       # TODO: Omnibus cache
+#       # rm -rf _omnibus_cache_key_files && mkdir -p _omnibus_cache_key_files
+#       # cp ./{release.json,omnibus/Gemfile} _omnibus_cache_key_files
+#     # TODO: Cache go?
+#     - |
+#       mkdir -p $HOME/go
+#       echo 'export GOPATH=$HOME/go' >> ~/.build_setup
+#       echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
+#       export GO_VERSION="$(cat .go-version)"
+#       eval "$(gimme $GO_VERSION)"
+#     - . ~/.build_setup
+#     # TODO: xcode 14.2?
+#     # - xcode-select -s /Applications/Xcode_14.3.1.app
+#     # TODO: Cache brew deps
+#     # TODO: Cache _omnibus_cache_key
+#     # TODO: Verify runner - bash .gitlab/package_build/builder_setup.sh
+#     # TODO: Add certificates to the keychain
+#     # TODO: Cache ruby deps
+#     # TODO: Cache...
+#     # - |
+#     #   export GOMODCACHE=~/gomodcache
+#     #   if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
+#     #   if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
+#     #   mkdir -p $GOMODCACHE
+#     - bash .gitlab/package_build/build_script.sh
+#     # TODO: Other things...
 
 
 
@@ -137,213 +283,13 @@ agent_dmg-x64-a7:
 #     # - inv -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
 #     # - !reference [.upload_sbom_artifacts]
 
-
-
-
-
-new-agent_dmg-x64-a7:
-  stage: package_build
-  # extends: .macos_gitlab
-  tags: ["macos:ventura-amd64-test", "specific:true"]
-  # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
-  needs: []
-  timeout: 6h
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      # - $OMNIBUS_PACKAGE_DIR
-      - /tmp/celian
-  # after_script:
-  #   - brew install gettext -fv || true
-  #   - brew link --overwrite gettext || true
-  #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
-  script:
-    - python3 --version
-    - ls -l "$(which python3)"
-    - exit
-    - export PYTHON_VERSION=3.12.6
-    - which python
-    - brew remove --force --ignore-dependencies --formula gettext
-    - echo Verifying libintl
-    - sudo find /usr -name "libintl*" || true
-    - sudo find /opt -name "libintl*" || true
-
-    - echo 'Trying to build python from source now without gettext, install it somewhere else and update path'
-    - brew remove --ignore-dependencies python@$PYTHON_VERSION -f
-    - |
-      sudo bash -c 'rm -f /usr/local/bin/2to3*' || true
-      sudo bash -c 'rm -f /usr/local/bin/idle3*' || true
-      sudo bash -c 'rm -f /usr/local/bin/pydoc3*' || true
-      sudo bash -c 'rm -f /usr/local/bin/python3*' || true
-      sudo bash -c 'rm -f /usr/local/bin/python3*-config' || true
-      sudo bash -c "rm -rf /Library/Frameworks/Python.framework/Versions/*" || true
-      sudo bash -c "rm -rf /usr/local/Cellar/python@*" || true
-    - brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
-    - brew link --overwrite python@$PYTHON_VERSION
-
-    - echo Verifying libintl
-    - sudo find /usr -name "libintl*" || true
-    - sudo find /opt -name "libintl*" || true
-    - echo Installed python
-    - which python
-    - ls -l "$(which python)"
-    - python --version
-
-
-    # TODO: Useful?
-    # - which python3 || true
-    # - source .venv/bin/activate
-    # - echo goroot $GOROOT
-    # - echo gopath $GOPATH
-    # - set -e
-
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - !reference [.vault_login]
-    - NCPU="$(sysctl -n hw.ncpu)"
-
-    - |
-      echo Removing preinstalled environment
-      # brew remove --force --ignore-dependencies --formula aria2
-      # # TODO: brew remove --force --ignore-dependencies --formula git
-      # brew remove --force --ignore-dependencies --formula libidn2
-      # brew remove --force --ignore-dependencies --formula wget
-      brew remove --force --ignore-dependencies --formula gettext
-
-    # - ls /usr/local/opt/python@3.12.6/libexec/bin || true
-    # - export PATH="/usr/local/opt/python@3.12.6/libexec/bin:$PATH"
-    - which python3 || true
-    - python3 --help || true
-    - exit
-
-    - |
-      debug()
-      {
-        echo Searching for libintl
-        sudo find /usr -name "libintl*" || true
-        sudo find /opt -name "libintl*" || true
-      }
-      echo After preinstall removal
-      debug
-
-    # Install custom git to avoid libintl dependencies provided by gettext
-    - |
-      install_git()
-      {
-        GIT_VERSION=2.48.1
-        curl -LO https://github.com/git/git/archive/refs/tags/v${GIT_VERSION}.tar.gz
-        # TODO: Remove etc.
-        tar -xzf v${GIT_VERSION}.tar.gz
-        pushd git-$GIT_VERSION
-
-        make configure -j "$NCPU"
-        ./configure
-        echo Git Configured
-
-        make all -j "$NCPU"
-        echo Git Built
-
-        echo "$PWD/git"
-
-        popd
-
-        # TODO A: Install?
-        # sudo make install -j "$NCPU"
-      }
-
-      echo Installing git
-      install_git
-
-      # Use this local git
-      export PATH="$PWD/git-$GIT_VERSION:$PATH"
-      git --version
-
-      echo After git install
-      debug
-
-    # # Setup builder
-    # - |
-    #   for dependency in $(brew list --formula); do
-    #     brew remove --force --ignore-dependencies $dependency || echo "Warning: $dependency could not be removed"
-    #   done
-    # - rm -rf /usr/local/lib/ruby
-    # - rm -rf /Library/Frameworks/Python.framework/Versions/*
-    # # TODO
-    # - bash .gitlab/package_build/builder_setup.sh
-    # Setup
-    - |
-      # TODO A: Omnibus cache
-      unset INTEGRATION_WHEELS_CACHE_BUCKET || true
-      unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
-      unset S3_OMNIBUS_CACHE_BUCKET || true
-      unset S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS || true
-      # export INTEGRATION_WHEELS_CACHE_BUCKET=dd-agent-omnibus
-      # export INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD="true"
-      # export S3_OMNIBUS_CACHE_BUCKET="dd-ci-datadog-agent-omnibus-cache-build-stable"
-      # export S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS="true"
-      export RELEASE_VERSION=$RELEASE_VERSION_7
-      export AGENT_MAJOR_VERSION=7
-      export PYTHON_RUNTIMES=3
-      export INSTALL_DIR=/tmp/celian/bin
-      export CONFIG_DIR=/tmp/celian/config
-      export GOPATH="$GOROOT"
-      export OMNIBUS_DIR=omnibus_build
-    - rm -f ~/.build_setup; touch ~/.build_setup
-    - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
-    - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
-    # Omnibus TODO: Useless?
-    - |
-      rm -rf "$OMNIBUS_DIR" && mkdir -p "$OMNIBUS_DIR"
-      echo Ignoring omnibus build cache
-      # TODO: Omnibus cache
-      # rm -rf _omnibus_cache_key_files && mkdir -p _omnibus_cache_key_files
-      # cp ./{release.json,omnibus/Gemfile} _omnibus_cache_key_files
-    # TODO: Cache go?
-    - |
-      mkdir -p $HOME/go
-      echo 'export GOPATH=$HOME/go' >> ~/.build_setup
-      echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
-      export GO_VERSION="$(cat .go-version)"
-      eval "$(gimme $GO_VERSION)"
-    - . ~/.build_setup
-    # TODO: xcode 14.2?
-    # - xcode-select -s /Applications/Xcode_14.3.1.app
-    # TODO: Cache brew deps
-    # TODO: Cache _omnibus_cache_key
-    # TODO: Verify runner - bash .gitlab/package_build/builder_setup.sh
-    # TODO: Add certificates to the keychain
-    # TODO: Cache ruby deps
-    # TODO: Cache...
-    # - |
-    #   export GOMODCACHE=~/gomodcache
-    #   if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
-    #   if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
-    #   mkdir -p $GOMODCACHE
-    - bash .gitlab/package_build/build_script.sh
-    # TODO: Other things...
-
-
-
-
-
-
-    # - echo "About to build for $RELEASE_VERSION"
-    # # remove artifacts from previous pipelines that may come from the cache
-    # - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # - mkdir -p $OMNIBUS_PACKAGE_DIR
-    # - !reference [.setup_macos_github_app]
-    # - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-    # - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
-    # - python3 -m pip install -r tasks/libs/requirements-github.txt
-    # - inv -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
-    # - !reference [.upload_sbom_artifacts]
-
-    # TODO
-    # - echo "About to build for $RELEASE_VERSION"
-    # # remove artifacts from previous pipelines that may come from the cache
-    # - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # - mkdir -p $OMNIBUS_PACKAGE_DIR
-    # - !reference [.setup_macos_github_app]
-    # - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-    # - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
-    # - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - echo Done
+#     # TODO
+#     # - echo "About to build for $RELEASE_VERSION"
+#     # # remove artifacts from previous pipelines that may come from the cache
+#     # - rm -rf $OMNIBUS_PACKAGE_DIR/*
+#     # - mkdir -p $OMNIBUS_PACKAGE_DIR
+#     # - !reference [.setup_macos_github_app]
+#     # - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
+#     # - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
+#     # - python3 -m pip install -r tasks/libs/requirements-github.txt
+#     - echo Done
