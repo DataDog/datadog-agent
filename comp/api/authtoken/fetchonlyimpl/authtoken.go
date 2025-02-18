@@ -63,12 +63,13 @@ func (at *authToken) setToken() error {
 }
 
 // Get returns the session token
-func (at *authToken) Get() (string, error) {
+func (at *authToken) Get() string {
 	if err := at.setToken(); err != nil {
-		return "", err
+		at.log.Debugf("%s", err.Error())
+		return ""
 	}
 
-	return util.GetAuthToken(), nil
+	return util.GetAuthToken()
 }
 
 // GetTLSClientConfig return a TLS configuration with the IPC certificate for http.Client

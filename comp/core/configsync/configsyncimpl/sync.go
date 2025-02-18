@@ -8,7 +8,6 @@ package configsyncimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,12 +18,7 @@ import (
 
 func (cs *configSync) updater() error {
 	cs.Log.Debugf("Pulling new configuration from agent-core at '%s'", cs.url.String())
-	authToken, err := cs.Authtoken.Get()
-	if err != nil {
-		return fmt.Errorf("Failed to fetch config from core agent: unable to retrieve auth_token: %v", err.Error())
-	}
-
-	cfg, err := fetchConfig(cs.ctx, cs.client, authToken, cs.url.String())
+	cfg, err := fetchConfig(cs.ctx, cs.client, cs.Authtoken.Get(), cs.url.String())
 	if err != nil {
 		if cs.connected {
 			cs.Log.Warnf("Loosed connectivity to core-agent to fetch config: %v", err)

@@ -6,6 +6,7 @@
 package util
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -122,8 +123,10 @@ func NewIPCEndpoint(config config.Component, endpointPath string, options ...End
 	if err != nil {
 		return nil, fmt.Errorf("%s: %s", cmdHostKey, err)
 	}
-
-	client := GetClient(false)
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 
 	ipcPort := config.GetInt("cmd_port")
 	targetURL := url.URL{
