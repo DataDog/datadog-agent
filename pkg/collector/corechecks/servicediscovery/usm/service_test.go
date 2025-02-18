@@ -188,7 +188,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "HelloWorld",
+			expectedGeneratedName:       "com.datadog.example.HelloWorld",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -197,7 +197,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-m", "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "Elasticsearch",
+			expectedGeneratedName:       "org.elasticsearch.bootstrap.Elasticsearch",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -206,7 +206,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"java", "-Xmx4000m", "--module", "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch", "-Xfoo",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "Elasticsearch",
+			expectedGeneratedName:       "org.elasticsearch.bootstrap.Elasticsearch",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -224,7 +224,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "Kafka",
+			expectedGeneratedName:       "kafka.Kafka",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -245,7 +245,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/home/dd/my java dir/java", "com.dog.cat",
 			},
 			lang:                        language.Java,
-			expectedGeneratedName:       "cat",
+			expectedGeneratedName:       "com.dog.cat",
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
@@ -507,7 +507,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			lang:                        language.Java,
 			envs:                        map[string]string{"PWD": weblogicTestAppRootAbsolute},
-			expectedGeneratedName:       "Server",
+			expectedGeneratedName:       "weblogic.Server",
 			expectedGeneratedNameSource: WebLogic,
 			expectedAdditionalServices:  []string{"my_context", "sample4", "some_context_root"},
 		},

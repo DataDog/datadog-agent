@@ -93,13 +93,6 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 					}
 				}
 
-				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {
-					// take just the class name without the package
-					success = true
-					metadata.SetNames(arg[idx+1:], source, additionalNames...)
-					return
-				}
-
 				success = true
 				metadata.SetNames(arg, source, additionalNames...)
 				return
