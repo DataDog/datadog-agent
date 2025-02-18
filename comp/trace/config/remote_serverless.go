@@ -10,10 +10,11 @@ package config
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
-func remote(corecompcfg.Component, string) (config.RemoteClient, error) {
+func remote(corecompcfg.Component, string, authtoken.Component) (config.RemoteClient, error) {
 	return nil, errors.New("remote configuration is not supported in serverless")
 }
