@@ -883,6 +883,7 @@ def gitlab_ci_shellcheck(
         return
 
     errors = {}
+    contents = {}
     for job, content in jobs:
         if verbose:
             print('Verifying job:', job)
@@ -903,6 +904,7 @@ def gitlab_ci_shellcheck(
             res = ctx.run(f"echo '{full_script}' | shellcheck {shellcheck_args} -", warn=True, hide=True)
             if not res:
                 errors[job] = res.stdout
+                contents[job] = full_script
                 if fail_fast:
                     break
 
@@ -910,6 +912,9 @@ def gitlab_ci_shellcheck(
         for job, error in sorted(errors.items()):
             with gitlab_section(f"Shellcheck errors for {job}"):
                 print(f"{color_message('Error', Color.RED)}: {job}")
+                print('Script:')
+                print(contents[job])
+                print('\nError:')
                 print(error)
 
         raise Exit(
