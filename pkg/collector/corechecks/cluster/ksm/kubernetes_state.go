@@ -11,7 +11,6 @@ package ksm
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/checkhelpers/backoff"
 	"maps"
 	"regexp"
 	"strings"
@@ -48,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -64,14 +64,8 @@ const (
 	// ownerNameKey represents the KSM label key owner_name
 	ownerNameKey = "owner_name"
 
-	// maxRetryBackoff is the max # of check runs that can be skipped while waiting for API Server to recover
-	maxRetryBackoff = 10
-	// backoffMultiplier is the multiplication factor used in the backoff strategy
-	backoffMultiplier = 2
-	// getAPIServerClient is the operation name used to retry the acquisition of an API client
-	getAPIServerClient = "get_api_server_client"
-	// performResourceDiscovery is the operation name used to retry resource discovery
-	performResourceDiscovery = "perform_resource_discovery"
+	// resource_discovery is the operation name used to retry resource discovery
+	resource_discovery = "resource_discovery"
 )
 
 var extendedCollectors = map[string]string{
@@ -230,7 +224,7 @@ type KSMConfig struct {
 	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
 }
 
-type resourceDiscovery struct {
+type resourceDiscoveryInfo struct {
 	resources  []*v1.APIResourceList
 	custom     customResources
 	collectors []string
@@ -239,24 +233,24 @@ type resourceDiscovery struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig          model.Config
-	instance             *KSMConfig
-	allStores            [][]cache.Store
-	telemetry            *telemetryCache
-	cancel               context.CancelFunc
-	isCLCRunner          bool
-	isRunningOnNodeAgent bool
-	clusterNameTagValue  string
-	clusterNameRFC1123   string
-	metricNamesMapper    map[string]string
-	metricAggregators    map[string]metricAggregator
-	metricTransformers   map[string]metricTransformerFunc
-	metadataMetricsRegex *regexp.Regexp
-	resourceDiscovery    *resourceDiscovery
-	backoffStore         *backoff.Store
-	runConfigureOnce     sync.Once
-	initBackoffStoreOnce sync.Once
-	configureError       error
+	agentConfig           model.Config
+	instance              *KSMConfig
+	allStores             [][]cache.Store
+	telemetry             *telemetryCache
+	cancel                context.CancelFunc
+	isCLCRunner           bool
+	isRunningOnNodeAgent  bool
+	clusterNameTagValue   string
+	clusterNameRFC1123    string
+	metricNamesMapper     map[string]string
+	metricAggregators     map[string]metricAggregator
+	metricTransformers    map[string]metricTransformerFunc
+	metadataMetricsRegex  *regexp.Regexp
+	resourceDiscoveryInfo *resourceDiscoveryInfo
+	retrier               retry.Retrier
+	initRetry             sync.Once
+	runConfigureOnce      sync.Once
+	configureError        error
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -291,51 +285,57 @@ func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
 }
 
-func getAPIClient() (*apiserver.APIClient, error) {
-	// Intentionally leaving maximumWaitForAPIServer as-is because if the check interval < wait time
-	// the subsequent check execution will automatically be skipped; there is no risk of two checks
-	// running simultaneously
-	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
-	defer apiCancel()
-
-	apiServerClient, err := apiserver.WaitForAPIClient(apiCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	return apiServerClient, nil
-}
-
-func (k *KSMCheck) doResourceDiscovery(client *apiserver.APIClient) (*resourceDiscovery, error) {
+func (k *KSMCheck) discoverResources(client *apiserver.APIClient) error {
 	// Discover resources that are currently available
-	resources, err := discoverResources(client.Cl.Discovery())
-	if err != nil {
-		return nil, err
+	k.initRetry.Do(func() {
+		k.retrier.SetupRetrier(&retry.Config{
+			Name: fmt.Sprintf("%s_%s", CheckName, resource_discovery),
+			AttemptMethod: func() error {
+				resources, err := discoverResources(client.Cl.Discovery())
+				if err != nil {
+					return err
+				}
+
+				var collectors []string
+
+				switch k.instance.PodCollectionMode {
+				case nodeKubeletPodCollection:
+					// In this case we don't need to set up anything related to the API
+					// server.
+					collectors = []string{"pods"}
+				case defaultPodCollection, clusterUnassignedPodCollection:
+					// Prepare the collectors for the resources specified in the configuration file.
+					collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
+					if err != nil {
+						return err
+					}
+
+					// Enable the KSM default collectors if the config collectors list is empty.
+					if len(collectors) == 0 {
+						collectors = options.DefaultResources.AsSlice()
+					}
+				}
+
+				// assign resource discovery field
+				k.resourceDiscoveryInfo = &resourceDiscoveryInfo{
+					resources:  resources,
+					custom:     k.discoverCustomResources(client, collectors, resources),
+					collectors: collectors,
+				}
+
+				return nil
+			},
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: k.Interval(),
+			MaxRetryDelay:     10 * k.Interval(),
+		})
+	})
+
+	if err := k.retrier.TriggerRetry(); err != nil {
+		return err
 	}
 
-	var collectors []string
-
-	switch k.instance.PodCollectionMode {
-	case nodeKubeletPodCollection:
-		// In this case we don't need to set up anything related to the API
-		// server.
-		collectors = []string{"pods"}
-	case defaultPodCollection, clusterUnassignedPodCollection:
-		// Prepare the collectors for the resources specified in the configuration file.
-		collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
-		if err != nil {
-			return nil, err
-		}
-
-		// Enable the KSM default collectors if the config collectors list is empty.
-		if len(collectors) == 0 {
-			collectors = options.DefaultResources.AsSlice()
-		}
-	}
-
-	custom := k.discoverCustomResources(client, collectors, resources)
-
-	return &resourceDiscovery{resources, custom, collectors}, nil
+	return nil
 }
 
 // runConfigureOnce executes the builder steps previously in Configure() that depend on resource discovery
@@ -361,7 +361,7 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient) error {
 		}
 
 		builder.WithNamespaces(namespaces)
-		allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(k.resourceDiscovery.collectors))
+		allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(k.resourceDiscoveryInfo.collectors))
 		if err != nil {
 			configureErr = err
 		}
@@ -388,13 +388,13 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient) error {
 		// configure custom resources required for extended features and
 		// compatibility across deprecated/removed versions of APIs
 		builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
-		builder.WithCustomResourceStoreFactories(k.resourceDiscovery.custom.factories...)
-		builder.WithCustomResourceClients(k.resourceDiscovery.custom.clients)
+		builder.WithCustomResourceStoreFactories(k.resourceDiscoveryInfo.custom.factories...)
+		builder.WithCustomResourceClients(k.resourceDiscoveryInfo.custom.clients)
 
 		// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 		// Equivalent to configuring --metric-annotations-allowlist.
 		allowedAnnotations := map[string][]string{}
-		for _, collector := range k.resourceDiscovery.collectors {
+		for _, collector := range k.resourceDiscoveryInfo.collectors {
 			// Any annotation can be used for label joins.
 			allowedAnnotations[collector] = []string{"*"}
 		}
@@ -404,7 +404,7 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient) error {
 		// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 		// Equivalent to configuring --metric-labels-allowlist.
 		allowedLabels := map[string][]string{}
-		for _, collector := range k.resourceDiscovery.collectors {
+		for _, collector := range k.resourceDiscoveryInfo.collectors {
 			// Any label can be used for label joins.
 			allowedLabels[collector] = []string{"*"}
 		}
@@ -413,7 +413,7 @@ func runConfigureOnce(k *KSMCheck, client *apiserver.APIClient) error {
 			configureErr = err
 		}
 
-		if err := builder.WithEnabledResources(k.resourceDiscovery.collectors); err != nil {
+		if err := builder.WithEnabledResources(k.resourceDiscoveryInfo.collectors); err != nil {
 			configureErr = err
 		}
 
@@ -617,29 +617,23 @@ func (k *KSMCheck) Run() error {
 	var client *apiserver.APIClient
 
 	// Perform resource discovery if it hasn't successfully completed yet
-	if k.resourceDiscovery == nil {
-
-		// Initialize backoff store
-		k.initBackoffStoreOnce.Do(func() {
-			k.backoffStore = backoff.New()
-		})
-
+	if k.resourceDiscoveryInfo == nil {
 		// Acquire the API Server client, retrying with exponential backoff
+		apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
+		defer apiCancel()
+
 		var err error
-		client, err = backoff.Retry(k.backoffStore, getAPIServerClient, getAPIClient, backoffMultiplier, maxRetryBackoff)
+		// WaitForAPIClient handles its own retries
+		client, err = apiserver.WaitForAPIClient(apiCtx)
 		if err != nil {
 			return err
 		}
 
 		// Perform resource discovery, retrying with exponential backoff
-		rd, err := backoff.Retry(k.backoffStore, performResourceDiscovery, func() (*resourceDiscovery, error) {
-			return k.doResourceDiscovery(client)
-		}, backoffMultiplier, maxRetryBackoff)
+		err = k.discoverResources(client)
 		if err != nil {
 			return err
 		}
-
-		k.resourceDiscovery = rd
 	}
 
 	// Run configure as a singleton
