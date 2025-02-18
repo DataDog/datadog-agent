@@ -72,28 +72,8 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
     branch = get_default_branch(major=new_version_int[0])
 
     with agent_context(ctx, branch):
-        # Step 1: Add release changelog preludes
-        update_branch = f"changelog-update-{new_version}"
-        base_branch = get_current_branch(ctx)
-        print(color_message(f"Branching out to {update_branch}", "bold"))
-        ctx.run(f"git switch -c {update_branch}")
+        # Step 1 - generate the changelogs
 
-        print(color_message("Adding Agent release changelog prelude", "bold"))
-        _add_prelude(ctx, str(new_version))
-
-        print(color_message("Adding DCA release changelog prelude", "bold"))
-        _add_dca_prelude(ctx, str(new_version))
-
-        ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually, push the {update_branch} branch and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-        # Step 2 - generate the changelogs
         generate_agent = target in ["all", "agent"]
         generate_cluster_agent = target in ["all", "cluster-agent"]
 
@@ -116,7 +96,14 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
         if generate_cluster_agent:
             update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
 
-        # Step 3 - commit changes
+        # Step 2 - commit changes
+
+        update_branch = f"changelog-update-{new_version}"
+        base_branch = get_current_branch(ctx)
+
+        print(color_message(f"Branching out to {update_branch}", "bold"))
+        ctx.run(f"git checkout -b {update_branch}")
+
         print(color_message("Committing CHANGELOG.rst and CHANGELOG-DCA.rst", "bold"))
         print(
             color_message(
@@ -137,7 +124,8 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
                 code=1,
             )
 
-        # Step 4 - Push and create PR
+        # Step 3 - Push and create PR
+
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
         if res.exited is None or res.exited > 0:

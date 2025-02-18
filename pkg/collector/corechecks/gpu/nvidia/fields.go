@@ -14,6 +14,8 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 type fieldsCollector struct {
@@ -40,6 +42,11 @@ func newFieldsCollector(device nvml.Device, tags []string) (Collector, error) {
 	}
 
 	return c, nil
+}
+
+func (c *fieldsCollector) DeviceUUID() string {
+	uuid, _ := c.device.GetUUID()
+	return uuid
 }
 
 func (c *fieldsCollector) removeUnsupportedFields() error {
@@ -96,7 +103,7 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}
 
-		metrics = append(metrics, Metric{Name: name, Value: value, Tags: c.tags})
+		metrics = append(metrics, Metric{Name: name, Value: value, Tags: c.tags, Type: metricNameToFieldID[i].metricType})
 	}
 
 	return metrics, err
@@ -114,18 +121,19 @@ type fieldValueMetric struct {
 	fieldValueID uint32 // No specific type, but these are constants prefixed with FI_DEV in the nvml package
 	// some fields require scopeID to be filled for the GetFieldValues to work properly
 	// (e.g: https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2175-L2177)
-	scopeID uint32
+	scopeID    uint32
+	metricType metrics.MetricType
 }
 
 var metricNameToFieldID = []fieldValueMetric{
-	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP, 0},
+	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP, 0, metrics.GaugeType},
 	// we don't want to use bandwidth fields as they are deprecated:
 	// https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2049-L2057
 	// uint_max to collect the aggregated value summed up across all links (ref: https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2175-L2177)
-	{"nvlink.throughput.data.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, math.MaxUint32},
-	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, math.MaxUint32},
-	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, math.MaxUint32},
-	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, math.MaxUint32},
-	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER, 0},
-	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL, 0},
+	{"nvlink.throughput.data.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, math.MaxUint32, metrics.GaugeType},
+	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, math.MaxUint32, metrics.GaugeType},
+	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, math.MaxUint32, metrics.GaugeType},
+	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, math.MaxUint32, metrics.GaugeType},
+	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER, 0, metrics.CountType},
+	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL, 0, metrics.GaugeType},
 }
