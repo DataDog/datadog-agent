@@ -9,9 +9,11 @@
 package gpusubscriberimpl
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -46,9 +48,8 @@ func newGpuSubscriber(deps dependencies) gpusubscriber.Component {
 		gpuSubscriber: gpuSubscriber,
 	}
 
-	// TODO: only run in core agent (not process agent), when gpu & process check is enabled?
-	// TODO: put a debug statement here to indicate we're in the process-agent and this is not enabled
 	if flavor.GetFlavor() == flavor.ProcessAgent || !processCheckEnabled(deps.Checks) {
+		log.Debug("GPU subscriber will not run since process check is disabled or running in Process Agent")
 		return NoopSubscriber{}
 	}
 
@@ -57,6 +58,10 @@ func newGpuSubscriber(deps dependencies) gpusubscriber.Component {
 		OnStop:  gpuSubscriber.Stop,
 	})
 	return gpuSubComponent
+}
+
+func (g gpusubscriberimpl) GetGPUTags() map[int32][]string {
+	return g.gpuSubscriber.GetGPUTags()
 }
 
 func processCheckEnabled(checkComponents []types.CheckComponent) bool {
