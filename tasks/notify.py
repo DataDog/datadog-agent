@@ -286,5 +286,5 @@ def post_message(_: Context, channel: str, message: str):
     """
     from slack_sdk import WebClient
 
-    client = WebClient(token=os.environ['SLACK_API_TOKEN'])
+    client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     client.chat_postMessage(channel=channel, text=message)
