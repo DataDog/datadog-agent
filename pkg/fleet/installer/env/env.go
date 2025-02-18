@@ -298,7 +298,7 @@ func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 	return apmLibrariesVersion
 }
 
-// Checks if the machine the installer is currently on is running centos 6
+// DetectCentos6 checks if the machine the installer is currently on is running centos 6
 func DetectCentos6() bool {
 	sources := []string{
 		"/etc/system-release",

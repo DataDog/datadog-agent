@@ -146,7 +146,7 @@ func apmJavaVersion(p Package, e *env.Env) string {
 
 // apmInjectVersion returns the version of the apm-inject package to install
 // If centos6 is detected return the pin, otherwise alwasys return latest
-func apmInjectVersion(p Package, e *env.Env) string {
+func apmInjectVersion(_p Package, e *env.Env) string {
 	version := "latest"
 	if e.IsCentos6 {
 		return apmInjectCentos6Version
