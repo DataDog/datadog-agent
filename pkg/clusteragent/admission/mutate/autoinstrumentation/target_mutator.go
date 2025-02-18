@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	// LastAppliedTargetAnnotation is the JSON of the target that was last applied.
-	LastAppliedTargetAnnotation = "admission.datadoghq.com/last-applied-target"
+	// AppliedTargetAnnotation is the JSON of the target that was applied to the pod.
+	AppliedTargetAnnotation = "internal.apm.datadoghq.com/applied-target"
 )
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -194,7 +194,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 
 	// Add the annotations to the pod.
-	mutatecommon.AddAnnotation(pod, LastAppliedTargetAnnotation, target.json)
+	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)
 
 	return true, nil
 }
