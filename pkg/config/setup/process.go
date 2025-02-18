@@ -172,7 +172,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
 	procBindEnvAndSetDefault(config, "process_config.events_additional_endpoints", make(map[string][]string))
-	config.SetKnown("process_config.intervals.connections")
+	procBindEnv(config, "process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
