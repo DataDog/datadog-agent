@@ -307,7 +307,8 @@ func DetectCentos6() bool {
 	}
 	for _, s := range sources {
 		b, _ := os.ReadFile(s)
-		if bytes.Contains(b, []byte("CentOS release 6")) {
+		if (bytes.Contains(b, []byte("CentOS")) || bytes.Contains(b, []byte("Red Hat"))) &&
+			bytes.Contains(b, []byte("release 6")) {
 			return true
 		}
 	}
