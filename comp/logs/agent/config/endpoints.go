@@ -35,6 +35,7 @@ const (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
+	//
 	apiKeyGetter func() string
 	isReliable   bool
 	useSSL       bool
@@ -193,6 +194,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 // GetAPIKey returns the latest API Key for the Endpoint, including when the configuration gets updated at runtime
 func (e *Endpoint) GetAPIKey() string {
+	//
 	return e.apiKeyGetter()
 }
 
