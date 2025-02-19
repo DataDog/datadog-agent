@@ -10,7 +10,6 @@ package activitytree
 
 import (
 	"bufio"
-	"fmt"
 	"math/rand"
 	"net"
 	"os"
@@ -22,10 +21,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/procfs"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -129,7 +128,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		}
 
 		evt := newEvent()
-		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
+		fullPath := utils.ProcRootFilePath(pn.Process.Pid, f)
 		if evt.ProcessContext == nil {
 			evt.ProcessContext = &model.ProcessContext{}
 		}
@@ -143,14 +142,9 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {
-			fileinfo, err := os.Stat(fullPath)
+			stat, err := utils.UnixStat(fullPath)
 			if err != nil {
 				seclog.Tracef("unable to stat mapped file %s", fullPath)
-				continue
-			}
-
-			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
-			if !ok {
 				continue
 			}
 
@@ -159,7 +153,8 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.FileFields.UID = stat.Uid
 			evt.Open.File.FileFields.GID = stat.Gid
 
-			if fileinfo.Mode().IsRegular() {
+			mode := utils.UnixStatModeToGoFileMode(stat.Mode)
+			if mode.IsRegular() {
 				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
 			}
 		} else {
@@ -216,110 +211,78 @@ func getMemoryMappedFiles(pid int32, processEventPath string) (files []string, _
 	scanner := bufio.NewScanner(smapsFile)
 
 	for scanner.Scan() && len(files) < MaxMmapedFiles {
-		line := scanner.Text()
-		fields := strings.Fields(line)
+		line := scanner.Bytes()
 
-		if len(fields) < 6 || strings.HasSuffix(fields[0], ":") {
+		path, ok := extractPathFromSmapsLine(line)
+		if !ok {
 			continue
 		}
 
-		path := strings.Join(fields[5:], " ")
-		if len(path) != 0 && path != processEventPath {
-			files = append(files, path)
+		if len(path) == 0 {
+			continue
 		}
+
+		if path == processEventPath {
+			continue
+		}
+
+		// skip [vdso], [stack], [heap] and similar mappings
+		if strings.HasPrefix(path, "[") {
+			continue
+		}
+
+		files = append(files, path)
 	}
 
 	return files, scanner.Err()
 }
 
-func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
-	// list all the file descriptors opened by the process
-	FDs, err := p.OpenFiles()
-	if err != nil {
-		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
-		return
-	}
+func extractPathFromSmapsLine(line []byte) (string, bool) {
+	inSpace := false
+	spaceCount := 0
+	for i, c := range line {
+		if c == ' ' || c == '\t' {
+			// check for fields separator
+			if !inSpace && spaceCount == 0 && i > 0 {
+				if line[i-1] == ':' {
+					return "", false
+				}
+			}
 
-	// sockets have the following pattern "socket:[inode]"
-	var sockets []uint64
-	for _, fd := range FDs {
-		if strings.HasPrefix(fd.Path, "socket:[") {
-			sock, err := strconv.Atoi(strings.TrimPrefix(fd.Path[:len(fd.Path)-1], "socket:["))
-			if err != nil {
-				seclog.Warnf("error while parsing socket inode (pid: %v): %s", p.Pid, err)
-				continue
+			if !inSpace {
+				inSpace = true
+				spaceCount++
 			}
-			if sock < 0 {
-				continue
-			}
-			sockets = append(sockets, uint64(sock))
+		} else if spaceCount == 5 {
+			return string(line[i:]), true
+		} else {
+			inSpace = false
 		}
 	}
-	if len(sockets) <= 0 {
-		return
-	}
-
-	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	proc, _ := procfs.NewFS(filepath.Join(kernel.HostProc(fmt.Sprintf("%d", p.Pid))))
-	if err != nil {
-		seclog.Warnf("error while opening procfs (pid: %v): %s", p.Pid, err)
-	}
-	// looking for AF_INET sockets
-	TCP, err := proc.NetTCP()
-	if err != nil {
-		seclog.Debugf("couldn't snapshot TCP sockets: %v", err)
-	}
-	UDP, err := proc.NetUDP()
-	if err != nil {
-		seclog.Debugf("couldn't snapshot UDP sockets: %v", err)
-	}
-	// looking for AF_INET6 sockets
-	TCP6, err := proc.NetTCP6()
-	if err != nil {
-		seclog.Debugf("couldn't snapshot TCP6 sockets: %v", err)
-	}
-	UDP6, err := proc.NetUDP6()
-	if err != nil {
-		seclog.Debugf("couldn't snapshot UDP6 sockets: %v", err)
-	}
-
-	// searching for socket inode
-	for _, s := range sockets {
-		for _, sock := range TCP {
-			if sock.Inode == s {
-				pn.insertSnapshottedSocket(unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort), stats, newEvent)
-				break
-			}
-		}
-		for _, sock := range UDP {
-			if sock.Inode == s {
-				pn.insertSnapshottedSocket(unix.AF_INET, sock.LocalAddr, uint16(sock.LocalPort), stats, newEvent)
-				break
-			}
-		}
-		for _, sock := range TCP6 {
-			if sock.Inode == s {
-				pn.insertSnapshottedSocket(unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort), stats, newEvent)
-				break
-			}
-		}
-		for _, sock := range UDP6 {
-			if sock.Inode == s {
-				pn.insertSnapshottedSocket(unix.AF_INET6, sock.LocalAddr, uint16(sock.LocalPort), stats, newEvent)
-				break
-			}
-		}
-		// not necessary found here, can be also another kind of socket (AF_UNIX, AF_NETLINK, etc)
-	}
+	return "", false
 }
 
-func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port uint16, stats *Stats, newEvent func() *model.Event) {
+func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
+	boundSockets, err := procfs.GetBoundSockets(p)
+	if err != nil {
+		seclog.Warnf("error while listing sockets (pid: %v): %s", p.Pid, err)
+		return
+	}
+
+	for _, socket := range boundSockets {
+		pn.insertSnapshottedSocket(socket.Family, socket.IP, socket.Protocol, socket.Port, stats, newEvent)
+	}
+
+}
+
+func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, protocol uint16, port uint16, stats *Stats, newEvent func() *model.Event) {
 	evt := newEvent()
 	evt.Type = uint32(model.BindEventType)
 
 	evt.Bind.SyscallEvent.Retval = 0
 	evt.Bind.AddrFamily = family
 	evt.Bind.Addr.IPNet.IP = ip
+	evt.Bind.Protocol = protocol
 	if family == unix.AF_INET {
 		evt.Bind.Addr.IPNet.Mask = net.CIDRMask(32, 32)
 	} else {

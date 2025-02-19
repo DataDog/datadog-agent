@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Introduced a new configuration variable `logs_config.http_protocol`, allowing users to enforce HTTP/1.1 for outgoing HTTP connections in the Datadog Agent. This provides better control over transport protocols and improves compatibility with systems that do not support HTTP/2.
+    By default, the log agent will now attempt to use HTTP/2 (unless a proxy is configured) and fall back to the best available protocol if HTTP/2 is not supported.
+enhancements:
+  - |
+    Improved logging to add visibility for latency and transport protocol

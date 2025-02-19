@@ -80,6 +80,7 @@ const (
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 	metadataEndpoint             = "/api/v1/metadata"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
+	netpathEndpoint              = "/api/v2/netpath"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
 )
 
@@ -119,6 +120,7 @@ type Client struct {
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 	metadataAggregator             aggregator.MetadataAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
+	netpathAggregator              aggregator.NetpathAggregator
 	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
 }
 
@@ -145,6 +147,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
+		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
 	}
 	for _, opt := range opts {
@@ -280,6 +283,14 @@ func (c *Client) getNDMFlows() error {
 	return c.ndmflowAggregator.UnmarshallPayloads(payloads)
 }
 
+func (c *Client) getNetpathEvents() error {
+	payloads, err := c.getFakePayloads(netpathEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.netpathAggregator.UnmarshallPayloads(payloads)
+}
+
 // FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
 // metrics matching `name` and any [MatchOpt](#MatchOpt) options
 func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.MetricSeries]) ([]*aggregator.MetricSeries, error) {
@@ -392,6 +403,20 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 		return fmt.Errorf("error code %v", resp.StatusCode)
 	}
 	return nil
+}
+
+// GetLastAPIKey returns the last apiKey sent with a payload to the intake
+func (c *Client) GetLastAPIKey() (string, error) {
+	resp, err := http.Get(fmt.Sprintf("%s/debug/lastAPIKey", c.fakeIntakeURL))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(body)), nil
 }
 
 func (c *Client) getMetric(name string) ([]*aggregator.MetricSeries, error) {
@@ -775,9 +800,6 @@ func (c *Client) get(route string) ([]byte, error) {
 	var body []byte
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
-		if err, ok := err.(net.Error); ok && err.Timeout() {
-			panic(fmt.Sprintf("fakeintake call timed out: %v", err))
-		}
 		if err != nil {
 			return err
 		}
@@ -812,6 +834,9 @@ func (c *Client) get(route string) ([]byte, error) {
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
+	}
 	return body, err
 }
 
@@ -877,6 +902,19 @@ func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
 		ndmflows = append(ndmflows, c.ndmflowAggregator.GetPayloadsByName(name)...)
 	}
 	return ndmflows, nil
+}
+
+// GetNetpathEvents returns the latest netpath events by destination
+func (c *Client) GetNetpathEvents() ([]*aggregator.Netpath, error) {
+	err := c.getNetpathEvents()
+	if err != nil {
+		return nil, err
+	}
+	var netpaths []*aggregator.Netpath
+	for _, name := range c.netpathAggregator.GetNames() {
+		netpaths = append(netpaths, c.netpathAggregator.GetPayloadsByName(name)...)
+	}
+	return netpaths, nil
 }
 
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options

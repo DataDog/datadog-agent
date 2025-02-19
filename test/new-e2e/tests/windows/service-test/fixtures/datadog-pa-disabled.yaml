@@ -1,0 +1,14 @@
+# disable logs agent
+logs_enabled: false
+
+# disable process agent
+process_config:
+  process_collection:
+    enabled: false
+  container_collection:
+    enabled: false
+  enabled: "disabled"
+  process_discovery:
+    enabled: false 
+
+# trace-agent is running by default

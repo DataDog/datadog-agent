@@ -15,4 +15,8 @@ BPF_PERCPU_ARRAY_MAP(postgres_scratch_buffer, postgres_event_t, 1)
 // Maintains the current state of tail calls for each Postgres message.
 BPF_PERCPU_ARRAY_MAP(postgres_iterations, postgres_tail_call_state_t, 1)
 
+// Postgres telemetry maps in kernel provide empirical statistics on the number of processed Postgres messages.
+// Key 0 for plaintext traffic, key 1 for encrypted traffic.
+BPF_ARRAY_MAP(postgres_telemetry, postgres_kernel_msg_count_t, 2)
+
 #endif

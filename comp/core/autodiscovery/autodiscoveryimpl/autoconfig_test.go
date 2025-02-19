@@ -37,7 +37,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -189,7 +189,7 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 	suite.deps = createDeps(suite.T())
 }
 
-func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component) *AutoConfig {
+func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component) *AutoConfig {
 	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp)
 	go ac.serviceListening()
 	return ac
@@ -593,7 +593,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 
 type Deps struct {
 	fx.In
-	WMeta      optional.Option[workloadmeta.Component]
+	WMeta      option.Option[workloadmeta.Component]
 	TaggerComp tagger.Component
 	LogsComp   log.Component
 	Telemetry  telemetry.Component

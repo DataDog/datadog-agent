@@ -23,6 +23,7 @@ import (
 
 	"github.com/fatih/color"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -30,7 +31,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/flare/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -53,7 +53,7 @@ func getProcessAPIAddressPort() (string, error) {
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
 // This function should only be called by the flare component.
-func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCallback {
+func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []*flaretypes.FlareFiller {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -61,19 +61,19 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 	 * is always better to not capture data containing secrets, than to scrub that data.
 	 */
 
-	providers := []flaretypes.FlareCallback{
-		provideExtraFiles,
-		provideSystemProbe,
-		provideConfigDump,
-		provideRemoteConfig,
-		getRegistryJSON,
-		getVersionHistory,
-		getWindowsData,
-		getExpVar,
-		provideInstallInfo,
-		provideAuthTokenPerm,
-		provideDiagnoses(diagnoseDeps),
-		provideContainers(diagnoseDeps),
+	providers := []*flaretypes.FlareFiller{
+		flaretypes.NewFiller(provideExtraFiles),
+		flaretypes.NewFiller(provideSystemProbe),
+		flaretypes.NewFiller(provideConfigDump),
+		flaretypes.NewFiller(provideRemoteConfig),
+		flaretypes.NewFiller(getRegistryJSON),
+		flaretypes.NewFiller(getVersionHistory),
+		flaretypes.NewFiller(getWindowsData),
+		flaretypes.NewFiller(GetExpVar),
+		flaretypes.NewFiller(provideInstallInfo),
+		flaretypes.NewFiller(provideAuthTokenPerm),
+		flaretypes.NewFiller(provideDiagnoses(diagnoseDeps)),
+		flaretypes.NewFiller(provideContainers(diagnoseDeps)),
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
@@ -81,15 +81,17 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
-		"envvars.log":         getEnvVars,
+		"envvars.log":         GetEnvVars,
 		"health.yaml":         getHealth,
 		"go-routine-dump.log": func() ([]byte, error) { return getHTTPCallContent(pprofURL) },
 		"telemetry.log":       func() ([]byte, error) { return getHTTPCallContent(telemetryURL) },
 	} {
-		providers = append(providers, func(fb flaretypes.FlareBuilder) error {
-			fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
-			return nil
-		})
+		providers = append(providers, flaretypes.NewFiller(
+			func(fb flaretypes.FlareBuilder) error {
+				fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
+				return nil
+			},
+		))
 	}
 
 	return providers
@@ -134,25 +136,21 @@ func provideRemoteConfig(fb flaretypes.FlareBuilder) error {
 }
 
 func provideConfigDump(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                                 //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) })                  //nolint:errcheck
-	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) }) //nolint:errcheck
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
 	return nil
 }
 
 func provideSystemProbe(fb flaretypes.FlareBuilder) error {
-	systemProbeConfigBPFDir := pkgconfigsetup.SystemProbe().GetString("system_probe_config.bpf_dir")
-	if systemProbeConfigBPFDir != "" {
-		fb.RegisterDirPerm(systemProbeConfigBPFDir)
-	}
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)                         //nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry) // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_cached.log"), getSystemProbeConntrackCached) // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "conntrack_host.log"), getSystemProbeConntrackHost)     // nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "ebpf_btf_loader.log"), getSystemProbeBTFLoaderInfo)    // nolint:errcheck
+		_ = fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry)
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)
+	} else {
+		// If system probe is disabled, we still want to include the system probe config file
+		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
 	}
 	return nil
 }
@@ -183,7 +181,8 @@ func getRegistryJSON(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func getLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
+// GetLogFiles copies log files to the flare archive.
+func GetLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	log.Flush()
 
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFileDir), "logs", func(path string) bool { //nolint:errcheck
@@ -194,7 +193,8 @@ func getLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	})
 }
 
-func getExpVar(fb flaretypes.FlareBuilder) error {
+// GetExpVar copies expvar files to the flare archive.
+func GetExpVar(fb flaretypes.FlareBuilder) error {
 	variables := make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		variable := make(map[string]interface{})
@@ -219,7 +219,7 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 
 	apmDebugPort := pkgconfigsetup.Datadog().GetInt("apm_config.debug.port")
 	f := filepath.Join("expvar", "trace-agent")
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/debug/vars", apmDebugPort))
+	resp, err := http.Get(fmt.Sprintf("https://127.0.0.1:%d/debug/vars", apmDebugPort))
 	if err != nil {
 		return fb.AddFile(f, []byte(fmt.Sprintf("Error retrieving vars: %v", err)))
 	}
@@ -259,16 +259,15 @@ func getSystemProbeStats() ([]byte, error) {
 }
 
 func getSystemProbeTelemetry() ([]byte, error) {
-	return sysprobe.GetSystemProbeTelemetry(getSystemProbeSocketPath())
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.URL("/telemetry")
+	return getHTTPData(sysProbeClient, url)
 }
-func getSystemProbeConntrackCached() ([]byte, error) {
-	return sysprobe.GetSystemProbeConntrackCached(getSystemProbeSocketPath())
-}
-func getSystemProbeConntrackHost() ([]byte, error) {
-	return sysprobe.GetSystemProbeConntrackHost(getSystemProbeSocketPath())
-}
-func getSystemProbeBTFLoaderInfo() ([]byte, error) {
-	return sysprobe.GetSystemProbeBTFLoaderInfo(getSystemProbeSocketPath())
+
+func getSystemProbeConfig() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(getSystemProbeSocketPath())
+	url := sysprobeclient.URL("/config")
+	return getHTTPData(sysProbeClient, url)
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
@@ -278,7 +277,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
 	}
 
-	procStatusURL := fmt.Sprintf("http://%s/config/all", addressPort)
+	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
 
 	bytes, err := getHTTPCallContent(procStatusURL)
 	if err != nil {
@@ -287,7 +286,8 @@ func getProcessAgentFullConfig() ([]byte, error) {
 	return bytes, nil
 }
 
-func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
+// GetConfigFiles copies configuration files to the flare archive.
+func GetConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
 	for prefix, filePath := range confSearchPaths {
 		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool { //nolint:errcheck
 			// ignore .example file
@@ -326,7 +326,7 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 		log.Errorf("Could not zip process agent checks: wrong configuration to connect to process-agent: %s", err.Error())
 		return
 	}
-	checkURL := fmt.Sprintf("http://%s/check/", addressPort)
+	checkURL := fmt.Sprintf("https://%s/check/", addressPort)
 
 	getCheck := func(checkName, setting string) {
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
@@ -397,7 +397,7 @@ func getAgentTaggerList() ([]byte, error) {
 
 	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
-	return getTaggerList(taggerListURL)
+	return GetTaggerList(taggerListURL)
 }
 
 func getProcessAgentTaggerList() ([]byte, error) {
@@ -406,11 +406,17 @@ func getProcessAgentTaggerList() ([]byte, error) {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
 	}
 
-	taggerListURL := fmt.Sprintf("http://%s/agent/tagger-list", addressPort)
-	return getTaggerList(taggerListURL)
+	err = apiutil.SetAuthToken(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, err
+	}
+
+	taggerListURL := fmt.Sprintf("https://%s/agent/tagger-list", addressPort)
+	return GetTaggerList(taggerListURL)
 }
 
-func getTaggerList(remoteURL string) ([]byte, error) {
+// GetTaggerList fetches the tagger list from the given URL.
+func GetTaggerList(remoteURL string) ([]byte, error) {
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
 	r, err := apiutil.DoGet(c, remoteURL, apiutil.LeaveConnectionOpen)
@@ -436,10 +442,11 @@ func getAgentWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return getWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
 }
 
-func getWorkloadList(url string) ([]byte, error) {
+// GetWorkloadList fetches the workload list from the given URL.
+func GetWorkloadList(url string) ([]byte, error) {
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
 	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
@@ -492,7 +499,8 @@ func getHTTPCallContent(url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	client := http.Client{}
+	client := apiutil.GetClient(false) // FIX: get certificates right then make this true
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -530,4 +538,27 @@ func functionOutputToBytes(fct func(writer io.Writer) error) []byte {
 	writer.Flush()
 
 	return buffer.Bytes()
+}
+
+func getHTTPData(client *http.Client, url string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("non-ok status code: url: %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(data))
+	}
+	return data, nil
 }

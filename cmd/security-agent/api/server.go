@@ -12,42 +12,42 @@ package api
 
 import (
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
 	stdLog "log"
 	"net"
 	"net/http"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Server implements security agent API server
 type Server struct {
-	listener net.Listener
-	agent    *agent.Agent
+	listener  net.Listener
+	agent     *agent.Agent
+	tlsConfig *tls.Config
 }
 
 // NewServer creates a new Server instance
-func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) (*Server, error) {
+func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component, secrets secrets.Component) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
-		listener: listener,
-		agent:    agent.NewAgent(statusComponent, settings, wmeta),
+		listener:  listener,
+		agent:     agent.NewAgent(statusComponent, settings, wmeta, secrets),
+		tlsConfig: at.GetTLSServerConfig(),
 	}, nil
 }
 
@@ -62,43 +62,16 @@ func (s *Server) Start() error {
 	// Validate token for every request
 	r.Use(validateToken)
 
-	err := util.CreateAndSetAuthToken(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
-	}
-
-	hosts := []string{"127.0.0.1", "localhost"}
-	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return fmt.Errorf("unable to start TLS server")
-	}
-
-	// PEM encode the private key
-	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
-	})
-
-	// Create a TLS cert using the private key and certificate
-	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
-	if err != nil {
-		return fmt.Errorf("invalid key pair: %v", err)
-	}
-
-	tlsConfig := tls.Config{
-		Certificates: []tls.Certificate{rootTLSCert},
-		MinVersion:   tls.VersionTLS13,
-	}
-
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkglogsetup.NewLogWriter(4, seelog.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(4, log.ErrorLvl)
 
 	srv := &http.Server{
 		Handler:      r,
 		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
-		TLSConfig:    &tlsConfig,
+		TLSConfig:    s.tlsConfig,
 		WriteTimeout: pkgconfigsetup.Datadog().GetDuration("server_timeout") * time.Second,
 	}
-	tlsListener := tls.NewListener(s.listener, &tlsConfig)
+	tlsListener := tls.NewListener(s.listener, s.tlsConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil

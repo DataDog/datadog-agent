@@ -19,14 +19,14 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 			}
 			profConfig.Definition = *profDefinition
 		}
+		if profConfig.Definition.Name == "" {
+			profConfig.Definition.Name = name
+		}
 		initConfigProfiles[name] = profConfig
 	}
 
 	userProfiles := mergeProfiles(getYamlUserProfiles(), initConfigProfiles)
-	resolvedProfiles, err := resolveProfiles(userProfiles, getYamlDefaultProfiles())
-	if err != nil {
-		return nil, err
-	}
+	resolvedProfiles := resolveProfiles(userProfiles, getYamlDefaultProfiles())
 
 	// When user profiles are from initConfigProfiles
 	// only profiles listed in initConfigProfiles are returned

@@ -24,7 +24,10 @@ func TestGetKnownKeysLowercased(t *testing.T) {
 	assert.Equal(t,
 		map[string]interface{}{
 			"a":     struct{}{},
+			"b":     struct{}{},
 			"b.c":   struct{}{},
+			"d":     struct{}{},
+			"d.e":   struct{}{},
 			"d.e.f": struct{}{},
 		},
 		cfg.GetKnownKeysLowercased())
@@ -37,8 +40,81 @@ func TestGet(t *testing.T) {
 
 	assert.Equal(t, 1234, cfg.Get("a"))
 
-	cfg.Set("a", "test", model.SourceAgentRuntime)
-	assert.Equal(t, "test", cfg.Get("a"))
+	cfg.Set("a", 9876, model.SourceAgentRuntime)
+	assert.Equal(t, 9876, cfg.Get("a"))
+
+	assert.Equal(t, nil, cfg.Get("does_not_exists"))
+
+	// test implicit conversion
+	cfg.Set("a", "1111", model.SourceAgentRuntime)
+	assert.Equal(t, 1111, cfg.Get("a"))
+}
+
+func TestGetDefaultType(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetKnown("a")
+	cfg.SetKnown("b")
+	cfg.BuildSchema()
+
+	cfg.ReadConfig(strings.NewReader(`---
+a:
+  "url1":
+   - apikey2
+   - apikey3
+  "url2":
+   - apikey4
+b:
+  1:
+   - a
+   - b
+  2:
+   - c
+`))
+
+	expected := map[string]interface{}{
+		"url1": []interface{}{"apikey2", "apikey3"},
+		"url2": []interface{}{"apikey4"},
+	}
+	assert.Equal(t, expected, cfg.Get("a"))
+
+	expected2 := map[interface{}]interface{}{
+		1: []interface{}{"a", "b"},
+		2: []interface{}{"c"},
+	}
+	assert.Equal(t, expected2, cfg.Get("b"))
+}
+
+func TestGetInnerNode(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetDefault("a.b.c", 1234)
+	cfg.SetDefault("a.e", 1234)
+	cfg.BuildSchema()
+
+	assert.Equal(t, 1234, cfg.Get("a.b.c"))
+	assert.Equal(t, 1234, cfg.Get("a.e"))
+	assert.Equal(t, map[string]interface{}{"c": 1234}, cfg.Get("a.b"))
+	assert.Equal(t, map[string]interface{}{"b": map[string]interface{}{"c": 1234}, "e": 1234}, cfg.Get("a"))
+
+	cfg.Set("a.b.c", 9876, model.SourceAgentRuntime)
+	assert.Equal(t, 9876, cfg.Get("a.b.c"))
+	assert.Equal(t, 1234, cfg.Get("a.e"))
+	assert.Equal(t, map[string]interface{}{"c": 9876}, cfg.Get("a.b"))
+	assert.Equal(t, map[string]interface{}{"b": map[string]interface{}{"c": 9876}, "e": 1234}, cfg.Get("a"))
+}
+
+func TestGetCastToDefault(t *testing.T) {
+	cfg := NewConfig("test", "", nil)
+	cfg.SetDefault("a", []string{})
+	cfg.BuildSchema()
+
+	// This test that we mimic viper's behavior on Get where we convert the value from the config to the same type
+	// from the default.
+
+	cfg.Set("a", 9876, model.SourceAgentRuntime)
+	assert.Equal(t, []string{"9876"}, cfg.Get("a"))
+
+	cfg.Set("a", "a b c", model.SourceAgentRuntime)
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.Get("a"))
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
 }

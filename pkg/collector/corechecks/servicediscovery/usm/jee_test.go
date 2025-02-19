@@ -246,7 +246,8 @@ func TestWeblogicExtractServiceNamesForJEEServer(t *testing.T) {
 		"PWD": "wls/domain",
 	}
 	extractor := jeeExtractor{ctx: NewDetectionContext(cmd, envs.NewVariables(envsMap), memfs)}
-	extractedContextRoots := extractor.extractServiceNamesForJEEServer()
+	vendor, extractedContextRoots := extractor.extractServiceNamesForJEEServer()
+	require.Equal(t, vendor, weblogic)
 	require.Equal(t, []string{
 		"app1_context", // taken from ear application.xml
 		"app2_context", // taken from war weblogic.xml

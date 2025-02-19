@@ -25,6 +25,7 @@ import (
 type ProfileOverride struct {
 	EnvVars              []corev1.EnvVar             `json:"env,omitempty"`
 	ResourceRequirements corev1.ResourceRequirements `json:"resources,omitempty"`
+	SecurityContext      *corev1.SecurityContext     `json:"securityContext,omitempty"`
 }
 
 // loadSidecarProfiles returns the profile overrides provided by the user
@@ -48,16 +49,15 @@ func loadSidecarProfiles(profilesJSON string) ([]ProfileOverride, error) {
 
 // applyProfileOverrides applies the profile overrides to the container. It
 // returns a boolean that indicates if the container was mutated
-func applyProfileOverrides(container *corev1.Container, profilesJSON string) (bool, error) {
+func applyProfileOverrides(container *corev1.Container, profiles []ProfileOverride) (bool, error) {
 	if container == nil {
 		return false, fmt.Errorf("can't apply profile overrides to nil containers")
 	}
 
-	profiles, err := loadSidecarProfiles(profilesJSON)
-
-	if err != nil {
-		return false, err
+	if profiles == nil {
+		return false, fmt.Errorf("can't apply nil profiles")
 	}
+
 	if len(profiles) == 0 {
 		return false, nil
 	}
@@ -81,6 +81,13 @@ func applyProfileOverrides(container *corev1.Container, profilesJSON string) (bo
 		}
 		mutated = true
 	}
+
+	// Apply security context overrides
+	overridden, err = withSecurityContextOverrides(container, overrides.SecurityContext)
+	if err != nil {
+		return false, err
+	}
+	mutated = mutated || overridden
 
 	return mutated, nil
 }

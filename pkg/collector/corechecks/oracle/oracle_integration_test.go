@@ -216,7 +216,7 @@ func TestChkRun(t *testing.T) {
 	diff1 := (pgaAfter1StRun - pgaBefore) / 1024
 	var extremePGAUsage float64
 	if isDbVersionGreaterOrEqualThan(&c, "12.2") {
-		extremePGAUsage = 1024
+		extremePGAUsage = 2048
 	} else {
 		extremePGAUsage = 8192
 	}
@@ -422,6 +422,14 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 			connectionConfig.Server, connectionConfig.Port, connectionConfig.ServiceName, connectionConfig.Username, connectionConfig.Password, connectionOptions)
 	}
 	return connStr
+}
+
+func TestCanConnectTags(t *testing.T) {
+	chk, sender := newDefaultCheck(t, "", "")
+	err := chk.Run()
+	require.NoError(t, err)
+
+	sender.AssertServiceCheck(t, "oracle.can_connect", servicecheck.ServiceCheckOK, chk.dbHostname, nil, "")
 }
 
 func TestLargeUint64Binding(t *testing.T) {

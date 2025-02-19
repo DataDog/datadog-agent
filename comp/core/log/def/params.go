@@ -119,6 +119,9 @@ func ForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 		}
 
 		if uri == "" {
+			if runtime.GOOS == "darwin" {
+				return "unixgram:///var/run/syslog"
+			}
 			return "unixgram:///dev/log"
 		}
 

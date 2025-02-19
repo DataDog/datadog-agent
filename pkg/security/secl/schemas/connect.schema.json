@@ -2,6 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "connect.schema.json",
     "type": "object",
+    "required" : ["connect"],
     "allOf": [
         {
             "$ref": "event.schema.json"
@@ -22,7 +23,8 @@
                 "connect": {
                     "type": "object",
                     "required": [
-                        "addr"
+                        "addr",
+                        "protocol"
                     ],
                     "properties": {
                         "addr": {
@@ -43,6 +45,9 @@
                                     "type": "integer"
                                 }
                             }
+                        },
+                        "protocol": {
+                            "type": "string"
                         }
                     }
                 }

@@ -74,8 +74,8 @@ func (n *structNodeImpl) SetAt([]string, interface{}, model.Source) (bool, error
 // InsertChildNode is not implemented for a leaf node
 func (n *structNodeImpl) InsertChildNode(string, Node) {}
 
-// makeRemapCase not implemented
-func (n *structNodeImpl) makeRemapCase() {}
+// RemoveChild is not implemented for struct node
+func (n *structNodeImpl) RemoveChild(string) {}
 
 // Clone clones a LeafNode
 func (n *structNodeImpl) Clone() Node {

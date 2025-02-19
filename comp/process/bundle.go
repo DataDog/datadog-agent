@@ -26,10 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: processes
+// team: container-intake
 
 // Bundle defines the fx options for this bundle.
 // Do not add modules not owned by the processes team here as it breaks fx best practices
@@ -55,5 +56,6 @@ func Bundle() fxutil.BundleOptions {
 
 		apiserver.Module(),
 		forwardersimpl.Module(),
+		logscompression.Module(),
 	)
 }

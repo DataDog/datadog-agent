@@ -3,33 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build process
-
 // Package systemprobe fetch information about the system probe
 package systemprobe
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
 // GetStatus returns the expvar stats of the system probe
 func GetStatus(stats map[string]interface{}, socketPath string) {
-	probeUtil, err := net.GetRemoteSystemProbeUtil(socketPath)
-
-	if err != nil {
-		stats["systemProbeStats"] = map[string]interface{}{
-			"Errors": fmt.Sprintf("%v", err),
-		}
-		return
-	}
-
-	systemProbeDetails, err := probeUtil.GetStats()
+	client := sysprobeclient.Get(socketPath)
+	systemProbeDetails, err := getStats(client)
 	if err != nil {
 		stats["systemProbeStats"] = map[string]interface{}{
 			"Errors": fmt.Sprintf("issue querying stats from system probe: %v", err),
@@ -37,6 +29,37 @@ func GetStatus(stats map[string]interface{}, socketPath string) {
 		return
 	}
 	stats["systemProbeStats"] = systemProbeDetails
+}
+
+func getStats(client *http.Client) (map[string]interface{}, error) {
+	url := sysprobeclient.DebugURL("/stats")
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("conn request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
+	}
+
+	body, err := sysprobeclient.ReadAllResponseBody(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := make(map[string]interface{})
+	err = json.Unmarshal(body, &stats)
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
 }
 
 // Provider provides the functionality to populate the status output

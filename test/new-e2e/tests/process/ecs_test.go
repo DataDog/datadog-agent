@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -21,9 +22,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 )
 
 type ECSEC2Suite struct {
@@ -34,7 +36,7 @@ type ecsCPUStressEnv struct {
 	environments.ECS
 }
 
-func ecsEC2CPUStressProvisioner(runInCoreAgent bool) e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
+func ecsEC2CPUStressProvisioner(runInCoreAgent bool) provisioners.PulumiEnvRunFunc[ecsCPUStressEnv] {
 	return func(ctx *pulumi.Context, env *ecsCPUStressEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -65,13 +67,15 @@ func TestECSEC2TestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSEC2Suite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		e2e.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(false), nil))}
+		provisioners.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(false), nil))}
 
 	e2e.Run(t, &s, e2eParams...)
 }
 
 func (s *ECSEC2Suite) TestProcessCheck() {
 	t := s.T()
+	// https://datadoghq.atlassian.net/browse/CTK-4587
+	flake.Mark(t)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -87,25 +91,31 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
-func (s *ECSEC2Suite) TestProcessCheckInCoreAgent() {
+// ECSEC2CoreAgentSuite runs the same test as ECSEC2Suite but with the process check running in the core agent
+// This is duplicated as the tests have been flaky. This may be due to how pulumi is handling the provisioning of
+// ecs tasks.
+type ECSEC2CoreAgentSuite struct {
+	e2e.BaseSuite[ecsCPUStressEnv]
+}
+
+func TestECSEC2CoreAgentSuite(t *testing.T) {
+	t.Parallel()
+	s := ECSEC2CoreAgentSuite{}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
+		provisioners.NewTypedPulumiProvisioner("ecsEC2CoreAgentCPUStress", ecsEC2CPUStressProvisioner(true), nil))}
+
+	e2e.Run(t, &s, e2eParams...)
+}
+
+func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
 
-	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(true), nil))
-
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		requireProcessNotCollected(c, payloads, "process-agent")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	requireProcessNotCollected(t, payloads, "process-agent")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }

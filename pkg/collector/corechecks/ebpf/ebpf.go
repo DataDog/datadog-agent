@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
@@ -25,7 +24,7 @@ import (
 	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -39,20 +38,22 @@ type EBPFCheckConfig struct {
 
 // EBPFCheck grabs eBPF map/program/perf buffer metrics
 type EBPFCheck struct {
-	config         *EBPFCheckConfig
-	sysProbeClient *http.Client
+	config             *EBPFCheckConfig
+	sysProbeClient     *http.Client
+	previousMapEntries map[string]int64
 	core.CheckBase
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory() option.Option[func() check.Check] {
+	return option.New(newCheck)
 }
 
 func newCheck() check.Check {
 	return &EBPFCheck{
-		CheckBase: core.NewCheckBase(CheckName),
-		config:    &EBPFCheckConfig{},
+		CheckBase:          core.NewCheckBase(CheckName),
+		config:             &EBPFCheckConfig{},
+		previousMapEntries: make(map[string]int64),
 	}
 }
 
@@ -100,12 +101,18 @@ func (m *EBPFCheck) Run() error {
 			"module:" + mapStats.Module,
 		}
 		sender.Gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), "", tags)
-		sender.Gauge("ebpf.maps.max_entries", float64(mapStats.MaxEntries), "", tags)
 		if mapStats.RSS > 0 {
 			sender.Gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), "", tags)
 		}
+
+		maxEntries := float64(mapStats.MaxEntries)
+		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", tags)
 		if mapStats.Entries >= 0 {
-			sender.Gauge("ebpf.maps.entry_count", float64(mapStats.Entries), "", tags)
+			entries := float64(mapStats.Entries)
+			sender.Gauge("ebpf.maps.entry_count", entries, "", tags)
+			sender.Gauge("ebpf.maps.occupation", entries/maxEntries, "", tags)
+			sender.Gauge("ebpf.maps.occupation_increase", float64(mapStats.Entries-m.previousMapEntries[mapStats.Name])/maxEntries, "", tags)
+			m.previousMapEntries[mapStats.Name] = mapStats.Entries
 		}
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
@@ -152,7 +159,7 @@ func (m *EBPFCheck) Run() error {
 			"module:" + progInfo.Module,
 		}
 		var debuglogs []string
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
 		}
 
@@ -166,7 +173,7 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.Gauge("ebpf.programs."+k, v, "", tags)
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
@@ -184,12 +191,12 @@ func (m *EBPFCheck) Run() error {
 				continue
 			}
 			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
 		}
 
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}

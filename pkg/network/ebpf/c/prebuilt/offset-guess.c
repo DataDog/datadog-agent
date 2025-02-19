@@ -298,11 +298,11 @@ int kprobe__sock_common_getsockopt(struct pt_regs* ctx) {
 SEC("kprobe/tcp_v6_connect")
 int kprobe__tcp_v6_connect(struct pt_regs* ctx) {
     struct sock* sk;
-    u64 pid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
 
     sk = (struct sock*)PT_REGS_PARM1(ctx);
 
-    bpf_map_update_elem(&connectsock_ipv6, &pid, &sk, BPF_ANY);
+    bpf_map_update_elem(&connectsock_ipv6, &pid_tgid, &sk, BPF_ANY);
 
     return 0;
 }
@@ -310,17 +310,17 @@ int kprobe__tcp_v6_connect(struct pt_regs* ctx) {
 // Used for offset guessing (see: pkg/ebpf/offsetguess.go)
 SEC("kretprobe/tcp_v6_connect")
 int kretprobe__tcp_v6_connect(struct pt_regs* __attribute__((unused)) ctx) {
-    u64 pid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 zero = 0;
     struct sock** skpp;
     tracer_status_t* status;
-    skpp = bpf_map_lookup_elem(&connectsock_ipv6, &pid);
+    skpp = bpf_map_lookup_elem(&connectsock_ipv6, &pid_tgid);
     if (skpp == 0) {
         return 0; // missed entry
     }
 
     struct sock* skp = *skpp;
-    bpf_map_delete_elem(&connectsock_ipv6, &pid);
+    bpf_map_delete_elem(&connectsock_ipv6, &pid_tgid);
 
     status = bpf_map_lookup_elem(&tracer_status, &zero);
     if (status == NULL || is_sk_buff_event(status->what)) {

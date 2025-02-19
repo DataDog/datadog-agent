@@ -48,10 +48,8 @@ class FailedJobType(Enum):
 
 class FailedJobReason(Enum):
     RUNNER = 1
-    KITCHEN_AZURE = 4
     FAILED_JOB_SCRIPT = 5
     GITLAB = 6
-    KITCHEN = 7
     EC2_SPOT = 8
     E2E_INFRA_FAILURE = 9
     FAILED_BRIDGE_JOB = 10

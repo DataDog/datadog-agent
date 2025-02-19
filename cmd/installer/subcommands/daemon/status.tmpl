@@ -1,18 +1,31 @@
 Datadog Installer v{{ htmlSafe .Version }}
-{{ range $name, $package := .Packages }}
+{{ range $name, $packageState := .Packages }}
+{{ $version := $packageState.Version }}
+{{ $config := $packageState.Config }}
 {{ boldText $name }}
-  State: {{ if $package.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $package.Stable -}}{{ greenText "OK" }}{{- else -}}{{ redText "no stable version" }}{{- end }}
+  State: {{ if $version.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $version.Stable -}}{{ greenText "OK" }}{{- else -}}config only{{- end }}
   Installed versions:
-  {{- if $package.Stable }}
-    {{ greenText "●" }} stable: v{{ htmlSafe $package.Stable }}
+  {{- if $version.Stable }}
+    {{ greenText "●" }} stable: v{{ htmlSafe $version.Stable }}
   {{- else }}
-    {{ redText "●" }} stable: none
+    ● stable: none
   {{- end }}
-  {{- if $package.Experiment }}
-    {{ yellowText "●" }} experiment: v{{ htmlSafe $package.Experiment }}
+  {{- if $version.Experiment }}
+    {{ yellowText "●" }} experiment: v{{ htmlSafe $version.Experiment }}
   {{- else }}
     ● experiment: none
   {{- end }}
+  {{- if $config.Stable }}
+    {{ greenText "●" }} stable config: {{ htmlSafe $config.Stable }}
+  {{- else }}
+    ● stable config: none
+  {{- end }}
+  {{- if $config.Experiment }}
+    {{ yellowText "●" }} experiment config: {{ htmlSafe $config.Experiment }}
+  {{- else }}
+    ● experiment config: none
+  {{- end }}
+
 
   {{- if eq $name "datadog-apm-inject" }}
     {{ template "datadog-apm-inject" $.ApmInjectionStatus }}
@@ -25,7 +38,6 @@ Datadog Installer v{{ htmlSafe .Version }}
     ExperimentVersion: {{ $remoteConfig.ExperimentVersion }}
     StableConfigVersion: {{ $remoteConfig.StableConfigVersion }}
     ExperimentConfigVersion: {{ $remoteConfig.ExperimentConfigVersion }}
-    RemoteConfigVersion: {{ $remoteConfig.RemoteConfigVersion }}
     Task:
       {{- if $remoteConfig.Task }}
         Id: {{ $remoteConfig.Task.Id }}

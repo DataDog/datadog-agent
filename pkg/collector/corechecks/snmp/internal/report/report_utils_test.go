@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 
@@ -21,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -772,14 +770,14 @@ metric_tags:
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
 			m := profiledefinition.MetricsConfig{}
 			yaml.Unmarshal(tt.rawMetricConfig, &m)
 
-			configvalidation.ValidateEnrichMetrics([]profiledefinition.MetricsConfig{m})
+			profiledefinition.ValidateEnrichMetrics([]profiledefinition.MetricsConfig{m})
 			tags := getTagsFromMetricTagConfigList(m.MetricTags, tt.fullIndex, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)
@@ -1091,7 +1089,7 @@ func Test_getContantMetricValues(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 

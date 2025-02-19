@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,9 +21,9 @@ import (
 )
 
 // NewClusterRoleBindingCollectorVersions builds the group of collector versions.
-func NewClusterRoleBindingCollectorVersions() collectors.CollectorVersions {
+func NewClusterRoleBindingCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewClusterRoleBindingCollector(),
+		NewClusterRoleBindingCollector(metadataAsTags),
 	)
 }
 
@@ -36,7 +37,11 @@ type ClusterRoleBindingCollector struct {
 
 // NewClusterRoleBindingCollector creates a new collector for the Kubernetes
 // ClusterRoleBinding resource.
-func NewClusterRoleBindingCollector() *ClusterRoleBindingCollector {
+func NewClusterRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleBindingCollector {
+	resourceType := getResourceType(clusterRoleBindingName, clusterRoleBindingVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &ClusterRoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -44,9 +49,11 @@ func NewClusterRoleBindingCollector() *ClusterRoleBindingCollector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "clusterrolebindings",
+			Name:                      clusterRoleBindingName,
 			NodeType:                  orchestrator.K8sClusterRoleBinding,
-			Version:                   "rbac.authorization.k8s.io/v1",
+			Version:                   clusterRoleBindingVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleBindingHandlers)),
 	}
@@ -75,6 +82,11 @@ func (c *ClusterRoleBindingCollector) Run(rcfg *collectors.CollectorRunConfig) (
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *ClusterRoleBindingCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
@@ -85,7 +97,7 @@ func (c *ClusterRoleBindingCollector) Run(rcfg *collectors.CollectorRunConfig) (
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

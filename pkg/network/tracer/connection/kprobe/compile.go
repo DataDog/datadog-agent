@@ -5,7 +5,8 @@
 
 //go:build linux_bpf
 
-package kprobe //nolint:revive // TODO
+// Package kprobe supports kprobe connecting tracing
+package kprobe
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"

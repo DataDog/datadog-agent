@@ -18,7 +18,6 @@ type Evaluator interface {
 	IsDeterministicFor(field Field) bool
 	GetField() string
 	IsStatic() bool
-	GetWeight() int
 }
 
 // BoolEvaluator returns a bool as result of the evaluation
@@ -51,11 +50,6 @@ func (b *BoolEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (b *BoolEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
-}
-
-// GetWeight returns the weight of the evaluator
-func (b *BoolEvaluator) GetWeight() int {
-	return b.Weight
 }
 
 // IntEvaluator returns an int as result of the evaluation
@@ -92,11 +86,6 @@ func (i *IntEvaluator) IsStatic() bool {
 	return i.EvalFnc == nil
 }
 
-// GetWeight returns the weight of the evaluator
-func (i *IntEvaluator) GetWeight() int {
-	return i.Weight
-}
-
 // StringEvaluator returns a string as result of the evaluation
 type StringEvaluator struct {
 	EvalFnc       func(ctx *Context) string
@@ -129,11 +118,6 @@ func (s *StringEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (s *StringEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
-}
-
-// GetWeight returns the weight of the evaluator
-func (s *StringEvaluator) GetWeight() int {
-	return s.Weight
 }
 
 // GetValue returns the evaluator value
@@ -190,11 +174,6 @@ func (s *StringArrayEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
-// GetWeight returns the weight of the evaluator
-func (s *StringArrayEvaluator) GetWeight() int {
-	return s.Weight
-}
-
 // AppendValue append the given value
 func (s *StringArrayEvaluator) AppendValue(value string) {
 	s.Values = append(s.Values, value)
@@ -228,11 +207,6 @@ func (s *StringValuesEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (s *StringValuesEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
-}
-
-// GetWeight returns the weight of the evaluator
-func (s *StringValuesEvaluator) GetWeight() int {
-	return s.Weight
 }
 
 // Compile the underlying StringValues
@@ -301,11 +275,6 @@ func (i *IntArrayEvaluator) IsStatic() bool {
 	return i.EvalFnc == nil
 }
 
-// GetWeight returns the weight of the evaluator
-func (i *IntArrayEvaluator) GetWeight() int {
-	return i.Weight
-}
-
 // AppendValues to the array evaluator
 func (i *IntArrayEvaluator) AppendValues(values ...int) {
 	i.Values = append(i.Values, values...)
@@ -341,11 +310,6 @@ func (b *BoolArrayEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (b *BoolArrayEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
-}
-
-// GetWeight returns the weight of the evaluator
-func (b *BoolArrayEvaluator) GetWeight() int {
-	return b.Weight
 }
 
 // AppendValues to the array evaluator
@@ -386,11 +350,6 @@ func (s *CIDREvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
-// GetWeight returns the weight of the evaluator
-func (s *CIDREvaluator) GetWeight() int {
-	return s.Weight
-}
-
 // CIDRValuesEvaluator returns a net.IP
 type CIDRValuesEvaluator struct {
 	EvalFnc   func(ctx *Context) *CIDRValues
@@ -420,11 +379,6 @@ func (s *CIDRValuesEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (s *CIDRValuesEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
-}
-
-// GetWeight returns the weight of the evaluator
-func (s *CIDRValuesEvaluator) GetWeight() int {
-	return s.Weight
 }
 
 // CIDRArrayEvaluator returns an array of net.IPNet
@@ -458,9 +412,4 @@ func (s *CIDRArrayEvaluator) GetField() string {
 // IsStatic returns whether the evaluator is a scalar
 func (s *CIDRArrayEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
-}
-
-// GetWeight returns the weight of the evaluator
-func (s *CIDRArrayEvaluator) GetWeight() int {
-	return s.Weight
 }

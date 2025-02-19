@@ -19,7 +19,7 @@ and development, is located under [the docs directory](docs) of the present repo
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.22 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
+ * [Go](https://golang.org/doc/install) 1.23 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
  * Python 3.11+ along with development libraries for tooling. You will also need Python 2.7 if you are building the Agent with Python 2 support.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
@@ -28,8 +28,7 @@ To build the Agent you need:
 **Note:** you may want to use a python virtual environment to avoid polluting your
       system-wide python environment with the agent build/dev dependencies. You can
       create a virtual environment using `virtualenv` and then use the `invoke agent.build`
-      parameters `--python-home-2=<venv_path>` and/or `--python-home-3=<venv_path>`
-      (depending on the python versions you are using) to use the virtual environment's
+      parameters `--python-home-3=<venv_path>` to use the virtual environment's
       interpreter and libraries. By default, this environment is only used for dev dependencies
       listed in `requirements.txt`.
 
@@ -55,7 +54,6 @@ To start working on the Agent, you can build the `main` branch:
      virtualenvs):
 
        invoke agent.build \
-         --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv2 \
          --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3
 
     Running `invoke agent.build`:

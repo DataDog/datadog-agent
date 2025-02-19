@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cihub/seelog"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -192,7 +190,7 @@ func (bc *USMConnectionIndex[K, V]) Close() {
 		var total int
 		for key, value := range bc.data {
 			if !value.claimed {
-				if log.ShouldLog(seelog.TraceLvl) {
+				if log.ShouldLog(log.TraceLvl) {
 					log.Tracef("key %+v unclaimed", key)
 				}
 				total += len(value.Data)

@@ -17,6 +17,8 @@ import (
 	"io"
 	"os"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
@@ -40,6 +42,18 @@ type Replacer struct {
 	// ReplFunc, if set, is called with the matched bytes (see regexp#Regexp.ReplaceAllFunc). Only
 	// one of Repl and ReplFunc should be set.
 	ReplFunc func(b []byte) []byte
+
+	// LastUpdated is the last version when the replacer was updated.
+	// This is used to track when a replacer was last updated to compare with the flare version on the rapid side to decide to apply the replacer or not.
+	LastUpdated *version.Version
+}
+
+func parseVersion(versionString string) *version.Version {
+	v, err := version.New(versionString, "")
+	if err != nil {
+		panic(err)
+	}
+	return &v
 }
 
 // ReplacerKind modifies how a Replacer is applied
@@ -71,6 +85,10 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
+
+	// shouldApply is a function that can be used to conditionally apply a replacer.
+	// If the function returns false, the replacer will not be applied.
+	shouldApply func(repl Replacer) bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -96,6 +114,11 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	case MultiLine:
 		c.multiLineReplacers = append(c.multiLineReplacers, replacer)
 	}
+}
+
+// SetShouldApply sets a condition function to the scrubber. If the function returns false, the replacer will not be applied.
+func (c *Scrubber) SetShouldApply(shouldApply func(repl Replacer) bool) {
+	c.shouldApply = shouldApply
 }
 
 // ScrubFile scrubs credentials from file given by pathname
@@ -174,6 +197,10 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
 		if repl.Regex == nil {
 			// ignoring YAML only replacers
+			continue
+		}
+
+		if c.shouldApply != nil && !c.shouldApply(repl) {
 			continue
 		}
 

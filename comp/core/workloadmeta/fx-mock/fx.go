@@ -15,7 +15,7 @@ import (
 	wmimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: container-platform
@@ -25,8 +25,8 @@ func MockModule(params wmdef.Params) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(wmimpl.NewWorkloadMetaMock),
 		fx.Provide(func(mock wmmock.Mock) wmdef.Component { return mock }),
-		fx.Provide(func(mock wmmock.Mock) optional.Option[wmdef.Component] {
-			return optional.NewOption[wmdef.Component](mock)
+		fx.Provide(func(mock wmmock.Mock) option.Option[wmdef.Component] {
+			return option.New[wmdef.Component](mock)
 		}),
 		fx.Supply(params),
 	)

@@ -22,13 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // FIXTURE
@@ -97,8 +98,9 @@ func (suite *CollectorTestSuite) SetupTest() {
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),
 		demultiplexerimpl.MockModule(),
-		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
-			return optional.NewNoneOption[serializer.MetricSerializer]()
+		haagentmock.Module(),
+		fx.Provide(func() option.Option[serializer.MetricSerializer] {
+			return option.None[serializer.MetricSerializer]()
 		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},

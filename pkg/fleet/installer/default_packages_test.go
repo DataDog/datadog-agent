@@ -8,8 +8,8 @@ package installer
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,6 +32,25 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 	assert.Equal(t, []string{
 		"oci://install.datadoghq.com/apm-inject-package:latest",
 		"oci://install.datadoghq.com/apm-library-java-package:1",
+		"oci://install.datadoghq.com/apm-library-ruby-package:2",
+		"oci://install.datadoghq.com/apm-library-js-package:5",
+		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
+		"oci://install.datadoghq.com/apm-library-python-package:2",
+	}, packages)
+}
+
+func TestCentos6PackagesAPMInjectEnabled(t *testing.T) {
+	env := &env.Env{
+		InstallScript: env.InstallScriptEnv{
+			APMInstrumentationEnabled: env.APMInstrumentationEnabledAll,
+		},
+		IsCentos6: true,
+	}
+	packages := DefaultPackages(env)
+
+	assert.Equal(t, []string{
+		"oci://install.datadoghq.com/apm-inject-package:0.30.0-1",
+		"oci://install.datadoghq.com/apm-library-java-package:1.45.2-1",
 		"oci://install.datadoghq.com/apm-library-ruby-package:2",
 		"oci://install.datadoghq.com/apm-library-js-package:5",
 		"oci://install.datadoghq.com/apm-library-dotnet-package:3",

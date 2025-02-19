@@ -3,12 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build crio
+
 // Package crio provides a crio client.
 package crio
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"time"
 
 	"google.golang.org/grpc"
@@ -16,19 +22,24 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	containersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
-	udsPrefix = "unix://%s"
+	defaultCrioSocketPath = "/var/run/crio/crio.sock"
+	udsPrefix             = "unix://%s"
+	overlayPath           = "/var/lib/containers/storage/overlay"
+	overlayImagePath      = "/var/lib/containers/storage/overlay-images"
+	overlayLayersPath     = "/var/lib/containers/storage/overlay-layers/layers.json"
 )
 
 // Client defines an interface for interacting with the CRI-API, providing methods for
 // retrieving information about container and pod statuses, images, and metadata.
 type Client interface {
-	// Close terminates the CRI-O API connection and cleans up resources.
-	Close() error
-
 	// RuntimeMetadata returns metadata about the container runtime, including version details.
 	// Accepts a context to manage request lifetime.
 	RuntimeMetadata(ctx context.Context) (*v1.VersionResponse, error)
@@ -42,12 +53,16 @@ type Client interface {
 	GetContainerStatus(ctx context.Context, containerID string) (*v1.ContainerStatusResponse, error)
 
 	// GetContainerImage fetches metadata for a specified image, identified by imageSpec.
-	// Accepts a context and the imageSpec to identify the image.
-	GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error)
+	// Accepts a context, the imageSpec to identify the image, and a verbose flag for detailed metadata.
+	GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error)
 
 	// GetPodStatus provides the status of a specified pod sandbox, identified by podSandboxID.
 	// Takes a context to manage the request and returns sandbox status information.
 	GetPodStatus(ctx context.Context, podSandboxID string) (*v1.PodSandboxStatus, error)
+
+	// GetCRIOImageLayers returns paths to `diff` directories for each layer of the specified image,
+	// using imgMeta to identify the image and resolve its layers.
+	GetCRIOImageLayers(imgMeta *workloadmeta.ContainerImageMetadata) ([]string, error)
 }
 
 // clientImpl is a client to interact with the CRI-API.
@@ -60,8 +75,8 @@ type clientImpl struct {
 }
 
 // NewCRIOClient creates a new CRI-O client implementing the Client interface.
-func NewCRIOClient(socketPath string) (Client, error) {
-
+func NewCRIOClient() (Client, error) {
+	socketPath := getCRIOSocketPath()
 	client := &clientImpl{socketPath: socketPath}
 
 	client.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
@@ -74,18 +89,10 @@ func NewCRIOClient(socketPath string) (Client, error) {
 
 	// Attempt connection with retry
 	if err := client.initRetry.TriggerRetry(); err != nil {
-		return nil, fmt.Errorf("failed to initialize CRI-O client: %w", err)
+		return nil, fmt.Errorf("failed to initialize CRI-O client on socket %s: %w", socketPath, err)
 	}
 
 	return client, nil
-}
-
-// Close closes the CRI-O client connection.
-func (c *clientImpl) Close() error {
-	if c == nil || c.conn == nil {
-		return fmt.Errorf("CRI-O client is not initialized")
-	}
-	return c.conn.Close()
 }
 
 // RuntimeMetadata retrieves the runtime metadata including runtime name and version.
@@ -112,15 +119,15 @@ func (c *clientImpl) GetContainerStatus(ctx context.Context, containerID string)
 }
 
 // GetContainerImage retrieves the image status of a specific imageSpec.
-func (c *clientImpl) GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec) (*v1.Image, error) {
-	imageStatusResponse, err := c.imageClient.ImageStatus(ctx, &v1.ImageStatusRequest{Image: imageSpec})
+func (c *clientImpl) GetContainerImage(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error) {
+	imageStatusResponse, err := c.imageClient.ImageStatus(ctx, &v1.ImageStatusRequest{Image: imageSpec, Verbose: verbose})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch image status for spec %s: %w", imageSpec.Image, err)
 	}
-	if imageStatusResponse.GetImage() == nil {
+	if imageStatusResponse.Image == nil {
 		return nil, fmt.Errorf("image not found for spec %s", imageSpec.Image)
 	}
-	return imageStatusResponse.GetImage(), nil
+	return imageStatusResponse, nil
 }
 
 // GetPodStatus retrieves the status of a specific pod sandbox.
@@ -129,7 +136,66 @@ func (c *clientImpl) GetPodStatus(ctx context.Context, podSandboxID string) (*v1
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pod status for pod ID %s: %w", podSandboxID, err)
 	}
-	return podSandboxStatusResponse.GetStatus(), nil
+	return podSandboxStatusResponse.Status, nil
+}
+
+// GetCRIOImageLayers returns the paths of each layer's `diff` directory in the correct order.
+func (c *clientImpl) GetCRIOImageLayers(imgMeta *workloadmeta.ContainerImageMetadata) ([]string, error) {
+	var lowerDirs []string
+
+	digestToIDMap, err := c.buildDigestToIDMap(imgMeta)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build digest to ID map: %w", err)
+	}
+
+	// Construct the list of lowerDirs by mapping each layer to its corresponding `diff` directory path
+	for _, layer := range imgMeta.Layers {
+		if layer.Digest == "" { // Skip empty layers
+			continue
+		}
+		layerID, found := digestToIDMap[layer.Digest]
+		if !found {
+			return nil, fmt.Errorf("layer ID not found for digest %s", layer.Digest)
+		}
+
+		layerPath := filepath.Join(GetOverlayPath(), layerID, "diff")
+		lowerDirs = append([]string{layerPath}, lowerDirs...)
+	}
+
+	return lowerDirs, nil
+}
+
+// GetOverlayImagePath returns the path to the overlay-images directory.
+func GetOverlayImagePath() string {
+	if env.IsContainerized() {
+		return containersimage.SanitizeHostPath(overlayImagePath)
+	}
+	return overlayImagePath
+}
+
+// GetOverlayPath returns the path to the overlay directory.
+func GetOverlayPath() string {
+	if env.IsContainerized() {
+		return containersimage.SanitizeHostPath(overlayPath)
+	}
+	return overlayPath
+}
+
+// GetOverlayLayersPath returns the path to the overlay-layers directory.
+func GetOverlayLayersPath() string {
+	if env.IsContainerized() {
+		return containersimage.SanitizeHostPath(overlayLayersPath)
+	}
+	return overlayLayersPath
+}
+
+// getCRIOSocketPath returns the configured CRI-O socket path or the default path.
+func getCRIOSocketPath() string {
+	criSocket := pkgconfigsetup.Datadog().GetString("cri_socket_path")
+	if criSocket == "" {
+		return defaultCrioSocketPath
+	}
+	return criSocket
 }
 
 // connect establishes a gRPC connection.
@@ -159,4 +225,45 @@ func (c *clientImpl) connect() error {
 	}
 
 	return nil
+}
+
+// buildDigestToIDMap creates a map of layer digests to IDs for the layers in imgMeta.
+func (c *clientImpl) buildDigestToIDMap(imgMeta *workloadmeta.ContainerImageMetadata) (map[string]string, error) {
+	file, err := os.Open(GetOverlayLayersPath())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open layers.json: %w", err)
+	}
+	defer file.Close()
+
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read layers.json: %w", err)
+	}
+
+	var layers []layerInfo
+	if err := json.Unmarshal(fileBytes, &layers); err != nil {
+		return nil, fmt.Errorf("failed to parse layers.json: %w", err)
+	}
+
+	neededDigests := make(map[string]struct{})
+	for _, layer := range imgMeta.Layers {
+		if layer.Digest != "" { // Skip empty layers
+			neededDigests[layer.Digest] = struct{}{}
+		}
+	}
+
+	digestToIDMap := make(map[string]string)
+	for _, layer := range layers {
+		if _, found := neededDigests[layer.DiffDigest]; found {
+			digestToIDMap[layer.DiffDigest] = layer.ID
+		}
+	}
+
+	return digestToIDMap, nil
+}
+
+// layerInfo represents each entry in layers.json
+type layerInfo struct {
+	ID         string `json:"id"`
+	DiffDigest string `json:"diff-digest"`
 }

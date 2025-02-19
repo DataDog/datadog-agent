@@ -107,11 +107,11 @@ type Filter struct {
 
 var sharedFilter *Filter
 
-func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters []*regexp.Regexp, filterErrs []string, err error) {
-	var filterWarnings []string
+func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters []*regexp.Regexp, filterErrs []string) {
 	for _, filter := range filters {
 		switch {
 		case strings.HasPrefix(filter, imageFilterPrefix):
+			filter = preprocessImageFilter(filter)
 			r, err := filterToRegex(filter, imageFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
@@ -135,14 +135,25 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 		default:
 			warnmsg := fmt.Sprintf("Container filter %q is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'", filter)
 			log.Warn(warnmsg)
-			filterWarnings = append(filterWarnings, warnmsg)
+			filterErrs = append(filterErrs, warnmsg)
 
 		}
 	}
-	if len(filterErrs) > 0 {
-		return nil, nil, nil, append(filterErrs, filterWarnings...), errors.New(filterErrs[0])
+
+	return imageFilters, nameFilters, namespaceFilters, filterErrs
+}
+
+// preprocessImageFilter modifies image filters having the format `name$`, where {name} doesn't include a colon (e.g. nginx$, ^nginx$), to
+// `name:.*`.
+// This is done so that image filters can still match even if the matched image contains the tag or digest.
+func preprocessImageFilter(imageFilter string) string {
+	regexVal := strings.TrimPrefix(imageFilter, imageFilterPrefix)
+	if strings.HasSuffix(regexVal, "$") && !strings.Contains(regexVal, ":") {
+		mutatedRegexVal := regexVal[:len(regexVal)-1] + "(@sha256)?:.*"
+		return imageFilterPrefix + mutatedRegexVal
 	}
-	return imageFilters, nameFilters, namespaceFilters, filterWarnings, nil
+
+	return imageFilter
 }
 
 // filterToRegex checks a filter's regex
@@ -208,34 +219,32 @@ func ResetSharedFilter() {
 // GetFilterErrors retrieves a list of errors and warnings resulting from parseFilters
 func GetFilterErrors() map[string]struct{} {
 	filter, _ := newMetricFilterFromConfig()
-	logFilter, _ := NewAutodiscoveryFilter(LogsFilter)
+	logFilter := NewAutodiscoveryFilter(LogsFilter)
 	for err := range logFilter.Errors {
 		filter.Errors[err] = struct{}{}
 	}
 	return filter.Errors
 }
 
-// NewFilter creates a new container filter from a two slices of
+// NewFilter creates a new container filter from two slices of
 // regexp patterns for a include list and exclude list. Each pattern should have
 // the following format: "field:pattern" where field can be: [image, name, kube_namespace].
-// An error is returned if any of the expression don't compile.
+// An error is returned if any of the expression don't compile or if any filter field is not
+// recognized
 func NewFilter(ft FilterType, includeList, excludeList []string) (*Filter, error) {
-	imgIncl, nameIncl, nsIncl, filterErrsIncl, errIncl := parseFilters(includeList)
-	imgExcl, nameExcl, nsExcl, filterErrsExcl, errExcl := parseFilters(excludeList)
+	imgIncl, nameIncl, nsIncl, filterErrsIncl := parseFilters(includeList)
+	imgExcl, nameExcl, nsExcl, filterErrsExcl := parseFilters(excludeList)
 
-	errors := append(filterErrsIncl, filterErrsExcl...)
+	var lastError error
+
+	filterErrs := append(filterErrsIncl, filterErrsExcl...)
 	errorsMap := make(map[string]struct{})
-	if len(errors) > 0 {
-		for _, err := range errors {
+	if len(filterErrs) > 0 {
+		for _, err := range filterErrs {
 			errorsMap[err] = struct{}{}
 		}
-	}
 
-	if errIncl != nil {
-		return &Filter{Errors: errorsMap}, errIncl
-	}
-	if errExcl != nil {
-		return &Filter{Errors: errorsMap}, errExcl
+		lastError = errors.New(filterErrs[len(filterErrs)-1])
 	}
 
 	return &Filter{
@@ -248,7 +257,7 @@ func NewFilter(ft FilterType, includeList, excludeList []string) (*Filter, error
 		NameExcludeList:      nameExcl,
 		NamespaceExcludeList: nsExcl,
 		Errors:               errorsMap,
-	}, nil
+	}, lastError
 }
 
 // newMetricFilterFromConfig creates a new container filter, sourcing patterns
@@ -298,7 +307,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 // It sources patterns from the pkg/config options but ignores the exclude_pause_container options
 // It allows to filter metrics and logs separately
 // For use in autodiscovery.
-func NewAutodiscoveryFilter(ft FilterType) (*Filter, error) {
+func NewAutodiscoveryFilter(ft FilterType) *Filter {
 	includeList := []string{}
 	excludeList := []string{}
 	switch ft {
@@ -320,14 +329,24 @@ func NewAutodiscoveryFilter(ft FilterType) (*Filter, error) {
 		includeList = pkgconfigsetup.Datadog().GetStringSlice("container_include_logs")
 		excludeList = pkgconfigsetup.Datadog().GetStringSlice("container_exclude_logs")
 	}
-	return NewFilter(ft, includeList, excludeList)
+	filter, _ := NewFilter(ft, includeList, excludeList)
+	return filter
 }
 
 // IsExcluded returns a bool indicating if the container should be excluded
 // based on the filters in the containerFilter instance. Consider also using
 // Note: exclude filters are not applied to empty container names, empty
 // images and empty namespaces.
+//
+// containerImage may or may not contain the image tag or image digest. (e.g. nginx:latest and nginx are both valid)
 func (cf Filter) IsExcluded(annotations map[string]string, containerName, containerImage, podNamespace string) bool {
+
+	// If containerImage doesn't include the tag or digest, add a colon so that it
+	// can match image filters
+	if len(containerImage) > 0 && !strings.Contains(containerImage, ":") {
+		containerImage += ":"
+	}
+
 	if cf.isExcludedByAnnotation(annotations, containerName) {
 		return true
 	}

@@ -6,17 +6,19 @@
 package structure
 
 import (
+	"bytes"
 	"math"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 // Struct that is used within the config
@@ -38,6 +40,17 @@ type trapsConfig struct {
 	BindHost         string   `yaml:"bind_host"`
 	StopTimeout      int      `yaml:"stop_timeout"`
 	Namespace        string   `yaml:"namespace"`
+}
+
+// We don't use config mock here to not create cycle dependencies (same reason why config mock are not used in
+// pkg/config/{setup/model})
+func newConfigFromYaml(t *testing.T, yaml string) model.Config {
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legitimate use of NewConfig
+
+	conf.SetConfigType("yaml")
+	err := conf.ReadConfig(bytes.NewBuffer([]byte(yaml)))
+	require.NoError(t, err)
+	return conf
 }
 
 func TestUnmarshalKeyTrapsConfig(t *testing.T) {
@@ -62,7 +75,7 @@ network_devices:
     stop_timeout: 4
     namespace: abc
 `
-	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig := newConfigFromYaml(t, confYaml)
 
 	var trapsCfg = trapsConfig{}
 	err := unmarshalKeyReflection(mockConfig, "network_devices.snmp_traps", &trapsCfg)
@@ -134,7 +147,7 @@ endpoints:
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig := newConfigFromYaml(t, tc.conf)
 			mockConfig.SetKnown("endpoints")
 
 			var endpoints = []endpoint{}
@@ -313,7 +326,7 @@ feature:
 				t.Skip("Skipping test case")
 			}
 
-			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig := newConfigFromYaml(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
 			var feature = featureConfig{}
@@ -475,7 +488,7 @@ feature:
 				t.Skip("Skipping test case")
 			}
 
-			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig := newConfigFromYaml(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
 			var feature = uintConfig{}
@@ -582,7 +595,7 @@ feature:
 				t.Skip("Skipping test case")
 			}
 
-			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig := newConfigFromYaml(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
 			var feature = floatConfig{}
@@ -734,7 +747,7 @@ feature:
 				t.Skip("Skipping test case")
 			}
 
-			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig := newConfigFromYaml(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
 			var feature = stringConfig{}
@@ -766,7 +779,7 @@ func TestUnmarshalKeyCaseInsensitive(t *testing.T) {
 feature:
   EnABLeD: "true"
 `
-	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig := newConfigFromYaml(t, confYaml)
 	mockConfig.SetKnown("feature")
 
 	var feature = featureConfig{}
@@ -787,7 +800,7 @@ func TestUnmarshalKeyMissing(t *testing.T) {
 feature:
   enabled: "true"
 `
-	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig := newConfigFromYaml(t, confYaml)
 	mockConfig.SetKnown("feature")
 
 	// If the data from the config is missing, UnmarshalKey is a no-op, does
@@ -804,7 +817,7 @@ feature:
   enabled: "true"
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -822,7 +835,7 @@ feature:
   enabled: "true"
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -840,7 +853,7 @@ feature:
   enabled: elderberries
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -858,7 +871,7 @@ feature:
   enabled: ""
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -877,7 +890,7 @@ feature:
   enabled: -1
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -895,7 +908,7 @@ feature:
   enabled: test
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -913,7 +926,7 @@ feature:
   enabled: test
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -931,7 +944,7 @@ feature:
   enabled: [1]
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -950,7 +963,7 @@ feature:
     key: value
 `
 
-		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig := newConfigFromYaml(t, confYaml)
 		mockConfig.SetKnown("feature")
 
 		feature := struct {
@@ -977,7 +990,7 @@ feature:
 `
 	want := "true"
 
-	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig := newConfigFromYaml(t, confYaml)
 	mockConfig.SetKnown("feature")
 
 	t.Run("json omitempty", func(t *testing.T) {
@@ -1194,6 +1207,11 @@ type squashConfig struct {
 	Endpoint endpoint `mapstructure:",squash"`
 }
 
+type serviceConfig struct {
+	Host     string   `mapstructure:"host"`
+	Endpoint endpoint `mapstructure:"endpoint"`
+}
+
 func TestUnmarshalKeyWithSquash(t *testing.T) {
 	confYaml := `
 service:
@@ -1201,7 +1219,7 @@ service:
   name: intake
   apikey: abc1
 `
-	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig := newConfigFromYaml(t, confYaml)
 	mockConfig.SetKnown("service")
 	var svc = squashConfig{}
 
@@ -1215,6 +1233,52 @@ service:
 	})
 }
 
+func TestUnmarshalKeyWithErrorUnused(t *testing.T) {
+	testcases := []struct {
+		name    string
+		conf    string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "ErrUnused flag succeeds without option",
+			conf: `
+service:
+  host: datad0g.com
+`,
+			wantErr: false,
+		},
+		{
+			name: "ErrUnused flag fails with option",
+			conf: `
+service:
+  host: datad0g.com
+  name: intake
+  apikey: abc1
+  foo: bar
+`,
+			wantErr: true,
+			errMsg:  "found unused config keys: [apikey foo name]",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := newConfigFromYaml(t, tc.conf)
+			mockConfig.SetKnown("service")
+
+			svc := &serviceConfig{}
+			err := unmarshalKeyReflection(mockConfig, "service", svc, ErrorUnused)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestUnmarshalKeysToMapOfString(t *testing.T) {
 	confYaml := `
 service:
@@ -1225,7 +1289,7 @@ service:
   enabled: true
   disabled: f
 `
-	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig := newConfigFromYaml(t, confYaml)
 	mockConfig.SetKnown("service")
 	var svc = make(map[string]string)
 
@@ -1246,7 +1310,7 @@ service:
   enabled: true
   disabled: false
 `
-	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig := newConfigFromYaml(t, confYaml)
 	mockConfig.SetKnown("service")
 	var svc = make(map[string]bool)
 

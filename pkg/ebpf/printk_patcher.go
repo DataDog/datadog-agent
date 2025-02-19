@@ -213,6 +213,9 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 type PrintkPatcherModifier struct {
 }
 
+// ensure PrintkPatcherModifier implements the ModifierBeforeInit interface
+var _ ModifierBeforeInit = &PrintkPatcherModifier{}
+
 func (t *PrintkPatcherModifier) String() string {
 	return "PrintkPatcherModifier"
 }
@@ -220,10 +223,5 @@ func (t *PrintkPatcherModifier) String() string {
 // BeforeInit adds the patchPrintkNewline function to the manager
 func (t *PrintkPatcherModifier) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	m.InstructionPatchers = append(m.InstructionPatchers, patchPrintkNewline)
-	return nil
-}
-
-// AfterInit is a no-op for this modifier
-func (t *PrintkPatcherModifier) AfterInit(_ *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	return nil
 }

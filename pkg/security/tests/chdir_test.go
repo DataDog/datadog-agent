@@ -69,7 +69,7 @@ func TestChdir(t *testing.T) {
 			defer f.Close()
 
 			return f.Chdir()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_chdir_rule")
 		})
 	})

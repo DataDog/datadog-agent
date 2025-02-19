@@ -139,7 +139,7 @@ func TestSELinux(t *testing.T) {
 				return fmt.Errorf("failed to write to selinuxfs: %w", err)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			t.Errorf("expected error and got an event: %s", test.debugEvent(event))
 		})
 		if err == nil {

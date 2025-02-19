@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -33,6 +33,12 @@ import (
 //go:embed fixtures/datadog.yaml
 var agentConfig string
 
+//go:embed fixtures/datadog-pa-disabled.yaml
+var agentConfigPADisabled string
+
+//go:embed fixtures/datadog-ta-disabled.yaml
+var agentConfigTADisabled string
+
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
 
@@ -45,22 +51,25 @@ var systemProbeDisabled string
 //go:embed fixtures/security-agent.yaml
 var securityAgentConfig string
 
+//go:embed fixtures/security-agent-disabled.yaml
+var securityAgentConfigDisabled string
+
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
 	s := &agentServiceCommandSuite{}
-	run(t, s, systemProbeNoFIMConfig)
+	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
 }
 
 // TestServiceBehaviorPowerShellNoFIM tests the service behavior when controlled by PowerShell commands
 func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
 	s := &powerShellServiceCommandSuite{}
-	run(t, s, systemProbeNoFIMConfig)
+	run(t, s, systemProbeNoFIMConfig, agentConfig, securityAgentConfig)
 }
 
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
 func TestServiceBehaviorAgentCommand(t *testing.T) {
 	s := &agentServiceCommandSuite{}
-	run(t, s, systemProbeConfig)
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
 }
 
 type agentServiceCommandSuite struct {
@@ -96,7 +105,7 @@ func (s *agentServiceCommandSuite) SetupSuite() {
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by PowerShell commands
 func TestServiceBehaviorPowerShell(t *testing.T) {
 	s := &powerShellServiceCommandSuite{}
-	run(t, s, systemProbeConfig)
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
 }
 
 type powerShellServiceCommandSuite struct {
@@ -222,14 +231,54 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 	}, 1*time.Minute, 1*time.Second, "should have hard exit messages in the event log")
 }
 
-// TestServiceBehaviorWhenDisabled tests the service behavior when disabled in the configuration
-func TestServiceBehaviorWhenDisabled(t *testing.T) {
-	s := &agentServiceDisabledSuite{}
-	run(t, s, systemProbeDisabled)
-}
-
 type agentServiceDisabledSuite struct {
 	baseStartStopSuite
+	disabledServices []string
+}
+
+// TestServiceBehaviorWhenDisabled tests the service behavior when disabled in the configuration
+func TestServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
+	s := &agentServiceDisabledSystemProbeSuite{}
+	s.disabledServices = []string{
+		"datadog-security-agent",
+		"datadog-system-probe",
+		"ddnpm",
+		"ddprocmon",
+	}
+	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled)
+}
+
+type agentServiceDisabledSystemProbeSuite struct {
+	agentServiceDisabledSuite
+}
+
+// TestServiceBehaviorWhenDisabledProcessAgent tests the service behavior when disabled in the configuration
+func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
+	s := &agentServiceDisabledProcessAgentSuite{}
+	s.disabledServices = []string{
+		"datadog-process-agent",
+		"datadog-security-agent",
+		"datadog-system-probe",
+		"ddnpm",
+		"ddprocmon",
+	}
+	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled)
+}
+
+type agentServiceDisabledProcessAgentSuite struct {
+	agentServiceDisabledSuite
+}
+
+func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
+	s := &agentServiceDisabledTraceAgentSuite{}
+	s.disabledServices = []string{
+		"datadog-trace-agent",
+	}
+	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig)
+}
+
+type agentServiceDisabledTraceAgentSuite struct {
+	agentServiceDisabledSuite
 }
 
 func (s *agentServiceDisabledSuite) SetupSuite() {
@@ -237,14 +286,22 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
-		return []string{
-			"datadogagent",
-			"datadog-trace-agent",
-			"datadog-process-agent",
+		runningServices := []string{}
+		for _, service := range s.getInstalledUserServices() {
+			if !slices.Contains(s.disabledServices, service) {
+				runningServices = append(runningServices, service)
+			}
 		}
+		return runningServices
 	}
 	s.runningServices = func() []string {
-		return s.runningUserServices()
+		runningServices := []string{}
+		for _, service := range s.getInstalledServices() {
+			if !slices.Contains(s.disabledServices, service) {
+				runningServices = append(runningServices, service)
+			}
+		}
+		return runningServices
 	}
 
 	s.startAgentCommand = func(host *components.RemoteHost) error {
@@ -268,15 +325,21 @@ func (s *agentServiceDisabledSuite) SetupSuite() {
 }
 
 func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
+	kernel := s.getInstalledKernelServices()
 	// check that the system probe is not running
-	s.assertServiceState("Stopped", "datadog-system-probe")
+	for _, service := range s.disabledServices {
+		s.assertServiceState("Stopped", service)
 
-	// try and start it and verify that it does correctly outputs to event log
-	err := windowsCommon.StartService(s.Env().RemoteHost, "datadog-system-probe")
-	s.Require().NoError(err, "should start datadog-system-probe")
+		// verify that we only try user services
+		if !slices.Contains(kernel, service) {
+			// try and start it and verify that it does correctly outputs to event log
+			err := windowsCommon.StartService(s.Env().RemoteHost, service)
+			s.Require().NoError(err, fmt.Sprintf("should start %s", service))
 
-	//verify that service returns to stopped state
-	s.assertServiceState("Stopped", "datadog-system-probe")
+			// verify that service returns to stopped state
+			s.assertServiceState("Stopped", service)
+		}
+	}
 
 	// Verify there are not errors in the event log
 	entries, err := s.getAgentEventLogErrorsAndWarnings()
@@ -284,7 +347,7 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 	s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
 }
 
-func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string) {
+func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
 		awsHostWindows.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),
@@ -436,14 +499,8 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	outputDir, err := s.CreateTestOutputDir()
-	if err != nil {
-		s.T().Fatalf("should get output dir")
-	}
-	s.T().Logf("Output dir: %s", outputDir)
-
 	// look for and download crashdumps
-	dumps, err := windowsCommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, outputDir)
+	dumps, err := windowsCommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
 	s.Assert().NoError(err, "should download crash dumps")
 	if !s.Assert().Empty(dumps, "should not have crash dumps") {
 		s.T().Logf("Found crash dumps:")
@@ -458,7 +515,7 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(outputDir, fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
 			err := windowsCommon.ExportEventLog(host, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
@@ -474,10 +531,6 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 
 func (s *baseStartStopSuite) collectAgentLogs() {
 	host := s.Env().RemoteHost
-	outputDir, err := s.CreateTestOutputDir()
-	if err != nil {
-		s.T().Fatalf("should get output dir")
-	}
 
 	s.T().Logf("Collecting agent logs")
 	logsFolder, err := host.GetLogsFolder()
@@ -492,7 +545,7 @@ func (s *baseStartStopSuite) collectAgentLogs() {
 		s.T().Logf("Found log file: %s", entry.Name())
 		err = host.GetFile(
 			filepath.Join(logsFolder, entry.Name()),
-			filepath.Join(outputDir, entry.Name()),
+			filepath.Join(s.SessionOutputDir(), entry.Name()),
 		)
 		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
@@ -583,13 +636,17 @@ func (s *baseStartStopSuite) getInstalledUserServices() []string {
 	}
 }
 
-// expectedInstalledServices returns the list of services that should be installed by the agent
-func (s *baseStartStopSuite) getInstalledServices() []string {
-	user := s.getInstalledUserServices()
-	kernel := []string{
+func (s *baseStartStopSuite) getInstalledKernelServices() []string {
+	return []string{
 		"ddnpm",
 		"ddprocmon",
 	}
+}
+
+// expectedInstalledServices returns the list of services that should be installed by the agent
+func (s *baseStartStopSuite) getInstalledServices() []string {
+	user := s.getInstalledUserServices()
+	kernel := s.getInstalledKernelServices()
 	return append(user, kernel...)
 }
 

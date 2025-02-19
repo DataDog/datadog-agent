@@ -45,7 +45,7 @@ func TestSignalEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "signal-sigusr1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "signal-sigusr1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"signal", "sigusr1"}
 		envs := []string{}
 
@@ -56,7 +56,7 @@ func TestSignalEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "signal", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(unix.SIGUSR1), event.Signal.Type, "wrong signal")
 			assert.Equal(t, int64(0), event.Signal.Retval, "wrong retval")
@@ -68,7 +68,7 @@ func TestSignalEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "signal-eperm", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "signal-eperm", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"signal", "eperm"}
 		envs := []string{}
 
@@ -79,7 +79,7 @@ func TestSignalEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "signal", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(unix.SIGKILL), event.Signal.Type, "wrong signal")
 			assert.Equal(t, -int64(unix.EPERM), event.Signal.Retval, "wrong retval")

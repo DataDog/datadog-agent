@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build gce
-
 package gce
 
 import (
@@ -99,6 +97,10 @@ func GetTags(ctx context.Context) ([]string, error) {
 				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
 			}
 		}
+	}
+
+	if providerKind := pkgconfigsetup.Datadog().GetString("provider_kind"); providerKind != "" {
+		tags = append(tags, fmt.Sprintf("provider_kind:%s", providerKind))
 	}
 
 	// save tags to the cache in case we exceed quotas later

@@ -14,13 +14,11 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/viper"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -77,7 +75,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 			return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
 		}
 
-		var e viper.ConfigFileNotFoundError
+		var e pkgconfigmodel.ConfigFileNotFoundError
 		if !errors.As(err, &e) && !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("unable to load system-probe config file: %w", err)
 		}
@@ -137,6 +135,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(secNS("enabled")) ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		cfg.GetBool(evNS("process.enabled")) ||
+		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled")) ||
 			gpuEnabled) {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
@@ -182,7 +181,7 @@ func load() (*types.Config, error) {
 
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
-	cfg.Set(spNS("enabled"), c.Enabled, model.SourceAgentRuntime)
+	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
 
 	return c, nil
 }
@@ -194,9 +193,9 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		pkgconfigsetup.Datadog().SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := pkgconfigsetup.LoadDatadogCustom(pkgconfigsetup.Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
+	_, err := pkgconfigsetup.LoadDatadogCustom(pkgconfigsetup.Datadog(), "datadog.yaml", option.None[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
-	var e viper.ConfigFileNotFoundError
+	var e pkgconfigmodel.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {

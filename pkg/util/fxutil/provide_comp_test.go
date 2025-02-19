@@ -67,10 +67,10 @@ func TestGetConstructorTypes(t *testing.T) {
 	expect := `struct {}`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In }`
+	expect = `struct { dig.In }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; FirstComp fxutil.FirstComp }`
+	expect = `struct { dig.Out; FirstComp fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 
 	// constructor needs a `requires` struct and returns 1 component interface
@@ -80,10 +80,10 @@ func TestGetConstructorTypes(t *testing.T) {
 	expect = `struct { FirstComp fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In; FirstComp fxutil.FirstComp }`
+	expect = `struct { dig.In; FirstComp fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; SecondComp fxutil.SecondComp }`
+	expect = `struct { dig.Out; SecondComp fxutil.SecondComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 
 	// constructor returns a struct that has 3 total components
@@ -93,10 +93,10 @@ func TestGetConstructorTypes(t *testing.T) {
 	expect = `struct {}`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In }`
+	expect = `struct { dig.In }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; A fxutil.Apple; B fxutil.Banana; C struct { Out dig.Out; E fxutil.Egg } }`
+	expect = `struct { dig.Out; A fxutil.Apple; B fxutil.Banana; C struct { dig.Out; E fxutil.Egg } }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 
 	// constructor needs a `requiresLc` struct and returns 1 component interface
@@ -106,10 +106,10 @@ func TestGetConstructorTypes(t *testing.T) {
 	expect = `fxutil.requiresLc`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In; Lc compdef.Lifecycle }`
+	expect = `struct { dig.In; Lc compdef.Lifecycle }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; SecondComp fxutil.SecondComp }`
+	expect = `struct { dig.Out; SecondComp fxutil.SecondComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 }
 
@@ -123,10 +123,10 @@ func TestConstructCompdefIn(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	expect := `struct { In dig.In; Second fxutil.SecondComp }`
+	expect := `struct { dig.In; Second fxutil.SecondComp }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; First fxutil.FirstComp }`
+	expect = `struct { dig.Out; First fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 }
 
@@ -143,10 +143,10 @@ func TestConstructCompdefOut(t *testing.T) {
 	expect := `struct {}`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In }`
+	expect = `struct { dig.In }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; First fxutil.FirstComp }`
+	expect = `struct { dig.Out; First fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	strategy_none "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
 )
 
 const (
@@ -40,6 +41,7 @@ func _(
 	_ setup.ConfigurationProviders,
 	_ trace.Trace,
 	_ *api.OTLPReceiver,
+	_ *strategy_none.NoopStrategy,
 ) {
 	main()
 }

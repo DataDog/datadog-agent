@@ -14,8 +14,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/cihub/seelog"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,7 +74,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	// but from profiling, even passing these vars through as arguments allocates to the heap.
 	// This is an optimization to avoid even evaluating the `Tracef` call if the trace log
 	// level is not enabled.
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
 	}
 	switch op {
@@ -94,7 +92,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 		if !ok {
 			log.Debugf("untracked memory was attempted to be freed - set trace level for details")
 			lvl, err := log.GetLogLevel()
-			if err == nil && lvl == seelog.TraceLvl {
+			if err == nil && lvl == log.TraceLvl {
 				stack := string(debug.Stack())
 				log.Tracef("Memory Tracker - stacktrace: \n%s", stack)
 			}

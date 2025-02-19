@@ -14,6 +14,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -40,6 +41,7 @@ var (
 // Runner is the object in charge of running all the checks
 type Runner struct {
 	senderManager       sender.SenderManager
+	haAgent             haagent.Component
 	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
@@ -52,11 +54,12 @@ type Runner struct {
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(senderManager sender.SenderManager) *Runner {
+func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *Runner {
 	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
 
 	r := &Runner{
 		senderManager:       senderManager,
+		haAgent:             haAgent,
 		id:                  int(runnerIDGenerator.Inc()),
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
@@ -117,6 +120,7 @@ func (r *Runner) AddWorker() {
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	worker, err := worker.NewWorker(
 		r.senderManager,
+		r.haAgent,
 		r.id,
 		int(workerIDGenerator.Inc()),
 		r.pendingChecksChan,

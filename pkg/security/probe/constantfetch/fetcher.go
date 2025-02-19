@@ -26,8 +26,8 @@ const ErrorSentinel uint64 = ^uint64(0)
 // eBPF relocations
 type ConstantFetcher interface {
 	fmt.Stringer
-	AppendSizeofRequest(id, typeName, headerName string)
-	AppendOffsetofRequest(id, typeName, fieldName, headerName string)
+	AppendSizeofRequest(id, typeName string)
+	AppendOffsetofRequest(id, typeName string, fieldName ...string)
 	FinishAndGetResults() (map[string]uint64, error)
 }
 
@@ -56,30 +56,28 @@ func (f *ComposeConstantFetcher) appendRequest(req *composeRequest) {
 	f.requests = append(f.requests, req)
 	_, _ = io.WriteString(f.hasher, req.id)
 	_, _ = io.WriteString(f.hasher, req.typeName)
-	_, _ = io.WriteString(f.hasher, req.fieldName)
-	_, _ = io.WriteString(f.hasher, req.headerName)
+	for _, fn := range req.fieldNames {
+		_, _ = io.WriteString(f.hasher, fn)
+	}
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
+func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName string) {
 	f.appendRequest(&composeRequest{
-		id:         id,
-		sizeof:     true,
-		typeName:   typeName,
-		fieldName:  "",
-		headerName: headerName,
-		value:      ErrorSentinel,
+		id:       id,
+		sizeof:   true,
+		typeName: typeName,
+		value:    ErrorSentinel,
 	})
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName string, fieldNames ...string) {
 	f.appendRequest(&composeRequest{
 		id:         id,
 		sizeof:     false,
 		typeName:   typeName,
-		fieldName:  fieldName,
-		headerName: headerName,
+		fieldNames: fieldNames,
 		value:      ErrorSentinel,
 	})
 }
@@ -98,9 +96,9 @@ func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 		for _, req := range f.requests {
 			if req.value == ErrorSentinel {
 				if req.sizeof {
-					fetcher.AppendSizeofRequest(req.id, req.typeName, req.headerName)
+					fetcher.AppendSizeofRequest(req.id, req.typeName)
 				} else {
-					fetcher.AppendOffsetofRequest(req.id, req.typeName, req.fieldName, req.headerName)
+					fetcher.AppendOffsetofRequest(req.id, req.typeName, req.fieldNames...)
 				}
 			}
 		}
@@ -110,11 +108,13 @@ func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 			seclog.Errorf("failed to run constant fetcher: %v", err)
 		}
 
-		for _, req := range f.requests {
-			if req.value == ErrorSentinel {
-				if newValue, present := res[req.id]; present {
-					req.value = newValue
-					req.fetcherName = fetcher.String()
+		if len(res) != 0 {
+			for _, req := range f.requests {
+				if req.value == ErrorSentinel {
+					if newValue, present := res[req.id]; present {
+						req.value = newValue
+						req.fetcherName = fetcher.String()
+					}
 				}
 			}
 		}
@@ -163,12 +163,12 @@ type ConstantFetcherStatus struct {
 }
 
 type composeRequest struct {
-	id                  string
-	sizeof              bool
-	typeName, fieldName string
-	headerName          string
-	value               uint64
-	fetcherName         string
+	id          string
+	sizeof      bool
+	typeName    string
+	fieldNames  []string
+	value       uint64
+	fetcherName string
 }
 
 // CreateConstantEditors creates constant editors based on the constants fetched

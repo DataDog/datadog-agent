@@ -27,14 +27,16 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -107,9 +109,10 @@ func MakeCommand() *cobra.Command {
 					defaultpaths.StreamlogsLogFile,
 				)),
 				noopAutodiscover.Module(),
-				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				compressionimpl.Module(),
+				fx.Supply(option.None[workloadmeta.Component]()),
+				fx.Supply(option.None[collector.Component]()),
+				logscompressionfx.Module(),
+				metricscompressionfx.Module(),
 				diagnosesendermanagerimpl.Module(),
 				nooptagger.Module(),
 				authtokenimpl.Module(),
@@ -125,6 +128,7 @@ func MakeCommand() *cobra.Command {
 				systrayimpl.Module(),
 				// require the systray component, causing it to start
 				fx.Invoke(func(_ systray.Component) {}),
+				haagentfx.Module(),
 			)
 		},
 	}

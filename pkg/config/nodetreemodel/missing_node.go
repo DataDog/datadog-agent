@@ -38,6 +38,6 @@ func (m *missingLeafImpl) Clone() Node {
 	return m
 }
 
-func (m *missingLeafImpl) SourceGreaterOrEqual(model.Source) bool {
+func (m *missingLeafImpl) SourceGreaterThan(model.Source) bool {
 	return false
 }

@@ -18,12 +18,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cihub/seelog"
 	admiv1 "k8s.io/api/admission/v1"
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
@@ -40,14 +42,22 @@ const jsonContentType = "application/json"
 
 // Request contains the information of an admission request
 type Request struct {
-	// Raw is the raw request object
-	Raw []byte
+	// UID is the unique identifier of the AdmissionRequest
+	UID types.UID
 	// Name is the name of the object
 	Name string
 	// Namespace is the namespace of the object
 	Namespace string
+	// Kind is the kind of the object
+	Kind metav1.GroupVersionKind
+	// Operation is the operation of the request
+	Operation admissionregistrationv1.OperationType
 	// UserInfo contains information about the requesting user
 	UserInfo *authenticationv1.UserInfo
+	// Object is the new object being admitted. It is null for DELETE operations
+	Object []byte
+	// OldObject is the existing object. It is null for CREATE and CONNECT operations
+	OldObject []byte
 	// DynamicClient holds a dynamic Kubernetes client
 	DynamicClient dynamic.Interface
 	// APIClient holds a Kubernetes client
@@ -106,7 +116,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 		tlsMinVersion = tls.VersionTLS10
 	}
 
-	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
+	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(4, log.WarnLvl)
 	server := &http.Server{
 		Addr:     fmt.Sprintf(":%d", pkgconfigsetup.Datadog().GetInt("admission_controller.port")),
 		Handler:  s.mux,
@@ -190,10 +200,14 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		admissionReview := &admiv1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
 		admissionRequest := Request{
-			Raw:           admissionReviewReq.Request.Object.Raw,
+			UID:           admissionReviewReq.Request.UID,
+			Kind:          admissionReviewReq.Request.Kind,
 			Name:          admissionReviewReq.Request.Name,
 			Namespace:     admissionReviewReq.Request.Namespace,
+			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
 			UserInfo:      &admissionReviewReq.Request.UserInfo,
+			Object:        admissionReviewReq.Request.Object.Raw,
+			OldObject:     admissionReviewReq.Request.OldObject.Raw,
 			DynamicClient: dc,
 			APIClient:     apiClient,
 		}
@@ -212,10 +226,14 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		admissionReview := &admiv1beta1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
 		admissionRequest := Request{
-			Raw:           admissionReviewReq.Request.Object.Raw,
+			UID:           admissionReviewReq.Request.UID,
+			Kind:          admissionReviewReq.Request.Kind,
 			Name:          admissionReviewReq.Request.Name,
 			Namespace:     admissionReviewReq.Request.Namespace,
+			Operation:     admissionregistrationv1.OperationType(admissionReviewReq.Request.Operation),
 			UserInfo:      &admissionReviewReq.Request.UserInfo,
+			Object:        admissionReviewReq.Request.Object.Raw,
+			OldObject:     admissionReviewReq.Request.OldObject.Raw,
 			DynamicClient: dc,
 			APIClient:     apiClient,
 		}

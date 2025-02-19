@@ -220,6 +220,7 @@ AND s.command = comm.command_type(+)`
 const activityQueryActiveSessionHistory = `SELECT /*+ push_pred(sq) */ /* DD_ACTIVITY_SAMPLING */
 	cast (sample_time as date) now,
 	(CAST(sample_time_utc AS DATE) - TO_DATE('1970-01-01', 'YYYY-MM-DD')) * 86400000 as utc_ms,
+	s.sample_id sample_id,
 	s.session_id sid,
 	s.session_serial# serial#,
 	sess.username,

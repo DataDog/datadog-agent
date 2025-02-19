@@ -23,11 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckName defines the name of the
@@ -140,8 +139,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 }
 
 // Factory creates a new check factory
-func Factory(telemetry telemetryComp.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(telemetry telemetryComp.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &Check{
 			CheckBase:     core.NewCheckBase(CheckName),
 			telemetryComp: telemetry,

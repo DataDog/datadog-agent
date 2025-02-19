@@ -18,6 +18,7 @@ import (
 	"go.uber.org/atomic"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 func TestRunWithChan(t *testing.T) {
@@ -38,7 +39,7 @@ func TestRunWithChan(t *testing.T) {
 
 		ch := make(chan time.Time, 1)
 		ch <- time.Now()
-		time.AfterFunc(100*time.Millisecond, cancel)
+		time.AfterFunc(500*time.Millisecond, cancel)
 		cs.runWithChan(ch)
 
 		require.True(t, called)
@@ -89,7 +90,7 @@ func TestRunWithChan(t *testing.T) {
 
 func TestRunWithInterval(t *testing.T) {
 	// Legitimate use for NewConfig case where we want to have 2 independent config object mimicing 2 process communicating
-	configCore := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	configCore := viperconfig.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	configCore.Set("api_key", "api_key_core1", pkgconfigmodel.SourceFile)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

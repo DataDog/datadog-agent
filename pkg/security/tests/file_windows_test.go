@@ -57,7 +57,7 @@ func TestBasicFileTest(t *testing.T) {
 			cmd := cmdFunc("powershell", inputargs, nil)
 			_ = cmd.Run()
 			return nil
-		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "create.file.name", "test.bad", event, "create.file.name file didn't match")
 		}))
 	})
@@ -94,7 +94,7 @@ func TestRenameFileEvent(t *testing.T) {
 	test.Run(t, "rename", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			return os.Rename("C:\\Temp\\test.bad", "C:\\Temp\\test.good")
-		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "rename.file.name", "test.bad", event, "rename.file.name file didn't match")
 			assertFieldEqualCaseInsensitve(t, event, "rename.file.destination.name", "test.good", event, "rename.file.destination.name file didn't match")
 		}))
@@ -131,7 +131,7 @@ func TestDeleteFileEvent(t *testing.T) {
 	test.Run(t, "delete", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			return os.Remove("C:\\Temp\\test.bad")
-		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "delete.file.name", "test.bad", event, "delete.file.name file didn't match")
 		}))
 	})
@@ -174,7 +174,7 @@ func TestWriteFileEvent(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "write.file.name", "test.bad", event, "write.file.name file didn't match")
 		}))
 	})
@@ -222,7 +222,7 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "write.file.name", "test.bad", "write.file.name file didn't match")
 		}))
 	})

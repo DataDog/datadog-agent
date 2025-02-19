@@ -11,14 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"slices"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
-	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -381,10 +379,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
 
-	options.RLimit = &unix.Rlimit{
-		Cur: math.MaxUint64,
-		Max: math.MaxUint64,
-	}
+	options.RemoveRlimit = true
 
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
 		connectionStatesMap: {
@@ -531,17 +526,25 @@ func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName s
 	}
 }
 
-func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} {
+func (e *ebpfProgram) getProtocolStats() (map[protocols.ProtocolType]interface{}, func()) {
 	ret := make(map[protocols.ProtocolType]interface{})
+	cleaners := make([]func(), 0)
 
 	for _, protocol := range e.enabledProtocols {
-		ps := protocol.Instance.GetStats()
+		ps, cleaner := protocol.Instance.GetStats()
 		if ps != nil {
 			ret[ps.Type] = ps.Stats
 		}
+		if cleaner != nil {
+			cleaners = append(cleaners, cleaner)
+		}
 	}
 
-	return ret
+	return ret, func() {
+		for _, c := range cleaners {
+			c()
+		}
+	}
 }
 
 // executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).

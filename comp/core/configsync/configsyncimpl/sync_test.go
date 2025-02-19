@@ -13,8 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestFetchConfig(t *testing.T) {
@@ -63,12 +66,33 @@ func TestFetchConfig(t *testing.T) {
 	})
 }
 
-func TestUpdateConfig(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.Set("key1", "value1", pkgconfigmodel.SourceFile)
-	cfg.Set("key3", "set-with-cli", pkgconfigmodel.SourceCLI)
+func TestUpdater(t *testing.T) {
+	callbackCalled := 0
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		callbackCalled++
+		w.Write([]byte(`{"key1": "value1"}`))
+	}
+	_, client, url := makeServer(t, handler)
 
-	assert.False(t, updateConfig(cfg, "key1", "value1"))
-	assert.True(t, updateConfig(cfg, "key2", "value2"))
-	assert.False(t, updateConfig(cfg, "key3", "value3"))
+	cfg := configmock.New(t)
+	cfg.Set("key1", "base_value", model.SourceDefault)
+
+	cs := configSync{
+		Config:    cfg,
+		Log:       logmock.New(t),
+		Authtoken: authtoken.Component(&fetchonlyimpl.MockFetchOnly{}),
+		url:       url,
+		client:    client,
+		ctx:       context.Background(),
+	}
+
+	cs.updater()
+	assert.Equal(t, "value1", cfg.Get("key1"))
+	assert.Equal(t, 1, callbackCalled)
+
+	cfg.Set("key1", "cli_value", model.SourceCLI)
+
+	cs.updater()
+	assert.Equal(t, "cli_value", cfg.Get("key1"))
+	assert.Equal(t, 2, callbackCalled)
 }

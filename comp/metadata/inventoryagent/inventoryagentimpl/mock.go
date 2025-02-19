@@ -45,11 +45,6 @@ func newMock() MockProvides {
 // Set is an empty function on this mock
 func (m *inventoryagentMock) Set(string, interface{}) {}
 
-// GetAsJSON is a mocked function
-func (m *inventoryagentMock) GetAsJSON() ([]byte, error) {
-	return []byte("{}"), nil
-}
-
 // Get is a mocked function
 func (m *inventoryagentMock) Get() map[string]interface{} {
 	return nil

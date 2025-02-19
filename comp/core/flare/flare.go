@@ -35,11 +35,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// ProfileData maps (pprof) profile names to the profile data.
-type ProfileData map[string][]byte
+// FlareBuilderFactory creates an instance of FlareBuilder
+type flareBuilderFactory func(localFlare bool, flareArgs types.FlareArgs) (types.FlareBuilder, error)
+
+var fbFactory flareBuilderFactory = helpers.NewFlareBuilder
 
 type dependencies struct {
 	fx.In
@@ -48,9 +50,9 @@ type dependencies struct {
 	Config                config.Component
 	Diagnosesendermanager diagnosesendermanager.Component
 	Params                Params
-	Providers             []types.FlareCallback `group:"flare"`
-	Collector             optional.Option[collector.Component]
-	WMeta                 optional.Option[workloadmeta.Component]
+	Providers             []*types.FlareFiller `group:"flare"`
+	Collector             option.Option[collector.Component]
+	WMeta                 option.Option[workloadmeta.Component]
 	Secrets               secrets.Component
 	AC                    autodiscovery.Component
 	Tagger                tagger.Component
@@ -68,7 +70,7 @@ type flare struct {
 	log          log.Component
 	config       config.Component
 	params       Params
-	providers    []types.FlareCallback
+	providers    []*types.FlareFiller
 	diagnoseDeps diagnose.SuitesDeps
 }
 
@@ -92,8 +94,8 @@ func newFlare(deps dependencies) provides {
 	)
 	f.providers = append(
 		f.providers,
-		f.collectLogsFiles,
-		f.collectConfigFiles,
+		types.NewFiller(f.collectLogsFiles),
+		types.NewFiller(f.collectConfigFiles),
 	)
 
 	return provides{
@@ -116,7 +118,21 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		return true, fmt.Errorf("User handle was not provided in the flare agent task")
 	}
 
-	filePath, err := f.Create(nil, 0, nil)
+	flareArgs := types.FlareArgs{}
+
+	enableProfiling, found := task.Config.TaskArgs["enable_profiling"]
+	if !found {
+		f.log.Debug("enable_profiling arg not found, creating flare without profiling enabled")
+	} else if enableProfiling == "true" {
+		// RC expects the agent task operation to provide reasonable default flare args
+		flareArgs.ProfileDuration = f.config.GetDuration("flare.rc_profiling.profile_duration")
+		flareArgs.ProfileBlockingRate = f.config.GetInt("flare.rc_profiling.blocking_rate")
+		flareArgs.ProfileMutexFraction = f.config.GetInt("flare.rc_profiling.mutex_fraction")
+	} else if enableProfiling != "false" {
+		f.log.Infof("Unrecognized value passed via enable_profiling, creating flare without profiling enabled: %q", enableProfiling)
+	}
+
+	filePath, err := f.CreateWithArgs(flareArgs, 0, nil)
 	if err != nil {
 		return true, err
 	}
@@ -128,7 +144,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 }
 
 func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
-	var profile ProfileData
+	var profile types.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
@@ -184,12 +200,23 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 // Create creates a new flare and returns the path to the final archive file.
 //
 // If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-func (f *flare) Create(pdata ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+func (f *flare) Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+	return f.create(types.FlareArgs{}, providerTimeout, ipcError, pdata)
+}
+
+// Create creates a new flare and returns the path to the final archive file.
+//
+// If providerTimeout is 0 or negative, the timeout from the configuration will be used.
+func (f *flare) CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error) (string, error) {
+	return f.create(flareArgs, providerTimeout, ipcError, types.ProfileData{})
+}
+
+func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, pdata types.ProfileData) (string, error) {
 	if providerTimeout <= 0 {
 		providerTimeout = f.config.GetDuration("flare_provider_timeout")
 	}
 
-	fb, err := helpers.NewFlareBuilder(f.params.local)
+	fb, err := fbFactory(f.params.local, flareArgs)
 	if err != nil {
 		return "", err
 	}
@@ -219,14 +246,16 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 	defer timer.Stop()
 
 	for _, p := range f.providers {
-		providerName := runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name()
-		f.log.Infof("Running flare provider %s", providerName)
-		_ = fb.Logf("Running flare provider %s", providerName)
+		timeout := max(providerTimeout, p.Timeout(fb))
+		timer.Reset(timeout)
+		providerName := runtime.FuncForPC(reflect.ValueOf(p.Callback).Pointer()).Name()
+		f.log.Infof("Running flare provider %s with timeout %s", providerName, timeout)
+		_ = fb.Logf("Running flare provider %s with timeout %s", providerName, timeout)
 
 		done := make(chan struct{})
 		go func() {
 			startTime := time.Now()
-			err := p(fb)
+			err := p.Callback(fb)
 			duration := time.Since(startTime)
 
 			if err == nil {
@@ -245,10 +274,9 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 				<-timer.C
 			}
 		case <-timer.C:
-			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, providerTimeout)
+			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, timeout)
 			_ = fb.Logf("%s", err.Error())
 		}
-		timer.Reset(providerTimeout)
 	}
 
 	f.log.Info("All flare providers have been run, creating archive...")

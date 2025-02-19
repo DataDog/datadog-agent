@@ -40,7 +40,7 @@ func (p phpDetector) detect(args []string) (ServiceMetadata, bool) {
 		if !prevArgIsFlag && !hasFlagPrefix {
 			basePath := removeFilePath(arg)
 			if isRuneLetterAt(basePath, 0) && basePath == artisanConsole {
-				metadata.SetNames(newLaravelParser(p.ctx).GetLaravelAppName(arg))
+				metadata.SetNames(newLaravelParser(p.ctx).GetLaravelAppName(arg), Laravel)
 				return metadata, true
 			}
 		}

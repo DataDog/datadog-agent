@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -38,8 +37,8 @@ func TestGetIAMRole(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+	conf := configmock.New(t)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := getIAMRole(ctx)
 	require.NoError(t, err)
@@ -56,15 +55,15 @@ func TestGetSecurityCreds(t *testing.T) {
 			w.Header().Set("Content-Type", "text/plain")
 			content, err := os.ReadFile("payloads/security_cred.json")
 			require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
-			io.WriteString(w, string(content))
+			w.Write(content)
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+	conf := configmock.New(t)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	cred, err := getSecurityCreds(ctx)
 	require.NoError(t, err)
@@ -79,12 +78,12 @@ func TestGetInstanceIdentity(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		content, err := os.ReadFile("payloads/instance_indentity.json")
 		require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
-		io.WriteString(w, string(content))
+		w.Write(content)
 	}))
 	defer ts.Close()
 	instanceIdentityURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+	conf := configmock.New(t)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := GetInstanceIdentity(ctx)
 	require.NoError(t, err)
@@ -112,11 +111,9 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	confMock := configmock.New(t)
-	confMock.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
+	conf := configmock.New(t)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
 
 	tags, err := fetchEc2TagsFromIMDS(ctx)
 	require.NoError(t, err)
@@ -133,8 +130,8 @@ func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	pkgconfigsetup.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
+	conf := configmock.New(t)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	_, err := fetchEc2TagsFromIMDS(ctx)
 	require.Error(t, err)

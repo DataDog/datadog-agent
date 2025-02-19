@@ -61,6 +61,9 @@
     {{- if .ringBuffer }}
     Use eBPF ring buffer: {{ .ringBuffer }}
     {{- end }}
+    {{- if .fentry }}
+    Use fentry: {{ .fentry }}
+    {{- end }}
     {{ if .constantFetchers }}
     Available constant fetchers
     ===========================

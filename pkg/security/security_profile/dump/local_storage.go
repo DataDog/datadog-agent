@@ -182,16 +182,6 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 	// set activity dump size for current encoding
 	ad.Metadata.Size = uint64(len(raw.Bytes()))
 
-	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
-	if storage.localDumps != nil {
-		filePaths, ok := storage.localDumps.Get(ad.Metadata.Name)
-		if !ok {
-			storage.localDumps.Add(ad.Metadata.Name, &[]string{outputPath})
-		} else {
-			*filePaths = append(*filePaths, outputPath)
-		}
-	}
-
 	// create output file
 	_ = os.MkdirAll(request.OutputDirectory, 0400)
 	tmpOutputPath := outputPath + ".tmp"
@@ -221,6 +211,17 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 	}
 
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, ad.GetSelectorStr(), outputPath)
+
+	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
+	if storage.localDumps != nil {
+		filePaths, ok := storage.localDumps.Get(ad.Metadata.Name)
+		if !ok {
+			storage.localDumps.Add(ad.Metadata.Name, &[]string{outputPath})
+		} else {
+			*filePaths = append(*filePaths, outputPath)
+		}
+	}
+
 	return nil
 }
 

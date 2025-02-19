@@ -17,8 +17,9 @@ from invoke.exceptions import Exit
 
 from tasks import vscode
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.status import Status
-from tasks.libs.common.utils import running_in_pyapp
+from tasks.libs.common.utils import is_linux, is_windows, running_in_pyapp
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -95,7 +96,7 @@ def check_git_repo(ctx) -> SetupResult:
     ctx.run("git fetch", hide=True)
 
     print(color_message("Checking main branch...", Color.BLUE))
-    output = ctx.run('git rev-list "^HEAD" origin/main --count', hide=True)
+    output = ctx.run(f'git rev-list "^HEAD" origin/{get_default_branch()} --count', hide=True)
     count = output.stdout.strip()
 
     message = ""
@@ -103,7 +104,7 @@ def check_git_repo(ctx) -> SetupResult:
 
     if count != "0":
         status = Status.WARN
-        message = f"Your branch is {count} commit(s) behind main. Please update your branch."
+        message = f"Your branch is {count} commit(s) behind {get_default_branch()}. Please update your branch."
 
     return SetupResult("Check git repository", status, message)
 
@@ -144,10 +145,15 @@ def check_python_version(_ctx) -> SetupResult:
     status = Status.OK
     if tuple(sys.version_info)[:2] != tuple(int(d) for d in expected_version.split(".")):
         status = Status.FAIL
-        message = (
-            f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
-            "Please update your environment: https://datadoghq.dev/datadog-agent/setup/#python-dependencies"
-        )
+        install_message = f"Please install Python {expected_version} with 'brew install python@{expected_version}'"
+        if is_windows():
+            install_message = f"Please install Python {expected_version} from https://www.python.org/downloads/windows/"
+        elif is_linux():
+            install_message = (
+                f"Please install Python {expected_version} with 'sudo apt-get install python{expected_version}-dev'"
+            )
+
+        message = f"Python version out of date, current is {sys.version_info[0]}.{sys.version_info[1]} while expected is {expected_version}.\n{install_message}"
 
     return SetupResult("Check Python version", status, message)
 
@@ -162,16 +168,27 @@ def update_python_dependencies(ctx) -> Generator[SetupResult]:
         yield SetupResult(f"Update Python dependencies from {requirement_file}", Status.OK)
 
 
-def enable_pre_commit(ctx) -> SetupResult:
+@task
+def pre_commit(ctx, interactive=True):
+    """Will set up pre-commit hooks.
+
+    Note:
+        pre-commit hooks will be uninstalled / cleaned before being installed.
+    """
+
     print(color_message("Enabling pre-commit...", Color.BLUE))
 
     status = Status.OK
     message = ""
 
     if not ctx.run("pre-commit --version", hide=True, warn=True).ok:
-        return SetupResult(
-            "Enable pre-commit", Status.FAIL, "Please install pre-commit first: https://pre-commit.com/#installation."
-        )
+        message = "Please install pre-commit binary first: https://pre-commit.com/#installation."
+        status = Status.FAIL
+
+        if interactive:
+            raise Exit(code=1, message=f'{color_message("Error:", Color.RED)} {message}')
+
+        return Status.FAIL, message
 
     try:
         # Some dd-hooks can mess up with pre-commit
@@ -203,10 +220,23 @@ def enable_pre_commit(ctx) -> SetupResult:
 
     # Uninstall in case someone switch from one config to the other
     ctx.run("pre-commit uninstall", hide=True)
+    ctx.run("pre-commit clean", hide=True)
     ctx.run(f"pre-commit install --config {config_file}", hide=True)
 
     if hooks_path:
         ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
+
+    if interactive:
+        if message:
+            print(f'{color_message("Warning:", Color.ORANGE)} {message}')
+
+        print(color_message("Pre-commit installed and enabled.", Color.GREEN))
+
+    return status, message
+
+
+def enable_pre_commit(ctx) -> SetupResult:
+    status, message = pre_commit(ctx, interactive=False)
 
     return SetupResult("Enable pre-commit", status, message)
 

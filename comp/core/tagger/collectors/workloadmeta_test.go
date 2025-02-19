@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -116,7 +115,7 @@ func TestHandleKubePod(t *testing.T) {
 
 	tests := []struct {
 		name                          string
-		staticTags                    map[string]string
+		staticTags                    map[string][]string
 		k8sResourcesAnnotationsAsTags map[string]map[string]string
 		k8sResourcesLabelsAsTags      map[string]map[string]string
 		pod                           workloadmeta.KubernetesPod
@@ -789,8 +788,8 @@ func TestHandleKubePod(t *testing.T) {
 		},
 		{
 			name: "static tags",
-			staticTags: map[string]string{
-				"eks_fargate_node": "foobar",
+			staticTags: map[string][]string{
+				"eks_fargate_node": {"foobar"},
 			},
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -961,7 +960,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 
 	tests := []struct {
 		name                string
-		staticTags          map[string]string
+		staticTags          map[string][]string
 		labelsAsTags        map[string]string
 		annotationsAsTags   map[string]string
 		nsLabelsAsTags      map[string]string
@@ -1117,7 +1116,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	tests := []struct {
 		name                string
-		staticTags          map[string]string
+		staticTags          map[string][]string
 		labelsAsTags        map[string]string
 		annotationsAsTags   map[string]string
 		nsLabelsAsTags      map[string]string
@@ -1553,7 +1552,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				{
 					Source:       taskSource,
-					EntityID:     common.GetGlobalEntityID(),
+					EntityID:     types.GetGlobalEntityID(),
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
@@ -1617,7 +1616,7 @@ func TestHandleContainer(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		staticTags   map[string]string
+		staticTags   map[string][]string
 		labelsAsTags map[string]string
 		envAsTags    map[string]string
 		container    workloadmeta.Container
@@ -2098,8 +2097,8 @@ func TestHandleContainer(t *testing.T) {
 		},
 		{
 			name: "static tags",
-			staticTags: map[string]string{
-				"eks_fargate_node": "foobar",
+			staticTags: map[string][]string{
+				"eks_fargate_node": {"foobar"},
 			},
 			container: workloadmeta.Container{
 				EntityID: entityID,
@@ -2247,6 +2246,61 @@ func TestHandleContainerImage(t *testing.T) {
 			actual := collector.handleContainerImage(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &tt.image,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleGPU(t *testing.T) {
+	entityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindGPU,
+		ID:   "gpu-1234",
+	}
+
+	taggerEntityID := types.NewEntityID(types.GPU, entityID.ID)
+
+	tests := []struct {
+		name     string
+		gpu      workloadmeta.GPU
+		expected []*types.TagInfo
+	}{
+		{
+			name: "basic",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor: "nvidia",
+				Device: "tesla-v100",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:tesla-v100",
+						"gpu_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+
+			actual := collector.handleGPU(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.gpu,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
@@ -2403,6 +2457,48 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	}
 
 	assert.True(t, found, "TagInfo of deleted container not returned")
+}
+
+func TestNoGlobalTags(t *testing.T) {
+	// This test checks that the tagger doesn't set any global entity tags on node agent
+
+	mockConfig := configmock.New(t)
+	collectorCh := make(chan []*types.TagInfo, 10)
+	fakeProcessor := &fakeProcessor{ch: collectorCh}
+
+	// Global tags that SHOULD NOT be stored in the tagger's global entity
+	mockConfig.SetWithoutSource("tags", []string{"some:tag"})
+	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag"})
+	mockConfig.SetWithoutSource("cluster_checks.extra_tags", []string{"cluster:tag"})
+	mockConfig.SetWithoutSource("orchestrator_explorer.extra_tags", []string{"orch:tag"})
+
+	wmetaCollector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, fakeProcessor)
+	wmetaCollector.collectStaticGlobalTags(context.Background(), mockConfig)
+
+	close(collectorCh)
+
+	expectedEmptyEvent := &types.TagInfo{
+		Source:               staticSource,
+		EntityID:             types.GetGlobalEntityID(),
+		HighCardTags:         []string{},
+		OrchestratorCardTags: []string{},
+		LowCardTags:          []string{},
+		StandardTags:         []string{},
+	}
+
+	var actualStaticSourceEvent *types.TagInfo
+	for evBundle := range collectorCh {
+		for _, event := range evBundle {
+			if event.Source == staticSource {
+				actualStaticSourceEvent = event
+				break
+			}
+		}
+	}
+	assert.True(t, reflect.DeepEqual(actualStaticSourceEvent, expectedEmptyEvent),
+		"Global Entity should be set with no tags:\nexpected: %v\nfound: %v ",
+		expectedEmptyEvent, actualStaticSourceEvent,
+	)
 }
 
 func TestParseJSONValue(t *testing.T) {

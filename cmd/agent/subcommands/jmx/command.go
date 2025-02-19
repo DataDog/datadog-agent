@@ -25,14 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -53,8 +49,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -62,7 +63,7 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type cliParams struct {
@@ -129,7 +130,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(params),
 			core.Bundle(),
-			compressionimpl.Module(),
 			diagnosesendermanagerimpl.Module(),
 			fx.Supply(func(diagnoseSenderManager diagnosesendermanager.Component) (sender.SenderManager, error) {
 				return diagnoseSenderManager.LazyGetSenderManager()
@@ -147,11 +147,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 			// in others commands such as run.
-			fx.Supply(optional.NewNoneOption[rcservice.Component]()),
-			fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-			fx.Supply(optional.NewNoneOption[collector.Component]()),
-			fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
-			fx.Supply(optional.NewNoneOption[integrations.Component]()),
+			fx.Supply(option.None[rcservice.Component]()),
+			fx.Supply(option.None[rcservicemrf.Component]()),
+			fx.Supply(option.None[collector.Component]()),
+			fx.Supply(option.None[logsAgent.Component]()),
+			fx.Supply(option.None[integrations.Component]()),
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
@@ -167,6 +167,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				proccontainers.InitSharedContainerProvider(wmeta, tagger)
 			}),
 			fx.Provide(func() remoteagentregistry.Component { return nil }),
+			haagentfx.Module(),
+			logscompression.Module(),
+			metricscompression.Module(),
 		)
 	}
 
@@ -302,9 +305,9 @@ func runJmxCommandConsole(config config.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
-	logReceiver optional.Option[integrations.Component],
+	logReceiver option.Option[integrations.Component],
 	tagger tagger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.

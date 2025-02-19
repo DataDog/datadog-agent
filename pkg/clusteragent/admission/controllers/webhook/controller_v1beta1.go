@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	admiv1 "k8s.io/api/admissionregistration/v1"
 	admiv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -52,11 +54,12 @@ func NewControllerV1beta1(
 	validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer,
 	mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
 	isLeaderFunc func() bool,
-	isLeaderNotif <-chan struct{},
+	leadershipStateNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
 	pa workload.PodPatcher,
 	datadogConfig config.Component,
+	demultiplexer demultiplexer.Component,
 ) *ControllerV1beta1 {
 	controller := &ControllerV1beta1{}
 	controller.clientSet = client
@@ -73,8 +76,8 @@ func NewControllerV1beta1(
 		workqueue.TypedRateLimitingQueueConfig[string]{Name: "webhooks"},
 	)
 	controller.isLeaderFunc = isLeaderFunc
-	controller.isLeaderNotif = isLeaderNotif
-	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig)
+	controller.leadershipStateNotif = leadershipStateNotif
+	controller.webhooks = controller.generateWebhooks(wmeta, pa, datadogConfig, demultiplexer)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -210,6 +213,19 @@ func (c *ControllerV1beta1) reconcile() error {
 				log.Errorf("Failed to update Mutating Webhook %s: %v", c.config.getWebhookName(), err)
 			}
 		}
+	} else {
+		mutatingWebhook, err := c.mutatingWebhooksLister.Get(c.config.getWebhookName())
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				log.Errorf("Failed to get Mutating Webhook %s: %v", c.config.getWebhookName(), err)
+			}
+		} else {
+			log.Infof("Mutating Webhook %s was found, deleting it", c.config.getWebhookName())
+			err := c.deleteMutatingWebhook(mutatingWebhook)
+			if err != nil {
+				log.Errorf("Failed to delete Mutating Webhook %s: %v", c.config.getWebhookName(), err)
+			}
+		}
 	}
 
 	if c.config.validationEnabled {
@@ -227,6 +243,19 @@ func (c *ControllerV1beta1) reconcile() error {
 			err = c.updateValidatingWebhook(secret, validatingWebhook)
 			if err != nil {
 				log.Errorf("Failed to update Validating Webhook %s: %v", c.config.getWebhookName(), err)
+			}
+		}
+	} else {
+		validatingWebhook, err := c.validatingWebhooksLister.Get(c.config.getWebhookName())
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				log.Errorf("Failed to get Validating Webhook %s: %v", c.config.getWebhookName(), err)
+			}
+		} else {
+			log.Infof("Validating Webhook %s was found, deleting it", c.config.getWebhookName())
+			err := c.deleteValidatingWebhook(validatingWebhook)
+			if err != nil {
+				log.Errorf("Failed to delete Validating Webhook %s: %v", c.config.getWebhookName(), err)
 			}
 		}
 	}
@@ -271,6 +300,12 @@ func (c *ControllerV1beta1) newValidatingWebhooks(secret *corev1.Secret) []admiv
 	return webhooks
 }
 
+// deleteValidatingWebhook deletes the ValidatingWebhookConfiguration object.
+func (c *ControllerV1beta1) deleteValidatingWebhook(webhook *admiv1beta1.ValidatingWebhookConfiguration) error {
+	err := c.clientSet.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
+	return err
+}
+
 // createMutatingWebhook creates a new MutatingWebhookConfiguration object.
 func (c *ControllerV1beta1) createMutatingWebhook(secret *corev1.Secret) error {
 	webhook := &admiv1beta1.MutatingWebhookConfiguration{
@@ -309,6 +344,12 @@ func (c *ControllerV1beta1) newMutatingWebhooks(secret *corev1.Secret) []admiv1b
 	return webhooks
 }
 
+// deleteMutatingWebhook deletes the MutatingWebhookConfiguration object.
+func (c *ControllerV1beta1) deleteMutatingWebhook(webhook *admiv1beta1.MutatingWebhookConfiguration) error {
+	err := c.clientSet.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Delete(context.TODO(), webhook.Name, metav1.DeleteOptions{})
+	return err
+}
+
 func (c *ControllerV1beta1) generateTemplates() {
 	validatingWebhooks := []admiv1beta1.ValidatingWebhook{}
 	for _, webhook := range c.webhooks {
@@ -327,6 +368,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 				webhook.Resources(),
 				nsSelector,
 				objSelector,
+				convertMatchConditions(webhook.MatchConditions()),
 			),
 		)
 	}
@@ -349,13 +391,14 @@ func (c *ControllerV1beta1) generateTemplates() {
 				webhook.Resources(),
 				nsSelector,
 				objSelector,
+				convertMatchConditions(webhook.MatchConditions()),
 			),
 		)
 	}
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resources []string, namespaceSelector, objectSelector *metav1.LabelSelector) admiv1beta1.ValidatingWebhook {
+func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.ValidatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -372,16 +415,6 @@ func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string
 				Path:      &path,
 			},
 		},
-		Rules: []admiv1beta1.RuleWithOperations{
-			{
-				Operations: operations,
-				Rule: admiv1beta1.Rule{
-					APIGroups:   []string{""},
-					APIVersions: []string{"v1"},
-					Resources:   resources,
-				},
-			},
-		},
 		FailurePolicy:           &failurePolicy,
 		MatchPolicy:             &matchPolicy,
 		SideEffects:             &sideEffects,
@@ -389,12 +422,26 @@ func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string
 		AdmissionReviewVersions: []string{"v1beta1"},
 		NamespaceSelector:       namespaceSelector,
 		ObjectSelector:          objectSelector,
+		MatchConditions:         matchConditions,
+	}
+
+	for group, resources := range resourcesMap {
+		for _, resource := range resources {
+			webhook.Rules = append(webhook.Rules, admiv1beta1.RuleWithOperations{
+				Operations: operations,
+				Rule: admiv1beta1.Rule{
+					APIGroups:   []string{group},
+					APIVersions: []string{"v1"},
+					Resources:   []string{resource},
+				},
+			})
+		}
 	}
 
 	return webhook
 }
 
-func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resources []string, namespaceSelector, objectSelector *metav1.LabelSelector) admiv1beta1.MutatingWebhook {
+func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.MutatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -412,16 +459,6 @@ func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, 
 				Path:      &path,
 			},
 		},
-		Rules: []admiv1beta1.RuleWithOperations{
-			{
-				Operations: operations,
-				Rule: admiv1beta1.Rule{
-					APIGroups:   []string{""},
-					APIVersions: []string{"v1"},
-					Resources:   resources,
-				},
-			},
-		},
 		ReinvocationPolicy:      &reinvocationPolicy,
 		FailurePolicy:           &failurePolicy,
 		MatchPolicy:             &matchPolicy,
@@ -430,6 +467,20 @@ func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, 
 		AdmissionReviewVersions: []string{"v1beta1"},
 		NamespaceSelector:       namespaceSelector,
 		ObjectSelector:          objectSelector,
+		MatchConditions:         matchConditions,
+	}
+
+	for group, resources := range resourcesMap {
+		for _, resource := range resources {
+			webhook.Rules = append(webhook.Rules, admiv1beta1.RuleWithOperations{
+				Operations: operations,
+				Rule: admiv1beta1.Rule{
+					APIGroups:   []string{group},
+					APIVersions: []string{"v1"},
+					Resources:   []string{resource},
+				},
+			})
+		}
 	}
 
 	return webhook
@@ -459,4 +510,16 @@ func (c *ControllerV1beta1) getReinvocationPolicy() admiv1beta1.ReinvocationPoli
 		log.Warnf("Unknown reinvocation policy %q - defaulting to %q", c.config.getReinvocationPolicy(), admiv1beta1.IfNeededReinvocationPolicy)
 		return admiv1beta1.IfNeededReinvocationPolicy
 	}
+}
+
+// convertMatchConditions converts the match conditions from the v1 API to the v1beta1 API.
+func convertMatchConditions(v1MatchConditions []admiv1.MatchCondition) []admiv1beta1.MatchCondition {
+	v1beta1MatchConditions := make([]admiv1beta1.MatchCondition, len(v1MatchConditions))
+	for index, matchCondition := range v1MatchConditions {
+		v1beta1MatchConditions[index] = admiv1beta1.MatchCondition{
+			Name:       matchCondition.Name,
+			Expression: matchCondition.Expression,
+		}
+	}
+	return v1beta1MatchConditions
 }

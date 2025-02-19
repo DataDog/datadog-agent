@@ -244,6 +244,9 @@ func TestFailedRegistration(t *testing.T) {
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 
 	assert.Contains(t, debugger.GetBlockedPathIDs(testModuleName, ""), pathID)
+	info := debugger.GetBlockedPathIDsWithSamplePath(testModuleName, "")
+	require.Len(t, info, 1)
+	assert.Equal(t, registerRecorder.ReturnError.Error(), info[0].Reason)
 	debugger.ClearBlocked(testModuleName)
 	assert.Empty(t, debugger.GetBlockedPathIDs(testModuleName, ""))
 }

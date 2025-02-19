@@ -6,7 +6,9 @@
 package tcp
 
 import (
+	"context"
 	"expvar"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -157,4 +159,16 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 		}
 	}
 	d.lastRetryError = err
+}
+
+// CheckConnectivityDiagnose is a diagnosis for TCP connections
+func CheckConnectivityDiagnose(endpoint config.Endpoint, timeoutSeconds int) (url string, err error) {
+	operationTimeout := time.Second * time.Duration(timeoutSeconds)
+	connManager := NewConnectionManager(endpoint, statusinterface.NewNoopStatusProvider())
+	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
+	defer cancel()
+
+	_, err = connManager.NewConnection(ctx)
+
+	return fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port), err
 }

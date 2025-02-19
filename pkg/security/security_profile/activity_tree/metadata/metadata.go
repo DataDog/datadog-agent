@@ -8,7 +8,12 @@
 // Package metadata holds metadata related files
 package metadata
 
-import "time"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
 
 // Metadata is used to provide context about the activity dump or the profile
 type Metadata struct {
@@ -18,13 +23,13 @@ type Metadata struct {
 	LinuxDistribution string `json:"linux_distribution"`
 	Arch              string `json:"arch"`
 
-	Name              string    `json:"name"`
-	ProtobufVersion   string    `json:"protobuf_version"`
-	DifferentiateArgs bool      `json:"differentiate_args"`
-	ContainerID       string    `json:"-"`
-	ContainerFlags    uint64    `json:"-"`
-	Start             time.Time `json:"start"`
-	End               time.Time `json:"end"`
-	Size              uint64    `json:"activity_dump_size,omitempty"`
-	Serialization     string    `json:"serialization,omitempty"`
+	Name              string                     `json:"name"`
+	ProtobufVersion   string                     `json:"protobuf_version"`
+	DifferentiateArgs bool                       `json:"differentiate_args"`
+	ContainerID       containerutils.ContainerID `json:"-"`
+	CGroupContext     model.CGroupContext        `json:"cgroup"`
+	Start             time.Time                  `json:"start"`
+	End               time.Time                  `json:"end"`
+	Size              uint64                     `json:"activity_dump_size,omitempty"`
+	Serialization     string                     `json:"serialization,omitempty"`
 }

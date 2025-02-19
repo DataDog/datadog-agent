@@ -103,6 +103,17 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	assert.Equal(suite.T(), expectedPath, <-filepathChan)
 }
 
+func (suite *LauncherTestSuite) TestEmptyConfig() {
+	mockConf := &integration.Config{}
+	mockConf.Provider = "container"
+	mockConf.LogsConfig = integration.Data(``)
+
+	suite.s.Start(nil, nil, nil, nil)
+	suite.integrationsComp.RegisterIntegration("12345", *mockConf)
+
+	assert.Equal(suite.T(), len(suite.s.sources.GetSources()), 0)
+}
+
 // TestNegativeCombinedUsageMax ensures errors in combinedUsageMax don't result
 // in panics from `deleteFile`
 func (suite *LauncherTestSuite) TestNegativeCombinedUsageMax() {

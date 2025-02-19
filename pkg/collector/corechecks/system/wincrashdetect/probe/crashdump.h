@@ -4,8 +4,8 @@
 
 #include <windows.h>
 #include <winerror.h>
-#include <DbgHelp.h>
-#include <DbgEng.h>
+#include <dbghelp.h>
+#include <dbgeng.h>
 
 #ifdef __cplusplus
 extern "C" {

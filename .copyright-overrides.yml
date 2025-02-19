@@ -378,3 +378,15 @@ github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024
 github.com/NVIDIA/go-nvml/*: Copyright 2023 NVIDIA CORPORATION
 
 github.com/jonboulle/clockwork: Copyright 2014 Nell Boulle
+
+github.com/nozzle/throttler: Copyright 2018 Derek Perkins
+github.com/openvex/discovery/*: Copyright 2023 The OpenVEX Authors
+github.com/sassoftware/relic/*: Copyright (c) SAS Institute Inc.
+github.com/transparency-dev/merkle: Copyright 2017 Google LLC. All Rights Reserved.
+github.com/transparency-dev/merkle/compact: Copyright 2019 Google LLC. All Rights Reserved.
+github.com/transparency-dev/merkle/proof:
+- Copyright 2017 Google LLC. All Rights Reserved.
+- Copyright 2022 Google LLC. All Rights Reserved.
+github.com/transparency-dev/merkle/rfc6962: Copyright 2016 Google LLC. All Rights Reserved.
+
+gopkg.in/go-jose/go-jose.v2: Copyright 2014 Square Inc.

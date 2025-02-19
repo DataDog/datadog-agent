@@ -57,7 +57,7 @@ func TestConfigIgnoredComms(t *testing.T) {
 			commsStr := strings.Join(test.comms, "   ") // intentionally multiple spaces for sensitivity testing
 			mockSystemProbe.SetWithoutSource("discovery.ignored_command_names", commsStr)
 
-			discovery := newDiscovery()
+			discovery := newDiscovery(nil, nil)
 			require.NotEmpty(t, discovery)
 
 			require.Equal(t, len(discovery.config.ignoreComms), len(test.comms))
@@ -74,7 +74,7 @@ func TestConfigIgnoredComms(t *testing.T) {
 
 	t.Run("check default config length", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		discovery := newDiscovery()
+		discovery := newDiscovery(nil, nil)
 		require.NotEmpty(t, discovery)
 
 		assert.Equal(t, len(discovery.config.ignoreComms), 10)
@@ -84,7 +84,7 @@ func TestConfigIgnoredComms(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_DISCOVERY_IGNORED_COMMAND_NAMES", "dummy1 dummy2")
 
-		discovery := newDiscovery()
+		discovery := newDiscovery(nil, nil)
 		require.NotEmpty(t, discovery)
 
 		_, found := discovery.config.ignoreComms["dummy1"]
@@ -120,7 +120,7 @@ func TestConfigIgnoredServices(t *testing.T) {
 			servicesStr := strings.Join(test.services, "   ") // intentionally multiple spaces for sensitivity testing
 			mockSystemProbe.SetWithoutSource("discovery.ignored_services", servicesStr)
 
-			discovery := newDiscovery()
+			discovery := newDiscovery(nil, nil)
 			require.NotEmpty(t, discovery)
 
 			require.Equal(t, len(discovery.config.ignoreServices), len(test.services))
@@ -134,7 +134,7 @@ func TestConfigIgnoredServices(t *testing.T) {
 
 	t.Run("check default number of services", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		discovery := newDiscovery()
+		discovery := newDiscovery(nil, nil)
 		require.NotEmpty(t, discovery)
 
 		assert.Equal(t, len(discovery.config.ignoreServices), 6)
@@ -144,7 +144,7 @@ func TestConfigIgnoredServices(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_DISCOVERY_IGNORED_SERVICES", "service1 service2")
 
-		discovery := newDiscovery()
+		discovery := newDiscovery(nil, nil)
 		require.NotEmpty(t, discovery)
 
 		_, found := discovery.config.ignoreServices["service1"]

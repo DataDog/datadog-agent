@@ -91,15 +91,17 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
             unless heroku_target?
-              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+              if sysprobe_enabled?
+                move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+                # SElinux policies aren't generated when system-probe isn't built
+                # Move SELinux policy
+                if debian_target? || redhat_target?
+                  move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
+                end
+              end
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
-
-              # Move SELinux policy
-              if debian_target? || redhat_target?
-                move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
-              end
             end
 
             if ot_target?
@@ -173,6 +175,7 @@ build do
         if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
+            delete "#{install_dir}/etc/conf.d/service_discovery.d"
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"

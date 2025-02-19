@@ -7,14 +7,23 @@ package nodetreemodel
 
 import (
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
-	"golang.org/x/exp/slices"
 )
+
+func (c *ntmConfig) leafAtPath(key string) LeafNode {
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return missingLeaf
+	}
+
+	return c.leafAtPathFromNode(key, c.root)
+}
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
@@ -71,16 +80,98 @@ func (c *ntmConfig) GetProxies() *model.Proxy {
 	return c.proxies
 }
 
+func (c *ntmConfig) inferTypeFromDefault(key string, value interface{}) (interface{}, error) {
+	// Viper infer the type from the default value for Get. This reproduce the same behavior.
+	// Once all settings have a default value we could move this logic where we load data into the config rather
+	// than out.
+	defaultNode := c.leafAtPathFromNode(key, c.defaults)
+	if defaultNode != missingLeaf {
+		switch defaultNode.Get().(type) {
+		case bool:
+			return cast.ToBoolE(value)
+		case string:
+			return cast.ToStringE(value)
+		case int32, int16, int8, int:
+			return cast.ToIntE(value)
+		case int64:
+			return cast.ToInt64E(value)
+		case float64, float32:
+			return cast.ToFloat64E(value)
+		case time.Time:
+			return cast.ToTimeE(value)
+		case time.Duration:
+			return cast.ToDurationE(value)
+		case []string:
+			return cast.ToStringSliceE(value)
+		}
+	}
+
+	// if we don't have a default and the value is a map[interface{}]interface{} we try to cast is as a
+	// map[string]interface{}. This mimic the behavior from viper that default to that type.
+	//
+	// TODO: once all settings in the config have a default value we can remove this logic
+	if m, ok := value.(map[interface{}]interface{}); ok {
+		res := map[string]interface{}{}
+
+		for k, v := range m {
+			if keyString, ok := k.(string); ok {
+				res[keyString] = deepcopy.Copy(v)
+			} else {
+				goto simplyCopy
+			}
+		}
+		return res, nil
+	}
+
+	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
+	// and we shouldn't ever return complex types like maps and slices that could be modified
+	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
+simplyCopy:
+	return deepcopy.Copy(value), nil
+}
+
+func (c *ntmConfig) getNodeValue(key string) interface{} {
+	if !c.isReady() {
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return missingLeaf
+	}
+
+	node := c.nodeAtPathFromNode(key, c.root)
+
+	if leaf, ok := node.(LeafNode); ok {
+		return leaf.Get()
+	}
+
+	// When querying an InnerNode we convert it as a map[string]interface{} to mimic Viper's logic
+	var converter func(node InnerNode) map[string]interface{}
+	converter = func(node InnerNode) map[string]interface{} {
+		res := map[string]interface{}{}
+		for _, name := range node.ChildrenKeys() {
+			child, _ := node.GetChild(name)
+
+			if leaf, ok := child.(LeafNode); ok {
+				res[name] = leaf.Get()
+			} else {
+				res[name] = converter(child.(InnerNode))
+			}
+		}
+		return res
+	}
+
+	return converter(node.(InnerNode))
+}
+
 // Get returns a copy of the value for the given key
 func (c *ntmConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val := c.leafAtPath(key).Get()
-	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
-	// and we shouldn't ever return complex types like maps and slices that could be modified
-	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
-	return deepcopy.Copy(val)
+
+	val, err := c.inferTypeFromDefault(key, c.getNodeValue(key))
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
 }
 
 // GetAllSources returns all values for a key for each source in sorted from lower to higher priority
@@ -106,7 +197,7 @@ func (c *ntmConfig) GetString(key string) string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	str, err := cast.ToStringE(c.leafAtPath(key).Get())
+	str, err := cast.ToStringE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -118,7 +209,7 @@ func (c *ntmConfig) GetBool(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	b, err := cast.ToBoolE(c.leafAtPath(key).Get())
+	b, err := cast.ToBoolE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -130,7 +221,7 @@ func (c *ntmConfig) GetInt(key string) int {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToIntE(c.leafAtPath(key).Get())
+	val, err := cast.ToIntE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -142,7 +233,7 @@ func (c *ntmConfig) GetInt32(key string) int32 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToInt32E(c.leafAtPath(key).Get())
+	val, err := cast.ToInt32E(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -154,7 +245,7 @@ func (c *ntmConfig) GetInt64(key string) int64 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToInt64E(c.leafAtPath(key).Get())
+	val, err := cast.ToInt64E(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -166,7 +257,7 @@ func (c *ntmConfig) GetFloat64(key string) float64 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToFloat64E(c.leafAtPath(key).Get())
+	val, err := cast.ToFloat64E(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -179,7 +270,7 @@ func (c *ntmConfig) GetFloat64Slice(key string) []float64 {
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 
-	list, err := cast.ToStringSliceE(c.leafAtPath(key).Get())
+	list, err := cast.ToStringSliceE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -201,7 +292,7 @@ func (c *ntmConfig) GetDuration(key string) time.Duration {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToDurationE(c.leafAtPath(key).Get())
+	val, err := cast.ToDurationE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -213,7 +304,7 @@ func (c *ntmConfig) GetStringSlice(key string) []string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToStringSliceE(c.leafAtPath(key).Get())
+	val, err := cast.ToStringSliceE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -225,7 +316,7 @@ func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToStringMapE(c.leafAtPath(key).Get())
+	val, err := cast.ToStringMapE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -237,7 +328,7 @@ func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToStringMapStringE(c.leafAtPath(key).Get())
+	val, err := cast.ToStringMapStringE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
@@ -249,7 +340,7 @@ func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := cast.ToStringMapStringSliceE(c.leafAtPath(key).Get())
+	val, err := cast.ToStringMapStringSliceE(c.getNodeValue(key))
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}

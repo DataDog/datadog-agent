@@ -38,13 +38,17 @@ type aggregator struct {
 	// processTerminated is true if the process has ended and this aggregator should be deleted
 	processTerminated bool
 
-	// sysCtx is the system context with global GPU-system data
-	sysCtx *systemContext
+	// deviceMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization calculations
+	deviceMaxThreads uint64
+
+	// deviceMemory is the total memory available on the GPU, in bytes
+	deviceMemory uint64
 }
 
-func newAggregator(sysCtx *systemContext) *aggregator {
+func newAggregator(deviceMaxThreads uint64, deviceMemory uint64) *aggregator {
 	return &aggregator{
-		sysCtx: sysCtx,
+		deviceMaxThreads: deviceMaxThreads,
+		deviceMemory:     deviceMemory,
 	}
 }
 
@@ -60,8 +64,7 @@ func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 	}
 
 	durationSec := float64(tsEnd-tsStart) / float64(time.Second.Nanoseconds())
-	maxThreads := uint64(agg.sysCtx.maxGpuThreadsPerDevice[0])                                // TODO: MultiGPU support not enabled yet
-	agg.totalThreadSecondsUsed += durationSec * float64(min(span.avgThreadCount, maxThreads)) // we can't use more threads than the GPU has
+	agg.totalThreadSecondsUsed += durationSec * float64(min(span.avgThreadCount, agg.deviceMaxThreads)) // we can't use more threads than the GPU has
 }
 
 // processPastData takes spans/allocations that have already been closed
@@ -86,8 +89,7 @@ func (agg *aggregator) processCurrentData(data *streamData) {
 func (agg *aggregator) getGPUUtilization() float64 {
 	intervalSecs := float64(agg.measuredIntervalNs) / float64(time.Second.Nanoseconds())
 	if intervalSecs > 0 {
-		// TODO: MultiGPU support not enabled yet
-		availableThreadSeconds := float64(agg.sysCtx.maxGpuThreadsPerDevice[0]) * intervalSecs
+		availableThreadSeconds := float64(agg.deviceMaxThreads) * intervalSecs
 		return agg.totalThreadSecondsUsed / availableThreadSeconds
 	}
 
@@ -124,6 +126,8 @@ func (agg *aggregator) getStats(utilizationNormFactor float64) model.Utilization
 		stats.Memory.CurrentBytes += uint64(lastValue)
 		stats.Memory.MaxBytes += uint64(maxValue)
 	}
+
+	stats.Memory.CurrentBytesPercentage = float64(stats.Memory.CurrentBytes) / float64(agg.deviceMemory)
 
 	// Flush the data that we used
 	agg.flush()

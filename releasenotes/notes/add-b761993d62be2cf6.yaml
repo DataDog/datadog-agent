@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add `7-ltsc2019` and `7-ltsc2022` tags to the `datadog/agent` images for Windows.

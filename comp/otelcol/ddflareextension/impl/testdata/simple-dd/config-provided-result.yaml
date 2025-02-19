@@ -7,6 +7,8 @@ exporters:
       site: datadoghq.com
     auth: null
     compression: ""
+    compression_params:
+      level: 0
     cookies: null
     disable_keep_alives: false
     endpoint: ""
@@ -14,6 +16,7 @@ exporters:
     host_metadata:
       enabled: false
       hostname_source: config_or_system
+      reporter_period: 30m0s
       tags: []
     hostname: ""
     http2_ping_timeout: 0s
@@ -57,6 +60,7 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
+      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
@@ -68,6 +72,7 @@ exporters:
       cert_file: ""
       cert_pem: "[REDACTED]"
       cipher_suites: []
+      curve_preferences: []
       include_system_ca_certs_pool: false
       insecure: false
       insecure_skip_verify: false
@@ -78,16 +83,16 @@ exporters:
       reload_interval: 0s
       server_name_override: ""
     traces:
-      compute_stats_by_span_kind: false
+      compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       dialer:
         timeout: 0s
       endpoint: https://trace.agent.datadoghq.com
       ignore_resources: []
-      peer_service_aggregation: false
+      peer_service_aggregation: true
       peer_tags: []
-      peer_tags_aggregation: false
-      span_name_as_resource_name: true
+      peer_tags_aggregation: true
+      span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 0
     write_buffer_size: 0
@@ -179,10 +184,14 @@ service:
       readers:
         - pull:
             exporter:
-              additionalproperties:
               prometheus:
                 host: localhost
                 port: 8888
+                with_resource_constant_labels:
+                  included: []
+                without_scope_info: true
+                without_type_suffix: true
+                without_units: true
     resource: {}
     traces:
       level: Basic

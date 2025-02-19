@@ -10,9 +10,11 @@ import (
 	"path"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -25,7 +27,7 @@ type fileManagerSuiteEx7 struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func customProvisionerFileManager(localFolderPath string, remoteFolderPath string) e2e.PulumiEnvRunFunc[environments.Host] {
+func customProvisionerFileManager(localFolderPath string, remoteFolderPath string) provisioners.PulumiEnvRunFunc[environments.Host] {
 	return func(ctx *pulumi.Context, env *environments.Host) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 )
 
@@ -32,7 +33,7 @@ func TestIsEnabled(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			assert.Equal(t, testInstance.enabled, IsEnabled(cfg))
+			assert.Equal(t, testInstance.enabled, configcheck.IsEnabled(cfg))
 		})
 	}
 }
@@ -41,7 +42,7 @@ func TestIsEnabledEnv(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:9993")
 	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 	require.NoError(t, err)
-	assert.True(t, IsEnabled(cfg))
+	assert.True(t, configcheck.IsEnabled(cfg))
 }
 
 func TestFromAgentConfigReceiver(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -25,10 +26,12 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -37,6 +40,7 @@ type activityDumpCliParams struct {
 
 	name                     string
 	containerID              string
+	cgroupID                 string
 	file                     string
 	file2                    string
 	timeout                  string
@@ -54,6 +58,9 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			model.SECLConstants()
+		},
 	}
 
 	activityDumpCmd.AddCommand(generateCommands(globalParams)...)
@@ -113,7 +120,13 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		&cliParams.containerID,
 		"container-id",
 		"",
-		"an containerID can be used to filter the activity dump.",
+		"a containerID can be used to filter the activity dump.",
+	)
+	activityDumpStopCmd.Flags().StringVar(
+		&cliParams.cgroupID,
+		"cgroup-id",
+		"",
+		"a cgroup ID can be used to filter the activity dump.",
 	)
 
 	return []*cobra.Command{activityDumpStopCmd}
@@ -158,9 +171,15 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"a container identifier can be used to filter the activity dump from a specific container.",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&cliParams.cgroupID,
+		"cgroup-id",
+		"",
+		"a cgroup identifier can be used to filter the activity dump from a specific cgroup.",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.timeout,
 		"timeout",
-		"1m",
+		"",
 		"timeout for the activity dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
@@ -172,7 +191,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.localStorageDirectory,
 		"output",
-		"/tmp/activity_dumps/",
+		"",
 		"local storage output directory",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
@@ -459,8 +478,15 @@ func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Compone
 		return err
 	}
 
+	if activityDumpArgs.timeout != "" {
+		if _, err = time.ParseDuration(activityDumpArgs.timeout); err != nil {
+			return err
+		}
+	}
+
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
 		ContainerID:       activityDumpArgs.containerID,
+		CGroupID:          activityDumpArgs.cgroupID,
 		Timeout:           activityDumpArgs.timeout,
 		DifferentiateArgs: activityDumpArgs.differentiateArgs,
 		Storage:           storage,
@@ -609,7 +635,7 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID)
+	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.cgroupID)
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
@@ -740,7 +766,7 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	}
 
 	generatedRules := dump.GenerateRules(ads, opts)
-	generatedRules = utils.BuildPatterns(generatedRules)
+	generatedRules = pathutils.BuildPatterns(generatedRules)
 
 	policyDef := rules.PolicyDef{
 		Rules: generatedRules,

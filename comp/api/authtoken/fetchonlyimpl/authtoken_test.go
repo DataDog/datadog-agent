@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -23,6 +25,7 @@ import (
 func TestGet(t *testing.T) {
 	dir := t.TempDir()
 	authPath := filepath.Join(dir, "auth_token")
+	var cfg config.Component
 	overrides := map[string]any{
 		"auth_token_file_path": authPath,
 	}
@@ -32,6 +35,7 @@ func TestGet(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
+			fx.Populate(&cfg),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 		),
 	).(*authToken)
@@ -40,6 +44,14 @@ func TestGet(t *testing.T) {
 	assert.False(t, comp.tokenLoaded)
 
 	err := os.WriteFile(authPath, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), 0777)
+	require.NoError(t, err)
+
+	// Should be empty because the cert/key weren't generated yet
+	assert.Empty(t, comp.Get())
+	assert.False(t, comp.tokenLoaded)
+
+	// generating IPC cert/key files
+	_, _, err = cert.CreateOrFetchAgentIPCCert(cfg)
 	require.NoError(t, err)
 
 	assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", comp.Get())

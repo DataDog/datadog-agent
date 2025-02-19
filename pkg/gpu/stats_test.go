@@ -31,7 +31,7 @@ func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.Utilizati
 }
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*StreamHandler, int64) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot())
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
 	require.NoError(t, err)
 	require.NotNil(t, sysCtx)
 
@@ -39,7 +39,7 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, map[streamKey]*Str
 	require.NoError(t, err)
 
 	streamHandlers := make(map[streamKey]*StreamHandler)
-	statsGen := newStatsGenerator(sysCtx, streamHandlers)
+	statsGen := newStatsGenerator(sysCtx, streamHandlers, testutil.GetTelemetryMock(t))
 	statsGen.lastGenerationKTime = ktime
 	statsGen.currGenerationKTime = ktime
 	require.NotNil(t, statsGen)
@@ -95,6 +95,7 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	require.NotNil(t, metrics)
 	require.Equal(t, allocSize*2, metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize*2, metrics.Memory.MaxBytes)
+	require.Equal(t, float64(allocSize*2)/float64(testutil.DefaultTotalMemory), metrics.Memory.CurrentBytesPercentage)
 
 	// defined kernel is using only 1 core for 9 of the 10 seconds
 	expectedUtil := 1.0 / testutil.DefaultGpuCores * 0.9
@@ -148,6 +149,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	require.NotNil(t, metrics)
 	require.Equal(t, uint64(0), metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize, metrics.Memory.MaxBytes)
+	require.Equal(t, 0.0, metrics.Memory.CurrentBytesPercentage)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
@@ -224,6 +226,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	require.NotNil(t, metrics)
 	require.Equal(t, allocSize+shmemSize, metrics.Memory.CurrentBytes)
 	require.Equal(t, allocSize*2+shmemSize, metrics.Memory.MaxBytes)
+	require.Equal(t, float64(allocSize+shmemSize)/float64(testutil.DefaultTotalMemory), metrics.Memory.CurrentBytesPercentage)
 
 	// numThreads / DefaultGpuCores is the utilization for the
 	threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
@@ -232,4 +235,50 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	expectedUtilKern2 := 1.0 / testutil.DefaultGpuCores * 0.9
 	expectedUtil := expectedUtilKern1 + expectedUtilKern2
 	require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001)
+}
+
+func TestGetStatsMultiGPU(t *testing.T) {
+	statsGen, streamHandlers, ktime := getStatsGeneratorForTest(t)
+
+	startKtime := ktime + int64(1*time.Second)
+	endKtime := startKtime + int64(1*time.Second)
+
+	pid := uint32(1)
+	numThreads := uint64(5)
+
+	// Add kernels for all devices
+	for i, uuid := range testutil.GPUUUIDs {
+		streamID := uint64(i)
+		streamKey := streamKey{pid: pid, stream: streamID, gpuUUID: uuid}
+		streamHandlers[streamKey] = &StreamHandler{
+			processEnded: false,
+			kernelSpans: []*kernelSpan{
+				{
+					startKtime:     uint64(startKtime),
+					endKtime:       uint64(endKtime),
+					avgThreadCount: numThreads,
+					numKernels:     10,
+				},
+			},
+		}
+	}
+
+	checkDuration := 10 * time.Second
+	checkKtime := ktime + int64(checkDuration)
+	stats := statsGen.getStats(checkKtime)
+	require.NotNil(t, stats)
+
+	// Check the metrics for each device
+	for i, uuid := range testutil.GPUUUIDs {
+		metricsKey := model.StatsKey{PID: pid, DeviceUUID: uuid}
+		metrics := getMetricsEntry(metricsKey, stats)
+		require.NotNil(t, metrics, "cannot find metrics for key %+v", metricsKey)
+
+		gpuCores := float64(testutil.GPUCores[i])
+		threadSecondsUsed := float64(numThreads) * float64(endKtime-startKtime) / 1e9
+		threadSecondsAvailable := gpuCores * checkDuration.Seconds()
+		expectedUtil := threadSecondsUsed / threadSecondsAvailable
+
+		require.InDelta(t, expectedUtil, metrics.UtilizationPercentage, 0.001, "invalid utilization for device %d (uuid=%s)", i, uuid)
+	}
 }

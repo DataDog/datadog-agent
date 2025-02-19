@@ -14,8 +14,6 @@ import (
 	"io"
 	"math"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -185,7 +183,7 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		}
 
 		// Checking the symbol is relevant for us.
-		if !filter.want(string(symbolNameBuf[:symbolNameSize])) {
+		if !filter.want(symbolNameBuf[:symbolNameSize]) {
 			continue
 		}
 
@@ -222,7 +220,7 @@ func getSymbols(f *safeelf.File, typ safeelf.SectionType, filter symbolFilter) (
 // returned.
 func GetAllSymbolsByName(elfFile *safeelf.File, filter symbolFilter) (map[string]safeelf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, safeelf.SHT_SYMTAB, filter)
-	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
+	if regularSymbolsErr != nil && log.ShouldLog(log.TraceLvl) {
 		log.Tracef("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
 	}
 
@@ -231,7 +229,7 @@ func GetAllSymbolsByName(elfFile *safeelf.File, filter symbolFilter) (map[string
 	numWanted := filter.getNumWanted()
 	if len(regularSymbols) != numWanted {
 		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, safeelf.SHT_DYNSYM, filter)
-		if dynamicSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
+		if dynamicSymbolsErr != nil && log.ShouldLog(log.TraceLvl) {
 			log.Tracef("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
 		}
 	}
@@ -270,10 +268,10 @@ func GetAllSymbolsInSetByName(elfFile *safeelf.File, symbolSet common.StringSet)
 	return GetAllSymbolsByName(elfFile, filter)
 }
 
-// GetAnySymbolWithPrefix returns any one symbol with the given prefix and the
+// GetAnySymbolWithInfix returns any one symbol with the given infix and the
 // specified maximum length from the ELF file.
-func GetAnySymbolWithPrefix(elfFile *safeelf.File, prefix string, maxLength int) (*safeelf.Symbol, error) {
-	filter := newPrefixSymbolFilter(prefix, maxLength)
+func GetAnySymbolWithInfix(elfFile *safeelf.File, infix string, minLength int, maxLength int) (*safeelf.Symbol, error) {
+	filter := newInfixSymbolFilter(infix, minLength, maxLength)
 	symbols, err := GetAllSymbolsByName(elfFile, filter)
 	if err != nil {
 		return nil, err
@@ -288,10 +286,10 @@ func GetAnySymbolWithPrefix(elfFile *safeelf.File, prefix string, maxLength int)
 	return nil, errors.New("empty symbols map")
 }
 
-// GetAnySymbolWithPrefixPCLNTAB returns any one symbol with the given prefix and the
+// GetAnySymbolWithInfixPCLNTAB returns any one symbol with the given infix and the
 // specified maximum length from the pclntab section in ELF file.
-func GetAnySymbolWithPrefixPCLNTAB(elfFile *safeelf.File, prefix string, maxLength int) (*safeelf.Symbol, error) {
-	symbols, err := GetPCLNTABSymbolParser(elfFile, newPrefixSymbolFilter(prefix, maxLength))
+func GetAnySymbolWithInfixPCLNTAB(elfFile *safeelf.File, infix string, minLength int, maxLength int) (*safeelf.Symbol, error) {
+	symbols, err := GetPCLNTABSymbolParser(elfFile, newInfixSymbolFilter(infix, minLength, maxLength))
 	if err != nil {
 		return nil, err
 	}

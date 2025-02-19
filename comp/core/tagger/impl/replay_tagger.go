@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -21,13 +21,8 @@ import (
 )
 
 type replayTagger struct {
-	store *tagstore.TagStore
-
-	ctx    context.Context
-	cancel context.CancelFunc
-
-	telemetryTicker *time.Ticker
-	telemetryStore  *telemetry.Store
+	store          *tagstore.TagStore
+	telemetryStore *telemetry.Store
 }
 
 func newReplayTagger(telemetryStore *telemetry.Store) tagger.ReplayTagger {
@@ -37,24 +32,13 @@ func newReplayTagger(telemetryStore *telemetry.Store) tagger.ReplayTagger {
 	}
 }
 
-// Start starts the connection to the replay tagger and starts watching for
-// events.
-func (t *replayTagger) Start(ctx context.Context) error {
-	t.telemetryTicker = time.NewTicker(1 * time.Minute)
-
-	t.ctx, t.cancel = context.WithCancel(ctx)
-
+// Start does nothing in the replay tagger.
+func (t *replayTagger) Start(_ context.Context) error {
 	return nil
 }
 
-// Stop closes the connection to the replay tagger and stops event collection.
+// Stop does nothing in the replay tagger.
 func (t *replayTagger) Stop() error {
-	t.cancel()
-
-	t.telemetryTicker.Stop()
-
-	log.Info("replay tagger stopped successfully")
-
 	return nil
 }
 
@@ -69,13 +53,19 @@ func (t *replayTagger) Tag(entityID types.EntityID, cardinality types.TagCardina
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
 func (t *replayTagger) LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
-	prefix, id, err := taggercommon.ExtractPrefixAndID(entity)
+	prefix, id, err := types.ExtractPrefixAndID(entity)
 	if err != nil {
 		return nil, err
 	}
 
 	entityID := types.NewEntityID(prefix, id)
 	return t.Tag(entityID, cardinality)
+}
+
+// GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
+// This is a no-op for the replay tagger
+func (t *replayTagger) GenerateContainerIDFromOriginInfo(origindetection.OriginInfo) (string, error) {
+	return "", nil
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
@@ -95,12 +85,7 @@ func (t *replayTagger) AccumulateTagsFor(entityID types.EntityID, cardinality ty
 
 // Standard returns the standard tags for a given entity.
 func (t *replayTagger) Standard(entityID types.EntityID) ([]string, error) {
-	tags, err := t.store.LookupStandard(entityID)
-	if err != nil {
-		return []string{}, err
-	}
-
-	return tags, nil
+	return t.store.LookupStandard(entityID)
 }
 
 // List returns all the entities currently stored by the tagger.

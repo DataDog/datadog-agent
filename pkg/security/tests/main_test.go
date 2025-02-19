@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TestMain is the entry points for functional tests
@@ -43,7 +43,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
+	flag.StringVar(&logLevelStr, "loglevel", log.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
 

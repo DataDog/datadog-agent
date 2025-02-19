@@ -22,11 +22,12 @@ const (
 
 // Config is the top-level config for agent telemetry
 type Config struct {
-	Enabled  bool      `yaml:"enabled"`
-	Profiles []Profile `yaml:"profiles"`
+	Enabled  bool       `yaml:"enabled"`
+	Profiles []*Profile `yaml:"profiles"`
 
-	// compiled
+	// config-wide and "compiled" fields
 	schedule map[Schedule][]*Profile
+	events   map[string]*Event
 }
 
 // Profile is a single agent telemetry profile
@@ -34,7 +35,8 @@ type Profile struct {
 	// parsed
 	Name     string             `yaml:"name"`
 	Metric   *AgentMetricConfig `yaml:"metric,omitempty"`
-	Schedule *Schedule          `yaml:"schedule"`
+	Schedule *Schedule          `yaml:"schedule,omitempty"`
+	Events   []*Event           `yaml:"events"`
 
 	// compiled
 	metricsMap        map[string]*MetricConfig
@@ -71,6 +73,14 @@ type Schedule struct {
 	StartAfter uint `yaml:"start_after"`
 	Iterations uint `yaml:"iterations"`
 	Period     uint `yaml:"period"`
+}
+
+// Event is a payload sent by Agent Telemetry component client
+type Event struct {
+	Name        string `yaml:"name"`         // required
+	RequestType string `yaml:"request_type"` // required
+	PayloadKey  string `yaml:"payload_key"`  // required
+	Message     string `yaml:"message"`      // required
 }
 
 // profiles[].metric.metrics (optional)
@@ -127,7 +137,7 @@ type Schedule struct {
 // configured payloads willbe generated and emitted on the following schedule (the details
 // are described in the comments below.
 //
-//    (legend - 300s=5m, 900s=15m, 1800s=30m, 3600s=1h, 86400s=1d)
+//    (legend - 300s=5m, 900s=15m, 1800s=30m, 3600s=1h, 14400s=4h, 86400s=1d)
 //
 //        schedule:
 //          start_after: 30
@@ -148,6 +158,26 @@ type Schedule struct {
 // -------------------------------------
 // Number of seconds to wait between telemetry collection iteration for the profile. If not
 // specified, default values are specified above.
+//
+// profiles[].events (optional)
+// -------------------------------------
+// List of registered events an agent telemetry client can send
+//
+// profiles[].events[].name (required)
+// -------------------------------------
+// The name of the event to find corresponding request_type, payload_key and message values
+//
+// profiles[].events[].request_type (required)
+// -------------------------------------
+// The value is required and used in the corresponding payload to identify the event
+//
+// profiles[].events[].payload_key (required)
+// -------------------------------------
+// The value is required and used in the corresponding payload as a root of the event payload
+//
+// profiles[].events[].message (required)
+// -------------------------------------
+// The value is required and used in the corresponding payload
 
 // ----------------------------------------------------------------------------------
 //
@@ -155,53 +185,64 @@ type Schedule struct {
 // Note: If "aggregate_tags" are not specified, metric will be aggregated without any tags.
 var defaultProfiles = `
   profiles:
-  - name: core-metrics
+  - name: checks
     metric:
-      exclude:
-        zero_metric: true
-        tags:
-          - check_name:cpu
-          - check_name:memory
-          - check_name:uptime
-          - check_name:network
-          - check_name:io
-          - check_name:file_handle
       metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
+            - check_loader
         - name: pymem.inuse
-        - name: pymem.alloc
-        - name: logs.decoded
-        - name: logs.processed
-        - name: logs.sent
-        - name: logs.dropped
-        - name: logs.sender_latency
-        - name: logs.bytes_sent
-        - name: logs.encoded_bytes_sent
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: logs-and-metrics
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: dogstatsd.udp_packets_bytes
+        - name: dogstatsd.uds_packets_bytes
         - name: logs.bytes_missed
+        - name: logs.bytes_sent
+        - name: logs.decoded
+        - name: logs.dropped
+        - name: logs.encoded_bytes_sent
+        - name: logs.sender_latency
+        - name: logs.auto_multi_line_aggregator_flush
+          aggregate_tags:
+            - truncated
+            - line_type
         - name: point.sent
         - name: point.dropped
+        - name: transactions.input_count
+        - name: transactions.requeued
+        - name: transactions.retries
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: database
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
         - name: oracle.activity_samples_count
         - name: oracle.activity_latency
         - name: oracle.statement_metrics
         - name: oracle.statement_plan_errors
-        - name: postgres.schema_tables_elapsed_ms
-        - name: postgres.schema_tables_count
-        - name: postgres.collect_relations_autodiscovery_ms
-        - name: postgres.collect_stat_autodiscovery_ms
-        - name: postgres.get_new_pg_stat_activity_ms
-        - name: postgres.get_new_pg_stat_activity_count
-        - name: postgres.get_active_connections_ms
-        - name: postgres.get_active_connections_count
         - name: postgres.collect_activity_snapshot_ms
+        - name: postgres.collect_relations_autodiscovery_ms
         - name: postgres.collect_statement_samples_ms
         - name: postgres.collect_statement_samples_count
-        - name: transactions.input_count
-        - name: transactions.requeued
-        - name: transactions.retries
-        - name: dogstatsd.udp_packets_bytes
-        - name: dogstatsd.uds_packets_bytes
+        - name: postgres.collect_stat_autodiscovery_ms
+        - name: postgres.get_active_connections_ms
+        - name: postgres.get_active_connections_count
+        - name: postgres.get_new_pg_stat_activity_count
+        - name: postgres.get_new_pg_stat_activity_ms
+        - name: postgres.schema_tables_elapsed_ms
+        - name: postgres.schema_tables_count
     schedule:
       start_after: 30
       iterations: 0
@@ -221,6 +262,12 @@ var defaultProfiles = `
       start_after: 600
       iterations: 0
       period: 14400
+  - name: ondemand
+    events:
+      - name: agentbsod
+        request_type: agent-bsod
+        payload_key: agent_bsod
+        message: 'Agent BSOD'
 `
 
 func compileMetricsExclude(p *Profile) error {
@@ -296,37 +343,35 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	return nil
 }
 
-// Compile metric section
-func compileMetrics(p *Profile) error {
-	// No metric section - nothing to do
-	if p.Metric == nil || len(p.Metric.Metrics) == 0 {
-		return nil
-	}
-
-	if err := compileMetricsExclude(p); err != nil {
-		return err
-	}
-
-	// Compile metrics themselves
-	p.metricsMap = make(map[string]*MetricConfig)
-	for i := 0; i < len(p.Metric.Metrics); i++ {
-		if err := compileMetric(p, &p.Metric.Metrics[i]); err != nil {
-			return err
+// Validate profiles
+func validateProfiles(cfg *Config) error {
+	for i, p := range cfg.Profiles {
+		if len(p.Name) == 0 {
+			return fmt.Errorf("profile requires 'name' attribute to be specified. Profile index: %d", i)
 		}
 	}
 
 	return nil
 }
 
-// Compile profile
-func compileProfile(p *Profile) error {
-	// Profile requires name
-	if len(p.Name) == 0 {
-		return fmt.Errorf("profile requires 'name' attribute to be specified")
-	}
+func compileMetrics(cfg *Config) error {
+	for _, p := range cfg.Profiles {
+		// No metric section - nothing to do
+		if p.Metric == nil || len(p.Metric.Metrics) == 0 {
+			continue
+		}
 
-	if err := compileMetrics(p); err != nil {
-		return err
+		if err := compileMetricsExclude(p); err != nil {
+			return err
+		}
+
+		// Compile metrics themselves
+		p.metricsMap = make(map[string]*MetricConfig)
+		for i := 0; i < len(p.Metric.Metrics); i++ {
+			if err := compileMetric(p, &p.Metric.Metrics[i]); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -337,7 +382,12 @@ func compileSchedules(cfg *Config) error {
 	cfg.schedule = make(map[Schedule][]*Profile)
 
 	for i := 0; i < len(cfg.Profiles); i++ {
-		p := &cfg.Profiles[i]
+		p := cfg.Profiles[i]
+
+		// No metric section - schedule is not needed
+		if p.Metric == nil || len(p.Metric.Metrics) == 0 {
+			continue
+		}
 
 		// Setup default schedule if it is not specified partially or at all
 		if p.Schedule == nil {
@@ -371,16 +421,34 @@ func compileSchedules(cfg *Config) error {
 	return nil
 }
 
-// Compile agent telemetry config
-func compileConfig(cfg *Config) error {
-	for i := 0; i < len(cfg.Profiles); i++ {
-		err := compileProfile(&cfg.Profiles[i])
-		if err != nil {
-			return err
+func compileEvents(cfg *Config) error {
+	cfg.events = make(map[string]*Event)
+	for _, p := range cfg.Profiles {
+		if p.Events != nil {
+			for _, e := range p.Events {
+				cfg.events[e.Name] = e
+			}
 		}
 	}
 
+	return nil
+}
+
+// Compile agent telemetry config
+func compileConfig(cfg *Config) error {
+	if err := validateProfiles(cfg); err != nil {
+		return err
+	}
+
+	if err := compileMetrics(cfg); err != nil {
+		return err
+	}
+
 	if err := compileSchedules(cfg); err != nil {
+		return err
+	}
+
+	if err := compileEvents(cfg); err != nil {
 		return err
 	}
 

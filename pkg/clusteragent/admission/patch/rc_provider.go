@@ -20,25 +20,27 @@ import (
 
 // remoteConfigProvider consumes tracing configs from RC and delivers them to the patcher
 type remoteConfigProvider struct {
-	client             *rcclient.Client
-	isLeaderNotif      <-chan struct{}
-	subscribers        map[TargetObjKind]chan Request
-	clusterName        string
-	telemetryCollector telemetry.TelemetryCollector
+	client               *rcclient.Client
+	leadershipStateNotif <-chan struct{}
+	isLeaderFunc         func() bool
+	subscribers          map[TargetObjKind]chan Request
+	clusterName          string
+	telemetryCollector   telemetry.TelemetryCollector
 }
 
 var _ patchProvider = &remoteConfigProvider{}
 
-func newRemoteConfigProvider(client *rcclient.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (*remoteConfigProvider, error) {
+func newRemoteConfigProvider(client *rcclient.Client, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (*remoteConfigProvider, error) {
 	if client == nil {
 		return nil, errors.New("remote config client not initialized")
 	}
 	return &remoteConfigProvider{
-		client:             client,
-		isLeaderNotif:      isLeaderNotif,
-		subscribers:        make(map[TargetObjKind]chan Request),
-		clusterName:        clusterName,
-		telemetryCollector: telemetryCollector,
+		client:               client,
+		leadershipStateNotif: leadershipStateNotif,
+		subscribers:          make(map[TargetObjKind]chan Request),
+		clusterName:          clusterName,
+		telemetryCollector:   telemetryCollector,
+		isLeaderFunc:         isLeaderFunc,
 	}, nil
 }
 
@@ -48,9 +50,11 @@ func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
 	rcp.client.Start()
 	for {
 		select {
-		case <-rcp.isLeaderNotif:
-			log.Info("Got a leader notification, polling from remote-config")
-			rcp.process(rcp.client.GetConfigs(state.ProductAPMTracing), rcp.client.UpdateApplyStatus)
+		case <-rcp.leadershipStateNotif:
+			if rcp.isLeaderFunc() {
+				log.Info("Got a leader notification, polling from remote-config")
+				rcp.process(rcp.client.GetConfigs(state.ProductAPMTracing), rcp.client.UpdateApplyStatus)
+			}
 		case <-stopCh:
 			log.Info("Shutting down remote-config patch provider")
 			rcp.client.Close()

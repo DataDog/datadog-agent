@@ -48,7 +48,7 @@ int rethook_get_pipe_info(ctx_t *ctx) {
         return 0;
     }
 
-    struct pipe_inode_info *info = (struct pipe_inode_info *)CTX_PARMRET(ctx, 2);
+    struct pipe_inode_info *info = (struct pipe_inode_info *)CTX_PARMRET(ctx);
     if (info == NULL) {
         // this is not a pipe, so most likely a file, resolve its path now
         syscall->splice.file_found = 1;

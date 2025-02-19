@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package usm
 
 import (
@@ -16,8 +18,9 @@ import (
 )
 
 func TestPythonDetect(t *testing.T) {
-	//prepare the in mem fs
-	memFs := fstest.MapFS{
+	// Wrap the MapFS in a SubDirFS since we want to test absolute paths and the
+	// former doesn't allow them in calls to Open().
+	memFs := SubDirFS{FS: fstest.MapFS{
 		"modules/m1/first/nice/package/__init__.py": &fstest.MapFile{},
 		"modules/m1/first/nice/__init__.py":         &fstest.MapFile{},
 		"modules/m1/first/nice/something.py":        &fstest.MapFile{},
@@ -28,7 +31,9 @@ func TestPythonDetect(t *testing.T) {
 		"apps/app2/cmd/run.py":                      &fstest.MapFile{},
 		"apps/app2/setup.py":                        &fstest.MapFile{},
 		"example.py":                                &fstest.MapFile{},
-	}
+		"usr/bin/pytest":                            &fstest.MapFile{},
+		"bin/WALinuxAgent.egg":                      &fstest.MapFile{},
+	}}
 	tests := []struct {
 		name     string
 		cmd      string
@@ -78,6 +83,27 @@ func TestPythonDetect(t *testing.T) {
 			name:     "top level script",
 			cmd:      "python example.py",
 			expected: "example",
+		},
+		{
+			name:     "root level script",
+			cmd:      "python /example.py",
+			expected: "example",
+		},
+		{
+			name: "root level script with ..",
+			// This results in a path of "." after findNearestTopLevel is called on the split path.
+			cmd:      "python /../example.py",
+			expected: "example",
+		},
+		{
+			name:     "script in bin",
+			cmd:      "python /usr/bin/pytest",
+			expected: "pytest",
+		},
+		{
+			name:     "script in bin with -u",
+			cmd:      "python3 -u bin/WALinuxAgent.egg",
+			expected: "WALinuxAgent",
 		},
 	}
 	for _, tt := range tests {

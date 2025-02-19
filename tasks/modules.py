@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import tempfile
 from collections import defaultdict
@@ -45,7 +46,7 @@ def generate_dummy_package(ctx, folder):
     try:
         import_paths = []
         for mod in get_default_modules().values():
-            if mod.path != "." and mod.should_test() and mod.importable:
+            if mod.path != "." and mod.should_test():
                 import_paths.append(mod.import_path)
 
         os.mkdir(folder)
@@ -62,11 +63,6 @@ def generate_dummy_package(ctx, folder):
                 if mod.path != ".":
                     ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
                     ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
-                    # todo: remove once datadogconnector fix is released.
-                    if mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl":
-                        ctx.run(
-                            "go mod edit -replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector=github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector@v0.103.0"
-                        )
                     if (
                         mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
                         or mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
@@ -84,37 +80,14 @@ def generate_dummy_package(ctx, folder):
 
 
 @task
-def go_work(_: Context):
+def go_work(ctx: Context):
     """
-    Create a go.work file using the module list contained in get_default_modules()
-    and the go version contained in the file .go-version.
-    If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
+    Update the go work to use all the modules defined in modules.yml
     """
-    print(
-        color_message(
-            "WARNING: Using a go.work file is not supported and can cause weird errors "
-            "when compiling the agent or running tests.\n"
-            "Remember to export GOWORK=off to avoid these issues.\n",
-            "orange",
-        ),
-        file=sys.stderr,
+
+    ctx.run(
+        "go run ./internal/tools/worksynchronizer/worksynchronizer.go --path ./go.work --modules-file ./modules.yml"
     )
-
-    # read go version from the .go-version file, removing the bugfix part of the version
-
-    with open(".go-version") as f:
-        go_version = f.read().strip()
-
-    if os.path.exists("go.work"):
-        print("go.work already exists. Renaming to go.work.backup")
-        os.rename("go.work", "go.work.backup")
-
-    with open("go.work", "w") as f:
-        f.write(f"go {go_version}\n\nuse (\n")
-        for mod in get_default_modules().values():
-            prefix = "" if mod.should_test() else "//"
-            f.write(f"\t{prefix}{mod.path}\n")
-        f.write(")\n")
 
 
 @task
@@ -218,6 +191,7 @@ def validate_used_by_otel(ctx: Context):
     missing_used_by_otel_label: dict[str, list[str]] = defaultdict(list)
 
     # for every module labeled as "used_by_otel"
+    default_modules = get_default_modules()
     for otel_mod in otel_mods:
         gomod_path = f"{otel_mod}/go.mod"
         # get the go.mod data
@@ -237,7 +211,7 @@ def validate_used_by_otel(ctx: Context):
             # we need the relative path of module (without github.com/DataDog/datadog-agent/ prefix)
             rel_path = require['Path'].removeprefix("github.com/DataDog/datadog-agent/")
             # check if indirect module is labeled as "used_by_otel"
-            if rel_path not in get_default_modules() or not get_default_modules()[rel_path].used_by_otel:
+            if rel_path not in default_modules or not default_modules[rel_path].used_by_otel:
                 missing_used_by_otel_label[rel_path].append(otel_mod)
     if missing_used_by_otel_label:
         message = f"{color_message('ERROR', Color.RED)}: some indirect local dependencies of modules labeled \"used_by_otel\" are not correctly labeled in get_default_modules()\n"
@@ -265,6 +239,7 @@ def show(_, path: str, remove_defaults: bool = False, base_dir: str = '.'):
 
     Args:
         remove_defaults: If True, will remove default values from the output.
+        base_dir: Where to load modules from.
     """
 
     config = Configuration.from_file(Path(base_dir))
@@ -286,6 +261,7 @@ def show_all(_, base_dir: str = '.', ignored=False):
     """Show the list of modules.
 
     Args:
+        base_dir: Where to load modules from.
         ignored: If True, will list ignored modules.
     """
 
@@ -298,3 +274,85 @@ def show_all(_, base_dir: str = '.', ignored=False):
 
     print('\n'.join(sorted(names)))
     print(len(names), 'modules')
+
+
+def remove_replace_rules(data: str) -> str:
+    # remove all replace block
+    data = re.sub("\tgithub.com/DataDog/datadog-agent/.+ => .+", '', data)
+    data = re.sub("replace github.com/DataDog/datadog-agent/[^ ]+ => .+", '', data)
+    data = re.sub(r"replace \(\s+\)", '', data)
+    data = re.sub(r"// This section was automatically added by 'invoke modules\..+", '', data)
+    return data
+
+
+def update_go_mod(gomod_list, root):
+    file = "go.mod"
+    repo_name = "github.com/DataDog/datadog-agent/"
+    replace_comment = (
+        "// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually\n\n"
+    )
+
+    gomod_file = os.path.join(root, file)
+    print("Updating:", gomod_file)
+    with open(gomod_file) as f:
+        gomod = f.read()
+
+    prefix = re.sub(r"[^/\.]+", "..", root)
+    if prefix.endswith("/"):
+        prefix = prefix[:-1]
+
+    # remove all replace block
+    gomod = remove_replace_rules(gomod)
+
+    # inject all replace rules at the bottom
+    gomod += "\n" + replace_comment
+    gomod += "replace (\n"
+
+    for mod in gomod_list:
+        if root.endswith(mod):
+            # don't add a replace for the current module
+            continue
+        gomod += f"\t{repo_name}{mod} => {prefix}/{mod}\n"
+
+    gomod += ")\n"
+
+    # Last cleanup: remove concurrent line break
+    gomod = re.sub("\n{3,}", "\n\n", gomod)
+
+    with open(os.path.join(root, file), "w") as f:
+        f.write(gomod)
+        f.truncate()
+
+
+@task
+def add_all_replace(ctx: Context):
+    """
+    This command will add all the replace rules to all go.mod even if not used. This ensures that go mod tidy will work
+    and no replace rule is missing.
+
+    It's meant to be used as the following:
+    - running `inv modules.add-all-replace` to add all possible replace rules to all go.mod
+    - `inv tidy` to update all the go.mod
+
+    This solves the problem of `go mod tidy` failing if some replace rules are missing but needing `go mod tidy` to run
+    successfully to know which replace rules are needed. This is a major pain point when creating/moving go.mod.
+
+    While this is a brute force approach it's the only way to ensure that all replace are in place while circumventing
+    limitations from go toolings:
+    - 'go list' only list the dependencies from go mod. This means that if a local version of module as a new dependency
+      compare to the latest release version 'go list' will not show it. This means that our previous tooling would not
+      detect a missing replace until the local version is released.
+    - 'go mod tidy' requires all the replace rules to succeed. But in order of knowing which replace rules are needed we
+      need 'go mod tidy' to run successfully.
+
+    After months of pain and manually editing our 150+ go.mod in this repo we have come to this.
+    """
+
+    # First we find all go.mod in comp and pkg
+    gomods = [mods for mods in get_default_modules().keys() if mods.split(os.sep)[0] not in ["tools", "internal"]]
+    mod_to_replace = sorted(gomods)
+    mod_to_replace.remove(".")
+
+    # Second we iterate over all go.mod and update them
+    for folder in gomods:
+        update_go_mod(mod_to_replace, folder)

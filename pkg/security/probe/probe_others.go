@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -67,7 +68,7 @@ func (p *Probe) GetService(_ *model.Event) string {
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(_ string) []string {
+func (p *Probe) GetEventTags(_ containerutils.ContainerID) []string {
 	return nil
 }
 
@@ -79,6 +80,11 @@ func (p *Probe) IsNetworkEnabled() bool {
 // IsNetworkRawPacketEnabled returns whether network raw packet is enabled
 func (p *Probe) IsNetworkRawPacketEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
+}
+
+// IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
+func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled
@@ -97,7 +103,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // RefreshUserCache refreshes the user cache
-func (p *Probe) RefreshUserCache(_ string) error {
+func (p *Probe) RefreshUserCache(_ containerutils.ContainerID) error {
 	return nil
 }
 

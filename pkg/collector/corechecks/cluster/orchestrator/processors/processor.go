@@ -75,6 +75,9 @@ type K8sProcessorContext struct {
 	//nolint:revive // TODO(CAPP) Fix revive linter
 	ApiGroupVersionTag string
 	SystemInfo         *model.SystemInfo
+	ResourceType       string
+	LabelsAsTags       map[string]string
+	AnnotationsAsTags  map[string]string
 }
 
 // ECSProcessorContext holds ECS resource processing attributes
@@ -128,6 +131,9 @@ type Handlers interface {
 
 	// ResourceVersion returns the resource Version.
 	ResourceVersion(ctx ProcessorContext, resource, resourceModel interface{}) string
+
+	// ResourceTaggerTags returns the resource tags.
+	ResourceTaggerTags(ctx ProcessorContext, resource interface{}) []string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
@@ -231,6 +237,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			Content:         yaml,
 			Version:         "v1",
 			ContentType:     "json",
+			Tags:            p.h.ResourceTaggerTags(ctx, resource),
 		})
 	}
 

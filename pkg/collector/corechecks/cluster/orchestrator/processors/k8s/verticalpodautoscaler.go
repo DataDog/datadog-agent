@@ -57,7 +57,7 @@ func (h *VerticalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Processo
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *VerticalPodAutoscalerHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (verticalPodAutoscalerModel interface{}) {
 	r := resource.(*v1.VerticalPodAutoscaler)
-	return k8sTransformers.ExtractVerticalPodAutoscaler(r)
+	return k8sTransformers.ExtractVerticalPodAutoscaler(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

@@ -24,6 +24,8 @@ COPYRIGHT_REGEX = [
 
 # These path patterns are excluded from checks
 PATH_EXCLUSION_REGEX = [
+    # Git internal folder
+    '/.git/',
     # These are auto-generated files but without headers to indicate it
     '/vendor/',
     '/pkg/clusteragent/autoscaling/custommetrics/api/generated/',

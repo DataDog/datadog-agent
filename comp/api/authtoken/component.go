@@ -9,16 +9,21 @@
 package authtoken
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"crypto/tls"
+
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {
 	Get() string
+	GetTLSClientConfig() *tls.Config
+	GetTLSServerConfig() *tls.Config
 }
 
 // NoneModule return a None optional type for authtoken.Component.
@@ -26,7 +31,7 @@ type Component interface {
 // This helper allows code that needs a disabled Optional type for authtoken to get it. The helper is split from
 // the implementation to avoid linking with the dependencies from sysprobeconfig.
 func NoneModule() fxutil.Module {
-	return fxutil.Component(fx.Provide(func() optional.Option[Component] {
-		return optional.NewNoneOption[Component]()
+	return fxutil.Component(fx.Provide(func() option.Option[Component] {
+		return option.None[Component]()
 	}))
 }

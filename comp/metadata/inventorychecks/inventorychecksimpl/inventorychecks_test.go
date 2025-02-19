@@ -27,16 +27,17 @@ import (
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Component], logAgent optional.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
+func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component], logAgent option.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
@@ -44,10 +45,10 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Compone
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			fx.Provide(func() optional.Option[collector.Component] {
+			fx.Provide(func() option.Option[collector.Component] {
 				return coll
 			}),
-			fx.Provide(func() optional.Option[logagent.Component] {
+			fx.Provide(func() option.Option[logagent.Component] {
 				return logAgent
 			}),
 		),
@@ -57,7 +58,7 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Compone
 
 func TestSet(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("instance_1", "key", "value")
@@ -76,7 +77,7 @@ func TestSet(t *testing.T) {
 
 func TestSetEmptyInstance(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("", "key", "value")
@@ -86,7 +87,7 @@ func TestSetEmptyInstance(t *testing.T) {
 
 func TestGetInstanceMetadata(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("instance_1", "key1", "value1")
@@ -154,11 +155,12 @@ func TestGetPayload(t *testing.T) {
 		logSources.AddSource(src)
 		fakeTagger := mock.SetupFakeTagger(t)
 
-		mockLogAgent := fxutil.Test[optional.Option[logagent.Mock]](
+		mockLogAgent := fxutil.Test[option.Option[logagent.Mock]](
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),
 			inventoryagentimpl.MockModule(),
+			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			fx.Provide(func() tagger.Component {
 				return fakeTagger
@@ -175,8 +177,8 @@ func TestGetPayload(t *testing.T) {
 			}
 
 			ic := getTestInventoryChecks(t,
-				optional.NewOption[collector.Component](mockColl),
-				optional.NewOption[logagent.Component](logsAgent),
+				option.New[collector.Component](mockColl),
+				option.New[logagent.Component](logsAgent),
 				overrides,
 			)
 
@@ -257,7 +259,7 @@ func TestGetPayload(t *testing.T) {
 
 func TestFlareProviderFilename(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
 }
@@ -265,7 +267,7 @@ func TestFlareProviderFilename(t *testing.T) {
 // TODO (Component): This test will be removed when the inventorychecks component will be move into the collector component
 func TestExpvarExist(t *testing.T) {
 	getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.NotNil(t, expvar.Get("inventories"))
 }

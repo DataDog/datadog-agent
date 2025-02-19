@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -841,14 +842,15 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			if ti.newProfile || profile == nil {
 				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
 				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
-				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
-					ContainerContext: model.ContainerContext{
+				profile.Instances = append(profile.Instances, &tags.Workload{
+					CacheEntry: &cgroupModel.CacheEntry{ContainerContext: model.ContainerContext{
 						ContainerID: containerutils.ContainerID(defaultContainerID),
 					},
-					CGroupContext: model.CGroupContext{
-						CGroupID: containerutils.CGroupID(defaultContainerID),
+						CGroupContext: model.CGroupContext{
+							CGroupID: containerutils.CGroupID(defaultContainerID),
+						},
 					},
-					WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+					Selector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})
 				profile.loadedNano = uint64(t0.UnixNano())
 			}

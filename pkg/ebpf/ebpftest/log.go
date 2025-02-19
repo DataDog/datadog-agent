@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	//nolint:depguard // creating a custom logger for testing
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -17,7 +18,7 @@ import (
 // LogLevel sets the logger level for this test only
 func LogLevel(t testing.TB, level string) {
 	t.Cleanup(func() {
-		log.SetupLogger(seelog.Default, "off")
+		log.SetupLogger(log.Default(), "off")
 	})
 	logger, err := seelog.LoggerFromCustomReceiver(testLogger{t})
 	if err != nil {

@@ -19,7 +19,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
@@ -27,10 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
@@ -46,7 +43,7 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
@@ -96,8 +93,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 
 	app.RequireStart()
 
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	assert.True(t, npCollector.running)
 
@@ -226,22 +222,11 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Type:      model.ConnectionType_udp,
 		},
 	}
-	npCollector.ScheduleConns(conns)
+	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
 	// THEN
-	calls := stats.GaugeCalls
-	tags := []string{
-		"collector:network_path_collector",
-		"destination_hostname:abc",
-		"destination_ip:10.0.0.4",
-		"destination_port:80",
-		"origin:network_traffic",
-		"protocol:UDP",
-	}
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.path.monitored", Value: 1, Tags: tags, Rate: 1})
-
 	assert.Equal(t, uint64(2), npCollector.processedTracerouteCount.Load())
 	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
 
@@ -256,8 +241,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	conns := []*model.Connection{
 		{
@@ -281,11 +265,11 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	}
 
 	// WHEN
-	npCollector.ScheduleConns(conns)
+	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
 
 	// THEN
 	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule_duration", Value: 60.0, Tags: nil, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.duration", Value: 60.0, Tags: nil, Rate: 1})
 }
 
 func compactJSON(metadataEvent []byte) []byte {
@@ -303,9 +287,9 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 
 	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 4, npCollector.workers)
-	assert.Equal(t, 100000, cap(npCollector.pathtestInputChan))
-	assert.Equal(t, 100000, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 100000, npCollector.collectorConfigs.pathtestContextsLimit)
+	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
+	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, 5000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
@@ -325,7 +309,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	assert.Equal(t, 2, npCollector.workers)
 	assert.Equal(t, 300, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 400, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 500, npCollector.collectorConfigs.pathtestContextsLimit)
+	assert.Equal(t, 500, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "ns1", npCollector.networkDevicesNamespace)
 }
 
@@ -340,6 +324,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 	tests := []struct {
 		name              string
 		conns             []*model.Connection
+		dns               map[string]*model.DNSEntry
 		noInputChan       bool
 		agentConfigs      map[string]any
 		expectedPathtests []*common.Pathtest
@@ -480,6 +465,25 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			},
 			expectedLogs: []logCount{},
 		},
+		{
+			name:         "one outgoing TCP conn with known hostname (DNS)",
+			agentConfigs: defaultagentConfigs,
+			conns: []*model.Connection{
+				{
+					Laddr:     &model.Addr{Ip: "10.0.0.3", Port: int32(30000), ContainerId: "testId1"},
+					Raddr:     &model.Addr{Ip: "10.0.0.4", Port: int32(80)},
+					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_tcp,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1",
+					Metadata: common.PathtestMetadata{ReverseDNSHostname: "known-hostname"}},
+			},
+			dns: map[string]*model.DNSEntry{
+				"10.0.0.4": {Names: []string{"known-hostname"}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -490,14 +494,14 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			npCollector.initStatsdClient(stats)
 
-			npCollector.ScheduleConns(tt.conns)
+			npCollector.ScheduleConns(tt.conns, tt.dns)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {
@@ -519,13 +523,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			var scheduleDurationMetric teststatsd.MetricsArgs
 			calls := stats.GaugeCalls
 			for _, call := range calls {
-				if call.Name == "datadog.network_path.collector.schedule_duration" {
+				if call.Name == "datadog.network_path.collector.schedule.duration" {
 					scheduleDurationMetric = call
 				}
 			}
 			assert.Less(t, scheduleDurationMetric.Value, float64(5)) // we can't easily assert precise value, hence we are only asserting that it's a low value e.g. 5 seconds
 			scheduleDurationMetric.Value = 0                         // We need to reset the metric value to ease testing time duration
-			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule_duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
+			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
 
 			// Test using logs
 			for _, expectedLog := range tt.expectedLogs {
@@ -544,7 +548,7 @@ func Test_npCollectorImpl_stopWorker(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
@@ -577,10 +581,10 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			flushStartTime: MockTimeNow(),
 			flushEndTime:   MockTimeNow().Add(500 * time.Millisecond),
 			notExpectedMetrics: []string{
-				"datadog.network_path.collector.flush_interval",
+				"datadog.network_path.collector.flush.interval",
 			},
 			expectedMetrics: []teststatsd.MetricsArgs{
-				{Name: "datadog.network_path.collector.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.duration", Value: 0.5, Tags: []string{}, Rate: 1},
 			},
 		},
 		{
@@ -590,8 +594,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			lastFlushTime:      MockTimeNow().Add(-2 * time.Minute),
 			notExpectedMetrics: []string{},
 			expectedMetrics: []teststatsd.MetricsArgs{
-				{Name: "datadog.network_path.collector.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
-				{Name: "datadog.network_path.collector.flush_interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
 			},
 		},
 	}
@@ -604,7 +608,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			_, npCollector := newTestNpCollector(t, agentConfigs)
 
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			npCollector.initStatsdClient(stats)
+
 			npCollector.TimeNowFn = func() time.Time {
 				return tt.flushEndTime
 			}
@@ -629,26 +634,35 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 }
 
 func Test_npCollectorImpl_flush(t *testing.T) {
+	mockNow := time.Now()
+	mockTimeNow := func() time.Time {
+		return mockNow
+	}
+
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              6,
 	}
 	_, npCollector := newTestNpCollector(t, agentConfigs)
+	npCollector.TimeNowFn = mockTimeNow
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
+
+	// simulate some time passing so that the PathTestStore rate limit has some budget to work with
+	mockNow = mockNow.Add(10 * time.Second)
 
 	// WHEN
 	npCollector.flush()
 
 	// THEN
-	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.processing_chan_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.CountCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.flush.pathtest_count", Value: 2, Tags: []string{}, Rate: 1})
 
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
@@ -664,7 +678,7 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 	defer npCollector.stop()
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
 
@@ -673,7 +687,7 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 
 	// THEN
 	assert.Eventually(t, func() bool {
-		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush_interval"]
+		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush.interval"]
 		if calls == nil {
 			return false
 		}
@@ -682,51 +696,6 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 		}
 		return len(calls.Calls) >= 3
 	}, 3*time.Second, 10*time.Millisecond)
-}
-
-func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
-	// GIVEN
-	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.workers":              6,
-	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
-
-	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
-	path := payload.NetworkPath{
-		Origin:      payload.PathOriginNetworkTraffic,
-		Source:      payload.NetworkPathSource{Hostname: "abc"},
-		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
-		Protocol:    payload.ProtocolUDP,
-		Hops: []payload.NetworkPathHop{
-			{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-			{Hostname: "hop_2", IPAddress: "1.1.1.2"},
-		},
-	}
-	ptestCtx := &pathteststore.PathtestContext{
-		Pathtest: &common.Pathtest{Hostname: "10.0.0.2", Port: 80, Protocol: payload.ProtocolUDP},
-	}
-	ptestCtx.SetLastFlushInterval(2 * time.Minute)
-	npCollector.TimeNowFn = MockTimeNow
-	checkStartTime := MockTimeNow().Add(-3 * time.Second)
-
-	// WHEN
-	npCollector.sendTelemetry(path, checkStartTime, ptestCtx)
-
-	// THEN
-	calls := stats.GaugeCalls
-	tags := []string{
-		"collector:network_path_collector",
-		"destination_hostname:abc",
-		"destination_ip:10.0.0.2",
-		"destination_port:80",
-		"origin:network_traffic",
-		"protocol:UDP",
-	}
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_duration", Value: 3, Tags: tags, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_interval", Value: (2 * time.Minute).Seconds(), Tags: tags, Rate: 1})
 }
 
 func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
@@ -739,7 +708,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	assert.Nil(b, err)
 	defer file.Close()
 	w := bufio.NewWriter(file)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
 	assert.Nil(b, err)
 	utillog.SetupLogger(l, "debug")
 	defer w.Flush()
@@ -758,7 +727,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// add line to avoid linter error
 		_ = i
-		npCollector.ScheduleConns(connections)
+		npCollector.ScheduleConns(connections, make(map[string]*model.DNSEntry))
 
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
 	}
@@ -776,8 +745,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -791,7 +759,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		},
 	}
 
-	npCollector.enrichPathWithRDNS(&path)
+	npCollector.enrichPathWithRDNS(&path, "")
 
 	// THEN
 	assert.Equal(t, "hostname-10.0.0.41", path.Destination.ReverseDNSHostname) // private IP should be resolved
@@ -812,7 +780,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		},
 	}
 
-	npCollector.enrichPathWithRDNS(&path)
+	npCollector.enrichPathWithRDNS(&path, "")
 
 	// THEN
 	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
@@ -828,8 +796,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	}
 	_, npCollector = newTestNpCollector(t, agentConfigs)
 
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -843,7 +810,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		},
 	}
 
-	npCollector.enrichPathWithRDNS(&path)
+	npCollector.enrichPathWithRDNS(&path, "")
 
 	// THEN - no resolution should happen
 	assert.Equal(t, "", path.Destination.ReverseDNSHostname)
@@ -851,6 +818,29 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	assert.Equal(t, "hop2", path.Hops[1].Hostname)
 	assert.Equal(t, "hop3", path.Hops[2].Hostname)
 	assert.Equal(t, "dest-hostname", path.Hops[3].Hostname)
+}
+
+func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+
+	stats := &teststatsd.Client{}
+	npCollector.initStatsdClient(stats)
+
+	// WHEN
+	path := payload.NetworkPath{
+		Destination: payload.NetworkPathDestination{IPAddress: "10.0.0.41", Hostname: "dest-hostname"},
+		Hops:        nil,
+	}
+
+	npCollector.enrichPathWithRDNS(&path, "known-dest-hostname")
+
+	// THEN - destination hostname should resolve to known hostname
+	assert.Equal(t, "known-dest-hostname", path.Destination.ReverseDNSHostname)
+	assert.Empty(t, path.Hops)
 }
 
 func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
@@ -861,8 +851,7 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	tts := []struct {
 		description string

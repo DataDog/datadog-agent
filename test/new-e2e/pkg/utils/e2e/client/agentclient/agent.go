@@ -32,6 +32,9 @@ type Agent interface {
 	// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
 	Flare(commandArgs ...AgentArgsOption) string
 
+	// FlareWithError runs flare command and returns the output and error, if any. You should use the FakeIntake client to fetch the flare archive
+	FlareWithError(commandArgs ...AgentArgsOption) (string, error)
+
 	// Health runs health command and returns the runtime agent health
 	Health() (string, error)
 
@@ -59,6 +62,9 @@ type Agent interface {
 
 	// StatusWithError runs status command and returns a Status struct and error
 	StatusWithError(commandArgs ...AgentArgsOption) (*Status, error)
+
+	// JMX run the jmx command and returns a Status struct and error
+	JMX(commandArgs ...AgentArgsOption) (*Status, error)
 }
 
 // Status contains the Agent status content

@@ -9,7 +9,6 @@ package ebpf
 
 import (
 	"bufio"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -45,10 +43,6 @@ func TestPatchPrintkNewline(t *testing.T) {
 	cfg := NewConfig()
 	require.NotNil(t, cfg)
 
-	buf, err := bytecode.GetReader(cfg.BPFDir, "logdebug-test.o")
-	require.NoError(t, err)
-	defer buf.Close()
-
 	idPair := manager.ProbeIdentificationPair{
 		EBPFFuncName: "logdebugtest",
 		UID:          "logdebugtest",
@@ -62,24 +56,24 @@ func TestPatchPrintkNewline(t *testing.T) {
 			},
 		},
 	}
-
-	opts := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapEditors: make(map[string]*ebpf.Map),
-	}
 	mgr.InstructionPatchers = append(mgr.InstructionPatchers, patchPrintkNewline)
+
+	err = LoadCOREAsset("logdebug-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		opts.RemoveRlimit = true
+		opts.MapEditors = make(map[string]*ebpf.Map)
+
+		require.NoError(t, mgr.InitWithOptions(buf, opts))
+		require.NoError(t, mgr.Start())
+		t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+
+		return nil
+	})
+	require.NoError(t, err)
 
 	tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 	require.NoError(t, err)
 	traceReader := bufio.NewReader(tp)
 	t.Cleanup(func() { _ = tp.Close() })
-
-	require.NoError(t, mgr.InitWithOptions(buf, opts))
-	require.NoError(t, mgr.Start())
-	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
 
 	progs, ok, err := mgr.GetProgram(idPair)
 	require.NoError(t, err)

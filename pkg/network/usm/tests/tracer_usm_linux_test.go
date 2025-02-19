@@ -23,7 +23,9 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
+	"github.com/cilium/ebpf"
 	gorilla "github.com/gorilla/mux"
 	redis2 "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -41,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
@@ -59,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -119,7 +123,7 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 
 // skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
 func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
-	if !gotlstestutil.GoTLSSupported(t, config.New()) {
+	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 		t.Skip("GoTLS is not supported")
 	}
 }
@@ -138,7 +142,7 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }
@@ -299,6 +303,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	t := s.T()
 	cfg := tracertestutil.Config()
 	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableGoTLSSupport = false
 	// USM cannot be enabled without a protocol.
 	cfg.EnableHTTPMonitoring = true
 	cfg.ProtocolClassificationEnabled = true
@@ -425,15 +430,15 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 
 			// Perform the TLS handshake
 			require.NoError(t, tlsConn.Handshake())
-
-			require.Eventually(t, func() bool {
-				payload := getConnections(t, tr)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				payload := getConnections(collect, tr)
 				for _, c := range payload.Conns {
 					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
-						return c.ProtocolStack.Contains(protocols.TLS) == tt.shouldBeTLS
+						require.Equal(collect, c.ProtocolStack.Contains(protocols.TLS), tt.shouldBeTLS)
+						return
 					}
 				}
-				return false
+				require.Fail(collect, "")
 			}, 10*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -498,14 +503,14 @@ func (s *USMSuite) TestTLSClassification() {
 			},
 			validation: func(t *testing.T, tr *tracer.Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
-					payload := getConnections(t, tr)
+				require.EventuallyWithTf(t, func(collect *assert.CollectT) {
+					payload := getConnections(collect, tr)
 					for _, c := range payload.Conns {
 						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
-							return true
+							return
 						}
 					}
-					return false
+					require.Fail(collect, "")
 				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
 			},
 		})
@@ -570,8 +575,8 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 
 	// Iterate through active connections until we find connection created above
 	var foundIncoming, foundOutgoing bool
-	require.Eventuallyf(t, func() bool {
-		payload := getConnections(t, tr)
+	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
+		payload := getConnections(collect, tr)
 
 		for _, c := range payload.Conns {
 			if !foundIncoming && c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
@@ -582,7 +587,8 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 				foundOutgoing = true
 			}
 		}
-		return foundIncoming && foundOutgoing
+		require.True(collect, foundIncoming)
+		require.True(collect, foundOutgoing)
 	}, 4*time.Second, 100*time.Millisecond, "couldn't find matching TLS connection")
 }
 
@@ -684,7 +690,11 @@ func testHTTPSClassification(t *testing.T, tr *tracer.Tracer, clientHost, target
 }
 
 func TestFullMonitorWithTracer(t *testing.T) {
-	cfg := config.New()
+	if !httpSupported() {
+		t.Skip("USM is not supported")
+	}
+
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableKafkaMonitoring = true
@@ -697,6 +707,94 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	t.Cleanup(tr.Stop)
 
 	require.NoError(t, tr.RegisterClient(clientID))
+}
+
+func testUnclassifiedProtocol(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	serverAddress := net.JoinHostPort(serverHost, rawTrafficPort)
+	targetAddress := net.JoinHostPort(targetHost, rawTrafficPort)
+
+	server := tracertestutil.NewTCPServerOnAddress(serverAddress, func(c net.Conn) {
+		_, _ = io.Copy(c, c)
+	})
+	require.NoError(t, server.Run())
+	t.Cleanup(server.Shutdown)
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "unsupported TCP protocol",
+			context: testContext{
+				serverPort:    rawTrafficPort,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := defaultDialer.Dial("tcp", ctx.targetAddress)
+				require.NoError(t, err)
+				ctx.extras["client"] = c
+
+				const inputText = "Hello, World!"
+				_, err = c.Write([]byte(inputText))
+				require.NoError(t, err)
+				n, err := c.Read(make([]byte, len(inputText)))
+				require.NoError(t, err)
+				require.Equal(t, len(inputText), n)
+
+			},
+			validation: func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
+				m, err := tr.GetMap(probes.ConnectionProtocolMap)
+				require.NoError(t, err)
+
+				client := ctx.extras["client"].(net.Conn)
+				defer client.Close()
+				localAddrString, _, err := net.SplitHostPort(client.LocalAddr().(*net.TCPAddr).String())
+				require.NoError(t, err)
+				localAddr, err := netip.ParseAddr(localAddrString)
+				require.NoError(t, err)
+				remoteAddrString, _, err := net.SplitHostPort(client.RemoteAddr().(*net.TCPAddr).String())
+				require.NoError(t, err)
+				remoteAddr, err := netip.ParseAddr(remoteAddrString)
+				require.NoError(t, err)
+
+				ll, lh := util.ToLowHighIP(localAddr)
+				rl, rh := util.ToLowHighIP(remoteAddr)
+				key := netebpf.ConnTuple{
+					Saddr_h:  lh,
+					Saddr_l:  ll,
+					Daddr_h:  rh,
+					Daddr_l:  rl,
+					Sport:    uint16(client.LocalAddr().(*net.TCPAddr).Port),
+					Dport:    uint16(client.RemoteAddr().(*net.TCPAddr).Port),
+					Metadata: uint32(netebpf.TCP),
+				}
+				inverseKey := netebpf.ConnTuple{
+					Saddr_h:  key.Daddr_h,
+					Saddr_l:  key.Daddr_l,
+					Daddr_h:  key.Saddr_h,
+					Daddr_l:  key.Saddr_l,
+					Sport:    key.Dport,
+					Dport:    key.Sport,
+					Metadata: key.Metadata,
+				}
+				value := netebpf.ProtocolStackWrapper{}
+				keyExistence := m.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&value))
+				require.ErrorIs(t, keyExistence, ebpf.ErrKeyNotExist)
+				keyExistence = m.Lookup(unsafe.Pointer(&inverseKey), unsafe.Pointer(&value))
+				require.ErrorIs(t, keyExistence, ebpf.ErrKeyNotExist)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, tr)
+		})
+	}
 }
 
 func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
@@ -2370,6 +2468,10 @@ func testProtocolClassificationLinux(t *testing.T, tr *tracer.Tracer, clientHost
 		name     string
 		testFunc func(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string)
 	}{
+		{
+			name:     "unclassified",
+			testFunc: testUnclassifiedProtocol,
+		},
 		{
 			name:     "kafka",
 			testFunc: testKafkaProtocolClassification,

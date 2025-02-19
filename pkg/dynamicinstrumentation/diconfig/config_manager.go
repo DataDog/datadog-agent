@@ -127,7 +127,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
 	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
-
+	log.Infof("Installing config probe for service: %s", svcConfigProbe.ServiceName)
 	err = AnalyzeBinary(procInfo)
 	if err != nil {
 		return fmt.Errorf("could not analyze binary for config probe: %w", err)
@@ -138,7 +138,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 		return fmt.Errorf("could not generate bpf code for config probe: %w", err)
 	}
 
-	err = ebpf.CompileBPFProgram(procInfo, configProbe)
+	err = ebpf.CompileBPFProgram(configProbe)
 	if err != nil {
 		return fmt.Errorf("could not compile bpf code for config probe: %w", err)
 	}
@@ -165,6 +165,9 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 
 func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.ProcessInfo) {
 	log.Tracef("Waiting for configs for service: %s", procInfo.ServiceName)
+	configRateLimiter := ratelimiter.NewMultiProbeRateLimiter(0.0)
+	configRateLimiter.SetRate(ditypes.ConfigBPFProbeID, 0)
+
 	for {
 		record, err := r.Read()
 		if err != nil {
@@ -172,13 +175,14 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			continue
 		}
 
-		configEventParams, err := eventparser.ParseParams(record.RawSample)
+		configEvent, err := eventparser.ParseEvent(record.RawSample, configRateLimiter)
 		if err != nil {
 			log.Errorf("error parsing configuration for PID %d: %v", procInfo.PID, err)
 			continue
 		}
+		configEventParams := configEvent.Argdata
 		if len(configEventParams) != 3 {
-			log.Errorf("error parsing configuration for PID %d: not enough arguments", procInfo.PID)
+			log.Errorf("error parsing configuration for PID: %d: not enough arguments", procInfo.PID)
 			continue
 		}
 
@@ -238,7 +242,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	log.Tracef("Applying config update: %v", probe)
+	log.Tracef("Applying config update: %v\n", probe)
 	err := AnalyzeBinary(procInfo)
 	if err != nil {
 		log.Errorf("couldn't inspect binary: %v\n", err)
@@ -258,7 +262,7 @@ generateCompileAttach:
 		return
 	}
 
-	err = ebpf.CompileBPFProgram(procInfo, probe)
+	err = ebpf.CompileBPFProgram(probe)
 	if err != nil {
 		// TODO: Emit diagnostic?
 		log.Info("Couldn't compile BPF object", err)
@@ -289,8 +293,8 @@ func newConfigProbe() *ditypes.Probe {
 		FuncName: "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration",
 		InstrumentationInfo: &ditypes.InstrumentationInfo{
 			InstrumentationOptions: &ditypes.InstrumentationOptions{
-				ArgumentsMaxSize:  100000,
-				StringMaxSize:     30000,
+				ArgumentsMaxSize:  50000,
+				StringMaxSize:     10000,
 				MaxFieldCount:     int(ditypes.MaxFieldCount),
 				MaxReferenceDepth: 8,
 				CaptureParameters: true,

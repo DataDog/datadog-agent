@@ -22,7 +22,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -106,9 +106,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "default/dummy",
 		},
-		InjectableLanguages: langUtil.ContainersLanguages{
-			*langUtil.NewContainer("container-1"): {"java": {}, "js": {}},
-			*langUtil.NewContainer("container-2"): {"python": {}},
+		InjectableLanguages: languagemodels.ContainersLanguages{
+			*languagemodels.NewContainer("container-1"): {"java": {}, "js": {}},
+			*languagemodels.NewContainer("container-2"): {"python": {}},
 		},
 	})
 
@@ -117,9 +117,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "custom/dummy",
 		},
-		InjectableLanguages: langUtil.ContainersLanguages{
-			*langUtil.NewContainer("container-1"): {"ruby": {}, "python": {}},
-			*langUtil.NewContainer("container-2"): {"java": {}},
+		InjectableLanguages: languagemodels.ContainersLanguages{
+			*languagemodels.NewContainer("container-1"): {"ruby": {}, "python": {}},
+			*languagemodels.NewContainer("container-2"): {"java": {}},
 		},
 	})
 

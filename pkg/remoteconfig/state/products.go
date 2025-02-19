@@ -6,6 +6,7 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductInstallerConfig:              {},
 	ProductUpdaterCatalogDD:             {},
 	ProductUpdaterAgent:                 {},
 	ProductUpdaterTask:                  {},
@@ -32,9 +33,13 @@ var validProducts = map[string]struct{}{
 	ProductTesting1:                     {},
 	ProductTesting2:                     {},
 	ProductOrchestratorK8sCRDs:          {},
+	ProductHaAgent:                      {},
+	ProductNDMDeviceProfilesCustom:      {},
 }
 
 const (
+	// ProductInstallerConfig is the product used to receive the installer configuration
+	ProductInstallerConfig = "INSTALLER_CONFIG"
 	// ProductUpdaterCatalogDD is the product used to receive the package catalog from datadog
 	ProductUpdaterCatalogDD = "UPDATER_CATALOG_DD"
 	// ProductUpdaterAgent is the product used to receive defaults versions to install
@@ -87,4 +92,8 @@ const (
 	ProductTesting2 = "TESTING2"
 	// ProductOrchestratorK8sCRDs receives values for k8s crds
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
+	// ProductHaAgent is the HA Agent product
+	ProductHaAgent = "HA_AGENT"
+	// ProductNDMDeviceProfilesCustom receives user-created SNMP profiles for network device monitoring
+	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 )

@@ -9,15 +9,14 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
-
 	v1 "k8s.io/api/apps/v1"
 )
 
 // ExtractStatefulSet returns the protobuf model corresponding to a
 // Kubernetes StatefulSet resource.
-func ExtractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
+func ExtractStatefulSet(ctx processors.ProcessorContext, sts *v1.StatefulSet) *model.StatefulSet {
 	statefulSet := model.StatefulSet{
 		Metadata: extractMetadata(&sts.ObjectMeta),
 		Spec: &model.StatefulSetSpec{
@@ -54,7 +53,10 @@ func ExtractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 	}
 
 	statefulSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(sts.Spec.Template)
+
+	pctx := ctx.(*processors.K8sProcessorContext)
 	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveUnifiedServiceTags(sts.ObjectMeta.Labels)...)
+	statefulSet.Tags = append(statefulSet.Tags, transformers.RetrieveMetadataTags(sts.ObjectMeta.Labels, sts.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &statefulSet
 }

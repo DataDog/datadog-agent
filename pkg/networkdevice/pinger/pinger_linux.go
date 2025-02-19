@@ -9,10 +9,13 @@ package pinger
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
 
+	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -22,14 +25,16 @@ const (
 // LinuxPinger implements the Pinger interface for
 // Linux users
 type LinuxPinger struct {
-	cfg Config
+	cfg            Config
+	sysprobeClient *http.Client
 }
 
 // New creates a LinuxPinger using the passed in
 // config
 func New(cfg Config) (Pinger, error) {
 	return &LinuxPinger{
-		cfg: cfg,
+		cfg:            cfg,
+		sysprobeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	}, nil
 }
 
@@ -41,21 +46,41 @@ func (p *LinuxPinger) Ping(host string) (*Result, error) {
 		return RunPing(&p.cfg, host)
 	}
 
-	tu, err := net.GetRemoteSystemProbeUtil(
-		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	return getPing(p.sysprobeClient, clientID, host, p.cfg.Count, p.cfg.Interval, p.cfg.Timeout)
+}
+
+func getPing(client *http.Client, clientID string, host string, count int, interval time.Duration, timeout time.Duration) (*Result, error) {
+	url := sysprobeclient.ModuleURL(sysconfig.PingModule, fmt.Sprintf("/ping/%s?client_id=%s&count=%d&interval=%d&timeout=%d", host, clientID, count, interval, timeout))
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Warnf("could not initialize system-probe connection: %s", err.Error())
 		return nil, err
 	}
-	resp, err := tu.GetPing(clientID, host, p.cfg.Count, p.cfg.Interval, p.cfg.Timeout)
+
+	req.Header.Set("Accept", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusBadRequest {
+		body, err := sysprobeclient.ReadAllResponseBody(resp)
+		if err != nil {
+			return nil, fmt.Errorf("ping request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
+		}
+		return nil, fmt.Errorf("ping request failed: url: %s, status code: %d, error: %s", req.URL, resp.StatusCode, string(body))
+	} else if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ping request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
+	}
+
+	body, err := sysprobeclient.ReadAllResponseBody(resp)
 	if err != nil {
 		return nil, err
 	}
 
 	var result Result
-	if err := json.Unmarshal(resp, &result); err != nil {
+	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, err
 	}
-
 	return &result, nil
 }
