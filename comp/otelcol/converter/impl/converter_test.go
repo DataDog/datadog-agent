@@ -312,6 +312,12 @@ func TestConvert(t *testing.T) {
 			expectedResult: "dd-core-cfg/env/no-override/config-result.yaml",
 			agentConfig:    "dd-core-cfg/env/no-override/acfg.yaml",
 		},
+		{
+			name:           "dd-core-cfg/env/empty-profiler-options",
+			provided:       "dd-core-cfg/env/empty-profiler-options/config.yaml",
+			expectedResult: "dd-core-cfg/env/empty-profiler-options/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/empty-profiler-options/acfg.yaml",
+		},
 	}
 
 	for _, tc := range tests {

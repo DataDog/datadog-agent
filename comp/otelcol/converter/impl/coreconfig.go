@@ -49,7 +49,7 @@ func addEnv(conf *confmap.Conf, coreCfg config.Component) {
 				extensionMap[extension] = ddprofilingMap
 			}
 			profilerOptions, ok := ddprofilingMap["profiler_options"]
-			if !ok {
+			if !ok || profilerOptions == nil {
 				profilerOptions = make(map[string]any)
 				ddprofilingMap["profiler_options"] = profilerOptions
 			}
