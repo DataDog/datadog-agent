@@ -43,7 +43,7 @@ func ParseEventPayload(payload api.Payload) ([]*Event, error) {
 		return nil, nil
 	}
 
-	inflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, fmt.Errorf("could not inflate payload: %w", err)
 	}
