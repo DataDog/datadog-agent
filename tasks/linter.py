@@ -1012,6 +1012,7 @@ def github_actions_shellcheck(
                     print('\nError:')
                     print(error)
 
+        # TODO: Same for gitlab!!!
         if any(error['code'] != 0 for error in errors.values()):
             raise Exit(
                 f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
