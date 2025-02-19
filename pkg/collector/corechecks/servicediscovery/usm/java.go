@@ -42,7 +42,11 @@ func (jd javaDetector) detect(args []string) (metadata ServiceMetadata, success 
 			strings.HasPrefix(a, "-X") ||
 			strings.HasPrefix(a, "-javaagent:") ||
 			strings.HasPrefix(a, "-verbose:")
-		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment
+		// @ is used to point to a file with more arguments. We do not supported
+		// at the moment, so explicitly ignore it to avoid naming services
+		// based on this file name.
+		atArg := strings.HasPrefix(a, "@")
+		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment || atArg
 		if !shouldSkipArg {
 			arg := removeFilePath(a)
 
