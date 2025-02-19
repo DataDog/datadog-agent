@@ -183,5 +183,5 @@ def warn_new_commits(release_managers, team, branch, next_rc):
     message += f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate planned <{rc_schedule_link}|{rc_date.strftime('%Y-%m-%d %H:%M')}> UTC?\n"
     message += "Thanks in advance!\n"
     message += f"cc {' '.join(release_managers)}"
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     client.chat_postMessage(channel=f"#{team}", text=message)
