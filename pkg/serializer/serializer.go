@@ -61,6 +61,7 @@ func init() {
 // initExtraHeaders initializes the global extraHeaders variables.
 // Not part of the `init` function body to ease testing
 func initExtraHeaders(s *Serializer) {
+
 	s.jsonExtraHeaders.Set("Content-Type", jsonContentType)
 
 	for k := range s.jsonExtraHeaders {

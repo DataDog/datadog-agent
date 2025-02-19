@@ -18,10 +18,8 @@ import (
 )
 
 // the backend accepts payloads up to 3MB, but being conservative is okay
-var (
-	maxPayloadSizeCompressed   = 2 * 1024 * 1024
-	maxPayloadSizeUnCompressed = 64 * 1024 * 1024
-)
+var maxPayloadSizeCompressed = 2 * 1024 * 1024
+var maxPayloadSizeUnCompressed = 64 * 1024 * 1024
 
 // MarshalFct marshal m. Must be either JSONMarshalFct or ProtoMarshalFct.
 type MarshalFct func(m marshaler.AbstractMarshaler) ([]byte, error)
@@ -59,6 +57,7 @@ func init() {
 	splitterExpvars.Set("TooBig", &splitterTooBig)
 	splitterExpvars.Set("TotalLoops", &splitterTotalLoops)
 	splitterExpvars.Set("PayloadDrops", &splitterPayloadDrops)
+
 }
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)

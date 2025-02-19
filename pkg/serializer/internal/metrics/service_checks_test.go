@@ -44,7 +44,7 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 }
 
 func TestSplitServiceChecks(t *testing.T) {
-	serviceChecks := ServiceChecks{}
+	var serviceChecks = ServiceChecks{}
 	for i := 0; i < 2; i++ {
 		sc := servicecheck.ServiceCheck{
 			CheckName:  "test.check",
@@ -132,8 +132,7 @@ func TestPayloadsServiceChecks(t *testing.T) {
 	serviceCheckCollection := []ServiceChecks{
 		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},
 		{createServiceCheck("4"), createServiceCheck("5"), createServiceCheck("6")},
-		{createServiceCheck("7"), createServiceCheck("8")},
-	}
+		{createServiceCheck("7"), createServiceCheck("8")}}
 	var allServiceChecks ServiceChecks
 	for _, serviceCheck := range serviceCheckCollection {
 		allServiceChecks = append(allServiceChecks, serviceCheck...)
@@ -175,31 +174,24 @@ func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 func BenchmarkJSONPayloadBuilderServiceCheck1(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1)
 }
-
 func BenchmarkJSONPayloadBuilderServiceCheck10(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10)
 }
-
 func BenchmarkJSONPayloadBuilderServiceCheck100(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 100)
 }
-
 func BenchmarkJSONPayloadBuilderServiceCheck1000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1000)
 }
-
 func BenchmarkJSONPayloadBuilderServiceCheck10000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10000)
 }
-
 func BenchmarkJSONPayloadBuilderServiceCheck100000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 100000)
 }
-
 func BenchmarkJSONPayloadBuilderServiceCheck1000000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 1000000)
 }
-
 func BenchmarkJSONPayloadBuilderServiceCheck10000000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10000000)
 }
@@ -225,7 +217,6 @@ func BenchmarkPayloadServiceCheck100000(b *testing.B) { benchmarkPayloadsService
 func BenchmarkPayloadServiceCheck1000000(b *testing.B) {
 	benchmarkPayloadsServiceCheck(b, 1000000)
 }
-
 func BenchmarkPayloadServiceCheck10000000(b *testing.B) {
 	benchmarkPayloadsServiceCheck(b, 10000000)
 }

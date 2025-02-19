@@ -68,6 +68,7 @@ func TestCompressorSimple(t *testing.T) {
 // ErrItemTooBig is a more appropriate error code if the item cannot
 // be added to an empty compressor
 func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
+
 	tests := map[string]struct {
 		kind string
 	}{

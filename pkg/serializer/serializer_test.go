@@ -101,6 +101,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 			expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 			assert.Equal(t, expected, s.protobufExtraHeadersWithCompression)
 		})
+
 	}
 }
 
@@ -278,6 +279,7 @@ func TestSendV1Events(t *testing.T) {
 }
 
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
+
 	tests := map[string]struct {
 		kind string
 	}{
@@ -432,9 +434,11 @@ func TestSendSketch(t *testing.T) {
 			f.AssertExpectations(t)
 		})
 	}
+
 }
 
 func TestSendMetadata(t *testing.T) {
+
 	tests := map[string]struct {
 		kind string
 	}{

@@ -61,6 +61,7 @@ func TestPopulateDeviceField(t *testing.T) {
 				assert.Equal(t, strings.Join(tc.ExpectedTags, ","), s.Tags.Join(","))
 				assert.Equal(t, tc.ExpectedDevice, s.Device)
 			}
+
 		})
 	}
 }
@@ -90,8 +91,7 @@ func TestPopulateResources(t *testing.T) {
 				{
 					Type: "aws_rds_instance",
 					Name: "some_instance_endpoint",
-				},
-			},
+				}},
 		},
 		{
 			[]string{"some:tag", "dd.internal.resource:database_instance:some_db_host", "resource:some_resource_value", "some_other:tag"},
@@ -128,6 +128,7 @@ func TestPopulateResources(t *testing.T) {
 				assert.Equal(t, strings.Join(tc.ExpectedTags, ","), s.Tags.Join(","))
 				assert.Equal(t, tc.ExpectedResources, s.Resources)
 			}
+
 		})
 	}
 }
@@ -153,21 +154,19 @@ func TestMarshalJSONSeries(t *testing.T) {
 
 func TestSplitSerieasOneMetric(t *testing.T) {
 	s := Series{
-		{
-			Points: []metrics.Point{
-				{Ts: 12345.0, Value: float64(21.21)},
-				{Ts: 67890.0, Value: float64(12.12)},
-			},
+		{Points: []metrics.Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
 			MType: metrics.APIGaugeType,
 			Name:  "test.metrics",
 			Host:  "localHost",
 			Tags:  tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
 		},
-		{
-			Points: []metrics.Point{
-				{Ts: 12345.0, Value: float64(21.21)},
-				{Ts: 67890.0, Value: float64(12.12)},
-			},
+		{Points: []metrics.Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
 			MType: metrics.APIGaugeType,
 			Name:  "test.metrics",
 			Host:  "localHost",
@@ -182,7 +181,7 @@ func TestSplitSerieasOneMetric(t *testing.T) {
 }
 
 func TestSplitSeriesByName(t *testing.T) {
-	series := Series{}
+	var series = Series{}
 	for _, name := range []string{"name1", "name2", "name3"} {
 		s1 := metrics.Serie{
 			Points: []metrics.Point{
@@ -220,7 +219,7 @@ func TestSplitSeriesByName(t *testing.T) {
 }
 
 func TestSplitOversizedMetric(t *testing.T) {
-	series := Series{
+	var series = Series{
 		{
 			Points: []metrics.Point{
 				{Ts: 12345.0, Value: float64(21.21)},
@@ -505,10 +504,12 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 			require.Len(t, payloads, 0)
 		})
 	}
+
 }
 
 // test taken from the spliter
 func TestPayloadsSeries(t *testing.T) {
+
 	tests := map[string]struct {
 		kind string
 	}{
@@ -551,13 +552,13 @@ func TestPayloadsSeries(t *testing.T) {
 			iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
 			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 			require.Nil(t, err)
-			splitSeries := []Series{}
+			var splitSeries = []Series{}
 
 			for _, compressedPayload := range payloads {
 				payload, err := compressor.Decompress(compressedPayload.GetContent())
 				require.NoError(t, err)
 
-				s := map[string]Series{}
+				var s = map[string]Series{}
 				err = json.Unmarshal(payload, &s)
 				require.NoError(t, err)
 				splitSeries = append(splitSeries, s["series"])

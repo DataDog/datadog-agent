@@ -256,6 +256,7 @@ func createEvents(sourceTypeNames ...string) Events {
 // Check JSONPayloadBuilder for CreateSingleMarshaler and CreateMarshalersBySourceType
 // return the same results as for MarshalJSON.
 func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
+
 	tests := map[string]struct {
 		kind string
 	}{
@@ -278,7 +279,9 @@ func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 			}
 			assertEqualEventsPayloads(t, json, payloads)
 		})
+
 	}
+
 }
 
 func assertEqualEventsPayloads(t *testing.T, expected payloadsType, actual []payloadsType) {

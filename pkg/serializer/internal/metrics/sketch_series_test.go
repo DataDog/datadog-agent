@@ -73,6 +73,7 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 
 		require.Len(t, pb.Dogsketches, len(in.Points))
 		for j, pointPb := range pb.Dogsketches {
+
 			check(t, in.Points[j], pointPb)
 			// require.Equal(t, pointIn.Ts, pointPb.Ts)
 			// require.Equal(t, pointIn.Ts, pointPb.Ts)
@@ -165,6 +166,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 			require.Len(t, pl.Sketches, 1)
 		})
 	}
+
 }
 
 func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
@@ -213,14 +215,17 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 				require.Len(t, pb.Dogsketches, len(in.Points))
 				for j, pointPb := range pb.Dogsketches {
+
 					check(t, in.Points[j], pointPb)
 				}
 			}
 		})
 	}
+
 }
 
 func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
+
 	tests := map[string]struct {
 		kind                string
 		maxUncompressedSize int
@@ -279,6 +284,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 
 					require.Len(t, pb.Dogsketches, len(in.Points))
 					for j, pointPb := range pb.Dogsketches {
+
 						check(t, in.Points[j], pointPb)
 					}
 					i++
@@ -323,4 +329,5 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 			assert.Equal(t, 5, firstFilteredPayload.GetPointCount())
 		})
 	}
+
 }

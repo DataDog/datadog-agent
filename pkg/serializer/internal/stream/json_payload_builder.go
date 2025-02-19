@@ -110,8 +110,7 @@ const (
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
 func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
-	policy OnErrItemTooBigPolicy,
-) (transaction.BytesPayloads, error) {
+	policy OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
 	var input, output *bytes.Buffer
 
 	// the backend accepts payloads up to specific compressed / uncompressed

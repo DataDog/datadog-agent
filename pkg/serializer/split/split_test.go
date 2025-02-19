@@ -53,6 +53,7 @@ func TestSplitPayloadsSeries(t *testing.T) {
 }
 
 func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
+
 	tests := map[string]struct {
 		kind string
 	}{
@@ -92,9 +93,9 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 			require.Nil(t, err)
 
 			originalLength := len(testSeries)
-			splitSeries := []metricsserializer.Series{}
+			var splitSeries = []metricsserializer.Series{}
 			for _, payload := range payloads {
-				s := map[string]metricsserializer.Series{}
+				var s = map[string]metricsserializer.Series{}
 				localPayload := payload.GetContent()
 
 				if compress {
@@ -188,6 +189,7 @@ func TestSplitPayloadsEvents(t *testing.T) {
 }
 
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
+
 	tests := map[string]struct {
 		kind string
 	}{
@@ -196,6 +198,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+
 			testEvent := metricsserializer.Events{}
 			for i := 0; i < numPoints; i++ {
 				event := event.Event{
@@ -267,6 +270,7 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 }
 
 func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
+
 	tests := map[string]struct {
 		kind string
 	}{
@@ -316,5 +320,6 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 			newLength := len(unrolledServiceChecks)
 			require.Equal(t, originalLength, newLength)
 		})
+
 	}
 }
