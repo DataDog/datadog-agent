@@ -104,8 +104,8 @@ installer-install-scripts:
     - VERSION="$(inv agent.version --url-safe)-1" || exit $?
     - echo "About to build for $VERSION"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - ls -la $OMNIBUS_PACKAGE_DIR
-    - find / -name "datadog-updater_7-arm64-oci.tar.xz"
+    - tar -xJf "datadog-installer-7*amd64.tar.xz" -C installer-amd64 --wildcards "/opt/datadog-packages/datadog-installer/*/bin/installer/installer"
+    - tar -xJf "datadog-installer-7*arm64.tar.xz" -C installer-arm64 --wildcards "/opt/datadog-packages/datadog-installer/*/bin/installer/installer"
     - inv -e installer.build-linux-script "default" "$VERSION"
     - inv -e installer.build-linux-script "databricks" "$VERSION"
     - inv -e installer.build-linux-script "emr" "$VERSION"
