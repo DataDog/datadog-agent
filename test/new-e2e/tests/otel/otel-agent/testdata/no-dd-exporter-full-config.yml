@@ -25,8 +25,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dialer:
-        timeout: 0s
       dump_payloads: false
       use_compression: true
     max_conns_per_host: 0
@@ -34,8 +32,6 @@ exporters:
     max_idle_conns_per_host: 0
     metrics:
       delta_ttl: 3600
-      dialer:
-        timeout: 0s
       histograms:
         mode: distributions
         send_aggregation_metrics: false
@@ -116,8 +112,6 @@ extensions:
     write_timeout: 0s
   pprof/dd-autoconfigured:
     block_profile_fraction: 0
-    dialer:
-      timeout: 0s
     endpoint: localhost:1777
     mutex_profile_fraction: 0
     save_to_file: ""
@@ -140,8 +134,6 @@ receivers:
     protocols:
       grpc:
         auth: null
-        dialer:
-          timeout: 0s
         endpoint: 0.0.0.0:4317
         include_metadata: false
         keepalive: null
