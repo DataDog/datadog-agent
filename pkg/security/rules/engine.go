@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -73,7 +72,6 @@ type RuleEngine struct {
 type APIServer interface {
 	ApplyRuleIDs([]rules.RuleID)
 	ApplyPolicyStates([]*monitor.PolicyState)
-	SetSECLVariables(map[string]interface{})
 }
 
 // NewRuleEngine returns a new rule engine
@@ -184,29 +182,8 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 	}
 
 	e.startSendHeartbeatEvents(ctx)
-	e.statNotifyAPIServerOfSeclVariables(ctx)
 
 	return nil
-}
-
-func (e *RuleEngine) statNotifyAPIServerOfSeclVariables(ctx context.Context) {
-	// updating the SECL variables values every 5 seconds
-	e.wg.Add(1)
-	go func() {
-		defer e.wg.Done()
-
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				e.notifyAPIServerOfSeclVariables()
-			}
-		}
-	}()
 }
 
 func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
@@ -395,31 +372,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
 	e.apiServer.ApplyRuleIDs(ruleIDs)
 	e.apiServer.ApplyPolicyStates(policies)
-}
-
-func (e *RuleEngine) notifyAPIServerOfSeclVariables() {
-	rs := e.currentRuleSet.Load().(*rules.RuleSet)
-	var seclVariables = make(map[string]interface{})
-	for name, value := range rs.GetVariables() {
-		if strings.HasPrefix(name, "process.") {
-			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-				event := e.probe.PlatformProbe.NewEvent()
-				event.ProcessCacheEntry = entry
-				ctx := eval.NewContext(event)
-				scopedName := strings.Replace(name, "process.", fmt.Sprintf("process_%d.", entry.Pid), 1)
-				seclVariables[scopedName] = value.(eval.ScopedVariable).GetValue(ctx)
-			})
-		} else if strings.HasPrefix(name, "container.") {
-			continue // skip container variables for now
-		} else { // global variables
-			seclVariables[name] = value.(eval.Variable).GetValue()
-		}
-
-	}
-	e.apiServer.SetSECLVariables(seclVariables)
-
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {

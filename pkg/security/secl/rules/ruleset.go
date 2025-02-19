@@ -96,6 +96,9 @@ func (rs *RuleSet) ListMacroIDs() []MacroID {
 
 // GetVariables returns the variables store
 func (rs *RuleSet) GetVariables() map[string]eval.SECLVariable {
+	if rs.evalOpts == nil || rs.evalOpts.VariableStore == nil {
+		return nil
+	}
 	return rs.evalOpts.VariableStore.Variables
 }
 
