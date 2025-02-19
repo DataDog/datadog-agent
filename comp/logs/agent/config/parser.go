@@ -14,7 +14,7 @@ import (
 )
 
 type yamlLogsConfigsWrapper struct {
-	Logs []*yamlLogsConfig `yaml:"logs"`
+	Logs []*yamlLogsConfig
 }
 
 // ParseJSON parses the data formatted in JSON
