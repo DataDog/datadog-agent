@@ -2,7 +2,6 @@ import ssl
 import sys
 
 import _hashlib
-import win32api
 from checks import AgentCheck
 from cryptography.hazmat.backends import default_backend
 
@@ -20,6 +19,8 @@ class FIPSModeCheck(AgentCheck):
 
 
 def _is_fips_dll_loaded(logger):
+    import win32api
+
     # the module is loaded on demand, import _hashlib is enough to load itf
     try:
         handle = win32api.GetModuleHandle("fips.dll")
