@@ -36,8 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
+	//"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs"
+	//"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
@@ -77,10 +77,10 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	//corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	//corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
 	//corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
-	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
+	//corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
 	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry, store))
-	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
+	//corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
