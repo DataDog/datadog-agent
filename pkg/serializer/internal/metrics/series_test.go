@@ -516,6 +516,7 @@ func TestPayloadsSeries(t *testing.T) {
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
+	logger := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			testSeries := metrics.Series{}
@@ -548,7 +549,7 @@ func TestPayloadsSeries(t *testing.T) {
 			originalLength := len(testSeries)
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(t))
+			builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logger)
 			iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
 			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 			require.Nil(t, err)

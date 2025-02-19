@@ -97,6 +97,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
+	logger := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
@@ -105,7 +106,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			payload, _ := sl.Marshal()
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logmock.New(t))
+			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
 
 			assert.Nil(t, err)
 
@@ -127,6 +128,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 		"zlib": {kind: compression.ZlibKind, maxUncompressedSize: 100},
 		"zstd": {kind: compression.ZstdKind, maxUncompressedSize: 200},
 	}
+	logger := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
@@ -148,7 +150,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 			serializer := SketchSeriesList{SketchesSource: sl}
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logmock.New(t))
+			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
 
 			assert.Nil(t, err)
 
@@ -176,6 +178,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
+	logger := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
@@ -190,7 +193,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 			serializer2 := SketchSeriesList{SketchesSource: sl}
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logmock.New(t))
+			payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
 			require.NoError(t, err)
 
 			firstPayload := payloads[0]
@@ -233,6 +236,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		"zlib": {kind: compression.ZlibKind, maxUncompressedSize: 2000},
 		"zstd": {kind: compression.ZstdKind, maxUncompressedSize: 2000},
 	}
+	logger := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := mock.New(t)
@@ -250,7 +254,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 			serializer := SketchSeriesList{SketchesSource: sl}
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logmock.New(t))
+			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
 			assert.Nil(t, err)
 
 			recoveredSketches := []gogen.SketchPayload{}

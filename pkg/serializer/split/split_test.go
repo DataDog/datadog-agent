@@ -60,6 +60,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
+	logger := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			testSeries := metricsserializer.Series{}
@@ -89,7 +90,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 
 			strategy := selector.NewCompressor(tc.kind, 1)
 
-			payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy, logmock.New(t))
+			payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy, logger)
 			require.Nil(t, err)
 
 			originalLength := len(testSeries)
@@ -196,6 +197,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
+	logger := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 
@@ -216,7 +218,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, compressor, logmock.New(t))
+			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, compressor, logger)
 			require.Nil(t, err)
 
 			originalLength := len(testEvent.EventsArr)
