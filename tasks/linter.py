@@ -913,8 +913,8 @@ def shellcheck_linter(
             with gitlab_section(color_message("Shellcheck errors / warnings", color=Color.ORANGE), collapsed=True):
                 for script, result in sorted(results.items()):
                     with gitlab_section(f"Shellcheck errors for {script}"):
-                        print(f"--- {script} ---")
-                        print('Script:')
+                        print(f"--- {color_message(script, Color.BLUE)} ---")
+                        print(f'[{script}] Script:')
                         if use_bat:
                             res = ctx.run(
                                 f"bat --color=always --file-name={script} -l bash {tmpdir}/{result['id']}.sh", hide=True
@@ -925,7 +925,7 @@ def shellcheck_linter(
                         else:
                             with open(f'{tmpdir}/{result["id"]}.sh') as f:
                                 print(f.read())
-                        print(f'\n{color_message("Error", Color.RED)}:')
+                        print(f'\n[{script}] {color_message("Error", Color.RED)}:')
                         print(result['output'])
 
             if any(result['code'] != 0 for result in results.values()):

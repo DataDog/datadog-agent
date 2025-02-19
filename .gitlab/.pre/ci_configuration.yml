@@ -58,20 +58,9 @@ lint_gitlab_ci:
     - status=0
     - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
     - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
-    # Do only on diff and not on main
-    - |
-      if [ -f artifacts/diff.gitlab-ci.yml ] && [ "$CI_COMMIT_BRANCH" != "main" ]; then
-        inv -e linter.gitlab-ci-shellcheck --config-file artifacts/after.gitlab-ci.yml || status=1
-        echo
-        echo
-        echo
-        echo
-        echo
-        inv -e linter.gitlab-ci-shellcheck --diff-file artifacts/diff.gitlab-ci.yml || status=1
-        if [ $status != 0 ]; then
-          echo "At least one linter failed, exiting..." >& 2
-          exit $status
-        fi
+    - if [ $status != 0 ]; then
+        echo "At least one linter failed, exiting..." >& 2
+        exit $status
       fi
 
 lint_gitlab_ci_jobs_codeowners:
@@ -82,25 +71,37 @@ lint_gitlab_ci_jobs_codeowners:
   script:
     - inv -e linter.gitlab-ci-jobs-codeowners --all-files
 
+# TODO(celian): Merge this with lint_gitlab_ci without allow_failure
+lint_gitlab_ci_shellcheck:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: [compute_gitlab_ci_config]
+  allow_failure: true
+  script:
+    # Do only on diff and not on main
+    - |
+      if [ -f artifacts/diff.gitlab-ci.yml ] && [ "$CI_COMMIT_BRANCH" != "main" ]; then
+        inv -e linter.gitlab-ci-shellcheck --diff-file artifacts/diff.gitlab-ci.yml || status=1
+      fi
+    - if [ $status != 0 ]; then
+        echo "At least one linter failed, exiting..." >& 2
+        exit $status
+      fi
+
 lint_github_actions_workflows:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: []
-  # TODO
-  # rules:
-  #   - changes:
-  #       paths:
-  #         - .github/workflows/**/*.yml
-  #       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  #       when: on_success
-  #   - when: never
+  rules:
+    - changes:
+        paths:
+          - .github/workflows/**/*.yml
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+        when: on_success
+    - when: never
+  allow_failure: true
   script:
-    # TODO: Only on diff
-    - inv -e linter.github-actions-shellcheck --files "$(ls .github/workflows/*.yml | tr '\n' ',')"
-    - echo
-    - echo
-    - echo
-    - echo
     - DIFF_FILES="$(git diff --name-only "$(git merge-base main HEAD)" | grep -E '.github/workflows/.*\.yml' | tr '\n' ',')"
-    - inv -e linter.github-actions-shellcheck --files "$(echo .github/workflows/*.yml | tr ' ' ',')"
+    - inv -e linter.github-actions-shellcheck --files "$DIFF_FILES"
