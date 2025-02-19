@@ -17,19 +17,10 @@ import (
 )
 
 var (
-	// flavorPaths maps the flavor to the relevent setup file.
-	// This is used to link users to the relevent code.
-	flavorPaths = map[string]string{
-		"agent":      "pkg/fleet/installer/setup/defaultscript/defaultscript.go",
-		"databricks": "pkg/fleet/installer/setup/djm/databrics.go",
-		"dataproc":   "pkg/fleet/installer/setup/djm/dataproc.go",
-		"emr":        "pkg/fleet/installer/setup/djm/emr.go",
-	}
-
-	// Flavor is the Flavor of the setup script. It is set at build time.
-	Flavor string
-	// Version is the version of the setup script. It is set at build time.
+	// Version is the version of the installer to download.
 	Version string
+	// Flavor is the flavor of the setup to run.
+	Flavor string
 )
 
 func main() {

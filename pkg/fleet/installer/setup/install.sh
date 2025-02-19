@@ -17,16 +17,17 @@ if ! command -v sha256sum >/dev/null || ! (command -v curl >/dev/null || command
   exit 1
 fi
 
+flavor="INSTALLER_FLAVOR"
 case "$arch" in
 x86_64)
-  installer_url="INSTALLER_AMD64_URL"
   installer_sha256="INSTALLER_AMD64_SHA256"
   ;;
 aarch64)
-  installer_url="INSTALLER_ARM64_URL"
   installer_sha256="INSTALLER_ARM64_SHA256"
   ;;
 esac
+site=$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")
+installer_url="https://${site}/v2/installer-package/blobs/sha256:${installer_sha256}"
 
 tmp_dir="/opt/datadog-packages/tmp"
 tmp_bin="${tmp_dir}/installer"
@@ -53,7 +54,7 @@ sha256sum -c <<<"$installer_sha256  $tmp_bin"
 
 echo "Starting the Datadog installer..."
 "${sudo_cmd[@]}" chmod +x "$tmp_bin"
-"${sudo_env_cmd[@]}" "$tmp_bin" "$@"
+"${sudo_env_cmd[@]}" "$tmp_bin" setup --flavor "$flavor" "$@"
 
 "${sudo_cmd[@]}" rm -f "$tmp_bin"
 

@@ -71,28 +71,6 @@ def build(
 
 
 @task
-def build_setup(
-    ctx,
-    flavor,
-    version,
-    os="linux",
-    arch="amd64",
-    output=None,
-):
-    '''
-    Builds the setup binary for a given flavor.
-    '''
-    version_flag = f'-X main.Version={version}'
-    flavor_flag = f'-X main.Flavor={flavor}'
-    output = output or f'setup-{flavor}-{os}-{arch}'
-    build_tags = f'setup_{flavor}'
-    ctx.run(
-        f'go build -tags {build_tags} -ldflags="-s -w {version_flag} {flavor_flag}" -o {path.join(DIR_BIN, output)} {REPO_PATH}/{SETUP_MAIN_PACKAGE}',
-        env={'GOOS': os, 'GOARCH': arch, 'CGO_ENABLED': '0'},
-    )
-
-
-@task
 def build_linux_script(ctx, domain, flavor, bin_amd64, bin_arm64, output):
     '''
     Builds the script that is used to install datadog on linux.
@@ -103,6 +81,7 @@ def build_linux_script(ctx, domain, flavor, bin_amd64, bin_arm64, output):
 
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     install_script = install_script.replace('INSTALLER_COMMIT', commit_sha)
+    install_script = install_script.replace('INSTALLER_FLAVOR', flavor)
 
     bin_amd64_sha256 = hashlib.sha256(open(bin_amd64, 'rb').read()).hexdigest()
     bin_arm64_sha256 = hashlib.sha256(open(bin_arm64, 'rb').read()).hexdigest()
