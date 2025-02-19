@@ -50,6 +50,8 @@ func newProfiler(deps dependencies) profilecomp.Component {
 					_ = log.Warn("Failed to enable profiling:", err.Error())
 				} else {
 					log.Info("Started process-agent profiler")
+					log.Infof("SMPTEST - Internal profiling settings for process: %s.", settings)
+
 				}
 			}
 

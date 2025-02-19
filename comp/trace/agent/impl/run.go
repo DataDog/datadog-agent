@@ -110,6 +110,7 @@ func runAgentSidekicks(ag component) error {
 		if err := profiling.Start(*pcfg); err != nil {
 			log.Warn(err)
 		} else {
+			log.Infof("SMPTEST - Internal profiling settings for trace: %s.", pcfg)
 			log.Infof("Internal profiling enabled: %s.", pcfg)
 		}
 	}
