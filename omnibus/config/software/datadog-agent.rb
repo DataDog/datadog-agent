@@ -141,6 +141,9 @@ build do
   if not bundled_agents.include? "trace-agent"
     platform = windows_arch_i386? ? "x86" : "x64"
     command "invoke trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    unless windows_target?
+      command "cd cmd/loader && go build -o loader && mv loader #{install_dir}/embedded/bin/trace-loader"
+    end
   end
 
   if windows_target?
@@ -260,6 +263,7 @@ build do
       LINUX_BINARIES = [
         "#{install_dir}/bin/agent/agent",
         "#{install_dir}/embedded/bin/trace-agent",
+        "#{install_dir}/embedded/bin/trace-loader",
         "#{install_dir}/embedded/bin/process-agent",
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
