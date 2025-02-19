@@ -171,7 +171,7 @@ var languageVersions = map[language]*ver.Version{
 	java:   ver.Must(ver.NewVersion("v1.46")), // https://datadoghq.atlassian.net/browse/APMON-1064
 	dotnet: ver.Must(ver.NewVersion("v3.10")), // https://datadoghq.atlassian.net/browse/APMON-1390
 	python: ver.Must(ver.NewVersion("v2.21")), // https://datadoghq.atlassian.net/browse/APMON-1068
-	ruby:   ver.Must(ver.NewVersion("v2")),    // https://datadoghq.atlassian.net/browse/APMON-1066
+	ruby:   ver.Must(ver.NewVersion("v2.10")), // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     ver.Must(ver.NewVersion("v5.37")), // https://datadoghq.atlassian.net/browse/APMON-1065
 	php:    ver.Must(ver.NewVersion("v1")),    // https://datadoghq.atlassian.net/browse/APMON-1128
 }

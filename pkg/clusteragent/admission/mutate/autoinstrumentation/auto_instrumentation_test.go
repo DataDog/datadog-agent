@@ -40,7 +40,7 @@ var (
 	defaultLibraries = map[string]string{
 		"java":   "v1.46",
 		"python": "v2.21",
-		"ruby":   "v2",
+		"ruby":   "v2.10",
 		"dotnet": "v3.10",
 		"js":     "v5.37",
 	}
