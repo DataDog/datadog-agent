@@ -419,6 +419,7 @@ func TestProcessGPUTagging(t *testing.T) {
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags)
 
+			assert.Len(t, procs, 1)
 			assert.Equal(t, tc.expectedProcs, len(procs[""]))
 			for _, proc := range procs[""] {
 				assert.Equal(t, proc.Tags, tc.pidToGPUTags[proc.Pid])

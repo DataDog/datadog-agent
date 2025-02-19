@@ -81,21 +81,17 @@ func (g *GPUSubscriber) SetGPUDetected(value bool) {
 // processEvents processes the events received from workloadmeta
 func (g *GPUSubscriber) processEvents(eventBundle workloadmeta.EventBundle) {
 	for _, event := range eventBundle.Events {
-		_, ok := event.Entity.(*workloadmeta.GPU)
-		if !ok {
-			log.Debugf("Expected workloadmeta.GPU got %T, skipping", event.Entity)
-			continue
+		if _, ok := event.Entity.(*workloadmeta.GPU); ok {
+			g.SetGPUDetected(true)
+			break
 		}
-
-		g.SetGPUDetected(true)
-		break
 	}
 }
 
 // GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
 func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 	if !g.IsGPUDetected() {
-		return nil
+		return map[int32][]string{}
 	}
 
 	wmetaGPUs := g.wmeta.ListGPUs()
@@ -109,6 +105,7 @@ func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 		tags, err := g.tagger.Tag(entityID, g.tagger.ChecksCardinality())
 		if err != nil {
 			log.Debugf("Could not collect tags for GPU %s, err: %v", uuid, err)
+			continue
 		}
 
 		// Filter tags to remove duplicates

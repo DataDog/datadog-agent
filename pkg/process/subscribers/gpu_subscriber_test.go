@@ -300,7 +300,8 @@ func TestGetGPUTags(t *testing.T) {
 			// Populate workloadmeta and tagger stores with mocked data
 			for _, gpu := range tt.gpus {
 				mockWmeta.Set(&gpu)
-				fakeTagger.SetTags(types.NewEntityID(types.GPU, gpu.ID), "fake", []string{"gpu_uuid:" + gpu.ID, "gpu_device:" + gpu.Device, "gpu_vendor:" + gpu.Vendor}, nil, nil, nil)
+				gpuTags := []string{"gpu_uuid:" + gpu.ID, "gpu_device:" + gpu.Device, "gpu_vendor:" + gpu.Vendor}
+				fakeTagger.SetTags(types.NewEntityID(types.GPU, gpu.ID), "fake", gpuTags, nil, nil, nil)
 			}
 
 			actualTagMap := gpuDetector.GetGPUTags()
