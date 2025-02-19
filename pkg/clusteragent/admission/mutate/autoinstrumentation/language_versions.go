@@ -169,7 +169,7 @@ const defaultVersionMagicString = "default"
 // If this language does not appear in supportedLanguages, it will not be injected.
 var languageVersions = map[language]*ver.Version{
 	java:   ver.Must(ver.NewVersion("v1.46")), // https://datadoghq.atlassian.net/browse/APMON-1064
-	dotnet: ver.Must(ver.NewVersion("v3")),    // https://datadoghq.atlassian.net/browse/APMON-1390
+	dotnet: ver.Must(ver.NewVersion("v3.10")), // https://datadoghq.atlassian.net/browse/APMON-1390
 	python: ver.Must(ver.NewVersion("v2.21")), // https://datadoghq.atlassian.net/browse/APMON-1068
 	ruby:   ver.Must(ver.NewVersion("v2")),    // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     ver.Must(ver.NewVersion("v5.37")), // https://datadoghq.atlassian.net/browse/APMON-1065

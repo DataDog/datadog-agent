@@ -41,7 +41,7 @@ var (
 		"java":   "v1.46",
 		"python": "v2.21",
 		"ruby":   "v2",
-		"dotnet": "v3",
+		"dotnet": "v3.10",
 		"js":     "v5.37",
 	}
 
