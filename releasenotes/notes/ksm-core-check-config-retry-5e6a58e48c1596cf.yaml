@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    The KSM corecheck is now capable of retrying its coordination with
-    the Kubernetes API Server. Failed queries in the check configuration 
+    The KSM core check is now capable of retrying its coordination with
+    the Kubernetes API Server. Failed queries in the check configuration
     will no longer block the check from being scheduled.
