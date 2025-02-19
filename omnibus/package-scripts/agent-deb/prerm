@@ -138,7 +138,6 @@ stop_agent
 deregister_agent
 remove_custom_integrations
 remove_py_compiled_files
-remove_sysprobe_core_files
 
 case "$1" in
     remove)

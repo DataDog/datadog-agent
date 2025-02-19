@@ -110,7 +110,6 @@ remove_fips_module()
 
 stop_agent
 deregister_agent
-remove_sysprobe_core_files
 
 case "$*" in
     0)
