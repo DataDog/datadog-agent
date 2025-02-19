@@ -55,7 +55,7 @@ echo "Verifying installer integrity..."
 sha256sum -c <<<"$installer_sha256  $tmp_bin"
 
 echo "Starting the Datadog installer..."
-"${sudo_env_cmd[@]}" DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT="$version" "$tmp_bin" setup --flavor "$flavor" "$@"
+"${sudo_env_cmd[@]}" DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER="$version" "$tmp_bin" setup --flavor "$flavor" "$@"
 
 "${sudo_cmd[@]}" rm -f "$tmp_bin"
 
