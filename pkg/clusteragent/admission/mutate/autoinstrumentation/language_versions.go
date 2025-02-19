@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 
+	ver "github.com/hashicorp/go-version"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -33,11 +34,52 @@ func (l language) defaultLibInfo(registry, ctrName string) libInfo {
 }
 
 func (l language) libImageName(registry, tag string) string {
-	if tag == defaultVersionMagicString {
+	switch tag {
+	case "latest":
+		// do nothing with this as a shortcut well known valid tag.
+	case defaultVersionMagicString:
 		tag = l.defaultLibVersion()
+	default:
+		if l.isDefaultVersionMoreSpecificThan(tag) {
+			tag = l.defaultLibVersion()
+		}
 	}
 
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
+}
+
+func (l language) isDefaultVersionMoreSpecificThan(input string) bool {
+	v, ok := languageVersions[l]
+	if !ok {
+		return false
+	}
+
+	in, err := ver.NewVersion(input)
+	if err != nil {
+		return false
+	}
+
+	return isDefaultVersionMoreSpecific(v, in)
+}
+
+// isDefaultVersionMoreSpecific tells us whether or not we should use
+// the default version even though a user-specified one might be set.
+//
+// For example if we have `v1.46` as the defaultVersion, a user setting
+// `v1` should have us using `v1.46` but them specifying a more specific
+// point release would leave that alone.
+func isDefaultVersionMoreSpecific(defaultVersion, inputVersion *ver.Version) bool {
+	var (
+		s1 = defaultVersion.Segments64()
+		s2 = inputVersion.Segments64()
+	)
+
+	// N.B. Segments will _always_ have at least (3) points set: MAJOR.MINOR.PATCH
+	//
+	// we really only care if there is a minor version specified
+	// in the `inputVersion` and the majors match since our `languageVersions`
+	// will only be as specific as the minor.
+	return s1[0] == s2[0] && s2[1] == 0
 }
 
 func (l language) libInfo(ctrName, image string) libInfo {
@@ -125,13 +167,13 @@ const defaultVersionMagicString = "default"
 // supported language. If not set, we will default to "latest", see defaultLibVersion.
 //
 // If this language does not appear in supportedLanguages, it will not be injected.
-var languageVersions = map[language]string{
-	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
-	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
-	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
-	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
-	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128
+var languageVersions = map[language]*ver.Version{
+	java:   ver.Must(ver.NewVersion("v1.46")), // https://datadoghq.atlassian.net/browse/APMON-1064
+	dotnet: ver.Must(ver.NewVersion("v3")),    // https://datadoghq.atlassian.net/browse/APMON-1390
+	python: ver.Must(ver.NewVersion("v2")),    // https://datadoghq.atlassian.net/browse/APMON-1068
+	ruby:   ver.Must(ver.NewVersion("v2")),    // https://datadoghq.atlassian.net/browse/APMON-1066
+	js:     ver.Must(ver.NewVersion("v5")),    // https://datadoghq.atlassian.net/browse/APMON-1065
+	php:    ver.Must(ver.NewVersion("v1")),    // https://datadoghq.atlassian.net/browse/APMON-1128
 }
 
 func (l language) defaultLibVersion() string {
@@ -139,7 +181,8 @@ func (l language) defaultLibVersion() string {
 	if !ok {
 		return "latest"
 	}
-	return langVersion
+
+	return langVersion.Original()
 }
 
 type libInfo struct {
