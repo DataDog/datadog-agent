@@ -470,7 +470,7 @@ Package forwarders implements a component to provide forwarders used by the proc
 
 ### [comp/process/gpusubscriber](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/gpusubscriber)
 
-Package gpusubscriber implements a component to subscribe to WorkloadMeta GPU events in the Agent.
+Package gpusubscriber subscribes to GPU events
 
 ### [comp/process/hostinfo](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/hostinfo)
 

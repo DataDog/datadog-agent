@@ -5,8 +5,8 @@
 
 //go:build test
 
-// Package mock provides the gpu subscriber mock component.
-package mock
+// Package gpusubscriber subscribes to GPU events
+package gpusubscriber
 
 import (
 	gsdef "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"

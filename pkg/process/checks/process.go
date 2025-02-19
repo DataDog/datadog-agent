@@ -491,7 +491,7 @@ func fmtProcesses(
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {
-			log.Debugf("Detected GPU, and process is in activePids, adding gpu tags to pid: %s", fp.Pid)
+			log.Debugf("Detected GPU, and process is in activePids, adding GPU tags to pid: %d", fp.Pid)
 			proc.Tags = tags
 		}
 

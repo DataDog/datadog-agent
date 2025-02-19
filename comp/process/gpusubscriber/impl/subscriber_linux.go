@@ -34,14 +34,14 @@ type Requires struct {
 
 // NewComponent returns a new gpu subscriber.
 func NewComponent(reqs Requires) gpusubscriber.Component {
-	gpuSubscriber := procSubscribers.NewGPUSubscriber(reqs.WMeta, reqs.Tagger)
-	gpuSubComponent := gpusubscriberimpl{
-		gpuSubscriber: gpuSubscriber,
-	}
-
 	if flavor.GetFlavor() == flavor.ProcessAgent {
 		log.Debug("GPU subscriber disabled as running in Process Agent")
 		return NoopSubscriber{}
+	}
+	
+	gpuSubscriber := procSubscribers.NewGPUSubscriber(reqs.WMeta, reqs.Tagger)
+	gpuSubComponent := gpusubscriberimpl{
+		gpuSubscriber: gpuSubscriber,
 	}
 
 	reqs.Lc.Append(compdef.Hook{

@@ -108,7 +108,7 @@ func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 		entityID := types.NewEntityID(types.GPU, uuid)
 		tags, err := g.tagger.Tag(entityID, g.tagger.ChecksCardinality())
 		if err != nil {
-			log.Debugf("Could not collect tags for GPU %d, err: %v", uuid, err)
+			log.Debugf("Could not collect tags for GPU %s, err: %v", uuid, err)
 		}
 
 		// Filter tags to remove duplicates

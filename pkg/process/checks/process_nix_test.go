@@ -375,3 +375,56 @@ func TestFormatCPUTimes(t *testing.T) {
 		})
 	}
 }
+func TestProcessGPUTagging(t *testing.T) {
+	const maxBatchBytes = 1000000
+	const maxBatchSize = 10
+	p := []*procutil.Process{
+		makeProcess(1, "git clone google.com"),
+		makeProcess(2, "mine-bitcoins -all -x"),
+		makeProcess(3, "foo --version"),
+	}
+	lastRun := time.Now().Add(-5 * time.Second)
+	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
+	for _, tc := range []struct {
+		testName      string
+		processes     map[int32]*procutil.Process
+		pidToGPUTags  map[int32][]string
+		expectedProcs int
+	}{
+		{
+			testName:      "no active processes",
+			processes:     map[int32]*procutil.Process{p[0].Pid: p[0]},
+			expectedProcs: 1,
+		},
+		{
+			testName:  "no matching active processes",
+			processes: map[int32]*procutil.Process{p[0].Pid: p[0]},
+			pidToGPUTags: map[int32][]string{
+				2: {"gpu_uuid:gpu-2", "gpu_device:tesla-v100", "gpu_vendor:nvidia"},
+			},
+			expectedProcs: 1,
+		},
+		{
+			testName:  "matching active processes",
+			processes: map[int32]*procutil.Process{p[0].Pid: p[0], p[1].Pid: p[1], p[2].Pid: p[2]},
+			pidToGPUTags: map[int32][]string{
+				1: {"gpu_uuid:gpu-1", "gpu_device:tesla-v100", "gpu_vendor:nvidia"},
+				3: {"gpu_uuid:gpu-3", "gpu_device:tesla-v105", "gpu_vendor:nvidia"},
+			},
+			expectedProcs: 3,
+		},
+	} {
+		t.Run(tc.testName, func(t *testing.T) {
+			serviceExtractorEnabled := true
+			useWindowsServiceName := true
+			useImprovedAlgorithm := false
+			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags)
+
+			assert.Equal(t, tc.expectedProcs, len(procs[""]))
+			for _, proc := range procs[""] {
+				assert.Equal(t, proc.Tags, tc.pidToGPUTags[proc.Pid])
+			}
+		})
+	}
+}
