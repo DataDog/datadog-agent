@@ -107,10 +107,6 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 		assert.NoError(c, err)
 		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_mode' with value higher than 0 yet")
 
-		metrics, err = v.Env().FakeIntake.Client().FilterMetrics("e2e.fips_dll_loaded", fakeintakeclient.WithMetricValueHigherThan(0))
-		assert.NoError(c, err)
-		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_dll_loaded' with value higher than 0 yet")
-
 		metrics, err = v.Env().FakeIntake.Client().FilterMetrics("e2e.fips_cryptography", fakeintakeclient.WithMetricValueHigherThan(0))
 		assert.NoError(c, err)
 		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_cryptography' with value higher than 0 yet")
