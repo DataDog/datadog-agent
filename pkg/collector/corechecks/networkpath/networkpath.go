@@ -138,6 +138,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	return nil
 }
 
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
+}
+
 // Factory creates a new check factory
 func Factory(telemetry telemetryComp.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
