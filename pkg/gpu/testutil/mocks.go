@@ -70,6 +70,9 @@ var DefaultProcessInfo = []nvml.ProcessInfo{
 	{Pid: 5678, UsedGpuMemory: 200},
 }
 
+// DefaultTotalMemory is the total memory for the default device returned by the mock
+var DefaultTotalMemory = uint64(1000)
+
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 	return &nvmlmock.Device{
@@ -93,6 +96,9 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		},
 		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
 			return DefaultProcessInfo, nvml.SUCCESS
+		},
+		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 	}
 }
@@ -123,6 +129,9 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 		},
 		DeviceGetComputeRunningProcessesFunc: func(nvml.Device) ([]nvml.ProcessInfo, nvml.Return) {
 			return DefaultProcessInfo, nvml.SUCCESS
+		},
+		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 	}
 }

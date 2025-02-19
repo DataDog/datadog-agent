@@ -692,8 +692,17 @@ func TestActionHash(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "hash_action",
+			ID:         "hash_action_open",
 			Expression: `open.file.path == "{{.Root}}/test-hash-action" && open.flags&O_CREAT == O_CREAT`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Hash: &rules.HashDefinition{},
+				},
+			},
+		},
+		{
+			ID:         "hash_action_exec",
+			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Hash: &rules.HashDefinition{},
@@ -712,6 +721,17 @@ func TestActionHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	testExecutable, _, err := test.Path("test-hash-action-exec")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = copyFile(which(t, "touch"), testExecutable, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testExecutable)
+
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -737,11 +757,11 @@ func TestActionHash(t *testing.T) {
 			}()
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "hash_action")
+			assertTriggeredRule(t, rule, "hash_action_open")
 		})
 
 		err = retry.Do(func() error {
-			msg := test.msgSender.getMsg("hash_action")
+			msg := test.msgSender.getMsg("hash_action_open")
 			if msg == nil {
 				return errors.New("not found")
 			}
@@ -785,11 +805,11 @@ func TestActionHash(t *testing.T) {
 			}()
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "hash_action")
+			assertTriggeredRule(t, rule, "hash_action_open")
 		})
 
 		err = retry.Do(func() error {
-			msg := test.msgSender.getMsg("hash_action")
+			msg := test.msgSender.getMsg("hash_action_open")
 			if msg == nil {
 				return errors.New("not found")
 			}
@@ -812,5 +832,36 @@ func TestActionHash(t *testing.T) {
 		assert.NoError(t, err)
 
 		<-done
+	})
+
+	t.Run("exec", func(t *testing.T) {
+		test.msgSender.flush()
+		test.WaitSignal(t, func() error {
+			return exec.Command(testExecutable, "/tmp/aaa").Run()
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action_exec")
+		})
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("hash_action_exec")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'process_exit')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
 	})
 }

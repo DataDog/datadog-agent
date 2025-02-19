@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package model
+// Package viperconfig provides a viper-based implementation of the config interface.
+package viperconfig
 
 import (
 	"bytes"
@@ -22,115 +23,27 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
+	"github.com/mitchellh/mapstructure"
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Source stores what edits a setting as a string
-type Source string
-
-// Declare every known Source
-const (
-	// SourceSchema are settings define in the schema for the configuration but without any default.
-	SourceSchema Source = "schema"
-	// SourceDefault are the values from defaults.
-	SourceDefault Source = "default"
-	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
-	// SetWithoutSource.
-	SourceUnknown Source = "unknown"
-	// SourceFile are the values loaded from configuration file.
-	SourceFile Source = "file"
-	// SourceEnvVar are the values loaded from the environment variables.
-	SourceEnvVar Source = "environment-variable"
-	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
-	// value for some settings when not set by the user.
-	SourceAgentRuntime Source = "agent-runtime"
-	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
-	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
-	// the core-agent.
-	SourceLocalConfigProcess Source = "local-config-process"
-	// SourceRC are the values loaded from remote-config (aka Datadog backend)
-	SourceRC Source = "remote-config"
-	// SourceFleetPolicies are the values loaded from remote-config file
-	SourceFleetPolicies Source = "fleet-policies"
-	// SourceCLI are the values set by the user at runtime through the CLI.
-	SourceCLI Source = "cli"
-	// SourceProvided are all values set by any source but default.
-	SourceProvided Source = "provided" // everything but defaults
-)
-
-// sources list the known sources, following the order of hierarchy between them
-var sources = []Source{
-	SourceDefault,
-	SourceUnknown,
-	SourceFile,
-	SourceEnvVar,
-	SourceFleetPolicies,
-	SourceAgentRuntime,
-	SourceLocalConfigProcess,
-	SourceRC,
-	SourceCLI,
-}
-
-// sourcesPriority give each source a priority, the higher the more important a source. This is used when merging
-// configuration tree (a higher priority overwrites a lower one).
-var sourcesPriority = map[Source]int{
-	SourceSchema:             -1,
-	SourceDefault:            0,
-	SourceUnknown:            1,
-	SourceFile:               2,
-	SourceEnvVar:             3,
-	SourceFleetPolicies:      4,
-	SourceAgentRuntime:       5,
-	SourceLocalConfigProcess: 6,
-	SourceRC:                 7,
-	SourceCLI:                8,
-}
-
-// ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
-type ValueWithSource struct {
-	Source Source
-	Value  interface{}
-}
-
-// IsGreaterThan returns true if the current source is of higher priority than the one given as a parameter
-func (s Source) IsGreaterThan(x Source) bool {
-	return sourcesPriority[s] > sourcesPriority[x]
-}
-
-// PreviousSource returns the source before the current one, or Default (lowest priority) if there isn't one
-func (s Source) PreviousSource() Source {
-	previous := sourcesPriority[s]
-	if previous == 0 {
-		return sources[previous]
-	}
-	return sources[previous-1]
-}
-
-// String casts Source into a string
-func (s Source) String() string {
-	// Safeguard: if we don't know the Source, we assume SourceUnknown
-	if s == "" {
-		return string(SourceUnknown)
-	}
-	return string(s)
-}
 
 // safeConfig implements Config:
 // - wraps viper with a safety lock
 // - implements the additional DDHelpers
 type safeConfig struct {
 	*viper.Viper
-	configSources map[Source]*viper.Viper
+	configSources map[model.Source]*viper.Viper
 	sync.RWMutex
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
 
-	notificationReceivers []NotificationReceiver
+	notificationReceivers []model.NotificationReceiver
 
 	// Proxy settings
-	proxies *Proxy
+	proxies *model.Proxy
 
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
@@ -147,7 +60,7 @@ type safeConfig struct {
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
-func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
+func (c *safeConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.Lock()
 	defer c.Unlock()
 	c.notificationReceivers = append(c.notificationReceivers, callback)
@@ -160,14 +73,14 @@ func getCallerLocation(nbStack int) string {
 }
 
 // Set wraps Viper for concurrent access
-func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
-	if source == SourceDefault {
+func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) {
+	if source == model.SourceDefault {
 		c.SetDefault(key, newValue)
 		return
 	}
 
 	// modify the config then release the lock to avoid deadlocks while notifying
-	var receivers []NotificationReceiver
+	var receivers []model.NotificationReceiver
 	c.Lock()
 
 	oldValue := c.Viper.Get(key)
@@ -205,21 +118,21 @@ func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
 
 // SetWithoutSource sets the given value using source Unknown
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
-	c.Set(key, value, SourceUnknown)
+	c.Set(key, value, model.SourceUnknown)
 }
 
 // SetDefault wraps Viper for concurrent access
 func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceDefault].Set(key, value)
+	c.configSources[model.SourceDefault].Set(key, value)
 	c.Viper.SetDefault(key, value)
 }
 
 // UnsetForSource unsets a config entry for a given source
-func (c *safeConfig) UnsetForSource(key string, source Source) {
+func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	// modify the config then release the lock to avoid deadlocks while notifying
-	var receivers []NotificationReceiver
+	var receivers []model.NotificationReceiver
 	c.Lock()
 	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
@@ -242,7 +155,7 @@ func (c *safeConfig) UnsetForSource(key string, source Source) {
 // (it must be used with a lock to prevent concurrent access to Viper)
 func (c *safeConfig) mergeViperInstances(key string) {
 	var val interface{}
-	for _, source := range sources {
+	for _, source := range model.Sources {
 		if currVal := c.configSources[source].Get(key); currVal != nil {
 			val = currVal
 		}
@@ -374,13 +287,13 @@ func (c *safeConfig) Get(key string) interface{} {
 }
 
 // GetAllSources returns the value of a key for each source
-func (c *safeConfig) GetAllSources(key string) []ValueWithSource {
+func (c *safeConfig) GetAllSources(key string) []model.ValueWithSource {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	vals := make([]ValueWithSource, len(sources))
-	for i, source := range sources {
-		vals[i] = ValueWithSource{
+	vals := make([]model.ValueWithSource, len(model.Sources))
+	for i, source := range model.Sources {
+		vals[i] = model.ValueWithSource{
 			Source: source,
 			Value:  deepcopy.Copy(c.configSources[source].Get(key)),
 		}
@@ -558,12 +471,12 @@ func (c *safeConfig) GetSizeInBytes(key string) uint {
 }
 
 // GetSource wraps Viper for concurrent access
-func (c *safeConfig) GetSource(key string) Source {
+func (c *safeConfig) GetSource(key string) model.Source {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	var source Source
-	for _, s := range sources {
+	var source model.Source
+	for _, s := range model.Sources {
 		if c.configSources[s].Get(key) != nil {
 			source = s
 		}
@@ -576,7 +489,7 @@ func (c *safeConfig) GetSource(key string) Source {
 func (c *safeConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceEnvVar].SetEnvPrefix(in)
+	c.configSources[model.SourceEnvVar].SetEnvPrefix(in)
 	c.Viper.SetEnvPrefix(in)
 	c.envPrefix = in
 }
@@ -610,7 +523,7 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	}
 
 	newKeys := append([]string{key}, envvars...)
-	_ = c.configSources[SourceEnvVar].BindEnv(newKeys...)
+	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...)
 	_ = c.Viper.BindEnv(newKeys...)
 }
 
@@ -618,18 +531,24 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceEnvVar].SetEnvKeyReplacer(r)
+	c.configSources[model.SourceEnvVar].SetEnvKeyReplacer(r)
 	c.Viper.SetEnvKeyReplacer(r)
 	c.envKeyReplacer = r
 }
 
 // UnmarshalKey wraps Viper for concurrent access
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
+func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return c.Viper.UnmarshalKey(key, rawVal, opts...)
+
+	decodeOptions := []viper.DecoderConfigOption{}
+	for _, opt := range opts {
+		decodeOptions = append(decodeOptions, viper.DecoderConfigOption(opt))
+	}
+
+	return c.Viper.UnmarshalKey(key, rawVal, decodeOptions...)
 }
 
 // ReadInConfig wraps Viper for concurrent access
@@ -637,8 +556,12 @@ func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
 	// ReadInConfig reset configuration with the main config file
-	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[SourceFile].ReadInConfig())
+	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[model.SourceFile].ReadInConfig())
+	var e viper.ConfigFileNotFoundError
 	if err != nil {
+		if errors.As(err, &e) {
+			return model.ConfigFileNotFoundError{Err: err}
+		}
 		return err
 	}
 
@@ -659,7 +582,7 @@ func (c *safeConfig) ReadInConfig() error {
 
 	// Merge with base config and 'file' config
 	for _, confFile := range extraConfContents {
-		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(confFile.content)), c.configSources[SourceFile].MergeConfig(bytes.NewReader(confFile.content)))
+		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(confFile.content)), c.configSources[model.SourceFile].MergeConfig(bytes.NewReader(confFile.content)))
 		if err != nil {
 			return fmt.Errorf("error merging %s config file: %w", confFile.path, err)
 		}
@@ -680,7 +603,7 @@ func (c *safeConfig) ReadConfig(in io.Reader) error {
 	if err != nil {
 		return err
 	}
-	return c.configSources[SourceFile].ReadConfig(bytes.NewReader(b))
+	return c.configSources[model.SourceFile].ReadConfig(bytes.NewReader(b))
 }
 
 // MergeConfig wraps Viper for concurrent access
@@ -712,12 +635,12 @@ func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	}
 	defer in.Close()
 
-	c.configSources[SourceFleetPolicies].SetConfigType("yaml")
-	err = c.configSources[SourceFleetPolicies].MergeConfigOverride(in)
+	c.configSources[model.SourceFleetPolicies].SetConfigType("yaml")
+	err = c.configSources[model.SourceFleetPolicies].MergeConfigOverride(in)
 	if err != nil {
 		return err
 	}
-	for _, key := range c.configSources[SourceFleetPolicies].AllKeys() {
+	for _, key := range c.configSources[model.SourceFleetPolicies].AllKeys() {
 		c.mergeViperInstances(key)
 	}
 	log.Infof("Fleet policies configuration %s successfully merged", path.Base(configPath))
@@ -745,15 +668,15 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
-func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
+func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.Lock()
 	defer c.Unlock()
 
-	res := map[Source]interface{}{}
-	for _, source := range sources {
+	res := map[model.Source]interface{}{}
+	for _, source := range model.Sources {
 		res[source] = c.configSources[source].AllSettingsWithoutDefault()
 	}
-	res[SourceProvided] = c.Viper.AllSettingsWithoutDefault()
+	res[model.SourceProvided] = c.Viper.AllSettingsWithoutDefault()
 	return res
 }
 
@@ -761,7 +684,7 @@ func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 func (c *safeConfig) AddConfigPath(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceFile].AddConfigPath(in)
+	c.configSources[model.SourceFile].AddConfigPath(in)
 	c.Viper.AddConfigPath(in)
 }
 
@@ -798,7 +721,7 @@ func (c *safeConfig) AddExtraConfigPaths(ins []string) error {
 func (c *safeConfig) SetConfigName(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceFile].SetConfigName(in)
+	c.configSources[model.SourceFile].SetConfigName(in)
 	c.Viper.SetConfigName(in)
 }
 
@@ -806,7 +729,7 @@ func (c *safeConfig) SetConfigName(in string) {
 func (c *safeConfig) SetConfigFile(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceFile].SetConfigFile(in)
+	c.configSources[model.SourceFile].SetConfigFile(in)
 	c.Viper.SetConfigFile(in)
 }
 
@@ -814,7 +737,7 @@ func (c *safeConfig) SetConfigFile(in string) {
 func (c *safeConfig) SetConfigType(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[SourceFile].SetConfigType(in)
+	c.configSources[model.SourceFile].SetConfigType(in)
 	c.Viper.SetConfigType(in)
 }
 
@@ -828,7 +751,7 @@ func (c *safeConfig) ConfigFileUsed() string {
 func (c *safeConfig) SetTypeByDefaultValue(in bool) {
 	c.Lock()
 	defer c.Unlock()
-	for _, source := range sources {
+	for _, source := range model.Sources {
 		c.configSources[source].SetTypeByDefaultValue(in)
 	}
 	c.Viper.SetTypeByDefaultValue(in)
@@ -851,25 +774,25 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars .
 	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
-func (c *safeConfig) Warnings() *Warnings {
+func (c *safeConfig) Warnings() *model.Warnings {
 	return nil
 }
 
-func (c *safeConfig) Object() Reader {
+func (c *safeConfig) Object() model.Reader {
 	return c
 }
 
 // NewConfig returns a new Config object.
-func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
+func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := safeConfig{
 		Viper:         viper.New(),
-		configSources: map[Source]*viper.Viper{},
+		configSources: map[model.Source]*viper.Viper{},
 		configEnvVars: map[string]struct{}{},
 		unknownKeys:   map[string]struct{}{},
 	}
 
 	// load one Viper instance per source of setting change
-	for _, source := range sources {
+	for _, source := range model.Sources {
 		config.configSources[source] = viper.New()
 	}
 
@@ -882,12 +805,12 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 }
 
 // Stringify stringifies the config, but only for nodetremodel with the test build tag
-func (c *safeConfig) Stringify(_ Source) string {
+func (c *safeConfig) Stringify(_ model.Source) string {
 	return "safeConfig{...}"
 }
 
 // GetProxies returns the proxy settings from the configuration
-func (c *safeConfig) GetProxies() *Proxy {
+func (c *safeConfig) GetProxies() *model.Proxy {
 	c.Lock()
 	defer c.Unlock()
 	if c.proxies != nil {
@@ -899,7 +822,7 @@ func (c *safeConfig) GetProxies() *Proxy {
 	if c.Viper.GetString("proxy.http") == "" && c.Viper.GetString("proxy.https") == "" && len(c.Viper.GetStringSlice("proxy.no_proxy")) == 0 {
 		return nil
 	}
-	p := &Proxy{
+	p := &model.Proxy{
 		HTTP:    c.Viper.GetString("proxy.http"),
 		HTTPS:   c.Viper.GetString("proxy.https"),
 		NoProxy: c.Viper.GetStringSlice("proxy.no_proxy"),
