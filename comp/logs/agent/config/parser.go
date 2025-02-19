@@ -14,7 +14,7 @@ import (
 )
 
 type yamlLogsConfigsWrapper struct {
-	Logs []*yamlLogsConfig
+	Logs []*LogsConfig
 }
 
 // ParseJSON parses the data formatted in JSON
@@ -37,9 +37,5 @@ func ParseYAML(data []byte) ([]*LogsConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not decode YAML logs config: %v", err)
 	}
-	var configs []*LogsConfig
-	for _, config := range yamlConfigsWrapper.Logs {
-		configs = append(configs, config.processYAMLConfig())
-	}
-	return configs, nil
+	return yamlConfigsWrapper.Logs, nil
 }

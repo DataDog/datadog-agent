@@ -27,7 +27,7 @@ func TestParseJSONWithValidFormatShouldSucceed(t *testing.T) {
 	config = configs[0]
 	assert.Equal(t, "any_source", config.Source)
 	assert.Equal(t, "any_service", config.Service)
-	assert.Equal(t, []string{"a", "b:d"}, config.Tags)
+	assert.EqualValues(t, []string{"a", "b:d"}, config.Tags)
 
 	configs, err = ParseJSON([]byte(`[{"source":"any_source","service":"any_service","log_processing_rules":[{"type":"multi_line","name":"numbers","pattern":"[0-9]"}]}]`))
 	assert.Nil(t, err)

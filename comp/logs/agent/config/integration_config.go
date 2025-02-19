@@ -8,7 +8,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -82,11 +81,12 @@ type LogsConfig struct {
 	// ChannelTagsMutex guards ChannelTags.
 	ChannelTagsMutex sync.Mutex
 
-	Service         string
-	Source          string
-	SourceCategory  string
-	Tags            []string
-	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+	Service        string
+	Source         string
+	SourceCategory string
+
+	Tags            TagsField
+	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message"`
 
@@ -95,136 +95,24 @@ type LogsConfig struct {
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
 }
 
-type yamlLogsConfig struct {
-	Type string
+type TagsField []string
 
-	IntegrationName string
+func (t *TagsField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err == nil {
+		*t = strings.Split(str, ", ")
+		return nil
+	}
 
-	Port        int    // Network
-	IdleTimeout string `yaml:"idle_timeout"` // Network
-	Path        string // File, Journald
-
-	Encoding     string   // File
-	ExcludePaths []string `yaml:"exclude_paths"`  // File
-	TailingMode  string   `yaml:"start_position"` // File
-
-	//nolint:revive // TODO(AML) Fix revive linter
-	ConfigId           string   `yaml:"config_id"`          // Journald
-	IncludeSystemUnits []string `yaml:"include_units"`      // Journald
-	ExcludeSystemUnits []string `yaml:"exclude_units"`      // Journald
-	IncludeUserUnits   []string `yaml:"include_user_units"` // Journald
-	ExcludeUserUnits   []string `yaml:"exclude_user_units"` // Journald
-	IncludeMatches     []string `yaml:"include_matches"`    // Journald
-	ExcludeMatches     []string `yaml:"exclude_matches"`    // Journald
-	ContainerMode      bool     `yaml:"container_mode"`     // Journald
-
-	Image string // Docker
-	Label string // Docker
-	// Name contains the container name
-	Name string // Docker
-	// Identifier contains the container ID.  This is also set for File sources and used to
-	// determine the appropriate tags for the logs.
-	Identifier string // Docker, File
-
-	ChannelPath string `yaml:"channel_path"` // Windows Event
-	Query       string // Windows Event
-
-	// used as input only by the Channel tailer.
-	// could have been unidirectional but the tailer could not close it in this case.
-	Channel chan *ChannelMessage
-
-	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
-	// modified at runtime (as long as ChannelTagsMutex is held).
-	ChannelTags []string
-
-	// ChannelTagsMutex guards ChannelTags.
-	ChannelTagsMutex sync.Mutex
-
-	Service         string
-	Source          string
-	SourceCategory  string
-	Tags            interface{}
-	ProcessingRules []*ProcessingRule `yaml:"log_processing_rules"`
-	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
-	ProcessRawMessage *bool `yaml:"process_raw_message"`
-
-	AutoMultiLine               *bool   `yaml:"auto_multi_line_detection"`
-	AutoMultiLineSampleSize     int     `yaml:"auto_multi_line_sample_size"`
-	AutoMultiLineMatchThreshold float64 `yaml:"auto_multi_line_match_threshold"`
-}
-
-func (c *yamlLogsConfig) processYAMLConfig() *LogsConfig {
-	var tags []string
-	// tags can be represented either this way:
-	// tags: a, b:c
-	// or this way:
-	// tags:
-	//   - a
-	//   - b:c
-	if c.Tags != nil {
-		switch v := c.Tags.(type) {
-		case string:
-			tags = strings.Split(v, ", ")
-		case []interface{}:
-			for _, item := range v {
-				if str, ok := item.(string); ok {
-					tags = append(tags, str)
-				}
+	var raw []interface{}
+	if err := unmarshal(&raw); err == nil {
+		for _, item := range raw {
+			if str, ok := item.(string); ok {
+				*t = append(*t, str)
 			}
 		}
 	}
-
-	// need to compile the regex for the processing rules
-	var processedRules []*ProcessingRule
-	if c.ProcessingRules != nil {
-		for _, rule := range c.ProcessingRules {
-			if rule == nil {
-				continue
-			}
-			compiledRegex, err := regexp.Compile(rule.Pattern)
-			if err != nil {
-				continue
-			}
-			rule.Regex = compiledRegex
-			processedRules = append(processedRules, rule)
-		}
-	}
-
-	return &LogsConfig{
-		Type:                        c.Type,
-		IntegrationName:             c.IntegrationName,
-		Port:                        c.Port,
-		IdleTimeout:                 c.IdleTimeout,
-		Path:                        c.Path,
-		Encoding:                    c.Encoding,
-		ExcludePaths:                c.ExcludePaths,
-		TailingMode:                 c.TailingMode,
-		ConfigId:                    c.ConfigId,
-		IncludeSystemUnits:          c.IncludeSystemUnits,
-		ExcludeSystemUnits:          c.ExcludeSystemUnits,
-		IncludeUserUnits:            c.IncludeUserUnits,
-		ExcludeUserUnits:            c.ExcludeUserUnits,
-		IncludeMatches:              c.IncludeMatches,
-		ExcludeMatches:              c.ExcludeMatches,
-		ContainerMode:               c.ContainerMode,
-		Image:                       c.Image,
-		Label:                       c.Label,
-		Name:                        c.Name,
-		Identifier:                  c.Identifier,
-		ChannelPath:                 c.ChannelPath,
-		Query:                       c.Query,
-		Channel:                     c.Channel,
-		ChannelTags:                 c.ChannelTags,
-		Service:                     c.Service,
-		Source:                      c.Source,
-		SourceCategory:              c.SourceCategory,
-		Tags:                        tags,
-		ProcessingRules:             processedRules,
-		ProcessRawMessage:           c.ProcessRawMessage,
-		AutoMultiLine:               c.AutoMultiLine,
-		AutoMultiLineSampleSize:     c.AutoMultiLineSampleSize,
-		AutoMultiLineMatchThreshold: c.AutoMultiLineMatchThreshold,
-	}
+	return fmt.Errorf("invalid tags format")
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
