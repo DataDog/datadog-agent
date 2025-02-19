@@ -74,7 +74,7 @@ def ask_reviews(_, pr_id):
 
 
 @task
-def add_reviewers(ctx, pr_id):
+def add_reviewers(ctx, pr_id, dry_run=False):
     """
     Add team labels and reviewers to a dependabot bump PR based on the changed dependencies
     """
@@ -93,7 +93,10 @@ def add_reviewers(ctx, pr_id):
             match_folder = re.match(r"^in (\S+).*$", match.group(2))
             folder = match_folder.group(1).removeprefix("/")
     else:
-        match = re.match(r"^Bump (\S+) from (\S+) to (\S+)$", pr.title)
+        match = re.match(r"^Bump (\S+) from (\S+) to (\S+)( in .*)?$", pr.title)
+        if match.group(4):
+            match_folder = re.match(r"^ in (\S+).*$", match.group(4))
+            folder = match_folder.group(1).removeprefix("/")
     dependency = match.group(1)
 
     # Find the responsible person for each file
@@ -116,6 +119,9 @@ def add_reviewers(ctx, pr_id):
                         if dependency in line:
                             owners.update(set(search_owners(file, ".github/CODEOWNERS")))
                             break
+    if dry_run:
+        print(f"Owners for {dependency}: {owners}")
+        return
     # Teams are added by slug, so we need to remove the @DataDog/ prefix
     pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
     pr.add_to_labels("ask-review")
