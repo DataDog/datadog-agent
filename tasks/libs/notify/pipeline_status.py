@@ -69,7 +69,7 @@ def send_message(pipeline_id, dry_run):
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
 
-    client = WebClient(token=os.environ["SLACK_API_TOKEN"])
+    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     client.chat_postMessage(channel=slack_channel, text=str(message))
     if should_send_message_to_author(pipeline.ref, get_default_branch()):
         author_email = commit.author_email
