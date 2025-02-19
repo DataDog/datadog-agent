@@ -31,6 +31,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
@@ -51,6 +52,7 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect

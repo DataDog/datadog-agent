@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -1109,6 +1110,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
+	// used to override the acceptable duration for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
+	config.BindEnvAndSetDefault("auth_init_timeout", 10*time.Second)
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -2120,10 +2123,24 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	// port_range_start + 14: compliance
 	// port_range_start + 15: network devices netflow
 
+	// The `datadog-fips-agent` flavor is incompatible with the fips-proxy and we do not want to downgrade to http or
+	// route traffic through a proxy for the above products
+	fipsFlavor, err := pkgfips.Enabled()
+	if err != nil {
+		return err
+	}
+
+	if fipsFlavor {
+		log.Debug("FIPS mode is enabled in the agent. Ignoring fips-proxy settings")
+		return nil
+	}
+
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
 		return nil
 	}
+
+	log.Warnf("(Deprecated) fips-proxy support is deprecated and will be removed in version 7.65 of the agent. Please use the `datadog-fips-agent` instead.")
 
 	const (
 		proxyStats                 = 0

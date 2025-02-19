@@ -47,6 +47,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0 // indirect
@@ -67,7 +68,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/sketches-go v1.4.6 // indirect
+	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -81,6 +82,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

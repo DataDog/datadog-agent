@@ -159,10 +159,10 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	// shorten timeout for tests
 	s.host.Run("sudo mkdir -p /etc/systemd/system/datadog-agent-exp.service.d/")
 	defer s.host.Run("sudo rm -rf /etc/systemd/system/datadog-agent-exp.service.d/")
-	s.host.Run(`echo -e "[Unit]\nJobTimeoutSec=5" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
+	s.host.Run(`echo -e "[Unit]\nJobTimeoutSec=15" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
 	s.host.Run(`sudo systemctl daemon-reload`)
 
-	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "5s")
+	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "15s")
 
 	timestamp := s.host.LastJournaldTimestamp()
 	s.host.Run(`sudo systemctl start datadog-agent-exp --no-block`)

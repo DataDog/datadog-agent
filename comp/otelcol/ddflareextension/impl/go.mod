@@ -75,6 +75,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0 // indirect
@@ -83,6 +84,7 @@ require (
 	github.com/alecthomas/assert/v2 v2.6.0 // indirect
 	github.com/alecthomas/repr v0.4.0 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
@@ -204,7 +206,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.26.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0 // indirect
-	github.com/DataDog/sketches-go v1.4.6 // indirect
+	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect

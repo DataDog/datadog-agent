@@ -1073,12 +1073,12 @@ def get_next_version(gh, latest_release=None):
 
 
 @task
-def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     """Task to run after the release is done to generate release metrics.
 
     Args:
         milestone: Github milestone number for the release. Expected format like '7.54.0'
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cutoff was started. Expected format YYYY-MM-DD, like '2022-02-01'
         release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
 
     Notes:
@@ -1087,17 +1087,20 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     """
 
     # Step 1: Lead Time for Changes data
-    lead_time = get_release_lead_time(freeze_date, release_date)
+    lead_time = get_release_lead_time(cutoff_date, release_date)
     print("Lead Time for Changes data")
     print("--------------------------")
     print(lead_time)
 
     # Step 2: Agent stability data
-    prs = get_prs_metrics(milestone, freeze_date)
+    prs = get_prs_metrics(milestone, cutoff_date)
     print("\n")
-    print("Agent stability data")
+    print("Agent stability data: Pull Requests")
     print("--------------------")
-    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    print(
+        f"total: {prs['total']}, before_cutoff: {prs['before_cutoff']}, on_cutoff: {prs['on_cutoff']}, after_cutoff: {prs['after_cutoff']}"
+    )
 
     # Step 3: Code changes
     code_stats = ctx.run(

@@ -57,6 +57,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.61.0 // indirect
@@ -97,7 +98,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.26.0 // indirect
-	github.com/DataDog/sketches-go v1.4.6 // indirect
+	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -122,6 +123,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect

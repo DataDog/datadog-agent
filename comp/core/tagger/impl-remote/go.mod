@@ -52,6 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
@@ -74,6 +75,7 @@ require (
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.0 // indirect

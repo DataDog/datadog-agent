@@ -74,7 +74,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
-	github.com/DataDog/sketches-go v1.4.6 // indirect
+	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -183,7 +183,12 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.59.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/knadh/koanf/maps v0.1.1 // indirect
 	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
