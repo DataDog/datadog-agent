@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
@@ -38,7 +38,7 @@ type OTelMetadata struct {
 	Description      string `json:"description"`
 	Enabled          bool   `json:"enabled"`
 	ExtensionVersion string `json:"extension_version"`
-	extension.ConfigResponse
+	extensiontypes.ConfigResponse
 }
 
 // TestOTelAgentInstalled checks that the OTel Agent is installed in the test suite
@@ -87,7 +87,7 @@ func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg
 	otelflares := fetchFromFlare(s.T(), flare)
 
 	require.Contains(s.T(), otelflares, "otel/otel-response.json")
-	var resp extension.Response
+	var resp extensiontypes.Response
 	require.NoError(s.T(), json.Unmarshal([]byte(otelflares["otel/otel-response.json"]), &resp))
 
 	assert.Equal(s.T(), "otel-agent", resp.AgentCommand)

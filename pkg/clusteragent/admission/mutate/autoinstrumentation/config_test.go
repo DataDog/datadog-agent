@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,12 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Version:          "v2",
 				InjectorImageTag: "foo",
 			},
+		},
+		{
+			name:       "config with extra fields errors",
+			configPath: "testdata/extra_fields.yaml",
+			shouldErr:  true,
+			expected:   nil,
 		},
 		{
 			name:       "valid config disabled namespaces",
@@ -68,7 +75,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						PodSelector: PodSelector{
+						PodSelector: &PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
@@ -80,7 +87,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: NamespaceSelector{
+						NamespaceSelector: &NamespaceSelector{
 							MatchNames: []string{"billing"},
 						},
 						TracerVersions: map[string]string{
@@ -116,7 +123,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						PodSelector: PodSelector{
+						PodSelector: &PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
@@ -128,7 +135,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: NamespaceSelector{
+						NamespaceSelector: &NamespaceSelector{
 							MatchLabels: map[string]string{
 								"app": "billing",
 							},
@@ -188,6 +195,67 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestTargetEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []Target
+	}{
+		{
+			name: "valid target",
+			expected: []Target{
+				{
+					Name: "Billing Service",
+					PodSelector: &PodSelector{
+						MatchLabels: map[string]string{
+							"app": "billing-service",
+						},
+						MatchExpressions: []SelectorMatchExpression{
+							{
+								Key:      "env",
+								Operator: "In",
+								Values:   []string{"prod"},
+							},
+						},
+					},
+					NamespaceSelector: &NamespaceSelector{
+						MatchNames: []string{"billing"},
+					},
+					TracerVersions: map[string]string{
+						"java": "default",
+					},
+				},
+			},
+		},
+		{
+			name: "target with many omitted fields",
+			expected: []Target{
+				{
+					Name: "Billing Service",
+					PodSelector: &PodSelector{
+						MatchLabels: map[string]string{
+							"app": "billing-service",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+
+			t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
+
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expected, actual.Targets)
 		})
 	}
 }

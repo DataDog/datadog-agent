@@ -46,7 +46,7 @@ const (
 
 var (
 	// defaultRingBufferSize controls the amount of memory in bytes used for buffering perf event data
-	defaultRingBufferSize = os.Getpagesize()
+	defaultRingBufferSize = 2 * os.Getpagesize()
 )
 
 // bpfMapName stores the name of the BPF maps storing statistics and other info
@@ -302,6 +302,9 @@ func (p *Probe) setupSharedBuffer(o *manager.Options) {
 
 	p.m.Manager.RingBuffers = append(p.m.Manager.RingBuffers, rb)
 	p.eventHandler = rbHandler
+
+	rb.TelemetryEnabled = true
+	ebpftelemetry.ReportRingBufferTelemetry(rb)
 }
 
 // CollectConsumedEvents waits until the debug collector stores count events and returns them
