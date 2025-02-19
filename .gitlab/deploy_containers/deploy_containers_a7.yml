@@ -85,7 +85,7 @@ include:
   dependencies: []
   before_script:
     - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)-fips" || exit $?; fi
-    - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-${JMX}-arm64"
+    - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
 
 deploy_containers-a7:
