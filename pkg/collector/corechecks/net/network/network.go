@@ -237,6 +237,14 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 
 func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
 	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name), fmt.Sprintf("device_name:%s", interfaceIO.Name)}
+	speedVal, err := readIntFile(fmt.Sprintf("/sys/class/net/%s/speed", interfaceIO.Name), filesystem)
+	if err == nil {
+		tags = append(tags, fmt.Sprintf("speed:%s", strconv.Itoa(speedVal)))
+	}
+	mtuVal, err := readIntFile(fmt.Sprintf("/sys/class/net/%s/mtu", interfaceIO.Name), filesystem)
+	if err == nil {
+		tags = append(tags, fmt.Sprintf("mtu:%s", strconv.Itoa(mtuVal)))
+	}
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
 	sender.Rate("system.net.packets_in.count", float64(interfaceIO.PacketsRecv), "", tags)

@@ -390,12 +390,23 @@ collect_ethtool_stats: true
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	err = afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
+		`10000`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
+		`1500`),
+		0644)
+	assert.Nil(t, err)
+
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
 	var customTags []string
 
-	eth0Tags := []string{"device:eth0", "device_name:eth0"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -536,10 +547,21 @@ excluded_interfaces:
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err := networkCheck.Run()
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	err := afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
+		`10000`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
+		`1500`),
+		0644)
 	assert.Nil(t, err)
 
-	eth0Tags := []string{"device:eth0", "device_name:eth0"}
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -616,10 +638,21 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	err = afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
+		`10000`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
+		`1500`),
+		0644)
+	assert.Nil(t, err)
+
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	eth0Tags := []string{"device:eth0", "device_name:eth0"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
