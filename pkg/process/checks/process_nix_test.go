@@ -376,8 +376,6 @@ func TestFormatCPUTimes(t *testing.T) {
 	}
 }
 func TestProcessGPUTagging(t *testing.T) {
-	const maxBatchBytes = 1000000
-	const maxBatchSize = 10
 	p := []*procutil.Process{
 		makeProcess(1, "git clone google.com"),
 		makeProcess(2, "mine-bitcoins -all -x"),
