@@ -22,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -142,6 +143,25 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedAnnotations: map[string]string{
 				AppliedTargetAnnotation: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+			},
+		},
+		"service name is applied when set in tracer configs": {
+			configPath: "testdata/filter_simple_service.yaml",
+			in: common.FakePodSpec{
+				Labels:     map[string]string{"language": "python"},
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-1234",
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				"registry/dd-lib-python-init:v2",
+			},
+			expectedEnv: map[string]string{
+				"DD_SERVICE": "best-service",
 			},
 		},
 	}
