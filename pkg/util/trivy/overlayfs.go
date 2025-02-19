@@ -88,7 +88,7 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 
 	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 
-	trivyReport, err := c.scan(ctx, containerArtifact, applier.NewApplier(cache), imgMeta, nil)
+	trivyReport, err := c.scan(ctx, containerArtifact, applier.NewApplier(cache))
 	if err != nil {
 		if imgMeta != nil {
 			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
