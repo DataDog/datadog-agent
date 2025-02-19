@@ -931,20 +931,21 @@ def gitlab_ci_shellcheck(
                         break
 
         if errors:
-            for job, error in sorted(errors.items()):
-                with gitlab_section(f"Shellcheck errors for {job}"):
-                    print(f"{color_message('Error', Color.RED)}: {job}")
-                    print('Script:')
-                    if use_bat:
-                        res = ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh", hide=True)
-                        # Avoid buffering issues
-                        print(res.stdout)
-                        print(res.stderr)
-                    else:
-                        with open(f'{tmpdir}/{job}.sh') as f:
-                            print(f.read())
-                    print('\nError:')
-                    print(error)
+            with gitlab_section(color_message("Shellcheck errors", color=Color.ORANGE), collapsed=True):
+                for job, error in sorted(errors.items()):
+                    with gitlab_section(f"Shellcheck errors for {job}"):
+                        print(f"{color_message('Error', Color.RED)}: {job}")
+                        print('Script:')
+                        if use_bat:
+                            res = ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh", hide=True)
+                            # Avoid buffering issues
+                            print(res.stdout)
+                            print(res.stderr)
+                        else:
+                            with open(f'{tmpdir}/{job}.sh') as f:
+                                print(f.read())
+                        print('\nError:')
+                        print(error)
 
             raise Exit(
                 f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
