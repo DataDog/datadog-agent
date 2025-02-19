@@ -184,8 +184,29 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 	}
 
 	e.startSendHeartbeatEvents(ctx)
+	e.statNotifyAPIServerOfSeclVariables(ctx)
 
 	return nil
+}
+
+func (e *RuleEngine) statNotifyAPIServerOfSeclVariables(ctx context.Context) {
+	// updating the SECL variables values every 5 seconds
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				e.notifyAPIServerOfSeclVariables()
+			}
+		}
+	}()
 }
 
 func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
@@ -238,9 +259,6 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-heartbeatTicker.C:
-				// here for now, we can move it to a more appropriate place later
-				e.notifyAPIServerOfSeclVariables()
-
 				tags := []string{
 					fmt.Sprintf("version:%s", version.AgentVersion),
 					fmt.Sprintf("os:%s", runtime.GOOS),
