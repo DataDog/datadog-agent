@@ -41,7 +41,7 @@ func TestSendAndReceive(t *testing.T) {
 			sendFunc: func(_ rawConnWrapper, _ *ipv4.Header, _ []byte) error {
 				return fmt.Errorf("sendPacket error")
 			},
-			listenFunc: func(_, _, _ time.Duration, _, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
+			listenFunc: func(_ rawConnWrapper, _ rawConnWrapper, _ time.Duration, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
 				return packetResponse{}
 			},
 			expected: nil,
@@ -53,7 +53,7 @@ func TestSendAndReceive(t *testing.T) {
 			sendFunc: func(_ rawConnWrapper, _ *ipv4.Header, _ []byte) error {
 				return nil
 			},
-			listenFunc: func(_, _, _ time.Duration, _, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
+			listenFunc: func(_ rawConnWrapper, _ rawConnWrapper, _ time.Duration, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
 				return packetResponse{Err: fmt.Errorf("listenPackets error")}
 			},
 			expected: nil,
@@ -65,7 +65,7 @@ func TestSendAndReceive(t *testing.T) {
 			sendFunc: func(_ rawConnWrapper, _ *ipv4.Header, _ []byte) error {
 				return nil
 			},
-			listenFunc: func(_, _, _ time.Duration, _, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
+			listenFunc: func(_ rawConnWrapper, _ rawConnWrapper, _ time.Duration, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) packetResponse {
 				return packetResponse{
 					IP:   net.ParseIP("7.8.9.0"),
 					Type: 2,

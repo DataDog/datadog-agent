@@ -24,6 +24,8 @@ var (
 )
 
 type (
+	// RawConnWrapper is an interface that abstracts the raw socket
+	// connection for Windows
 	RawConnWrapper interface {
 		ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error)
 		SendRawPacket(destIP net.IP, destPort uint16, payload []byte) error
