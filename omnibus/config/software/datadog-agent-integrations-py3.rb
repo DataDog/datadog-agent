@@ -265,7 +265,7 @@ build do
     block "Patch cryptography's openssl linking" do
       if linux_target?
         # We delete the libraries shipped with the wheel and replace references to those names
-        # in the binary that refrences it using patchelf
+        # in the binary that references it using patchelf
         cryptography_folder = "#{install_dir}/embedded/lib/python#{python_version}/site-packages/cryptography"
         so_to_patch = "#{cryptography_folder}/hazmat/bindings/_rust.abi3.so"
         libssl_match = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")[0]
