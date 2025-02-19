@@ -99,7 +99,7 @@ lint_github_actions_workflows:
         paths:
           - .github/workflows/**/*.yml
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-        when: on_success
+      when: on_success
     - when: never
   allow_failure: true
   script:
