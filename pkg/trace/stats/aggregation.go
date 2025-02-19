@@ -7,7 +7,6 @@
 package stats
 
 import (
-	"fmt"
 	"hash/fnv"
 	"sort"
 	"strconv"
