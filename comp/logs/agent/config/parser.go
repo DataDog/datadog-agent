@@ -13,8 +13,8 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-type logConfigsWrapper struct {
-	Logs []*LogsConfig `yaml:"logs"`
+type yamlLogsConfigsWrapper struct {
+	Logs []*yamlLogsConfig `yaml:"logs"`
 }
 
 // ParseJSON parses the data formatted in JSON
@@ -31,11 +31,15 @@ func ParseJSON(data []byte) ([]*LogsConfig, error) {
 // ParseYAML parses the data formatted in YAML,
 // returns an error if the parsing failed.
 func ParseYAML(data []byte) ([]*LogsConfig, error) {
-	var wrapper logConfigsWrapper
+	var yamlConfigsWrapper yamlLogsConfigsWrapper
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	err := decoder.Decode(&wrapper)
+	err := decoder.Decode(&yamlConfigsWrapper)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode YAML logs config: %v", err)
 	}
-	return wrapper.Logs, nil
+	var configs []*LogsConfig
+	for _, config := range yamlConfigsWrapper.Logs {
+		configs = append(configs, config.processYAMLConfig())
+	}
+	return configs, nil
 }
