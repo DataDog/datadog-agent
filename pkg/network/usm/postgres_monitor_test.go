@@ -773,7 +773,9 @@ func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
 func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int, tls bool) {
 	found := make(map[string]map[postgres.Operation]int)
 	require.Eventually(t, func() bool {
-		postgresProtocolStats, exists := monitor.GetProtocolStats()[protocols.Postgres]
+		statsObj, cleaners := monitor.GetProtocolStats()
+		defer cleaners()
+		postgresProtocolStats, exists := statsObj[protocols.Postgres]
 		if !exists {
 			return false
 		}

@@ -2,6 +2,8 @@ module github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagent
 
 go 1.23.0
 
+toolchain go1.23.6
+
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
@@ -44,6 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.60.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sds v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.56.0-rc.3 // indirect
@@ -55,15 +58,15 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.60.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.62.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.60.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.60.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.60.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.59.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.62.2 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
@@ -185,6 +188,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai

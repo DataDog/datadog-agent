@@ -68,8 +68,8 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
-github.com/DataDog/go-sqllexer v0.0.20 h1:0fBknHo42yuhawZS3GtuQSdqcwaiojWjYNT6OdsZRfI=
-github.com/DataDog/go-sqllexer v0.0.20/go.mod h1:KwkYhpFEVIq+BfobkTC1vfqm4gTi65skV/DpDBXtexc=
+github.com/DataDog/go-sqllexer v0.0.21 h1:FfD3FXBPXL2wRSrwJKm/o3i++Qktn9jskCItRsmbRo0=
+github.com/DataDog/go-sqllexer v0.0.21/go.mod h1:KwkYhpFEVIq+BfobkTC1vfqm4gTi65skV/DpDBXtexc=
 github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4tiAupQ4=
 github.com/DataDog/go-tuf v1.1.0-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJKaNItsdzcrk4YqILNDZlXPTNt4k=
