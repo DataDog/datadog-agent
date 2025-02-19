@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -536,7 +537,12 @@ func (c command) mustRun(t *testing.T, args ...string) string {
 		for i, arg := range args {
 			cmdArgs = append(cmdArgs, arg)
 			if i == 1 { // right after "test"
-				cmdArgs = append(cmdArgs, "-ldflags=-w=false -s=false", "-count=1", "-timeout=30m")
+				cmdArgs = append(cmdArgs,
+					"-ldflags=-w=false -s=false",
+					"-gcflags=all=-l",
+					"-count=1",
+					"-timeout=30m",
+				)
 			}
 		}
 	} else {
@@ -552,7 +558,10 @@ func (c command) mustRun(t *testing.T, args ...string) string {
 	if c.Env != nil {
 		cmd.Env = c.Env
 	}
-	cmd.Env = append(cmd.Env, "PWD="+cmd.Dir)
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("PWD=%s", cmd.Dir),
+		fmt.Sprintf("DD_SERVICE=go-di-exploration-test-%d", rand.Int()),
+	)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
