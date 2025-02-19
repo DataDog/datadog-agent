@@ -22,12 +22,55 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 	}
 	addAPIKeySite(conf, coreCfg, "exporters", "datadog")
 	addAPIKeySite(conf, coreCfg, "extensions", "ddprofiling")
+	addEnv(conf, coreCfg)
+}
 
-
+// addEnv adds the env from core agent config to the profiler_options env setting,
+// if it is unset.
+func addEnv(conf *confmap.Conf, coreCfg config.Component) {
+	stringMapConf := conf.ToStringMap()
+	extensions, ok := stringMapConf["extensions"]
+	if !ok {
+		return
+	}
+	extensionMap, ok := extensions.(map[string]any)
+	if !ok {
+		return
+	}
+	for extension := range extensionMap {
+		if componentName(extension) == "ddprofiling" {
+			ddprofiling, ok := extensionMap[extension]
+			if !ok {
+				return
+			}
+			ddprofilingMap, ok := ddprofiling.(map[string]any)
+			if !ok {
+				ddprofilingMap = make(map[string]any)
+				extensionMap[extension] = ddprofilingMap
+			}
+			profilerOptions, ok := ddprofilingMap["profiler_options"]
+			if !ok {
+				profilerOptions = make(map[string]any)
+				ddprofilingMap["profiler_options"] = profilerOptions
+			}
+			profilerOptionsMap, ok := profilerOptions.(map[string]any)
+			if !ok {
+				return
+			}
+			if profilerOptionsMap["env"] != nil && profilerOptionsMap["env"] != "" {
+				return
+			}
+			if coreCfg.Get("env") == nil || coreCfg.Get("env") == "" {
+				return
+			}
+			profilerOptionsMap["env"] = coreCfg.Get("env")
+		}
+	}
+	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
 // addAPIKeySite adds the API key and site from core config to github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config.APIConfig.
-func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string , compName string) {
+func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string, compName string) {
 	stringMapConf := conf.ToStringMap()
 	components, ok := stringMapConf[compType]
 	if !ok {
@@ -55,6 +98,11 @@ func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string
 				datadogMap = componentMap[component].(map[string]any)
 			}
 			api, ok := datadogMap["api"]
+			if !ok && compName == "ddprofiling" {
+				// in otel-agent path, ddprofiling does not need api key/site,
+				// so it's expected not to be present. don't add it.
+				return
+			}
 			// ok can be true if api section is there but contains nothing (api == nil).
 			// In which case, we need to add it so we can add to it.
 			if !ok || api == nil {

@@ -12,10 +12,7 @@ processors:
   infraattributes/user-defined:
 
 exporters:
-  datadog:
-    api: 
-      key: ggggg77777
-      site: datadoghq.eu
+  nop:
 
 extensions:
   pprof/user-defined:
@@ -24,19 +21,21 @@ extensions:
     endpoint: "localhost:55679"
   ddflare/user-defined:
   ddprofiling:
-
+    profiler_options:
+      env: user-provided
+    
 service:
   extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined, ddprofiling]
   pipelines:
     traces:
       receivers: [otlp]
       processors: [infraattributes/user-defined]
-      exporters: [datadog]
+      exporters: [nop]
     metrics:
       receivers: [prometheus/user-defined]
       processors: [infraattributes/user-defined]
-      exporters: [datadog]
+      exporters: [nop]
     logs:
       receivers: [otlp]
       processors: [infraattributes/user-defined]
-      exporters: [datadog]
+      exporters: [nop]
