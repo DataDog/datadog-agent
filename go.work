@@ -78,7 +78,6 @@ use (
 	pkg/config/utils
 	pkg/config/viperconfig
 	pkg/errors
-	pkg/fleet/installer
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
