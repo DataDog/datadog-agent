@@ -216,19 +216,19 @@ func (i *InstallerExec) Setup(ctx context.Context) (err error) {
 
 // AvailableDiskSpace returns the available disk space.
 func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
+	repositories := repository.NewRepositories(paths.PackagesPath, nil)
 	return repositories.AvailableDiskSpace()
 }
 
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
+	repositories := repository.NewRepositories(paths.PackagesPath, nil)
 	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
+	repositories := repository.NewRepositories(paths.PackagesPath, nil)
 	states, err := repositories.GetStates()
 	log.Debugf("repositories states: %v", states)
 	return states, err
@@ -236,13 +236,13 @@ func (i *InstallerExec) States() (map[string]repository.State, error) {
 
 // ConfigState returns the state of a package's configuration.
 func (i *InstallerExec) ConfigState(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.ConfigsPath, paths.LocksPath)
+	repositories := repository.NewRepositories(paths.ConfigsPath, nil)
 	return repositories.Get(pkg).GetState()
 }
 
 // ConfigStates returns the states of all packages' configurations.
 func (i *InstallerExec) ConfigStates() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.ConfigsPath, paths.LocksPath)
+	repositories := repository.NewRepositories(paths.ConfigsPath, nil)
 	states, err := repositories.GetStates()
 	log.Debugf("config repositories states: %v", states)
 	return states, err

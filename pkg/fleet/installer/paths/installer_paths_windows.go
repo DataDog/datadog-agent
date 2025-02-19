@@ -34,8 +34,6 @@ var (
 	PackagesPath string
 	// ConfigsPath is the path to the Fleet-managed configuration directory
 	ConfigsPath string
-	// LocksPath is the path to the locks directory.
-	LocksPath string
 	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
 	RootTmpDir string
 	// DefaultUserConfigsDir is the default Agent configuration directory
@@ -50,7 +48,6 @@ func init() {
 	datadogInstallerData, _ = getProgramDataDirForProduct("Datadog Installer")
 	PackagesPath = filepath.Join(datadogInstallerData, "packages")
 	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
-	LocksPath = filepath.Join(datadogInstallerData, "locks")
 	RootTmpDir = filepath.Join(datadogInstallerData, "tmp")
 	datadogInstallerPath := "C:\\Program Files\\Datadog\\Datadog Installer"
 	StableInstallerPath = filepath.Join(datadogInstallerPath, "datadog-installer.exe")
