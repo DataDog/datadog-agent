@@ -30,8 +30,6 @@ Upgrade Notes
 New Features
 ------------
 
-- Add the capability in ``kubernetes_state_core`` check to collect metrics for Kubernetes custom resources
-
 - Add support of CIS AlmaLinux 9 Benchmark in CSPM.
 
 
@@ -61,9 +59,6 @@ Enhancement Notes
 - Agents are now built with Go ``1.23.5``.
 
 - Include Datadog Process Monitor (``ddprocmon``) service status in flare on Windows
-
-- Users can now enable a pod with SSI using a default language library version
-  and no longer need to pin to a specific version.
 
 - Language detection adds support for detecting PHP.
 

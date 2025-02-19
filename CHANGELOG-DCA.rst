@@ -166,6 +166,7 @@ New Features
 
 - The cluster-agent now can collect pod disruption budgets from the cluster.
 
+- Add the capability in ``kubernetes_state_core`` check to collect metrics for Kubernetes custom resources
 
 .. _Release Notes_7.61.0_Enhancement Notes:
 
@@ -176,6 +177,8 @@ Enhancement Notes
 
 - Cluster Agent: Don't overwrite the LD_PRELOAD environment variable if it's already set, append the path to Datadog's injection library instead.
 
+- Users can now enable a pod with SSI using a default language library version
+  and no longer need to pin to a specific version.
 
 .. _Release Notes_7.61.0_Bug Fixes:
 
