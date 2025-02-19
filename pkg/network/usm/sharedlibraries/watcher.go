@@ -353,7 +353,15 @@ func (w *Watcher) sync() {
 	}
 
 	if w.ebpfManager != nil && rawTracepointsNotSupported() {
-		err := w.CleanDeadPidsInMaps(w.ebpfManager, []string{"ssl_read_args", "ssl_read_ex_args"}, alivePIDs)
+		maps := []string{
+			"ssl_read_args",
+			"ssl_read_ex_args",
+			"ssl_write_args",
+			"ssl_write_ex_args",
+			"ssl_ctx_by_pid_tgid",
+			"bio_new_socket_args",
+		}
+		err := w.CleanDeadPidsInMaps(w.ebpfManager, maps, alivePIDs)
 		if err != nil {
 			log.Debugf("clean 'ssl_read_args' map error: %v", err)
 		}

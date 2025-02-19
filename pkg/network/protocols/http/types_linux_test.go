@@ -20,6 +20,14 @@ func TestCgoAlignment_SslReadExArgs(t *testing.T) {
 	ebpftest.TestCgoAlignment[SslReadExArgs](t)
 }
 
+func TestCgoAlignment_SslWriteArgs(t *testing.T) {
+	ebpftest.TestCgoAlignment[SslWriteArgs](t)
+}
+
+func TestCgoAlignment_SslWriteExArgs(t *testing.T) {
+	ebpftest.TestCgoAlignment[SslWriteExArgs](t)
+}
+
 func TestCgoAlignment_EbpfEvent(t *testing.T) {
 	ebpftest.TestCgoAlignment[EbpfEvent](t)
 }

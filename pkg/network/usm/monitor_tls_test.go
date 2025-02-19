@@ -1010,6 +1010,7 @@ func (s *tlsSuite) TestSSLMapsCleaner() {
 	// setup monitor
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
+	cfg.EnableUSMEventStream = false
 
 	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 
@@ -1021,6 +1022,18 @@ func (s *tlsSuite) TestSSLMapsCleaner() {
 		},
 		{
 			mapName: "ssl_read_ex_args",
+		},
+		{
+			mapName: "ssl_write_args",
+		},
+		{
+			mapName: "ssl_write_ex_args",
+		},
+		{
+			mapName: "ssl_ctx_by_pid_tgid",
+		},
+		{
+			mapName: "bio_new_socket_args",
 		},
 	}
 	for _, unit := range units {

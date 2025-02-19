@@ -28,6 +28,15 @@ type SslReadExArgs struct {
 	Buf       uint64
 	Out_param uint64
 }
+type SslWriteArgs struct {
+	Ctx uint64
+	Buf uint64
+}
+type SslWriteExArgs struct {
+	Ctx       uint64
+	Buf       uint64
+	Out_param uint64
+}
 
 type EbpfEvent struct {
 	Tuple ConnTuple

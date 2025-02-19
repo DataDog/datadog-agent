@@ -35,6 +35,10 @@ int tracepoint__sched__sched_process_exit(void *ctx) {
 
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
 
     return 0;
 }
@@ -46,6 +50,10 @@ int raw_tracepoint__sched_process_exit(void *ctx) {
 
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
 
     return 0;
 }
