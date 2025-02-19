@@ -140,10 +140,13 @@ def validate_manifest(manifest) -> list:
         if components:
             for component in components:
                 for module in component.values():
-                    if module.find(OCB_VERSION) == -1:
-                        raise YAMLValidationError(
-                            f"Component {module}) in manifest does not match required OCB version ({OCB_VERSION})"
-                        )
+                    module_info = module.split(" ")
+                    if len(module_info) == 2:
+                        _, module_version = module_info
+                        if not versions_equal(module_version, OCB_VERSION, True):
+                            raise YAMLValidationError(
+                                f"Component {module}) in manifest does not match required OCB version ({OCB_VERSION})"
+                            )
 
     # validate mandatory components are present
     missing_components = find_matching_components(manifest, MANDATORY_COMPONENTS, False)
