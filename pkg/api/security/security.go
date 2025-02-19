@@ -140,10 +140,10 @@ func GetAuthTokenFilepath(config configModel.Reader) string {
 	return filepath.Join(filepath.Dir(config.ConfigFileUsed()), authTokenName)
 }
 
-// FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
+// FetchAuthToken gets the authentication token from the auth token file
 // Requires that the config has been set up before calling
 func FetchAuthToken(config configModel.Reader) (string, error) {
-	return filesystem.FetchArtifact(GetAuthTokenFilepath(config), &authtokenFactory{})
+	return filesystem.TryFetchArtifact(GetAuthTokenFilepath(config), &authtokenFactory{}) // TODO IPC: replace this call by FetchArtifact to retry until the artifact is successfully retrieved or the context is done
 }
 
 // FetchOrCreateAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
@@ -185,7 +185,7 @@ func getClusterAgentAuthToken(ctx context.Context, config configModel.Reader, to
 	if tokenCreationAllowed {
 		return filesystem.FetchOrCreateArtifact(ctx, location, &authtokenFactory{})
 	}
-	authToken, err := filesystem.FetchArtifact(location, &authtokenFactory{})
+	authToken, err := filesystem.TryFetchArtifact(location, &authtokenFactory{})
 	if err != nil {
 		return "", fmt.Errorf("failed to load cluster agent auth token: %v", err)
 	}

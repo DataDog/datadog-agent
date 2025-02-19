@@ -31,9 +31,30 @@ type ArtifactBuilder[T any] interface {
 	Deserialize([]byte) (T, error)
 }
 
-// FetchArtifact attempts to load an artifact using the provided factory.
+// FetchArtifact attempts to fetch an artifact from the specified location using the provided factory.
+// This function is blocking and will keep retrying until either the artifact is successfully retrieved
+// or the provided context is done. If the context is done before the artifact is retrieved, it returns
+// an error indicating that the artifact could not be read in the given time.
+func FetchArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (T, error) {
+	var zero T
+	for {
+		res, err := TryFetchArtifact(location, factory)
+		if err == nil {
+			return res, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return zero, fmt.Errorf("unable to read the artifact in the given time")
+		case <-time.After(retryDelay):
+			// try again
+		}
+	}
+}
+
+// TryFetchArtifact attempts to load an artifact using the provided factory.
 // If the artifact does not exist, it return an error.
-func FetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, error) {
+func TryFetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, error) {
 	var zero T
 
 	// Read the artifact
@@ -62,12 +83,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	var zero T
 	var succeed bool
 
-	perms, err := NewPermission()
-	if err != nil {
-		return zero, log.Errorf("unable to init NewPermission: %v", err)
-	}
-
-	res, err := FetchArtifact(location, factory)
+	res, err := TryFetchArtifact(location, factory)
 	if err == nil {
 		return res, nil
 	}
@@ -104,7 +120,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	// trying to read artifact or locking file
 	for {
 		// First check if another process were able to create and save artifact during wait
-		res, err := FetchArtifact(location, factory)
+		res, err := TryFetchArtifact(location, factory)
 		if err == nil {
 			succeed = true
 			return res, nil
@@ -132,10 +148,15 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	log.Debugf("lock acquired for file %v", location)
 
 	// First check if another process were able to create and save artifact during lock
-	res, err = FetchArtifact(location, factory)
+	res, err = TryFetchArtifact(location, factory)
 	if err == nil {
 		succeed = true
 		return res, nil
+	}
+
+	perms, err := NewPermission()
+	if err != nil {
+		return zero, log.Errorf("unable to init NewPermission: %v", err)
 	}
 
 	// If we are here, it means that the artifact does not exist, and we can expect that this process is the first to lock it

@@ -56,7 +56,7 @@ func TestFetchArtifact(t *testing.T) {
 	t.Parallel()
 	location, mockFactory := newMockArtiFactory(t)
 
-	_, err := FetchArtifact(location, mockFactory)
+	_, err := TryFetchArtifact(location, mockFactory)
 	require.Error(t, err)
 
 	// Create a mock artifact file
@@ -66,7 +66,7 @@ func TestFetchArtifact(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(location)
 
-	artifact, err := FetchArtifact(location, mockFactory)
+	artifact, err := TryFetchArtifact(location, mockFactory)
 	assert.NoError(t, err)
 	assert.Equal(t, mockFactory.data, artifact)
 }

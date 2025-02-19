@@ -64,7 +64,7 @@ func (certificateFactory) Deserialize(raw []byte) (Certificate, error) {
 
 // FetchIPCCert loads certificate file used to authenticate IPC communicates
 func FetchIPCCert(config configModel.Reader) ([]byte, []byte, error) {
-	cert, err := filesystem.FetchArtifact(getCertFilepath(config), &certificateFactory{})
+	cert, err := filesystem.TryFetchArtifact(getCertFilepath(config), &certificateFactory{}) // TODO IPC: replace this call by FetchArtifact to retry until the artifact is successfully retrieved or the context is done
 	return cert.cert, cert.key, err
 }
 
