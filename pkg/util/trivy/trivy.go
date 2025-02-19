@@ -273,7 +273,7 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, cache, false)
+	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, nil)
 	if err != nil {
 		if imgMeta != nil {
 			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
@@ -300,8 +300,8 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
 
-func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner, useCache bool) (*types.Report, error) {
-	if useCache && imgMeta != nil && cache != nil {
+func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner) (*types.Report, error) {
+	if imgMeta != nil && cache != nil {
 		// The artifact reference is only needed to clean up the blobs after the scan.
 		// It is re-generated from cached partial results during the scan.
 		artifactReference, err := artifact.Inspect(ctx)
@@ -338,7 +338,7 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta, c.persistentCache, true)
+	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta, c.persistentCache)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
