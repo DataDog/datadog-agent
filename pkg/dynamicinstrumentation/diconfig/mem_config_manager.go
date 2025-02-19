@@ -88,9 +88,9 @@ func (cm *ReaderConfigManager) update() error {
 	}
 
 	if !reflect.DeepEqual(cm.state, updatedState) {
-		atLeastOneBinaryAnalyzed := inspectGoBinaries(updatedState)
-		if !atLeastOneBinaryAnalyzed {
-			return fmt.Errorf("failed to inspect all tracked go binaries.")
+		err := inspectGoBinaries(updatedState)
+		if err != nil {
+			return err
 		}
 
 		for pid, procInfo := range cm.state {
