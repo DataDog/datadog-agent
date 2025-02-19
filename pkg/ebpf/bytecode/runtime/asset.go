@@ -82,7 +82,7 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 			YumReposDir:     config.YumReposDir,
 			ZypperReposDir:  config.ZypperReposDir,
 		}
-		kernelHeaders = kernel.GetKernelHeaders(headerOpts, opts.StatsdClient)
+		kernelHeaders = kernel.GetKernelHeaders(headerOpts)
 		if len(kernelHeaders) == 0 {
 			a.tm.compilationResult = headerFetchErr
 			return nil, fmt.Errorf("unable to find kernel headers")

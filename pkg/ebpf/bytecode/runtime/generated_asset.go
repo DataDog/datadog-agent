@@ -56,7 +56,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 		YumReposDir:     config.YumReposDir,
 		ZypperReposDir:  config.ZypperReposDir,
 	}
-	kernelHeaders := kernel.GetKernelHeaders(opts, client)
+	kernelHeaders := kernel.GetKernelHeaders(opts)
 	if len(kernelHeaders) == 0 {
 		a.tm.compilationResult = headerFetchErr
 		return nil, fmt.Errorf("unable to find kernel headers")
