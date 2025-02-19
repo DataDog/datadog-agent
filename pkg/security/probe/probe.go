@@ -37,12 +37,12 @@ const (
 
 // PlatformProbe defines a platform dependant probe
 type PlatformProbe interface {
-	Setup() error
 	Init() error
 	Start() error
 	Stop()
 	SendStats() error
 	Snapshot() error
+	Walk(_ func(_ *model.ProcessCacheEntry))
 	Close() error
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
@@ -137,11 +137,6 @@ func (p *Probe) Init() error {
 	return p.PlatformProbe.Init()
 }
 
-// Setup the runtime security probe
-func (p *Probe) Setup() error {
-	return p.PlatformProbe.Setup()
-}
-
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
 	p.ctx, p.cancelFnc = context.WithCancel(context.Background())
@@ -227,6 +222,11 @@ func (p *Probe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
 	return p.PlatformProbe.Snapshot()
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Probe) Walk(cb func(entry *model.ProcessCacheEntry)) {
+	p.PlatformProbe.Walk(cb)
 }
 
 // OnNewDiscarder is called when a new discarder is found

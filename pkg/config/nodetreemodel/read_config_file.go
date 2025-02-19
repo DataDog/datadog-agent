@@ -13,9 +13,10 @@ import (
 	"reflect"
 	"strings"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 func (c *ntmConfig) findConfigFile() {
@@ -76,7 +77,7 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 func (c *ntmConfig) readInConfig(filePath string) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return err
+		return model.ConfigFileNotFoundError{Err: err}
 	}
 	return c.readConfigurationContent(c.file, model.SourceFile, content)
 }

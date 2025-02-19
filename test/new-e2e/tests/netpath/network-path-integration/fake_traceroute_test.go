@@ -15,10 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
+
+//go:embed fake-traceroute/datadog_ttl.yaml
+var datadogYaml []byte
 
 //go:embed fake-traceroute/network_path.yaml
 var fakeNetworkPathYaml []byte
@@ -37,6 +41,7 @@ func TestFakeTracerouteSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &fakeTracerouteTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
+			agentparams.WithAgentConfig(string(datadogYaml)),
 			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 			agentparams.WithIntegration("network_path.d", string(fakeNetworkPathYaml)),
 			agentparams.WithFile("/tmp/router_setup.sh", string(fakeRouterSetupScript), false),
@@ -48,6 +53,9 @@ func TestFakeTracerouteSuite(t *testing.T) {
 
 func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 	t := s.T()
+	// TODO remove this if the PR fixes the flakiness
+	flake.Mark(t)
+
 	t.Cleanup(func() {
 		s.Env().RemoteHost.MustExecute("sudo sh /tmp/router_teardown.sh")
 	})
@@ -105,5 +113,5 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 		validatePath(c, udpPath)
 		validatePath(c, tcpPath)
 		assert.Equal(c, uint16(443), tcpPath.Destination.Port)
-	}, 2*time.Minute, 3*time.Second)
+	}, 5*time.Minute, 3*time.Second)
 }

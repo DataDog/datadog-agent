@@ -226,12 +226,12 @@ core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics/internal/instr
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics/internal/utils,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/quantile,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/viper,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/zstd,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
@@ -923,7 +923,6 @@ core,github.com/docker/go-connections/tlsconfig,Apache-2.0,"Copyright 2012-2017 
 core,github.com/docker/go-events,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-units,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/dustin/go-humanize,MIT,Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
-core,github.com/dvsekhvalnov/jose2go/base64url,MIT,Copyright (c) 2014
 core,github.com/eapache/queue/v2,MIT,Copyright (c) 2014 Evan Huus
 core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/cgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
@@ -1137,6 +1136,7 @@ core,github.com/godror/godror/odpi/include,Apache-2.0,"Alberto Andria <alberto.a
 core,github.com/godror/godror/odpi/src,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
 core,github.com/godror/knownpb/internal,Apache-2.0,"Copyright 2014, 2021 Tamás Gulácsi"
 core,github.com/godror/knownpb/timestamppb,Apache-2.0,"Copyright 2019, 2021 Tamás Gulácsi"
+core,github.com/gofrs/flock,BSD-3-Clause,"Copyright (c) 2015-2020, Tim Heckman | Copyright (c) 2018-2024, The Gofrs"
 core,github.com/gogo/googleapis/google/api,Apache-2.0,"Copyright 2015, Google Inc | Copyright 2018, GoGo Authors"
 core,github.com/gogo/protobuf/gogoproto,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/gogo/protobuf/jsonpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
@@ -1661,7 +1661,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinte
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/attraction,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/clientutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/consumerretry,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/parseutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/textutils,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1695,6 +1694,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatauti
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1764,6 +1764,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operat
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/transformer/unquote,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/pipeline,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/split,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/tokenlen,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/trim,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2264,6 +2265,7 @@ core,github.com/tidwall/gjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/match,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
 core,github.com/tidwall/sjson,MIT,Copyright (c) 2016 Josh Baker
+core,github.com/tilinna/clock,MIT,Copyright (c) 2018 Timo Linna
 core,github.com/tinylib/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/gen,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
@@ -2474,7 +2476,6 @@ core,go.opentelemetry.io/collector/exporter/exportertest,Apache-2.0,Copyright Th
 core,go.opentelemetry.io/collector/exporter/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/internal/experr,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/internal/queue,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/exporter/internal/requesttest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/nopexporter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/nopexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2581,9 +2582,10 @@ core,go.opentelemetry.io/collector/service/internal/status,Apache-2.0,Copyright 
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/pipelines,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/service/telemetry/internal/otelinit,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/telemetry/internal/migration,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/bridges/otelzap,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/contrib/config,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/config/v0.2.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/config/v0.3.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2597,6 +2599,9 @@ core,go.opentelemetry.io/otel,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/baggage,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/codes,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc/internal/transform,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/retry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp/internal/transform,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2766,6 +2771,7 @@ core,golang.org/x/net/http2/h2c,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/http2/hpack,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/icmp,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/idna,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/httpcommon,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/internal/iana,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/internal/socket,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/internal/socks,BSD-3-Clause,Copyright 2009 The Go Authors

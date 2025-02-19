@@ -158,7 +158,8 @@ func CreateMockIPv4Layer(srcIP, dstIP net.IP, protocol layers.IPProtocol) *layer
 }
 
 // CreateMockICMPLayer creates a mock ICMP layer for testing
-func CreateMockICMPLayer(typeCode layers.ICMPv4TypeCode) *layers.ICMPv4 {
+func CreateMockICMPLayer(respType uint8, respCode uint8) *layers.ICMPv4 {
+	typeCode := layers.CreateICMPv4TypeCode(respType, respCode)
 	return &layers.ICMPv4{
 		TypeCode: typeCode,
 	}

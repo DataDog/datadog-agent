@@ -9,7 +9,7 @@ $GENERAL_ERROR_CODE = 1
 # Set some defaults if not provided
 $ddInstallerUrl = $env:DD_INSTALLER_URL
 if (-Not $ddInstallerUrl) {
-   $ddInstallerUrl = "https://s3.amazonaws.com/dd-agent-mstesting/datadog-installer-x86_64.exe"
+   $ddInstallerUrl = "https://install.datadoghq.com/datadog-installer-x86_64.exe"
 }
 
 $ddRemoteUpdates = $env:DD_REMOTE_UPDATES
@@ -273,9 +273,11 @@ try {
 }
 catch [ExitCodeException] {
    Show-Error $_.Exception.Message $_.Exception.LastExitCode
+   Exit $_.Exception.LastExitCode
 }
 catch {
    Show-Error $_.Exception.Message $GENERAL_ERROR_CODE
+   Exit $GENERAL_ERROR_CODE
 }
 finally {
    Write-Host "Cleaning up..."

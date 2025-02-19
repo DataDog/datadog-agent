@@ -43,7 +43,6 @@ import (
 const (
 	pathServices = "/services"
 
-	heartbeatTime = 15 * time.Minute
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
 	// pkg/process/checks/container.go.
@@ -59,6 +58,7 @@ type serviceInfo struct {
 	name                       string
 	generatedName              string
 	generatedNameSource        string
+	additionalGeneratedNames   []string
 	containerServiceName       string
 	containerServiceNameSource string
 	ddServiceName              string
@@ -74,6 +74,11 @@ type serviceInfo struct {
 	cpuUsage                   float64
 	containerID                string
 	lastHeartbeat              int64
+	addedToMap                 bool
+	rxBytes                    uint64
+	txBytes                    uint64
+	rxBps                      float64
+	txBps                      float64
 }
 
 // toModelService fills the model.Service struct pointed to by out, using the
@@ -88,6 +93,7 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.Name = i.name
 	out.GeneratedName = i.generatedName
 	out.GeneratedNameSource = i.generatedNameSource
+	out.AdditionalGeneratedNames = i.additionalGeneratedNames
 	out.ContainerServiceName = i.containerServiceName
 	out.ContainerServiceNameSource = i.containerServiceNameSource
 	out.DDService = i.ddServiceName
@@ -102,6 +108,10 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.CPUCores = i.cpuUsage
 	out.ContainerID = i.containerID
 	out.LastHeartbeat = i.lastHeartbeat
+	out.RxBytes = i.rxBytes
+	out.TxBytes = i.txBytes
+	out.RxBps = i.rxBps
+	out.TxBps = i.txBps
 
 	return out
 }
@@ -162,13 +172,33 @@ type discovery struct {
 	// lastCPUTimeUpdate is the last time lastGlobalCPUTime was updated.
 	lastCPUTimeUpdate time.Time
 
+	lastNetworkStatsUpdate time.Time
+
 	containerProvider proccontainers.ContainerProvider
 	timeProvider      timeProvider
+	network           networkCollector
 }
 
-func newDiscovery(containerProvider proccontainers.ContainerProvider, tp timeProvider) *discovery {
+type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
+
+func newDiscoveryWithNetwork(containerProvider proccontainers.ContainerProvider, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
+	cfg := newConfig()
+
+	var network networkCollector
+	if cfg.networkStatsEnabled {
+		var err error
+		network, err = getNetworkCollector(cfg)
+		if err != nil {
+			log.Warn("unable to get network collector", err)
+
+			// Do not fail on error since the collector could fail due to eBPF
+			// errors but we want the rest of our module to continue.
+			network = nil
+		}
+	}
+
 	return &discovery{
-		config:             newConfig(),
+		config:             cfg,
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
 		potentialServices:  make(pidSet),
@@ -178,13 +208,16 @@ func newDiscovery(containerProvider proccontainers.ContainerProvider, tp timePro
 		scrubber:           procutil.NewDefaultDataScrubber(),
 		containerProvider:  containerProvider,
 		timeProvider:       tp,
+		network:            network,
 	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	sharedContainerProvider := proccontainers.InitSharedContainerProvider(deps.WMeta, deps.Tagger)
-	return newDiscovery(sharedContainerProvider, realTime{}), nil
+	d := newDiscoveryWithNetwork(sharedContainerProvider, realTime{}, newNetworkCollector)
+
+	return d, nil
 }
 
 // GetStats returns the stats of the discovery module.
@@ -204,6 +237,11 @@ func (s *discovery) Register(httpMux *module.Router) error {
 func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
+
+	s.cleanCache(pidSet{})
+	if s.network != nil {
+		s.network.close()
+	}
 	clear(s.cache)
 	clear(s.ignorePids)
 }
@@ -259,8 +297,15 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 // handleServers is the handler for the /services endpoint.
 // Returns the list of currently running services.
-func (s *discovery) handleServices(w http.ResponseWriter, _ *http.Request) {
-	services, err := s.getServices()
+func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	services, err := s.getServices(params)
 	if err != nil {
 		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -532,15 +577,16 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	}
 
 	return &serviceInfo{
-		name:                name,
-		generatedName:       nameMeta.Name,
-		generatedNameSource: string(nameMeta.Source),
-		ddServiceName:       nameMeta.DDService,
-		language:            lang,
-		apmInstrumentation:  apmInstrumentation,
-		ddServiceInjected:   nameMeta.DDServiceInjected,
-		cmdLine:             sanitizeCmdLine(s.scrubber, cmdline),
-		startTimeMilli:      uint64(createTime),
+		name:                     name,
+		generatedName:            nameMeta.Name,
+		generatedNameSource:      string(nameMeta.Source),
+		additionalGeneratedNames: nameMeta.AdditionalNames,
+		ddServiceName:            nameMeta.DDService,
+		language:                 lang,
+		apmInstrumentation:       apmInstrumentation,
+		ddServiceInjected:        nameMeta.DDServiceInjected,
+		cmdLine:                  sanitizeCmdLine(s.scrubber, cmdline),
+		startTimeMilli:           uint64(createTime),
 	}, nil
 }
 
@@ -649,13 +695,85 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 // from it. This function is not thread-safe and it is up to the caller to ensure
 // s.mux is locked.
 func (s *discovery) cleanCache(alivePids pidSet) {
-	for pid := range s.cache {
+	for pid, info := range s.cache {
 		if alivePids.has(pid) {
 			continue
 		}
 
+		if info.addedToMap {
+			err := s.network.removePid(uint32(pid))
+			if err != nil {
+				log.Warn("unable to remove pid from network collector", pid, err)
+			}
+		}
+
 		delete(s.cache, pid)
 	}
+}
+
+func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
+	for pid, info := range s.cache {
+		if !info.addedToMap {
+			err := s.network.addPid(uint32(pid))
+			if err == nil {
+				info.addedToMap = true
+			} else {
+				log.Warnf("unable to add to network collector %v: %v", pid, err)
+			}
+			continue
+		}
+
+		stats, err := s.network.getStats(uint32(pid))
+		if err != nil {
+			log.Warnf("unable to get network stats %v: %v", pid, err)
+			continue
+		}
+
+		deltaRx := stats.Rx - info.rxBytes
+		deltaTx := stats.Tx - info.txBytes
+
+		info.rxBps = float64(deltaRx) / deltaSeconds
+		info.txBps = float64(deltaTx) / deltaSeconds
+
+		info.rxBytes = stats.Rx
+		info.txBytes = stats.Tx
+	}
+
+	updateResponseNetworkStats := func(services []model.Service) {
+		for i := range services {
+			service := &services[i]
+			info, ok := s.cache[int32(service.PID)]
+			if !ok {
+				continue
+			}
+
+			service.RxBps = info.rxBps
+			service.TxBps = info.txBps
+			service.RxBytes = info.rxBytes
+			service.TxBytes = info.txBytes
+		}
+	}
+
+	updateResponseNetworkStats(response.StartedServices)
+	updateResponseNetworkStats(response.HeartbeatServices)
+}
+
+func (s *discovery) maybeUpdateNetworkStats(response *model.ServicesResponse) {
+	if s.network == nil {
+		return
+	}
+
+	now := s.timeProvider.Now()
+	delta := now.Sub(s.lastNetworkStatsUpdate)
+	if delta < s.config.networkStatsPeriod {
+		return
+	}
+
+	deltaSeconds := delta.Seconds()
+
+	s.updateNetworkStats(deltaSeconds, response)
+
+	s.lastNetworkStatsUpdate = now
 }
 
 // cleanPidSets deletes dead PIDs from the provided pidSets. This function is not
@@ -725,6 +843,9 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		{"kube_service", nil},
 	}
 
+	// Sort the tags to make the function deterministic
+	slices.Sort(tags)
+
 	for _, tag := range tags {
 		// Get index of separator between name and value
 		sepIndex := strings.IndexRune(tag, ':')
@@ -734,6 +855,11 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		}
 
 		for i := range tagsPriority {
+			if tagsPriority[i].tagValue != nil {
+				// We have seen this tag before, we don't need another value.
+				continue
+			}
+
 			if tag[:sepIndex] != tagsPriority[i].tagName {
 				// Not a tag we care about; we skip it
 				continue
@@ -829,7 +955,6 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 			log.Warnf("could not get service from the cache to generate a stopped service event for PID %v", pid)
 			continue
 		}
-		delete(s.cache, pid)
 
 		// Build service struct in place in the slice
 		response.StoppedServices = append(response.StoppedServices, model.Service{})
@@ -838,7 +963,7 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 }
 
 // getStatus returns the list of currently running services.
-func (s *discovery) getServices() (*model.ServicesResponse, error) {
+func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -884,7 +1009,7 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 		s.enrichContainerData(service, containersMap, pidToCid)
 
 		if _, ok := s.runningServices[pid]; ok {
-			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= heartbeatTime {
+			if serviceHeartbeatTime := time.Unix(service.LastHeartbeat, 0); now.Sub(serviceHeartbeatTime).Truncate(time.Minute) >= params.heartbeatTime {
 				service.LastHeartbeat = now.Unix()
 				response.HeartbeatServices = append(response.HeartbeatServices, *service)
 			}
@@ -916,6 +1041,8 @@ func (s *discovery) getServices() (*model.ServicesResponse, error) {
 	if err = s.updateServicesCPUStats(response); err != nil {
 		log.Warnf("updating services CPU stats: %s", err)
 	}
+
+	s.maybeUpdateNetworkStats(response)
 
 	response.RunningServicesCount = len(s.runningServices)
 

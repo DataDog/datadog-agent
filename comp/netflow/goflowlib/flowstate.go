@@ -58,7 +58,7 @@ func StartFlowRoutine(
 	var flowState FlowRunnableState
 
 	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace, listenerFlowCount)
-	logrusLogger := GetLogrusLevel(logger)
+	goflowLogger := &GoflowLoggerAdapter{logger}
 	ctx := context.Background()
 
 	switch flowType {
@@ -71,18 +71,18 @@ func StartFlowRoutine(
 
 		state := netflowstate.NewStateNetFlow(fieldMappings)
 		state.Format = formatDriver
-		state.Logger = logrusLogger
+		state.Logger = goflowLogger
 		state.TemplateSystem = templateSystem
 		flowState = state
 	case common.TypeSFlow5:
 		state := utils.NewStateSFlow()
 		state.Format = formatDriver
-		state.Logger = logrusLogger
+		state.Logger = goflowLogger
 		flowState = state
 	case common.TypeNetFlow5:
 		state := utils.NewStateNFLegacy()
 		state.Format = formatDriver
-		state.Logger = logrusLogger
+		state.Logger = goflowLogger
 		flowState = state
 	default:
 		return nil, fmt.Errorf("unknown flow type: %s", flowType)

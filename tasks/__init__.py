@@ -52,12 +52,14 @@ from tasks import (
     pre_commit,
     process_agent,
     protobuf,
+    quality_gates,
     release,
     rtloader,
     sds,
     security_agent,
     selinux,
     setup,
+    skaffold,
     system_probe,
     systray,
     testwasher,
@@ -184,6 +186,7 @@ ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(package)
 ns.add_collection(pipeline)
+ns.add_collection(quality_gates)
 ns.add_collection(protobuf)
 ns.add_collection(notes)
 ns.add_collection(notify)
@@ -210,6 +213,7 @@ ns.add_collection(owners)
 ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
+ns.add_collection(skaffold)
 ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)

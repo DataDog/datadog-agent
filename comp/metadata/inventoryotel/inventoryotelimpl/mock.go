@@ -31,10 +31,6 @@ func newMock() iointerface.Component {
 	return &inventoryotelMock{}
 }
 
-func (m *inventoryotelMock) GetAsJSON() ([]byte, error) {
-	return []byte("{}"), nil
-}
-
 func (m *inventoryotelMock) Get() map[string]interface{} {
 	return nil
 }

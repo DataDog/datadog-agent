@@ -8,7 +8,13 @@
 // Package testutil has utilities for testing the network tracer
 package testutil
 
-import "net"
+import (
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"time"
+)
 
 // TCPServer is a simple TCP server for use in tests
 type TCPServer struct {
@@ -61,11 +67,33 @@ func (t *TCPServer) Run() error {
 			if err != nil {
 				return
 			}
+			err = SetTestDeadline(conn)
+			if err != nil {
+				return
+			}
 			go t.onMessage(conn)
 		}
 	}()
 
 	return nil
+}
+
+// Dial creates a TCP connection to the server, and sets reasonable timeouts
+func (t *TCPServer) Dial() (net.Conn, error) {
+	return DialTCP("tcp", t.Address())
+}
+
+// DialTCP creates a connection to the specified address, and sets reasonable timeouts for TCP
+func DialTCP(network, address string) (net.Conn, error) {
+	conn, err := net.DialTimeout(network, address, time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial %s: %w", address, err)
+	}
+	err = SetTestDeadline(conn)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 // Shutdown stops the TCP server
@@ -74,4 +102,22 @@ func (t *TCPServer) Shutdown() {
 		_ = t.ln.Close()
 		t.ln = nil
 	}
+}
+
+// SetTestDeadline prevents connection reads/writes from blocking the test indefinitely
+func SetTestDeadline(conn net.Conn) error {
+	// any test in the tracer suite should conclude in less than a minute (normally a couple seconds)
+	return conn.SetDeadline(time.Now().Add(time.Minute))
+}
+
+// GracefulCloseTCP closes a connection after making sure all data has been sent/read
+// It first shuts down the write end, then reads until EOF, then closes the connection
+// https://blog.netherlabs.nl/articles/2009/01/18/the-ultimate-so_linger-page-or-why-is-my-tcp-not-reliable
+func GracefulCloseTCP(conn net.Conn) error {
+	tcpConn := conn.(*net.TCPConn)
+
+	shutdownErr := tcpConn.CloseWrite()
+	_, readErr := io.Copy(io.Discard, tcpConn)
+	closeErr := tcpConn.Close()
+	return errors.Join(shutdownErr, readErr, closeErr)
 }

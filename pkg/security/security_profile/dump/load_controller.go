@@ -71,6 +71,7 @@ func (lc *ActivityDumpLoadController) getDefaultLoadConfigs() (map[containerutil
 		0,
 		lc.adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		time.Now(),
+		0, // cgroup flags will be set per cgroup manager
 		lc.adm.resolvers.TimeResolver,
 	)
 	defaults.WaitListTimestampRaw = uint64(lc.adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout)
@@ -88,7 +89,9 @@ func (lc *ActivityDumpLoadController) getDefaultLoadConfigs() (map[containerutil
 		if !found {
 			return nil, fmt.Errorf("unsupported cgroup manager '%s'", cgroupManager)
 		}
-		defaultConfigs[cgroupManager] = defaults
+		cgroupManagerLoadConfig := *defaults
+		cgroupManagerLoadConfig.CGroupFlags = containerutils.CGroupFlags(cgroupManager)
+		defaultConfigs[cgroupManager] = &cgroupManagerLoadConfig
 	}
 	lc.activityDumpLoadConfig = defaultConfigs
 	return defaultConfigs, nil
@@ -113,7 +116,7 @@ func (lc *ActivityDumpLoadController) PushDefaultCurrentConfigs() error {
 // NextPartialDump returns a new dump with the same parameters as the current one, or with reduced load config parameters
 // when applicable
 func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *ActivityDump {
-	newDump := NewActivityDump(ad.adm)
+	newDump := NewActivityDump(ad.adm, ad.LoadConfig.CGroupFlags)
 	newDump.Metadata.ContainerID = ad.Metadata.ContainerID
 	newDump.Metadata.CGroupContext = ad.Metadata.CGroupContext
 	newDump.Metadata.DifferentiateArgs = ad.Metadata.DifferentiateArgs
@@ -141,6 +144,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
 	newDump.LoadConfig.Rate = ad.LoadConfig.Rate
 	newDump.LoadConfigCookie = ad.LoadConfigCookie
+	newDump.LoadConfig.CGroupFlags = ad.LoadConfig.CGroupFlags
 
 	if timeToThreshold < lc.minDumpTimeout {
 		if err := lc.reduceDumpRate(ad, newDump); err != nil {
