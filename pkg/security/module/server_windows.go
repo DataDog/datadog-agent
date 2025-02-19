@@ -54,7 +54,7 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 	}
 
 	apiStatus.PoliciesStatus = a.policiesStatus
-
+	apiStatus.SECLVariables = a.GetSECLVariables()
 	return apiStatus, nil
 }
 
