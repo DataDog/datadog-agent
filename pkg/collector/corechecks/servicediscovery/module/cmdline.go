@@ -120,7 +120,7 @@ func truncateCmdline(lang language.Language, cmdline []string) []string {
 		for _, arg := range cmdline {
 			length += len(arg)
 		}
-		if length >= maxCommandLine {
+		if length > maxCommandLine {
 			cmdline = trimJavaClassPathFromCommandLine(cmdline)
 		}
 	}
