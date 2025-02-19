@@ -4,7 +4,7 @@ upgrade:
     The autoinstrumentation webhook will no longer choose a service name based on the name
     of the deployment.
 
-    This would override the service name as it was set in a Dockerfile via ``ENV DD_SERVICE``
+    This would override a service name set in a Dockerfile with ``ENV DD_SERVICE``
     and caused issues. If you need to set the service name from via kubernetes, please see
     the `Unified Service Tagging <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`
     documentation for alternative methods.
