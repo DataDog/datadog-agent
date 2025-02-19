@@ -84,7 +84,8 @@ lint_github_actions_workflows:
   needs: []
   rules:
     - changes:
-        paths: .github/workflows/**/*.yml
+        paths:
+          - .github/workflows/**/*.yml
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   script:
     # TODO: Only on diff
