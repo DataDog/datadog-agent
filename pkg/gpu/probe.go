@@ -57,6 +57,8 @@ const (
 	cudaAllocCacheMap     bpfMapName = "cuda_alloc_cache"
 	cudaSyncCacheMap      bpfMapName = "cuda_sync_cache"
 	cudaSetDeviceCacheMap bpfMapName = "cuda_set_device_cache"
+	cudaEventStreamMap    bpfMapName = "cuda_event_to_stream"
+	cudaEventCacheMap     bpfMapName = "cuda_event_cache"
 )
 
 // probeFuncName stores the ebpf hook function name
@@ -71,6 +73,9 @@ const (
 	cudaFreeProbe          probeFuncName = "uprobe__cudaFree"
 	cudaSetDeviceProbe     probeFuncName = "uprobe__cudaSetDevice"
 	cudaSetDeviceRetProbe  probeFuncName = "uretprobe__cudaSetDevice"
+	cudaEventRecordProbe   probeFuncName = "uprobe__cudaEventRecord"
+	cudaEventQueryProbe    probeFuncName = "uprobe__cudaEventQuery"
+	cudaEventQueryRetProbe probeFuncName = "uretprobe__cudaEventQuery"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -263,6 +268,8 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 			{Name: cudaAllocCacheMap},
 			{Name: cudaSyncCacheMap},
 			{Name: cudaSetDeviceCacheMap},
+			{Name: cudaEventStreamMap},
+			{Name: cudaEventCacheMap},
 		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
@@ -331,6 +338,9 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventRecordProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryRetProbe}},
 						},
 					},
 				},

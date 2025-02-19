@@ -23,6 +23,8 @@ BPF_RINGBUF_MAP(cuda_events, cuda_event_header_t);
 BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
 BPF_LRU_MAP(cuda_sync_cache, __u64, __u64, 1024)
 BPF_LRU_MAP(cuda_set_device_cache, __u64, int, 1024)
+BPF_LRU_MAP(cuda_event_to_stream, cuda_event_key_t, __u64, 1024) // maps PID + event -> stream id
+BPF_LRU_MAP(cuda_event_cache, __u64, __u64, 1024) // maps PID -> event
 
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
 // a 64 bit register with the x and y values in the lower and upper 32 bits respectively,
@@ -204,6 +206,76 @@ int BPF_URETPROBE(uretprobe__cudaSetDevice) {
 
 cleanup:
     bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
+
+    return 0;
+}
+
+SEC("uprobe/cudaEventRecord")
+int BPF_UPROBE(uprobe__cudaEventRecord, __u64 event, __u64 stream) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    cuda_event_key_t key = { 0 };
+
+    key.event = event;
+    key.pid = pid_tgid >> 32;
+
+    log_debug("cudaEventRecord: pid_tgid=%llu, event=%llu, stream=%llu", pid_tgid, event, stream);
+    bpf_map_update_with_telemetry(cuda_event_to_stream, &key, &stream, BPF_ANY);
+
+    return 0;
+}
+
+SEC("uprobe/cudaEventQuery")
+int BPF_UPROBE(uprobe__cudaEventQuery, __u64 event) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    log_debug("cudaEventQuery: pid_tgid=%llu, event=%llu", pid_tgid, event);
+    bpf_map_update_with_telemetry(cuda_event_cache, &pid_tgid, &event, BPF_ANY);
+
+    return 0;
+}
+
+SEC("uretprobe/cudaEventQuery")
+int BPF_URETPROBE(uretprobe__cudaEventQuery) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    __u64 *event = NULL;
+    __u64 *stream = NULL;
+    __u32 retval = PT_REGS_RC(ctx);
+    cuda_event_key_t event_key = { 0 };
+    cuda_sync_t sync_event = { 0 };
+
+    log_debug("cudaEventQuery[ret]: pid_tgid=%llu, retval=%u", pid_tgid, retval);
+
+    if (retval != 0) {
+        // Do not emit event if cudaEventQuery failed
+        goto cleanup;
+    }
+
+    event = bpf_map_lookup_elem(&cuda_event_cache, &pid_tgid);
+    if (!event) {
+        goto cleanup;
+    }
+
+    log_debug("cudaEventQuery[ret]: pid_tgid=%llu -> event = %llu", pid_tgid, *event);
+
+    event_key.event = *event;
+    event_key.pid = pid_tgid >> 32;
+    stream = bpf_map_lookup_elem(&cuda_event_to_stream, &event_key);
+    if (!stream) {
+        goto cleanup;
+    }
+
+    log_debug("cudaEventQuery[ret]: pid_tgid=%llu -> event = %llu -> stream = %llu", pid_tgid, *event, *stream);
+
+    fill_header(&sync_event.header, *stream, cuda_sync);
+
+    log_debug("cudaEventQuery[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", sync_event.header.pid_tgid, sync_event.header.stream_id);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &sync_event, sizeof(sync_event), 0);
+
+cleanup:
+    // We don't remove the event from the stream map, as it can be queried multiple times
+    // Only remove it from the cache for matching uprobe/uretprobe pairs
+    bpf_map_delete_elem(&cuda_event_cache, &pid_tgid);
 
     return 0;
 }
