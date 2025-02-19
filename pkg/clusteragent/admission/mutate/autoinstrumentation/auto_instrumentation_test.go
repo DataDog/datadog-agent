@@ -55,7 +55,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		{
 			name:                    "nominal case: java",
 			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedInjectorImage:   commonRegistry + "/apm-inject:0.30.0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
@@ -66,7 +66,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		{
 			name:                    "nominal case: java & python",
 			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedInjectorImage:   commonRegistry + "/apm-inject:0.30.0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
@@ -144,7 +144,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		{
 			name:                    "language detected for a different container",
 			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.30.0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			expectedLangsDetected:   "",
 			libInfo: extractedPodLibInfo{
@@ -161,7 +161,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		{
 			name:                    "language detected but no languages found",
 			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.30.0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			expectedLangsDetected:   "",
 			libInfo: extractedPodLibInfo{
@@ -627,23 +627,23 @@ func TestExtractLibInfo(t *testing.T) {
 	allLatestLibs := []libInfo{
 		{
 			lang:  "java",
-			image: "registry/dd-lib-java-init:v1",
+			image: "registry/dd-lib-java-init:1.42.2",
 		},
 		{
 			lang:  "js",
-			image: "registry/dd-lib-js-init:v5",
+			image: "registry/dd-lib-js-init:5.27.1",
 		},
 		{
 			lang:  "python",
-			image: "registry/dd-lib-python-init:v2",
+			image: "registry/dd-lib-python-init:2.16.5",
 		},
 		{
 			lang:  "dotnet",
-			image: "registry/dd-lib-dotnet-init:v3",
+			image: "registry/dd-lib-dotnet-init:3.5.0",
 		},
 		{
 			lang:  "ruby",
-			image: "registry/dd-lib-ruby-init:v2",
+			image: "registry/dd-lib-ruby-init:2.7.0",
 		},
 	}
 
@@ -663,7 +663,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 			},
 		},
@@ -674,7 +674,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: fmt.Sprintf("%s/dd-lib-java-init:v1", commonRegistry),
+					image: fmt.Sprintf("%s/dd-lib-java-init:1.42.2", commonRegistry),
 				},
 			},
 		},
@@ -738,7 +738,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 				{
 					lang:  "js",
@@ -771,7 +771,7 @@ func TestExtractLibInfo(t *testing.T) {
 				{
 					ctrName: "java-app",
 					lang:    "java",
-					image:   "registry/dd-lib-java-init:v1",
+					image:   "registry/dd-lib-java-init:1.42.2",
 				},
 				{
 					ctrName: "node-app",
@@ -899,7 +899,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 			},
 		},
@@ -958,7 +958,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 			},
 			setupConfig: func() {
@@ -1645,11 +1645,11 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 	installTime := strconv.FormatInt(time.Now().Unix(), 10)
 
 	defaultLibraries := map[string]string{
-		"java":   "1.41",
-		"python": "2.15",
-		"ruby":   "2.4",
-		"dotnet": "3.4",
-		"js":     "5.24",
+		"java":   "1.42.2",
+		"python": "2.16.5",
+		"ruby":   "2.7.0",
+		"dotnet": "3.5.0",
+		"js":     "5.27.1",
 	}
 
 	defaultLibrariesFor := func(languages ...string) map[string]string {

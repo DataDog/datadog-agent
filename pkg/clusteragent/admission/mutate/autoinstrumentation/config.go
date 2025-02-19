@@ -71,10 +71,10 @@ func retrieveConfig(datadogConfig config.Component, injectionFilter mutatecommon
 		profilingEnabled: getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled"),
 
 		containerRegistry: mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry"),
-		injectorImageTag:  datadogConfig.GetString("apm_config.instrumentation.injector_image_tag"),
 		injectionFilter:   injectionFilter,
 	}
 	webhookConfig.pinnedLibraries = getPinnedLibraries(datadogConfig, webhookConfig.containerRegistry)
+	webhookConfig.injectorImageTag = getInjectorVersion(datadogConfig)
 
 	var err error
 	if webhookConfig.version, err = instrumentationVersion(datadogConfig.GetString("apm_config.instrumentation.version")); err != nil {
@@ -103,6 +103,14 @@ func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
 	}
 
 	return value
+}
+
+func getInjectorVersion(datadogConfig config.Component) string {
+	const INJECTOR_TAG = "apm_config.instrumentation.injector_image_tag"
+	if datadogConfig.IsSet(INJECTOR_TAG) {
+		return datadogConfig.GetString(INJECTOR_TAG)
+	}
+	return injectorPinnedVersion
 }
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config

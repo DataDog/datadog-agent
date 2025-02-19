@@ -90,9 +90,8 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	//                  to troubleshoot. v1 will be dropped (and possibly the flag)
 	//                  in 7.58 or 7.59 (this is going out in 7.57).
 	config.BindEnvAndSetDefault("apm_config.instrumentation.version", "v2", "DD_APM_INSTRUMENTATION_VERSION")
-	// Default Image Tag for the APM Inject package (https://hub.docker.com/r/datadog/apm-inject/tags).
-	// We pin to a major version by default.
-	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
+	// Image Tag for the APM Inject package (https://hub.docker.com/r/datadog/apm-inject/tags).
+	config.BindEnv("apm_config.instrumentation.injector_image_tag", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
 
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")
