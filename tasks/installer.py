@@ -13,7 +13,6 @@ from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 DIR_BIN = path.join(".", "bin", "installer")
 INSTALLER_BIN = path.join(DIR_BIN, bin_name("installer"))
 INSTALL_SCRIPT_TEMPLATE = path.join("pkg", "fleet", "installer", "setup", "install.sh")
-SETUP_MAIN_PACKAGE = "cmd/installer-downloader"
 
 MAJOR_VERSION = '7'
 
