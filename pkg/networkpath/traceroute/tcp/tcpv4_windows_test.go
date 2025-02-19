@@ -77,9 +77,6 @@ func TestSendAndReceive(t *testing.T) {
 		},
 	}
 
-	//(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error)
-
-	//sendAndReceive(rs winconn.RawConnWrapper, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error)
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
 			controller := gomock.NewController(t)
