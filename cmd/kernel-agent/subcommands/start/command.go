@@ -68,7 +68,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metrciscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -144,7 +145,8 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
-		compressionimpl.Module(),
+		metrciscompressionfx.Module(),
+		logscompressionfx.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {

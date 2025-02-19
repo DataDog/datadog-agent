@@ -476,8 +476,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.61.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
+	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/shirou/gopsutil/v4 v4.24.12
 	go.opentelemetry.io/collector/component/componenttest v0.119.0
 )
