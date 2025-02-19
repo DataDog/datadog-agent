@@ -14,12 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"time"
 )
-
-const numProcFSUpdateRetries = 10
-const procFSUpdateInterval = 1 * time.Millisecond
-const procFSUpdateTimeout = numProcFSUpdateRetries * procFSUpdateInterval
 
 // ProcInfo holds the information extracted from procfs, to avoid repeat calls to the filesystem.
 type ProcInfo struct {
@@ -37,33 +32,16 @@ func NewProcInfo(procRoot string, pid uint32) *ProcInfo {
 	}
 }
 
-// Avoid allocations, reuse the error to mark "iteration start" in the loop
-var errIterStart = errors.New("iteration start")
-
-func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string) (T, error)) (T, error) {
-	// Read the exe link
+func procPath(p *ProcInfo, procFile string) string {
 	pidAsStr := strconv.FormatUint(uint64(p.PID), 10)
-	filePath := filepath.Join(p.procRoot, pidAsStr, procFile)
-
-	var result T
-	err := errIterStart
-	end := time.Now().Add(procFSUpdateTimeout)
-
-	for err != nil && end.After(time.Now()) {
-		result, err = readFunc(filePath)
-		if err != nil {
-			time.Sleep(procFSUpdateInterval)
-		}
-	}
-
-	return result, err
+	return filepath.Join(p.procRoot, pidAsStr, procFile)
 }
 
 // Exe returns the path to the executable of the process.
 func (p *ProcInfo) Exe() (string, error) {
 	var err error
 	if p.exe == "" {
-		p.exe, err = waitUntilSucceeds(p, "exe", os.Readlink)
+		p.exe, err = os.Readlink(procPath(p, "exe"))
 		if err != nil {
 			return "", err
 		}
@@ -111,7 +89,7 @@ func (p *ProcInfo) readComm(commFile string) (string, error) {
 func (p *ProcInfo) Comm() (string, error) {
 	var err error
 	if p.comm == "" {
-		p.comm, err = waitUntilSucceeds(p, "comm", p.readComm)
+		p.comm, err = p.readComm(procPath(p, "comm"))
 		if err != nil {
 			return "", err
 		}

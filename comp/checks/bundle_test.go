@@ -13,21 +13,21 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	fakeTagger := mock.SetupFakeTagger(t)
 
 	fxutil.TestBundle(t, Bundle(),
-		comptraceconfig.Module(),
 		core.MockBundle(),
 		fx.Provide(func() tagger.Component { return fakeTagger }),
 		fx.Supply(core.BundleParams{}),
+		agenttelemetryfx.Module(),
 		fx.Supply(crashreport.WinCrashReporter{}),
 	)
 }

@@ -17,11 +17,11 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MakeCommand returns the start subcommand for the 'trace-agent' command.
@@ -42,7 +42,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 	return fxutil.OneShot(fct,
 		config.Module(),
 		fx.Supply(coreconfig.NewAgentParams(params.ConfPath, coreconfig.WithFleetPoliciesDirPath(params.FleetPoliciesDirPath))),
-		fx.Supply(optional.NewNoneOption[secrets.Component]()),
+		fx.Supply(option.None[secrets.Component]()),
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module(),
 		secretsimpl.Module(),

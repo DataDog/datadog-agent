@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -29,9 +30,11 @@ import (
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,16 +52,17 @@ func NewController(
 	validatingInformers admissionregistration.Interface,
 	mutatingInformers admissionregistration.Interface,
 	isLeaderFunc func() bool,
-	isLeaderNotif <-chan struct{},
+	leadershipStateNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
 	pa workload.PodPatcher,
 	datadogConfig config.Component,
+	demultiplexer demultiplexer.Component,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 }
 
 // Webhook represents an admission webhook
@@ -72,14 +76,18 @@ type Webhook interface {
 	// Endpoint returns the endpoint of the webhook
 	Endpoint() string
 	// Resources returns the kubernetes resources for which the webhook should
-	// be invoked
-	Resources() []string
+	// be invoked.
+	// The key is the API group, and the value is a list of resources.
+	Resources() map[string][]string
 	// Operations returns the operations on the resources specified for which
 	// the webhook should be invoked
 	Operations() []admiv1.OperationType
 	// LabelSelectors returns the label selectors that specify when the webhook
 	// should be invoked
 	LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector)
+	// MatchConditions returns the Match Conditions used for fine-grained
+	// request filtering
+	MatchConditions() []admiv1.MatchCondition
 	// WebhookFunc runs the logic of the webhook and returns the admission response
 	WebhookFunc() admission.WebhookFunc
 }
@@ -90,43 +98,58 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) []Webhook {
-	// Note: the auto_instrumentation pod injection filter is used across
-	// multiple mutating webhooks, so we add it as a hard dependency to each
-	// of the components that use it via the injectionFilter parameter.
-	// TODO: for now we ignore the error returned by NewInjectionFilter, but we should not and surface it
-	//       in the admission controller section in agent status.
-	injectionFilter, _ := autoinstrumentation.NewInjectionFilter(datadogConfig)
-
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
-	var mutatingWebhooks []Webhook
 
 	// Add Validating webhooks.
 	if c.config.isValidationEnabled() {
 		// Future validating webhooks can be added here.
-		validatingWebhooks = []Webhook{}
+		validatingWebhooks = []Webhook{
+			kubernetesadmissionevents.NewWebhook(datadogConfig, demultiplexer, c.config.supportsMatchConditions()),
+		}
 		webhooks = append(webhooks, validatingWebhooks...)
 	}
 
-	// Add Mutating webhooks.
-	if c.config.isMutationEnabled() {
-		mutatingWebhooks = []Webhook{
-			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
-			tagsfromlabels.NewWebhook(wmeta, datadogConfig, injectionFilter),
-			agentsidecar.NewWebhook(datadogConfig),
-			autoscaling.NewWebhook(pa),
-		}
-		webhooks = append(webhooks, mutatingWebhooks...)
+	// Skip mutating webhooks if the mutation feature is disabled.
+	if !c.config.isMutationEnabled() {
+		return webhooks
+	}
 
-		// APM Instrumentation webhook needs to be registered after the configWebhook webhook.
-		apm, err := autoinstrumentation.NewWebhook(wmeta, datadogConfig, injectionFilter)
-		if err == nil {
-			webhooks = append(webhooks, apm)
-		} else {
-			log.Errorf("failed to register APM Instrumentation webhook: %v", err)
-		}
+	// Setup config webhook.
+	configWebhook, err := generateConfigWebhook(wmeta, datadogConfig)
+	if err != nil {
+		log.Errorf("failed to register config webhook: %v", err)
+	} else {
+		webhooks = append(webhooks, configWebhook)
+	}
 
+	// Setup tags from labels webhook.
+	tagsWebhook, err := generateTagsFromLabelsWebhook(wmeta, datadogConfig)
+	if err != nil {
+		log.Errorf("failed to register tags from labels webhook: %v", err)
+	} else {
+		webhooks = append(webhooks, tagsWebhook)
+	}
+
+	// Setup agents sidecar webhook.
+	agentsWebhook := agentsidecar.NewWebhook(datadogConfig)
+	webhooks = append(webhooks, agentsWebhook)
+
+	// Setup autoscaling webhook.
+	autoscalingWebhook := autoscaling.NewWebhook(pa, datadogConfig)
+	webhooks = append(webhooks, autoscalingWebhook)
+
+	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
+	apmWebhook, err := generateAutoInstrumentationWebhook(wmeta, datadogConfig)
+	if err != nil {
+		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
+	} else {
+		webhooks = append(webhooks, apmWebhook)
+	}
+
+	isCWSInstrumentationEnabled := datadogConfig.GetBool("admission_controller.cws_instrumentation.enabled")
+	if isCWSInstrumentationEnabled {
 		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta, datadogConfig)
 		if err == nil {
 			webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
@@ -136,6 +159,47 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	}
 
 	return webhooks
+}
+
+func generateConfigWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*configWebhook.Webhook, error) {
+	filter, err := configWebhook.NewFilter(datadogConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create config filter: %v", err)
+	}
+	mutatorCfg := configWebhook.NewMutatorConfig(datadogConfig)
+	mutator := configWebhook.NewMutator(mutatorCfg, filter)
+	return configWebhook.NewWebhook(wmeta, datadogConfig, mutator), nil
+}
+
+func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*tagsfromlabels.Webhook, error) {
+	filter, err := tagsfromlabels.NewFilter(datadogConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tags from labels filter: %v", err)
+	}
+	mutator := tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter)
+	return tagsfromlabels.NewWebhook(wmeta, datadogConfig, mutator), nil
+}
+
+func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component) (*autoinstrumentation.Webhook, error) {
+	config, err := autoinstrumentation.NewConfig(datadogConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
+	}
+
+	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
+	}
+
+	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
+	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
+	// env vars to be set from labels if they are available..
+	mutator := mutatecommon.NewMutators(
+		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), apm),
+		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
+		apm,
+	)
+	return autoinstrumentation.NewWebhook(config, wmeta, mutator)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.
@@ -148,9 +212,9 @@ type controllerBase struct {
 	secretsSynced            cache.InformerSynced //nolint:structcheck
 	validatingWebhooksSynced cache.InformerSynced //nolint:structcheck
 	mutatingWebhooksSynced   cache.InformerSynced //nolint:structcheck
-	queue                    workqueue.RateLimitingInterface
+	queue                    workqueue.TypedRateLimitingInterface[string]
 	isLeaderFunc             func() bool
-	isLeaderNotif            <-chan struct{}
+	leadershipStateNotif     <-chan struct{}
 	webhooks                 []Webhook
 }
 
@@ -174,9 +238,11 @@ func (c *controllerBase) EnabledWebhooks() []Webhook {
 func (c *controllerBase) enqueueOnLeaderNotif(stop <-chan struct{}) {
 	for {
 		select {
-		case <-c.isLeaderNotif:
-			log.Infof("Got a leader notification, enqueuing a reconciliation for %q", c.config.getWebhookName())
-			c.triggerReconciliation()
+		case <-c.leadershipStateNotif:
+			if c.isLeaderFunc() {
+				log.Infof("Got a leader notification, enqueuing a reconciliation for %q", c.config.getWebhookName())
+				c.triggerReconciliation()
+			}
 		case <-stop:
 			return
 		}
@@ -256,7 +322,7 @@ func (c *controllerBase) enqueue(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		log.Debugf("Couldn't get key for object %v: %v, adding it to the queue with an unnamed key", obj, err)
-		c.queue.Add(struct{}{})
+		c.queue.Add("")
 		return
 	}
 	log.Debugf("Adding object with key %s to the queue", key)
@@ -265,7 +331,7 @@ func (c *controllerBase) enqueue(obj interface{}) {
 
 // requeue adds an object's key to the work queue for
 // a retry if the rate limiter allows it.
-func (c *controllerBase) requeue(key interface{}) {
+func (c *controllerBase) requeue(key string) {
 	c.queue.AddRateLimited(key)
 }
 

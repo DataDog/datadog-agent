@@ -8,9 +8,12 @@
 package gpu
 
 import (
+	"context"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -18,8 +21,10 @@ import (
 
 // ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
-	Telemetry telemetry.Component
-	NvmlLib   nvml.Interface
+	Telemetry      telemetry.Component
+	NvmlLib        nvml.Interface
+	ProcessMonitor any // uprobes.ProcessMonitor is only compiled with the linux_bpf build tag, so we need to use type any here
+	WorkloadMeta   workloadmeta.Component
 }
 
 // Probe is not implemented on non-linux systems
@@ -31,9 +36,14 @@ func NewProbe(_ *config.Config, _ ProbeDependencies) (*Probe, error) {
 }
 
 // Close is not implemented on non-linux systems
-func (t *Probe) Close() {}
+func (p *Probe) Close() {}
+
+// CollectConsumedEvents is not implemented on non-linux systems
+func (p *Probe) CollectConsumedEvents(_ context.Context, _ int) ([][]byte, error) {
+	return nil, ebpf.ErrNotImplemented
+}
 
 // GetAndFlush is not implemented on non-linux systems
-func (t *Probe) GetAndFlush() (model.GPUStats, error) {
+func (p *Probe) GetAndFlush() (model.GPUStats, error) {
 	return model.GPUStats{}, nil
 }

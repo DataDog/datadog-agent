@@ -12,14 +12,14 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -46,8 +46,8 @@ type ContainerCheck struct {
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &ContainerCheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &ContainerConfig{},
@@ -68,7 +68,7 @@ func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64,
 	if err != nil {
 		return err
 	}
-	c.processor = NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store}, c.tagger)
+	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store}, c.tagger)
 	return c.instance.Parse(config)
 }
 

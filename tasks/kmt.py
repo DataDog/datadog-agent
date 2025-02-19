@@ -51,7 +51,7 @@ from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
-from tasks.security_agent import build_functional_tests, build_stress_tests
+from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
@@ -226,7 +226,7 @@ def gen_config_from_ci_pipeline(
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
-                vm_arch = local_arch
+                vm_arch = "local"
 
             results = test_job.get_test_results()
             for test, result in results.items():
@@ -543,7 +543,7 @@ def ninja_define_rules(nw: NinjaWriter):
 
     nw.rule(
         name="gotestsuite",
-        command="$env $go test -mod=mod -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
+        command="$env $go test -mod=readonly -v $timeout -tags \"$build_tags\" $extra_arguments -c -o $out $in",
     )
     nw.rule(name="copyextra", command="cp -r $in $out")
     nw.rule(
@@ -628,13 +628,13 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
-    verifier_files = glob("pkg/ebpf/verifier/**/*.go")
+    verifier_files = glob("pkg/ebpf/verifier/*")
     nw.build(
         rule="gobin",
         pool="gobuild",
-        inputs=["./pkg/ebpf/verifier/calculator/main.go"],
+        inputs=[os.path.abspath("./pkg/ebpf/verifier/calculator/main.go")],
         outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
-        implicit=verifier_files,
+        implicit=[os.path.abspath(f) for f in verifier_files],
         variables={
             "go": go_path,
             "chdir": "true",
@@ -694,7 +694,6 @@ def kmt_secagent_prepare(
         skip_object_files=True,
         arch=arch,
     )
-    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/pkg/security/stresssuite", skip_linters=True)
 
     go_path = "go"
     go_root = os.getenv("GOROOT")
@@ -739,17 +738,18 @@ def prepare(
         )
 
     if ci:
-        domains = None
         stack = "ci"
         return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
 
-    if alien_vms is not None:
-        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
-    else:
-        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
-    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
-    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
-    assert len(domains) > 0, err_msg
+    domains = None
+    if not compile_only:
+        if alien_vms is not None:
+            err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+        else:
+            err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+        stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+        domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+        assert len(domains) > 0, err_msg
 
     _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only, domains=domains)
 
@@ -874,11 +874,10 @@ def build_run_config(run: str | None, packages: list[str]):
     c: dict[str, Any] = {}
 
     if len(packages) == 0:
-        return {"filters": {"*": {"exclude": False}}}
+        packages = ["*"]
 
     for p in packages:
-        if p[:2] == "./":
-            p = p[2:]
+        p = p.removeprefix("./")
         if run is not None:
             c["filters"] = {p: {"run-only": [run]}}
         else:
@@ -1073,9 +1072,10 @@ def kmt_sysprobe_prepare(
                         # copy command
                         implicit=[testdata_folder],
                         rule="cbin",
-                        variables={
-                            "cc": "clang",
-                        },
+                        # helper binaries need to be compiled statically to avoid problems with
+                        # libc not being found in target VMs/containers (motivating case: running
+                        # these binaries in alpine docker images, which has musl instead of lib)
+                        variables={"cc": "clang", "cflags": "-static"},
                     )
 
     info("[+] Compiling tests...")
@@ -1175,7 +1175,7 @@ def test(
     packages=None,
     run: str | None = None,
     quick=False,
-    retry=2,
+    retry=0,
     run_count=1,
     ssh_key: str | None = None,
     verbose=True,
@@ -1201,15 +1201,9 @@ def test(
             info(f"[+] Preparing {component} for {arch}")
             _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains)
 
-    if run is not None and packages is None:
-        raise Exit("Package must be provided when specifying test")
-
     pkgs = []
     if packages is not None:
         pkgs = [os.path.relpath(os.path.realpath(p)) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
-
-    if run is not None and len(pkgs) > 1:
-        raise Exit("Only a single package can be specified when running specific tests")
 
     paths = KMTPaths(stack, Arch.local())  # Arch is not relevant to the test result paths, which is what we want now
     shutil.rmtree(paths.test_results, ignore_errors=True)  # Reset test-results folder
@@ -1325,7 +1319,7 @@ def build(
 
     build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -1372,7 +1366,7 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
         stack
     ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
-    ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
+    ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
 
@@ -2219,7 +2213,7 @@ def install_ddagent(
     assert len(domains) > 0, err_msg
 
     if version is not None:
-        check_version(version)
+        check_version(ctx, version)
     else:
         with open("release.json") as f:
             release = json.load(f)
@@ -2290,7 +2284,7 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
         for job in test_jobs:
             complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
-            complexity_data_fname = f"test/kitchen/{complexity_name}.tar.gz"
+            complexity_data_fname = f"test/new-e2e/tests/{complexity_name}.tar.gz"
             data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
             if data is None:
                 print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")

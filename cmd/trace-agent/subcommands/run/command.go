@@ -9,37 +9,35 @@ package run
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
@@ -80,8 +78,8 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
 		secretsimpl.Module(),
-		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
-			return optional.NewOption[secrets.Component](comp)
+		fx.Provide(func(comp secrets.Component) option.Option[secrets.Component] {
+			return option.New[secrets.Component](comp)
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
 		telemetryimpl.Module(),
@@ -90,21 +88,19 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
 		logtracefx.Module(),
-		// setup workloadmeta
-		wmcatalog.GetCatalog(),
-		workloadmetafx.Module(workloadmeta.Params{
-			AgentType:  workloadmeta.NodeAgent,
-			InitHelper: common.GetWorkloadmetaInit(),
-		}),
 		autoexitimpl.Module(),
 		statsd.Module(),
-		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
-			if coreConfig.GetBool("apm_config.remote_tagger") {
-				return tagger.NewNodeRemoteTaggerParamsWithFallback()
-			}
-			return tagger.NewTaggerParams()
+		remoteTaggerfx.Module(tagger.RemoteParams{
+			RemoteTarget: func(c coreconfig.Component) (string, error) {
+				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+			},
+			RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
+				return func() (string, error) {
+					return security.FetchAuthToken(c)
+				}
+			},
+			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
-		taggerimpl.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
@@ -116,9 +112,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		zstdfx.Module(),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),
-		configsyncimpl.OptionalModule(),
+		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		// Force the instantiation of the components
-		fx.Invoke(func(_ traceagent.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
+		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
 	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil

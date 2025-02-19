@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -36,7 +37,6 @@ const (
 
 // PlatformProbe defines a platform dependant probe
 type PlatformProbe interface {
-	Setup() error
 	Init() error
 	Start() error
 	Stop()
@@ -54,7 +54,7 @@ type PlatformProbe interface {
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
-	GetEventTags(_ string) []string
+	GetEventTags(_ containerutils.ContainerID) []string
 	GetProfileManager() interface{}
 	EnableEnforcement(bool)
 }
@@ -94,7 +94,8 @@ type actionStatsTags struct {
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
-	PlatformProbe PlatformProbe
+	PlatformProbe         PlatformProbe
+	agentContainerContext *events.AgentContainerContext
 
 	// Constants and configuration
 	Opts         Opts
@@ -133,11 +134,6 @@ func newProbe(config *config.Config, opts Opts) *Probe {
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 	return p.PlatformProbe.Init()
-}
-
-// Setup the runtime security probe
-func (p *Probe) Setup() error {
-	return p.PlatformProbe.Setup()
 }
 
 // Start plays the snapshot data and then start the event stream
@@ -321,18 +317,12 @@ func (p *Probe) sendEventToConsumers(event *model.Event) {
 	}
 }
 
-func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
+func logTraceEvent(eventType model.EventType, event interface{}) {
 	if !seclog.DefaultLogger.IsTracing() {
 		return
 	}
 
-	eventJSON, eventType, err := marshaller()
-	if err != nil {
-		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
-		return
-	}
-
-	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
+	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event})
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -342,10 +332,7 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalCustomEvent(event)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// send wildcard first
 	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
@@ -366,7 +353,7 @@ func (p *Probe) StatsPollingInterval() time.Duration {
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(containerID string) []string {
+func (p *Probe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.PlatformProbe.GetEventTags(containerID)
 }
 
@@ -422,6 +409,11 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
 }
 
+// IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
+func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
@@ -440,4 +432,9 @@ func (p *Probe) IsSecurityProfileEnabled() bool {
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(state bool) {
 	p.PlatformProbe.EnableEnforcement(state)
+}
+
+// GetAgentContainerContext returns the agent container context
+func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.agentContainerContext
 }

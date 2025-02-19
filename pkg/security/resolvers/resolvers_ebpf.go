@@ -17,11 +17,11 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,7 +52,7 @@ type EBPFResolvers struct {
 	ContainerResolver    *container.Resolver
 	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
-	TagsResolver         tags.Resolver
+	TagsResolver         *tags.LinuxResolver
 	DentryResolver       *dentry.Resolver
 	ProcessResolver      *process.EBPFResolver
 	NamespaceResolver    *netns.Resolver
@@ -64,7 +66,7 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, telemetry telemetry.Component) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -91,17 +93,12 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	var tagsResolver tags.Resolver
-	if opts.TagsResolver != nil {
-		tagsResolver = opts.TagsResolver
-	} else {
-		tagsResolver = tags.NewResolver(config.Probe, telemetry)
-	}
-
-	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient)
 	if err != nil {
 		return nil, err
 	}
+
+	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {
@@ -112,7 +109,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		if err := cgroupsResolver.RegisterListener(cgroup.CGroupDeleted, sbomResolver.OnCGroupDeletedEvent); err != nil {
 			return nil, err
 		}
-		if err := cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
+		if err := tagsResolver.RegisterListener(tags.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent); err != nil {
 			return nil, err
 		}
 	}
@@ -136,7 +133,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		mountResolver = &mount.NoOpResolver{}
 		pathResolver = &path.NoOpResolver{}
 	}
-	containerResolver := &container.Resolver{}
+	containerResolver := container.New()
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
@@ -220,6 +217,27 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 	return r.NamespaceResolver.Start(ctx)
 }
 
+// ResolveCGroupContext resolves the cgroup context from a cgroup path key
+func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, error) {
+	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
+		return cgroupContext, nil
+	}
+
+	cgroup, err := r.DentryResolver.Resolve(pathKey, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
+	}
+
+	cgroupContext := &model.CGroupContext{
+		CGroupID:      containerutils.CGroupID(cgroup),
+		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
+		CGroupFile:    pathKey,
+		CGroupManager: containerutils.CGroupManager(cgroupFlags & containerutils.CGroupManagerMask).String(),
+	}
+
+	return cgroupContext, nil
+}
+
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *EBPFResolvers) Snapshot() error {
 	if err := r.snapshot(); err != nil {
@@ -236,6 +254,11 @@ func (r *EBPFResolvers) Snapshot() error {
 
 	if err := selinux.SnapshotSELinux(selinuxStatusMap); err != nil {
 		return err
+	}
+
+	// snapshot sockets
+	if err := r.snapshotBoundSockets(); err != nil {
+		return fmt.Errorf("unable to snapshot bound sockets: %w", err)
 	}
 
 	return nil
@@ -296,6 +319,24 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the namespace cache
 		r.NamespaceResolver.SyncCache(pid)
+	}
+
+	return nil
+}
+
+func (r *EBPFResolvers) snapshotBoundSockets() error {
+	processes, err := utils.GetProcesses()
+	if err != nil {
+		return err
+	}
+
+	for _, proc := range processes {
+		bs, err := procfs.GetBoundSockets(proc)
+		if err != nil {
+			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
+			continue
+		}
+		r.ProcessResolver.SyncBoundSockets(uint32(proc.Pid), bs)
 	}
 
 	return nil

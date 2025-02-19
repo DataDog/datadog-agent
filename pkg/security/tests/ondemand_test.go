@@ -74,7 +74,7 @@ func TestOnDemandOpen(t *testing.T) {
 			return err
 		}
 		return syscall.Close(int(fd))
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 
 		value, _ := event.GetFieldValue("ondemand.arg2.str")
@@ -123,7 +123,7 @@ func TestOnDemandChdir(t *testing.T) {
 
 	test.WaitSignal(t, func() error {
 		return os.Chdir(testFolder)
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 
 		value, _ := event.GetFieldValue("ondemand.arg1.str")
@@ -174,7 +174,7 @@ func TestOnDemandMprotect(t *testing.T) {
 			return fmt.Errorf("couldn't mprotect segment: %w", err)
 		}
 		return nil
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 	})
 }

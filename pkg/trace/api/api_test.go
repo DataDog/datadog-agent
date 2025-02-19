@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -49,7 +51,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
@@ -148,6 +150,16 @@ func TestListenTCP(t *testing.T) {
 		_, ok := ln.(*rateLimitedListener)
 		assert.True(t, ok)
 	})
+}
+
+func TestNoDuplicatePatterns(t *testing.T) {
+	handlerPatternsMap := make(map[string]int)
+	for _, endpoint := range endpoints {
+		handlerPatternsMap[endpoint.Pattern]++
+		if handlerPatternsMap[endpoint.Pattern] > 1 {
+			assert.Fail(t, fmt.Sprintf("duplicate handler pattern %v", endpoint.Pattern))
+		}
+	}
 }
 
 func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
@@ -576,7 +588,9 @@ func TestDecodeV05(t *testing.T) {
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
 	req.Header.Set(header.ContainerID, "abcdef123789456")
-	tp, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
+	tp, err := decodeTracerPayload(v05, req, NewIDProvider("", func(_ origindetection.OriginInfo) (string, error) {
+		return "abcdef123789456", nil
+	}), "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",
@@ -641,20 +655,22 @@ type mockStatsProcessor struct {
 	lastP             *pb.ClientStatsPayload
 	lastLang          string
 	lastTracerVersion string
+	containerID       string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
 	m.lastTracerVersion = tracerVersion
+	m.containerID = containerID
 }
 
-func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.lastP, m.lastLang, m.lastTracerVersion
+	return m.lastP, m.lastLang, m.lastTracerVersion, m.containerID
 }
 
 func TestHandleStats(t *testing.T) {
@@ -675,6 +691,7 @@ func TestHandleStats(t *testing.T) {
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(header.Lang, "lang1")
 		req.Header.Set(header.TracerVersion, "0.1.0")
+		req.Header.Set(header.ContainerID, "abcdef123789456")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -685,10 +702,12 @@ func TestHandleStats(t *testing.T) {
 		}
 
 		resp.Body.Close()
-		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
-		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
-			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
+		gotp, gotlang, gotTracerVersion, containerID := mockProcessor.Got()
+		assert.True(t, reflect.DeepEqual(gotp, p), "payload did not match")
+		assert.Equal(t, "lang1", gotlang, "lang did not match")
+		assert.Equal(t, "0.1.0", gotTracerVersion, "tracerVersion did not match")
+		assert.Equal(t, "abcdef123789456", containerID, "containerID did not match")
+
 		_, ok := rcv.Stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
 		assert.True(t, ok)
 	})
@@ -711,6 +730,8 @@ func TestClientComputedStatsHeader(t *testing.T) {
 			req.Header.Set(header.Lang, "lang1")
 			if on {
 				req.Header.Set(header.ComputedStats, "yes")
+			} else {
+				req.Header.Set(header.ComputedStats, "false")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -1034,14 +1055,26 @@ func TestExpvar(t *testing.T) {
 	}
 
 	c := newTestReceiverConfig()
-	c.DebugServerPort = 5012
+	c.DebugServerPort = 6789
 	info.InitInfo(c)
+
+	// Starting a TLS httptest server to retrieve tlsCert
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+	tlsConfig := ts.TLS.Clone()
+	// Setting a client with the proper TLS configuration
+	client := ts.Client()
+	ts.Close()
+
+	// Starting Debug Server
 	s := NewDebugServer(c)
+	s.SetTLSConfig(tlsConfig)
+
+	// Starting the Debug server
 	s.Start()
 	defer s.Stop()
 
-	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
-	assert.NoError(t, err)
+	resp, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d/debug/vars", c.DebugServerPort))
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	t.Run("read-expvars", func(t *testing.T) {
@@ -1055,6 +1088,39 @@ func TestExpvar(t *testing.T) {
 			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
 		}
 	})
+}
+
+func TestWithoutIPCCert(t *testing.T) {
+	c := newTestReceiverConfig()
+
+	// Getting an available port
+	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var l *net.TCPListener
+	l, err = net.ListenTCP("tcp", a)
+	require.NoError(t, err)
+
+	availablePort := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, l.Close())
+	require.NotZero(t, availablePort)
+
+	c.DebugServerPort = availablePort
+	info.InitInfo(c)
+
+	// Starting Debug Server
+	s := NewDebugServer(c)
+
+	// Starting the Debug server
+	s.Start()
+	defer s.Stop()
+
+	// Server should not be able to connect because it didn't start
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(c.DebugServerPort)), time.Second)
+	require.Error(t, err)
+	if conn != nil {
+		conn.Close()
+	}
 }
 
 func TestNormalizeHTTPHeader(t *testing.T) {

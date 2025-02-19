@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	v2 "k8s.io/api/autoscaling/v2"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -17,7 +18,7 @@ import (
 
 // ExtractHorizontalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Horizontal Pod Autoscaler resource.
 // https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L33
-func ExtractHorizontalPodAutoscaler(v *v2.HorizontalPodAutoscaler) *model.HorizontalPodAutoscaler {
+func ExtractHorizontalPodAutoscaler(ctx processors.ProcessorContext, v *v2.HorizontalPodAutoscaler) *model.HorizontalPodAutoscaler {
 	if v == nil {
 		return &model.HorizontalPodAutoscaler{}
 	}
@@ -34,7 +35,9 @@ func ExtractHorizontalPodAutoscaler(v *v2.HorizontalPodAutoscaler) *model.Horizo
 		m.Tags = append(m.Tags, conditionTags...)
 	}
 
+	pctx := ctx.(*processors.K8sProcessorContext)
 	m.Tags = append(m.Tags, transformers.RetrieveUnifiedServiceTags(v.ObjectMeta.Labels)...)
+	m.Tags = append(m.Tags, transformers.RetrieveMetadataTags(v.ObjectMeta.Labels, v.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 	return m
 }
 

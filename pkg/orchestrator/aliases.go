@@ -83,6 +83,8 @@ const (
 	K8sLimitRange = pkgorchestratormodel.K8sLimitRange
 	// K8sStorageClass alias for pkgorchestratormodel.K8sStorageClass
 	K8sStorageClass = pkgorchestratormodel.K8sStorageClass
+	// K8sPodDisruptionBudget alias for pkgorchestratormodel.K8sPodDisruptionBudget
+	K8sPodDisruptionBudget = pkgorchestratormodel.K8sPodDisruptionBudget
 	// ECSTask alias for pkgorchestratormodel.ECSTask
 	ECSTask = pkgorchestratormodel.ECSTask
 )

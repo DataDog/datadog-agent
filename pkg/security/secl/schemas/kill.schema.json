@@ -1,0 +1,88 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kill.schema.json",
+    "type": "object",
+    "properties": {
+        "type": {
+            "type": "string"
+        },
+        "signal": {
+            "type": "string"
+        },
+        "scope": {
+            "type": "string"
+        },
+        "created_at": {
+            "$ref": "datetime.schema.json"
+        },
+        "detected_at": {
+            "$ref": "datetime.schema.json"
+        },
+        "killed_at": {
+            "$ref": "datetime.schema.json"
+        },
+        "exited_at": {
+            "$ref": "datetime.schema.json"
+        },
+        "ttr": {
+            "type": "string"
+        }
+    },
+    "anyOf": [
+        {
+            "properties": {
+                "signal": {
+                    "const": "SIGKILL"
+                },
+                "status": {
+                    "const": "performed"
+                }
+            },
+            "required": [
+                "type",
+                "signal",
+                "scope",
+                "status",
+                "created_at",
+                "detected_at",
+                "killed_at",
+                "exited_at",
+                "ttr"
+            ]
+        },
+        {
+            "properties": {
+                "signal": {
+                    "const": "SIGUSR2"
+                },
+                "status": {
+                    "const": "performed"
+                }
+            },
+            "required": [
+                "type",
+                "signal",
+                "scope",
+                "status",
+                "created_at",
+                "detected_at",
+                "killed_at"
+            ]
+        },
+        {
+            "properties": {
+                "status": {
+                    "const": "rule_disarmed"
+                }
+            },
+            "required": [
+                "type",
+                "signal",
+                "scope",
+                "status",
+                "created_at",
+                "detected_at"
+            ]
+        }
+    ]
+}

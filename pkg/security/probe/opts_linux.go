@@ -23,8 +23,8 @@ type Opts struct {
 	PathResolutionEnabled bool
 	// EnvsVarResolutionEnabled defines if environment variables resolution is enabled
 	EnvsVarResolutionEnabled bool
-	// TagsResolver will override the default one. Mainly here for tests.
-	TagsResolver tags.Resolver
+	// Tagger will override the default one. Mainly here for tests.
+	Tagger tags.Tagger
 	// SyscallsMonitorEnabled enable syscalls map monitor
 	SyscallsMonitorEnabled bool
 	// TTYFallbackEnabled enable the tty procfs fallback

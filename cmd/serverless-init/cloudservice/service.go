@@ -52,9 +52,9 @@ func (l *LocalService) Init() error {
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
 		if isCloudRunFunction() {
-			return &CloudRun{cloudRunFunctionMode: true}
+			return &CloudRun{spanNamespace: cloudRunFunction}
 		}
-		return &CloudRun{}
+		return &CloudRun{spanNamespace: cloudRunService}
 	}
 
 	if isContainerAppService() {

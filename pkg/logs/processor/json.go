@@ -18,6 +18,9 @@ const nanoToMillis = 1000000
 // JSONEncoder is a shared json encoder.
 var JSONEncoder Encoder = &jsonEncoder{}
 
+// JSONPayload is a shared JSON representation of a message
+var JSONPayload = jsonPayload{}
+
 // jsonEncoder transforms a message into a JSON byte array.
 type jsonEncoder struct{}
 

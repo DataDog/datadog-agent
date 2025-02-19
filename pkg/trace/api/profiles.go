@@ -86,16 +86,8 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString(fmt.Sprintf("functionname:%s", strings.ToLower(r.conf.LambdaFunctionName)))
 		tags.WriteString("_dd.origin:lambda")
 	}
-
-	// Azure Container App metadata
-	if subscriptionID, ok := r.conf.GlobalTags["subscription_id"]; ok {
-		tags.WriteString(fmt.Sprintf(",subscription_id:%s", subscriptionID))
-	}
-	if resourceGroup, ok := r.conf.GlobalTags["resource_group"]; ok {
-		tags.WriteString(fmt.Sprintf(",resource_group:%s", resourceGroup))
-	}
-	if resourceID, ok := r.conf.GlobalTags["resource_id"]; ok {
-		tags.WriteString(fmt.Sprintf(",resource_id:%s", resourceID))
+	if r.conf.AzureContainerAppTags != "" {
+		tags.WriteString(r.conf.AzureContainerAppTags)
 	}
 
 	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
@@ -117,7 +109,7 @@ func errorHandler(err error) http.Handler {
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
 func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
-	cidProvider := NewIDProvider(conf.ContainerProcRoot)
+	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {

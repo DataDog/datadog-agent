@@ -10,15 +10,14 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net"
-	"reflect"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/DataDog/viper"
 	"github.com/gosnmp/gosnmp"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -96,41 +95,29 @@ type intOrBoolPtr interface {
 	*int | *bool
 }
 
+// ErrNoConfigGiven is returned when the SNMP listener config was not found
+var ErrNoConfigGiven = errors.New("no config given for snmp_listener")
+
 // NewListenerConfig parses configuration and returns a built ListenerConfig
 func NewListenerConfig() (ListenerConfig, error) {
 	var snmpConfig ListenerConfig
-	opt := viper.DecodeHook(
-		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
-			// Turn an array into a map for ignored addresses
-			if rf != reflect.Slice {
-				return data, nil
-			}
-			if rt != reflect.Map {
-				return data, nil
-			}
-			newData := map[interface{}]bool{}
-			for _, i := range data.([]interface{}) {
-				newData[i] = true
-			}
-			return newData, nil
-		},
-	)
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
 	snmpConfig.CollectTopology = true
 
-	if pkgconfigsetup.Datadog().IsSet("network_devices.autodiscovery") {
-		err := pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery", &snmpConfig, opt)
+	ddcfg := pkgconfigsetup.Datadog()
+	if ddcfg.IsSet("network_devices.autodiscovery") {
+		err := structure.UnmarshalKey(ddcfg, "network_devices.autodiscovery", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			return snmpConfig, err
 		}
-	} else if pkgconfigsetup.Datadog().IsSet("snmp_listener") {
-		err := pkgconfigsetup.Datadog().UnmarshalKey("snmp_listener", &snmpConfig, opt)
+	} else if ddcfg.IsSet("snmp_listener") {
+		err := structure.UnmarshalKey(ddcfg, "snmp_listener", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			return snmpConfig, err
 		}
 	} else {
-		return snmpConfig, errors.New("no config given for snmp_listener")
+		return snmpConfig, ErrNoConfigGiven
 	}
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {

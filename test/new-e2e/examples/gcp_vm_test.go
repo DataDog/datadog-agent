@@ -6,8 +6,9 @@
 package examples
 
 import (
-	gcphost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/gcp/host/linux"
 	"testing"
+
+	gcphost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/gcp/host/linux"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"

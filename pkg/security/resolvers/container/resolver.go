@@ -10,14 +10,36 @@ package container
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Resolver is used to resolve the container context of the events
-type Resolver struct{}
+type Resolver struct {
+	fs *utils.CGroupFS
+}
 
-// GetContainerContext returns the container id of the given pid along with its flags
-func (cr *Resolver) GetContainerContext(pid uint32) (containerutils.ContainerID, containerutils.CGroupFlags, error) {
-	// Parse /proc/[pid]/task/[pid]/cgroup
-	return utils.GetProcContainerContext(pid, pid)
+// New creates a new container resolver
+func New() *Resolver {
+	return &Resolver{
+		fs: utils.NewCGroupFS(),
+	}
+}
+
+// GetContainerContext returns the container id, cgroup context, and cgroup sysfs path of the given pid
+func (cr *Resolver) GetContainerContext(pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error) {
+	// Parse /proc/[pid]/task/[pid]/cgroup and /sys/fs/cgroup/[cgroup]
+	id, ctx, path, err := cr.fs.FindCGroupContext(pid, pid)
+	if err != nil {
+		return "", model.CGroupContext{}, "", err
+	}
+
+	return id, model.CGroupContext{
+		CGroupID:    ctx.CGroupID,
+		CGroupFlags: ctx.CGroupFlags,
+		CGroupFile: model.PathKey{
+			Inode:   ctx.CGroupFileInode,
+			MountID: ctx.CGroupFileMountID,
+		},
+	}, path, nil
 }

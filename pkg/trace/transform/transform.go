@@ -13,15 +13,22 @@ import (
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
+
+// OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
+func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
+	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && conf.HasFeature("enable_operation_and_resource_name_logic_v2")
+}
 
 // OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
 // The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
@@ -34,16 +41,37 @@ func OtelSpanToDDSpanMinimal(
 	conf *config.AgentConfig,
 	peerTagKeys []string,
 ) *pb.Span {
+	var operationName string
+	var resourceName string
+	if OperationAndResourceNameV2Enabled(conf) {
+		operationName = traceutil.GetOTelOperationNameV2(otelspan)
+		resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
+	} else {
+		operationName = traceutil.GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
+		resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
+	}
+
+	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
+	var spanType string
+	if conf.HasFeature("disable_receive_resource_spans_v2") {
+		spanType = traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
+		if spanType == "" {
+			spanType = traceutil.SpanKind2Type(otelspan, otelres)
+		}
+	} else {
+		spanType = traceutil.GetOTelSpanType(otelspan, otelres)
+	}
+
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelService(otelspan, otelres, true),
-		Name:     traceutil.GetOTelOperationName(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true),
-		Resource: traceutil.GetOTelResource(otelspan, otelres),
+		Service:  traceutil.GetOTelService(otelres, true),
+		Name:     operationName,
+		Resource: resourceName,
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
 		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
 		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
 		Start:    int64(otelspan.StartTimestamp()),
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
-		Type:     traceutil.GetOTelSpanType(otelspan, otelres),
+		Type:     spanType,
 		Meta:     make(map[string]string, otelres.Attributes().Len()+otelspan.Attributes().Len()),
 		Metrics:  map[string]float64{},
 	}
@@ -73,6 +101,27 @@ func OtelSpanToDDSpanMinimal(
 	return ddspan
 }
 
+func isDatadogAPMConventionKey(k string) bool {
+	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || k == "http.method" || k == "http.status_code"
+}
+
+func setMetaOTLPWithHTTPMappings(k string, value string, ddspan *pb.Span) {
+	datadogKey, found := attributes.HTTPMappings[k]
+	switch {
+	case found && value != "":
+		ddspan.Meta[datadogKey] = value
+	case strings.HasPrefix(k, "http.request.header."):
+		key := fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
+		ddspan.Meta[key] = value
+		// Exclude Datadog APM conventions.
+		// These are handled above explicitly.
+	case !isDatadogAPMConventionKey(k):
+		SetMetaOTLP(ddspan, k, value)
+	default:
+		return
+	}
+}
+
 // OtelSpanToDDSpan converts an OTel span to a DD span.
 func OtelSpanToDDSpan(
 	otelspan ptrace.Span,
@@ -90,9 +139,8 @@ func OtelSpanToDDSpan(
 	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
-		if k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
-			SetMetaOTLP(ddspan, k, v.AsString())
-		}
+		value := v.AsString()
+		setMetaOTLPWithHTTPMappings(k, value, ddspan)
 		return true
 	})
 
@@ -104,9 +152,8 @@ func OtelSpanToDDSpan(
 		}
 	}
 
-	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 	if _, ok := ddspan.Meta["env"]; !ok {
-		if env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
+		if env := traceutil.GetOTelEnv(otelres); env != "" {
 			ddspan.Meta["env"] = env
 		}
 	}
@@ -114,6 +161,7 @@ func OtelSpanToDDSpan(
 	if otelspan.Events().Len() > 0 {
 		ddspan.Meta["events"] = MarshalEvents(otelspan.Events())
 	}
+	TagSpanIfContainsExceptionEvent(otelspan, ddspan)
 	if otelspan.Links().Len() > 0 {
 		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
@@ -129,11 +177,7 @@ func OtelSpanToDDSpan(
 		case pcommon.ValueTypeInt:
 			SetMetricOTLP(ddspan, k, float64(v.Int()))
 		default:
-			// Exclude Datadog APM conventions.
-			// These are handled below explicitly.
-			if k != "http.method" && k != "http.status_code" {
-				SetMetaOTLP(ddspan, k, value)
-			}
+			setMetaOTLPWithHTTPMappings(k, value, ddspan)
 		}
 
 		// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
@@ -143,7 +187,6 @@ func OtelSpanToDDSpan(
 		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
 		if k == "http.request.method" {
 			gotMethodFromNewConv = true
-			ddspan.Meta["http.method"] = value
 		} else if k == "http.method" && !gotMethodFromNewConv {
 			ddspan.Meta["http.method"] = value
 		}
@@ -155,7 +198,6 @@ func OtelSpanToDDSpan(
 		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
 		if k == "http.response.status_code" {
 			gotStatusCodeFromNewConv = true
-			ddspan.Meta["http.status_code"] = value
 		} else if k == "http.status_code" && !gotStatusCodeFromNewConv {
 			ddspan.Meta["http.status_code"] = value
 		}
@@ -179,6 +221,16 @@ func OtelSpanToDDSpan(
 	Status2Error(otelspan.Status(), otelspan.Events(), ddspan)
 
 	return ddspan
+}
+
+// TagSpanIfContainsExceptionEvent tags spans that contain at least on exception span event.
+func TagSpanIfContainsExceptionEvent(otelspan ptrace.Span, ddspan *pb.Span) {
+	for i := range otelspan.Events().Len() {
+		if otelspan.Events().At(i).Name() == "exception" {
+			ddspan.Meta["_dd.span_events.has_exception"] = "true"
+			return
+		}
+	}
 }
 
 // MarshalEvents marshals events into JSON.

@@ -17,13 +17,14 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"net/url"
 	"path"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/go-tuf/data"
 	tufutil "github.com/DataDog/go-tuf/util"
@@ -110,50 +111,21 @@ func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64
 	return roots, nil
 }
 
-func (s *Service) getTargetFiles(uptane uptaneClient, products []rdata.Product, cachedTargetFiles []*pbgo.TargetFileMeta) ([]*pbgo.File, error) {
-	productSet := make(map[rdata.Product]struct{})
-	for _, product := range products {
-		productSet[product] = struct{}{}
-	}
-	targets, err := uptane.Targets()
+func (s *Service) getTargetFiles(uptaneClient uptaneClient, targetFilePaths []string) ([]*pbgo.File, error) {
+	files, err := uptaneClient.TargetFiles(targetFilePaths)
 	if err != nil {
 		return nil, err
 	}
-	cachedTargets := make(map[string]data.FileMeta)
-	for _, cachedTarget := range cachedTargetFiles {
-		hashes := make(data.Hashes)
-		for _, hash := range cachedTarget.Hashes {
-			h, err := hex.DecodeString(hash.Hash)
-			if err != nil {
-				return nil, err
-			}
-			hashes[hash.Algorithm] = h
-		}
-		cachedTargets[cachedTarget.Path] = data.FileMeta{
-			Hashes: hashes,
-			Length: cachedTarget.Length,
-		}
-	}
+
 	var configFiles []*pbgo.File
-	for targetPath, targetMeta := range targets {
-		configPathMeta, err := rdata.ParseConfigPath(targetPath)
-		if err != nil {
-			return nil, err
-		}
-		if _, inClientProducts := productSet[rdata.Product(configPathMeta.Product)]; inClientProducts {
-			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
-				continue
-			}
-			fileContents, err := uptane.TargetFile(targetPath)
-			if err != nil {
-				return nil, err
-			}
-			configFiles = append(configFiles, &pbgo.File{
-				Path: targetPath,
-				Raw:  fileContents,
-			})
-		}
+	for path, contents := range files {
+		// Note: This unconditionally succeeds as long as we don't change bufferDestination earlier
+		configFiles = append(configFiles, &pbgo.File{
+			Path: path,
+			Raw:  contents,
+		})
 	}
+
 	return configFiles, nil
 }
 
@@ -199,6 +171,8 @@ type CoreAgentService struct {
 	previousOrgStatus *pbgo.OrgStatusResponse
 
 	agentVersion string
+
+	disableConfigPollLoop bool
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -208,6 +182,7 @@ type uptaneClient interface {
 	StoredOrgUUID() (string, error)
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)
+	TargetFiles(files []string) (map[string][]byte, error)
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
 	TUFVersionState() (uptane.TUFVersions, error)
@@ -245,8 +220,10 @@ type options struct {
 	site                           string
 	rcKey                          string
 	apiKey                         string
+	parJWT                         string
 	traceAgentEnv                  string
 	databaseFileName               string
+	databaseFilePath               string
 	configRootOverride             string
 	directorRootOverride           string
 	clientCacheBypassLimit         int
@@ -254,13 +231,16 @@ type options struct {
 	refreshIntervalOverrideAllowed bool
 	maxBackoff                     time.Duration
 	clientTTL                      time.Duration
+	disableConfigPollLoop          bool
 }
 
 var defaultOptions = options{
 	rcKey:                          "",
 	apiKey:                         "",
+	parJWT:                         "",
 	traceAgentEnv:                  "",
 	databaseFileName:               "remote-config.db",
+	databaseFilePath:               "",
 	configRootOverride:             "",
 	directorRootOverride:           "",
 	clientCacheBypassLimit:         defaultCacheBypassLimit,
@@ -268,6 +248,7 @@ var defaultOptions = options{
 	refreshIntervalOverrideAllowed: true,
 	maxBackoff:                     minimalMaxBackoffTime,
 	clientTTL:                      defaultClientsTTL,
+	disableConfigPollLoop:          false,
 }
 
 // Option is a service option
@@ -281,6 +262,11 @@ func WithTraceAgentEnv(env string) func(s *options) {
 // WithDatabaseFileName sets the service database file name
 func WithDatabaseFileName(fileName string) func(s *options) {
 	return func(s *options) { s.databaseFileName = fileName }
+}
+
+// WithDatabasePath sets the service database path
+func WithDatabasePath(path string) func(s *options) {
+	return func(s *options) { s.databaseFilePath = path }
 }
 
 // WithConfigRootOverride sets the service config root override
@@ -343,6 +329,11 @@ func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
 }
 
+// WithPARJWT sets the JWT for the private action runner
+func WithPARJWT(jwt string) func(s *options) {
+	return func(s *options) { s.parJWT = jwt }
+}
+
 // WithClientCacheBypassLimit validates and sets the service client cache bypass limit
 func WithClientCacheBypassLimit(limit int, cfgPath string) func(s *options) {
 	if limit < minCacheBypassLimit || limit > maxCacheBypassLimit {
@@ -372,6 +363,13 @@ func WithClientTTL(interval time.Duration, cfgPath string) func(s *options) {
 	}
 }
 
+// WithAgentPollLoopDisabled disables the config poll loop
+func WithAgentPollLoopDisabled() func(s *options) {
+	return func(s *options) {
+		s.disableConfigPollLoop = true
+	}
+}
+
 // NewService instantiates a new remote configuration management service
 func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*CoreAgentService, error) {
 	options := defaultOptions
@@ -396,7 +394,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime,
 		options.maxBackoff.Seconds(), recoveryInterval, recoveryReset)
 
-	authKeys, err := getRemoteConfigAuthKeys(options.apiKey, options.rcKey)
+	authKeys, err := getRemoteConfigAuthKeys(options.apiKey, options.rcKey, options.parJWT)
 	if err != nil {
 		return nil, err
 	}
@@ -410,7 +408,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		return nil, err
 	}
 
-	dbPath := path.Join(cfg.GetString("run_path"), options.databaseFileName)
+	databaseFilePath := cfg.GetString("run_path")
+	if options.databaseFilePath != "" {
+		databaseFilePath = options.databaseFilePath
+	}
+	dbPath := path.Join(databaseFilePath, options.databaseFileName)
 	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey)
 	if err != nil {
 		return nil, err
@@ -466,10 +468,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
-		telemetryReporter: telemetryReporter,
-		agentVersion:      agentVersion,
-		stopOrgPoller:     make(chan struct{}),
-		stopConfigPoller:  make(chan struct{}),
+		telemetryReporter:     telemetryReporter,
+		agentVersion:          agentVersion,
+		stopOrgPoller:         make(chan struct{}),
+		stopConfigPoller:      make(chan struct{}),
+		disableConfigPollLoop: options.disableConfigPollLoop,
 	}, nil
 }
 
@@ -499,45 +502,77 @@ func (s *CoreAgentService) Start() {
 		defer func() {
 			close(s.stopOrgPoller)
 		}()
-
-		err := s.refresh()
-		if err != nil {
-			if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
-				log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-			} else {
-				log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
-			}
+		if s.disableConfigPollLoop {
+			startWithoutAgentPollLoop(s)
+		} else {
+			startWithAgentPollLoop(s)
 		}
 
-		for {
-			var err error
-			refreshInterval := s.calculateRefreshInterval()
-			select {
-			case <-s.clock.After(refreshInterval):
-				err = s.refresh()
-			// New clients detected, request refresh
-			case response := <-s.cacheBypassClients.requests:
-				if !s.cacheBypassClients.Limit() {
-					err = s.refresh()
-				} else {
-					s.telemetryReporter.IncRateLimit()
-				}
-				close(response)
-			case <-s.stopConfigPoller:
-				log.Infof("[%s] Stopping Remote Config configuration poller", s.rcType)
-				return
-			}
-
-			if err != nil {
-				if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
-					exportedLastUpdateErr.Set(err.Error())
-					log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-				} else {
-					log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
-				}
-			}
-		}
 	}()
+}
+
+// UpdatePARJWT updates the stored JWT for Private Action Runners
+// for authentication to the remote config backend.
+func (s *CoreAgentService) UpdatePARJWT(jwt string) {
+	s.api.UpdatePARJWT(jwt)
+}
+
+func startWithAgentPollLoop(s *CoreAgentService) {
+	err := s.refresh()
+	if err != nil {
+		logRefreshError(s, err)
+	}
+
+	for {
+		var err error
+		refreshInterval := s.calculateRefreshInterval()
+		select {
+		case <-s.clock.After(refreshInterval):
+			err = s.refresh()
+		// New clients detected, request refresh
+		case response := <-s.cacheBypassClients.requests:
+			if !s.cacheBypassClients.Limit() {
+				err = s.refresh()
+			} else {
+				s.telemetryReporter.IncRateLimit()
+			}
+			close(response)
+		case <-s.stopConfigPoller:
+			log.Infof("[%s] Stopping Remote Config configuration poller", s.rcType)
+			return
+		}
+
+		if err != nil {
+			logRefreshError(s, err)
+		}
+	}
+}
+
+func startWithoutAgentPollLoop(s *CoreAgentService) {
+	for {
+		var err error
+		response := <-s.cacheBypassClients.requests
+		if !s.cacheBypassClients.Limit() {
+			err = s.refresh()
+		} else {
+			err = errors.New("cache bypass limit exceeded")
+			s.lastUpdateErr = err
+			s.telemetryReporter.IncRateLimit()
+		}
+		close(response)
+		if err != nil {
+			logRefreshError(s, err)
+		}
+	}
+}
+
+func logRefreshError(s *CoreAgentService, err error) {
+	if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
+		exportedLastUpdateErr.Set(err.Error())
+		log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+	} else {
+		log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
+	}
 }
 
 // Stop stops the refresh loop and closes the on-disk DB cache
@@ -762,6 +797,9 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 
 		s.Lock()
 	}
+	if s.disableConfigPollLoop && s.lastUpdateErr != nil {
+		return nil, s.lastUpdateErr
+	}
 
 	s.clients.seen(request.Client)
 	tufVersions, err := s.uptane.TUFVersionState()
@@ -775,14 +813,6 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
-	targetsRaw, err := s.uptane.TargetsMeta()
-	if err != nil {
-		return nil, err
-	}
-	targetFiles, err := s.getTargetFiles(s.uptane, rdata.StringListToProduct(request.Client.Products), request.CachedTargetFiles)
-	if err != nil {
-		return nil, err
-	}
 
 	directorTargets, err := s.uptane.Targets()
 	if err != nil {
@@ -793,18 +823,20 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	// filter files to only return the ones that predicates marked for this client
-	matchedConfigsMap := make(map[string]interface{})
-	for _, configPointer := range matchedClientConfigs {
-		matchedConfigsMap[configPointer] = struct{}{}
-	}
-	filteredFiles := make([]*pbgo.File, 0, len(matchedClientConfigs))
-	for _, targetFile := range targetFiles {
-		if _, ok := matchedConfigsMap[targetFile.Path]; ok {
-			filteredFiles = append(filteredFiles, targetFile)
-		}
+	neededFiles, err := filterNeededTargetFiles(matchedClientConfigs, request.CachedTargetFiles, directorTargets)
+	if err != nil {
+		return nil, err
 	}
 
+	targetFiles, err := s.getTargetFiles(s.uptane, neededFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	targetsRaw, err := s.uptane.TargetsMeta()
+	if err != nil {
+		return nil, err
+	}
 	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
 	if err != nil {
 		return nil, err
@@ -813,9 +845,40 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
 		Targets:       canonicalTargets,
-		TargetFiles:   filteredFiles,
+		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
 	}, nil
+}
+
+func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.TargetFileMeta, tufTargets data.TargetFiles) ([]string, error) {
+	// Build an O(1) lookup of cached target files
+	cachedTargetsMap := make(map[string]data.FileMeta)
+	for _, cachedTarget := range cachedTargetFiles {
+		hashes := make(data.Hashes)
+		for _, hash := range cachedTarget.Hashes {
+			h, err := hex.DecodeString(hash.Hash)
+			if err != nil {
+				return nil, err
+			}
+			hashes[hash.Algorithm] = h
+		}
+		cachedTargetsMap[cachedTarget.Path] = data.FileMeta{
+			Hashes: hashes,
+			Length: cachedTarget.Length,
+		}
+	}
+
+	// We don't need to pull the raw contents if the client already has the exact version of the file cached
+	filteredList := make([]string, 0, len(neededConfigs))
+	for _, path := range neededConfigs {
+		if notEqualErr := tufutil.FileMetaEqual(cachedTargetsMap[path], tufTargets[path].FileMeta); notEqualErr == nil {
+			continue
+		}
+
+		filteredList = append(filteredList, path)
+	}
+
+	return filteredList, nil
 }
 
 // ConfigGetState returns the state of the configuration and the director repos in the local store
@@ -1064,29 +1127,14 @@ func (c *HTTPClient) getUpdate(
 	if tufVersions.DirectorTargets == currentTargetsVersion {
 		return nil, nil
 	}
-	roots, err := c.getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
-	if err != nil {
-		return nil, err
-	}
-	targetsRaw, err := c.uptane.TargetsMeta()
-	if err != nil {
-		return nil, err
-	}
-	targetFiles, err := c.getTargetFiles(c.uptane, rdata.StringListToProduct(products), cachedTargetFiles)
-	if err != nil {
-		return nil, err
-	}
 
-	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
-	if err != nil {
-		return nil, err
-	}
-
+	// Filter out files that either:
+	//	- don't correspond to the product list the client is requesting
+	//	- have expired
 	directorTargets, err := c.uptane.Targets()
 	if err != nil {
 		return nil, err
 	}
-
 	productsMap := make(map[string]struct{})
 	for _, product := range products {
 		productsMap[product] = struct{}{}
@@ -1112,14 +1160,33 @@ func (c *HTTPClient) getUpdate(
 
 		configs = append(configs, path)
 	}
+	span.SetTag("configs.returned", configs)
+	span.SetTag("configs.expired", expiredConfigs)
 
+	// Gather the files and map-ify them for the state data structure
+	targetFiles, err := c.getTargetFiles(c.uptane, configs)
+	if err != nil {
+		return nil, err
+	}
 	fileMap := make(map[string][]byte, len(targetFiles))
 	for _, f := range targetFiles {
 		fileMap[f.Path] = f.Raw
 	}
 
-	span.SetTag("configs.returned", configs)
-	span.SetTag("configs.expired", expiredConfigs)
+	// Gather some TUF metadata files we need to send down
+	roots, err := c.getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
+	if err != nil {
+		return nil, err
+	}
+	targetsRaw, err := c.uptane.TargetsMeta()
+	if err != nil {
+		return nil, err
+	}
+	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
+	if err != nil {
+		return nil, err
+	}
+
 	return &state.Update{
 		TUFRoots:      roots,
 		TUFTargets:    canonicalTargets,

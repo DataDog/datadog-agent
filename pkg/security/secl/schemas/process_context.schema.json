@@ -1,0 +1,37 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "process_context.schema.json",
+    "type": "object",
+    "properties": {
+        "process": {
+            "allOf": [
+                {
+                    "$ref": "process.schema.json"
+                },
+                {
+                    "properties": {
+                        "parent": {
+                            "$ref": "process.schema.json"
+                        },
+                        "ancestors": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "process.schema.json"
+                            }
+                        },
+                        "container": {
+                            "$ref": "container.schema.json"
+                        }
+                    },
+                    "required": [
+                        "parent",
+                        "ancestors"
+                    ]
+                }
+            ]
+        }
+    },
+    "required": [
+        "process"
+    ]
+}

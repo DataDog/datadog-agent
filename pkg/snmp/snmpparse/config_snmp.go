@@ -12,16 +12,13 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"reflect"
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/viper"
-
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 )
 
@@ -29,23 +26,27 @@ import (
 // integration.
 type SNMPConfig struct {
 
-	//General
+	// General
 	IPAddress string `yaml:"ip_address"`
 	Port      uint16 `yaml:"port"`
 	Version   string `yaml:"snmp_version"`
 	Timeout   int    `yaml:"timeout"`
 	Retries   int    `yaml:"retries"`
-	//v1 &2
+	// v1 &2
 	CommunityString string `yaml:"community_string"`
-	//v3
+	// v3
 	Username     string `yaml:"user"`
 	AuthProtocol string `yaml:"authProtocol"`
 	AuthKey      string `yaml:"authKey"`
 	PrivProtocol string `yaml:"privProtocol"`
 	PrivKey      string `yaml:"privKey"`
 	Context      string `yaml:"context_name"`
-	//network
+	// network
 	NetAddress string `yaml:"network_address"`
+	// These are omitted from the yaml because we don't let users configure
+	// them, but there are cases where we use them (e.g. the snmpwalk command)
+	SecurityLevel           string `yaml:"-"`
+	UseUnconnectedUDPSocket bool   `yaml:"-"`
 }
 
 // SetDefault sets the standard default config values
@@ -60,8 +61,8 @@ func SetDefault(sc *SNMPConfig) {
 // ParseConfigSnmp extracts all SNMPConfigs from an autodiscovery config.
 // Any loading errors are logged but not returned.
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
-	//an array containing all the snmp instances
-	snmpconfigs := []SNMPConfig{}
+	// an array containing all the snmp instances
+	var snmpconfigs []SNMPConfig
 
 	for _, inst := range c.Instances {
 		instance := SNMPConfig{}
@@ -80,32 +81,16 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 	snmpconfigs := []SNMPConfig{}
 	configs := []snmplistener.Config{}
-	opt := viper.DecodeHook(
-		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
-			// Turn an array into a map for ignored addresses
-			if rf != reflect.Slice {
-				return data, nil
-			}
-			if rt != reflect.Map {
-				return data, nil
-			}
-			newData := map[interface{}]bool{}
-			for _, i := range data.([]interface{}) {
-				newData[i] = true
-			}
-			return newData, nil
-		},
-	)
 	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
 	//so for each result of the Unmarshal key we store the result in a tmp SNMPConfig{} object
 	if conf.IsSet("network_devices.autodiscovery.configs") {
-		err := conf.UnmarshalKey("network_devices.autodiscovery.configs", &configs, opt)
+		err := structure.UnmarshalKey(conf, "network_devices.autodiscovery.configs", &configs, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			fmt.Printf("unable to get snmp config from network_devices.autodiscovery: %v", err)
 			return nil, err
 		}
 	} else if conf.IsSet("snmp_listener.configs") {
-		err := conf.UnmarshalKey("snmp_listener.configs", &configs, opt)
+		err := structure.UnmarshalKey(conf, "snmp_listener.configs", &configs, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			fmt.Printf("unable to get snmp config from snmp_listener: %v", err)
 			return nil, err
@@ -162,18 +147,18 @@ func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	//Store the SNMP config in an array (snmpconfigs)
-	//c is of type config while the cr is the config check response including the instances
-	snmpconfigs := []SNMPConfig{}
+	// Store the SNMP config in an array (snmpConfigs)
+	// c is of type config while the cr is the config check response including the instances
+	var snmpConfigs []SNMPConfig
 	for _, c := range cr.Configs {
 		if c.Name == "snmp" {
-			snmpconfigs = append(snmpconfigs, ParseConfigSnmp(c)...)
+			snmpConfigs = append(snmpConfigs, ParseConfigSnmp(c)...)
 		}
 	}
 	snmpconfigMain, _ := parseConfigSnmpMain(conf)
-	snmpconfigs = append(snmpconfigs, snmpconfigMain...)
+	snmpConfigs = append(snmpConfigs, snmpconfigMain...)
 
-	return snmpconfigs, nil
+	return snmpConfigs, nil
 
 }
 
@@ -183,27 +168,27 @@ func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 // subnet config will be returned. If there are no matches, this
 // will return an empty SNMPConfig.
 func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
-	ipAddressConfigs := []SNMPConfig{}
-	netAddressConfigs := []SNMPConfig{}
+	var ipAddressConfigs []SNMPConfig
+	var netAddressConfigs []SNMPConfig
 
-	//split the SnmpConfigList to get the IP addresses separated from
-	//the network addresses
-	for _, snmpconfig := range SnmpConfigList {
-		if snmpconfig.IPAddress != "" {
-			ipAddressConfigs = append(ipAddressConfigs, snmpconfig)
+	// split the SnmpConfigList to get the IP addresses separated from
+	// the network addresses
+	for _, snmpConfig := range SnmpConfigList {
+		if snmpConfig.IPAddress != "" {
+			ipAddressConfigs = append(ipAddressConfigs, snmpConfig)
 		}
-		if snmpconfig.NetAddress != "" {
-			netAddressConfigs = append(netAddressConfigs, snmpconfig)
+		if snmpConfig.NetAddress != "" {
+			netAddressConfigs = append(netAddressConfigs, snmpConfig)
 		}
 	}
 
-	//check if the ip address is explicitly mentioned
+	// check if the ip address is explicitly mentioned
 	for _, snmpIPconfig := range ipAddressConfigs {
 		if snmpIPconfig.IPAddress == ipAddress {
 			return snmpIPconfig
 		}
 	}
-	//check if the ip address is a part of a network/subnet
+	// check if the ip address is a part of a network/subnet
 	for _, snmpNetConfig := range netAddressConfigs {
 		_, subnet, err := net.ParseCIDR(snmpNetConfig.NetAddress)
 		if err != nil {

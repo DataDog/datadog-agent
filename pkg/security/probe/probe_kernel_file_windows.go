@@ -49,6 +49,7 @@ type fileObjectPointer uint64
 
 var (
 	errDiscardedPath = errors.New("discarded path")
+	errReadNoPath    = errors.New("read with no path")
 )
 
 /*
@@ -163,7 +164,10 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	// not amazing to double compute the basename..
+	// invalidate the path resolver entry
+	wp.filePathResolver.Remove(ca.fileObject)
+
+	// not amazing to double compute the basename.
 	basename := filepath.Base(ca.fileName)
 
 	if !wp.approveFimBasename(basename) {
@@ -199,7 +203,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	if wp.filePathResolver.Add(ca.fileObject, fc) {
 		wp.stats.fileNameCacheEvictions++
 	}
-	// if we get here, we have a new file handle.  Remove it from the discarder cache in case
+	// if we get here, we have a new file handle. Remove it from the discarder cache in case
 	// we missed the close notification
 	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
 
@@ -540,7 +544,10 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
 		ra.fileName = s.fileName
 		ra.userFileName = s.userFileName
+	} else {
+		return nil, errReadNoPath
 	}
+
 	return ra, nil
 }
 
@@ -754,10 +761,16 @@ func (wp *WindowsProbe) parseNameDeleteArgs(e *etw.DDEventRecord) (*nameDeleteAr
 // nolint: unused
 func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) {
 	// filepath doesn't seem to like the \Device\HarddiskVolume1 format
-	pathchunks := strings.Split(devicefilename, "\\")
+	pathchunks := strings.SplitN(devicefilename, "\\", 4)
 	if len(pathchunks) > 2 {
 		if strings.EqualFold(pathchunks[1], "device") {
-			pathchunks[2] = wp.volumeMap[strings.ToLower(pathchunks[2])]
+			// first try a direct match, to avoid the `strings.ToLower` call
+			replaced, ok := wp.volumeMap[pathchunks[2]]
+			if !ok {
+				// then try a case insensitive match
+				replaced = wp.volumeMap[strings.ToLower(pathchunks[2])]
+			}
+			pathchunks[2] = replaced
 			return filepath.Join(pathchunks[2:]...), nil
 		}
 	}
@@ -819,7 +832,9 @@ func (wp *WindowsProbe) initializeVolumeMap() error {
 				if len(paths) > 2 {
 					// the \Device leads to the first entry being empty
 					if strings.EqualFold(paths[1], "device") {
-						wp.volumeMap[strings.ToLower(paths[2])] = drive
+						device := paths[2]
+						wp.volumeMap[device] = drive                  // device as-is for direct match
+						wp.volumeMap[strings.ToLower(device)] = drive // lower case for slower fallback
 					}
 				}
 			}

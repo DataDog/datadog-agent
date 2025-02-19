@@ -17,13 +17,16 @@
 package cuda
 
 import (
-	"debug/elf"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"iter"
+	"maps"
 	"unsafe"
 
 	"github.com/pierrec/lz4/v4"
+
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 type fatbinDataKind uint16
@@ -39,16 +42,56 @@ const fatbinDataMaxKind = fatbinDataKindSm
 
 // Fatbin holds all CUDA binaries found in one fatbin package
 type Fatbin struct {
-	Kernels map[CubinKernelKey]*CubinKernel
+	// kernels is a map of kernel keys to the kernel data
+	kernels map[CubinKernelKey]*CubinKernel
+
+	// kernelNames is a map of kernel names to make easy lookup for HasKernelWithName
+	kernelNames map[string]struct{}
+
+	// CompressedPayloads is the number of compressed payloads found in the fatbin
+	CompressedPayloads int
+
+	// UncompressedPayloads is the number of uncompressed payloads found in the fatbin
+	UncompressedPayloads int
+}
+
+// NewFatbin creates a new Fatbin instance
+func NewFatbin() *Fatbin {
+	return &Fatbin{
+		kernels:     make(map[CubinKernelKey]*CubinKernel),
+		kernelNames: make(map[string]struct{}),
+	}
 }
 
 // GetKernel returns the kernel with the given name and SM version from the fatbin
 func (fb *Fatbin) GetKernel(name string, smVersion uint32) *CubinKernel {
 	key := CubinKernelKey{Name: name, SmVersion: smVersion}
-	if _, ok := fb.Kernels[key]; !ok {
+	if _, ok := fb.kernels[key]; !ok {
 		return nil
 	}
-	return fb.Kernels[key]
+	return fb.kernels[key]
+}
+
+// GetKernels returns an iterator over the kernels in the fatbin
+func (fb *Fatbin) GetKernels() iter.Seq[*CubinKernel] {
+	return maps.Values(fb.kernels)
+}
+
+// NumKernels returns the number of kernels in the fatbin
+func (fb *Fatbin) NumKernels() int {
+	return len(fb.kernels)
+}
+
+// HasKernelWithName returns true if the fatbin has a kernel with the given name
+func (fb *Fatbin) HasKernelWithName(name string) bool {
+	_, ok := fb.kernelNames[name]
+	return ok
+}
+
+// AddKernel adds a kernel to the fatbin and updates internal indexes
+func (fb *Fatbin) AddKernel(key CubinKernelKey, kernel *CubinKernel) {
+	fb.kernels[key] = kernel
+	fb.kernelNames[kernel.Name] = struct{}{}
 }
 
 type fatbinHeader struct {
@@ -103,14 +146,14 @@ func (fbd *fatbinData) validate() error {
 }
 
 // ParseFatbinFromELFFilePath opens the given path and parses the resulting ELF for CUDA kernels
-func ParseFatbinFromELFFilePath(path string) (*Fatbin, error) {
-	elfFile, err := elf.Open(path)
+func ParseFatbinFromELFFilePath(path string, acceptedSmVersions map[uint32]struct{}) (*Fatbin, error) {
+	elfFile, err := safeelf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ELF file %s: %w", path, err)
 	}
 	defer elfFile.Close()
 
-	return ParseFatbinFromELFFile(elfFile)
+	return ParseFatbinFromELFFile(elfFile, acceptedSmVersions)
 }
 
 func getBufferOffset(buf io.Seeker) int64 {
@@ -119,10 +162,8 @@ func getBufferOffset(buf io.Seeker) int64 {
 }
 
 // ParseFatbinFromELFFile parses the fatbin sections of the given ELF file and returns the information found in it
-func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
-	fatbin := &Fatbin{
-		Kernels: make(map[CubinKernelKey]*CubinKernel),
-	}
+func ParseFatbinFromELFFile(elfFile *safeelf.File, acceptedSmVersions map[uint32]struct{}) (*Fatbin, error) {
+	fatbin := NewFatbin()
 
 	for _, sect := range elfFile.Sections {
 		// CUDA embeds the fatbin data in sections named .nv_fatbin or __nv_relfatbin
@@ -165,7 +206,7 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 			// We need to read only up to the size given to us by the header, not to the end of the section.
 			readStart := getBufferOffset(buffer)
 			for currOffset := getBufferOffset(buffer); uint64(currOffset-readStart) < fbHeader.FatSize; currOffset = getBufferOffset(buffer) {
-				if err := parseFatbinData(buffer, fatbin); err != nil {
+				if err := parseFatbinData(buffer, fatbin, acceptedSmVersions); err != nil {
 					if err == io.EOF {
 						break
 					}
@@ -179,7 +220,7 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 	return fatbin, nil
 }
 
-func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
+func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin, acceptedSmVersions map[uint32]struct{}) error {
 	// Each data section starts with a data header, read it
 	var fbData fatbinData
 	err := binary.Read(buffer, binary.LittleEndian, &fbData)
@@ -206,11 +247,13 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 		}
 	}
 
-	if fbData.dataKind() != fatbinDataKindSm {
-		// We only support SM data for now, skip this one
+	_, smVersionAccepted := acceptedSmVersions[fbData.SmVersion]
+
+	// Skip if the data is not for a SM version we care about, or if it's not a format we can handle (PTX)
+	if fbData.dataKind() != fatbinDataKindSm || !smVersionAccepted {
 		_, err := buffer.Seek(int64(fbData.PaddedPayloadSize), io.SeekCurrent)
 		if err != nil {
-			return fmt.Errorf("failed to skip PTX fatbin data: %w", err)
+			return fmt.Errorf("failed to skip fatbin data: %w", err)
 		}
 
 		return nil // Skip this data section
@@ -221,6 +264,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	// have once uncompressed. If it's zero, the payload is not compressed.
 	var payload []byte
 	if fbData.UncompressedPayloadSize != 0 {
+		fatbin.CompressedPayloads++
 		compressedPayload := make([]byte, fbData.PaddedPayloadSize)
 		_, err := io.ReadFull(buffer, compressedPayload)
 		if err != nil {
@@ -236,6 +280,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 			return fmt.Errorf("failed to decompress fatbin payload: %w", err)
 		}
 	} else {
+		fatbin.UncompressedPayloads++
 		payload = make([]byte, fbData.PaddedPayloadSize)
 		_, err := io.ReadFull(buffer, payload)
 		if err != nil {
@@ -254,7 +299,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	// the SM version they were compiled for which is only available in the fatbin data
 	for _, kernel := range parser.kernels {
 		key := CubinKernelKey{Name: kernel.Name, SmVersion: fbData.SmVersion}
-		fatbin.Kernels[key] = kernel
+		fatbin.AddKernel(key, kernel)
 	}
 
 	return nil

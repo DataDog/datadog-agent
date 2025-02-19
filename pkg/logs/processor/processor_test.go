@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -314,6 +315,7 @@ func TestBuffering(t *testing.T) {
 	}
 
 	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
+	pm := metrics.NewNoopPipelineMonitor("")
 
 	p := &Processor{
 		encoder:                   JSONEncoder,
@@ -326,8 +328,10 @@ func TestBuffering(t *testing.T) {
 		sds: sdsProcessor{
 			maxBufferSize: len("hello1world") + len("hello2world") + len("hello3world") + 1,
 			buffering:     true,
-			scanner:       sds.CreateScanner(42),
+			scanner:       sds.CreateScanner("42"),
 		},
+		pipelineMonitor: pm,
+		utilization:     pm.MakeUtilizationMonitor("processor"),
 	}
 
 	var processedMessages atomic.Int32

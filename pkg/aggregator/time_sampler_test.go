@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 
-	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -34,7 +34,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler(store *tags.Store) *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewTaggerClient(), "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	return sampler
 }
 
@@ -535,7 +535,7 @@ func TestFlushMissingContext(t *testing.T) {
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewTaggerClient(), "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",

@@ -16,7 +16,6 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/prometheus/client_golang/prometheus"
@@ -113,10 +112,6 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		}
 	}
 
-	if prebuilt.IsDeprecated() {
-		log.Warn("using deprecated prebuilt conntracker")
-	}
-
 	var isPrebuilt bool
 	if m == nil {
 		m, err = ebpfConntrackerPrebuiltCreator(cfg)
@@ -125,6 +120,10 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		}
 
 		isPrebuilt = true
+	}
+
+	if isPrebuilt && prebuilt.IsDeprecated() {
+		log.Warn("using deprecated prebuilt conntracker")
 	}
 
 	err = m.Start()
@@ -239,7 +238,7 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 	defer tuplePool.Put(src)
 
 	toConntrackTupleFromTuple(src, stats)
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("looking up in conntrack (stats): %s", stats)
 	}
 
@@ -247,14 +246,14 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 	// NAT rules referencing conntrack are installed there instead
 	// of other network namespaces (for pods, for instance)
 	src.Netns = e.rootNS
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("looking up in conntrack (tuple): %s", src)
 	}
 	dst := e.get(src)
 	if dst == nil && stats.NetNS != e.rootNS {
 		// Perform another lookup, this time using the connection namespace
 		src.Netns = stats.NetNS
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("looking up in conntrack (tuple,netns): %s", src)
 		}
 		dst = e.get(src)
@@ -299,7 +298,7 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 
 	if err := e.ctMap.Delete(key); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			if log.ShouldLog(seelog.TraceLvl) {
+			if log.ShouldLog(log.TraceLvl) {
 				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
 			}
 
@@ -430,7 +429,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
 		},
-	}, &ebpftelemetry.ErrorsTelemetryModifier{})
+	}, "conntrack", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	opts.DefaultKprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {

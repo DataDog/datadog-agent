@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"strconv"
@@ -15,12 +16,35 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const cacheKeyPrefix = "snmp"
+
+var (
+	autodiscoveryStatusBySubnetVar = expvar.NewMap("snmpAutodiscovery")
+)
+
+// AutodiscoveryStatus represents the status of the autodiscovery of a subnet we want to expose in the snmp status
+type AutodiscoveryStatus struct {
+	DevicesFoundList    []string
+	CurrentDevice       string
+	DevicesScannedCount int
+}
+
+func (s *AutodiscoveryStatus) String() string {
+	jsonData, err := json.Marshal(s)
+	if err != nil {
+		return ""
+	}
+	return string(jsonData)
+}
 
 const (
 	defaultWorkers           = 2
@@ -36,7 +60,7 @@ type SNMPListener struct {
 	delService chan<- Service
 	stop       chan bool
 	config     snmp.ListenerConfig
-	services   map[string]Service
+	services   map[string]*SNMPService
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -45,19 +69,21 @@ type SNMPService struct {
 	entityID     string
 	deviceIP     string
 	config       snmp.Config
+	subnet       *snmpSubnet
 }
 
 // Make sure SNMPService implements the Service interface
 var _ Service = &SNMPService{}
 
 type snmpSubnet struct {
-	adIdentifier   string
-	config         snmp.Config
-	startingIP     net.IP
-	network        net.IPNet
-	cacheKey       string
-	devices        map[string]string
-	deviceFailures map[string]int
+	adIdentifier          string
+	config                snmp.Config
+	startingIP            net.IP
+	network               net.IPNet
+	cacheKey              string
+	devices               map[string]string
+	deviceFailures        map[string]int
+	devicesScannedCounter atomic.Uint32
 }
 
 type snmpJob struct {
@@ -72,7 +98,7 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 		return nil, err
 	}
 	return &SNMPListener{
-		services: map[string]Service{},
+		services: map[string]*SNMPService{},
 		stop:     make(chan bool),
 		config:   snmpConfig,
 	}, nil
@@ -140,6 +166,7 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
+
 	deviceIP := job.currentIP.String()
 	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
 	if err != nil {
@@ -164,9 +191,26 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			l.deleteService(entityID, job.subnet)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+
 			l.createService(entityID, job.subnet, deviceIP, true)
 		}
 	}
+
+	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
+	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
+}
+
+func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
+	l.Lock()
+	defer l.Unlock()
+
+	ipsFound := []string{}
+	for _, svc := range l.services {
+		if svc.subnet.cacheKey == subnet.cacheKey {
+			ipsFound = append(ipsFound, svc.deviceIP)
+		}
+	}
+	return ipsFound
 }
 
 func (l *SNMPListener) checkDevices() {
@@ -181,7 +225,7 @@ func (l *SNMPListener) checkDevices() {
 		startingIP := ipAddr.Mask(ipNet.Mask)
 
 		configHash := config.Digest(config.Network)
-		cacheKey := fmt.Sprintf("snmp:%s", configHash)
+		cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 		adIdentifier := config.ADIdentifier
 		if adIdentifier == "" {
 			adIdentifier = "snmp"
@@ -221,10 +265,15 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
+		for _, subnet := range subnets {
+			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
+		}
+
 		var subnet *snmpSubnet
 		for i := range subnets {
 			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
 			subnet = &subnets[i]
+			subnet.devicesScannedCounter.Store(0)
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
@@ -268,6 +317,7 @@ func (l *SNMPListener) createService(entityID string, subnet *snmpSubnet, device
 		entityID:     entityID,
 		deviceIP:     deviceIP,
 		config:       subnet.config,
+		subnet:       subnet,
 	}
 	l.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP
@@ -465,4 +515,9 @@ func convertToCommaSepTags(tags []string) string {
 		normalizedTags = append(normalizedTags, strings.ReplaceAll(tag, tagSeparator, "_"))
 	}
 	return strings.Join(normalizedTags, tagSeparator)
+}
+
+// GetSubnetVarKey returns a key for a subnet in the expvar map
+func GetSubnetVarKey(network string, cacheKey string) string {
+	return fmt.Sprintf("%s|%s", network, strings.Trim(cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
 }

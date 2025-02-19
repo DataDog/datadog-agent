@@ -16,17 +16,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 )
 
 // TracerType is the type of the underlying tracer
 type TracerType int
 
 const (
+	// TracerTypeKProbePrebuilt is the TracerType for prebuilt kprobe tracer
 	TracerTypeKProbePrebuilt TracerType = iota
+	// TracerTypeKProbeRuntimeCompiled is the TracerType for the runtime compiled kprobe tracer
 	TracerTypeKProbeRuntimeCompiled
+	// TracerTypeKProbeCORE is the TracerType for the CORE kprobe tracer
 	TracerTypeKProbeCORE
+	// TracerTypeFentry is the TracerType for the fentry tracer
 	TracerTypeFentry
+	// TracerTypeEbpfless is the TracerType for the EBPF-less tracer
 	TracerTypeEbpfless
 )
 
@@ -47,8 +51,6 @@ type Tracer interface {
 	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
-	// GetFailedConnections returns the underlying map used to store failed connections
-	GetFailedConnections() *failure.FailedConns
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error

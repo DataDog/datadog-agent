@@ -10,27 +10,37 @@ package utils
 
 import "net/http"
 
-// TracedProgramsEndpoint is not supported on Windows
-func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(404)
+// GetTracedProgramsEndpoint is not supported on Windows
+func GetTracedProgramsEndpoint(string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(404)
+	}
 }
 
-// BlockedPathIDEndpoint is not supported on Windows
-func BlockedPathIDEndpoint(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(404)
+// GetBlockedPathIDEndpoint is not supported on Windows
+func GetBlockedPathIDEndpoint(string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(404)
+	}
 }
 
-// ClearBlockedEndpoint is not supported on Windows
-func ClearBlockedEndpoint(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(404)
+// GetClearBlockedEndpoint is not supported on Windows
+func GetClearBlockedEndpoint(string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(404)
+	}
 }
 
-// AttachPIDEndpoint is not supported on Windows
-func AttachPIDEndpoint(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(404)
+// GetAttachPIDEndpoint is not supported on Windows
+func GetAttachPIDEndpoint(string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(404)
+	}
 }
 
-// DetachPIDEndpoint is not supported on Windows
-func DetachPIDEndpoint(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(404)
+// GetDetachPIDEndpoint is not supported on Windows
+func GetDetachPIDEndpoint(string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(404)
+	}
 }

@@ -13,8 +13,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
 
 const (
@@ -104,6 +105,7 @@ var supportedLanguages = []language{
 	python,
 	dotnet,
 	ruby,
+	php, // PHP only works with injection v2, no environment variables are set in any case
 }
 
 func (l language) isSupported() bool {

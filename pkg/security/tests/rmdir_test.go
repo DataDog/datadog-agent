@@ -37,6 +37,11 @@ func TestRmdir(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	mkdirMode := 0o707
 	expectedMode := uint16(applyUmask(mkdirMode))
 
@@ -58,7 +63,7 @@ func TestRmdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -88,7 +93,7 @@ func TestRmdir(t *testing.T) {
 				return error(err)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertInode(t, event.Rmdir.File.Inode, inode)
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -149,7 +154,7 @@ func TestRmdir(t *testing.T) {
 				return fmt.Errorf("failed to unlink file with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -159,10 +164,6 @@ func TestRmdir(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
@@ -198,7 +199,7 @@ func TestRmdirInvalidate(t *testing.T) {
 					return error(errno)
 				}
 				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
+			}, func(event *model.Event, _ *rules.Rule) {
 				assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 				assertFieldEqual(t, event, "rmdir.file.path", testFile)
 			})

@@ -185,9 +185,9 @@ class CompilerImage:
         self.exec("echo conda activate ddpy3 >> /home/compiler/.bashrc", user="compiler")
         self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
-        # Install all requirements except for libvirt ones (they won't build in the compiler and are not needed)
+        # Install requirements only for building in CI (not libvirt)
         self.exec(
-            f"cat {CONTAINER_AGENT_PATH}/tasks/kernel_matrix_testing/requirements.txt | grep -v libvirt | xargs pip install ",
+            f"pip install -r {CONTAINER_AGENT_PATH}/tasks/kernel_matrix_testing/requirements-ci.txt",
             user="compiler",
         )
 

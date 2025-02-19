@@ -24,6 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
+// interface requiring all functions expected by the dogstatsd server
+type dogstatsdBatcher interface {
+	appendSample(sample metrics.MetricSample)
+	appendEvent(event *event.Event)
+	appendServiceCheck(serviceCheck *servicecheck.ServiceCheck)
+	appendLateSample(sample metrics.MetricSample)
+	flush()
+}
+
 // batcher batches multiple metrics before submission
 // this struct is not safe for concurrent use
 type batcher struct {
@@ -94,14 +103,14 @@ func (s *shardKeyGeneratorPerOrigin) Generate(sample metrics.MetricSample, shard
 	// We fall back on the generic sharding if:
 	// - the sample has a custom cardinality
 	// - we don't have the origin
-	if sample.OriginInfo.Cardinality != "" || (sample.OriginInfo.ContainerIDFromSocket == "" && sample.OriginInfo.PodUID == "" && sample.OriginInfo.ContainerID == "") {
+	if sample.OriginInfo.Cardinality != "" || (sample.OriginInfo.ContainerIDFromSocket == "" && sample.OriginInfo.LocalData.PodUID == "" && sample.OriginInfo.LocalData.ContainerID == "") {
 		return s.shardKeyGeneratorBase.Generate(sample, shards)
 	}
 
 	// Otherwise, we isolate the samples based on the origin.
 	i, j := uint64(0), uint64(0)
-	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.PodUID)
-	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.ContainerID)
+	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.LocalData.PodUID)
+	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.LocalData.ContainerID)
 	i, _ = murmur3.SeedStringSum128(i, j, sample.OriginInfo.ContainerIDFromSocket)
 
 	return fastrange(ckey.ContextKey(i), shards)

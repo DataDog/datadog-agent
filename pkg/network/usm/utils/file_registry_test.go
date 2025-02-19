@@ -206,6 +206,10 @@ func TestRepeatedRegistrationsFromSamePID(t *testing.T) {
 	assert.NotContains(t, r.GetRegisteredProcesses(), pid)
 }
 
+const (
+	testModuleName = "test"
+)
+
 func TestFailedRegistration(t *testing.T) {
 	// Create a callback recorder that returns an error on purpose
 	registerRecorder := new(CallbackRecorder)
@@ -239,9 +243,12 @@ func TestFailedRegistration(t *testing.T) {
 	// This is because we have block-listed this file
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 
-	assert.Contains(t, debugger.GetBlockedPathIDs(""), pathID)
-	debugger.ClearBlocked()
-	assert.Empty(t, debugger.GetBlockedPathIDs(""))
+	assert.Contains(t, debugger.GetBlockedPathIDs(testModuleName, ""), pathID)
+	info := debugger.GetBlockedPathIDsWithSamplePath(testModuleName, "")
+	require.Len(t, info, 1)
+	assert.Equal(t, registerRecorder.ReturnError.Error(), info[0].Reason)
+	debugger.ClearBlocked(testModuleName)
+	assert.Empty(t, debugger.GetBlockedPathIDs(testModuleName, ""))
 }
 
 func TestShortLivedProcess(t *testing.T) {
@@ -403,5 +410,5 @@ func newFileRegistry() *FileRegistry {
 	// Ensure that tests relying on telemetry data will always have a clean slate
 	telemetry.Clear()
 	ResetDebugger()
-	return NewFileRegistry("")
+	return NewFileRegistry(testModuleName, "")
 }

@@ -9,7 +9,6 @@ package usm
 
 import (
 	"bytes"
-	"debug/elf"
 	"fmt"
 	"io"
 	"os"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -237,7 +237,8 @@ var gnuTLSProbes = []manager.ProbesSelector{
 }
 
 const (
-	sslSockByCtxMap = "ssl_sock_by_ctx"
+	sslSockByCtxMap    = "ssl_sock_by_ctx"
+	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
 )
 
 var (
@@ -271,7 +272,7 @@ var opensslSpec = &protocols.ProtocolSpec{
 			Name: "fd_by_ssl_bio",
 		},
 		{
-			Name: "ssl_ctx_by_pid_tgid",
+			Name: sslCtxByPIDTGIDMap,
 		},
 	},
 	Probes: []*manager.Probe{
@@ -439,7 +440,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 		procRoot := kernel.ProcFSRoot()
 
 		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c,
+			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
 					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
@@ -466,10 +467,15 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 			return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
 		}
 
+		istio, err := newIstioMonitor(c, m)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing istio monitor: %w", err)
+		}
+
 		return &sslProgram{
 			cfg:           c,
 			watcher:       watcher,
-			istioMonitor:  newIstioMonitor(c, m),
+			istioMonitor:  istio,
 			nodeJSMonitor: nodejs,
 		}, nil
 	}
@@ -483,6 +489,10 @@ func (o *sslProgram) Name() string {
 // ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
+		MaxEntries: o.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -547,7 +557,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_ctx_by_pid_tgid": // maps/ssl_ctx_by_pid_tgid (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void *
+	case sslCtxByPIDTGIDMap: // maps/ssl_ctx_by_pid_tgid (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void *
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'uintptr // C.void *'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -559,9 +569,9 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 
 }
 
-// GetStats returns the latest monitoring stats from a protocol implementation.
-func (o *sslProgram) GetStats() *protocols.ProtocolStats {
-	return nil
+// GetStats is a no-op.
+func (o *sslProgram) GetStats() (*protocols.ProtocolStats, func()) {
+	return nil, nil
 }
 
 const (
@@ -617,7 +627,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 
 		uid := getUID(fpath.ID)
 
-		elfFile, err := elf.Open(fpath.HostPath)
+		elfFile, err := safeelf.Open(fpath.HostPath)
 		if err != nil {
 			return err
 		}
@@ -697,7 +707,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 						continue
 					}
 				}
-				manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
+				manager.SanitizeUprobeAddresses(elfFile.File, []safeelf.Symbol{sym})
 				offset, err := bininspect.SymbolToOffset(elfFile, sym)
 				if err != nil {
 					return err

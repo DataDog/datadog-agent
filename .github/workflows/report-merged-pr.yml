@@ -4,9 +4,15 @@ name: Report Merged PR
 
 on:
   pull_request:
-    types: closed
+    branches:
+      - main
+    types: [closed]
 
 permissions: {}
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DD_API_KEY: ${{ secrets.REPORT_MERGED_PR_DD_API_KEY }}
 
 jobs:
   if_merged:
@@ -14,12 +20,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Setup Python3
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
-          python-version: "3.12.6"
+          python-version-file: .python-version
           cache: "pip"
           cache-dependency-path: '**/requirements*.txt'
 
@@ -27,5 +35,7 @@ jobs:
         run: pip3 install -r requirements.txt
 
       - name: Send merge event to Datadog
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          invoke -e github.pr-merge-dd-event-sender -p ${{ github.event.pull_request.number }}
+          invoke -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

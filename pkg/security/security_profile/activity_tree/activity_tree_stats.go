@@ -26,6 +26,8 @@ type Stats struct {
 	DNSNodes     int64
 	SocketNodes  int64
 	IMDSNodes    int64
+	SyscallNodes int64
+	FlowNodes    int64
 
 	counts map[model.EventType]*statsPerEventType
 }
@@ -72,6 +74,8 @@ func (stats *Stats) ApproximateSize() int64 {
 	total += stats.DNSNodes * int64(unsafe.Sizeof(DNSNode{}))         // 24
 	total += stats.SocketNodes * int64(unsafe.Sizeof(SocketNode{}))   // 40
 	total += stats.IMDSNodes * int64(unsafe.Sizeof(IMDSNode{}))
+	total += stats.SyscallNodes * int64(unsafe.Sizeof(SyscallNode{}))
+	total += stats.FlowNodes * int64(unsafe.Sizeof(FlowNode{}))
 	return total
 }
 

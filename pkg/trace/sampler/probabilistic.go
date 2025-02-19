@@ -18,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -41,17 +39,13 @@ type ProbabilisticSampler struct {
 	hashSeed                 []byte
 	scaledSamplingPercentage uint32
 	samplingPercentage       float64
+	metrics                  metrics
 	// fullTraceIDMode looks at the full 128-bit trace ID to make the sampling decision
 	// This can be useful when trying to run this probabilistic sampler alongside the
 	// OTEL probabilistic sampler processor which always looks at the full 128-bit trace id.
 	// This is disabled by default to ensure compatibility in distributed systems where legacy applications may
 	// drop the top 64 bits of the trace ID.
 	fullTraceIDMode bool
-
-	statsd     statsd.ClientInterface
-	tracesSeen *atomic.Int64
-	tracesKept *atomic.Int64
-	tags       []string
 
 	// start/stop synchronization
 	stopOnce sync.Once
@@ -70,13 +64,14 @@ func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInter
 		hashSeed:                 hashSeedBytes,
 		scaledSamplingPercentage: uint32(conf.ProbabilisticSamplerSamplingPercentage * percentageScaleFactor),
 		samplingPercentage:       float64(conf.ProbabilisticSamplerSamplingPercentage) / 100.,
-		statsd:                   statsd,
-		tracesSeen:               atomic.NewInt64(0),
-		tracesKept:               atomic.NewInt64(0),
-		tags:                     []string{"sampler:probabilistic"},
-		stop:                     make(chan struct{}),
-		stopped:                  make(chan struct{}),
-		fullTraceIDMode:          fullTraceIDMode,
+		metrics: metrics{
+			statsd: statsd,
+			tags:   []string{"sampler:probabilistic"},
+			value:  make(map[metricsKey]metricsValue),
+		},
+		stop:            make(chan struct{}),
+		stopped:         make(chan struct{}),
+		fullTraceIDMode: fullTraceIDMode,
 	}
 }
 
@@ -87,15 +82,15 @@ func (ps *ProbabilisticSampler) Start() {
 		return
 	}
 	go func() {
-		defer watchdog.LogOnPanic(ps.statsd)
+		defer watchdog.LogOnPanic(ps.metrics.statsd)
 		statsTicker := time.NewTicker(10 * time.Second)
 		defer statsTicker.Stop()
 		for {
 			select {
 			case <-statsTicker.C:
-				ps.report()
+				ps.metrics.report()
 			case <-ps.stop:
-				ps.report()
+				ps.metrics.report()
 				close(ps.stopped)
 				return
 			}
@@ -116,11 +111,14 @@ func (ps *ProbabilisticSampler) Stop() {
 }
 
 // Sample a trace given the chunk's root span, returns true if the trace should be kept
-func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
+func (ps *ProbabilisticSampler) Sample(root *trace.Span) (sampled bool) {
 	if !ps.enabled {
 		return false
 	}
-	ps.tracesSeen.Add(1)
+
+	defer func() {
+		ps.metrics.record(sampled, newMetricsKey(root.Service, "", nil))
+	}()
 
 	tid := make([]byte, 16)
 	var err error
@@ -140,17 +138,10 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	hash := hasher.Sum32()
 	keep := hash&bitMaskHashBuckets < ps.scaledSamplingPercentage
 	if keep {
-		ps.tracesKept.Add(1)
+		sampled = true
 		setMetric(root, probRateKey, ps.samplingPercentage)
 	}
-	return keep
-}
-
-func (ps *ProbabilisticSampler) report() {
-	seen := ps.tracesSeen.Swap(0)
-	kept := ps.tracesKept.Swap(0)
-	_ = ps.statsd.Count("datadog.trace_agent.sampler.kept", kept, ps.tags, 1)
-	_ = ps.statsd.Count("datadog.trace_agent.sampler.seen", seen, ps.tags, 1)
+	return
 }
 
 func get128BitTraceID(span *trace.Span) ([]byte, error) {

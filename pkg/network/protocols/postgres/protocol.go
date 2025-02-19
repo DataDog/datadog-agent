@@ -9,6 +9,7 @@ package postgres
 
 import (
 	"io"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -28,24 +29,31 @@ import (
 )
 
 const (
+	// KernelTelemetryMap is the map for getting kernel metrics
+	KernelTelemetryMap = "postgres_telemetry"
 	// InFlightMap is the name of the in-flight map.
-	InFlightMap             = "postgres_in_flight"
-	scratchBufferMap        = "postgres_scratch_buffer"
-	processTailCall         = "socket__postgres_process"
-	parseMessageTailCall    = "socket__postgres_process_parse_message"
-	tlsProcessTailCall      = "uprobe__postgres_tls_process"
-	tlsParseMessageTailCall = "uprobe__postgres_tls_process_parse_message"
-	tlsTerminationTailCall  = "uprobe__postgres_tls_termination"
-	eventStream             = "postgres"
+	InFlightMap               = "postgres_in_flight"
+	scratchBufferMap          = "postgres_scratch_buffer"
+	iterationsMap             = "postgres_iterations"
+	handleTailCall            = "socket__postgres_handle"
+	handleResponseTailCall    = "socket__postgres_handle_response"
+	parseMessageTailCall      = "socket__postgres_process_parse_message"
+	tlsHandleTailCall         = "uprobe__postgres_tls_handle"
+	tlsParseMessageTailCall   = "uprobe__postgres_tls_process_parse_message"
+	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
+	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
+	eventStream               = "postgres"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
 type protocol struct {
-	cfg            *config.Config
-	telemetry      *Telemetry
-	eventsConsumer *events.Consumer[postgresebpf.EbpfEvent]
-	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
-	statskeeper    *StatKeeper
+	cfg                   *config.Config
+	telemetry             *Telemetry
+	eventsConsumer        *events.Consumer[postgresebpf.EbpfEvent]
+	mapCleaner            *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
+	statskeeper           *StatKeeper
+	kernelTelemetry       *kernelTelemetry // retrieves Postgres metrics from kernel
+	kernelTelemetryStopCh chan struct{}
 }
 
 // Spec is the protocol spec for the postgres protocol.
@@ -57,6 +65,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: scratchBufferMap,
+		},
+		{
+			Name: iterationsMap,
 		},
 		{
 			Name: "postgres_batch_events",
@@ -73,7 +84,14 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramPostgres),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: processTailCall,
+				EBPFFuncName: handleTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresHandleResponse),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: handleResponseTailCall,
 			},
 		},
 		{
@@ -87,7 +105,7 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramPostgres),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsProcessTailCall,
+				EBPFFuncName: tlsHandleTailCall,
 			},
 		},
 		{
@@ -104,6 +122,13 @@ var Spec = &protocols.ProtocolSpec{
 				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresHandleResponse),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsHandleResponseTailCall,
+			},
+		},
 	},
 }
 
@@ -113,9 +138,11 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	return &protocol{
-		cfg:         cfg,
-		telemetry:   NewTelemetry(cfg),
-		statskeeper: NewStatkeeper(cfg),
+		cfg:                   cfg,
+		telemetry:             NewTelemetry(cfg),
+		statskeeper:           NewStatkeeper(cfg),
+		kernelTelemetry:       newKernelTelemetry(),
+		kernelTelemetryStopCh: make(chan struct{}),
 	}, nil
 }
 
@@ -155,6 +182,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	p.setupMapCleaner(mgr)
+	p.startKernelTelemetry(mgr)
 	return nil
 }
 
@@ -166,11 +194,16 @@ func (p *protocol) Stop(*manager.Manager) {
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
+	if p.kernelTelemetryStopCh != nil {
+		close(p.kernelTelemetryStopCh)
+	}
 }
 
 // DumpMaps dumps map contents for debugging.
 func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == InFlightMap { // maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
+	switch mapName {
+	case InFlightMap:
+		// maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
 		var key netebpf.ConnTuple
 		var value postgresebpf.EbpfTx
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
@@ -178,17 +211,37 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
+	case KernelTelemetryMap:
+		// postgres_msg_count (BPF_ARRAY_MAP), key 0 and 1, value PostgresKernelMsgCount
+		plainKey := uint32(0)
+		tlsKey := uint32(1)
+
+		var value postgresebpf.PostgresKernelMsgCount
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, plainKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&plainKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, plainKey, value)
+		}
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, tlsKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&tlsKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, tlsKey, value)
+		}
 	}
 }
 
-// GetStats returns a map of Postgres stats.
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+// GetStats returns a map of Postgres stats and a callback to clean resources.
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
+	p.kernelTelemetry.Log()
 
+	stats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Postgres,
-		Stats: p.statskeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.Postgres,
+			Stats: stats,
+		}, func() {
+			for _, stat := range stats {
+				stat.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as postgres module is supported by all modes.
@@ -211,7 +264,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %s map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, protocols.DefaultMapCleanerBatchSize, InFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -229,4 +282,41 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	})
 
 	p.mapCleaner = mapCleaner
+}
+
+func (p *protocol) startKernelTelemetry(mgr *manager.Manager) {
+	telemetryMap, err := protocols.GetMap(mgr, KernelTelemetryMap)
+	if err != nil {
+		log.Errorf("couldnt find kernel telemetry map: %s, error: %v", telemetryMap, err)
+		return
+	}
+
+	plainKey := uint32(0)
+	tlsKey := uint32(1)
+	pgKernelMsgCount := &postgresebpf.PostgresKernelMsgCount{}
+	ticker := time.NewTicker(30 * time.Second)
+
+	go func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := telemetryMap.Lookup(unsafe.Pointer(&plainKey), unsafe.Pointer(pgKernelMsgCount)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMap, err)
+					return
+				}
+				p.kernelTelemetry.update(pgKernelMsgCount, false)
+
+				if err := telemetryMap.Lookup(unsafe.Pointer(&tlsKey), unsafe.Pointer(pgKernelMsgCount)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMap, err)
+					return
+				}
+				p.kernelTelemetry.update(pgKernelMsgCount, true)
+
+			case <-p.kernelTelemetryStopCh:
+				return
+			}
+		}
+	}()
 }

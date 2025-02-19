@@ -1,10 +1,10 @@
 #ifndef __HTTP2_MAPS_DEFS_H
 #define __HTTP2_MAPS_DEFS_H
 
-// http2_remainder maps a connection tuple to the remainder from the previous packet.
+// http2_incomplete_frames maps a connection tuple to a frame remainder from the previous packet.
 // It is possible for frames to be split to multiple tcp packets, so we need to associate the remainder from the previous
 // packet, to the current one.
-BPF_HASH_MAP(http2_remainder, conn_tuple_t, frame_header_remainder_t, 0)
+BPF_HASH_MAP(http2_incomplete_frames, conn_tuple_t, incomplete_frame_t, 0)
 
 /* http2_dynamic_table is the map that holding the supported dynamic values - the index is the static index and the
    conn tuple and it is value is the buffer which contains the dynamic string. */
@@ -43,11 +43,8 @@ BPF_PERCPU_ARRAY_MAP(http2_scratch_buffer, http2_event_t, 1)
 /* Allocating a ctx on the heap, in order to save the ctx between the current stream. */
 BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
 
-/* This map is used for telemetry in kernelspace
- * only key 0 is used
- * value is a http2 telemetry object
- */
-BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 1)
-BPF_ARRAY_MAP(tls_http2_telemetry, http2_telemetry_t, 1)
+// This map is used to gather telemetry data from the eBPF programs. Key 0 is used for plaintext traffic,
+// and key 1 is used for encrypted traffic.
+BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 2)
 
 #endif

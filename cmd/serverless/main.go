@@ -11,14 +11,18 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -37,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	serverlessRemoteConfig "github.com/DataDog/datadog-agent/pkg/serverless/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -75,6 +80,7 @@ func main() {
 	err := fxutil.OneShot(
 		runAgent,
 		taggernoop.Module(),
+		logscompressionfx.Module(),
 	)
 
 	if err != nil {
@@ -83,7 +89,8 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component) {
+func runAgent(tagger tagger.Component, compression logscompression.Component) {
+
 	startTime := time.Now()
 
 	setupLambdaAgentOverrides()
@@ -113,13 +120,16 @@ func runAgent(tagger tagger.Component) {
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan, tagger)
 
+	// Start RC service if remote configuration is enabled
+	rcService := serverlessRemoteConfig.StartRCService(serverlessDaemon.ExecutionContext.GetCurrentState().ARN)
+
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger)
-	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
-	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger)
+	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
+	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger)
+	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compression)
 
 	// start appsec
 	appsecProxyProcessor := startAppSec(serverlessDaemon)
@@ -263,9 +273,10 @@ func setupLambdaAgentOverrides() {
 	// TODO(duncanista): figure out how this is used and if it's necessary for Serverless
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
-	// Disable remote configuration for now as it just spams the debug logs
-	// and provides no value.
-	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	// Disable remote configuration unless explicitly enabled
+	if strings.ToLower(os.Getenv("DD_REMOTE_CONFIGURATION_ENABLED")) != "true" {
+		os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	}
 }
 
 func startColdStartSpanCreator(lambdaSpanChan chan *pb.Span, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, serverlessDaemon *daemon.Daemon, coldStartSpanId uint64) {
@@ -291,7 +302,7 @@ func startAppSec(serverlessDaemon *daemon.Daemon) *httpsec.ProxyLifecycleProcess
 	return appsecProxyProcessor
 }
 
-func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
+func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component, compression logscompression.Component) {
 	defer wg.Done()
 	if os.Getenv(daemon.LocalTestEnvVar) == "true" || os.Getenv(daemon.LocalTestEnvVar) == "1" {
 		log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
@@ -315,7 +326,7 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	if logRegistrationError != nil {
 		log.Error("Can't subscribe to logs:", logRegistrationError)
 	} else {
-		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger)
+		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger, compression)
 		if err != nil {
 			log.Errorf("Error setting up the logs agent: %s", err)
 		}
@@ -323,21 +334,27 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	}
 }
 
-func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon) {
+func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
 	if !otlp.IsEnabled() {
 		log.Debug("otlp endpoint disabled")
 		return
 	}
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
 	otlpAgent.Start()
 	serverlessDaemon.SetOTLPAgent(otlpAgent)
 
 }
 
-func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
+func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon, tagger tagger.Component, rcService *remoteconfig.CoreAgentService) {
 	defer wg.Done()
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger}, lambdaSpanChan, coldStartSpanId)
+	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:         configUtils.IsAPMEnabled(pkgconfigsetup.Datadog()),
+		LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		LambdaSpanChan:  lambdaSpanChan,
+		ColdStartSpanID: coldStartSpanId,
+		RCService:       rcService,
+	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
 

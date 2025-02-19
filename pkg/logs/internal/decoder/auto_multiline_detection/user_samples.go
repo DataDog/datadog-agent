@@ -10,6 +10,7 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,7 +47,7 @@ type UserSamples struct {
 func NewUserSamples(config model.Reader) *UserSamples {
 	tokenizer := NewTokenizer(0)
 	s := make([]*UserSample, 0)
-	err := config.UnmarshalKey("logs_config.auto_multi_line_detection_custom_samples", &s)
+	err := structure.UnmarshalKey(config, "logs_config.auto_multi_line_detection_custom_samples", &s)
 
 	if err != nil {
 		log.Error("Failed to unmarshal custom samples: ", err)
@@ -116,7 +117,7 @@ func NewUserSamples(config model.Reader) *UserSamples {
 }
 
 // ProcessAndContinue applies a user sample to a log message. If it matches, a label is assigned.
-// This implements the Herustic interface - so we should stop processing if we detect a user pattern by returning false.
+// This implements the Heuristic interface - so we should stop processing if we detect a user pattern by returning false.
 func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 	if context.tokens == nil {
 		log.Error("Tokens are required to process user samples")

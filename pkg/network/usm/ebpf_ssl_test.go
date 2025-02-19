@@ -16,15 +16,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 func testArch(t *testing.T, arch string) {
-	cfg := config.New()
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 
 	if !usmconfig.TLSSupported(cfg) {
@@ -38,16 +38,16 @@ func testArch(t *testing.T, arch string) {
 	libmmap := filepath.Join(curDir, "testdata", "site-packages", "ddtrace")
 	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", arch))
 
-	monitor := setupUSMTLSMonitor(t, cfg)
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	require.NotNil(t, monitor)
 
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
 
 	if arch == runtime.GOARCH {
-		utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	} else {
-		utils.WaitForPathToBeBlocked(t, "shared_libraries", lib)
+		utils.WaitForPathToBeBlocked(t, consts.USMModuleName, "shared_libraries", lib)
 	}
 }
 

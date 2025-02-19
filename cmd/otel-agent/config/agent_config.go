@@ -12,18 +12,20 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type logLevel int
@@ -78,7 +80,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
 		},
-		ConverterFactories: []confmap.ConverterFactory{expandconverter.NewFactory()},
+		DefaultScheme: "env",
 	}
 
 	resolver, err := confmap.NewResolver(rs)
@@ -117,7 +119,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			return nil, err
 		}
 		var ok bool
-		activeLogLevel, ok = logLevelMap[pkgconfig.GetString("log_level")]
+		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
 		if !ok {
 			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
@@ -125,13 +127,14 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	// Set the right log level. The most verbose setting takes precedence.
 	telemetryLogLevel := sc.Telemetry.Logs.Level
-	telemetryLogMapping, ok := logLevelMap[telemetryLogLevel.String()]
+	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel.String())]
 	if !ok {
 		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
 	}
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
+	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	// Override config read (if any) with Default values
@@ -177,8 +180,16 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if addr := ddc.Traces.Endpoint; addr != "" {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
 	}
-	if ddc.Traces.ComputeTopLevelBySpanKind {
-		pkgconfig.Set("apm_config.features", []string{"enable_otlp_compute_top_level_by_span_kind"}, pkgconfigmodel.SourceFile)
+
+	if pkgconfig.Get("apm_config.features") == nil {
+		apmConfigFeatures := []string{}
+		if pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+			apmConfigFeatures = append(apmConfigFeatures, "enable_operation_and_resource_name_logic_v2")
+		}
+		if ddc.Traces.ComputeTopLevelBySpanKind {
+			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
+		}
+		pkgconfig.Set("apm_config.features", apmConfigFeatures, pkgconfigmodel.SourceDefault)
 	}
 
 	return pkgconfig, nil
@@ -201,8 +212,8 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 	return pipelineConfig, nil
 }
 
-func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
-	var configs []*datadogexporter.Config
+func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
+	var configs []*datadogconfig.Config
 	var err error
 	for k, v := range cfg.ToStringMap() {
 		if k != "exporters" {
@@ -214,16 +225,22 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 		}
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
-				datadogConfig := datadogexporter.CreateDefaultConfig().(*datadogexporter.Config)
+				ddcfg := datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
 				m, ok := v.(map[string]any)
 				if !ok {
 					return nil, fmt.Errorf("invalid datadog exporter config")
 				}
-				err = confmap.NewFromStringMap(m).Unmarshal(&datadogConfig)
+				err = confmap.NewFromStringMap(m).Unmarshal(&ddcfg)
 				if err != nil {
 					return nil, err
 				}
-				configs = append(configs, datadogConfig)
+				if strings.Contains(ddcfg.Logs.Endpoint, "http-intake") && !strings.Contains(ddcfg.Logs.Endpoint, "agent-http-intake") {
+					// datadogconfig.Config sets logs endpoint to https://http-intake.logs.{DD_SITE} by default
+					// while in converged agent we want https://agent-http-intake.logs.{DD_SITE}
+					ddcfg.Logs.Endpoint = strings.Replace(ddcfg.Logs.Endpoint, "http-intake", "agent-http-intake", 1)
+				}
+
+				configs = append(configs, ddcfg)
 			}
 		}
 	}

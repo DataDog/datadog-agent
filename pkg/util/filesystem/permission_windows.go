@@ -8,15 +8,16 @@ package filesystem
 
 import (
 	"fmt"
-	"syscall"
 
 	"github.com/hectane/go-acl"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // Permission handles permissions for Unix and Windows
 type Permission struct {
-	currentUserSid   *windows.SID
+	ddUserSid        *windows.SID
 	administratorSid *windows.SID
 	systemSid        *windows.SID
 }
@@ -32,32 +33,24 @@ func NewPermission() (*Permission, error) {
 		return nil, err
 	}
 
-	currentUserSid, err := getCurrentUserSid()
+	ddUserSid, err := getDatadogUserSid()
 	if err != nil {
-		return nil, fmt.Errorf("Unable to get current user sid %v", err)
+		return nil, fmt.Errorf("unable to get datadog user sid %v", err)
 	}
 	return &Permission{
-		currentUserSid:   currentUserSid,
+		ddUserSid:        ddUserSid,
 		administratorSid: administratorSid,
 		systemSid:        systemSid,
 	}, nil
 }
 
-func getCurrentUserSid() (*windows.SID, error) {
-	token, err := syscall.OpenCurrentProcessToken()
+func getDatadogUserSid() (*windows.SID, error) {
+	ddUserSid, err := winutil.GetDDAgentUserSID()
 	if err != nil {
-		return nil, fmt.Errorf("Couldn't get process token %v", err)
+		// falls back to current user on failure
+		return winutil.GetSidFromUser()
 	}
-	defer token.Close()
-	user, err := token.GetTokenUser()
-	if err != nil {
-		return nil, fmt.Errorf("Couldn't get token user %v", err)
-	}
-	sidString, err := user.User.Sid.String()
-	if err != nil {
-		return nil, fmt.Errorf("Couldn't get user sid string %v", err)
-	}
-	return windows.StringToSid(sidString)
+	return ddUserSid, nil
 }
 
 // RestrictAccessToUser update the ACL of a file so only the current user and ADMIN/SYSTEM can access it
@@ -68,7 +61,7 @@ func (p *Permission) RestrictAccessToUser(path string) error {
 		false, // don't inherit
 		acl.GrantSid(windows.GENERIC_ALL, p.administratorSid),
 		acl.GrantSid(windows.GENERIC_ALL, p.systemSid),
-		acl.GrantSid(windows.GENERIC_ALL, p.currentUserSid))
+		acl.GrantSid(windows.GENERIC_ALL, p.ddUserSid))
 }
 
 // RemoveAccessToOtherUsers on Windows this function calls RestrictAccessToUser

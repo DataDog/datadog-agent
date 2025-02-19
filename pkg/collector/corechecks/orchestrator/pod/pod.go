@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckName is the name of the check
@@ -60,8 +60,8 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(
+func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(
 		func() check.Check {
 			return newCheck(store, cfg, tagger)
 		},

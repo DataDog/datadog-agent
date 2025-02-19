@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -226,8 +226,8 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 	}
 
 	// register the manager to the CGroup resolver
-	_ = m.resolvers.CGroupResolver.RegisterListener(cgroup.WorkloadSelectorResolved, m.OnWorkloadSelectorResolvedEvent)
-	_ = m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.OnCGroupDeletedEvent)
+	_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, m.OnWorkloadSelectorResolvedEvent)
+	_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorDeleted, m.OnWorkloadDeletedEvent)
 
 	seclog.Infof("security profile manager started")
 
@@ -249,7 +249,7 @@ func (m *SecurityProfileManager) propagateWorkloadSelectorsToProviders() {
 }
 
 // OnWorkloadSelectorResolvedEvent is used to handle the creation of a new cgroup with its resolved tags
-func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgroupModel.CacheEntry) {
+func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	workload.Lock()
@@ -260,7 +260,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 		return
 	}
 
-	selector := workload.WorkloadSelector
+	selector := workload.Selector
 	selector.Tag = "*"
 
 	// check if the workload of this selector already exists
@@ -306,7 +306,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 }
 
 // LinkProfile applies a profile to the provided workload
-func (m *SecurityProfileManager) LinkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
+func (m *SecurityProfileManager) LinkProfile(profile *SecurityProfile, workload *tags.Workload) {
 	profile.Lock()
 	defer profile.Unlock()
 
@@ -328,7 +328,7 @@ func (m *SecurityProfileManager) LinkProfile(profile *SecurityProfile, workload 
 }
 
 // UnlinkProfile removes the link between a workload and a profile
-func (m *SecurityProfileManager) UnlinkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
+func (m *SecurityProfileManager) UnlinkProfile(profile *SecurityProfile, workload *tags.Workload) {
 	profile.Lock()
 	defer profile.Unlock()
 
@@ -393,11 +393,11 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 	}
 }
 
-// OnCGroupDeletedEvent is used to handle a CGroupDeleted event
-func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.CacheEntry) {
+// OnWorkloadDeletedEvent is used to handle a WorkloadDeleted event
+func (m *SecurityProfileManager) OnWorkloadDeletedEvent(workload *tags.Workload) {
 	// lookup the profile
 	selector := cgroupModel.WorkloadSelector{
-		Image: workload.WorkloadSelector.Image,
+		Image: workload.Selector.Image,
 		Tag:   "*",
 	}
 	profile := m.GetProfile(selector)
@@ -561,10 +561,10 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	tags := []string{
+	t := []string{
 		fmt.Sprintf("in_kernel:%v", profilesLoadedInKernel),
 	}
-	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), tags, 1.0); err != nil {
+	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), t, 1.0); err != nil {
 		return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
 	}
 
@@ -587,9 +587,9 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for entry, count := range m.eventFiltering {
-		tags := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
+		t := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
 		if value := count.Swap(0); value > 0 {
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), t, 1.0); err != nil {
 				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
 			}
 		}
@@ -600,8 +600,8 @@ func (m *SecurityProfileManager) SendStats() error {
 	m.evictedVersions = []cgroupModel.WorkloadSelector{}
 	m.evictedVersionsLock.Unlock()
 	for _, version := range evictedVersions {
-		tags := version.ToTags()
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileEvictedVersions, 1, tags, 1.0); err != nil {
+		t := version.ToTags()
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileEvictedVersions, 1, t, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileEvictedVersions metric: %w", err)
 		}
 
@@ -639,24 +639,24 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 }
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
-func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
+func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *tags.Workload) {
 	if err := m.securityProfileMap.Put([]byte(workload.ContainerID), profile.profileCookie); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
 		return
 	}
-	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
 }
 
 // unlinkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
-func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
+func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workload *tags.Workload) {
 	if !profile.loadedInKernel {
 		return
 	}
 
 	if err := m.securityProfileMap.Delete([]byte(workload.ContainerID)); err != nil {
-		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
 	}
-	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
 }
 
 func (m *SecurityProfileManager) canGenerateAnomaliesFor(e *model.Event) bool {
@@ -746,7 +746,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	profile.versionContextsLock.Lock()
 	ctx, found := profile.versionContexts[imageTag]
 	if found {
-		// update the lastseen of this version
+		// update the last seen of this version
 		ctx.lastSeenNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
 	} else {
 		// create a new version
@@ -766,6 +766,10 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	globalEventTypeProfilState := profile.GetGlobalEventTypeState(event.GetEventType())
 	if globalEventTypeProfilState == model.UnstableEventType {
 		m.incrementEventFilteringStat(event.GetEventType(), model.UnstableEventType, NA)
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly. Here, when a version is unstable,
+		// we don't want to generate anomalies for this profile anymore.
+		event.ResetAnomalyDetectionEvent()
 		return
 	}
 
@@ -777,6 +781,13 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	case model.NoProfile, model.ProfileAtMaxSize, model.UnstableEventType:
 		// an error occurred or we are in unstable state
 		// do not link the profile to avoid sending anomalies
+
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly.
+		// We can also get a syscall anomaly detection kernel space for runc, which is ignored in the activity tree
+		// (i.e. tryAutolearn returns NoProfile) because "runc" can't be a root node.
+		event.ResetAnomalyDetectionEvent()
+
 		return
 	case model.AutoLearning, model.WorkloadWarmup:
 		// the event was either already in the profile, or has just been inserted
@@ -797,12 +808,20 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		if err != nil {
 			// ignore, evaluation failed
 			m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
+
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly.
+			event.ResetAnomalyDetectionEvent()
 			return
 		}
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag, profileState)
 		if found {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
+
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly.
+			event.ResetAnomalyDetectionEvent()
 		} else {
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 			if m.canGenerateAnomaliesFor(event) {
@@ -850,11 +869,19 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, ctx *Ver
 		globalEventTypeState := profile.GetGlobalEventTypeState(event.GetEventType())
 		if globalEventTypeState == model.StableEventType && m.canGenerateAnomaliesFor(event) {
 			event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+		} else {
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly: there is a new entry and no
+			// previous version is in stable state.
+			event.ResetAnomalyDetectionEvent()
 		}
 
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly
+		event.ResetAnomalyDetectionEvent()
 	}
 	return profileState
 }
@@ -932,11 +959,11 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 }
 
 // FetchSilentWorkloads returns the list of workloads for which we haven't received any profile
-func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry {
+func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*tags.Workload {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	out := make(map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry)
+	out := make(map[cgroupModel.WorkloadSelector][]*tags.Workload)
 
 	for selector, profile := range m.profiles {
 		profile.Lock()

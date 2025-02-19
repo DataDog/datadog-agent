@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package util providers utility file functions to dynamic instrumentation
 package util
 
 import (
@@ -70,6 +71,7 @@ func (fw *FileWatcher) Watch() (<-chan []byte, error) {
 	return updateChan, nil
 }
 
+// Stop causes the FileWatcher to stop watching the file
 func (fw *FileWatcher) Stop() {
 	fw.stop <- true
 }

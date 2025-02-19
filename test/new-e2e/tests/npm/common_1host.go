@@ -83,7 +83,7 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
 	}, 120*time.Second, time.Second, "no connections received")
 
-	// looking for 5 payloads and check if the last 2 have a span of 30s +/- 500ms
+	// looking for 5 payloads and check if the last 2 have a span of 30s +/- 1s
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
 		assert.NoError(t, err)
@@ -99,7 +99,7 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
 
 		// we want the test fail now, not retrying on the next payloads
-		assert.Greater(t, 0.5, math.Abs(dt-30), "delta between collection is higher than 500ms")
+		assert.Greater(t, 1.0, math.Abs(dt-30), "delta between collection is higher than 1s")
 	}, 150*time.Second, time.Second, "not enough connections received")
 }
 

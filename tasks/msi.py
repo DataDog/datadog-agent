@@ -13,7 +13,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import get_version, load_release_versions
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_release_versions
 
 # Windows only import
 try:
@@ -44,6 +44,7 @@ DATADOG_AGENT_MSI_ALLOW_LIST = [
     "APPLICATIONDATADIRECTORY",
     "EXAMPLECONFSLOCATION",
     "checks.d",
+    "protected",
     "run",
     "logs",
     "ProgramMenuDatadog",
@@ -71,15 +72,29 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', release_version='nightly'):
+def _get_env(ctx, major_version='7', release_version='nightly-a7', flavor=None):
     env = load_release_versions(ctx, release_version)
+
+    if flavor is None:
+        flavor = os.getenv("AGENT_FLAVOR", "")
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
-    env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
-    env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
+    env['AGENT_FLAVOR'] = flavor
+    env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
+    env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
+    env['AGENT_PRODUCT_NAME_SUFFIX'] = ""
+    # Used for installation directories registry keys
+    # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+    # TODO: How best to configure the OpenSSL version?
+    env['AGENT_OPENSSL_VERSION'] = "3.4"
+
     return env
+
+
+def _is_fips_mode(env):
+    return env['AGENT_FLAVOR'] == "fips"
 
 
 def _msbuild_configuration(debug=False):
@@ -264,12 +279,28 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
+def _msi_output_name(env):
+    if _is_fips_mode(env):
+        return f"datadog-fips-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
+    else:
+        return f"datadog-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
+
+
 @task
-def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
+def build(
+    ctx,
+    vstudio_root=None,
+    arch="x64",
+    major_version='7',
+    release_version='nightly-a7',
+    flavor=None,
+    debug=False,
+    build_upgrade=False,
+):
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, release_version)
+    env = _get_env(ctx, major_version, release_version, flavor=flavor)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -301,18 +332,31 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version
 
     # Run WiX to turn the WXS into an MSI
     with timed("Building MSI"):
-        msi_name = f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
+        msi_name = _msi_output_name(env)
         _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
 
         # And copy it to the final output path as a build artifact
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
-    # if the optional upgrade test helper exists then build that too
-    optional_name = "datadog-agent-7.43.0~rc.3+git.485.14b9337-1-x86_64"
-    if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):
+    # Build the optional upgrade test helper
+    if build_upgrade:
+        print("Building optional upgrade test helper")
+        upgrade_env = env.copy()
+        version = _create_version_from_match(VERSION_RE.search(env['PACKAGE_VERSION']))
+        next_version = version.next_version(bump_patch=True)
+        upgrade_env['PACKAGE_VERSION'] = upgrade_env['PACKAGE_VERSION'].replace(str(version), str(next_version))
+        upgrade_env['AGENT_PRODUCT_NAME_SUFFIX'] = "upgrade-test-"
+        _build_wxs(
+            ctx,
+            upgrade_env,
+            build_outdir,
+            'AgentCustomActions.CA.dll',
+        )
+        msi_name = _msi_output_name(upgrade_env)
+        print(os.path.join(build_outdir, msi_name + ".wxs"))
         with timed("Building optional MSI"):
-            _build_msi(ctx, env, build_outdir, optional_name, DATADOG_AGENT_MSI_ALLOW_LIST)
-            shutil.copy2(os.path.join(build_outdir, optional_name + '.msi'), OUTPUT_PATH)
+            _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
+            shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
 
 @task
@@ -355,7 +399,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly-a7', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """

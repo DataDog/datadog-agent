@@ -37,6 +37,11 @@ func TestUnlink(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))
 	testFile, testFilePtr, err := test.CreateWithOptions("test-unlink", 98, 99, fileMode)
@@ -144,7 +149,7 @@ func TestUnlink(t *testing.T) {
 				return fmt.Errorf("failed to unlink file with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
@@ -154,10 +159,6 @@ func TestUnlink(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
@@ -193,7 +194,7 @@ func TestUnlinkInvalidate(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			return os.Remove(testFile)
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "unlink.file.path", testFile)
 		})

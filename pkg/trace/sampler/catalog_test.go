@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,7 +61,7 @@ func TestNewServiceLookup(t *testing.T) {
 
 func TestServiceKeyCatalogRegister(t *testing.T) {
 	cat := newServiceLookup(0)
-	s := getTestPrioritySampler()
+	s := getTestPrioritySampler(&statsd.NoOpClient{})
 
 	_, root1 := getTestTraceWithService("service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
@@ -168,7 +169,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	assert := assert.New(t)
 
 	cat := newServiceLookup(0)
-	s := getTestPrioritySampler()
+	s := getTestPrioritySampler(&statsd.NoOpClient{})
 
 	_, root1 := getTestTraceWithService("service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})

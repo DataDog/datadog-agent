@@ -25,9 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,6 +52,8 @@ type Monitor struct {
 	closeFilterFn func()
 
 	lastUpdateTime *atomic.Int64
+
+	telemetryStopChannel chan struct{}
 }
 
 // NewMonitor returns a new Monitor instance
@@ -94,10 +98,11 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	usmstate.Set(usmstate.Running)
 
 	usmMonitor := &Monitor{
-		cfg:            c,
-		ebpfProgram:    mgr,
-		closeFilterFn:  closeFilterFn,
-		processMonitor: processMonitor,
+		cfg:                  c,
+		ebpfProgram:          mgr,
+		closeFilterFn:        closeFilterFn,
+		processMonitor:       processMonitor,
+		telemetryStopChannel: make(chan struct{}),
 	}
 
 	usmMonitor.lastUpdateTime = atomic.NewInt64(time.Now().Unix())
@@ -137,7 +142,11 @@ func (m *Monitor) Start() error {
 		err = m.processMonitor.Initialize(m.cfg.EnableUSMEventStream)
 	}
 
-	return err
+	if err != nil {
+		return err
+	}
+	m.startTelemetryReporter()
+	return nil
 }
 
 // Pause bypasses the eBPF programs in the monitor
@@ -168,9 +177,9 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		response["error"] = startupError.Error()
 	}
 
-	response["blocked_processes"] = utils.GetBlockedPathIDsList()
+	response["blocked_processes"] = utils.GetBlockedPathIDsList(consts.USMModuleName)
 
-	tracedPrograms := utils.GetTracedProgramList()
+	tracedPrograms := utils.GetTracedProgramList(consts.USMModuleName)
 	response["traced_programs"] = tracedPrograms
 
 	if m != nil {
@@ -179,10 +188,10 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	return response
 }
 
-// GetProtocolStats returns the current stats for all protocols
-func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
+// GetProtocolStats returns the current stats for all protocols and a cleanup function to free resources.
+func (m *Monitor) GetProtocolStats() (map[protocols.ProtocolType]interface{}, func()) {
 	if m == nil {
-		return nil
+		return nil, func() {}
 	}
 
 	defer func() {
@@ -201,6 +210,14 @@ func (m *Monitor) Stop() {
 		return
 	}
 
+	if usmstate.Get() == usmstate.Stopped {
+		return
+	}
+
+	if m.telemetryStopChannel != nil {
+		close(m.telemetryStopChannel)
+	}
+
 	m.processMonitor.Stop()
 
 	ddebpf.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
@@ -213,4 +230,21 @@ func (m *Monitor) Stop() {
 // DumpMaps dumps the maps associated with the monitor
 func (m *Monitor) DumpMaps(w io.Writer, maps ...string) error {
 	return m.ebpfProgram.DumpMaps(w, maps...)
+}
+
+func (m *Monitor) startTelemetryReporter() {
+	telemetry.SetStatsdClient(statsd.Client)
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				telemetry.ReportStatsd()
+			case <-m.telemetryStopChannel:
+				return
+			}
+		}
+	}()
 }

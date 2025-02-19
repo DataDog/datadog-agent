@@ -126,7 +126,7 @@ func validateEventSchema(t assert.TestingT, e *api.Event, schemaFileName string)
 		return
 	}
 
-	fs := os.DirFS("../../../../pkg/security/tests")
+	fs := os.DirFS("../../../../pkg/security/secl")
 	documentLoader := gojsonschema.NewBytesLoader(b)
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///schemas/"+schemaFileName, http.FS(fs))
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)

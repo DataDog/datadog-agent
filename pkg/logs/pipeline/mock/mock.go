@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -43,6 +44,10 @@ func (p *mockProvider) StopSDSProcessing() error {
 	return nil
 }
 
+func (p *mockProvider) GetOutputChan() chan *message.Message {
+	return nil
+}
+
 // Flush does nothing
 //
 //nolint:revive // TODO(AML) Fix revive linter
@@ -51,4 +56,9 @@ func (p *mockProvider) Flush(_ context.Context) {}
 // NextPipelineChan returns the next pipeline
 func (p *mockProvider) NextPipelineChan() chan *message.Message {
 	return p.msgChan
+}
+
+// NextPipelineChanWithInstance returns the next pipeline
+func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
+	return p.msgChan, metrics.NewNoopPipelineMonitor("")
 }

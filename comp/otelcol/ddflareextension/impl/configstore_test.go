@@ -12,18 +12,20 @@ import (
 	"path/filepath"
 	"testing"
 
-	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	"go.opentelemetry.io/collector/component/componenttest"
 
+	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
@@ -36,9 +38,9 @@ import (
 // this is only used for config unmarshalling.
 func addFactories(factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil)
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(nil, nil)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[Type] = NewFactory(nil, otelcol.ConfigProviderSettings{})
+	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
 }
 
 func TestGetConfDump(t *testing.T) {
@@ -55,14 +57,24 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{})
+	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, true)
 	assert.NoError(t, err)
 
 	ext, ok := extension.(*ddExtension)
 	assert.True(t, ok)
 
+	opt := cmpopts.SortSlices(func(lhs, rhs string) bool {
+		return lhs < rhs
+	})
+	assertEqual := func(t *testing.T, expectedMap, actualMap map[string]any) bool {
+		return assert.True(t,
+			cmp.Equal(expectedMap, actualMap, opt),
+			cmp.Diff(expectedMap, actualMap, opt),
+		)
+	}
+
 	t.Run("provided-string", func(t *testing.T) {
-		actualString, _ := ext.configStore.getProvidedConfAsString()
+		actualString := ext.configStore.getProvidedConf()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
 
@@ -71,15 +83,12 @@ func TestGetConfDump(t *testing.T) {
 		expectedMap, err := yamlBytesToMap(expectedBytes)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedMap, actualStringMap)
+		assertEqual(t, expectedMap, actualStringMap)
 	})
 
 	t.Run("provided-confmap", func(t *testing.T) {
-		actualConfmap, _ := ext.configStore.getProvidedConf()
-		// marshal to yaml and then to map to drop the types for comparison
-		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
-		assert.NoError(t, err)
-		actualStringMap, err := yamlBytesToMap(bytesConf)
+		providedConf := ext.configStore.getProvidedConf()
+		actualStringMap, err := yamlBytesToMap([]byte(providedConf))
 		assert.NoError(t, err)
 
 		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-provided-result.yaml")
@@ -90,15 +99,24 @@ func TestGetConfDump(t *testing.T) {
 		expectedStringMap, err := yamlBytesToMap(expectedStringMapBytes)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedStringMap, actualStringMap)
+		assertEqual(t, expectedStringMap, actualStringMap)
 	})
 
-	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("simple-dd/config.yaml"), true))
+	cp, err := otelcol.NewConfigProvider(newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), true))
+	assert.NoError(t, err)
+
+	c, err := cp.Get(context.Background(), factories)
+	assert.NoError(t, err)
+
+	conf := confmap.New()
+	err = conf.Marshal(c)
+	assert.NoError(t, err)
+
 	err = ext.NotifyConfig(context.TODO(), conf)
 	assert.NoError(t, err)
 
 	t.Run("enhanced-string", func(t *testing.T) {
-		actualString, _ := ext.configStore.getEnhancedConfAsString()
+		actualString := ext.configStore.getEnhancedConf()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
 
@@ -107,15 +125,12 @@ func TestGetConfDump(t *testing.T) {
 		expectedMap, err := yamlBytesToMap(expectedBytes)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedMap, actualStringMap)
+		assertEqual(t, expectedMap, actualStringMap)
 	})
 
 	t.Run("enhance-confmap", func(t *testing.T) {
-		actualConfmap, _ := ext.configStore.getEnhancedConf()
-		// marshal to yaml and then to map to drop the types for comparison
-		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
-		assert.NoError(t, err)
-		actualStringMap, err := yamlBytesToMap(bytesConf)
+		actualConfmap := ext.configStore.getEnhancedConf()
+		actualStringMap, err := yamlBytesToMap([]byte(actualConfmap))
 		assert.NoError(t, err)
 
 		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-enhanced-result.yaml")
@@ -126,7 +141,7 @@ func TestGetConfDump(t *testing.T) {
 		expectedStringMap, err := yamlBytesToMap(expectedStringMapBytes)
 		assert.NoError(t, err)
 
-		assert.Equal(t, expectedStringMap, actualStringMap)
+		assertEqual(t, expectedStringMap, actualStringMap)
 	})
 }
 
@@ -143,7 +158,7 @@ func uriFromFile(filename string) []string {
 }
 
 func yamlBytesToMap(bytesConfig []byte) (map[string]any, error) {
-	var configMap = map[string]interface{}{}
+	configMap := map[string]interface{}{}
 	err := yaml.Unmarshal(bytesConfig, configMap)
 	if err != nil {
 		return nil, err
@@ -169,16 +184,15 @@ func newResolverSettings(uris []string, enhanced bool) confmap.ResolverSettings 
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
 		},
-		ConverterFactories: newConverterFactorie(enhanced),
+		ConverterFactories: newConverterFactory(enhanced),
+		DefaultScheme:      "env",
 	}
 }
 
-func newConverterFactorie(enhanced bool) []confmap.ConverterFactory {
-	converterFactories := []confmap.ConverterFactory{
-		expandconverter.NewFactory(),
-	}
+func newConverterFactory(enhanced bool) []confmap.ConverterFactory {
+	converterFactories := []confmap.ConverterFactory{}
 
-	converter, err := converterimpl.NewConverter(converterimpl.Requires{})
+	converter, err := converterimpl.NewConverterForAgent(converterimpl.Requires{})
 	if err != nil {
 		return []confmap.ConverterFactory{}
 	}

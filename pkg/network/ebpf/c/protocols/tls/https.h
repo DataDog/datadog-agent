@@ -17,6 +17,7 @@
 #include "bpf_builtins.h"
 #include "port_range.h"
 #include "sock.h"
+#include "pid_tgid.h"
 
 #include "protocols/amqp/helpers.h"
 #include "protocols/redis/helpers.h"
@@ -38,9 +39,6 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
 /* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS, JavaTLS) and */
 /* it's used for classify the subset of protocols that is supported by `classify_protocol_for_dispatcher` */
 static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, conn_tuple_t *t, void *buffer, size_t len) {
-    // we're in the context of TLS hookpoints, thus the protocol is TLS.
-    set_protocol(stack, PROTOCOL_TLS);
-
     if (is_protocol_layer_known(stack, LAYER_APPLICATION)) {
         // No classification is needed.
         return;
@@ -72,10 +70,14 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     normalized_tuple.pid = 0;
     normalized_tuple.netns = 0;
 
-    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
+    protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
+
+    // we're in the context of TLS hookpoints, thus the protocol is TLS.
+    set_protocol(stack, PROTOCOL_TLS);
+    set_protocol_flag(stack, FLAG_USM_ENABLED);
 
     const __u32 zero = 0;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
@@ -166,7 +168,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
         return;
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
+    protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -182,10 +184,10 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     normalized_tuple.pid = 0;
     normalized_tuple.netns = 0;
 
-    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
-    if (!stack) {
-        return;
-    }
+    // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
+    protocol_stack_t *stack = __get_protocol_stack_if_exists(&normalized_tuple);
+    // No need to explicitly checking if the stack is NULL, as `get_protocol_from_stack` will return PROTOCOL_UNKNOWN
+    // and then we will return from the function as we will hit the default case of the switch statement.
 
     protocol_prog_t prog;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
@@ -250,7 +252,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
 
     // the code path below should be executed only once during the lifecycle of a SSL session
     pid_fd_t pid_fd = {
-        .pid = pid_tgid >> 32,
+        .pid = GET_USER_MODE_PID(pid_tgid),
         .fd = ssl_sock->fd,
     };
 

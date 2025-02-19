@@ -17,8 +17,9 @@ type ConnTuple struct {
 type TCPStats struct {
 	Rtt               uint32
 	Rtt_var           uint32
+	Retransmits       uint32
 	State_transitions uint16
-	Pad_cgo_0         [2]byte
+	Failure_reason    uint16
 }
 type ConnStats struct {
 	Sent_bytes     uint64
@@ -31,18 +32,12 @@ type ConnStats struct {
 	Protocol_stack ProtocolStack
 	Flags          uint8
 	Direction      uint8
-	Pad_cgo_0      [6]byte
+	Tls_tags       TLSTags
 }
 type Conn struct {
-	Tup             ConnTuple
-	Conn_stats      ConnStats
-	Tcp_stats       TCPStats
-	Tcp_retransmits uint32
-}
-type FailedConn struct {
-	Tup       ConnTuple
-	Reason    uint32
-	Pad_cgo_0 [4]byte
+	Tup        ConnTuple
+	Tcp_stats  TCPStats
+	Conn_stats ConnStats
 }
 type SkpConn struct {
 	Sk  uint64
@@ -70,8 +65,6 @@ type Telemetry struct {
 	Udp_sends_processed             uint64
 	Udp_sends_missed                uint64
 	Udp_dropped_conns               uint64
-	Double_flush_attempts_close     uint64
-	Double_flush_attempts_done      uint64
 	Unsupported_tcp_failures        uint64
 	Tcp_done_missing_pid            uint64
 	Tcp_connect_failed_tuple        uint64
@@ -105,8 +98,20 @@ type ProtocolStack struct {
 	Flags       uint8
 }
 type ProtocolStackWrapper struct {
-	Stack   ProtocolStack
-	Updated uint64
+	Updated   uint64
+	Stack     ProtocolStack
+	Pad_cgo_0 [4]byte
+}
+type TLSTags struct {
+	Chosen_version   uint16
+	Cipher_suite     uint16
+	Offered_versions uint8
+	Pad_cgo_0        [1]byte
+}
+type TLSTagsWrapper struct {
+	Updated   uint64
+	Info      TLSTags
+	Pad_cgo_0 [2]byte
 }
 
 type _Ctype_struct_sock uint64
@@ -136,12 +141,13 @@ const TCPFailureConnTimeout = 0x6e
 const TCPFailureConnRefused = 0x6f
 
 const SizeofConn = 0x78
-const SizeofFailedConn = 0x38
 
 type ClassificationProgram = uint32
 
 const (
-	ClassificationQueues ClassificationProgram = 0x2
-	ClassificationDBs    ClassificationProgram = 0x3
-	ClassificationGRPC   ClassificationProgram = 0x5
+	ClassificationTLSClient ClassificationProgram = 0x7
+	ClassificationTLSServer ClassificationProgram = 0x8
+	ClassificationQueues    ClassificationProgram = 0x2
+	ClassificationDBs       ClassificationProgram = 0x3
+	ClassificationGRPC      ClassificationProgram = 0x5
 )

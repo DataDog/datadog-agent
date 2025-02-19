@@ -23,6 +23,8 @@ const (
 	TLSDispatcherProgramsMap                    = "tls_process_progs"
 	ProtocolDispatcherClassificationPrograms    = "dispatcher_classification_progs"
 	TLSProtocolDispatcherClassificationPrograms = "tls_dispatcher_classification_progs"
+
+	DefaultMapCleanerBatchSize = 1
 )
 
 // Protocol is the interface that represents a protocol supported by USM.
@@ -58,8 +60,9 @@ type Protocol interface {
 	Name() string
 
 	// GetStats returns the latest monitoring stats from a protocol
-	// implementation.
-	GetStats() *ProtocolStats
+	// implementation. The second return value is a callback for cleanup
+	// purposes. Each protocol can use it to release resources, if necessary.
+	GetStats() (*ProtocolStats, func())
 
 	// IsBuildModeSupported return true is the given build mode is supported by this protocol.
 	IsBuildModeSupported(buildmode.Type) bool

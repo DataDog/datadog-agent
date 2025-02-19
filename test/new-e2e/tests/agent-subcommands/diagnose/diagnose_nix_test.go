@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 )
 
@@ -25,7 +25,6 @@ func TestLinuxDiagnoseSuite(t *testing.T) {
 	t.Parallel()
 	var suite linuxDiagnoseSuite
 	suite.suites = append(suite.suites, commonSuites...)
-	suite.suites = append(suite.suites, "port-conflict")
 	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner()))
 }
 

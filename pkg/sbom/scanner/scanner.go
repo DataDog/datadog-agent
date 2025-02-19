@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -46,25 +46,25 @@ type Scanner struct {
 	running   bool
 	disk      filesystem.Disk
 	// scanQueue is the workqueue used to process scan requests
-	scanQueue workqueue.RateLimitingInterface
+	scanQueue workqueue.TypedRateLimitingInterface[sbom.ScanRequest]
 	// cacheMutex is used to protect the cache from concurrent access
 	// It cannot be cleaned when a scan is running
 	cacheMutex sync.Mutex
 
-	wmeta      optional.Option[workloadmeta.Component]
+	wmeta      option.Option[workloadmeta.Component]
 	collectors map[string]collectors.Collector
 }
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Component, collectors map[string]collectors.Collector, wmeta optional.Option[workloadmeta.Component]) *Scanner {
+func NewScanner(cfg config.Component, collectors map[string]collectors.Collector, wmeta option.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
-		scanQueue: workqueue.NewRateLimitingQueueWithConfig(
-			workqueue.NewItemExponentialFailureRateLimiter(
+		scanQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.NewTypedItemExponentialFailureRateLimiter[sbom.ScanRequest](
 				cfg.GetDuration("sbom.scan_queue.base_backoff"),
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
-			workqueue.RateLimitingQueueConfig{
+			workqueue.TypedRateLimitingQueueConfig[sbom.ScanRequest]{
 				Name:            telemetry.Subsystem,
 				MetricsProvider: telemetry.QueueMetricsProvider,
 			},
@@ -81,7 +81,7 @@ func NewScanner(cfg config.Component, collectors map[string]collectors.Collector
 // CreateGlobalScanner creates a SBOM scanner, sets it as the default
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
-func CreateGlobalScanner(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Scanner, error) {
+func CreateGlobalScanner(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Scanner, error) {
 	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
@@ -186,7 +186,7 @@ func (s *Scanner) startCacheCleaner(ctx context.Context) {
 				log.Debug("cleaning SBOM cache")
 				for _, collector := range s.collectors {
 					if err := collector.CleanCache(); err != nil {
-						_ = log.Warnf("could not clean SBOM cache: %v", err)
+						log.Warnf("could not clean SBOM cache: %v", err)
 					}
 				}
 				s.cacheMutex.Unlock()
@@ -229,17 +229,10 @@ func (s *Scanner) GetCollector(collector string) collectors.Collector {
 	return s.collectors[collector]
 }
 
-func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
-	request, ok := r.(sbom.ScanRequest)
-	if !ok {
-		_ = log.Errorf("invalid scan request type '%T'", r)
-		s.scanQueue.Forget(r)
-		return
-	}
-
+func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanRequest) {
 	collector := s.GetCollector(request.Collector())
 	if collector == nil {
-		_ = log.Errorf("invalid collector '%s'", request.Collector())
+		log.Errorf("invalid collector '%s'", request.Collector())
 		s.scanQueue.Forget(request)
 		return
 	}
@@ -261,7 +254,7 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.ContainerImageMetadata {
 	store, ok := s.wmeta.Get()
 	if !ok {
-		_ = log.Errorf("workloadmeta store is not initialized")
+		log.Errorf("workloadmeta store is not initialized")
 		s.scanQueue.AddRateLimited(request)
 		return nil
 	}

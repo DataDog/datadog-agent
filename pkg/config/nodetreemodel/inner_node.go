@@ -16,56 +16,33 @@ import (
 
 // innerNode represents an non-leaf node of the config
 type innerNode struct {
-	val map[string]Node
-	// remapCase maps each lower-case key to the original case. This
-	// enables GetChild to retrieve values using case-insensitive keys
-	remapCase map[string]string
+	children map[string]Node
 }
 
-func newInnerNodeImpl() *innerNode {
-	return &innerNode{val: map[string]Node{}, remapCase: map[string]string{}}
-}
-
-func newInnerNodeImplWithData(v map[string]interface{}, source model.Source) (*innerNode, error) {
-	children := map[string]Node{}
-	for name, value := range v {
-		n, err := NewNode(value, source)
-		if err != nil {
-			return nil, err
-		}
-		children[name] = n
+func newInnerNode(children map[string]Node) *innerNode {
+	contents := make(map[string]Node, len(children))
+	for k, v := range children {
+		contents[strings.ToLower(k)] = v
 	}
-	in := &innerNode{val: children}
-	in.makeRemapCase()
-	return in, nil
+	node := &innerNode{children: contents}
+	return node
 }
 
 var _ Node = (*innerNode)(nil)
 
 // Clone clones a InnerNode and all its children
 func (n *innerNode) Clone() Node {
-	clone := newInnerNodeImpl()
-
-	for k, node := range n.val {
-		clone.val[k] = node.Clone()
+	children := make(map[string]Node)
+	for k, node := range n.children {
+		children[k] = node.Clone()
 	}
-	clone.makeRemapCase()
-	return clone
-}
-
-// makeRemapCase creates a map that converts keys from their lower-cased version to their original case
-func (n *innerNode) makeRemapCase() {
-	remap := make(map[string]string)
-	for k := range n.val {
-		remap[strings.ToLower(k)] = k
-	}
-	n.remapCase = remap
+	return newInnerNode(children)
 }
 
 // GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *innerNode) GetChild(key string) (Node, error) {
-	mkey := n.remapCase[strings.ToLower(key)]
-	child, found := n.val[mkey]
+	mkey := strings.ToLower(key)
+	child, found := n.children[mkey]
 	if !found {
 		return nil, ErrNotFound
 	}
@@ -74,19 +51,17 @@ func (n *innerNode) GetChild(key string) (Node, error) {
 
 // HasChild returns true if the node has a child for that given key
 func (n *innerNode) HasChild(key string) bool {
-	_, ok := n.val[key]
+	_, ok := n.children[strings.ToLower(key)]
 	return ok
 }
 
 // Merge mergs src node within current tree
 func (n *innerNode) Merge(src InnerNode) error {
-	defer n.makeRemapCase()
-
 	for _, name := range src.ChildrenKeys() {
 		srcChild, _ := src.GetChild(name)
 
 		if !n.HasChild(name) {
-			n.val[name] = srcChild.Clone()
+			n.children[name] = srcChild.Clone()
 		} else {
 			// We alredy have child with the same name
 
@@ -99,8 +74,8 @@ func (n *innerNode) Merge(src InnerNode) error {
 			}
 
 			if srcIsLeaf {
-				if srcLeaf.SourceGreaterOrEqual(dstLeaf.Source()) {
-					n.val[name] = srcLeaf.Clone()
+				if srcLeaf.Source() == dstLeaf.Source() || srcLeaf.SourceGreaterThan(dstLeaf.Source()) {
+					n.children[name] = srcLeaf.Clone()
 				}
 			} else {
 				dstInner, _ := dstChild.(InnerNode)
@@ -116,7 +91,7 @@ func (n *innerNode) Merge(src InnerNode) error {
 
 // ChildrenKeys returns the list of keys of the children of the given node, if it is a map
 func (n *innerNode) ChildrenKeys() []string {
-	mapkeys := maps.Keys(n.val)
+	mapkeys := maps.Keys(n.children)
 	// map keys are iterated non-deterministically, sort them
 	slices.Sort(mapkeys)
 	return mapkeys
@@ -132,19 +107,17 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 		return false, fmt.Errorf("empty key given to Set")
 	}
 
-	defer n.makeRemapCase()
-
 	part := key[0]
 	if keyLen == 1 {
-		node, ok := n.val[part]
+		node, ok := n.children[part]
 		if !ok {
-			n.val[part] = newLeafNodeImpl(value, source)
+			n.children[part] = newLeafNode(value, source)
 			return true, nil
 		}
 
 		if leaf, ok := node.(LeafNode); ok {
-			if leaf.Source().IsGreaterOrEqualThan(source) {
-				n.val[part] = newLeafNodeImpl(value, source)
+			if source == leaf.Source() || source.IsGreaterThan(leaf.Source()) {
+				n.children[part] = newLeafNode(value, source)
 				return true, nil
 			}
 			return false, nil
@@ -153,9 +126,9 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 	}
 
 	// new node case
-	if _, ok := n.val[part]; !ok {
-		newNode := newInnerNodeImpl()
-		n.val[part] = newNode
+	if _, ok := n.children[part]; !ok {
+		newNode := newInnerNode(nil)
+		n.children[part] = newNode
 		return newNode.SetAt(key[1:keyLen], value, source)
 	}
 
@@ -170,6 +143,33 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 
 // InsertChildNode sets a node in the current node
 func (n *innerNode) InsertChildNode(name string, node Node) {
-	n.val[name] = node
-	n.makeRemapCase()
+	n.children[name] = node
+}
+
+// RemoveChild removes a node from the current node
+func (n *innerNode) RemoveChild(name string) {
+	delete(n.children, name)
+}
+
+// DumpSettings clone the entire tree starting from the node into a map based on the leaf source.
+//
+// The selector will be call with the source of each leaf to determine if it should be included in the dump.
+func (n *innerNode) DumpSettings(selector func(model.Source) bool) map[string]interface{} {
+	res := map[string]interface{}{}
+
+	for _, k := range n.ChildrenKeys() {
+		child, _ := n.GetChild(k)
+		if leaf, ok := child.(LeafNode); ok {
+			if selector(leaf.Source()) {
+				res[k] = leaf.Get()
+			}
+			continue
+		}
+
+		childDump := child.(InnerNode).DumpSettings(selector)
+		if len(childDump) != 0 {
+			res[k] = childDump
+		}
+	}
+	return res
 }

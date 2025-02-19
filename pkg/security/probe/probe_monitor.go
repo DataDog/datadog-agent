@@ -48,7 +48,7 @@ func (m *EBPFMonitors) Init() error {
 	p := m.ebpfProbe
 
 	// instantiate a new event statistics monitor
-	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.UseRingBuffers())
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.useRingBuffers)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
@@ -100,6 +100,10 @@ func (m *EBPFMonitors) SendStats() error {
 
 		if err := resolvers.MountResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send mount_resolver stats: %w", err)
+		}
+
+		if err := resolvers.CGroupResolver.SendStats(); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver stats: %w", err)
 		}
 
 		if resolvers.SBOMResolver != nil {
@@ -165,20 +169,20 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, pathErr.Err),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, pathErr.Err),
 		)
 	}
 
 	if errors.Is(event.Error, model.ErrNoProcessContext) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
 		)
 	}
 
 	var brokenLineageErr *model.ErrProcessBrokenLineage
 	if errors.As(event.Error, &brokenLineageErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, event.Error),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, event.Error),
 		)
 	}
 }

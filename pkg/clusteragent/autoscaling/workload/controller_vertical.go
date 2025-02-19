@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -42,11 +42,11 @@ type verticalController struct {
 	clock         clock.Clock
 	eventRecorder record.EventRecorder
 	dynamicClient dynamic.Interface
-	podWatcher    podWatcher
+	podWatcher    PodWatcher
 }
 
 // newVerticalController creates a new *verticalController
-func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw podWatcher) *verticalController {
+func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw PodWatcher) *verticalController {
 	res := &verticalController{
 		clock:         clock,
 		eventRecorder: eventRecorder,

@@ -6,8 +6,11 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
@@ -35,6 +38,21 @@ func OTLPTracesToConcentratorInputs(
 	containerTagKeys []string,
 	peerTagKeys []string,
 ) []Input {
+	return OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, containerTagKeys, peerTagKeys, nil)
+}
+
+// OTLPTracesToConcentratorInputsWithObfuscation converts eligible OTLP spans to Concentrator Input.
+// The converted Inputs only have the minimal number of fields for APM stats calculation and are only meant
+// to be used in Concentrator.Add(). Do not use them for other purposes.
+// This function enables obfuscation of spans prior to stats calculation and datadogconnector will migrate
+// to this function once this function is published as part of latest pkg/trace module.
+func OTLPTracesToConcentratorInputsWithObfuscation(
+	traces ptrace.Traces,
+	conf *config.AgentConfig,
+	containerTagKeys []string,
+	peerTagKeys []string,
+	obfuscator *obfuscate.Obfuscator,
+) []Input {
 	spanByID, resByID, scopeByID := traceutil.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	topLevelSpans := traceutil.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
@@ -46,11 +64,16 @@ func OTLPTracesToConcentratorInputs(
 	containerTagsByID := make(map[string][]string)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
-		if _, exists := ignoreResNames[traceutil.GetOTelResource(otelspan, otelres)]; exists {
+		var resourceName string
+		if transform.OperationAndResourceNameV2Enabled(conf) {
+			resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
+		} else {
+			resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
+		}
+		if _, exists := ignoreResNames[resourceName]; exists {
 			continue
 		}
-		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-		env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+		env := traceutil.GetOTelEnv(otelres)
 		hostname := traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
 		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
 		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
@@ -78,7 +101,11 @@ func OTLPTracesToConcentratorInputs(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		chunk.Spans = append(chunk.Spans, transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys))
+		ddSpan := transform.OtelSpanToDDSpanMinimal(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys)
+		if obfuscator != nil {
+			obfuscateSpanForConcentrator(obfuscator, ddSpan, conf)
+		}
+		chunk.Spans = append(chunk.Spans, ddSpan)
 	}
 
 	inputs := make([]Input, 0, len(chunks))
@@ -97,4 +124,30 @@ func OTLPTracesToConcentratorInputs(
 		})
 	}
 	return inputs
+}
+
+func obfuscateSpanForConcentrator(o *obfuscate.Obfuscator, span *pb.Span, conf *config.AgentConfig) {
+	if span.Meta == nil {
+		return
+	}
+	switch span.Type {
+	case "sql", "cassandra":
+		_, err := transform.ObfuscateSQLSpan(o, span)
+		if err != nil {
+			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
+		}
+	case "redis":
+		span.Resource = o.QuantizeRedisString(span.Resource)
+		if conf.Obfuscation.Redis.Enabled {
+			transform.ObfuscateRedisSpan(o, span, conf.Obfuscation.Redis.RemoveAllArgs)
+		}
+	}
+}
+
+// newTestObfuscator creates a new obfuscator for testing
+func newTestObfuscator(conf *config.AgentConfig) *obfuscate.Obfuscator {
+	oconf := conf.Obfuscation.Export(conf)
+	oconf.Redis.Enabled = true
+	o := obfuscate.NewObfuscator(oconf)
+	return o
 }

@@ -572,3 +572,43 @@ func TestIterateWithPointerKey(t *testing.T) {
 	require.NoError(t, it.Err())
 	require.Equal(t, expectedNumbers, actualNumbers)
 }
+
+func TestValidateMapKeyValueSize(t *testing.T) {
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		MaxEntries: 1,
+		KeySize:    8,
+		ValueSize:  8,
+	})
+
+	require.NoError(t, err, "could not create map")
+	t.Cleanup(func() { m.Close() })
+
+	gm, err := Map[uint32, uint64](m)
+	assert.Error(t, err)
+	assert.Nil(t, gm)
+
+	gm2, err := Map[uint64, uint32](m)
+	assert.Error(t, err)
+	assert.Nil(t, gm2)
+
+	gm3, err := Map[uint64, uint64](m)
+	assert.NoError(t, err)
+	assert.NotNil(t, gm3)
+}
+
+func TestGenericHashMapCanUseBatchAPI(t *testing.T) {
+	hash, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { hash.Close() })
+
+	gm, err := Map[int32, int32](hash)
+	require.NoError(t, err)
+
+	require.Equal(t, BatchAPISupported(), gm.CanUseBatchAPI())
+}

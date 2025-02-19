@@ -23,5 +23,5 @@ build do
    else
      source_msm = "Microsoft_VC141_CRT_x64.msm"
    end
-   command "powershell -C \"#{windows_safe_path(script_root)} -file #{source_msm} -targetDir .\\expanded\""
+   command "powershell -C \"#{windows_safe_path(script_root)} -file #{source_msm} -targetDir \"#{windows_safe_path(python_3_embedded)}\"\""
 end

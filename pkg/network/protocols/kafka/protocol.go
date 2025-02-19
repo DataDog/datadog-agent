@@ -51,7 +51,6 @@ const (
 	kafkaHeapMap       = "kafka_heap"
 	inFlightMap        = "kafka_in_flight"
 	responseMap        = "kafka_response"
-	telemetryMap       = "kafka_telemetry"
 
 	tlsFilterTailCall = "uprobe__kafka_tls_filter"
 
@@ -88,7 +87,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: "kafka_topic_name",
 		},
 		{
-			Name: telemetryMap,
+			Name: eBPFTelemetryMap,
 		},
 		{
 			Name: "kafka_batch_events",
@@ -312,7 +311,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
-	case telemetryMap:
+	case eBPFTelemetryMap:
 		var zeroKey uint32
 
 		var value RawKernelTelemetry
@@ -332,11 +331,11 @@ func (p *protocol) processKafka(events []EbpfTx) {
 }
 
 func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
-	inFlightMap, _, err := mgr.GetMap(inFlightMap)
+	kafkaInFlight, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
 		return err
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](kafkaInFlight, protocols.DefaultMapCleanerBatchSize, inFlightMap, "usm_monitor")
 	if err != nil {
 		return err
 	}
@@ -351,15 +350,21 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 	return nil
 }
 
-// GetStats returns a map of Kafka stats stored in the following format:
+// GetStats returns a map of Kafka stats and a callback to clean resources.
+// The format of the stats:
 // [source, dest tuple, request path] -> RequestStats object
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
+	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Kafka,
-		Stats: p.statkeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.Kafka,
+			Stats: stats,
+		}, func() {
+			for _, s := range stats {
+				s.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.

@@ -86,6 +86,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 			flags = append(flags, fmt.Sprintf("-include%s", helperPath))
 		}
 
+		log.Debugf("compiling runtime version of %s to %s", filename, outputFile)
 		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, kernelHeaders); err != nil {
 			return nil, compilationErr, fmt.Errorf("failed to compile runtime version of %s: %s", filename, err)
 		}
@@ -93,6 +94,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		log.Infof("successfully compiled runtime version of %s", filename)
 		result = compilationSuccess
 	} else {
+		log.Debugf("previously compiled runtime version of %s exists at %s", filename, outputFile)
 		log.Infof("found previously compiled runtime version of %s", filename)
 		result = compiledOutputFound
 	}

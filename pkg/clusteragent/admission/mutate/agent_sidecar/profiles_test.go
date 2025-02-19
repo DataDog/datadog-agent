@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestLoadSidecarProfiles(t *testing.T) {
@@ -28,6 +30,12 @@ func TestLoadSidecarProfiles(t *testing.T) {
 			profilesJSON:     "I am a misconfigurations (^_^)",
 			expectedProfiles: nil,
 			expectError:      true,
+		},
+		{
+			name:             "default profile",
+			profilesJSON:     "[]",
+			expectedProfiles: []ProfileOverride{},
+			expectError:      false,
 		},
 		{
 			name: "single valid profile",
@@ -46,6 +54,9 @@ func TestLoadSidecarProfiles(t *testing.T) {
 							"cpu": "0.5",
 							"memory": "256Mi"
 						}
+					},
+					"securityContext": {
+						"readOnlyRootFilesystem": true
 					}
 				}
 			]`,
@@ -65,6 +76,7 @@ func TestLoadSidecarProfiles(t *testing.T) {
 							"memory": resource.MustParse("256Mi"),
 						},
 					},
+					SecurityContext: &corev1.SecurityContext{ReadOnlyRootFilesystem: pointer.Ptr(true)},
 				},
 			},
 			expectError: false,
@@ -166,6 +178,11 @@ func TestApplyProfileOverrides(t *testing.T) {
 							"cpu": "0.5",
 							"memory": "256Mi"
 						}
+					},
+					"securityContext": {
+						"readOnlyRootFilesystem": true,
+						"runAsNonRoot": false,
+						"runAsUser": 1000
 					}
 				}
 			]`,
@@ -185,6 +202,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 						"memory": resource.MustParse("256Mi"),
 					},
 				},
+				SecurityContext: &corev1.SecurityContext{ReadOnlyRootFilesystem: pointer.Ptr(true), RunAsNonRoot: pointer.Ptr(false), RunAsUser: pointer.Ptr(int64(1000))},
 			},
 			expectError:   false,
 			expectMutated: true,
@@ -247,7 +265,10 @@ func TestApplyProfileOverrides(t *testing.T) {
                 "cpu": "0.5",
                 "memory": "256Mi"
             }
-        }
+        },
+		"securityContext": {
+			"readOnlyRootFilesystem": true
+		}
     }]`,
 			baseContainer: &corev1.Container{},
 			expectedContainer: &corev1.Container{
@@ -261,6 +282,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				},
+				SecurityContext: &corev1.SecurityContext{ReadOnlyRootFilesystem: pointer.Ptr(true)},
 			},
 			expectError:   false,
 			expectMutated: true,
@@ -326,7 +348,10 @@ func TestApplyProfileOverrides(t *testing.T) {
                     "cpu": "0.5",
                     "memory": "256Mi"
                 }
-            }
+            },
+			"securityContext": {
+				"readOnlyRootFilesystem": true
+			}
         },
         {
             "env": [
@@ -341,7 +366,10 @@ func TestApplyProfileOverrides(t *testing.T) {
                     "cpu": "1",
                     "memory": "512Mi"
                 }
-            }
+            },
+			"securityContext": {
+				"readOnlyRootFilesystem": false
+			}
         }
     ]`,
 			baseContainer:     &corev1.Container{},
@@ -353,7 +381,8 @@ func TestApplyProfileOverrides(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			mutated, err := applyProfileOverrides(test.baseContainer, test.profilesJSON)
+			profiles, _ := loadSidecarProfiles(test.profilesJSON)
+			mutated, err := applyProfileOverrides(test.baseContainer, profiles)
 
 			assert.Equal(tt, test.expectMutated, mutated)
 

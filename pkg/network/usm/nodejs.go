@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -130,7 +131,7 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, e
 	}
 
 	procMon := monitor.GetProcessMonitor()
-	attacher, err := uprobes.NewUprobeAttacher(nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, procMon)
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, procMon)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
@@ -147,8 +148,11 @@ func (m *nodeJSMonitor) Start() {
 		return
 	}
 
-	m.attacher.Start()
-	log.Info("Node JS TLS monitoring enabled")
+	if err := m.attacher.Start(); err != nil {
+		log.Errorf("cannot start nodeJS attacher: %s", err)
+	} else {
+		log.Info("Node JS TLS monitoring enabled")
+	}
 }
 
 // Stop the nodeJSMonitor.
@@ -161,8 +165,8 @@ func (m *nodeJSMonitor) Stop() {
 	m.attacher.Stop()
 }
 
-// getNodeJSPath checks if the given PID is a NodeJS process and returns the path to the binary
-func isNodeJSBinary(path string, procInfo *uprobes.ProcInfo) bool {
+// isNodeJSBinary returns true if the process is a NodeJS binary.
+func isNodeJSBinary(_ string, procInfo *uprobes.ProcInfo) bool {
 	exe, err := procInfo.Exe()
 	if err != nil {
 		return false

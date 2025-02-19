@@ -232,20 +232,8 @@ func init() {
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
-	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
-	// in integrations, which causes a 10MB memory increase.
-	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
-	// (https://github.com/pypa/setuptools/issues/3625),
-	// and Python 3.12 removes distutils from the standard library.
-	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
-	// which means we will get the memory increase again if integrations still use distutils.
-
-	// This must happen as early as possible in the process lifetime to avoid data race with
-	// `getenv`. Ideally before we start any goroutines that call native code or open network
-	// connections.
-	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
-		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
-	}
+	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
+	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -303,30 +291,33 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 }
 
 func resolvePythonExecPath(ignoreErrors bool) (string, error) {
-	// Since the install location can be set by the user on Windows we use relative import
-	if runtime.GOOS == "windows" {
-		_here, err := executable.Folder()
+	// Allow to relatively import python
+	_here, err := executable.Folder()
+	if err != nil {
+		log.Warnf("Error getting executable folder: %v", err)
+		log.Warnf("Trying again allowing symlink resolution to fail")
+		_here, err = executable.FolderAllowSymlinkFailure()
 		if err != nil {
-			log.Warnf("Error getting executable folder: %v", err)
-			log.Warnf("Trying again allowing symlink resolution to fail")
-			_here, err = executable.FolderAllowSymlinkFailure()
-			if err != nil {
-				log.Warnf("Error getting executable folder w/o symlinks: %v", err)
-			}
+			log.Warnf("Error getting executable folder w/o symlinks: %v", err)
 		}
-		log.Debugf("Executable folder is %v", _here)
+	}
+	log.Debugf("Executable folder is %v", _here)
 
-		embeddedPythonHome3 := filepath.Join(_here, "..", "embedded3")
+	var embeddedPythonHome3 string
+	if runtime.GOOS == "windows" {
+		embeddedPythonHome3 = filepath.Join(_here, "..", "embedded3")
+	} else { // Both macOS and Linux have the same relative paths
+		embeddedPythonHome3 = filepath.Join(_here, "../..", "embedded")
+	}
 
-		// We want to use the path-relative embedded2/3 directories above by default.
-		// They will be correct for normal installation on Windows. However, if they
-		// are not present for cases like running unit tests, fall back to the compile
-		// time values.
-		if _, err := os.Stat(embeddedPythonHome3); os.IsNotExist(err) {
-			log.Warnf("Relative embedded directory not found for Python 3. Using default: %s", pythonHome3)
-		} else {
-			pythonHome3 = embeddedPythonHome3
-		}
+	// We want to use the path-relative embedded2/3 directories above by default.
+	// They will be correct for normal installation on Windows. However, if they
+	// are not present for cases like running unit tests, fall back to the compile
+	// time values.
+	if _, err := os.Stat(embeddedPythonHome3); os.IsNotExist(err) {
+		log.Warnf("Relative embedded directory not found for Python 3. Using default: %s", pythonHome3)
+	} else {
+		pythonHome3 = embeddedPythonHome3
 	}
 
 	PythonHome = pythonHome3

@@ -15,12 +15,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-// GetProfiles returns profiles depending on various sources:
-//   - init config profiles
-//   - yaml profiles
-//   - downloaded json gzip profiles
-//   - remote config profiles
-func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+// GetProfileProvider returns a Provider that knows the on-disk profiles as well as any overrides from the initConfig.
+func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, error) {
+	profiles, err := loadProfiles(initConfigProfiles)
+	if err != nil {
+		return nil, err
+	}
+	return StaticProvider(profiles), nil
+}
+
+func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	var profiles ProfileConfigMap
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
@@ -30,12 +34,6 @@ func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) 
 			return nil, fmt.Errorf("failed to load profiles from initConfig: %w", err)
 		}
 		profiles = customProfiles
-	} else if bundlePath := findProfileBundleFilePath(); bundlePath != "" {
-		defaultProfiles, err := loadBundleJSONProfiles(bundlePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load profiles from json bundle %q: %w", bundlePath, err)
-		}
-		profiles = defaultProfiles
 	} else {
 		defaultProfiles, err := loadYamlProfiles()
 		if err != nil {
@@ -49,36 +47,41 @@ func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) 
 	return profiles, nil
 }
 
-// GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (string, error) {
-	tmpSysOidToProfile := map[string]string{}
-	var matchedOids []string
+// getProfileForSysObjectID return a profile for a sys object id
+func getProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (*ProfileConfig, error) {
+	tmpSysOidToProfile := map[string]*ProfileConfig{}
+	var matchedOIDs []string
 
-	for profile, profConfig := range profiles {
+	for profileName, profConfig := range profiles {
 		for _, oidPattern := range profConfig.Definition.SysObjectIDs {
 			found, err := filepath.Match(oidPattern, sysObjectID)
 			if err != nil {
-				log.Debugf("pattern error in profile %q: %v", profile, err)
+				log.Debugf("pattern error in profile %q: %v", profileName, err)
 				continue
 			}
 			if !found {
 				continue
 			}
 			if prevMatchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
-				if profiles[prevMatchedProfile].IsUserProfile && !profConfig.IsUserProfile {
+				if profiles[prevMatchedProfile.Definition.Name].IsUserProfile && !profConfig.IsUserProfile {
 					continue
 				}
-				if profiles[prevMatchedProfile].IsUserProfile == profConfig.IsUserProfile {
-					return "", fmt.Errorf("profile %q has the same sysObjectID (%s) as %q", profile, oidPattern, prevMatchedProfile)
+				if profiles[prevMatchedProfile.Definition.Name].IsUserProfile == profConfig.IsUserProfile {
+					return nil, fmt.Errorf("profile %q has the same sysObjectID (%s) as %q", profileName, oidPattern,
+						prevMatchedProfile.Definition.Name)
 				}
 			}
-			tmpSysOidToProfile[oidPattern] = profile
-			matchedOids = append(matchedOids, oidPattern)
+			tmpSysOidToProfile[oidPattern] = &profConfig
+			matchedOIDs = append(matchedOIDs, oidPattern)
 		}
 	}
-	oid, err := getMostSpecificOid(matchedOids)
+	if len(matchedOIDs) == 0 {
+		return nil, fmt.Errorf("no profiles found for sysObjectID %q", sysObjectID)
+	}
+	oid, err := getMostSpecificOid(matchedOIDs)
 	if err != nil {
-		return "", fmt.Errorf("failed to get most specific profile for sysObjectID %q, for matched oids %v: %w", sysObjectID, matchedOids, err)
+		return nil, fmt.Errorf("failed to get most specific profile for sysObjectID %q, for matched oids %v: %w",
+			sysObjectID, matchedOIDs, err)
 	}
 	return tmpSysOidToProfile[oid], nil
 }

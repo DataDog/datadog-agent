@@ -36,7 +36,7 @@ func NewExtendedNodeFactory(client *apiserver.APIClient) customresource.Registry
 }
 
 type extendedNodeFactory struct {
-	client interface{}
+	client clientset.Interface
 }
 
 // Name is the name of the factory
@@ -44,17 +44,12 @@ func (f *extendedNodeFactory) Name() string {
 	return "nodes_extended"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedNodeFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *extendedNodeFactory) CreateClient(_ *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended node metric family generators
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedNodeFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedNodeFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	// At the time of writing this, this is necessary in order for us to have access to the "kubernetes.io/network-bandwidth" resource
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
 	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027
@@ -122,20 +117,26 @@ func wrapNodeFunc(f func(*v1.Node) *metric.Family) func(interface{}) *metric.Fam
 
 // ExpectedType returns the type expected by the factory
 func (f *extendedNodeFactory) ExpectedType() interface{} {
-	return &v1.Node{}
+	return &v1.Node{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Node",
+			APIVersion: v1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 // ListWatch returns a ListerWatcher for v1.Node
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedNodeFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *extendedNodeFactory) ListWatch(customResourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
-			return client.CoreV1().Nodes().List(context.TODO(), opts)
+			opts.FieldSelector = fieldSelector
+			return client.CoreV1().Nodes().List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
-			return client.CoreV1().Nodes().Watch(context.TODO(), opts)
+			opts.FieldSelector = fieldSelector
+			return client.CoreV1().Nodes().Watch(ctx, opts)
 		},
 	}
 }

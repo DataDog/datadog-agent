@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix the removal of non-core integrations during Agent upgrades on Windows platforms.
+    To enable persisting non-core integration during install, set INSTALL_PYTHON_THIRD_PARTY_DEPS="1"
+    property during the installation of the MSI.

@@ -94,11 +94,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 	defer tcr.Unlock()
 
 	var combinedErr multierror.Error
-	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled) {
-		if !tcr.config.NetworkRawPacketEnabled && slices.Contains(probes.RawPacketTCProgram, tcProbe.EBPFFuncName) {
-			continue
-		}
-
+	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled, tcr.config.NetworkRawPacketEnabled) {
 		// make sure we're not overriding an existing network probe
 		progKey := ProgramKey{
 			UID:              tcProbe.UID,
@@ -120,7 +116,12 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		newProbe.IfIndexNetnsID = device.NetNS
 		newProbe.KeepProgramSpec = false
 		newProbe.TCFilterPrio = tcr.config.NetworkClassifierPriority
-		newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
+
+		if slices.Contains(probes.RawPacketTCProgram, tcProbe.EBPFFuncName) {
+			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.RawNetworkClassifierHandle)
+		} else {
+			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
+		}
 
 		netnsEditor := []manager.ConstantEditor{
 			{
@@ -148,6 +149,7 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 
 	for tcKey, tcProbe := range tcr.programs {
 		if tcKey.NetDevice.NetNS == namespaceID {
+			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
 			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
 			delete(tcr.programs, tcKey)
 		}
@@ -165,6 +167,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	var linkName string
 	for tcKey, tcProbe := range tcr.programs {
 		if !tcProbe.IsTCFilterActive() {
+			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
 			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
 			delete(tcr.programs, tcKey)
 		} else {

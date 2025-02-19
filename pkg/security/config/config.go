@@ -9,6 +9,7 @@ package config
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
@@ -44,8 +46,6 @@ type RuntimeSecurityConfig struct {
 	RuntimeEnabled bool
 	// PoliciesDir defines the folder in which the policy files are located
 	PoliciesDir string
-	// WatchPoliciesDir activate policy dir inotify
-	WatchPoliciesDir bool
 	// PolicyMonitorEnabled enable policy monitoring
 	PolicyMonitorEnabled bool
 	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
@@ -102,6 +102,9 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
+	// ActivityDumpCgroupsManagers defines the cgroup managers we generate dumps for.
+	ActivityDumpCgroupsManagers []string
+
 	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
 	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
 	// to this list.
@@ -109,7 +112,7 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
 	ActivityDumpCgroupDumpTimeout time.Duration
 	// ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
-	ActivityDumpRateLimiter int
+	ActivityDumpRateLimiter uint16
 	// ActivityDumpCgroupWaitListTimeout defines the time to wait before a cgroup can be dumped again.
 	ActivityDumpCgroupWaitListTimeout time.Duration
 	// ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process
@@ -214,8 +217,6 @@ type RuntimeSecurityConfig struct {
 	HashResolverMaxFileSize int64
 	// HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes
 	HashResolverMaxHashRate int
-	// HashResolverMaxHashBurst defines the burst of files for which the hash resolver may compute a hash
-	HashResolverMaxHashBurst int
 	// HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
 	HashResolverHashAlgorithms []model.HashAlgorithm
 	// HashResolverEventTypes defines the list of event which files may be hashed
@@ -269,8 +270,14 @@ type RuntimeSecurityConfig struct {
 	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
 	WindowsProbeBlockOnChannelSend bool
 
+	WindowsWriteEventRateLimiterMaxAllowed int
+	WindowsWriteEventRateLimiterPeriod     time.Duration
+
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
+
+	// SendEventFromSystemProbe defines when the event are sent directly from system-probe
+	SendEventFromSystemProbe bool
 }
 
 // Config defines a security config
@@ -324,13 +331,16 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
-		FIMEnabled:                     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
-		WindowsFilenameCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
-		WindowsRegistryCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
-		ETWEventsChannelSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
-		ETWEventsMaxBuffers:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_max_buffers"),
-		WindowsProbeBlockOnChannelSend: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
+		RuntimeEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
+		FIMEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
+
+		// Windows specific
+		WindowsFilenameCacheSize:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
+		WindowsRegistryCacheSize:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
+		ETWEventsChannelSize:                   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
+		WindowsProbeBlockOnChannelSend:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
+		WindowsWriteEventRateLimiterMaxAllowed: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_write_event_rate_limiter_max_allowed"),
+		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
 		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
@@ -348,7 +358,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// policy & ruleset
 		PoliciesDir:                         pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.watch_dir"),
 		PolicyMonitorEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.enabled"),
 		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
@@ -366,9 +375,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpLoadControlPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpLoadControlMinDumpTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.min_timeout"),
 		ActivityDumpTracedCgroupsCount:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
+		ActivityDumpCgroupsManagers:           pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.cgroup_managers"),
 		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.dump_duration"),
-		ActivityDumpRateLimiter:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.rate_limiter"),
 		ActivityDumpCgroupWaitListTimeout:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
 		ActivityDumpCgroupDifferentiateArgs:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 		ActivityDumpLocalStorageDirectory:     pkgconfigsetup.SystemProbe().GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
@@ -400,7 +409,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverEventTypes:     parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.hash_resolver.event_types")),
 		HashResolverMaxFileSize:    pkgconfigsetup.SystemProbe().GetInt64("runtime_security_config.hash_resolver.max_file_size"),
 		HashResolverHashAlgorithms: parseHashAlgorithmStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
-		HashResolverMaxHashBurst:   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
 		HashResolverMaxHashRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.cache_size"),
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
@@ -448,12 +456,21 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
-		EBPFLessEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.ebpfless.enabled"),
+		EBPFLessEnabled: IsEBPFLessModeEnabled(),
 		EBPFLessSocket:  pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ebpfless.socket"),
 
 		// IMDS
 		IMDSIPv4: parseIMDSIPv4(),
+
+		// direct sender
+		SendEventFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
 	}
+
+	activityDumpRateLimiter := pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.rate_limiter")
+	if activityDumpRateLimiter < 0 || activityDumpRateLimiter > math.MaxUint16 {
+		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
+	}
+	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
 
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
@@ -491,6 +508,20 @@ func isRemoteConfigEnabled() bool {
 	}
 
 	return false
+}
+
+// IsEBPFLessModeEnabled returns true if the ebpfless mode is enabled
+// it's based on the configuration itself, but will default on true if
+// running on fargate
+func IsEBPFLessModeEnabled() bool {
+	const cfgKey = "runtime_security_config.ebpfless.enabled"
+	// by default on fargate, we enable ebpfless mode
+	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsFargateInstance() {
+		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
+		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
+	}
+
+	return pkgconfigsetup.SystemProbe().GetBool(cfgKey)
 }
 
 // GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type

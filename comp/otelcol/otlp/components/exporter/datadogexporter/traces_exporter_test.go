@@ -21,6 +21,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confignet"
@@ -38,11 +39,18 @@ func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 }
 
 func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
 }
 
 func (c testComponent) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
+}
+
+func (c testComponent) GetHTTPHandler(endpoint string) http.Handler {
+	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
+		return v
+	}
+	return nil
 }
 
 var _ traceagent.Component = (*testComponent)(nil)
@@ -66,18 +74,20 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}))
 
 	defer server.Close()
-	cfg := Config{
-		API: APIConfig{
+	cfg := datadogconfig.Config{
+		API: datadogconfig.APIConfig{
 			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		},
-		TagsConfig: TagsConfig{
+		TagsConfig: datadogconfig.TagsConfig{
 			Hostname: "test-host",
 		},
-		Traces: TracesConfig{
+		Traces: datadogconfig.TracesExporterConfig{
 			TCPAddrConfig: confignet.TCPAddrConfig{
 				Endpoint: server.URL,
 			},
-			IgnoreResources: []string{},
+			TracesConfig: datadogconfig.TracesConfig{
+				IgnoreResources: []string{},
+			},
 		},
 	}
 
@@ -87,14 +97,14 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = server.URL
-	if enableReceiveResourceSpansV2 {
-		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}))
-	exporter, err := f.CreateTracesExporter(ctx, params, &cfg)
+	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
 	go traceagent.Run()
@@ -122,21 +132,21 @@ func TestNewTracesExporter(t *testing.T) {
 }
 
 func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	cfg := &Config{}
+	cfg := &datadogconfig.Config{}
 	cfg.API.Key = "ddog_32_characters_long_api_key1"
 	params := exportertest.NewNopSettings()
 	tcfg := config.New()
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()
 	tcfg.ReceiverEnabled = false
-	if enableReceiveResourceSpansV2 {
-		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	if !enableReceiveResourceSpansV2 {
+		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly
 	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}))
-	exp, err := f.CreateTracesExporter(context.Background(), params, cfg)
+	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
 }

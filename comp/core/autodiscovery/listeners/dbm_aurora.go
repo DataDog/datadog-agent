@@ -277,7 +277,10 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 		return strconv.FormatBool(d.instance.IamEnabled), nil
 	case "dbclusteridentifier":
 		return d.clusterID, nil
+	case "dbname":
+		return d.instance.DbName, nil
 	}
+
 	return "", ErrNotSupported
 }
 

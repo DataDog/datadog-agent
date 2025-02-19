@@ -47,21 +47,18 @@ func NewPodDisruptionBudgetV1Beta1Factory(client *apiserver.APIClient) customres
 }
 
 type pdbv1beta1Factory struct {
-	client interface{}
+	client kubernetes.Interface
 }
 
 func (f *pdbv1beta1Factory) Name() string {
 	return "poddisruptionbudgets"
 }
 
-// CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *pdbv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *pdbv1beta1Factory) CreateClient(_ *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
-func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *pdbv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descPodDisruptionBudgetAnnotationsName,
@@ -70,7 +67,7 @@ func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			metrics.ALPHA,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", p.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", p.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -89,7 +86,7 @@ func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			metrics.ALPHA,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", p.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", p.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -205,19 +202,25 @@ func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 }
 
 func (f *pdbv1beta1Factory) ExpectedType() interface{} {
-	return &policyv1beta1.PodDisruptionBudget{}
+	return &policyv1beta1.PodDisruptionBudget{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PodDisruptionBudget",
+			APIVersion: policyv1beta1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
 func (f *pdbv1beta1Factory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.PolicyV1beta1().PodDisruptionBudgets(ns).List(context.TODO(), opts)
+			return client.PolicyV1beta1().PodDisruptionBudgets(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.PolicyV1beta1().PodDisruptionBudgets(ns).Watch(context.TODO(), opts)
+			return client.PolicyV1beta1().PodDisruptionBudgets(ns).Watch(ctx, opts)
 		},
 	}
 }

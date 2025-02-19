@@ -8,9 +8,9 @@ package npcollector
 
 import model "github.com/DataDog/agent-payload/v5/process"
 
-// team: Networks network-device-monitoring
+// team: Networks
 
 // Component is the component type.
 type Component interface {
-	ScheduleConns(conns []*model.Connection)
+	ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry)
 }

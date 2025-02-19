@@ -8,11 +8,13 @@
 package daemon
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
@@ -22,6 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// ErrNotEnabled represents the case in which datadog-installer is not enabled
+var ErrNotEnabled = errors.New("datadog-installer not enabled")
+
 func runFxWrapper(global *command.GlobalParams) error {
 	return fxutil.OneShot(
 		run,
@@ -29,8 +34,23 @@ func runFxWrapper(global *command.GlobalParams) error {
 	)
 }
 
-func run(shutdowner fx.Shutdowner, _ pid.Component, _ localapi.Component, _ telemetry.Component) error {
+func run(shutdowner fx.Shutdowner, cfg config.Component, _ pid.Component, _ localapi.Component, _ telemetry.Component) error {
+	if err := gracefullyExitIfDisabled(cfg, shutdowner); err != nil {
+		log.Infof("Datadog installer is not enabled, exiting")
+		return nil
+	}
 	handleSignals(shutdowner)
+	return nil
+}
+
+func gracefullyExitIfDisabled(cfg config.Component, shutdowner fx.Shutdowner) error {
+	if !cfg.GetBool("remote_updates") {
+		// Note: when not using systemd we may run into an issue where we need to
+		// sleep for a while here, like the system probe does
+		// See https://github.com/DataDog/datadog-agent/blob/b5c6a93dff27a8fdae37fc9bf23b3604a9f87591/cmd/system-probe/subcommands/run/command.go#L128
+		_ = shutdowner.Shutdown()
+		return ErrNotEnabled
+	}
 	return nil
 }
 

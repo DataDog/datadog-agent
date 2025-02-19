@@ -163,7 +163,9 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manag
 	}()
 
 	for _, queuedDevice := range nn.networkDevicesQueue {
-		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager)
+		if err = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager); err != nil {
+			seclog.Errorf("error setting up new tc classifier on queued device: %v", err)
+		}
 	}
 	nn.flushNetworkDevicesQueue()
 }
@@ -247,16 +249,16 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 		return nil, false
 	}
 
-	nsPath := nsPathFunc()
-	if nsPath == nil {
-		return nil, false
-	}
-
 	nr.Lock()
 	defer nr.Unlock()
 
 	netns, found := nr.networkNamespaces.Get(nsID)
 	if !found {
+		nsPath := nsPathFunc()
+		if nsPath == nil {
+			return nil, false
+		}
+
 		var err error
 		netns, err = NewNetworkNamespaceWithPath(nsID, nsPath)
 		if err != nil {
@@ -269,6 +271,12 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 			// we already have a handle for this network namespace, ignore
 			return netns, false
 		}
+
+		nsPath := nsPathFunc()
+		if nsPath == nil {
+			return nil, false
+		}
+
 		if err := netns.openHandle(nsPath); err != nil {
 			// we'll get this namespace another time, ignore
 			return nil, false
@@ -346,6 +354,8 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 			if !nr.IsLazyDeletionInterface(device.Name) && attrs.HardwareAddr.String() != "" {
 				attachedDeviceCountNoLazyDeletion++
 			}
+		} else {
+			seclog.Errorf("error setting up new tc classifier on snapshot: %v", err)
 		}
 	}
 

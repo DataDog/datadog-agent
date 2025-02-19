@@ -1,3 +1,11 @@
+# KMT: EC2 Locations
+.kmt_ec2_location_us_east_1:
+  variables:
+    KITCHEN_EC2_REGION: us-east-1
+    KITCHEN_EC2_SUBNET: subnet-05d7c6b1b5cfea811
+    KITCHEN_EC2_SG_IDS: sg-019917348cb0eb7e7
+
+
 # --- Common scripts
 .shared_filters_and_queries:
   - FILTER_TEAM="Name=tag:team,Values=ebpf-platform"
@@ -98,7 +106,7 @@
 
 .package_dependencies:
   stage: kernel_matrix_testing_prepare
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   before_script:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -122,9 +130,9 @@
 # -- Environment setup
 .kmt_setup_env:
   extends:
-    - .kitchen_ec2_location_us_east_1
+    - .kmt_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
   variables:
@@ -197,7 +205,7 @@
 
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
@@ -210,12 +218,7 @@
     # setup_env job hasn't finished. This causes instances to be leftover for more time than necessary.
     - inv kmt.wait-for-setup-job --pipeline-id $CI_PIPELINE_ID --arch $ARCH --component $TEST_COMPONENT
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
-    - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
-    - echo ${INSTANCE_ID}
-    - |
-      if [[ "${INSTANCE_ID}" != "" ]] && [[ "${INSTANCE_ID}" != "null" ]]; then
-        aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
-      fi
+    - cat instance.json | jq -r 'map(.[]) | .[]' | grep -v "null" | xargs --no-run-if-empty -n 1 -t aws ec2 terminate-instances --instance-ids
   after_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
@@ -291,8 +294,8 @@
         - $EXTERNAL_LINKS_PATH
 
 notify_ebpf_complexity_changes:
-  stage: notify
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  extends: .notify-job
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_mergequeue]
@@ -330,10 +333,12 @@ notify_ebpf_complexity_changes:
               - suse_12.5
               - fedora_38
             TEST_SET: no_usm
-  allow_failure: true
   before_script:
-    - python3 -m pip install tabulate # Required for printing the tables
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    # Python 3.12 changes default behavior how packages are installed.
+    # In particular, --break-system-packages command line option is
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - python3 -m pip install -r tasks/kernel_matrix_testing/requirements-ci.txt --break-system-packages # Required for printing the tables
+    - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
     - !reference [.setup_agent_github_app]
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   script:

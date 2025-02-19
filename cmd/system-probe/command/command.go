@@ -9,6 +9,7 @@ package command
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/fatih/color"
@@ -76,21 +77,24 @@ Runtime Security Monitoring, Universal Service Monitoring, and others.`,
 func SetDefaultCommandIfNonePresent(rootCmd *cobra.Command) {
 	var subCommandNames []string
 	for _, command := range rootCmd.Commands() {
-		subCommandNames = append(subCommandNames, append(command.Aliases, command.Name())...)
+		subCommandNames = append(subCommandNames, command.Name())
+		subCommandNames = append(subCommandNames, command.Aliases...)
 	}
+
+	helpAndCompletionCommands := []string{"help", "-h", "--help", "completion"}
 
 	args := []string{os.Args[0], "run"}
 	if len(os.Args) > 1 {
 		potentialCommand := os.Args[1]
-		if potentialCommand == "help" || potentialCommand == "-h" || potentialCommand == "completion" {
+
+		if slices.Contains(helpAndCompletionCommands, potentialCommand) {
 			return
 		}
 
-		for _, command := range subCommandNames {
-			if command == potentialCommand {
-				return
-			}
+		if slices.Contains(subCommandNames, potentialCommand) {
+			return
 		}
+
 		if !strings.HasPrefix(potentialCommand, "-") {
 			// run command takes no positional arguments, so if one is passed
 			// fallback to default cobra handling for good errors

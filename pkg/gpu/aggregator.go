@@ -38,13 +38,17 @@ type aggregator struct {
 	// processTerminated is true if the process has ended and this aggregator should be deleted
 	processTerminated bool
 
-	// sysCtx is the system context with global GPU-system data
-	sysCtx *systemContext
+	// deviceMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization calculations
+	deviceMaxThreads uint64
+
+	// deviceMemory is the total memory available on the GPU, in bytes
+	deviceMemory uint64
 }
 
-func newAggregator(sysCtx *systemContext) *aggregator {
+func newAggregator(deviceMaxThreads uint64, deviceMemory uint64) *aggregator {
 	return &aggregator{
-		sysCtx: sysCtx,
+		deviceMaxThreads: deviceMaxThreads,
+		deviceMemory:     deviceMemory,
 	}
 }
 
@@ -60,8 +64,7 @@ func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 	}
 
 	durationSec := float64(tsEnd-tsStart) / float64(time.Second.Nanoseconds())
-	maxThreads := uint64(agg.sysCtx.maxGpuThreadsPerDevice[0])                                // TODO: MultiGPU support not enabled yet
-	agg.totalThreadSecondsUsed += durationSec * float64(min(span.avgThreadCount, maxThreads)) // we can't use more threads than the GPU has
+	agg.totalThreadSecondsUsed += durationSec * float64(min(span.avgThreadCount, agg.deviceMaxThreads)) // we can't use more threads than the GPU has
 }
 
 // processPastData takes spans/allocations that have already been closed
@@ -86,8 +89,7 @@ func (agg *aggregator) processCurrentData(data *streamData) {
 func (agg *aggregator) getGPUUtilization() float64 {
 	intervalSecs := float64(agg.measuredIntervalNs) / float64(time.Second.Nanoseconds())
 	if intervalSecs > 0 {
-		// TODO: MultiGPU support not enabled yet
-		availableThreadSeconds := float64(agg.sysCtx.maxGpuThreadsPerDevice[0]) * intervalSecs
+		availableThreadSeconds := float64(agg.deviceMaxThreads) * intervalSecs
 		return agg.totalThreadSecondsUsed / availableThreadSeconds
 	}
 
@@ -99,26 +101,33 @@ func (agg *aggregator) getGPUUtilization() float64 {
 // account for the fact that we might have more kernels enqueued than the
 // GPU can run in parallel. This factor allows distributing the utilization
 // over all the streams that were active during the interval.
-func (agg *aggregator) getStats(utilizationNormFactor float64) model.ProcessStats {
-	var stats model.ProcessStats
+func (agg *aggregator) getStats(utilizationNormFactor float64) model.UtilizationMetrics {
+	var stats model.UtilizationMetrics
 
 	if agg.measuredIntervalNs > 0 {
 		stats.UtilizationPercentage = agg.getGPUUtilization() / utilizationNormFactor
 	}
 
-	var memTsBuilder tseriesBuilder
+	memTsBuilders := make(map[memAllocType]*tseriesBuilder)
+	for i := memAllocType(0); i < memAllocTypeCount; i++ {
+		memTsBuilders[memAllocType(i)] = &tseriesBuilder{}
+	}
 
 	for _, alloc := range agg.currentAllocs {
-		memTsBuilder.AddEventStart(alloc.startKtime, int64(alloc.size))
+		memTsBuilders[alloc.allocType].AddEventStart(alloc.startKtime, int64(alloc.size))
 	}
 
 	for _, alloc := range agg.pastAllocs {
-		memTsBuilder.AddEvent(alloc.startKtime, alloc.endKtime, int64(alloc.size))
+		memTsBuilders[alloc.allocType].AddEvent(alloc.startKtime, alloc.endKtime, int64(alloc.size))
 	}
 
-	lastValue, maxValue := memTsBuilder.GetLastAndMax()
-	stats.CurrentMemoryBytes = uint64(lastValue)
-	stats.MaxMemoryBytes = uint64(maxValue)
+	for _, memTsBuilder := range memTsBuilders {
+		lastValue, maxValue := memTsBuilder.GetLastAndMax()
+		stats.Memory.CurrentBytes += uint64(lastValue)
+		stats.Memory.MaxBytes += uint64(maxValue)
+	}
+
+	stats.Memory.CurrentBytesPercentage = float64(stats.Memory.CurrentBytes) / float64(agg.deviceMemory)
 
 	// Flush the data that we used
 	agg.flush()

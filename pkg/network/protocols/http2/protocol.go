@@ -47,7 +47,7 @@ type Protocol struct {
 const (
 	// InFlightMap is the name of the map used to store in-flight HTTP/2 streams
 	InFlightMap               = "http2_in_flight"
-	remainderTable            = "http2_remainder"
+	incompleteFramesTable     = "http2_incomplete_frames"
 	dynamicTable              = "http2_dynamic_table"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
 	http2IterationsTable      = "http2_iterations"
@@ -59,10 +59,8 @@ const (
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
 
-	// TelemetryMap is the name of the map used to retrieve plaintext metrics from the kernel
+	// TelemetryMap is the name of the map that collects telemetry for plaintext and TLS encrypted HTTP/2 traffic.
 	TelemetryMap = "http2_telemetry"
-	// TLSTelemetryMap is the name of the map used to retrieve metrics from the eBPF probes for TLS
-	TLSTelemetryMap = "tls_http2_telemetry"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
@@ -92,7 +90,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: tlsHTTP2IterationsTable,
 		},
 		{
-			Name: remainderTable,
+			Name: incompleteFramesTable,
 		},
 		{
 			Name: "http2_headers_to_process",
@@ -246,7 +244,7 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.MapSpecEditors[remainderTable] = manager.MapSpecEditor{
+	opts.MapSpecEditors[incompleteFramesTable] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -316,13 +314,8 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 		return
 	}
 
-	tlsMap, err := protocols.GetMap(mgr, TLSTelemetryMap)
-	if err != nil {
-		log.Warn(err)
-		return
-	}
-
-	var zero uint32
+	plaintextKey := uint32(0)
+	tlsKey := uint32(1)
 	http2Telemetry := &HTTP2Telemetry{}
 	ticker := time.NewTicker(30 * time.Second)
 
@@ -332,14 +325,14 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+				if err := mp.Lookup(unsafe.Pointer(&plaintextKey), unsafe.Pointer(http2Telemetry)); err != nil {
 					log.Errorf("unable to lookup %q map: %s", TelemetryMap, err)
 					return
 				}
 				p.http2Telemetry.update(http2Telemetry, false)
 
-				if err := tlsMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-					log.Errorf("unable to lookup %q map: %s", TLSTelemetryMap, err)
+				if err := mp.Lookup(unsafe.Pointer(&tlsKey), unsafe.Pointer(http2Telemetry)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", TelemetryMap, err)
 					return
 				}
 				p.http2Telemetry.update(http2Telemetry, true)
@@ -408,7 +401,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %q map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2StreamKey, HTTP2Stream](http2Map, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[HTTP2StreamKey, HTTP2Stream](http2Map, protocols.DefaultMapCleanerBatchSize, InFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -427,15 +420,21 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	p.http2InFlightMapCleaner = mapCleaner
 }
 
-// GetStats returns a map of HTTP2 stats stored in the following format:
+// GetStats returns a map of HTTP2 stats and a callback to clean resources.
+// The format of HTTP2 stats:
 // [source, dest tuple, request path] -> RequestStats object
-func (p *Protocol) GetStats() *protocols.ProtocolStats {
+func (p *Protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
+	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.HTTP2,
-		Stats: p.statkeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.HTTP2,
+			Stats: stats,
+		}, func() {
+			for _, elem := range stats {
+				elem.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.

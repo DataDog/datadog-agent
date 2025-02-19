@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestWithEnvOverrides(t *testing.T) {
@@ -139,6 +141,95 @@ func TestWithResourceLimits(t *testing.T) {
 			} else {
 				assert.NoError(tt, err)
 				assert.Equal(tt, test.containerAfterLimits, test.baseContainer)
+			}
+
+		})
+	}
+}
+
+func TestWithSecurityContextOverrides(t *testing.T) {
+	tests := []struct {
+		name                   string
+		baseContainer          *corev1.Container
+		securityOverride       *corev1.SecurityContext
+		expectError            bool
+		expectMutated          bool
+		containerAfterOverride *corev1.Container
+	}{
+		{
+			name:                   "nil container",
+			baseContainer:          nil,
+			securityOverride:       &corev1.SecurityContext{},
+			expectError:            true,
+			expectMutated:          false,
+			containerAfterOverride: nil,
+		},
+		{
+			name: "no overrides",
+			baseContainer: &corev1.Container{
+				SecurityContext: &corev1.SecurityContext{
+					RunAsUser:              pointer.Ptr(int64(1000)),
+					ReadOnlyRootFilesystem: pointer.Ptr(true),
+				},
+			},
+			securityOverride: nil,
+			expectError:      false,
+			expectMutated:    false,
+			containerAfterOverride: &corev1.Container{
+				SecurityContext: &corev1.SecurityContext{
+					RunAsUser:              pointer.Ptr(int64(1000)),
+					ReadOnlyRootFilesystem: pointer.Ptr(true),
+				},
+			},
+		},
+		{
+			name: "apply overrides",
+			baseContainer: &corev1.Container{
+				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem: pointer.Ptr(true),
+				},
+			},
+			securityOverride: &corev1.SecurityContext{
+				RunAsUser:              pointer.Ptr(int64(1000)),
+				ReadOnlyRootFilesystem: pointer.Ptr(false),
+			},
+			expectError:   false,
+			expectMutated: true,
+			containerAfterOverride: &corev1.Container{
+				SecurityContext: &corev1.SecurityContext{
+					RunAsUser:              pointer.Ptr(int64(1000)),
+					ReadOnlyRootFilesystem: pointer.Ptr(false),
+				},
+			},
+		},
+		{
+			name: "apply blank overrides",
+			baseContainer: &corev1.Container{
+				SecurityContext: &corev1.SecurityContext{
+					RunAsUser:              pointer.Ptr(int64(1000)),
+					ReadOnlyRootFilesystem: pointer.Ptr(true),
+				},
+			},
+			securityOverride: &corev1.SecurityContext{},
+			expectError:      false,
+			expectMutated:    true,
+			containerAfterOverride: &corev1.Container{
+				SecurityContext: &corev1.SecurityContext{},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			mutated, err := withSecurityContextOverrides(test.baseContainer, test.securityOverride)
+
+			assert.Equal(tt, test.expectMutated, mutated)
+			assert.Equal(tt, test.containerAfterOverride, test.baseContainer)
+
+			if test.expectError {
+				assert.Error(tt, err)
+			} else {
+				assert.NoError(tt, err)
 			}
 
 		})

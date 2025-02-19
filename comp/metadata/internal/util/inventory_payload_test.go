@@ -92,7 +92,7 @@ func TestMetadataProvider(t *testing.T) {
 func TestFlareProvider(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
-	assert.NotNil(t, i.FlareProvider().Callback)
+	assert.NotNil(t, i.FlareProvider().FlareFiller.Callback)
 }
 
 func TestGetAsJSON(t *testing.T) {
@@ -108,12 +108,12 @@ func TestFillFlare(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
 	i.Enabled = false
-	i.fillFlare(f.Fb)
+	i.fillFlare(f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
 	f.AssertFileContent("inventory metadata is disabled", "metadata", "inventory", "test.json")
 
 	i.Enabled = true
-	i.fillFlare(f.Fb)
+	i.fillFlare(f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
 	f.AssertFileContent("{\n    \"test\": true\n}", "metadata", "inventory", "test.json")
 }

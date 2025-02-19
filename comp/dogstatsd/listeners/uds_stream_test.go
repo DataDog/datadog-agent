@@ -11,7 +11,6 @@ package listeners
 
 import (
 	"encoding/binary"
-	"net"
 	"testing"
 	"time"
 
@@ -22,11 +21,11 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func udsStreamListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager[packets.Packet], cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (StatsdListener, error) {
-	return NewUDSStreamListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, telemetryStore, packetsTelemetryStore, telemetry)
+	return NewUDSStreamListener(packetOut, manager, nil, cfg, nil, option.None[workloadmeta.Component](), pidMap, telemetryStore, packetsTelemetryStore, telemetry)
 }
 
 func TestNewUDSStreamListener(t *testing.T) {
@@ -56,17 +55,16 @@ func TestUDSStreamReceive(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
-	s.Listen()
+	mConn := defaultMUnixConn(s.(*UDSStreamListener).conn.Addr(), true)
 	defer s.Stop()
-	conn, err := net.Dial("unix", socketPath)
-	assert.Nil(t, err)
-	defer conn.Close()
 
-	binary.Write(conn, binary.LittleEndian, int32(len(contents0)))
-	conn.Write(contents0)
+	binary.Write(mConn, binary.LittleEndian, int32(len(contents0)))
+	mConn.Write(contents0)
 
-	binary.Write(conn, binary.LittleEndian, int32(len(contents1)))
-	conn.Write(contents1)
+	binary.Write(mConn, binary.LittleEndian, int32(len(contents1)))
+	mConn.Write(contents1)
+
+	go s.(*UDSStreamListener).handleConnection(mConn, func(c netUnixConn) error { return c.Close() })
 
 	select {
 	case pkts := <-packetsChannel:
@@ -87,5 +85,4 @@ func TestUDSStreamReceive(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
-
 }

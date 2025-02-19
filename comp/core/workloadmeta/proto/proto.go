@@ -134,19 +134,22 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		return nil, err
 	}
 
+	protoAllocatedResources := toProtoAllocatedResources(container.AllocatedResources)
+
 	return &pb.Container{
-		EntityId:      protoEntityID,
-		EntityMeta:    toProtoEntityMetaFromContainer(container),
-		EnvVars:       container.EnvVars,
-		Hostname:      container.Hostname,
-		Image:         toProtoImage(&container.Image),
-		NetworkIps:    container.NetworkIPs,
-		Pid:           int32(container.PID),
-		Ports:         pbContainerPorts,
-		Runtime:       protoRuntime,
-		State:         protoContainerState,
-		CollectorTags: container.CollectorTags,
-		CgroupPath:    container.CgroupPath,
+		EntityId:           protoEntityID,
+		EntityMeta:         toProtoEntityMetaFromContainer(container),
+		EnvVars:            container.EnvVars,
+		Hostname:           container.Hostname,
+		Image:              toProtoImage(&container.Image),
+		NetworkIps:         container.NetworkIPs,
+		Pid:                int32(container.PID),
+		Ports:              pbContainerPorts,
+		Runtime:            protoRuntime,
+		State:              protoContainerState,
+		CollectorTags:      container.CollectorTags,
+		CgroupPath:         container.CgroupPath,
+		AllocatedResources: protoAllocatedResources,
 	}, nil
 }
 
@@ -234,6 +237,9 @@ func toProtoContainerPort(port *workloadmeta.ContainerPort) *pb.ContainerPort {
 
 func toProtoRuntime(runtime workloadmeta.ContainerRuntime) (pb.Runtime, error) {
 	switch runtime {
+	case "":
+		// we need to handle "" because we don't enforce populating this property by collectors
+		return pb.Runtime_UNKNOWN, nil
 	case workloadmeta.ContainerRuntimeDocker:
 		return pb.Runtime_DOCKER, nil
 	case workloadmeta.ContainerRuntimeContainerd:
@@ -248,7 +254,7 @@ func toProtoRuntime(runtime workloadmeta.ContainerRuntime) (pb.Runtime, error) {
 		return pb.Runtime_ECS_FARGATE, nil
 	}
 
-	return pb.Runtime_DOCKER, fmt.Errorf("unknown runtime: %s", runtime)
+	return pb.Runtime_DOCKER, fmt.Errorf("unknown runtime: %q", runtime)
 }
 
 func toProtoContainerState(state *workloadmeta.ContainerState) (*pb.ContainerState, error) {
@@ -278,9 +284,22 @@ func toProtoContainerState(state *workloadmeta.ContainerState) (*pb.ContainerSta
 	return res, nil
 }
 
+func toProtoAllocatedResources(resources []workloadmeta.ContainerAllocatedResource) []*pb.ContainerAllocatedResource {
+	var protoAllocatedResources []*pb.ContainerAllocatedResource
+	for _, resource := range resources {
+		protoAllocatedResources = append(protoAllocatedResources, &pb.ContainerAllocatedResource{
+			Name: resource.Name,
+			ID:   resource.ID,
+		})
+	}
+
+	return protoAllocatedResources
+}
+
 func toProtoContainerStatus(status workloadmeta.ContainerStatus) (pb.ContainerStatus, error) {
 	switch status {
-	case workloadmeta.ContainerStatusUnknown:
+	case "", workloadmeta.ContainerStatusUnknown:
+		// we need to handle "" because we don't enforce populating this property by collectors
 		return pb.ContainerStatus_CONTAINER_STATUS_UNKNOWN, nil
 	case workloadmeta.ContainerStatusCreated:
 		return pb.ContainerStatus_CONTAINER_STATUS_CREATED, nil
@@ -294,7 +313,7 @@ func toProtoContainerStatus(status workloadmeta.ContainerStatus) (pb.ContainerSt
 		return pb.ContainerStatus_CONTAINER_STATUS_STOPPED, nil
 	}
 
-	return pb.ContainerStatus_CONTAINER_STATUS_UNKNOWN, fmt.Errorf("unknown status: %s", status)
+	return pb.ContainerStatus_CONTAINER_STATUS_UNKNOWN, fmt.Errorf("unknown status: %q", status)
 }
 
 func toProtoContainerHealth(health workloadmeta.ContainerHealth) (pb.ContainerHealth, error) {
@@ -596,19 +615,22 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		return nil, err
 	}
 
+	resources := toWorkloadmetaAllocatedResources(protoContainer.AllocatedResources)
+
 	return &workloadmeta.Container{
-		EntityID:      entityID,
-		EntityMeta:    toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
-		EnvVars:       protoContainer.EnvVars,
-		Hostname:      protoContainer.Hostname,
-		Image:         toWorkloadmetaImage(protoContainer.Image),
-		NetworkIPs:    protoContainer.NetworkIps,
-		PID:           int(protoContainer.Pid),
-		Ports:         ports,
-		Runtime:       runtime,
-		State:         state,
-		CollectorTags: protoContainer.CollectorTags,
-		CgroupPath:    protoContainer.CgroupPath,
+		EntityID:           entityID,
+		EntityMeta:         toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
+		EnvVars:            protoContainer.EnvVars,
+		Hostname:           protoContainer.Hostname,
+		Image:              toWorkloadmetaImage(protoContainer.Image),
+		NetworkIPs:         protoContainer.NetworkIps,
+		PID:                int(protoContainer.Pid),
+		Ports:              ports,
+		Runtime:            runtime,
+		State:              state,
+		CollectorTags:      protoContainer.CollectorTags,
+		CgroupPath:         protoContainer.CgroupPath,
+		AllocatedResources: resources,
 	}, nil
 }
 
@@ -618,6 +640,18 @@ func toWorkloadmetaContainerPort(protoPort *pb.ContainerPort) workloadmeta.Conta
 		Port:     int(protoPort.Port),
 		Protocol: protoPort.Protocol,
 	}
+}
+
+func toWorkloadmetaAllocatedResources(protoAllocatedResources []*pb.ContainerAllocatedResource) []workloadmeta.ContainerAllocatedResource {
+	var resources []workloadmeta.ContainerAllocatedResource
+	for _, protoResource := range protoAllocatedResources {
+		resources = append(resources, workloadmeta.ContainerAllocatedResource{
+			Name: protoResource.Name,
+			ID:   protoResource.ID,
+		})
+	}
+
+	return resources
 }
 
 func toWorkloadmetaEntityID(protoEntityID *pb.WorkloadmetaEntityId) (workloadmeta.EntityID, error) {
@@ -666,6 +700,8 @@ func toWorkloadmetaContainerRuntime(protoRuntime pb.Runtime) (workloadmeta.Conta
 		return workloadmeta.ContainerRuntimeGarden, nil
 	case pb.Runtime_ECS_FARGATE:
 		return workloadmeta.ContainerRuntimeECSFargate, nil
+	case pb.Runtime_UNKNOWN:
+		return "", nil
 	}
 
 	return workloadmeta.ContainerRuntimeDocker, fmt.Errorf("unknown runtime: %s", protoRuntime)

@@ -12,6 +12,9 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -23,21 +26,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -66,6 +68,8 @@ type cliParams struct {
 
 	// diagnose suites not to run as a list of regular expressions
 	exclude []string
+
+	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
 // payloadName is the name of the payload to display
@@ -90,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot("CORE", "off", true),
+					LogParams:    log.ForOneShot("CORE", cliParams.logLevelDefaultOff.Value(), true),
 				}),
 				core.Bundle(),
 				// workloadmeta setup
@@ -99,15 +103,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.NodeAgent,
 					InitHelper: common.GetWorkloadmetaInit(),
 				}),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				taggerimpl.Module(),
-				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
+				fx.Supply(option.None[collector.Component]()),
+				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),
-				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
+				haagentfx.Module(),
+				logscompressorfx.Module(),
+				metricscompressorfx.Module(),
 			)
 		},
 	}
+
+	cliParams.logLevelDefaultOff.Register(diagnoseCommand)
 
 	// Normally a successful diagnosis is printed as a single dot character. If verbose option is specified
 	// successful diagnosis is printed fully. With verbose option diagnosis description is also printed.
@@ -200,10 +207,24 @@ This command print the inventory-host metadata payload. This payload is used by 
 		Use:   "inventory-otel",
 		Short: "Print the Inventory otel metadata payload.",
 		Long: `
-This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
+This command print the inventory-otel metadata payload. This payload is used by the 'OTel Agent' product.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-otel")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
+	payloadInventoriesHaAgentCmd := &cobra.Command{
+		Use:   "ha-agent",
+		Short: "Print the HA Agent Metadata payload.",
+		Long: `
+This command print the ha-agent metadata payload. This payload is used by the 'HA Agent' feature.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("ha-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 			)
@@ -266,15 +287,30 @@ This command print the security-agent metadata payload. This payload is used by 
 		},
 	}
 
+	agentTelemetryCmd := &cobra.Command{
+		Use:   "agent-telemetry",
+		Short: "[internal] Print agent telemetry payloads sent by the agent.",
+		Long:  `.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("agent-telemetry")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
+	showPayloadCommand.AddCommand(agentTelemetryCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
@@ -282,7 +318,7 @@ This command print the security-agent metadata payload. This payload is used by 
 
 func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
-	wmeta optional.Option[workloadmeta.Component],
+	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	_ log.Component,

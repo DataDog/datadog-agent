@@ -10,7 +10,7 @@ package kubelet
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -102,8 +102,8 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 }
 
 // Factory returns a new KubeletCheck factory
-func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, tagger)
 	})
 }

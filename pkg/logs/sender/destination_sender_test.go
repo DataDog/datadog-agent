@@ -13,6 +13,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -30,6 +31,10 @@ func (m *mockDestination) IsMRF() bool {
 
 func (m *mockDestination) Target() string {
 	return "mock-dest"
+}
+
+func (m *mockDestination) Metadata() *client.DestinationMetadata {
+	return client.NewNoopDestinationMetadata()
 }
 
 func (m *mockDestination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {

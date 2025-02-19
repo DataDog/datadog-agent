@@ -63,15 +63,16 @@ type Option func(*Server)
 
 // Server is a struct implementing a fakeintake server
 type Server struct {
-	uuid            uuid.UUID
-	server          http.Server
-	ready           chan bool
-	clock           clock.Clock
-	retention       time.Duration
-	shutdown        chan struct{}
-	dddevForward    bool
-	forwardEndpoint string
-	apiKey          string
+	uuid               uuid.UUID
+	server             http.Server
+	ready              chan bool
+	clock              clock.Clock
+	retention          time.Duration
+	shutdown           chan struct{}
+	dddevForward       bool
+	forwardEndpoint    string
+	logForwardEndpoint string
+	apiKey             string
 
 	urlMutex sync.RWMutex
 	url      string
@@ -99,6 +100,8 @@ func NewServer(options ...Option) *Server {
 		},
 		storeDriver:     "memory",
 		forwardEndpoint: "https://app.datadoghq.com",
+		// Source: https://docs.datadoghq.com/api/latest/logs/
+		logForwardEndpoint: "https://agent-http-intake.logs.datadoghq.com",
 	}
 
 	for _, opt := range options {
@@ -129,6 +132,7 @@ func NewServer(options ...Option) *Server {
 
 	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
 
+	mux.HandleFunc("/debug/lastAPIKey/", fi.handleGetLastAPIKey)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -246,6 +250,15 @@ func withForwardEndpoint(endpoint string) Option {
 	}
 }
 
+// withLogForwardEndpoint sets the endpoint to forward the log payload to, useful for testing
+//
+//nolint:unused // this function is used in the tests
+func withLogForwardEndpoint(endpoint string) Option {
+	return func(fi *Server) {
+		fi.logForwardEndpoint = endpoint
+	}
+}
+
 // Start Starts a fake intake server in a separate go-routine
 // Notifies when ready to the ready channel
 func (fi *Server) Start() {
@@ -343,6 +356,11 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	apiKey := fi.extractDatadogAPIKey(req)
+	if apiKey != "" {
+		fi.store.SetLastAPIKey(apiKey)
+	}
+
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
 
 	switch req.Method {
@@ -368,7 +386,13 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 }
 
 func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error {
-	url := fi.forwardEndpoint + req.URL.Path
+	forwardEndpoint := fi.forwardEndpoint
+
+	if req.URL.Path == "/api/v2/logs" || req.URL.Path == "/v1/input" {
+		forwardEndpoint = fi.logForwardEndpoint
+	}
+
+	url := forwardEndpoint + req.URL.Path
 
 	proxyReq, err := http.NewRequest(req.Method, url, bytes.NewReader(payload))
 	if err != nil {
@@ -413,7 +437,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	if fi.dddevForward {
 		err := fi.forwardRequestToDDDev(req, payload)
 		if err != nil {
-			log.Printf("Error forwarding request to DDDev: %v", err)
+			log.Printf("Error forwarding request on endpoint %v to DDDev: %v", req.URL.Path, err)
 		}
 	}
 	encoding := req.Header.Get("Content-Encoding")
@@ -422,7 +446,8 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	}
 	contentType := req.Header.Get("Content-Type")
 
-	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, contentType, fi.clock.Now().UTC())
+	apiKey := fi.extractDatadogAPIKey(req)
+	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, fi.clock.Now().UTC())
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
@@ -436,6 +461,33 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	}
 
 	return fmt.Errorf("no POST response found for path %s", req.URL.Path)
+}
+
+func (fi *Server) extractDatadogAPIKey(req *http.Request) string {
+	apiKey := req.URL.Query().Get("api_key")
+	if apiKey != "" {
+		return apiKey
+	}
+	for hname, hval := range req.Header {
+		if strings.ToLower(hname) == "dd-api-key" {
+			return hval[0]
+		}
+	}
+	return ""
+}
+
+func (fi *Server) handleGetLastAPIKey(w http.ResponseWriter, _req *http.Request) {
+	apiKey, err := fi.store.GetLastAPIKey()
+	if err != nil {
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return
+	}
+	writeHTTPResponse(w, httpResponse{
+		contentType: "text/plain",
+		statusCode:  http.StatusOK,
+		body:        []byte(apiKey),
+	})
 }
 
 func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {

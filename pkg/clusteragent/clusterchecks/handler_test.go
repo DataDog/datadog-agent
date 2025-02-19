@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -138,6 +139,7 @@ func TestUpdateLeaderIP(t *testing.T) {
 func TestHandlerRun(t *testing.T) {
 	dummyT := &testing.T{}
 	ac := &mockedPluggableAutoConfig{}
+	fakeTagger := taggerMock.SetupFakeTagger(t)
 	ac.Test(t)
 	le := &fakeLeaderEngine{
 		err: errors.New("failing"),
@@ -154,7 +156,7 @@ func TestHandlerRun(t *testing.T) {
 		leaderStatusFreq:     100 * time.Millisecond,
 		warmupDuration:       250 * time.Millisecond,
 		leadershipChan:       make(chan state, 1),
-		dispatcher:           newDispatcher(),
+		dispatcher:           newDispatcher(fakeTagger),
 		leaderStatusCallback: le.get,
 		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
 	}

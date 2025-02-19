@@ -83,6 +83,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// AcceptEventType Accept event
+	AcceptEventType
 	// BindEventType Bind event
 	BindEventType
 	// ConnectEventType Connect event
@@ -101,6 +103,10 @@ const (
 	CgroupWriteEventType
 	// RawPacketEventType raw packet event
 	RawPacketEventType
+	// NetworkFlowMonitorEventType is sent to monitor network activity
+	NetworkFlowMonitorEventType
+	// StatEventType stat event (used kernel side only)
+	StatEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -119,20 +125,8 @@ const (
 	// LastApproverEventType is the last event that accepts approvers
 	LastApproverEventType = SpliceEventType
 
-	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType EventType = iota
-	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
-	CustomLostWriteEventType
-	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
-	CustomRulesetLoadedEventType
-	// CustomHeartbeatEventType is the custom event used to report a heartbeat event
-	CustomHeartbeatEventType
-	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
-	CustomForkBombEventType
-	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
-	CustomTruncatedParentsEventType
-	// CustomSelfTestEventType is the custom event used to report the results of a self test run
-	CustomSelfTestEventType
+	// CustomEventType represents a custom event type
+	CustomEventType EventType = iota
 
 	// CreateNewFileEventType event
 	CreateNewFileEventType
@@ -231,6 +225,8 @@ func (t EventType) String() string {
 		return "veth_pair"
 	case BindEventType:
 		return "bind"
+	case AcceptEventType:
+		return "accept"
 	case ConnectEventType:
 		return "connect"
 	case UnshareMountNsEventType:
@@ -243,18 +239,12 @@ func (t EventType) String() string {
 		return "ondemand"
 	case RawPacketEventType:
 		return "packet"
-	case CustomLostReadEventType:
-		return "lost_events_read"
-	case CustomLostWriteEventType:
-		return "lost_events_write"
-	case CustomRulesetLoadedEventType:
-		return "ruleset_loaded"
-	case CustomForkBombEventType:
-		return "fork_bomb"
-	case CustomTruncatedParentsEventType:
-		return "truncated_parents"
-	case CustomSelfTestEventType:
-		return "self_test"
+	case NetworkFlowMonitorEventType:
+		return "network_flow_monitor"
+	case StatEventType:
+		return "stat"
+	case CustomEventType:
+		return "custom_event"
 	case CreateNewFileEventType:
 		return "create"
 	case DeleteFileEventType:

@@ -10,10 +10,12 @@ package probe
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -43,7 +45,7 @@ func bestGuessServiceTag(serviceValues []string) string {
 }
 
 // getProcessService returns the service tag based on the process context
-func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) string {
+func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (string, bool) {
 	var serviceValues []string
 
 	// first search in the process context itself
@@ -69,8 +71,69 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) st
 	}
 
 	if service := bestGuessServiceTag(serviceValues); service != "" {
-		return service
+		return service, true
 	}
 
-	return config.RuntimeSecurity.HostServiceName
+	return config.RuntimeSecurity.HostServiceName, false
+}
+
+// BaseFieldHandlers holds the base field handlers
+type BaseFieldHandlers struct {
+	config       *config.Config
+	privateCIDRs eval.CIDRValues
+	hostname     string
+}
+
+// NewBaseFieldHandlers creates a new BaseFieldHandlers
+func NewBaseFieldHandlers(cfg *config.Config, hostname string) (*BaseFieldHandlers, error) {
+	bfh := &BaseFieldHandlers{
+		config:   cfg,
+		hostname: hostname,
+	}
+
+	for _, cidr := range cfg.Probe.NetworkPrivateIPRanges {
+		if err := bfh.privateCIDRs.AppendCIDR(cidr); err != nil {
+			return nil, fmt.Errorf("error adding private IP range %s: %w", cidr, err)
+		}
+	}
+	for _, cidr := range cfg.Probe.NetworkExtraPrivateIPRanges {
+		if err := bfh.privateCIDRs.AppendCIDR(cidr); err != nil {
+			return nil, fmt.Errorf("error adding extra private IP range %s: %w", cidr, err)
+		}
+	}
+
+	return bfh, nil
+}
+
+// ResolveIsIPPublic resolves if the IP is public
+func (bfh *BaseFieldHandlers) ResolveIsIPPublic(_ *model.Event, ipCtx *model.IPPortContext) bool {
+	if !ipCtx.IsPublicResolved {
+		ipCtx.IsPublic = !bfh.privateCIDRs.Contains(&ipCtx.IPNet)
+		ipCtx.IsPublicResolved = true
+	}
+	return ipCtx.IsPublic
+}
+
+// ResolveHostname resolve the hostname
+func (bfh *BaseFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
+	return bfh.hostname
+}
+
+// ResolveService returns the service tag based on the process context
+func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent) string {
+	if e.Service != "" {
+		return e.Service
+	}
+
+	entry, _ := ev.ResolveProcessCacheEntry(nil)
+	if entry == nil {
+		return ""
+	}
+
+	service, ok := getProcessService(bfh.config, entry)
+	if ok {
+		e.Service = service
+	}
+
+	return service
 }

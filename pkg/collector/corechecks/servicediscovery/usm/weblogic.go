@@ -94,8 +94,13 @@ func (weblogicExtractor) customExtractWarContextRoot(warFS fs.FS) (string, bool)
 		return "", false
 	}
 	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		log.Debugf("weblogic: ignoring %q: %v", weblogicXMLFile, err)
+		return "", false
+	}
 	var wlsXML weblogicXMLContextRoot
-	if xml.NewDecoder(file).Decode(&wlsXML) != nil || len(wlsXML.ContextRoot) == 0 {
+	if xml.NewDecoder(reader).Decode(&wlsXML) != nil || len(wlsXML.ContextRoot) == 0 {
 		return "", false
 	}
 	return wlsXML.ContextRoot, true

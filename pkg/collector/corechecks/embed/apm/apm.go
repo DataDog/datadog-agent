@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build apm && !windows && !linux
+//go:build darwin
 
 // Package apm contains the APM check
 package apm
@@ -24,13 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -68,6 +69,12 @@ func (c *APMCheck) Version() string {
 // ConfigSource displays the command's source
 func (c *APMCheck) ConfigSource() string {
 	return c.source
+}
+
+// Loader returns the check loader
+func (*APMCheck) Loader() string {
+	// the apm check is scheduled by the Go loader
+	return corechecks.GoCheckLoaderName
 }
 
 // Run executes the check with retries
@@ -248,8 +255,8 @@ func (c *APMCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory() option.Option[func() check.Check] {
+	return option.New(newCheck)
 }
 
 func newCheck() check.Check {

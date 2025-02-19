@@ -4,6 +4,8 @@ package monitor
 
 import (
 	json "encoding/json"
+	events "github.com/DataDog/datadog-agent/pkg/security/events"
+	containerutils "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -73,6 +75,16 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(i
 			}
 		case "service":
 			out.Service = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.AgentContainerContext = nil
+			} else {
+				if out.AgentContainerContext == nil {
+					out.AgentContainerContext = new(events.AgentContainerContext)
+				}
+				easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in, out.AgentContainerContext)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -117,6 +129,15 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(o
 		out.RawString(prefix)
 		out.String(string(in.Service))
 	}
+	{
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		if in.AgentContainerContext == nil {
+			out.RawString("null")
+		} else {
+			easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out, *in.AgentContainerContext)
+		}
+	}
 	out.RawByte('}')
 }
 
@@ -128,6 +149,61 @@ func (v RulesetLoadedEvent) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *RulesetLoadedEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(l, v)
+}
+func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in *jlexer.Lexer, out *events.AgentContainerContext) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "id":
+			out.ContainerID = containerutils.ContainerID(in.String())
+		case "created_at":
+			out.CreatedAt = uint64(in.Uint64())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out *jwriter.Writer, in events.AgentContainerContext) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.ContainerID != "" {
+		const prefix string = ",\"id\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.String(string(in.ContainerID))
+	}
+	{
+		const prefix string = ",\"created_at\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Uint64(uint64(in.CreatedAt))
+	}
+	out.RawByte('}')
 }
 func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(in *jlexer.Lexer, out *RuleState) {
 	isTopLevel := in.IsStart()
@@ -178,6 +254,29 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 				}
 				in.Delim('}')
 			}
+		case "product_tags":
+			if in.IsNull() {
+				in.Skip()
+				out.ProductTags = nil
+			} else {
+				in.Delim('[')
+				if out.ProductTags == nil {
+					if !in.IsDelim(']') {
+						out.ProductTags = make([]string, 0, 4)
+					} else {
+						out.ProductTags = []string{}
+					}
+				} else {
+					out.ProductTags = (out.ProductTags)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v5 string
+					v5 = string(in.String())
+					out.ProductTags = append(out.ProductTags, v5)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
 		case "actions":
 			if in.IsNull() {
 				in.Skip()
@@ -194,9 +293,9 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 					out.Actions = (out.Actions)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v5 RuleAction
-					(v5).UnmarshalEasyJSON(in)
-					out.Actions = append(out.Actions, v5)
+					var v6 RuleAction
+					(v6).UnmarshalEasyJSON(in)
+					out.Actions = append(out.Actions, v6)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -217,17 +316,17 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 					out.ModifiedBy = (out.ModifiedBy)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v6 *PolicyState
+					var v7 *PolicyState
 					if in.IsNull() {
 						in.Skip()
-						v6 = nil
+						v7 = nil
 					} else {
-						if v6 == nil {
-							v6 = new(PolicyState)
+						if v7 == nil {
+							v7 = new(PolicyState)
 						}
-						(*v6).UnmarshalEasyJSON(in)
+						(*v7).UnmarshalEasyJSON(in)
 					}
-					out.ModifiedBy = append(out.ModifiedBy, v6)
+					out.ModifiedBy = append(out.ModifiedBy, v7)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -276,18 +375,32 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 		out.RawString(prefix)
 		{
 			out.RawByte('{')
-			v7First := true
-			for v7Name, v7Value := range in.Tags {
-				if v7First {
-					v7First = false
+			v8First := true
+			for v8Name, v8Value := range in.Tags {
+				if v8First {
+					v8First = false
 				} else {
 					out.RawByte(',')
 				}
-				out.String(string(v7Name))
+				out.String(string(v8Name))
 				out.RawByte(':')
-				out.String(string(v7Value))
+				out.String(string(v8Value))
 			}
 			out.RawByte('}')
+		}
+	}
+	if len(in.ProductTags) != 0 {
+		const prefix string = ",\"product_tags\":"
+		out.RawString(prefix)
+		{
+			out.RawByte('[')
+			for v9, v10 := range in.ProductTags {
+				if v9 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v10))
+			}
+			out.RawByte(']')
 		}
 	}
 	if len(in.Actions) != 0 {
@@ -295,11 +408,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v8, v9 := range in.Actions {
-				if v8 > 0 {
+			for v11, v12 := range in.Actions {
+				if v11 > 0 {
 					out.RawByte(',')
 				}
-				(v9).MarshalEasyJSON(out)
+				(v12).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -309,14 +422,14 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v10, v11 := range in.ModifiedBy {
-				if v10 > 0 {
+			for v13, v14 := range in.ModifiedBy {
+				if v13 > 0 {
 					out.RawByte(',')
 				}
-				if v11 == nil {
+				if v14 == nil {
 					out.RawString("null")
 				} else {
-					(*v11).MarshalEasyJSON(out)
+					(*v14).MarshalEasyJSON(out)
 				}
 			}
 			out.RawByte(']')
@@ -694,17 +807,17 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor5(
 					out.Rules = (out.Rules)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v12 *RuleState
+					var v15 *RuleState
 					if in.IsNull() {
 						in.Skip()
-						v12 = nil
+						v15 = nil
 					} else {
-						if v12 == nil {
-							v12 = new(RuleState)
+						if v15 == nil {
+							v15 = new(RuleState)
 						}
-						(*v12).UnmarshalEasyJSON(in)
+						(*v15).UnmarshalEasyJSON(in)
 					}
-					out.Rules = append(out.Rules, v12)
+					out.Rules = append(out.Rules, v15)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -745,14 +858,14 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor5(
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v13, v14 := range in.Rules {
-				if v13 > 0 {
+			for v16, v17 := range in.Rules {
+				if v16 > 0 {
 					out.RawByte(',')
 				}
-				if v14 == nil {
+				if v17 == nil {
 					out.RawString("null")
 				} else {
-					(*v14).MarshalEasyJSON(out)
+					(*v17).MarshalEasyJSON(out)
 				}
 			}
 			out.RawByte(']')
@@ -805,6 +918,16 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 			}
 		case "service":
 			out.Service = string(in.String())
+		case "container":
+			if in.IsNull() {
+				in.Skip()
+				out.AgentContainerContext = nil
+			} else {
+				if out.AgentContainerContext == nil {
+					out.AgentContainerContext = new(events.AgentContainerContext)
+				}
+				easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityEvents(in, out.AgentContainerContext)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -837,6 +960,15 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 		const prefix string = ",\"service\":"
 		out.RawString(prefix)
 		out.String(string(in.Service))
+	}
+	{
+		const prefix string = ",\"container\":"
+		out.RawString(prefix)
+		if in.AgentContainerContext == nil {
+			out.RawString("null")
+		} else {
+			easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityEvents(out, *in.AgentContainerContext)
+		}
 	}
 	out.RawByte('}')
 }

@@ -27,6 +27,10 @@ const (
 
 	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
 	ProtocolClassifierEntrySocketFilter ProbeFuncName = "socket__classifier_entry"
+	// ProtocolClassifierTLSClientSocketFilter runs classification rules for the TLS client hello packet
+	ProtocolClassifierTLSClientSocketFilter ProbeFuncName = "socket__classifier_tls_handshake_client"
+	// ProtocolClassifierTLSServerSocketFilter runs classification rules for the TLS server hello packet
+	ProtocolClassifierTLSServerSocketFilter ProbeFuncName = "socket__classifier_tls_handshake_server"
 	// ProtocolClassifierQueuesSocketFilter runs a classification rules for Queue protocols.
 	ProtocolClassifierQueuesSocketFilter ProbeFuncName = "socket__classifier_queues"
 	// ProtocolClassifierDBsSocketFilter runs a classification rules for DB protocols.
@@ -194,12 +198,8 @@ const (
 	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
 	// TCPOngoingConnectPid is the map storing ongoing TCP connection PIDs by (socket + tuple)
 	TCPOngoingConnectPid BPFMapName = "tcp_ongoing_connect_pid"
-	// ConnCloseFlushed is the map storing closed connections that were already flushed
-	ConnCloseFlushed BPFMapName = "conn_close_flushed"
 	// ConnCloseEventMap is the map storing connection close events
 	ConnCloseEventMap BPFMapName = "conn_close_event"
-	// FailedConnEventMap is the map for storing failed connection events
-	FailedConnEventMap BPFMapName = "conn_fail_event"
 	// TracerStatusMap is the map storing the status of the tracer
 	TracerStatusMap BPFMapName = "tracer_status"
 	// ConntrackStatusMap is the map storing the status of the conntrack
@@ -236,6 +236,8 @@ const (
 	ConnectionProtocolMap BPFMapName = "connection_protocol"
 	// ConnectionTupleToSocketSKBConnMap is the map storing the connection tuple to socket skb conn tuple
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
+	// EnhancedTLSTagsMap is the map storing additional tags for TLS connections (version, cipher, etc.)
+	EnhancedTLSTagsMap BPFMapName = "tls_enhanced_tags"
 	// ClassificationProgsMap is the map storing the programs to run on classification events
 	ClassificationProgsMap BPFMapName = "classification_progs"
 	// TCPCloseProgsMap is the map storing the programs to run on TCP close events

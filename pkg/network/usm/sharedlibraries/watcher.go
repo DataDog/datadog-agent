@@ -17,18 +17,19 @@ import (
 	"time"
 	"unsafe"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
+var (
 	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
-	// and lowering it might cause constant cpu usage.
+	// and lowering it might cause constant cpu usage. This is a var instead of a const only because the test code changes
+	// this value to speed up test execution.
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
@@ -42,6 +43,10 @@ func ToBytes(l *LibPath) []byte {
 	return l.Buf[:l.Len]
 }
 
+func (l *LibPath) String() string {
+	return string(ToBytes(l))
+}
+
 // Rule is a rule to match against a shared library path
 type Rule struct {
 	Re           *regexp.Regexp
@@ -51,14 +56,17 @@ type Rule struct {
 
 // Watcher provides a way to tie callback functions to the lifecycle of shared libraries
 type Watcher struct {
+	syncMutex      sync.RWMutex
 	wg             sync.WaitGroup
 	done           chan struct{}
 	procRoot       string
 	rules          []Rule
-	loadEvents     *ddebpf.PerfHandler
 	processMonitor *monitor.ProcessMonitor
 	registry       *utils.FileRegistry
 	ebpfProgram    *EbpfProgram
+	libset         Libset
+	thisPID        int
+	scannedPIDs    map[uint32]int
 
 	// telemetry
 	libHits    *telemetry.Counter
@@ -69,9 +77,9 @@ type Watcher struct {
 var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := NewEBPFProgram(&cfg.Config)
-	err := ebpfProgram.Init()
+func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, error) {
+	ebpfProgram := GetEBPFProgram(&cfg.Config)
+	err := ebpfProgram.InitWithLibsets(libset)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
 	}
@@ -81,10 +89,11 @@ func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
 		done:           make(chan struct{}),
 		procRoot:       kernel.ProcFSRoot(),
 		rules:          rules,
-		loadEvents:     ebpfProgram.GetPerfHandler(),
+		libset:         libset,
 		processMonitor: monitor.GetProcessMonitor(),
 		ebpfProgram:    ebpfProgram,
-		registry:       utils.NewFileRegistry("shared_libraries"),
+		registry:       utils.NewFileRegistry(consts.USMModuleName, "shared_libraries"),
+		scannedPIDs:    make(map[uint32]int),
 
 		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
 		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
@@ -97,7 +106,6 @@ func (w *Watcher) Stop() {
 		return
 	}
 
-	w.ebpfProgram.Stop()
 	close(w.done)
 	w.wg.Wait()
 }
@@ -182,19 +190,37 @@ func (w *Watcher) AttachPID(pid uint32) error {
 	return nil
 }
 
+func (w *Watcher) handleLibraryOpen(lib LibPath) {
+	if int(lib.Pid) == w.thisPID {
+		// don't scan ourself
+		return
+	}
+
+	w.libHits.Add(1)
+	path := ToBytes(&lib)
+	for _, r := range w.rules {
+		if r.Re.Match(path) {
+			w.libMatches.Add(1)
+			_ = w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB, utils.IgnoreCB)
+			break
+		}
+	}
+}
+
 // Start consuming shared-library events
 func (w *Watcher) Start() {
 	if w == nil {
 		return
 	}
 
-	thisPID, err := kernel.RootNSPID()
+	var err error
+	w.thisPID, err = kernel.RootNSPID()
 	if err != nil {
 		log.Warnf("Watcher Start can't get root namespace pid %s", err)
 	}
 
 	_ = kernel.WithAllProcs(w.procRoot, func(pid int) error {
-		if pid == thisPID { // don't scan ourself
+		if pid == w.thisPID { // don't scan ourself
 			return nil
 		}
 
@@ -223,6 +249,11 @@ func (w *Watcher) Start() {
 	})
 
 	cleanupExit := w.processMonitor.SubscribeExit(func(pid uint32) { _ = w.registry.Unregister(pid) })
+	cleanupLibs, err := w.ebpfProgram.Subscribe(w.handleLibraryOpen, w.libset)
+	if err != nil {
+		log.Errorf("error subscribing to shared library events: %s", err)
+		return
+	}
 
 	w.wg.Add(1)
 	go func() {
@@ -232,51 +263,22 @@ func (w *Watcher) Start() {
 			processSync.Stop()
 			// Removing the registration of our hook.
 			cleanupExit()
-			// Stopping the process monitor (if we're the last instance)
+			cleanupLibs()
+			// Stopping the process and library monitors (if we're the last instance)
 			w.processMonitor.Stop()
+			w.ebpfProgram.Stop()
 			// Cleaning up all active hooks.
 			w.registry.Clear()
 			// marking we're finished.
 			w.wg.Done()
 		}()
 
-		dataChannel := w.loadEvents.DataChannel()
-		lostChannel := w.loadEvents.LostChannel()
 		for {
 			select {
 			case <-w.done:
 				return
 			case <-processSync.C:
-				processSet := w.registry.GetRegisteredProcesses()
-				deletedPids := monitor.FindDeletedProcesses(processSet)
-				for deletedPid := range deletedPids {
-					_ = w.registry.Unregister(deletedPid)
-				}
-			case event, ok := <-dataChannel:
-				if !ok {
-					return
-				}
-
-				lib := ToLibPath(event.Data)
-				if int(lib.Pid) == thisPID {
-					// don't scan ourself
-					event.Done()
-					continue
-				}
-
-				w.libHits.Add(1)
-				path := ToBytes(&lib)
-				for _, r := range w.rules {
-					if r.Re.Match(path) {
-						w.libMatches.Add(1)
-						_ = w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB, utils.IgnoreCB)
-						break
-					}
-				}
-				event.Done()
-			case <-lostChannel:
-				// Nothing to do in this case
-				break
+				w.sync()
 			}
 		}
 	}()
@@ -286,5 +288,63 @@ func (w *Watcher) Start() {
 		log.Errorf("error starting shared library detection eBPF program: %s", err)
 	}
 
-	utils.AddAttacher("native", w)
+	utils.AddAttacher(consts.USMModuleName, "native", w)
+}
+
+// sync unregisters from any terminated processes which we missed the exit
+// callback for, and also attempts to register to running processes to ensure
+// that we don't miss any process.
+func (w *Watcher) sync() {
+	// The mutex is only used for protection with the test code which reads the
+	// scannedPIDs map.
+	w.syncMutex.Lock()
+	defer w.syncMutex.Unlock()
+
+	deletionCandidates := w.registry.GetRegisteredProcesses()
+	alivePIDs := make(map[uint32]struct{})
+
+	_ = kernel.WithAllProcs(kernel.ProcFSRoot(), func(origPid int) error {
+		if origPid == w.thisPID { // don't scan ourselves
+			return nil
+		}
+
+		pid := uint32(origPid)
+		alivePIDs[pid] = struct{}{}
+
+		if _, ok := deletionCandidates[pid]; ok {
+			// We have previously hooked into this process and it remains
+			// active, so we remove it from the deletionCandidates list, and
+			// move on to the next PID
+			delete(deletionCandidates, pid)
+			return nil
+		}
+
+		scanned := w.scannedPIDs[pid]
+
+		// Try to scan twice. This is because we may happen to scan the process
+		// just after it has been exec'd and before it has opened its shared
+		// libraries. Scanning twice with the sync interval reduce this risk of
+		// missing shared libraries due to this.
+		if scanned < 2 {
+			w.scannedPIDs[pid]++
+			err := w.AttachPID(pid)
+			if err == nil {
+				log.Debugf("watcher attached to %v via periodic scan", pid)
+				w.scannedPIDs[pid] = 2
+			}
+		}
+
+		return nil
+	})
+
+	// Clean up dead processes from the list of scanned PIDs
+	for pid := range w.scannedPIDs {
+		if _, alive := alivePIDs[pid]; !alive {
+			delete(w.scannedPIDs, pid)
+		}
+	}
+
+	for pid := range deletionCandidates {
+		_ = w.registry.Unregister(pid)
+	}
 }

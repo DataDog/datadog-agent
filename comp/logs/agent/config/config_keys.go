@@ -109,7 +109,23 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 	return l.getConfig().GetBool(l.getConfigKey("dev_mode_use_proto"))
 }
 
+func (l *LogsConfigKeys) compressionKind() string {
+	compressionKind := l.getConfig().GetString(l.getConfigKey("compression_kind"))
+	switch compressionKind {
+	case "zstd", "gzip":
+		log.Debugf("Logs agent is using: %s compression", compressionKind)
+		return compressionKind
+	default:
+		log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
+		return pkgconfigsetup.DefaultLogCompressionKind
+	}
+}
+
 func (l *LogsConfigKeys) compressionLevel() int {
+	if l.compressionKind() == "zstd" {
+		return l.getConfig().GetInt(l.getConfigKey("zstd_compression_level"))
+	}
+
 	return l.getConfig().GetInt(l.getConfigKey("compression_level"))
 }
 

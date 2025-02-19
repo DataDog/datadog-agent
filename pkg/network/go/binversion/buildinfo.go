@@ -29,11 +29,11 @@ package binversion
 
 import (
 	"bytes"
-	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
@@ -77,7 +77,7 @@ type exe interface {
 // ReadElfBuildInfo extracts the Go toolchain version and module information
 // strings from a Go binary. On success, vers should be non-empty. mod
 // is empty if the binary was not built with modules enabled.
-func ReadElfBuildInfo(elfFile *elf.File) (vers string, err error) {
+func ReadElfBuildInfo(elfFile *safeelf.File) (vers string, err error) {
 	x := &elfExe{f: elfFile}
 
 	// Read the first 64kB of dataAddr to find the build info blob.
@@ -176,7 +176,7 @@ func readString(x exe, ptrSize int, readPtr func([]byte) uint64, addr uint64) st
 
 // elfExe is the ELF implementation of the exe interface.
 type elfExe struct {
-	f *elf.File
+	f *safeelf.File
 }
 
 func (x *elfExe) ReadData(addr, size uint64) ([]byte, error) {
@@ -225,7 +225,7 @@ func (x *elfExe) DataStart() uint64 {
 		}
 	}
 	for _, p := range x.f.Progs {
-		if p.Type == elf.PT_LOAD && p.Flags&(elf.PF_X|elf.PF_W) == elf.PF_W {
+		if p.Type == safeelf.PT_LOAD && p.Flags&(safeelf.PF_X|safeelf.PF_W) == safeelf.PF_W {
 			return p.Vaddr
 		}
 	}

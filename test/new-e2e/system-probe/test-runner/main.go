@@ -72,7 +72,7 @@ var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm/tests$"):      20 * time.Minute,
-	regexp.MustCompile("pkg/security.*"):              45 * time.Minute,
+	regexp.MustCompile("pkg/security.*"):              55 * time.Minute,
 }
 
 func getTimeout(pkg string) time.Duration {
@@ -144,7 +144,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 	args = append(args, testArgs...)
 	args = append(
 		args,
-		"-test.v",
+		"-test.v=test2json",
 		fmt.Sprintf("-test.count=%d", testConfig.runCount),
 		"-test.timeout="+getTimeout(pkg).String(),
 	)
@@ -158,7 +158,13 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
 		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
 	}
+	if config, ok := packagesRunConfig[matchAllPackages]; ok && config.RunOnly != nil {
+		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
+	}
 	if config, ok := packagesRunConfig[pkg]; ok && config.Skip != nil {
+		args = append(args, "-test.skip", strings.Join(config.Skip, "|"))
+	}
+	if config, ok := packagesRunConfig[matchAllPackages]; ok && config.Skip != nil {
 		args = append(args, "-test.skip", strings.Join(config.Skip, "|"))
 	}
 

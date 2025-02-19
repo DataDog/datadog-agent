@@ -46,6 +46,76 @@ func TestConnection(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestTimeout(t *testing.T) {
+	const sleepFmt = `DECLARE
+  result NUMBER;
+BEGIN
+  DBMS_SESSION.SLEEP(%d);
+  result := 1;
+  DBMS_OUTPUT.PUT_LINE(result);
+END;`
+	tests := []struct {
+		name         string
+		queryTimeout int
+		sessionSleep int
+	}{
+		{
+			name:         "query_timeout will be overridden to default",
+			queryTimeout: 0,
+			sessionSleep: 0,
+		},
+		{
+			name:         "query_timeout should be respected",
+			queryTimeout: 1,
+			sessionSleep: 30,
+		},
+		{
+			name:         "query should be done before query_timeout",
+			queryTimeout: 5,
+			sessionSleep: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := newDefaultCheck(t, "", "")
+			c.config.ConnectionConfig.QueryTimeout = tt.queryTimeout
+			defer c.Teardown()
+			if tt.queryTimeout <= 0 {
+				require.Equal(t, 20000*time.Second, c.config.QueryTimeoutDuration())
+				return
+			}
+			require.Equal(t, time.Duration(tt.queryTimeout)*time.Second, c.config.QueryTimeoutDuration())
+			var err error
+			c.db, err = c.Connect()
+			require.NoError(t, err)
+
+			testDone := make(chan struct{})
+			go func() {
+				toBeIgnored := make([]struct{}, 0, 1)
+				err := c.db.Select(&toBeIgnored, fmt.Sprintf(sleepFmt, tt.sessionSleep))
+				if tt.queryTimeout < tt.sessionSleep {
+					require.Contains(t, err.Error(), "timeout")
+				} else {
+					require.NoError(t, err)
+					result, err := getSession(&c)
+					require.NoError(t, err)
+					require.NotEmpty(t, result)
+				}
+				close(testDone)
+			}()
+
+			select {
+			case <-time.After(10 * time.Second):
+				// To detect if timeout is not working.
+				t.Errorf("test didn't finish in 10 seconds")
+				t.FailNow()
+			case <-testDone:
+				return
+			}
+		})
+	}
+}
+
 func connectToDB(driver string) (*sqlx.DB, error) {
 	var connStr string
 	connectionConfig := getConnectData(nil, useDefaultUser)
@@ -146,7 +216,7 @@ func TestChkRun(t *testing.T) {
 	diff1 := (pgaAfter1StRun - pgaBefore) / 1024
 	var extremePGAUsage float64
 	if isDbVersionGreaterOrEqualThan(&c, "12.2") {
-		extremePGAUsage = 1024
+		extremePGAUsage = 2048
 	} else {
 		extremePGAUsage = 8192
 	}
@@ -341,7 +411,7 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 			connectionConfig.Username, connectionConfig.Password, protocolString, connectionConfig.Server,
 			connectionConfig.Port, connectionConfig.ServiceName, walletString)
 	} else {
-		connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
+		connectionOptions := map[string]string{"TIMEOUT": connectionConfig.QueryTimeoutString()}
 		if connectionConfig.Protocol == "TCPS" {
 			connectionOptions["SSL"] = "TRUE"
 			if connectionConfig.Wallet != "" {
@@ -352,6 +422,14 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 			connectionConfig.Server, connectionConfig.Port, connectionConfig.ServiceName, connectionConfig.Username, connectionConfig.Password, connectionOptions)
 	}
 	return connStr
+}
+
+func TestCanConnectTags(t *testing.T) {
+	chk, sender := newDefaultCheck(t, "", "")
+	err := chk.Run()
+	require.NoError(t, err)
+
+	sender.AssertServiceCheck(t, "oracle.can_connect", servicecheck.ServiceCheckOK, chk.dbHostname, nil, "")
 }
 
 func TestLargeUint64Binding(t *testing.T) {

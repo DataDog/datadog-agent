@@ -78,16 +78,25 @@ const (
 )
 
 const (
+	// RawPacketFilterMaxTailCall defines the maximum of tail calls
+	RawPacketFilterMaxTailCall = 5
+)
+
+const (
 	// TCDNSRequestKey is the key to the DNS request program
 	TCDNSRequestKey uint32 = iota + 1
 	// TCDNSRequestParserKey is the key to the DNS request parser program
 	TCDNSRequestParserKey
 	// TCIMDSRequestParserKey is the key to the IMDS request program
 	TCIMDSRequestParserKey
-	// TCRawPacketParserKey is the key to the raw packet program
-	TCRawPacketParserKey
+)
+
+const (
 	// TCRawPacketFilterKey  is the key to the raw packet filter program
-	TCRawPacketFilterKey
+	// reserve 5 tail calls for the filtering
+	TCRawPacketFilterKey uint32 = iota
+	// TCRawPacketParserSenderKey is the key to the raw packet sender program
+	TCRawPacketParserSenderKey = TCRawPacketFilterKey + RawPacketFilterMaxTailCall // reserved key for filter tail calls
 )
 
 const (
@@ -97,4 +106,11 @@ const (
 	ExecParseArgsEnvsSplitKey
 	// ExecParseArgsEnvsKey is the key to the program that parses arguments and then environment variables
 	ExecParseArgsEnvsKey
+)
+
+const (
+	// FlushNetworkStatsExitKey is the key to the program that flushes network stats before resuming the normal exit event processing
+	FlushNetworkStatsExitKey uint32 = iota
+	// FlushNetworkStatsExecKey is the key to the program that flushes network stats before resuming the normal exec event processing
+	FlushNetworkStatsExecKey
 )

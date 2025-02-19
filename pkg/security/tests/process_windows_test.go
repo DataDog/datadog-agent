@@ -34,7 +34,7 @@ func TestBasicTest(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(executable)
 			return cmd.Run()
-		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "exec.file.path", `c:\windows\system32\schtasks.exe`, "wrong exec file path")
 			assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"testsuite.exe"}, "wrong process parent file name")
 		}))
@@ -57,7 +57,7 @@ func TestBasicTest(t *testing.T) {
 			// we will ignore the error.  The username & password arguments are invalid
 			_ = cmd.Run()
 			return nil
-		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, _ *rules.Rule) {
 			cmdline, err := event.GetFieldValue("exec.cmdline")
 			if err != nil {
 				t.Errorf("failed to get exec.cmdline: %v", err)

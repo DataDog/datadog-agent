@@ -18,9 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 
 	"golang.org/x/sys/windows"
 )
@@ -40,9 +42,10 @@ func createTestProbe() (*WindowsProbe, error) {
 	if err != nil {
 		return nil, err
 	}
-	wp.isRenameEnabled = true
-	wp.isDeleteEnabled = true
-	wp.isWriteEnabled = true
+
+	wp.enabledEventTypes[model.FileRenameEventType.String()] = true
+	wp.enabledEventTypes[model.DeleteFileEventType.String()] = true
+	wp.enabledEventTypes[model.WriteFileEventType.String()] = true
 
 	err = wp.Init()
 

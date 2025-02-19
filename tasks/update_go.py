@@ -10,7 +10,7 @@ from tasks.go import tidy
 from tasks.libs.ciproviders.circleci import update_circleci_config
 from tasks.libs.ciproviders.gitlab_api import update_gitlab_config
 from tasks.libs.common.color import color_message
-from tasks.modules import DEFAULT_MODULES
+from tasks.libs.common.gomodules import get_default_modules
 
 GO_VERSION_FILE = "./.go-version"
 
@@ -32,7 +32,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
-    ("./docs/public/setup.md", "version `", "` or higher", True),
+    ("./go.work", "go ", "", False),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -132,7 +132,7 @@ def update_go(
 
 
 # replace the given pattern with the given string in the file
-def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1, dry_run: bool = False):
+def update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1, dry_run: bool = False):
     # newline='' keeps the file's newline character(s)
     # meaning it keeps '\n' for most files and '\r\n' for windows specific files
 
@@ -187,11 +187,11 @@ def _update_references(warn: bool, version: str, dry_run: bool = False):
         new_version = version if is_bugfix else new_major_minor
         replace = rf'\g<1>{new_version}\g<2>'
 
-        _update_file(warn, path, pattern, replace, dry_run=dry_run)
+        update_file(warn, path, pattern, replace, dry_run=dry_run)
 
 
 def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_run: bool = False):
-    for path, module in DEFAULT_MODULES.items():
+    for path, module in get_default_modules().items():
         if not include_otel_modules and module.used_by_otel:
             # only update the go directives in go.mod files not used by otel
             # to allow them to keep using the modules
@@ -200,7 +200,7 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
         major_minor = _get_major_minor_version(version)
         major_minor_zero = f"{major_minor}.0"
         # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
+        update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):

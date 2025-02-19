@@ -11,7 +11,7 @@ package ecs
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -60,6 +60,11 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		tasks = append(tasks, t.fetchContainers(rcfg, newTask))
 	}
 
+	return t.Process(rcfg, tasks)
+}
+
+// Process is used to process the resources.
+func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := &processors.ECSProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              rcfg.Config,
@@ -75,7 +80,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		Hostname:     rcfg.HostName,
 	}
 
-	processResult, processed := t.processor.Process(ctx, tasks)
+	processResult, processed := t.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, fmt.Errorf("unable to process resources: a panic occurred")
@@ -83,7 +88,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(t.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 
@@ -100,7 +105,12 @@ func (t *TaskCollector) fetchContainers(rcfg *collectors.CollectorRunConfig, tas
 	for _, container := range task.Containers {
 		c, err := rcfg.WorkloadmetaStore.GetContainer(container.ID)
 		if err != nil {
-			log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
+			// ECS can create internal pause containers that are not available in the workloadmeta store.
+			// https://github.com/DataDog/datadog-agent/blob/7.58.0/pkg/util/containers/filter.go#L184
+			// It is standard for tasks running with the awsvpc network mode
+			// https://github.com/aws/amazon-ecs-agent/blob/v1.88.0/agent/api/task/task.go#L68
+			// We can ignore the error and continue as there is nothing we can do about it.
+			log.Debugc(err.Error(), orchestrator.ExtraLogContext...)
 			continue
 		}
 		ecsTask.Containers = append(ecsTask.Containers, c)

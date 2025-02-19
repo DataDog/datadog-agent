@@ -7,9 +7,7 @@
 
 package installer
 
-import (
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
-)
+import "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
 // setInstallerUmask no-op on Windows
-func setInstallerUmask(_ ddtrace.Span) {}
+func setInstallerUmask(_ *telemetry.Span) {}

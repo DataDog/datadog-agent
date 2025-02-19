@@ -80,6 +80,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
+	// those configs are used by the core agent path, but are not used by the system probe
+	cfg.SetKnown("sbom.container_image.enabled")
+	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan")
 
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -118,7 +121,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "external"), false, "DD_SYSTEM_PROBE_EXTERNAL")
 	cfg.SetKnown(join(spNS, "adjusted"))
 
-	cfg.BindEnvAndSetDefault(join(spNS, "sysprobe_socket"), defaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault(join(spNS, "sysprobe_socket"), DefaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
 	cfg.BindEnvAndSetDefault(join(spNS, "max_conns_per_message"), defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
@@ -192,8 +195,11 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
 	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))
-	cfg.BindEnvAndSetDefault(join(spNS, "closed_connection_flush_threshold"), 0)
-	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
+	cfg.BindEnv(join(spNS, "closed_connection_flush_threshold"))
+	cfg.BindEnv(join(netNS, "closed_connection_flush_threshold"))
+	cfg.BindEnv(join(spNS, "closed_channel_size"))
+	cfg.BindEnv(join(netNS, "closed_channel_size"))
+	cfg.BindEnvAndSetDefault(join(netNS, "closed_buffer_wakeup_count"), 4)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_dns_inspection"), false, "DD_DISABLE_DNS_INSPECTION")
@@ -209,11 +215,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack_all_namespaces"), true, "DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_protocol_classification"), true, "DD_ENABLE_PROTOCOL_CLASSIFICATION")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_ringbuffers"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_RINGBUFFERS")
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_custom_batching"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_CUSTOM_BATCHING")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_tcp_failed_connections"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FAILED_CONNS")
 	cfg.BindEnvAndSetDefault(join(netNS, "ignore_conntrack_init_failure"), false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 	cfg.BindEnvAndSetDefault(join(netNS, "allow_netlink_conntracker_fallback"), true)
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpf_conntracker"), true)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_cilium_lb_conntracker"), false)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
@@ -249,7 +257,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnv(join(smNS, "enable_postgres_monitoring"))
 	cfg.BindEnv(join(smNS, "enable_redis_monitoring"))
-	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), true)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
 	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
@@ -271,7 +279,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
-	cfg.BindEnv(join(smNS, "enable_event_stream"))
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_event_stream"), true)
+	cfg.BindEnv(join(smNS, "kernel_buffer_pages"))
+	cfg.BindEnv(join(smNS, "data_channel_size"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -307,7 +317,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// connection aggregation with port rollups
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false, "DD_ENABLE_EBPFLESS", "DD_NETWORK_CONFIG_ENABLE_EBPFLESS")
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
@@ -353,31 +363,34 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), true, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_all_probes"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_kernel_filters"), true)
-	eventMonitorBindEnv(cfg, join(evNS, "enable_approvers"))
-	eventMonitorBindEnv(cfg, join(evNS, "enable_discarders"))
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_approvers"), false)  // will be set to true by sanitize() if enable_kernel_filters is true
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_discarders"), false) // will be set to true by sanitize() if enable_kernel_filters is true
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "flush_discarder_window"), 3)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "pid_cache_size"), 10000)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.tags_cardinality"), "high")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "custom_sensitive_words"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "erpc_dentry_resolution_enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "map_dentry_resolution_enabled"), true)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dentry_cache_size"), 1024)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "remote_tagger"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dentry_cache_size"), 8000)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_monitor.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.lazy_interface_prefixes"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_priority"), 10)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.classifier_handle"), 0)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.flow_monitor.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.flow_monitor.sk_storage.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.flow_monitor.period"), "10s")
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_classifier_handle"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_ring_buffer"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), false)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_amd64"), false)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_arm64"), false)
-	eventMonitorBindEnv(cfg, join(evNS, "event_stream.buffer_size"))
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_kprobe_fallback"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.buffer_size"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
-	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.private_ip_ranges"), DefaultPrivateIPCIDRs)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.extra_private_ip_ranges"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
@@ -403,9 +416,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(ccmNS, "enabled"), false)
 
 	// Discovery config
-	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
+	cfg.BindEnv(join(discoveryNS, "enabled"))
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.enabled"), true)
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_services"), []string{"datadog-agent", "trace-agent", "process-agent", "system-probe", "security-agent", "datadog-cluster-agent"})
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")
@@ -415,6 +431,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(gpuNS, "nvml_lib_path"))
 	cfg.BindEnvAndSetDefault(join(gpuNS, "process_scan_interval_seconds"), 5)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "initial_process_sync"), true)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "configure_cgroup_perms"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }
@@ -449,4 +466,27 @@ func eventMonitorBindEnv(config pkgconfigmodel.Config, key string) {
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 
 	config.BindEnv(key, emConfigKey, runtimeSecKey)
+}
+
+// DefaultPrivateIPCIDRs is a list of private IP CIDRs that are used to determine if an IP is private or not.
+var DefaultPrivateIPCIDRs = []string{
+	// IETF RPC 1918
+	"10.0.0.0/8",
+	"172.16.0.0/12",
+	"192.168.0.0/16",
+	// IETF RFC 5735
+	"0.0.0.0/8",
+	"127.0.0.0/8",
+	"169.254.0.0/16",
+	"192.0.0.0/24",
+	"192.0.2.0/24",
+	"198.18.0.0/15",
+	"198.51.100.0/24",
+	"203.0.113.0/24",
+	"224.0.0.0/4",
+	"240.0.0.0/4",
+	// IETF RFC 6598
+	"100.64.0.0/10",
+	// IETF RFC 4193
+	"fc00::/7",
 }

@@ -51,7 +51,7 @@ func TestNewMetricsExporter(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 	set := exportertest.NewNopSettings()
-	exp, err := factory.CreateMetricsExporter(context.Background(), set, cfg)
+	exp, err := factory.CreateMetrics(context.Background(), set, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
 }
@@ -61,10 +61,10 @@ func TestNewMetricsExporterInvalid(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 
 	expCfg := cfg.(*ExporterConfig)
-	expCfg.Metrics.HistConfig.Mode = "InvalidMode"
+	expCfg.Metrics.Metrics.HistConfig.Mode = "InvalidMode"
 
 	set := exportertest.NewNopSettings()
-	_, err := factory.CreateMetricsExporter(context.Background(), set, cfg)
+	_, err := factory.CreateMetrics(context.Background(), set, cfg)
 	assert.Error(t, err)
 }
 
@@ -73,7 +73,7 @@ func TestNewTracesExporter(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings()
-	_, err := factory.CreateTracesExporter(context.Background(), set, cfg)
+	_, err := factory.CreateTraces(context.Background(), set, cfg)
 	assert.Error(t, err)
 }
 
@@ -82,6 +82,6 @@ func TestNewLogsExporter(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings()
-	_, err := factory.CreateLogsExporter(context.Background(), set, cfg)
+	_, err := factory.CreateLogs(context.Background(), set, cfg)
 	assert.Error(t, err)
 }

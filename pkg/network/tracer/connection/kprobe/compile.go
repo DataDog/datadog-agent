@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package kprobe supports kprobe connecting tracing
 package kprobe
 
 import (

@@ -12,6 +12,8 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/asm"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 )
 
 // replaceIns is used in place of the eBPF helpers we wish to remove from
@@ -38,7 +40,7 @@ var replaceIns = asm.Mov.Imm(asm.R0, 0)
 // conditionally select eBPF helpers. This should be regarded as a last resort
 // when the aforementioned options don't apply (prebuilt artifacts, for
 // example).
-func NewHelperCallRemover(helpers ...asm.BuiltinFunc) Modifier {
+func NewHelperCallRemover(helpers ...asm.BuiltinFunc) ModifierBeforeInit {
 	return &helperCallRemover{
 		helpers: helpers,
 	}
@@ -48,7 +50,7 @@ type helperCallRemover struct {
 	helpers []asm.BuiltinFunc
 }
 
-func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) error {
+func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
 		progs, err := m.GetProgramSpecs()
 		if err != nil {
@@ -76,10 +78,6 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) e
 		return nil
 	})
 
-	return nil
-}
-
-func (h *helperCallRemover) AfterInit(*manager.Manager, *manager.Options) error {
 	return nil
 }
 

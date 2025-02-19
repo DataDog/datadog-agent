@@ -16,6 +16,7 @@ from subprocess import PIPE, CalledProcessError, Popen
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -24,17 +25,19 @@ from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
 )
 from tasks.libs.testing.flakes import get_tests_family, is_known_flaky_test
-from tasks.modules import DEFAULT_MODULES
 
 E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
-if platform.system() == "Windows":
-    DATADOG_CI_COMMAND = [r"c:\devtools\datadog-ci\datadog-ci", "junit", "upload"]
-else:
-    DATADOG_CI_COMMAND = [which("datadog-ci"), "junit", "upload"]
 JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
+
+
+def get_datadog_ci_command():
+    path_datadog_ci = which("datadog-ci")
+    if path_datadog_ci is None:
+        raise FileNotFoundError("datadog-ci command not found")
+    return path_datadog_ci
 
 
 def enrich_junitxml(xml_path: str, flavor: AgentFlavor):
@@ -132,7 +135,7 @@ def get_flaky_from_test_output():
         return flaky_tests
 
     # If the global test output file is not present, we look for module specific test output files
-    for module in DEFAULT_MODULES:
+    for module in get_default_modules():
         test_file = Path(module, MODULE_TEST_OUTPUT_FILE)
         if test_file.is_file():
             with test_file.open(encoding="utf8") as f:
@@ -232,6 +235,7 @@ def upload_junitxmls(team_dir: Path):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
+    datadog_ci_command = [get_datadog_ci_command(), "junit", "upload"]
     additional_tags = read_additional_tags(team_dir.parent)
     process_env = _update_environ(team_dir.parent)
     processes = []
@@ -242,7 +246,7 @@ def upload_junitxmls(team_dir: Path):
     for flags, files in xml_files.items():
         args = set_tags(owner, flavor, flags, additional_tags, files[0])
         args.extend(files)
-        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
+        processes.append(Popen(datadog_ci_command + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
 
     for process in processes:
         stdout, stderr = process.communicate()
@@ -250,7 +254,7 @@ def upload_junitxmls(team_dir: Path):
         print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
         if stderr:
             print(f"Failed uploading junit:\n{stderr.decode()}", file=sys.stderr)
-            raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
+            raise CalledProcessError(process.returncode, datadog_ci_command)
     return ""  # For ThreadPoolExecutor.map. Without this it prints None in the log output.
 
 
@@ -373,25 +377,3 @@ def produce_junit_tar(files, result_path):
         job_env_info.size = job_env_file.getbuffer().nbytes
         job_env_file.seek(0)
         tgz.addfile(job_env_info, job_env_file)
-
-
-def repack_macos_junit_tar(workflow_conclusion, infile, outfile):
-    """
-    Repacks JUnit tgz file from macOS Github Action run, so it would
-    contain correct job name and job URL.
-    """
-    if workflow_conclusion == "cancelled" and not os.path.exists(infile):
-        print(f"Skipping repacking of JUnit tarball due to {workflow_conclusion} workflow")
-        return
-
-    with tarfile.open(infile) as infp, tarfile.open(outfile, "w:gz") as outfp, tempfile.TemporaryDirectory() as tempd:
-        infp.extractall(tempd)
-
-        # write the proper job url and job name
-        with open(os.path.join(tempd, JOB_ENV_FILE_NAME), "w") as fp:
-            fp.write(f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}\n')
-            fp.write(f'CI_JOB_NAME={os.environ.get("CI_JOB_NAME", "")}')
-
-        # pack all files to a new tarball
-        for f in os.listdir(tempd):
-            outfp.add(os.path.join(tempd, f), arcname=f)

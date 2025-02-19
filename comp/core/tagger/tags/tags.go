@@ -91,8 +91,17 @@ const (
 
 	// GPU related tags
 
-	// KubeGPUVendor the tag for the Kubernetes Resource GPU vendor
+	// KubeGPUVendor the tag for the Kubernetes Resource GPU vendor (e.g., NVIDIA).
 	KubeGPUVendor = "gpu_vendor"
+
+	// KubeGPUDevice is the tag for the Kubernetes Resource GPU device. This is
+	// the commercial name of the device (e.g., Tesla T4). See
+	// comp/core/workloadmeta/def/types.go:GPU.Device for more detail on this
+	// field.
+	KubeGPUDevice = "gpu_device"
+
+	// KubeGPUUUID is the tag for the Kubernetes Resource GPU UUID
+	KubeGPUUUID = "gpu_uuid"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"

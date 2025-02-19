@@ -5,10 +5,13 @@ package ebpf
 
 type CudaEventType uint32
 type CudaEventHeader struct {
-	Type      uint32
 	Pid_tgid  uint64
 	Stream_id uint64
 	Ktime_ns  uint64
+	Type      uint32
+	Pad       uint32
+	Cgroup    [129]byte
+	Pad_cgo_0 [7]byte
 }
 
 type CudaKernelLaunch struct {
@@ -37,14 +40,22 @@ type CudaMemEvent struct {
 }
 type CudaMemEventType uint32
 
-const CudaEventTypeKernelLaunch = 0x0
-const CudaEventTypeMemory = 0x1
-const CudaEventTypeSync = 0x2
+type CudaSetDeviceEvent struct {
+	Header    CudaEventHeader
+	Device    int32
+	Pad_cgo_0 [4]byte
+}
+
+const CudaEventTypeKernelLaunch CudaEventType = 0x0
+const CudaEventTypeMemory CudaEventType = 0x1
+const CudaEventTypeSync CudaEventType = 0x2
+const CudaEventTypeSetDevice CudaEventType = 0x3
 
 const CudaMemAlloc = 0x0
 const CudaMemFree = 0x1
 
-const SizeofCudaKernelLaunch = 0x48
-const SizeofCudaMemEvent = 0x38
-const SizeofCudaEventHeader = 0x20
-const SizeofCudaSync = 0x20
+const SizeofCudaKernelLaunch = 0xd0
+const SizeofCudaMemEvent = 0xc0
+const SizeofCudaEventHeader = 0xa8
+const SizeofCudaSync = 0xa8
+const SizeofCudaSetDeviceEvent = 0xb0

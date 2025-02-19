@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -62,15 +62,15 @@ type Controller struct {
 
 	limitHeap *autoscaling.HashHeap
 
-	podWatcher           podWatcher
+	podWatcher           PodWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
 
 	localSender sender.Sender
 }
 
-// newController returns a new workload autoscaling controller
-func newController(
+// NewController returns a new workload autoscaling controller
+func NewController(
 	clusterID string,
 	eventRecorder record.EventRecorder,
 	restMapper apimeta.RESTMapper,
@@ -79,7 +79,7 @@ func newController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	store *store,
-	podWatcher podWatcher,
+	podWatcher PodWatcher,
 	localSender sender.Sender,
 	limitHeap *autoscaling.HashHeap,
 ) (*Controller, error) {
@@ -90,9 +90,9 @@ func newController(
 		localSender:   localSender,
 	}
 
-	autoscalingWorkqueue := workqueue.NewRateLimitingQueueWithConfig(
-		workqueue.DefaultItemBasedRateLimiter(),
-		workqueue.RateLimitingQueueConfig{
+	autoscalingWorkqueue := workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedItemBasedRateLimiter[string](),
+		workqueue.TypedRateLimitingQueueConfig[string]{
 			Name:            subsystem,
 			MetricsProvider: autoscalingQueueMetricsProvider,
 		},
@@ -422,7 +422,7 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	// Check that we are within the limit of 100 DatadogPodAutoscalers
 	key := podAutoscalerInternal.ID()
 	if !c.limitHeap.Exists(key) {
-		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", maxDatadogPodAutoscalerObjects)
+		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", c.limitHeap.MaxSize())
 	}
 
 	// Check that targetRef is not set to the cluster agent

@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package offsetguess provides offsetguesses for tracer
 package offsetguess
 
 import (
@@ -44,6 +45,7 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
+// NewConntrackOffsetGuesser creates a new OffsetGuesser
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	tcpv6Enabled, udpv6Enabled := getIpv6Configuration(cfg)
 	tcpv6EnabledConst, udpv6EnabledConst := boolToUint64(tcpv6Enabled), boolToUint64(udpv6Enabled)

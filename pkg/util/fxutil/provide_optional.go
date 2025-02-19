@@ -6,13 +6,20 @@
 package fxutil
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.uber.org/fx"
 )
 
 // ProvideOptional takes a type parameter and fx.Provide's a NewOption wrapper for that type
 func ProvideOptional[T any]() fx.Option {
-	return fx.Provide(func(actualType T) optional.Option[T] {
-		return optional.NewOption[T](actualType)
+	return fx.Provide(func(actualType T) option.Option[T] {
+		return option.New[T](actualType)
+	})
+}
+
+// ProvideNoneOptional provide a none optional for the type
+func ProvideNoneOptional[T any]() fx.Option {
+	return fx.Provide(func() option.Option[T] {
+		return option.None[T]()
 	})
 }

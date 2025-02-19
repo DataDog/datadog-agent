@@ -1,8 +1,9 @@
 #ifndef _HOOKS_NETWORK_DNS_H_
 #define _HOOKS_NETWORK_DNS_H_
 
-#include "helpers/dns.h"
-#include "helpers/network.h"
+#include "helpers/network/dns.h"
+#include "helpers/network/parser.h"
+#include "helpers/network/router.h"
 #include "perf_ring.h"
 
 __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, struct packet_t *pkt, struct dns_event_t *evt) {
@@ -80,7 +81,7 @@ int classifier_dns_request(struct __sk_buff *skb) {
     evt->id = htons(header.id);
 
     // tail call to the dns request parser
-    tail_call_to_classifier(skb, DNS_REQUEST_PARSER);
+    bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST_PARSER);
 
     // tail call failed, ignore packet
     return ACT_OK;
@@ -116,7 +117,7 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
     send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + qname_length);
 
     if (!is_dns_request_parsing_done(skb, pkt)) {
-        tail_call_to_classifier(skb, DNS_REQUEST_PARSER);
+        bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST_PARSER);
     }
 
     return ACT_OK;

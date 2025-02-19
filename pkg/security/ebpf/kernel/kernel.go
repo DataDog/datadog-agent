@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -102,6 +103,8 @@ var (
 	Kernel6_5 = kernel.VersionCode(6, 5, 0)
 	// Kernel6_6 is the KernelVersion representation of kernel version 6.6
 	Kernel6_6 = kernel.VersionCode(6, 6, 0)
+	// Kernel6_7 is the KernelVersion representation of kernel version 6.7
+	Kernel6_7 = kernel.VersionCode(6, 7, 0)
 	// Kernel6_10 is the KernelVersion representation of kernel version 6.10
 	Kernel6_10 = kernel.VersionCode(6, 10, 0)
 	// Kernel6_11 is the KernelVersion representation of kernel version 6.11
@@ -250,6 +253,11 @@ func (k *Version) IsRH9_3Kernel() bool {
 	return k.IsRH9Kernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "9.3")
 }
 
+// IsRH9_4Kernel returns whether the kernel is a rh9.3 kernel
+func (k *Version) IsRH9_4Kernel() bool {
+	return k.IsRH9Kernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "9.4")
+}
+
 // IsSuseKernel returns whether the kernel is a suse kernel
 func (k *Version) IsSuseKernel() bool {
 	return k.IsSLESKernel() || k.OsRelease["ID"] == "opensuse-leap"
@@ -318,8 +326,57 @@ func (k *Version) HaveMmapableMaps() bool {
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
+// https://github.com/torvalds/linux/commit/457f44363a8894135c85b7a9afd2bd8196db24ab
 func (k *Version) HaveRingBuffers() bool {
 	return features.HaveMapType(ebpf.RingBuf) == nil
+}
+
+// HasNoPreallocMapsInPerfEvent returns true if the kernel supports using non-preallocated maps in perf_event programs
+// See https://github.com/torvalds/linux/commit/274052a2b0ab9f380ce22b19ff80a99b99ecb198
+func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
+	return k.Code >= Kernel6_1
+}
+
+// HasSKStorage returns true if the kernel supports SK_STORAGE maps
+// See https://github.com/torvalds/linux/commit/6ac99e8f23d4b10258406ca0dd7bffca5f31da9d
+func (k *Version) HasSKStorage() bool {
+	if features.HaveMapType(ebpf.SkStorage) == nil {
+		return true
+	}
+
+	return k.Code != 0 && k.Code > Kernel5_2
+}
+
+// HasSKStorageInTracingPrograms returns true if the kernel supports SK_STORAGE maps in tracing programs
+// See https://github.com/torvalds/linux/commit/8e4597c627fb48f361e2a5b012202cb1b6cbcd5e
+func (k *Version) HasSKStorageInTracingPrograms() bool {
+	if !k.HasSKStorage() {
+		return false
+	}
+
+	if !k.HaveFentrySupport() {
+		return false
+	}
+
+	if features.HaveProgramHelper(ebpf.Tracing, asm.FnSkStorageGet) == nil {
+		return true
+	}
+	return k.Code != 0 && k.Code > Kernel5_11
+}
+
+// IsMapValuesToMapHelpersAllowed returns true if the kernel supports passing map values to map helpers
+// See https://github.com/torvalds/linux/commit/d71962f3e627b5941804036755c844fabfb65ff5
+func (k *Version) IsMapValuesToMapHelpersAllowed() bool {
+	return k.Code != 0 && k.Code > Kernel4_18
+}
+
+// HasBPFForEachMapElemHelper returns true if the kernel support the bpf_for_each_map_elem helper
+// See https://github.com/torvalds/linux/commit/69c087ba6225b574afb6e505b72cb75242a3d844
+func (k *Version) HasBPFForEachMapElemHelper() bool {
+	if features.HaveProgramHelper(ebpf.PerfEvent, asm.FnForEachMapElem) == nil {
+		return true
+	}
+	return k.Code != 0 && k.Code > Kernel5_13
 }
 
 // HavePIDLinkStruct returns whether the kernel uses the pid_link struct, which was removed in 4.19
@@ -332,8 +389,7 @@ func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 	return k.Code != 0 && k.Code < Kernel5_5
 }
 
-// HaveFentrySupport returns whether the kernel supports fentry probes
-func (k *Version) HaveFentrySupport() bool {
+func (k *Version) commonFentryCheck(funcName string) bool {
 	if features.HaveProgramType(ebpf.Tracing) != nil {
 		return false
 	}
@@ -341,7 +397,7 @@ func (k *Version) HaveFentrySupport() bool {
 	spec := &ebpf.ProgramSpec{
 		Type:       ebpf.Tracing,
 		AttachType: ebpf.AttachTraceFEntry,
-		AttachTo:   "vfs_open",
+		AttachTo:   funcName,
 		Instructions: asm.Instructions{
 			asm.LoadImm(asm.R0, 0, asm.DWord),
 			asm.Return(),
@@ -364,6 +420,29 @@ func (k *Version) HaveFentrySupport() bool {
 	defer link.Close()
 
 	return true
+}
+
+// HaveFentrySupport returns whether the kernel supports fentry probes
+func (k *Version) HaveFentrySupport() bool {
+	return k.commonFentryCheck("vfs_open")
+}
+
+// HaveFentrySupportWithStructArgs returns whether the kernel supports fentry probes with struct arguments
+func (k *Version) HaveFentrySupportWithStructArgs() bool {
+	return k.commonFentryCheck("audit_set_loginuid")
+}
+
+// HaveFentryNoDuplicatedWeakSymbols returns whether the kernel supports fentry probes with struct arguments
+func (k *Version) HaveFentryNoDuplicatedWeakSymbols() bool {
+	var symbol string
+	switch runtime.GOARCH {
+	case "amd64":
+		symbol = "__ia32_sys_setregid16"
+	default:
+		return true
+	}
+
+	return k.commonFentryCheck(symbol)
 }
 
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available

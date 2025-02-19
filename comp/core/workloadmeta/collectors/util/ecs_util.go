@@ -122,6 +122,15 @@ func ParseV4TaskContainers(
 			}
 		}
 
+		var restartCount int
+		// Unless the restartPolicy is explicitly specified in the task definition,
+		// "RestartCount" will not be included in the results from the task metadata endpoint v4.
+		// Additionally, there are the following considerations.
+		// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/container-restart-policy.html
+		if container.RestartCount != nil {
+			restartCount = *container.RestartCount
+		}
+
 		containerEvent := &workloadmeta.Container{
 			EntityID: entityID,
 			EntityMeta: workloadmeta.EntityMeta{
@@ -148,9 +157,10 @@ func ParseV4TaskContainers(
 				Networks:      make([]workloadmeta.ContainerNetwork, 0, len(container.Networks)),
 				Volumes:       make([]workloadmeta.ContainerVolume, 0, len(container.Volumes)),
 			},
-			Image:      image,
-			NetworkIPs: ips,
-			Ports:      make([]workloadmeta.ContainerPort, 0, len(container.Ports)),
+			Image:        image,
+			NetworkIPs:   ips,
+			Ports:        make([]workloadmeta.ContainerPort, 0, len(container.Ports)),
+			RestartCount: restartCount,
 		}
 
 		containerEvent.Resources = workloadmeta.ContainerResources{}
@@ -204,9 +214,14 @@ func ParseV4TaskContainers(
 		}
 
 		source := workloadmeta.SourceNodeOrchestrator
-		containerEvent.Runtime = workloadmeta.ContainerRuntimeDocker
+		// Edge Case: Setting the runtime to "docker" causes issues, although
+		// it's correct. This is the same case explained in
+		// comp/core/workloadmeta/collectors/internal/ecs/v1parser.go
+		containerEvent.Runtime = ""
 		if task.LaunchType == "FARGATE" {
 			source = workloadmeta.SourceRuntime
+			// Unlike in the case above, it is OK to set the runtime here, as
+			// the logs agent does not collect logs in ECS Fargate.
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSFargate
 		}
 

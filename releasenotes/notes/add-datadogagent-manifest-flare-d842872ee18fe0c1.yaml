@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Cluster Agent: ``DatadogAgent`` custom resource, cluster Agent deployment, and node Agent daemonset manifests are now added to the flare archive when the Cluster Agent is deployed with the Datadog Operator (version 1.11.0+).

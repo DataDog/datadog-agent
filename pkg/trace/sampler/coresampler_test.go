@@ -10,23 +10,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 )
 
-func TestSamplerAccessRace(_ *testing.T) {
-	s := newSampler(1, 2, nil, &statsd.NoOpClient{})
+func TestSamplerAccessRace(t *testing.T) {
+	goroutineN := 5
+	loopCount := 10000
+	totalCount := goroutineN * loopCount
+	serviceSignature := ServiceSignature{
+		Name: "test-service",
+		Env:  "test-env",
+	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+	statsdClient.EXPECT().Count(metricSamplerSeen, gomock.Any(), []string{"target_service:test-service", "target_env:test-env"}, float64(1)).MinTimes(loopCount).MaxTimes(totalCount)
+	statsdClient.EXPECT().Count(metricSamplerKept, gomock.Any(), []string{"target_service:test-service", "target_env:test-env"}, float64(1)).MinTimes(loopCount).MaxTimes(totalCount)
+	statsdClient.EXPECT().Gauge(metricSamplerSize, gomock.Any(), nil, float64(1)).Times(totalCount)
+	s := newSampler(1, 2, nil, statsdClient)
 	var wg sync.WaitGroup
-	wg.Add(5)
-	for j := 0; j < 5; j++ {
+	wg.Add(goroutineN)
+	for j := 0; j < goroutineN; j++ {
 		go func(j int) {
 			defer wg.Done()
-			for i := 0; i < 10000; i++ {
-				s.countWeightedSig(time.Now().Add(time.Duration(5*(j+i))*time.Second), Signature(i%3), 5)
+			for i := 0; i < loopCount; i++ {
+				s.countWeightedSig(time.Now().Add(time.Duration(5*(j+i))*time.Second), serviceSignature.Hash(), 5)
+				s.metrics.record(true, newMetricsKey(serviceSignature.Name, serviceSignature.Env, nil))
 				s.report()
-				s.countSample()
 				s.getSignatureSampleRate(Signature(i % 3))
 				s.getAllSignatureSampleRates()
 			}

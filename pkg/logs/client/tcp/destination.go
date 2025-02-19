@@ -6,7 +6,9 @@
 package tcp
 
 import (
+	"context"
 	"expvar"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -56,6 +58,11 @@ func (d *Destination) IsMRF() bool {
 // Target is the address of the destination.
 func (d *Destination) Target() string {
 	return d.connManager.address()
+}
+
+// Metadata is not supported for TCP destinations
+func (d *Destination) Metadata() *client.DestinationMetadata {
+	return client.NewNoopDestinationMetadata()
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
@@ -152,4 +159,16 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 		}
 	}
 	d.lastRetryError = err
+}
+
+// CheckConnectivityDiagnose is a diagnosis for TCP connections
+func CheckConnectivityDiagnose(endpoint config.Endpoint, timeoutSeconds int) (url string, err error) {
+	operationTimeout := time.Second * time.Duration(timeoutSeconds)
+	connManager := NewConnectionManager(endpoint, statusinterface.NewNoopStatusProvider())
+	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
+	defer cancel()
+
+	_, err = connManager.NewConnection(ctx)
+
+	return fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port), err
 }

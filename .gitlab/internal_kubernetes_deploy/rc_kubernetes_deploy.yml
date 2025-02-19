@@ -17,7 +17,7 @@ rc_kubernetes_deploy:
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"

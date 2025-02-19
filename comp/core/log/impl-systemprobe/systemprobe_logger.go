@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package logimpl implements a component to handle logging internal to the agent for system-probe.
-package logimpl
+// Package systemprobeimpl implements a component to handle logging internal to the agent for system-probe.
+package systemprobeimpl
 
 import (
 	"context"

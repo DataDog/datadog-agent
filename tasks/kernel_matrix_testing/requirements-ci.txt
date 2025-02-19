@@ -1,0 +1,5 @@
+termcolor==2.5.0
+thefuzz==0.22.1
+python-Levenshtein==0.26.1
+tabulate[widechars]==0.9.0
+jinja2==3.0.3

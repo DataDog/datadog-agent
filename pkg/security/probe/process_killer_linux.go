@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"syscall"
 
-	psutil "github.com/shirou/gopsutil/v3/process"
+	psutil "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )

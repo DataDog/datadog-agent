@@ -30,6 +30,8 @@ const (
 	tagSamplingPriority = "_sampling_priority_v1"
 	// peerServiceKey is the key for the peer.service meta field.
 	peerServiceKey = "peer.service"
+	// baseServiceKey is the key for the _dd.base_service meta field.
+	baseServiceKey = "_dd.base_service"
 )
 
 var (
@@ -78,6 +80,24 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 			}
 		}
 		s.Meta[peerServiceKey] = ps
+	}
+
+	bSvc, ok := s.Meta[baseServiceKey]
+	if ok {
+		bs, err := traceutil.NormalizePeerService(bSvc)
+		switch err {
+		case traceutil.ErrTooLong:
+			ts.SpansMalformed.BaseServiceTruncate.Inc()
+			log.Debugf("Fixing malformed trace. _dd.base_service is too long (reason:base_service_truncate), truncating _dd.base_service to length=%d: %s", traceutil.MaxServiceLen, bs)
+		case traceutil.ErrInvalid:
+			ts.SpansMalformed.BaseServiceInvalid.Inc()
+			log.Debugf("Fixing malformed trace. _dd.base_service is invalid (reason:base_service_invalid), replacing invalid _dd.base_service=%s with empty string", bSvc)
+		default:
+			if err != nil {
+				log.Debugf("Unexpected error in _dd.base_service normalization from original value (%s) to new value (%s): %s", bSvc, bs, err)
+			}
+		}
+		s.Meta[baseServiceKey] = bs
 	}
 
 	if a.conf.HasFeature("component2name") {
@@ -149,7 +169,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
 	}
 	if env, ok := s.Meta["env"]; ok {
-		s.Meta["env"] = traceutil.NormalizeTag(env)
+		s.Meta["env"] = traceutil.NormalizeTagValue(env)
 	}
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {

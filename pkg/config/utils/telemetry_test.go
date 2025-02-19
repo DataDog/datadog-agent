@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,7 +16,6 @@ func TestIsCheckTelemetryEnabled(t *testing.T) {
 	assert := assert.New(t)
 
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.InitConfig(mockConfig)
 	mockConfig.SetWithoutSource("agent_telemetry.enabled", false)
 	mockConfig.SetWithoutSource("telemetry.enabled", false)
 

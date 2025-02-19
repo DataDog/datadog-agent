@@ -14,11 +14,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCreateContainerService(t *testing.T) {
@@ -162,7 +161,7 @@ func TestCreateContainerService(t *testing.T) {
 		Ready: false,
 	}
 
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+	taggerComponent := mock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name             string

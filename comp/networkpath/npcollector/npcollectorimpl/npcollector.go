@@ -24,10 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 )
 
@@ -44,7 +43,6 @@ type npCollectorImpl struct {
 	// Deps
 	epForwarder  eventplatform.Forwarder
 	logger       log.Component
-	metricSender metricsender.MetricSender
 	statsdClient ddgostatsd.ClientInterface
 	rdnsquerier  rdnsquerier.Component
 
@@ -72,7 +70,7 @@ type npCollectorImpl struct {
 	TimeNowFn func() time.Time
 	// TODO: instead of mocking traceroute via function replacement like this
 	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
-	runTraceroute func(cfg traceroute.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
+	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
 }
@@ -90,9 +88,10 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs.maxTTL,
 		collectorConfigs.pathtestInputChanSize,
 		collectorConfigs.pathtestProcessingChanSize,
-		collectorConfigs.pathtestContextsLimit,
-		collectorConfigs.pathtestTTL,
-		collectorConfigs.pathtestInterval,
+		collectorConfigs.storeConfig.ContextsLimit,
+		collectorConfigs.storeConfig.TTL,
+		collectorConfigs.storeConfig.Interval,
+		collectorConfigs.storeConfig.MaxPerMinute,
 		collectorConfigs.flushInterval,
 		collectorConfigs.reverseDNSEnabled,
 		collectorConfigs.reverseDNSTimeout,
@@ -104,7 +103,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		rdnsquerier:      rdnsquerier,
 		logger:           logger,
 
-		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, collectorConfigs.pathtestContextsLimit, logger),
+		// pathtestStore is set in start() after statsd.Client is configured
+		pathtestStore:          nil,
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
@@ -126,56 +126,86 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 	}
 }
 
-func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
+// makePathtest extracts pathtest information using a single connection and the connection check's reverse dns map
+func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common.Pathtest {
+	protocol := convertProtocol(conn.GetType())
+
+	rDNSEntry := dns[conn.Raddr.GetIp()]
+	var reverseDNSHostname string
+	if rDNSEntry != nil && len(rDNSEntry.Names) > 0 {
+		reverseDNSHostname = rDNSEntry.Names[0]
+	}
+
+	var remotePort uint16
+	// UDP traces should not be done to the active port
+	if protocol != payload.ProtocolUDP {
+		remotePort = uint16(conn.Raddr.GetPort())
+	}
+
+	sourceContainer := conn.Laddr.GetContainerId()
+
+	return common.Pathtest{
+		Hostname:          conn.Raddr.GetIp(),
+		Port:              remotePort,
+		Protocol:          protocol,
+		SourceContainerID: sourceContainer,
+		Metadata: common.PathtestMetadata{
+			ReverseDNSHostname: reverseDNSHostname,
+		},
+	}
+}
+
+func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
 	startTime := s.TimeNowFn()
+	s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
 	for _, conn := range conns {
-		remoteAddr := conn.Raddr
-		protocol := convertProtocol(conn.GetType())
-		var remotePort uint16
-		// UDP traces should not be done to the active
-		// port
-		if protocol != payload.ProtocolUDP {
-			remotePort = uint16(conn.Raddr.GetPort())
-		}
 		if !shouldScheduleNetworkPathForConn(conn) {
-			s.logger.Tracef("Skipped connection: addr=%s, port=%d, protocol=%s", remoteAddr, remotePort, protocol)
+			protocol := convertProtocol(conn.GetType())
+			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
 		}
-		sourceContainer := conn.Laddr.GetContainerId()
-		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
+		pathtest := makePathtest(conn, dns)
+
+		err := s.scheduleOne(&pathtest)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
 	}
 
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	s.statsdClient.Gauge("datadog.network_path.collector.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"schedule.duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
 }
 
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol payload.Protocol, sourceContainerID string) error {
+func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
-	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
+	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", pathtest.Hostname, pathtest.Port)
 
-	ptest := &common.Pathtest{
-		Hostname:          hostname,
-		Port:              port,
-		Protocol:          protocol,
-		SourceContainerID: sourceContainerID,
-	}
+	s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_count", []string{}, 1) //nolint:errcheck
 	select {
-	case s.pathtestInputChan <- ptest:
+	case s.pathtestInputChan <- pathtest:
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_processed", []string{}, 1) //nolint:errcheck
 		return nil
 	default:
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_dropped", []string{"reason:input_chan_full"}, 1) //nolint:errcheck
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
+
+func (s *npCollectorImpl) initStatsdClient(statsdClient ddgostatsd.ClientInterface) {
+	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
+	// due to statsd.Client not being configured yet.
+	s.statsdClient = statsdClient
+
+	s.pathtestStore = pathteststore.NewPathtestStore(s.collectorConfigs.storeConfig, s.logger, statsdClient, s.TimeNowFn)
+}
+
 func (s *npCollectorImpl) start() error {
 	if s.running {
 		return errors.New("server already started")
@@ -184,10 +214,7 @@ func (s *npCollectorImpl) start() error {
 
 	s.logger.Info("Start NpCollector")
 
-	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
-	// due to statsd.Client not being configured yet.
-	s.metricSender = metricsender.NewMetricSenderStatsd(statsd.Client)
-	s.statsdClient = statsd.Client
+	s.initStatsdClient(statsd.Client)
 
 	go s.listenPathtests()
 	go s.flushLoop()
@@ -226,8 +253,7 @@ func (s *npCollectorImpl) listenPathtests() {
 func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
-	startTime := s.TimeNowFn()
-	cfg := traceroute.Config{
+	cfg := config.Config{
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
 		MaxTTL:       uint8(s.collectorConfigs.maxTTL),
@@ -245,9 +271,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Origin = payload.PathOriginNetworkTraffic
 
 	// Perform reverse DNS lookup on destination and hop IPs
-	s.enrichPathWithRDNS(&path)
-
-	s.sendTelemetry(path, startTime, ptest)
+	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
 
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
@@ -262,7 +286,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 }
 
-func runTraceroute(cfg traceroute.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
+func runTraceroute(cfg config.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
 	tr, err := traceroute.New(cfg, telemetry)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
@@ -300,39 +324,54 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 	s.logger.Debugf("Flush loop at %s", flushTime)
 	if !lastFlushTime.IsZero() {
 		flushInterval := flushTime.Sub(lastFlushTime)
-		s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+		s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush.interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
 
 	s.flush()
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush.duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
 func (s *npCollectorImpl) flush() {
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
+	flushTime := s.TimeNowFn()
+	pathtestsToFlush := s.pathtestStore.Flush()
+
 	flowsContexts := s.pathtestStore.GetContextsCount()
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
+	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(pathtestsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
-	flushTime := s.TimeNowFn()
-	flowsToFlush := s.pathtestStore.Flush()
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
-
-	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
-
-	for _, ptConf := range flowsToFlush {
+	s.statsdClient.Count(networkPathCollectorMetricPrefix+"flush.pathtest_count", int64(len(pathtestsToFlush)), []string{}, 1) //nolint:errcheck
+	for _, ptConf := range pathtestsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
-		s.pathtestProcessingChan <- ptConf
+		select {
+		case s.pathtestProcessingChan <- ptConf:
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest_processed", []string{}, 1) //nolint:errcheck
+		default:
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest_dropped", []string{"reason:processing_chan_full"}, 1) //nolint:errcheck
+			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
+		}
 	}
+
+	// keep this metric after the flows are flushed
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1) //nolint:errcheck
+
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"input_chan_size", float64(len(s.pathtestInputChan)), []string{}, 1) //nolint:errcheck
 }
 
-func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
+// enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.
+func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDestHostname string) {
 	if !s.collectorConfigs.reverseDNSEnabled {
 		return
 	}
 
 	// collect unique IP addresses from destination and hops
 	ipSet := make(map[string]struct{}, len(path.Hops)+1) // +1 for destination
-	ipSet[path.Destination.IPAddress] = struct{}{}
+
+	// only look up the destination hostname if we need to
+	if knownDestHostname == "" {
+		ipSet[path.Destination.IPAddress] = struct{}{}
+	}
 	for _, hop := range path.Hops {
 		if !hop.Reachable {
 			continue
@@ -355,13 +394,17 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath) {
 	}
 
 	// assign resolved hostnames to destination and hops
-	hostname := s.getReverseDNSResult(path.Destination.IPAddress, results)
-	// if hostname is blank, use what's given by traceroute
-	// TODO: would it be better to move the logic up from the traceroute command?
-	// benefit to the current approach is having consistent behavior for all paths
-	// both static and dynamic
-	if hostname != "" {
-		path.Destination.ReverseDNSHostname = hostname
+	if knownDestHostname != "" {
+		path.Destination.ReverseDNSHostname = knownDestHostname
+	} else {
+		hostname := s.getReverseDNSResult(path.Destination.IPAddress, results)
+		// if hostname is blank, use what's given by traceroute
+		// TODO: would it be better to move the logic up from the traceroute command?
+		// benefit to the current approach is having consistent behavior for all paths
+		// both static and dynamic
+		if hostname != "" {
+			path.Destination.ReverseDNSHostname = hostname
+		}
 	}
 
 	for i, hop := range path.Hops {
@@ -395,18 +438,6 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 	return result.Hostname
 }
 
-func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
-	checkInterval := ptest.LastFlushInterval()
-	checkDuration := s.TimeNowFn().Sub(startTime)
-	telemetry.SubmitNetworkPathTelemetry(
-		s.metricSender,
-		path,
-		checkDuration,
-		checkInterval,
-		[]string{},
-	)
-}
-
 func (s *npCollectorImpl) startWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
 	for w := 0; w < s.workers; w++ {
@@ -423,8 +454,16 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			return
 		case pathtestCtx := <-s.pathtestProcessingChan:
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
+			startTime := s.TimeNowFn()
+
 			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
+
+			checkInterval := pathtestCtx.LastFlushInterval()
+			checkDuration := s.TimeNowFn().Sub(startTime)
+			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.task_duration", checkDuration.Seconds(), nil, 1)     //nolint:errcheck
+			s.statsdClient.Incr(networkPathCollectorMetricPrefix+"worker.pathtest_processed", []string{}, 1)                       //nolint:errcheck
+			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1) //nolint:errcheck
 		}
 	}
 }

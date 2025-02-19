@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from contextlib import contextmanager
+from time import sleep
 from typing import TYPE_CHECKING
 
+from invoke import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
@@ -75,8 +77,9 @@ def get_file_modifications(
         line.split('\t')
         for line in ctx.run(f"git diff --name-status {flags} {last_main_commit}", hide=True).stdout.splitlines()
     ]
-
     if added or modified or removed:
+        # skip when a file is renamed
+        modifications = [m for m in modifications if len(m) != 3]
         modifications = [
             (status, file)
             for status, file in modifications
@@ -89,7 +92,9 @@ def get_file_modifications(
     return modifications
 
 
-def get_modified_files(ctx, base_branch="main") -> list[str]:
+def get_modified_files(ctx, base_branch=None) -> list[str]:
+    base_branch = base_branch or get_default_branch()
+
     return get_file_modifications(
         ctx, base_branch=base_branch, added=True, modified=True, only_names=True, no_renames=True
     )
@@ -99,7 +104,23 @@ def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
 
-def get_common_ancestor(ctx, branch, base=DEFAULT_BRANCH) -> str:
+def is_agent6(ctx) -> bool:
+    return get_current_branch(ctx).startswith("6.53")
+
+
+def get_default_branch(major: int | None = None):
+    """Returns the default git branch given the current context (agent 6 / 7)."""
+
+    # We create a context to avoid passing context in each function
+    # This context is used to get the current branch so there is no side effect
+    ctx = Context()
+
+    return '6.53.x' if major is None and is_agent6(ctx) or major == 6 else 'main'
+
+
+def get_common_ancestor(ctx, branch, base=None) -> str:
+    base = base or f"origin/{get_default_branch()}"
+
     return ctx.run(f"git merge-base {branch} {base}", hide=True).stdout.strip()
 
 
@@ -131,7 +152,7 @@ def get_main_parent_commit(ctx) -> str:
     """
     Get the commit sha your current branch originated from
     """
-    return ctx.run("git merge-base HEAD origin/main", hide=True).stdout.strip()
+    return ctx.run(f"git merge-base HEAD origin/{get_default_branch()}", hide=True).stdout.strip()
 
 
 def check_base_branch(branch, release_version):
@@ -139,28 +160,48 @@ def check_base_branch(branch, release_version):
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == DEFAULT_BRANCH or branch == release_version.branch()
+    return branch == get_default_branch() or branch == release_version
 
 
-def try_git_command(ctx, git_command):
-    """
-    Try a git command that should be retried (after user confirmation) if it fails.
+def try_git_command(ctx, git_command, non_interactive_retries=2, non_interactive_delay=5):
+    """Try a git command that should be retried (after user confirmation) if it fails.
     Primarily useful for commands which can fail if commit signing fails: we don't want the
     whole workflow to fail if that happens, we want to retry.
+
+    Args:
+        ctx: The invoke context.
+        git_command: The git command to run.
+        non_interactive_retries: The number of times to retry the command if it fails when running non-interactively.
+        non_interactive_delay: The delay in seconds to retry the command if it fails when running non-interactively.
     """
 
     do_retry = True
+    n_retries = 0
+    interactive = sys.stdin.isatty()
 
     while do_retry:
         res = ctx.run(git_command, warn=True)
         if res.exited is None or res.exited > 0:
-            print(
-                color_message(
-                    f"Failed to run \"{git_command}\" (did the commit/tag signing operation fail?)",
-                    "orange",
+            if interactive:
+                print(
+                    color_message(
+                        f"Failed to run \"{git_command}\" (did the commit/tag signing operation fail?)",
+                        "orange",
+                    )
                 )
-            )
-            do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+                do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+            else:
+                # Non interactive, retry in `non_interactive_delay` seconds if we haven't reached the limit
+                n_retries += 1
+                if n_retries > non_interactive_retries:
+                    print(f'{color_message("Error", Color.RED)}: Failed to run git command', file=sys.stderr)
+                    return False
+
+                print(
+                    f'{color_message("Warning", Color.ORANGE)}: Retrying git command in {non_interactive_delay}s',
+                    file=sys.stderr,
+                )
+                sleep(non_interactive_delay)
             continue
 
         return True
@@ -212,16 +253,24 @@ def get_last_commit(ctx, repo, branch):
     )
 
 
+def get_git_references(ctx, repo, ref, tags=False):
+    """
+    Fetches a specific reference (ex: branch, tag, or HEAD) from a remote Git repository
+    """
+    filter_by = " -t" if tags else ""
+    return ctx.run(
+        rf'git ls-remote{filter_by} https://github.com/DataDog/{repo} "{ref}"',
+        hide=True,
+    ).stdout.strip()
+
+
 def get_last_release_tag(ctx, repo, pattern):
     import re
     from functools import cmp_to_key
 
     import semver
 
-    tags = ctx.run(
-        rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
-        hide=True,
-    ).stdout.strip()
+    tags = get_git_references(ctx, repo, pattern, tags=True)
     if not tags:
         raise Exit(
             color_message(
@@ -231,7 +280,8 @@ def get_last_release_tag(ctx, repo, pattern):
             code=1,
         )
 
-    release_pattern = re.compile(r'.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$')
+    major = 6 if is_agent6(ctx) else 7
+    release_pattern = re.compile(rf'^.*{major}' + r'\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?(\^{})?$')
     tags_without_suffix = [
         line for line in tags.splitlines() if not line.endswith("^{}") and release_pattern.match(line)
     ]
@@ -251,3 +301,23 @@ def get_last_release_tag(ctx, repo, pattern):
             last_tag_name = last_tag_name_with_suffix.removesuffix("^{}")
     last_tag_name = last_tag_name.removeprefix("refs/tags/")
     return last_tag_commit, last_tag_name
+
+
+def get_git_config(ctx, key):
+    try:
+        result = ctx.run(f'git config --get {key}')
+    except Exit:
+        return None
+    return result.stdout.strip() if result.return_code == 0 else None
+
+
+def set_git_config(ctx, key, value):
+    ctx.run(f'git config {key} {value}')
+
+
+def revert_git_config(ctx, original_config):
+    for key, value in original_config.items():
+        if value is None:
+            ctx.run(f'git config --unset {key}', hide=True)
+        else:
+            ctx.run(f'git config {key} {value}', hide=True)

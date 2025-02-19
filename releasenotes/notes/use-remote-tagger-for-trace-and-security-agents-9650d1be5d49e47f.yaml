@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    The remote tagger for the trace-agent and security-agent is now always enabled and can not be disabled 
+    ``apm_config.remote_tagger``,  ``security_agent.remote_tagger``, and ``event_monitoring_config.remote_tagger`` config entries are removed.

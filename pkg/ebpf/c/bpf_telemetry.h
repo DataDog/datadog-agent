@@ -14,8 +14,12 @@
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
 
-BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 128)
-BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 256)
+// max entries for telemetry maps is set to 0, because these are modified by the loader
+// according to the number of maps and programs being loaded. Setting a value of 0 acts
+// as a load-time check that this modification is correctly performed, because the kernel
+// disallows loading maps with max entries set to 0
+BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 0)
+BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 0)
 
 #define PATCH_TARGET_TELEMETRY -1
 static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_TARGET_TELEMETRY;
@@ -46,16 +50,17 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 
 #define MK_FN_INDX(fn) FN_INDX_##fn
 
-#define FN_INDX_bpf_probe_read read_indx
+#define FN_INDX_bpf_probe_read bpf_probe_read_indx
 
-#define FN_INDX_bpf_probe_read_kernel read_kernel_indx
-#define FN_INDX_bpf_probe_read_kernel_str read_kernel_indx
+#define FN_INDX_bpf_probe_read_kernel bpf_probe_read_kernel_indx
+#define FN_INDX_bpf_probe_read_kernel_str bpf_probe_read_kernel_indx
 
-#define FN_INDX_bpf_probe_read_user read_user_indx
-#define FN_INDX_bpf_probe_read_user_str read_user_indx
+#define FN_INDX_bpf_probe_read_user bpf_probe_read_user_indx
+#define FN_INDX_bpf_probe_read_user_str bpf_probe_read_user_indx
 
-#define FN_INDX_bpf_skb_load_bytes skb_load_bytes
-#define FN_INDX_bpf_perf_event_output perf_event_output
+#define FN_INDX_bpf_skb_load_bytes bpf_skb_load_bytes_indx
+#define FN_INDX_bpf_perf_event_output bpf_perf_event_output_indx
+#define FN_INDX_bpf_ringbuf_output bpf_ringbuf_output_indx
 
 #define helper_with_telemetry(fn, ...)                                                          \
     ({                                                                                          \
@@ -146,5 +151,8 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 
 #define bpf_perf_event_output_with_telemetry(...) \
     helper_with_telemetry(bpf_perf_event_output, __VA_ARGS__)
+
+#define bpf_ringbuf_output_with_telemetry(...) \
+    helper_with_telemetry(bpf_ringbuf_output, __VA_ARGS__)
 
 #endif // BPF_TELEMETRY_H

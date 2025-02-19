@@ -17,8 +17,8 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

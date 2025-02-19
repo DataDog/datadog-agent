@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -68,7 +68,7 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 			fx.Provide(func() log.Component { return l }),
 			fx.Provide(func() config.Component { return cfg }),
 		),
-		SysProbeConfig: fxutil.Test[optional.Option[sysprobeconfig.Component]](t, sysprobeconfigimpl.MockModule()),
+		SysProbeConfig: fxutil.Test[option.Option[sysprobeconfig.Component]](t, sysprobeconfigimpl.MockModule()),
 	}
 
 	comp := NewComponent(r).Comp

@@ -31,9 +31,9 @@ type ReaderConfigManager struct {
 	state    ditypes.DIProcs
 }
 
-type readerConfigCallback func(configsByService)
 type configsByService = map[ditypes.ServiceName]map[ditypes.ProbeID]rcConfig
 
+// NewReaderConfigManager creates a new ReaderConfigManager
 func NewReaderConfigManager() (*ReaderConfigManager, error) {
 	cm := &ReaderConfigManager{
 		callback: applyConfigUpdate,
@@ -55,10 +55,12 @@ func NewReaderConfigManager() (*ReaderConfigManager, error) {
 	return cm, nil
 }
 
+// GetProcInfos returns the process info state
 func (cm *ReaderConfigManager) GetProcInfos() ditypes.DIProcs {
 	return cm.state
 }
 
+// Stop causes the ReaderConfigManager to stop processing data
 func (cm *ReaderConfigManager) Stop() {
 	cm.ConfigWriter.Stop()
 	cm.procTracker.Stop()
@@ -131,6 +133,7 @@ func (cm *ReaderConfigManager) updateServiceConfigs(configs configsByService) {
 	}
 }
 
+// ConfigWriter handles writing configuration data
 type ConfigWriter struct {
 	io.Writer
 	updateChannel  chan ([]byte)
@@ -139,8 +142,10 @@ type ConfigWriter struct {
 	stopChannel    chan (bool)
 }
 
+// ConfigWriterCallback provides a callback interface for ConfigWriter
 type ConfigWriterCallback func(configsByService)
 
+// NewConfigWriter creates a new ConfigWriter
 func NewConfigWriter(onConfigUpdate ConfigWriterCallback) *ConfigWriter {
 	return &ConfigWriter{
 		updateChannel:  make(chan []byte, 1),
@@ -154,6 +159,7 @@ func (r *ConfigWriter) Write(p []byte) (n int, e error) {
 	return 0, nil
 }
 
+// Start initiates the ConfigWriter to start processing data
 func (r *ConfigWriter) Start() error {
 	go func() {
 	configUpdateLoop:
@@ -175,18 +181,19 @@ func (r *ConfigWriter) Start() error {
 	return nil
 }
 
-func (cu *ConfigWriter) Stop() {
-	cu.stopChannel <- true
+// Stop causes the ConfigWriter to stop processing data
+func (r *ConfigWriter) Stop() {
+	r.stopChannel <- true
 }
 
 // UpdateProcesses is the callback interface that ConfigWriter uses to consume the map of ProcessInfo's
 // such that it's used whenever there's an update to the state of known service processes on the machine.
 // It simply overwrites the previous state of known service processes with the new one
-func (cu *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) {
+func (r *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) {
 	current := procs
-	old := cu.Processes
+	old := r.Processes
 	if !reflect.DeepEqual(current, old) {
-		cu.Processes = current
+		r.Processes = current
 	}
 }
 
@@ -208,6 +215,7 @@ func (rc *rcConfig) toProbe(service string) *ditypes.Probe {
 				CaptureParameters: ditypes.CaptureParameters,
 				ArgumentsMaxSize:  ditypes.ArgumentsMaxSize,
 				StringMaxSize:     ditypes.StringMaxSize,
+				SliceMaxLength:    ditypes.SliceMaxLength,
 				MaxReferenceDepth: rc.Capture.MaxReferenceDepth,
 			},
 		},

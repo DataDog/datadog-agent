@@ -25,8 +25,9 @@ func newNodeDetector(ctx DetectionContext) detector {
 	return &nodeDetector{ctx: ctx}
 }
 
-func isJs(path string) bool {
-	return strings.HasSuffix(strings.ToLower(path), ".js")
+func isJs(filepath string) bool {
+	ext := strings.ToLower(path.Ext(filepath))
+	return ext == ".js" || ext == ".mjs" || ext == ".cjs"
 }
 
 func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
@@ -61,9 +62,14 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 			if _, err := fs.Stat(n.ctx.fs, absFile); err == nil {
 				value, ok := n.findNameFromNearestPackageJSON(entryPoint)
 				if ok {
-					return NewServiceMetadata(value), true
+					return NewServiceMetadata(value, Nodejs), true
 				}
-				break
+
+				// We couldn't find a package.json, fall back to the script/link
+				// name since it should be better than just using "node".
+				base := filepath.Base(absFile)
+				name := strings.TrimSuffix(base, path.Ext(base))
+				return NewServiceMetadata(name, CommandLine), true
 			}
 		}
 	}

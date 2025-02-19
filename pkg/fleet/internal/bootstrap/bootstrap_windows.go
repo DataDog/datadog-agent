@@ -11,15 +11,16 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	iexec "github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+
+	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
@@ -43,12 +44,12 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
 	}
-	return cmd.Install(ctx, url, nil)
+	return cmd.ForceInstall(ctx, url, nil)
 }
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
-	downloader := oci.NewDownloader(env, http.DefaultClient)
+	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
@@ -81,9 +82,19 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	} else if len(msis) == 0 {
 		return nil, fmt.Errorf("no MSIs in package")
 	}
-	err = exec.Command("msiexec", "/i", msis[0], "/qn", "MSIFASTINSTALL=7").Run()
+
+	cmd, err := msi.Cmd(
+		msi.Install(),
+		msi.WithMsi(msis[0]),
+		msi.WithDdAgentUserName(env.AgentUserName),
+	)
+	var output []byte
+	if err == nil {
+		output, err = cmd.Run()
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to install the Datadog Installer")
+		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
 	return iexec.NewInstallerExec(env, paths.StableInstallerPath), nil
 }

@@ -99,6 +99,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		return []string{"key:test\nvalue"}, nil
 	}
 	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.start()
 	recv.telemetryForwarder.containerIDProvider = getTestContainerIDProvider()
 
 	assertSendRequest(t, recv, endpointCalled)
@@ -121,6 +122,7 @@ func TestGoogleCloudRun(t *testing.T) {
 	cfg.GlobalTags["service_name"] = "test_service"
 	cfg.GlobalTags["origin"] = "cloudrun"
 	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.start()
 
 	assertSendRequest(t, recv, endpointCalled)
 }
@@ -145,6 +147,7 @@ func TestAzureAppService(t *testing.T) {
 	cfg.GlobalTags["app_name"] = "test_app"
 	cfg.GlobalTags["origin"] = "appservice"
 	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.start()
 
 	assertSendRequest(t, recv, endpointCalled)
 }
@@ -169,6 +172,7 @@ func TestAzureContainerApp(t *testing.T) {
 	cfg.GlobalTags["app_name"] = "test_app"
 	cfg.GlobalTags["origin"] = "containerapp"
 	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.start()
 
 	assertSendRequest(t, recv, endpointCalled)
 }
@@ -202,6 +206,7 @@ func TestAWSFargate(t *testing.T) {
 		return []string{"task_arn:test_ARN"}, nil
 	}
 	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.start()
 	recv.telemetryForwarder.containerIDProvider = getTestContainerIDProvider()
 
 	assertSendRequest(t, recv, endpointCalled)
@@ -256,6 +261,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	cfg.GlobalTags[functionARNKeyTag] = "test_ARN"
 
 	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.start()
 
 	req, rec := newRequestRecorder(t)
 	recv.buildMux().ServeHTTP(rec, req)
@@ -315,6 +321,7 @@ func TestMaxInflightBytes(t *testing.T) {
 
 			cfg := getTestConfig(srv.URL)
 			recv := newTestReceiverFromConfig(cfg)
+			recv.telemetryForwarder.start()
 			recv.telemetryForwarder.maxInflightBytes = 100
 			mux := recv.buildMux()
 
@@ -359,6 +366,7 @@ func TestInflightBytesReset(t *testing.T) {
 
 	cfg := getTestConfig(srv.URL)
 	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.start()
 	recv.telemetryForwarder.maxInflightBytes = 100
 	mux := recv.buildMux()
 
@@ -417,6 +425,7 @@ func TestActualServer(t *testing.T) {
 
 	cfg := getTestConfig(intakeMockServer.URL)
 	r := newTestReceiverFromConfig(cfg)
+	r.telemetryForwarder.start() // We call this manually here to avoid starting the entire test receiver
 	logs := bytes.Buffer{}
 	prevLogger := log.SetLogger(log.NewBufferLogger(&logs))
 	defer log.SetLogger(prevLogger)
@@ -434,6 +443,7 @@ func TestActualServer(t *testing.T) {
 	assert.Equal(200, resp.StatusCode)
 
 	close(done)
+	log.SetLogger(log.NoopLogger) // prevent race conditions on test buffer
 	r.telemetryForwarder.Stop()
 	assert.Equal(uint64(1), endpointCalled.Load())
 	assert.NotContains(logs.String(), "ERROR")
@@ -444,6 +454,7 @@ func TestTelemetryConfig(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "api_key"
 		recv := newTestReceiverFromConfig(cfg)
+		recv.telemetryForwarder.start()
 
 		req, rec := newRequestRecorder(t)
 		recv.buildMux().ServeHTTP(rec, req)
@@ -462,6 +473,7 @@ func TestTelemetryConfig(t *testing.T) {
 			Host:   "111://malformed.dd_url.com",
 		}}
 		recv := newTestReceiverFromConfig(cfg)
+		recv.telemetryForwarder.start()
 
 		req, rec := newRequestRecorder(t)
 		recv.buildMux().ServeHTTP(rec, req)
@@ -485,6 +497,7 @@ func TestTelemetryConfig(t *testing.T) {
 			Host:   srv.URL,
 		}}
 		recv := newTestReceiverFromConfig(cfg)
+		recv.telemetryForwarder.start()
 
 		req, rec := newRequestRecorder(t)
 		recv.buildMux().ServeHTTP(rec, req)

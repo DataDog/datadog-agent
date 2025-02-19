@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestOptionalModule(t *testing.T) {
@@ -44,16 +43,14 @@ func TestOptionalModule(t *testing.T) {
 		"agent_ipc.port":                    port,
 		"agent_ipc.config_refresh_interval": 1,
 	}
-	csopt := fxutil.Test[optional.Option[configsync.Component]](t, fx.Options(
+	comp := fxutil.Test[configsync.Component](t, fx.Options(
 		core.MockBundle(),
 		fetchonlyimpl.Module(),
-		OptionalModule(),
+		Module(Params{}),
 		fx.Populate(&cfg),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
-
-	_, ok := csopt.Get()
-	require.True(t, ok)
+	require.True(t, comp.(configSync).enabled)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		assert.Equal(t, "value1", cfg.Get("key1"))

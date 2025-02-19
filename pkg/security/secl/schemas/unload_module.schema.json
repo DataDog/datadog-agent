@@ -1,0 +1,30 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "unload_module.schema.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "container_event_no_file.schema.json"
+        },
+        {
+            "$ref": "host_event_no_file.schema.json"
+        }
+    ],
+    "allOf": [
+        {
+            "properties": {
+                "module": {
+                    "type": "object",
+                    "required": [
+                        "name"
+                    ],
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

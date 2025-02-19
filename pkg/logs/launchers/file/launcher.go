@@ -10,10 +10,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -21,11 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/procfilestats"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -230,7 +230,7 @@ func (s *Launcher) scan() {
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
-	fileStats, err := util.GetProcessFileStats()
+	fileStats, err := procfilestats.GetProcessFileStats()
 	if err == nil {
 		CheckProcessTelemetry(fileStats)
 	}
@@ -311,7 +311,8 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 		return false
 	}
 
-	tailer := s.createTailer(file, s.pipelineProvider.NextPipelineChan())
+	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	tailer := s.createTailer(file, channel, monitor)
 
 	var offset int64
 	var whence int
@@ -382,16 +383,17 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 }
 
 // createTailer returns a new initialized tailer
-func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message) *tailer.Tailer {
+func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:    outputChan,
-		File:          file,
-		SleepDuration: s.tailerSleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
-		Info:          tailerInfo,
-		TagAdder:      s.tagger,
+		OutputChan:      outputChan,
+		File:            file,
+		SleepDuration:   s.tailerSleepDuration,
+		Decoder:         decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Info:            tailerInfo,
+		TagAdder:        s.tagger,
+		PipelineMonitor: pipelineMonitor,
 	}
 
 	return tailer.NewTailer(tailerOptions)
@@ -399,11 +401,12 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
-	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger)
+	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func CheckProcessTelemetry(stats *util.ProcessFileStats) {
+func CheckProcessTelemetry(stats *procfilestats.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
 	if ratio > 0.9 {
 		log.Errorf("Agent process has %v files open which is %0.f%% of the OS open file limit (%v). This is over 90%% utilization. This may be preventing log files from being tailed by the Agent and could interfere with the basic functionality of the Agent. OS file limit must be increased.",

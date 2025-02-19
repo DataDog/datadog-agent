@@ -6,6 +6,6 @@
 // Package newstyle uses new folder structure
 package newstyle
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 type Component interface{}

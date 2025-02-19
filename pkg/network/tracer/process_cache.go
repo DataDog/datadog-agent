@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -175,7 +174,7 @@ func (pc *processCache) add(p *events.Process) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("adding process %+v to process cache", p)
 	}
 	p.Expiry = time.Now().Add(defaultExpiry).Unix()

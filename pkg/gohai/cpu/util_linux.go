@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var prefix = "" // only used for testing

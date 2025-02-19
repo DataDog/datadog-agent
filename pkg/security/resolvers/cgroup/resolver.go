@@ -12,108 +12,94 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Event defines the cgroup event type
 type Event int
 
 const (
-	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
-	WorkloadSelectorResolved Event = iota
 	// CGroupDeleted is used to notify that a cgroup was deleted
-	CGroupDeleted
+	CGroupDeleted Event = iota + 1
 	// CGroupCreated new croup created
 	CGroupCreated
 	// CGroupMaxEvent is used cap the event ID
 	CGroupMaxEvent
+
+	maxhostWorkloadEntries      = 1024
+	maxContainerWorkloadEntries = 1024
+	maxCgroupEntries            = 2048
 )
 
-// Listener is used to propagate CGroup events
-type Listener func(workload *cgroupModel.CacheEntry)
+// ResolverInterface defines the interface implemented by a cgroup resolver
+type ResolverInterface interface {
+	Start(context.Context)
+	AddPID(*model.ProcessCacheEntry)
+	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
+	DelPID(uint32)
+	Len() int
+	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
+}
 
 // Resolver defines a cgroup monitor
 type Resolver struct {
-	sync.RWMutex
-	workloads            *simplelru.LRU[string, *cgroupModel.CacheEntry]
-	tagsResolver         tags.Resolver
-	workloadsWithoutTags chan *cgroupModel.CacheEntry
-
-	listenersLock sync.Mutex
-	listeners     map[Event][]Listener
+	*utils.Notifier[Event, *cgroupModel.CacheEntry]
+	sync.Mutex
+	statsdClient       statsd.ClientInterface
+	cgroups            *simplelru.LRU[model.PathKey, *model.CGroupContext]
+	hostWorkloads      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
+	containerWorkloads *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry]
 }
 
 // NewResolver returns a new cgroups monitor
-func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
+func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
 	cr := &Resolver{
-		tagsResolver:         tagsResolver,
-		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
-		listeners:            make(map[Event][]Listener),
+		Notifier:     utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
+		statsdClient: statsdClient,
 	}
-	workloads, err := simplelru.NewLRU(1024, func(_ string, value *cgroupModel.CacheEntry) {
+
+	cleanup := func(value *cgroupModel.CacheEntry) {
 		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 
-		cr.listenersLock.Lock()
-		defer cr.listenersLock.Unlock()
-		for _, l := range cr.listeners[CGroupDeleted] {
-			l(value)
-		}
+		cr.NotifyListeners(CGroupDeleted, value)
+	}
+
+	var err error
+	cr.hostWorkloads, err = simplelru.NewLRU(maxhostWorkloadEntries, func(_ containerutils.CGroupID, value *cgroupModel.CacheEntry) {
+		cleanup(value)
 	})
 	if err != nil {
 		return nil, err
 	}
-	cr.workloads = workloads
+
+	cr.containerWorkloads, err = simplelru.NewLRU(maxContainerWorkloadEntries, func(_ containerutils.ContainerID, value *cgroupModel.CacheEntry) {
+		cleanup(value)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	cr.cgroups, err = simplelru.NewLRU(maxCgroupEntries, func(_ model.PathKey, _ *model.CGroupContext) {})
+	if err != nil {
+		return nil, err
+	}
+
 	return cr, nil
 }
 
 // Start starts the goroutine of the SBOM resolver
-func (cr *Resolver) Start(ctx context.Context) {
-	go func() {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		delayerTick := time.NewTicker(10 * time.Second)
-		defer delayerTick.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-delayerTick.C:
-				select {
-				case workload := <-cr.workloadsWithoutTags:
-					cr.checkTags(workload)
-				default:
-				}
-
-			}
-		}
-	}()
-}
-
-// RegisterListener registers a CGroup event listener
-func (cr *Resolver) RegisterListener(event Event, listener Listener) error {
-	if event >= CGroupMaxEvent || event < 0 {
-		return fmt.Errorf("invalid Event: %v", event)
-	}
-
-	cr.listenersLock.Lock()
-	defer cr.listenersLock.Unlock()
-
-	if cr.listeners != nil {
-		cr.listeners[event] = append(cr.listeners[event], listener)
-	} else {
-		return fmt.Errorf("a Listener was inserted before initialization")
-	}
-	return nil
+func (cr *Resolver) Start(_ context.Context) {
 }
 
 // AddPID associates a container id and a pid which is expected to be the pid 1
@@ -121,7 +107,15 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	entry, exists := cr.workloads.Get(string(process.ContainerID))
+	if process.ContainerID != "" {
+		entry, exists := cr.containerWorkloads.Get(process.ContainerID)
+		if exists {
+			entry.AddPID(process.Pid)
+			return
+		}
+	}
+
+	entry, exists := cr.hostWorkloads.Get(process.CGroup.CGroupID)
 	if exists {
 		entry.AddPID(process.Pid)
 		return
@@ -129,7 +123,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 	var err error
 	// create new entry now
-	newCGroup, err := cgroupModel.NewCacheEntry(string(process.ContainerID), uint64(process.CGroup.CGroupFlags), process.Pid)
+	newCGroup, err := cgroupModel.NewCacheEntry(process.ContainerID, &process.CGroup, process.Pid)
 	if err != nil {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return
@@ -137,58 +131,34 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
-	cr.workloads.Add(string(process.ContainerID), newCGroup)
-
-	// notify listeners
-	cr.listenersLock.Lock()
-	for _, l := range cr.listeners[CGroupCreated] {
-		l(newCGroup)
+	if process.ContainerID != "" {
+		cr.containerWorkloads.Add(process.ContainerID, newCGroup)
+	} else {
+		cr.hostWorkloads.Add(process.CGroup.CGroupID, newCGroup)
 	}
-	cr.listenersLock.Unlock()
+	cr.cgroups.Add(process.CGroup.CGroupFile, &process.CGroup)
 
-	// check the tags of this workload
-	cr.checkTags(newCGroup)
+	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
 
-// checkTags checks if the tags of a workload were properly set
-func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
-	// check if the workload tags were found
-	if workload.NeedsTagsResolution() {
-		// this is a container, try to resolve its tags now
-		if err := cr.fetchTags(workload); err != nil || workload.NeedsTagsResolution() {
-			// push to the workloadsWithoutTags chan so that its tags can be resolved later
-			select {
-			case cr.workloadsWithoutTags <- workload:
-			default:
-			}
-			return
-		}
-	}
+// GetCGroupContext returns the cgroup context with the specified path key
+func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupContext, bool) {
+	cr.Lock()
+	defer cr.Unlock()
 
-	// notify listeners
-	cr.listenersLock.Lock()
-	defer cr.listenersLock.Unlock()
-	for _, l := range cr.listeners[WorkloadSelectorResolved] {
-		l(workload)
-	}
-}
-
-// fetchTags fetches tags for the provided workload
-func (cr *Resolver) fetchTags(workload *cgroupModel.CacheEntry) error {
-	newTags, err := cr.tagsResolver.ResolveWithErr(string(workload.ContainerID))
-	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", workload.ContainerID, err)
-	}
-	workload.SetTags(newTags)
-	return nil
+	return cr.cgroups.Get(cgroupPath)
 }
 
 // GetWorkload returns the workload referenced by the provided ID
-func (cr *Resolver) GetWorkload(id string) (*cgroupModel.CacheEntry, bool) {
-	cr.RLock()
-	defer cr.RUnlock()
+func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.CacheEntry, bool) {
+	if id == "" {
+		return nil, false
+	}
 
-	return cr.workloads.Get(id)
+	cr.Lock()
+	defer cr.Unlock()
+
+	return cr.containerWorkloads.Get(id)
 }
 
 // DelPID removes a PID from the cgroup resolver
@@ -196,22 +166,12 @@ func (cr *Resolver) DelPID(pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	for _, id := range cr.workloads.Keys() {
-		entry, exists := cr.workloads.Get(id)
-		if exists {
-			cr.deleteWorkloadPID(pid, entry)
-		}
+	for _, workload := range cr.containerWorkloads.Values() {
+		cr.deleteWorkloadPID(pid, workload)
 	}
-}
 
-// DelPIDWithID removes a PID from the cgroup cache entry referenced by the provided ID
-func (cr *Resolver) DelPIDWithID(id string, pid uint32) {
-	cr.Lock()
-	defer cr.Unlock()
-
-	entry, exists := cr.workloads.Get(id)
-	if exists {
-		cr.deleteWorkloadPID(pid, entry)
+	for _, workload := range cr.hostWorkloads.Values() {
+		cr.deleteWorkloadPID(pid, workload)
 	}
 }
 
@@ -224,14 +184,44 @@ func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEnt
 
 	// check if the workload should be deleted
 	if len(workload.PIDs) <= 0 {
-		cr.workloads.Remove(string(workload.ContainerID))
+		cr.cgroups.Remove(workload.CGroupFile)
+		cr.hostWorkloads.Remove(workload.CGroupID)
+		if workload.ContainerID != "" {
+			cr.containerWorkloads.Remove(workload.ContainerID)
+		}
 	}
 }
 
 // Len return the number of entries
 func (cr *Resolver) Len() int {
-	cr.RLock()
-	defer cr.RUnlock()
+	cr.Lock()
+	defer cr.Unlock()
 
-	return cr.workloads.Len()
+	return cr.cgroups.Len()
+}
+
+// SendStats sends stats
+func (cr *Resolver) SendStats() error {
+	cr.Lock()
+	defer cr.Unlock()
+
+	if val := float64(cr.containerWorkloads.Len()); val > 0 {
+		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverActiveContainerWorkloads, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricCGroupResolverActiveContainerWorkloads: %w", err)
+		}
+	}
+
+	if val := float64(cr.hostWorkloads.Len()); val > 0 {
+		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverActiveHostWorkloads, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricCGroupResolverActiveHostWorkloads: %w", err)
+		}
+	}
+
+	if val := float64(cr.cgroups.Len()); val > 0 {
+		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverActiveCGroups, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricCGroupResolverActiveCGroups: %w", err)
+		}
+	}
+
+	return nil
 }

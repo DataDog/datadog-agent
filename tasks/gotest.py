@@ -21,16 +21,15 @@ from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit
 
-from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
-from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
-from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
+from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
     clean_nested_paths,
@@ -39,17 +38,16 @@ from tasks.libs.common.utils import (
     running_in_ci,
 )
 from tasks.libs.releasing.json import _get_release_json_value
-from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
+from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
-from tasks.trace_agent import integration_tests as trace_integration_tests
-from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
+from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
+    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
 )
 
 
@@ -135,7 +133,7 @@ def test_flavor(
     def command(test_results, module, module_result):
         module_path = module.full_path()
         with ctx.cd(module_path):
-            packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
+            packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.test_targets)
             with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
                 res = ctx.run(
                     command=cmd.format(
@@ -147,6 +145,9 @@ def test_flavor(
                     out_stream=test_profiler,
                     warn=True,
                 )
+                # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+                if res is not None and res.exited == 130:
+                    raise KeyboardInterrupt()
 
         module_result.result_json_path = os.path.join(module_path, GO_TEST_RESULT_TMP_JSON)
 
@@ -204,7 +205,9 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool, extra_flakes_config: str | None = None
+) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path
@@ -224,7 +227,13 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        tw = TestWasher()
+        flakes_configs = ["flakes.yaml"]
+        if extra_flakes_config is not None:
+            flakes_configs.append(extra_flakes_config)
+        tw = TestWasher(flakes_file_paths=flakes_configs)
+        print(
+            "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
+        )
         should_succeed = tw.process_module_results(test_results)
         if should_succeed:
             print(
@@ -250,7 +259,6 @@ def test(
     race=False,
     profile=False,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     cpus=None,
     major_version='7',
@@ -259,7 +267,7 @@ def test(
     test_run_name="",
     save_result_json=None,
     rerun_fails=None,
-    go_mod="mod",
+    go_mod="readonly",
     junit_tar="",
     only_modified_packages=False,
     only_impacted_packages=False,
@@ -298,7 +306,6 @@ def test(
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
-        python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
     )
@@ -401,27 +408,6 @@ def test(
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
-    """
-    Run all the available integration tests
-    """
-    tests = [
-        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
-    ]
-    for t in tests:
-        try:
-            t()
-        except Exit as e:
-            if e.code != 0:
-                raise
-            elif debug:
-                print(e.message)
-
-
-@task
 def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow="default"):
     """
     Run e2e tests in several environments.
@@ -467,7 +453,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         assert best_module_path, f"No module found for {modified_file}"
         module = get_module_by_path(best_module_path)
-        targets = module.lint_targets if lint else module.targets
+        targets = module.lint_targets if lint else module.test_targets
 
         for target in targets:
             if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
@@ -501,24 +487,25 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         if best_module_path in modules_to_test:
             if (
-                modules_to_test[best_module_path].targets is not None
-                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].targets
+                modules_to_test[best_module_path].test_targets is not None
+                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].test_targets
             ):
-                modules_to_test[best_module_path].targets.append(relative_target)
+                modules_to_test[best_module_path].test_targets.append(relative_target)
         else:
-            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[relative_target])
+            modules_to_test[best_module_path] = GoModule(best_module_path, test_targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
+    default_modules = get_default_modules()
     for module in modules_to_test:
-        modules_to_test[module].targets = clean_nested_paths(modules_to_test[module].targets)
+        modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
         if (
-            len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
+            len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].targets = DEFAULT_MODULES[module].targets
+            modules_to_test[module].test_targets = default_modules[module].test_targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
-        print(f"- {module}: {modules_to_test[module].targets}")
+        print(f"- {module}: {modules_to_test[module].test_targets}")
 
     return list(modules_to_test.values())
 
@@ -666,7 +653,7 @@ def get_impacted_packages(ctx, build_tags=None):
     # Some files like tasks/gotest.py should trigger all tests
     if should_run_all_tests(ctx, TRIGGER_ALL_TESTS_PATHS):
         print(f"Triggering all tests because a file matching one of the {TRIGGER_ALL_TESTS_PATHS} was modified")
-        return DEFAULT_MODULES.values()
+        return get_default_modules().values()
 
     modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
 
@@ -698,7 +685,7 @@ def create_dependencies(ctx, build_tags=None):
     if build_tags is None:
         build_tags = []
     modules_deps = defaultdict(set)
-    for modules in DEFAULT_MODULES:
+    for modules in get_default_modules():
         with ctx.cd(modules):
             res = ctx.run(
                 'go list '
@@ -747,16 +734,17 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
 
+    default_modules = get_default_modules()
     for package in packages:
         module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
-        if module_path not in DEFAULT_MODULES or not DEFAULT_MODULES[module_path].condition():
+        if module_path not in default_modules or not default_modules[module_path].should_test():
             continue
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
-        for target in DEFAULT_MODULES[module_path].targets:
+        for target in default_modules[module_path].test_targets:
             if normpath(os.path.join(module_path, target)) in package:
                 targeted = True
                 break
@@ -770,25 +758,29 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
         relative_target = "./" + os.path.relpath(package, module_path).replace("\\", "/")
 
         if module_path in modules_to_test:
-            if modules_to_test[module_path].targets is not None and package not in modules_to_test[module_path].targets:
-                modules_to_test[module_path].targets.append(relative_target)
+            if (
+                modules_to_test[module_path].test_targets is not None
+                and package not in modules_to_test[module_path].test_targets
+            ):
+                modules_to_test[module_path].test_targets.append(relative_target)
         else:
-            modules_to_test[module_path] = GoModule(module_path, targets=[relative_target])
+            modules_to_test[module_path] = GoModule(module_path, test_targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
+    default_modules = get_default_modules()
     for module in modules_to_test:
-        modules_to_test[module].targets = clean_nested_paths(modules_to_test[module].targets)
+        modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
         if (
-            len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
+            len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].targets = DEFAULT_MODULES[module].targets
+            modules_to_test[module].test_targets = default_modules[module].test_targets
 
     module_to_remove = []
     # Clean up to avoid running tests on package with no Go files matching build tags
     for module in modules_to_test:
         with ctx.cd(module):
             res = ctx.run(
-                f'go list -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].targets])}',
+                f'go list -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
                 hide=True,
                 warn=True,
             )
@@ -798,8 +790,8 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
                         package.split(" ")[1].strip(":").replace("github.com/DataDog/datadog-agent/", ""), module
                     ).replace("\\", "/")
                     try:
-                        modules_to_test[module].targets.remove(f"./{package_to_remove}")
-                        if len(modules_to_test[module].targets) == 0:
+                        modules_to_test[module].test_targets.remove(f"./{package_to_remove}")
+                        if len(modules_to_test[module].test_targets) == 0:
                             module_to_remove.append(module)
                     except Exception:
                         print("Could not remove ", package_to_remove, ", ignoring...")
@@ -808,7 +800,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
-        print(f"- {module}: {modules_to_test[module].targets}")
+        print(f"- {module}: {modules_to_test[module].test_targets}")
 
     return modules_to_test.values()
 
@@ -895,15 +887,16 @@ def check_otel_build(ctx):
 
 
 @task
-def check_otel_module_versions(ctx):
+def check_otel_module_versions(ctx, fix=False):
     pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
-    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
+    # TODO(songy23): restore to OTEL_UPSTREAM_GO_MOD_PATH once otel v0.120.0 is brought to Agent.
+    r = requests.get("https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod")
     matches = re.findall(pattern, r.text, flags=re.MULTILINE)
     if len(matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
     upstream_version = matches[0]
 
-    for path, module in DEFAULT_MODULES.items():
+    for path, module in get_default_modules().items():
         if module.used_by_otel:
             mod_file = f"./{path}/go.mod"
             with open(mod_file, newline='', encoding='utf-8') as reader:
@@ -912,4 +905,14 @@ def check_otel_module_versions(ctx):
                 if len(matches) != 1:
                     raise Exit(f"{mod_file} does not match expected go directive format")
                 if matches[0] != upstream_version:
-                    raise Exit(f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}")
+                    if fix:
+                        update_file(
+                            True,
+                            mod_file,
+                            f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$",
+                            f"go {upstream_version}",
+                        )
+                    else:
+                        raise Exit(
+                            f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}"
+                        )

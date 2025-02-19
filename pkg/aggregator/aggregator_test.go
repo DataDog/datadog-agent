@@ -22,13 +22,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -57,8 +60,11 @@ func initF() {
 	tagsetTlm.reset()
 }
 
-func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 1000, 1000)
+func testNewFlushTrigger(start time.Time, waitForSerializer bool, callback func(_ *metrics.Serie)) flushTrigger {
+	if callback == nil {
+		callback = func(_ *metrics.Serie) {}
+	}
+	seriesSink := metrics.NewIterableSeries(callback, 1000, 1000)
 	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
@@ -130,7 +136,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 		return agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
 	}, time.Second, 10*time.Millisecond)
 
-	agg.Flush(testNewFlushTrigger(time.Now(), false))
+	agg.Flush(testNewFlushTrigger(time.Now(), false, nil))
 
 	agg.mu.Lock()
 	require.Len(t, agg.checkSamplers, 1)
@@ -146,8 +152,8 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-	agg := NewBufferedAggregator(s, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -179,8 +185,8 @@ func TestAddEventDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-	agg := NewBufferedAggregator(s, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
 
 	agg.addEvent(event.Event{
 		// only populate required fields
@@ -229,8 +235,8 @@ func TestDefaultData(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-	agg := NewBufferedAggregator(s, nil, taggerComponent, "hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval)
 
 	start := time.Now()
 
@@ -265,12 +271,75 @@ func TestDefaultData(t *testing.T) {
 
 	s.On("SendSeries", series).Return(nil).Times(1)
 
-	agg.Flush(testNewFlushTrigger(start, false))
+	agg.Flush(testNewFlushTrigger(start, false, nil))
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
 
 	// not counted as huge for (just checking the first threshold..)
 	assert.Equal(t, uint64(0), tagsetTlm.hugeSeriesCount[0].Load())
+}
+
+func TestDefaultSeries(t *testing.T) {
+	s := &MockSerializerIterableSerie{}
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("config_id", "config123")
+
+	mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+	mockHaAgent.SetEnabled(true)
+	mockHaAgent.SetState(haagent.Active)
+
+	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval)
+
+	start := time.Now()
+
+	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
+		require.Equal(t, 1, len(m))
+		require.Equal(t, "datadog.agent.up", m[0].CheckName)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
+		require.Equal(t, []string{}, m[0].Tags)
+		require.Equal(t, agg.hostname, m[0].Host)
+
+		return true
+	})
+	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
+
+	expectedSeries := metrics.Series{&metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
+		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "config_id:config123"}),
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
+		Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{"config_id:config123", "ha_agent_state:standby"}),
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	}, &metrics.Serie{
+		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
+		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		Tags:           tagset.CompositeTagsFromSlice([]string{}),
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+		NoIndex:        true,
+	}}
+
+	s.On("SendSeries", expectedSeries).Return(nil).Times(1)
+
+	var flushedSeries metrics.Series
+	triggerInstance := testNewFlushTrigger(start, false, func(serie *metrics.Serie) {
+		flushedSeries = append(flushedSeries, serie)
+	})
+
+	agg.Flush(triggerInstance)
+
+	assert.EqualValues(t, expectedSeries, flushedSeries)
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
@@ -513,6 +582,8 @@ func TestTags(t *testing.T) {
 		agentTags               func(types.TagCardinality) ([]string, error)
 		globalTags              func(types.TagCardinality) ([]string, error)
 		withVersion             bool
+		haAgentEnabled          bool
+		configID                string
 		want                    []string
 	}{
 		{
@@ -583,13 +654,47 @@ func TestTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			mockConfig.SetWithoutSource("config_id", tt.configID)
 
-			taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
+			taggerComponent := taggerMock.SetupFakeTagger(t)
 
-			agg := NewBufferedAggregator(nil, nil, taggerComponent, tt.hostname, time.Second)
+			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+			mockHaAgent.SetEnabled(tt.haAgentEnabled)
+
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
+		})
+	}
+}
+
+func TestConfigIDTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		configID string
+		want     []string
+	}{
+		{
+			name: "without config_id",
+			want: []string{},
+		},
+		{
+			name:     "with config_id",
+			configID: "my-config",
+			want:     []string{"config_id:my-config"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("config_id", tt.configID)
+
+			taggerComponent := taggerMock.SetupFakeTagger(t)
+			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
+
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second)
+			assert.ElementsMatch(t, tt.want, agg.configIDTags())
 		})
 	}
 }
@@ -619,8 +724,8 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
-	taggerComponent := fxutil.Test[tagger.Mock](t, taggerimpl.MockModule())
-	NewBufferedAggregator(s, nil, taggerComponent, "hostname", DefaultFlushInterval)
+	taggerComponent := taggerMock.SetupFakeTagger(t)
+	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval)
 
 	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
 		Name:   "datadog.djm.agent_host",
@@ -726,10 +831,11 @@ type aggregatorDeps struct {
 	Demultiplexer    *AgentDemultiplexer
 	OrchestratorFwd  orchestratorforwarder.Component
 	EventPlatformFwd eventplatform.Component
+	Compressor       compression.Component
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), compressionimpl.MockModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), logscompressionmock.MockModule(), metricscompressionmock.MockModule(), haagentmock.Module())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

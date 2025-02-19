@@ -36,12 +36,18 @@ func init() {
 	udpExpvars.Set("Bytes", &udpBytes)
 }
 
+type netUDPConn interface {
+	LocalAddr() net.Addr
+	ReadFrom(b []byte) (int, net.Addr, error)
+	Close() error
+}
+
 // UDPListener implements the StatsdListener interface for UDP protocol.
 // It listens to a given UDP address and sends back packets ready to be
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn            *net.UDPConn
+	conn            netUDPConn
 	packetsBuffer   *packets.Buffer
 	packetAssembler *packets.Assembler
 	buffer          []byte

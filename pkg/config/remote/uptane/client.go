@@ -11,12 +11,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/go-tuf/client"
 	"github.com/DataDog/go-tuf/data"
@@ -341,6 +342,37 @@ func (c *Client) TargetFile(path string) ([]byte, error) {
 	return c.unsafeTargetFile(path)
 }
 
+// TargetFiles returns the content of various multiple target files if the repository is in a
+// verified state.
+func (c *Client) TargetFiles(targetFiles []string) (map[string][]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	err := c.verify()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the storage space
+	destinations := make(map[string]client.Destination)
+	for _, path := range targetFiles {
+		destinations[path] = &bufferDestination{}
+	}
+
+	err = c.directorTUFClient.DownloadBatch(destinations)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the return type
+	files := make(map[string][]byte)
+	for path, contents := range destinations {
+		files[path] = contents.(*bufferDestination).Bytes()
+	}
+
+	return files, nil
+}
+
 // TargetsMeta returns the current raw targets.json meta of this uptane client
 func (c *Client) TargetsMeta() ([]byte, error) {
 	c.Lock()
@@ -456,7 +488,10 @@ func (c *Client) verifyOrg() error {
 		}
 		checkOrgID := configPathMeta.Source != rdata.SourceEmployee
 		if checkOrgID && configPathMeta.OrgID != c.orgID {
-			return fmt.Errorf("director target '%s' does not have the correct orgID", targetPath)
+			return fmt.Errorf(
+				"director target '%s' does not have the correct orgID. %d != %d",
+				targetPath, configPathMeta.OrgID, c.orgID,
+			)
 		}
 	}
 	return nil

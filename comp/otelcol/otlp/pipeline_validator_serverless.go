@@ -11,11 +11,12 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func checkAndUpdateCfg(cfg config.Component, pcfg PipelineConfig, logsAgentChannel chan *message.Message) error {
-	if HasLogsSectionEnabled(cfg) {
+	if configcheck.HasLogsSectionEnabled(cfg) {
 		pipelineError.Store(fmt.Errorf("Cannot enable OTLP log ingestion for serverless"))
 		return pipelineError.Load()
 	}

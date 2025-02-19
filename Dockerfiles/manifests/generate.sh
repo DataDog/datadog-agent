@@ -24,6 +24,8 @@ datadog:
     socketEnabled: false
   processAgent:
     enabled: false
+    containerCollection: false
+    processDiscovery: false
 EOF
 
 cat > "$TMPDIR/values-all-containers.yaml" <<EOF
@@ -52,6 +54,8 @@ datadog:
     socketEnabled: false
   processAgent:
     enabled: false
+    containerCollection: false
+    processDiscovery: false
 clusterAgent:
   enabled: true
   metricsProvider:
@@ -65,6 +69,8 @@ datadog:
     socketEnabled: false
   processAgent:
     enabled: false
+    containerCollection: false
+    processDiscovery: false
 clusterAgent:
   enabled: true
   metricsProvider:
@@ -79,6 +85,8 @@ datadog:
     socketEnabled: false
   processAgent:
     enabled: false
+    containerCollection: false
+    processDiscovery: false
   clusterChecks:
     enabled: true
 clusterAgent:

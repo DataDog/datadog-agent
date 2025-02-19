@@ -165,7 +165,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
 		if event == nil || (eventType != "open") {
 			return false
 		}
@@ -238,7 +238,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 			t.Fatal(err)
 		}
 		return nil
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, _ eval.EventType) bool {
 		e := event.(*model.Event)
 		if e == nil || e.GetEventType() != model.FileOpenEventType {
 			return false
@@ -299,7 +299,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
 		if event == nil || (eventType != "open") {
 			return false
 		}
@@ -617,7 +617,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 
 			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 
@@ -656,7 +656,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
 		})
 	}))
@@ -698,7 +698,7 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
 		if event == nil || (eventType != "open") {
 			return false
 		}
@@ -784,7 +784,7 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, eventType eval.EventType) bool {
 		if event == nil || (eventType != "open") {
 			return false
 		}
@@ -956,9 +956,9 @@ func TestFilterDiscarderRetention(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+	}, func(event eval.Event, _ eval.Field, _ eval.EventType) bool {
 		e := event.(*model.Event)
-		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+		if e == nil || e.GetEventType() != model.FileOpenEventType {
 			return false
 		}
 
@@ -1051,7 +1051,7 @@ func TestFilterBpfCmd(t *testing.T) {
 			return err
 		}
 		return nil
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_bpf_map_create")
 	})
 
@@ -1070,10 +1070,7 @@ func TestFilterBpfCmd(t *testing.T) {
 			return false
 		}
 		cmd := model.BPFCmd(uint64(cmdInt))
-		if assert.Equal(t, model.BpfMapCreateCmd, cmd, "should not get a bpf event with cmd other than BPF_MAP_CREATE") {
-			return false
-		}
-		return true
+		return !assert.Equal(t, model.BpfMapCreateCmd, cmd, "should not get a bpf event with cmd other than BPF_MAP_CREATE")
 	}, 1*time.Second, model.BPFEventType)
 	if err != nil {
 		if otherErr, ok := err.(ErrTimeout); !ok {
@@ -1122,7 +1119,7 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 	// unlink aren't discarded kernel side (inode invalidation) but should be discarded before the rule evaluation
 	err = test.GetSignal(t, func() error {
 		return os.Remove(testFile)
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(_ *model.Event, _ *rules.Rule) {
 		t.Errorf("shouldn't get an event")
 	})
 

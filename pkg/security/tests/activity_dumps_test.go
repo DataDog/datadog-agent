@@ -93,7 +93,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +134,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -211,7 +211,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -256,7 +256,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -295,7 +295,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -338,7 +338,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -351,10 +351,10 @@ func TestActivityDumps(t *testing.T) {
 			var exitOK, bindOK bool
 			for _, node := range nodes {
 				for _, s := range node.Syscalls {
-					if s == int(model.SysExit) || s == int(model.SysExitGroup) {
+					if s.Syscall == int(model.SysExit) || s.Syscall == int(model.SysExitGroup) {
 						exitOK = true
 					}
-					if s == int(model.SysBind) {
+					if s.Syscall == int(model.SysBind) {
 						bindOK = true
 					}
 				}
@@ -394,7 +394,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -568,9 +568,9 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
@@ -587,9 +587,9 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_dns")
@@ -677,9 +677,9 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			cmd := dockerInstance2.Command("getconf", []string{"-a"}, []string{})
 			_, err := cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
@@ -696,9 +696,9 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			cmd := dockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_dns")

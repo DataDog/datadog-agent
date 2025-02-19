@@ -12,7 +12,7 @@ import "github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 type Opts struct {
 	PathResolutionEnabled    bool
 	EnvVarsResolutionEnabled bool
-	TagsResolver             tags.Resolver
+	Tagger                   tags.Tagger
 	UseRingBuffer            bool
 	TTYFallbackEnabled       bool
 }

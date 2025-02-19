@@ -27,7 +27,7 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -37,7 +37,7 @@ import (
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -597,7 +597,7 @@ func TestProcessEvents(t *testing.T) {
 	cacheDir := t.TempDir()
 
 	cfg := configmock.New(t)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
+	wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Replace(configcomp.MockParams{
@@ -626,7 +626,7 @@ func TestProcessEvents(t *testing.T) {
 				SBOMsSent.Inc()
 			})
 
-			fakeTagger := taggerimpl.SetupFakeTagger(t)
+			fakeTagger := taggerMock.SetupFakeTagger(t)
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.

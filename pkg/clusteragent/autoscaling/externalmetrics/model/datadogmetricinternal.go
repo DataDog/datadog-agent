@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -265,7 +265,10 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetr
 // ToExternalMetricFormat returns the current DatadogMetric in the format used by Kubernetes
 func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string, metricsMaxAge int64, time time.Time, gracePeriod int64) (*external_metrics.ExternalMetricValue, error) {
 	if !d.Valid {
-		return nil, fmt.Errorf("DatadogMetric is invalid, err: %v", d.Error)
+		if d.Error != nil {
+			return nil, d.Error
+		}
+		return nil, fmt.Errorf("DatadogMetric is invalid, missing error details")
 	}
 
 	if d.IsStale(metricsMaxAge, time.UTC().Unix(), gracePeriod) {
@@ -317,7 +320,7 @@ func (d *DatadogMetricInternal) resolveQuery(query string) {
 		return
 	}
 	if resolvedQuery != "" {
-		log.Infof("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
+		log.Debugf("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
 		d.resolvedQuery = &resolvedQuery
 		return
 	}

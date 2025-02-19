@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	json "github.com/json-iterator/go"
@@ -110,6 +111,9 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		Meta:     lp.requestHandler.triggerTags,
 		Metrics:  lp.requestHandler.triggerMetrics,
 	}
+	if executionContext.TraceIDUpper64Hex != "" {
+		executionSpan.Meta[Upper64BitsTag] = executionContext.TraceIDUpper64Hex
+	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
 	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.ColdStart)
 	if endDetails.ProactiveInit {
@@ -178,6 +182,9 @@ func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.In
 	}
 
 	inferredSpan.Span.TraceID = lp.GetExecutionInfo().TraceID
+	if lp.GetExecutionInfo().TraceIDUpper64Hex != "" {
+		inferredSpan.Span.Meta[Upper64BitsTag] = lp.GetExecutionInfo().TraceIDUpper64Hex
+	}
 
 	return inferredSpan.Span
 }
@@ -233,6 +240,30 @@ func InjectContext(executionContext *ExecutionStartInfo, headers http.Header) {
 		log.Debugf("injecting samplingPriority = %v", value)
 		executionContext.SamplingPriority = sampler.SamplingPriority(value)
 	}
+
+	upper64hex := getUpper64Hex(headers.Get(TraceTagsHeader))
+	if upper64hex != "" {
+		executionContext.TraceIDUpper64Hex = upper64hex
+	}
+}
+
+// searches traceTags for "_dd.p.tid=[upper 64 bits hex]" and returns that value if found
+func getUpper64Hex(traceTags string) string {
+	if !strings.Contains(traceTags, Upper64BitsTag) {
+		return ""
+	}
+	kvpairs := strings.Split(traceTags, ",")
+	for _, pair := range kvpairs {
+		if !strings.Contains(pair, Upper64BitsTag) {
+			continue
+		}
+		kv := strings.Split(pair, "=")
+		if len(kv) != 2 {
+			return ""
+		}
+		return kv[1]
+	}
+	return ""
 }
 
 // InjectSpanID injects the spanId

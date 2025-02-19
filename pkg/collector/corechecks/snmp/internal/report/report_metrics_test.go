@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -20,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -316,7 +314,7 @@ func TestSendMetric(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
@@ -453,7 +451,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
@@ -640,14 +638,14 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
 			mockSender := mocksender.NewMockSender("foo")
 			metricSender := MetricSender{sender: mockSender}
 
-			configvalidation.ValidateEnrichMetricTags(tt.metricsTags)
+			profiledefinition.ValidateEnrichMetricTags(tt.metricsTags)
 			tags := metricSender.GetCheckInstanceMetricTags(tt.metricsTags, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)

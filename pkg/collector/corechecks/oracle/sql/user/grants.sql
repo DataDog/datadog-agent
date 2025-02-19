@@ -39,6 +39,7 @@ declare
     'v_$dataguard_stats',
     'v_$transaction',
     'v_$locked_object',
+    'v_$active_session_history',
     'dba_objects',
     'cdb_data_files',
     'dba_data_files'
@@ -56,9 +57,7 @@ begin
         command := 'grant select on ' || array(i) || ' to &&user with grant option';
       end if;
       begin
-         dbms_output.disable;
          execute immediate command;
-         dbms_output.enable;
       exception
          when others then
             null;

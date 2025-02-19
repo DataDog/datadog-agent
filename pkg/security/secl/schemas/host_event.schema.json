@@ -1,0 +1,23 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "host_event.schema.json",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "file": { "$ref": "file.schema.json" }
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        }
+    ]
+}

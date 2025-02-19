@@ -11,12 +11,13 @@ typedef struct {
     unsigned long err_count[T_MAX_ERRNO];
 } map_err_telemetry_t;
 
-#define read_indx 0
-#define read_user_indx 1
-#define read_kernel_indx 2
-#define skb_load_bytes 3
-#define perf_event_output 4
-#define MAX_TELEMETRY_INDX 5
+#define bpf_probe_read_indx         0
+#define bpf_probe_read_user_indx    1
+#define bpf_probe_read_kernel_indx  2
+#define bpf_skb_load_bytes_indx     3
+#define bpf_perf_event_output_indx  4
+#define bpf_ringbuf_output_indx     5
+#define MAX_TELEMETRY_INDX          6
 typedef struct {
     unsigned long err_count[MAX_TELEMETRY_INDX * T_MAX_ERRNO];
 } helper_err_telemetry_t;

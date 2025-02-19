@@ -10,11 +10,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 )
 
 const (
@@ -28,21 +29,42 @@ type ddExtensionFactory struct {
 	configProviderSettings otelcol.ConfigProviderSettings
 }
 
-// NewFactory creates a factory for HealthCheck extension.
-func NewFactory(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings) extension.Factory {
+// isOCB returns true if extension was built with OCB
+func (f *ddExtensionFactory) isOCB() bool {
+	return f.factories == nil
+}
+
+// NewFactory creates a factory for Datadog Flare Extension for use with OCB and OSS Collector
+func NewFactory() extension.Factory {
+	return &ddExtensionFactory{}
+}
+
+// NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
+func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings) extension.Factory {
 	return &ddExtensionFactory{
 		factories:              factories,
 		configProviderSettings: configProviderSettings,
 	}
 }
 
+// CreateExtension is deprecated as of v0.112.0
 func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{
 		factories:              f.factories,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, !f.isOCB())
+}
+
+// Create creates a new instance of the Datadog Flare Extension, as of v0.112.0 or later
+func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
+	config := &Config{
+		factories:              f.factories,
+		configProviderSettings: f.configProviderSettings,
+	}
+	config.HTTPConfig = cfg.(*Config).HTTPConfig
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, !f.isOCB())
 }
 
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
@@ -57,6 +79,12 @@ func (f *ddExtensionFactory) Type() component.Type {
 	return metadata.Type
 }
 
+// ExtensionStability is deprecated as of v0.112.0
 func (f *ddExtensionFactory) ExtensionStability() component.StabilityLevel {
+	return metadata.ExtensionStability
+}
+
+// Stability returns the stability level of the component as of v0.112.0 or later
+func (f *ddExtensionFactory) Stability() component.StabilityLevel {
 	return metadata.ExtensionStability
 }

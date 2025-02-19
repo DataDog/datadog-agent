@@ -19,17 +19,17 @@ func getTestFactory(t *testing.T) extension.Factory {
 	factories, err := components()
 	assert.NoError(t, err)
 
-	return NewFactory(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false))
+	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false))
 }
 
-func TestNewFactory(t *testing.T) {
+func TestNewFactoryForAgent(t *testing.T) {
 	factory := getTestFactory(t)
 	assert.NotNil(t, factory)
 
 	cfg := factory.CreateDefaultConfig()
 	assert.NotNil(t, cfg)
 
-	ext, err := factory.CreateExtension(context.Background(), extension.Settings{}, cfg)
+	ext, err := factory.Create(context.Background(), extension.Settings{}, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
 
@@ -45,8 +45,7 @@ func TestTypeStability(t *testing.T) {
 	assert.Equalf(t, typ, metadata.Type,
 		"Factory type is %v expected it to be %x", typ, metadata.Type)
 
-	stability := factory.ExtensionStability()
+	stability := factory.Stability()
 	assert.Equalf(t, stability, metadata.ExtensionStability,
 		"Factory stability is %v expected it to be %x", stability, metadata.ExtensionStability)
-
 }

@@ -11,14 +11,14 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
@@ -50,7 +50,7 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 // 4. Create an installer executor from the extract layer.
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*exec.InstallerExec, error) {
 	// 1. Download the installer package from the registry.
-	downloader := oci.NewDownloader(env, http.DefaultClient)
+	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)

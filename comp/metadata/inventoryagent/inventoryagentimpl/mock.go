@@ -6,12 +6,10 @@
 package inventoryagentimpl
 
 import (
-	"net/http"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 )
 
@@ -32,32 +30,20 @@ func MockModule() fxutil.Module {
 type MockProvides struct {
 	fx.Out
 
-	Comp     iainterface.Component
-	Endpoint api.AgentEndpointProvider
+	Comp iainterface.Component
 }
 
 type inventoryagentMock struct{}
 
-// handlerFunc is a simple mocked http.Handler function
-func (m *inventoryagentMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
-}
-
 func newMock() MockProvides {
 	ia := &inventoryagentMock{}
 	return MockProvides{
-		Comp:     ia,
-		Endpoint: api.NewAgentEndpointProvider(ia.handlerFunc, "/metadata/inventory-agent", "GET"),
+		Comp: ia,
 	}
 }
 
 // Set is an empty function on this mock
 func (m *inventoryagentMock) Set(string, interface{}) {}
-
-// GetAsJSON is a mocked function
-func (m *inventoryagentMock) GetAsJSON() ([]byte, error) {
-	return []byte("{}"), nil
-}
 
 // Get is a mocked function
 func (m *inventoryagentMock) Get() map[string]interface{} {

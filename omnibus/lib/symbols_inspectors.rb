@@ -5,6 +5,10 @@ class ForbiddenSymbolsFoundError < StandardError
 
 end
 
+class FIPSSymbolsNotFound < StandardError
+
+end
+
 # Helper class to locate `dumpbin.exe` on Windows
 class Dumpbin
   include Singleton

@@ -35,9 +35,9 @@ class TestComponents(unittest.TestCase):
         components.components_classic_style.remove(classicComp)
 
     def test_find_team(self):
-        content = ['// my file', '// team: agent-shared-components', '// file starts here']
+        content = ['// my file', '// team: agent-runtimes', '// file starts here']
         teamname = components.find_team(content)
-        self.assertEqual(teamname, 'agent-shared-components')
+        self.assertEqual(teamname, 'agent-runtimes')
 
     def test_get_components_and_bundles(self):
         comps, bundles = components.get_components_and_bundles()
@@ -83,7 +83,7 @@ class TestComponents(unittest.TestCase):
         self.assertEqual(0, len(errs))
 
         # Lint error because team owner is missing
-        remove_line(filename, '// team: agent-shared-components')
+        remove_line(filename, '// team: agent-runtimes')
 
         _, bundles = components.get_components_and_bundles()
         errs = components.validate_bundles(bundles)
@@ -97,7 +97,7 @@ class TestComponents(unittest.TestCase):
 
         # Lint error because team owner is missing
         filename = os.path.join(comps[3].path, 'def/component.go')
-        remove_line(filename, '// team: agent-shared-components')
+        remove_line(filename, '// team: agent-runtimes')
 
         comps, _ = components.get_components_and_bundles()
         errs = components.validate_components(comps)
@@ -214,6 +214,7 @@ class TestComponents(unittest.TestCase):
 
         implfolder = os.path.join(comps[3].path, 'impl')
         newfolder = os.path.join(comps[3].path, 'impl-alt')
+        replace_line(filename, 'package newstyleimpl', 'package altimpl')
         shutil.move(implfolder, newfolder)
 
         comps, _ = components.get_components_and_bundles()

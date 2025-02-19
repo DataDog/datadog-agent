@@ -1,0 +1,23 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "message.schema.json",
+    "allOf": [
+        {
+            "properties": {
+                "agent": {
+                    "$ref": "agent_context.schema.json"
+                }
+            }
+        },
+        {
+            "properties": {
+                "evt": {
+                    "type": "object"
+                }
+            },
+            "required": [
+                "evt"
+            ]
+        }
+    ]
+}

@@ -9,10 +9,11 @@ package aws
 
 import (
 	"context"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"time"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go

@@ -48,7 +48,8 @@
           "SubnetGatewayIpv4Address": "172.31.15.1/24"
         }
       ],
-      "Snapshotter": "overlayfs"
+      "Snapshotter": "overlayfs",
+      "RestartCount": 42
     },
     {
       "DockerId": "938f6d263c464aa5985dc67ab7f38a7e-2537586469",
@@ -96,7 +97,8 @@
           "SubnetGatewayIpv4Address": "172.31.11.1/24"
         }
       ],
-      "Snapshotter": "overlayfs"
+      "Snapshotter": "overlayfs",
+      "RestartCount": 42
     },
     {
       "DockerId": "938f6d263c464aa5985dc67ab7f38a7e-3054012820",
@@ -134,7 +136,8 @@
           "SubnetGatewayIpv4Address": "172.111.115.1/24"
         }
       ],
-      "Snapshotter": "overlayfs"
+      "Snapshotter": "overlayfs",
+      "RestartCount": 42
     }
   ],
   "ClockDrift": {

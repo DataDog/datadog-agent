@@ -77,6 +77,7 @@ type tracerOffsetGuesser struct {
 	guessUDPv6 bool
 }
 
+// NewTracerOffsetGuesser creates a new OffsetGuesser
 func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 	return &tracerOffsetGuesser{
 		m: &manager.Manager{
@@ -161,7 +162,7 @@ func expectedValues(conn net.Conn) (*fieldValues, error) {
 		return nil, err
 	}
 
-	tcpInfo, err := TcpGetInfo(conn)
+	tcpInfo, err := TCPGetInfo(conn)
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +287,7 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 // IPv6LinkLocalPrefix is only exposed for testing purposes
 var IPv6LinkLocalPrefix = "fe80::"
 
+// GetIPv6LinkLocalAddress returns the link local addresses
 func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	ints, err := net.Interfaces()
 	if err != nil {
@@ -1017,7 +1019,7 @@ func (e *tracerEventGenerator) Generate(status GuessWhat, expected *fieldValues)
 	}
 
 	// This triggers the KProbe handler attached to `tcp_getsockopt`
-	_, err := TcpGetInfo(e.conn)
+	_, err := TCPGetInfo(e.conn)
 	return err
 }
 
@@ -1080,12 +1082,12 @@ func acceptHandler(l net.Listener) {
 	}
 }
 
-// TcpGetInfo obtains information from a TCP socket via GETSOCKOPT(2) system call.
+// TCPGetInfo obtains information from a TCP socket via GETSOCKOPT(2) system call.
 // The motivation for using this is twofold: 1) it is a way of triggering the kprobe
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
+func TCPGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		return nil, fmt.Errorf("not a TCPConn")
@@ -1149,6 +1151,7 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
+// TracerOffsets is the global tracer offsets
 var TracerOffsets tracerOffsets
 
 type tracerOffsets struct {

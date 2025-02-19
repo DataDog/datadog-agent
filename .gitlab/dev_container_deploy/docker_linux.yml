@@ -31,6 +31,26 @@ dev_branch_multiarch-a7:
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_SHORT_SHA}-py3-jmx
+
+dev_branch_multiarch-fips:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.manual]
+  needs:
+    - docker_build_fips_agent7
+    - docker_build_fips_agent7_arm64
+    - docker_build_fips_agent7_jmx
+    - docker_build_fips_agent7_arm64_jmx
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-fips
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-fips-jmx
 
 dev_branch_multiarch-dogstatsd:
   extends: .docker_publish_job_definition
@@ -62,6 +82,24 @@ dev_master-a7:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
         IMG_DESTINATIONS: agent-dev:master-py3-jmx
 
+dev_master-fips:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules: !reference [.on_main]
+  needs:
+    - docker_build_fips_agent7
+    - docker_build_fips_agent7_arm64
+    - docker_build_fips_agent7_jmx
+    - docker_build_fips_agent7_arm64_jmx
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-arm64
+        IMG_DESTINATIONS: agent-dev:master-fips
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:master-fips-jmx
+
 dev_master-dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
@@ -88,7 +126,7 @@ dca_dev_branch:
 dca_dev_branch_multiarch:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_all_builds_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_cluster_agent_amd64
     - docker_build_cluster_agent_arm64
@@ -111,7 +149,7 @@ dca_dev_master:
 cws_instrumentation_dev_branch_multiarch:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_all_builds_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_cws_instrumentation_amd64
     - docker_build_cws_instrumentation_arm64

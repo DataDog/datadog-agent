@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // NewDatadogMetricForTests creates a new internal metric for tests.
@@ -30,21 +31,17 @@ func NewDatadogMetricForTests(id, query string, maxAge, timeWindow time.Duration
 
 type mockedProcessor struct {
 	points map[string]autoscalers.Point
-	err    error
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *mockedProcessor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
+func (p *mockedProcessor) UpdateExternalMetrics(map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
 	return nil
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *mockedProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
-	return p.points, p.err
+func (p *mockedProcessor) QueryExternalMetric([]string, time.Duration) map[string]autoscalers.Point {
+	return p.points
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *mockedProcessor) ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
+func (p *mockedProcessor) ProcessEMList([]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
 	return nil
 }
 
@@ -58,12 +55,10 @@ type metricsFixture struct {
 	maxAge       int64
 	storeContent []ddmWithQuery
 	queryResults map[string]autoscalers.Point
-	queryError   error
 	expected     []ddmWithQuery
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
+func (f *metricsFixture) run(t *testing.T) {
 	t.Helper()
 
 	// Create and fill store
@@ -76,7 +71,6 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 	// Create MetricsRetriever
 	mockedProcessor := mockedProcessor{
 		points: f.queryResults,
-		err:    f.queryError,
 	}
 	metricsRetriever, err := NewMetricsRetriever(0, f.maxAge, &mockedProcessor, getIsLeaderFunction(true), &store, false)
 	assert.Nil(t, err)
@@ -89,11 +83,14 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 		// Update time will be set to a value (as metricsRetriever uses time.Now()) that should be > testTime
 		// Thus, aligning updateTime to have a working comparison
 		if datadogMetric != nil && datadogMetric.Active {
-			assert.Condition(t, func() bool { return datadogMetric.UpdateTime.After(expectedDatadogMetric.ddm.UpdateTime) })
+			assert.True(t, datadogMetric.UpdateTime.After(expectedDatadogMetric.ddm.UpdateTime))
 
 			alignedTime := time.Now().UTC()
 			expectedDatadogMetric.ddm.UpdateTime = alignedTime
 			datadogMetric.UpdateTime = alignedTime
+
+			require.ErrorIs(t, datadogMetric.Error, expectedDatadogMetric.ddm.Error)
+			expectedDatadogMetric.ddm.Error = datadogMetric.Error
 		}
 
 		assert.Equal(t, &expectedDatadogMetric.ddm, datadogMetric)
@@ -144,7 +141,6 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 					Valid:     true,
 				},
 			},
-			queryError: nil,
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -174,7 +170,7 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }
@@ -223,7 +219,6 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Valid:     true,
 				},
 			},
-			queryError: nil,
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -243,7 +238,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    11.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    NewInvalidMetricOutdatedError("query-metric1"),
+						Error:    newOutdatedQueryError("query-metric1"),
 					},
 					query: "query-metric1",
 				},
@@ -288,7 +283,6 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Valid:     true,
 				},
 			},
-			queryError: nil,
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -309,7 +303,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    11.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    NewInvalidMetricOutdatedError("query-metric1"),
+						Error:    newOutdatedQueryError("query-metric1"),
 						MaxAge:   5 * time.Second,
 					},
 					query: "query-metric1",
@@ -356,7 +350,6 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Error:     errors.New("some err"),
 				},
 			},
-			queryError: nil,
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -376,7 +369,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    11.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    NewInvalidMetricError(errors.New("some err"), "query-metric1"),
+						Error:    newQueryError("query-metric1", "some err", time.Time{}),
 					},
 					query: "query-metric1",
 				},
@@ -409,8 +402,14 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					query: "query-metric1",
 				},
 			},
-			queryResults: map[string]autoscalers.Point{},
-			queryError:   fmt.Errorf("Backend error 500"),
+			queryResults: map[string]autoscalers.Point{
+				"query-metric0": {
+					Error: autoscalers.NewAPIError(errors.New("Backend error 500")),
+				},
+				"query-metric1": {
+					Error: autoscalers.NewAPIError(errors.New("Backend error 500")),
+				},
+			},
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -419,7 +418,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    1.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    NewInvalidMetricGlobalError(),
+						Error:    newBatchError(fmt.Errorf("Backend error 500"), time.Time{}),
 					},
 					query: "query-metric0",
 				},
@@ -430,7 +429,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    NewInvalidMetricGlobalError(),
+						Error:    newBatchError(fmt.Errorf("Backend error 500"), time.Time{}),
 					},
 					query: "query-metric1",
 				},
@@ -470,7 +469,6 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Valid:     true,
 				},
 			},
-			queryError: fmt.Errorf("Backend error 500"),
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -490,7 +488,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    NewInvalidMetricNotFoundError("query-metric1"),
+						Error:    newMissingResultQueryError("query-metric1"),
 					},
 					query: "query-metric1",
 				},
@@ -500,7 +498,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }
@@ -549,7 +547,6 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 					Valid:     true,
 				},
 			},
-			queryError: nil,
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -611,7 +608,6 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 					Valid:     true,
 				},
 			},
-			queryError: nil,
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -639,7 +635,7 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.run(t, defaultTestTime)
+			fixture.run(t)
 		})
 	}
 }

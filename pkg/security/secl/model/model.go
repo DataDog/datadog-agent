@@ -10,15 +10,15 @@ package model
 
 import (
 	"net"
+	"net/netip"
 	"reflect"
 	"runtime"
 	"time"
 
-	"modernc.org/mathutil"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -72,9 +72,9 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	Releasable
-	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID,opts:gen_getters"`                // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
 	Resolved    bool                       `field:"-"`
 	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
@@ -90,19 +90,31 @@ type SecurityProfileContext struct {
 
 // IPPortContext is used to hold an IP and Port
 type IPPortContext struct {
-	IPNet net.IPNet `field:"ip"`   // SECLDoc[ip] Definition:`IP address`
-	Port  uint16    `field:"port"` // SECLDoc[port] Definition:`Port number`
+	IPNet            net.IPNet `field:"ip"`                                  // SECLDoc[ip] Definition:`IP address`
+	Port             uint16    `field:"port"`                                // SECLDoc[port] Definition:`Port number`
+	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
+	IsPublicResolved bool      `field:"-"`
+}
+
+// GetComparable returns a comparable version of IPPortContext
+func (ipc *IPPortContext) GetComparable() netip.AddrPort {
+	ipcAddr, ok := netip.AddrFromSlice(ipc.IPNet.IP)
+	if !ok {
+		return netip.AddrPort{}
+	}
+	return netip.AddrPortFrom(ipcAddr, ipc.Port)
 }
 
 // NetworkContext represents the network context of the event
 type NetworkContext struct {
 	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
 
-	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
-	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
-	Source      IPPortContext `field:"source"`      // source of the network packet
-	Destination IPPortContext `field:"destination"` // destination of the network packet
-	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
+	L3Protocol       uint16        `field:"l3_protocol"`       // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
+	L4Protocol       uint16        `field:"l4_protocol"`       // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
+	Source           IPPortContext `field:"source"`            // source of the network packet
+	Destination      IPPortContext `field:"destination"`       // destination of the network packet
+	NetworkDirection uint32        `field:"network_direction"` // SECLDoc[network_direction] Definition:`Network direction of the network packet` Constants:`Network directions`
+	Size             uint32        `field:"size"`              // SECLDoc[size] Definition:`Size in bytes of the network packet`
 }
 
 // IsZero returns if there is a network context
@@ -112,8 +124,8 @@ func (nc *NetworkContext) IsZero() bool {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64          `field:"-"`
-	TraceID mathutil.Int128 `field:"-"`
+	SpanID  uint64        `field:"-"`
+	TraceID utils.TraceID `field:"-"`
 }
 
 // BaseEvent represents an event sent from the kernel
@@ -122,13 +134,13 @@ type BaseEvent struct {
 	Type          uint32         `field:"-"`
 	Flags         uint32         `field:"-"`
 	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Timestamp     time.Time      `field:"timestamp,opts:getters_only|gen_getters,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
-	Os            string         `field:"event.os"`                               // SECLDoc[event.os] Definition:`Operating system of the event`
-	Origin        string         `field:"event.origin"`                           // SECLDoc[event.origin] Definition:`Origin of the event`
-	Service       string         `field:"event.service,handler:ResolveService"`   // SECLDoc[event.service] Definition:`Service associated with the event`
-	Hostname      string         `field:"event.hostname,handler:ResolveHostname"` // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	Os            string         `field:"event.os"`                                                      // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin"`                                                  // SECLDoc[event.origin] Definition:`Origin of the event`
+	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process"`
@@ -228,6 +240,13 @@ func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
 }
 
+// ResetAnomalyDetectionEvent removes the anomaly detection event flag
+func (e *Event) ResetAnomalyDetectionEvent() {
+	if e.IsAnomalyDetectionEvent() {
+		e.RemoveFromFlags(EventFlagsAnomalyDetectionEvent)
+	}
+}
+
 // RemoveFromFlags remove a flag to the event
 func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
@@ -280,8 +299,8 @@ func (e *Event) Release() {
 }
 
 // ResolveProcessCacheEntry uses the field handler
-func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
-	return e.FieldHandlers.ResolveProcessCacheEntry(e)
+func (e *Event) ResolveProcessCacheEntry(newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+	return e.FieldHandlers.ResolveProcessCacheEntry(e, newEntryCb)
 }
 
 // ResolveEventTime uses the field handler
@@ -320,7 +339,7 @@ type MatchedRule struct {
 type ActionReport interface {
 	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
-	IsResolved() bool
+	IsResolved() error
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -485,21 +504,20 @@ func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheE
 
 // ProcessAncestorsIterator defines an iterator of ancestors
 type ProcessAncestorsIterator struct {
+	Root *ProcessCacheEntry
 	prev *ProcessCacheEntry
 }
 
 // Front returns the first element
-func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
-	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
-		it.prev = front
-		return front
+func (it *ProcessAncestorsIterator) Front(_ *eval.Context) *ProcessCacheEntry {
+	if it.Root != nil {
+		it.prev = it.Root
 	}
-
-	return nil
+	return it.prev
 }
 
 // Next returns the next element
-func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
+func (it *ProcessAncestorsIterator) Next(_ *eval.Context) *ProcessCacheEntry {
 	if next := it.prev.Ancestor; next != nil {
 		it.prev = next
 		return next
@@ -561,8 +579,8 @@ type ProcessContext struct {
 // ExitEvent represents a process exit event
 type ExitEvent struct {
 	*Process
-	Cause uint32 `field:"cause"` // SECLDoc[cause] Definition:`Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)`
-	Code  uint32 `field:"code"`  // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
+	Cause uint32 `field:"cause"`                 // SECLDoc[cause] Definition:`Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)`
+	Code  uint32 `field:"code,opts:gen_getters"` // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
 }
 
 // DNSEvent represents a DNS event
@@ -612,12 +630,12 @@ type AWSSecurityCredentials struct {
 
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
-	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 

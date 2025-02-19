@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
-	"testing"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
@@ -29,13 +28,12 @@ import (
 )
 
 var detectorsWithPrivilege = []languagemodels.Detector{
+	detectors.NewInjectorDetector(),
 	detectors.NewGoDetector(),
 	detectors.NewDotnetDetector(),
 }
 
-var (
-	permissionDeniedWarningOnce = sync.Once{}
-)
+var permissionDeniedWarningOnce = sync.Once{}
 
 func handleDetectorError(err error) {
 	if os.IsPermission(err) {
@@ -105,13 +103,6 @@ func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) 
 		l.mux.Unlock()
 	}
 	return languages
-}
-
-// MockPrivilegedDetectors is used in tests to inject mock tests. It should be called before `DetectWithPrivileges`
-func MockPrivilegedDetectors(t *testing.T, newDetectors []languagemodels.Detector) {
-	oldDetectors := detectorsWithPrivilege
-	t.Cleanup(func() { detectorsWithPrivilege = oldDetectors })
-	detectorsWithPrivilege = newDetectors
 }
 
 func (l *LanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {

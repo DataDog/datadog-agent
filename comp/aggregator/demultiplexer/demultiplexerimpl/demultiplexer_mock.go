@@ -15,7 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -72,10 +74,12 @@ func newMock(deps mockDependencies) MockProvides {
 	opts.DontStartForwarders = true
 
 	aggDeps := aggregator.TestDeps{
-		Log:             deps.Log,
-		Hostname:        deps.Hostname,
-		SharedForwarder: defaultforwarder.NoopForwarder{},
-		Compressor:      compressionimpl.NewMockCompressor(),
+		Log:                deps.Log,
+		Hostname:           deps.Hostname,
+		SharedForwarder:    defaultforwarder.NoopForwarder{},
+		LogsCompression:    logscompressionmock.NewMockCompressor(),
+		MetricsCompression: metricscompressionmock.NewMockCompressor(),
+		HaAgent:            haagentmock.NewMockHaAgent(),
 	}
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}

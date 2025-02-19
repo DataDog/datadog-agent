@@ -59,8 +59,7 @@ BPF_HASH_MAP(fcntl_args, u64, int, 1)
 // 1. associate map_fd+pid -> map_id (kernelspace often has map_fd+pid, so store association to allow pivots)
 // 2. associate map_id -> pid (needed for userspace to lookup /proc/PID/smaps data)
 // 3. initialize map values used to store mmap data (ring buffer only)
-SEC("kprobe/security_bpf_map_alloc")
-int BPF_KPROBE(k_map_alloc, struct bpf_map *map) {
+static __always_inline int trace_map_create(struct bpf_map *map) {
     enum bpf_map_type mtype = BPF_CORE_READ(map, map_type);
     if (mtype != BPF_MAP_TYPE_PERF_EVENT_ARRAY && mtype != BPF_MAP_TYPE_RINGBUF) {
         return 0;
@@ -70,6 +69,17 @@ int BPF_KPROBE(k_map_alloc, struct bpf_map *map) {
     bpf_map_update_elem(&bpf_map_new_fd_args, &pid_tgid, &map, BPF_ANY);
     return 0;
 }
+
+SEC("kprobe/security_bpf_map_alloc")
+int BPF_KPROBE(k_map_alloc, struct bpf_map *map) {
+    return trace_map_create(map);
+}
+
+SEC("kprobe/security_bpf_map_create")
+int BPF_KPROBE(k_map_create, struct bpf_map *map) {
+    return trace_map_create(map);
+}
+
 
 struct tracepoint_raw_syscalls_sys_exit_t {
     unsigned short common_type;

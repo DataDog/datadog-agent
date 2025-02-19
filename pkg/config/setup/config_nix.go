@@ -21,8 +21,8 @@ var (
 )
 
 var (
-	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
+	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
 	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
 	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
 	// DefaultDDAgentBin the process agent's binary
