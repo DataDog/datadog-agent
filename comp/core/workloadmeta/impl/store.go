@@ -72,7 +72,9 @@ func (w *workloadmeta) start(ctx context.Context) {
 		// Start a pull immediately to fill the store without waiting for the
 		// next tick.
 		w.pull(ctx)
-		w.updateCollectorStatus(wmdef.CollectorsInitialized)
+		if !w.IsInitialized() {
+			w.updateCollectorStatus(wmdef.CollectorsInitialized)
+		}
 
 		for {
 			select {
@@ -592,7 +594,9 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		// next tick
 		delete(w.candidates, id)
 	}
-	w.collectorsInited = wmdef.CollectorsStarting
+	if w.collectorsInited == wmdef.CollectorsNotStarted {
+		w.collectorsInited = wmdef.CollectorsStarting
+	}
 	return len(w.candidates) == 0
 }
 
