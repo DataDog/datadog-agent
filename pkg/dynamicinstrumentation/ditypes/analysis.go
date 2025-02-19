@@ -124,6 +124,9 @@ const (
 	OpSetGlobalLimit
 	// OpJumpIfGreaterThanLimit represents an operation to jump if a value is greater than a limit
 	OpJumpIfGreaterThanLimit
+	// OpPopPointerAddress is a special opcode for a compound operation (combination of location expressions)
+	// that are used for popping the address when reading pointers
+	OpPopPointerAddress
 )
 
 func (op LocationExpressionOpcode) String() string {
@@ -177,6 +180,19 @@ func (op LocationExpressionOpcode) String() string {
 // duplicates the u64 element on the top of the BPF parameter stack.
 func CopyLocationExpression() LocationExpression {
 	return LocationExpression{Opcode: OpCopy}
+}
+
+// PopPointerAddressCompoundLocationExpression is a compound location
+// expression, meaning it's a combination of expressions with the
+// specific purpose of popping the address for pointer values
+func PopPointerAddressCompoundLocationExpression() LocationExpression {
+	return LocationExpression{
+		Opcode: OpPopPointerAddress,
+		IncludedExpressions: []LocationExpression{
+			CopyLocationExpression(),
+			PopLocationExpression(1, 8),
+		},
+	}
 }
 
 // DirectReadLocationExpression creates an expression which
@@ -368,6 +384,7 @@ type LocationExpression struct {
 	Arg3                 uint
 	CollectionIdentifier string
 	Label                string
+	IncludedExpressions  []LocationExpression
 }
 
 // Location represents where a particular datatype is found on probe entry
@@ -400,7 +417,7 @@ type BPFProgram struct {
 //nolint:all
 func PrintLocationExpressions(expressions []LocationExpression) {
 	for i := range expressions {
-		fmt.Printf("%s %d %d %d %s %s\n",
+		fmt.Printf("Opcode: %s Args: [%d, %d, %d] Label: %s Collection ID: %s\n",
 			expressions[i].Opcode.String(),
 			expressions[i].Arg1,
 			expressions[i].Arg2,
