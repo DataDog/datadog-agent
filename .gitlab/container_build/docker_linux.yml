@@ -197,7 +197,6 @@ docker_build_ot_agent7_arm64:
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-arm64.tar.xz
 
 # build agent7 jmx image
-# TODO: clean ot-beta images when the uber-image is ready
 docker_build_ot_agent7_jmx:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
@@ -224,7 +223,6 @@ docker_build_ot_agent7_jmx_arm64:
     TAG_SUFFIX: -7-ot-beta-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-arm64.tar.xz
 
-# Full image
 docker_build_agent7_full:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
