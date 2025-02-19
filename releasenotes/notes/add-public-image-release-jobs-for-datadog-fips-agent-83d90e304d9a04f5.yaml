@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Add missing CI jobs for publishing a publish image tag of the `datadog-fips-agent`.
+    Publish image tags of the `datadog-fips-agent` build.
