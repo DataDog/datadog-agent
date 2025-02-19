@@ -10,8 +10,9 @@ package autoinstrumentation
 import (
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
-	ver "github.com/hashicorp/go-version"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -54,7 +55,7 @@ func (l language) isDefaultVersionMoreSpecificThan(input string) bool {
 		return false
 	}
 
-	in, err := ver.NewVersion(input)
+	in, err := newLibraryVersion(input)
 	if err != nil {
 		return false
 	}
@@ -68,18 +69,11 @@ func (l language) isDefaultVersionMoreSpecificThan(input string) bool {
 // For example if we have `v1.46` as the defaultVersion, a user setting
 // `v1` should have us using `v1.46` but them specifying a more specific
 // point release would leave that alone.
-func isDefaultVersionMoreSpecific(defaultVersion, inputVersion *ver.Version) bool {
-	var (
-		s1 = defaultVersion.Segments64()
-		s2 = inputVersion.Segments64()
-	)
-
-	// N.B. Segments will _always_ have at least (3) points set: MAJOR.MINOR.PATCH
-	//
-	// we really only care if there is a minor version specified
+func isDefaultVersionMoreSpecific(s1, s2 *libraryVersion) bool {
+	// we only care if there is a minor version specified
 	// in the `inputVersion` and the majors match since our `languageVersions`
 	// will only be as specific as the minor.
-	return s1[0] == s2[0] && s2[1] == 0
+	return s1.major == s2.major && s2.segmentsSpecified == 1
 }
 
 func (l language) libInfo(ctrName, image string) libInfo {
@@ -163,17 +157,60 @@ func (l language) isEnabledByDefault() bool {
 // wishes to utilize the default version found in languageVersions.
 const defaultVersionMagicString = "default"
 
+type libraryVersion struct {
+	major, minor      int64
+	segmentsSpecified int
+	original          string
+}
+
+func newLibraryVersion(in string) (*libraryVersion, error) {
+	noV, _ := strings.CutPrefix(strings.TrimSpace(in), "v")
+	split := strings.Split(noV, ".")
+
+	var major, minor int64
+outer:
+	for i, v := range split {
+		val, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing version: %w", err)
+		}
+
+		switch i {
+		case 0:
+			major = val
+		case 1:
+			minor = val
+			break outer
+		}
+	}
+
+	return &libraryVersion{
+		major:             major,
+		minor:             minor,
+		segmentsSpecified: len(split),
+		original:          in,
+	}, nil
+}
+
+func mustLibraryVersion(in string) *libraryVersion {
+	v, err := newLibraryVersion(in)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 // languageVersions defines the major library versions we consider "default" for each
 // supported language. If not set, we will default to "latest", see defaultLibVersion.
 //
 // If this language does not appear in supportedLanguages, it will not be injected.
-var languageVersions = map[language]*ver.Version{
-	java:   ver.Must(ver.NewVersion("v1.46")), // https://datadoghq.atlassian.net/browse/APMON-1064
-	dotnet: ver.Must(ver.NewVersion("v3.10")), // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: ver.Must(ver.NewVersion("v2.21")), // https://datadoghq.atlassian.net/browse/APMON-1068
-	ruby:   ver.Must(ver.NewVersion("v2.10")), // https://datadoghq.atlassian.net/browse/APMON-1066
-	js:     ver.Must(ver.NewVersion("v5.37")), // https://datadoghq.atlassian.net/browse/APMON-1065
-	php:    ver.Must(ver.NewVersion("v1.6")),  // https://datadoghq.atlassian.net/browse/APMON-1128
+var languageVersions = map[language]*libraryVersion{
+	java:   mustLibraryVersion("v1.46"), // https://datadoghq.atlassian.net/browse/APMON-1064
+	dotnet: mustLibraryVersion("v3.10"), // https://datadoghq.atlassian.net/browse/APMON-1390
+	python: mustLibraryVersion("v2.21"), // https://datadoghq.atlassian.net/browse/APMON-1068
+	ruby:   mustLibraryVersion("v2.10"), // https://datadoghq.atlassian.net/browse/APMON-1066
+	js:     mustLibraryVersion("v5.37"), // https://datadoghq.atlassian.net/browse/APMON-1065
+	php:    mustLibraryVersion("v1.6"),  // https://datadoghq.atlassian.net/browse/APMON-1128
 }
 
 func (l language) defaultLibVersion() string {
@@ -182,7 +219,7 @@ func (l language) defaultLibVersion() string {
 		return "latest"
 	}
 
-	return langVersion.Original()
+	return langVersion.original
 }
 
 type libInfo struct {
