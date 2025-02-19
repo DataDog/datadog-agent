@@ -16,7 +16,6 @@ import (
 	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,9 +27,7 @@ type linuxAPIKeyRefreshSuite struct {
 
 func TestLinuxAPIKeyFreshSuite(t *testing.T) {
 	suite := &linuxAPIKeyRefreshSuite{descriptor: os.UbuntuDefault}
-	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(suite.descriptor)),
-	)))
+	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKey() {

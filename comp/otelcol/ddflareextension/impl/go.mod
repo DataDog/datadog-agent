@@ -89,6 +89,7 @@ require (
 	github.com/alecthomas/assert/v2 v2.6.0 // indirect
 	github.com/alecthomas/repr v0.4.0 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect

@@ -282,3 +282,13 @@ func (p *Resolver) Snapshot() {
 		p.insertEntry(e)
 	}
 }
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.processes {
+		callback(entry)
+	}
+}
