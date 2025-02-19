@@ -8,12 +8,11 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -38,7 +37,7 @@ func newGeneratedAsset(filename string) *generatedAsset {
 
 // Compile compiles the provided c code to an object file, writes it to the configured output directory, and
 // then opens and returns the compiled output
-func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
+func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, additionalFlags []string) (CompiledOutput, error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	start := time.Now()
@@ -59,7 +58,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 	kernelHeaders := kernel.GetKernelHeaders(opts)
 	if len(kernelHeaders) == 0 {
 		a.tm.compilationResult = headerFetchErr
-		return nil, fmt.Errorf("unable to find kernel headers")
+		return nil, errors.New("unable to find kernel headers")
 	}
 
 	outputDir := config.RuntimeCompilerOutputDir
