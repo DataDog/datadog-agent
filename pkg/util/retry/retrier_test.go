@@ -367,7 +367,6 @@ func TestCancel(t *testing.T) {
 	mocked.Cancel()
 
 	// Second call should return PermaFail
-	_ = mocked.TriggerRetry()
-	status := mocked.RetryStatus()
-	assert.Equal(t, PermaFail, status)
+	err = mocked.TriggerRetry()
+	assert.True(t, IsErrPermaFail(err))
 }
