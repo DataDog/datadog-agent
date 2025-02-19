@@ -123,6 +123,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		HTTPProxy:            config.GetString("proxy.http"),
 		HTTPSProxy:           config.GetString("proxy.https"),
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
+		IsCentos6:            env.DetectCentos6(),
 	}
 	installer := newInstaller(installerBin)
 	return newDaemon(rc, installer, env), nil

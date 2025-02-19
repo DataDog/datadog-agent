@@ -77,6 +77,7 @@ func TestMutatePod(t *testing.T) {
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
 		expectedEnv                 map[string]string
+		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
 		expectNoChange              bool
 	}{
@@ -99,6 +100,10 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+			},
+			expectedAnnotations: map[string]string{
+				AppliedTargetAnnotation: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"no matching rule does not mutate pod": {
@@ -133,6 +138,10 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+			},
+			expectedAnnotations: map[string]string{
+				AppliedTargetAnnotation: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 	}
@@ -194,6 +203,11 @@ func TestMutatePod(t *testing.T) {
 				actualInitContainerImages[i] = ctr.Image
 			}
 			require.ElementsMatch(t, test.expectedInitContainerImages, actualInitContainerImages)
+
+			// Validate the annotations.
+			for k, v := range test.expectedAnnotations {
+				require.Equal(t, v, test.in.Annotations[k])
+			}
 		})
 	}
 }
