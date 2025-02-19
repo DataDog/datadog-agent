@@ -8,8 +8,13 @@
 package autoinstrumentation
 
 import (
+	"errors"
 	"fmt"
 )
+
+// ErrUnsupported is a sentinel error for an unsupported version
+// option of this webhook.
+var ErrUnsupported = errors.New("unsupported version")
 
 type version int
 
@@ -22,7 +27,7 @@ const (
 func instrumentationVersion(v string) (version, error) {
 	switch v {
 	case "v1":
-		return instrumentationV1, nil
+		return instrumentationVersionInvalid, ErrUnsupported
 	case "v2":
 		return instrumentationV2, nil
 	default:

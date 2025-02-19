@@ -73,6 +73,7 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 				base["selfTests"] = selfTests
 			}
 			base["policiesStatus"] = cfStatus.PoliciesStatus
+			base["seclVariables"] = cfStatus.SECLVariables
 		}
 	}
 

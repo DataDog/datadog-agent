@@ -29,15 +29,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
-	gpuMetricsNs     = "gpu."
-	metricNameMemory = gpuMetricsNs + "memory"
-	metricNameUtil   = gpuMetricsNs + "utilization"
-	metricNameMaxMem = gpuMetricsNs + "memory.max"
+	gpuMetricsNs          = "gpu."
+	metricNameUtil        = gpuMetricsNs + "utilization"
+	metricNameMemory      = gpuMetricsNs + "memory.used"
+	metricNameMemoryPerc  = gpuMetricsNs + "memory.utilization"
+	metricNameDeviceTotal = gpuMetricsNs + "device.total"
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
@@ -186,7 +188,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		tags := c.getTagsForKey(key)
 		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
-		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
+		snd.Gauge(metricNameMemoryPerc, metrics.Memory.CurrentBytesPercentage, "", tags)
 
 		c.activeMetrics[key] = true
 	}
@@ -198,7 +200,6 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		if !active {
 			tags := c.getTagsForKey(key)
 			snd.Gauge(metricNameMemory, 0, "", tags)
-			snd.Gauge(metricNameMaxMem, 0, "", tags)
 			snd.Gauge(metricNameUtil, 0, "", tags)
 
 			delete(c.activeMetrics, key)
@@ -284,11 +285,32 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 
 		for _, metric := range metrics {
 			metricName := gpuMetricsNs + metric.Name
-			snd.Gauge(metricName, metric.Value, "", append(metric.Tags, extraTags...))
+			switch metric.Type {
+			case ddmetrics.CountType:
+				snd.Count(metricName, metric.Value, "", append(metric.Tags, extraTags...))
+			case ddmetrics.GaugeType:
+				snd.Gauge(metricName, metric.Value, "", append(metric.Tags, extraTags...))
+			default:
+				return fmt.Errorf("Unsupported metric type %s for metric %s", metric.Type, metricName)
+			}
 		}
 
 		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
-	return err
+	return c.emitGlobalNvmlMetrics(snd)
+}
+
+func (c *Check) emitGlobalNvmlMetrics(snd sender.Sender) error {
+	// Collect global metrics such as device count
+	devCount, ret := c.nvmlLib.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
+	}
+
+	snd.Gauge(metricNameDeviceTotal, float64(devCount), "", nil)
+
+	c.telemetry.nvmlMetricsSent.Add(1, "global")
+
+	return nil
 }

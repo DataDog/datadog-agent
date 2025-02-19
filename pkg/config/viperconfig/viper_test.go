@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package model
+package viperconfig
 
 import (
 	"os"
@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestConcurrencySetGet(t *testing.T) {
@@ -93,28 +95,28 @@ func TestGetConfigEnvVarsDedupe(t *testing.T) {
 
 func TestSet(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-	config.Set("foo", "bar", SourceFile)
-	config.Set("foo", "baz", SourceEnvVar)
-	config.Set("foo", "qux", SourceAgentRuntime)
-	config.Set("foo", "quux", SourceRC)
-	config.Set("foo", "corge", SourceCLI)
+	config.Set("foo", "bar", model.SourceFile)
+	config.Set("foo", "baz", model.SourceEnvVar)
+	config.Set("foo", "qux", model.SourceAgentRuntime)
+	config.Set("foo", "quux", model.SourceRC)
+	config.Set("foo", "corge", model.SourceCLI)
 
 	layers := config.AllSettingsBySource()
 
-	assert.Equal(t, layers[SourceFile], map[string]interface{}{"foo": "bar"})
-	assert.Equal(t, layers[SourceEnvVar], map[string]interface{}{"foo": "baz"})
-	assert.Equal(t, layers[SourceAgentRuntime], map[string]interface{}{"foo": "qux"})
-	assert.Equal(t, layers[SourceRC], map[string]interface{}{"foo": "quux"})
-	assert.Equal(t, layers[SourceCLI], map[string]interface{}{"foo": "corge"})
+	assert.Equal(t, layers[model.SourceFile], map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, layers[model.SourceEnvVar], map[string]interface{}{"foo": "baz"})
+	assert.Equal(t, layers[model.SourceAgentRuntime], map[string]interface{}{"foo": "qux"})
+	assert.Equal(t, layers[model.SourceRC], map[string]interface{}{"foo": "quux"})
+	assert.Equal(t, layers[model.SourceCLI], map[string]interface{}{"foo": "corge"})
 
 	assert.Equal(t, config.Get("foo"), "corge")
 }
 
 func TestGetSource(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-	config.Set("foo", "bar", SourceFile)
-	config.Set("foo", "baz", SourceEnvVar)
-	assert.Equal(t, SourceEnvVar, config.GetSource("foo"))
+	config.Set("foo", "bar", model.SourceFile)
+	config.Set("foo", "baz", model.SourceEnvVar)
+	assert.Equal(t, model.SourceEnvVar, config.GetSource("foo"))
 }
 
 func TestIsKnown(t *testing.T) {
@@ -170,9 +172,9 @@ func TestIsKnown(t *testing.T) {
 
 func TestAllFileSettingsWithoutDefault(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-	config.Set("foo", "bar", SourceFile)
-	config.Set("baz", "qux", SourceFile)
-	config.UnsetForSource("foo", SourceFile)
+	config.Set("foo", "bar", model.SourceFile)
+	config.Set("baz", "qux", model.SourceFile)
+	config.UnsetForSource("foo", model.SourceFile)
 	assert.Equal(
 		t,
 		map[string]interface{}{
@@ -197,7 +199,7 @@ foo: bar
 	config.ReadInConfig()
 
 	assert.Equal(t, "bar", config.Get("foo"))
-	assert.Equal(t, SourceFile, config.GetSource("foo"))
+	assert.Equal(t, model.SourceFile, config.GetSource("foo"))
 	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSettingsWithoutDefault())
 }
 
@@ -209,13 +211,13 @@ func TestNotification(t *testing.T) {
 
 	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
 
-	config.Set("foo", "bar", SourceFile)
+	config.Set("foo", "bar", model.SourceFile)
 	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
 
 	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB2 = append(updatedKeyCB2, key) })
 
-	config.Set("foo", "bar2", SourceFile)
-	config.Set("foo2", "bar2", SourceFile)
+	config.Set("foo", "bar2", model.SourceFile)
+	config.Set("foo2", "bar2", model.SourceFile)
 	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
 	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
 }
@@ -227,16 +229,16 @@ func TestNotificationNoChange(t *testing.T) {
 
 	config.OnUpdate(func(key string, _, newValue any) { updatedKeyCB1 = append(updatedKeyCB1, key+":"+newValue.(string)) })
 
-	config.Set("foo", "bar", SourceFile)
+	config.Set("foo", "bar", model.SourceFile)
 	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
 
-	config.Set("foo", "bar", SourceFile)
+	config.Set("foo", "bar", model.SourceFile)
 	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
 
-	config.Set("foo", "baz", SourceAgentRuntime)
+	config.Set("foo", "baz", model.SourceAgentRuntime)
 	assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
 
-	config.Set("foo", "bar2", SourceFile)
+	config.Set("foo", "bar2", model.SourceFile)
 	assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
 }
 
@@ -307,7 +309,7 @@ proxy:
 	assert.Equal(t, "datadoghq.eu", config.Get("site"))
 	assert.Equal(t, "https:proxyserver1", config.Get("proxy.https"))
 	assert.Equal(t, "http:proxyserver2", config.Get("proxy.http"))
-	assert.Equal(t, SourceFile, config.GetSource("proxy.https"))
+	assert.Equal(t, model.SourceFile, config.GetSource("proxy.https"))
 
 	// Consistency check on ReadInConfig() call
 
@@ -322,7 +324,7 @@ proxy:
 func TestMergeFleetPolicy(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")
-	config.Set("foo", "bar", SourceFile)
+	config.Set("foo", "bar", model.SourceFile)
 
 	file, err := os.CreateTemp("", "datadog.yaml")
 	assert.NoError(t, err, "failed to create temporary file: %w", err)
@@ -331,7 +333,7 @@ func TestMergeFleetPolicy(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "baz", config.Get("foo"))
-	assert.Equal(t, SourceFleetPolicies, config.GetSource("foo"))
+	assert.Equal(t, model.SourceFleetPolicies, config.GetSource("foo"))
 }
 
 func TestParseEnvAsStringSlice(t *testing.T) {
@@ -375,9 +377,9 @@ func TestListenersUnsetForSource(t *testing.T) {
 		logLevels = append(logLevels, nextString)
 	})
 
-	config.Set("log_level", "info", SourceFile)
-	config.Set("log_level", "debug", SourceRC)
-	config.UnsetForSource("log_level", SourceRC)
+	config.Set("log_level", "info", model.SourceFile)
+	config.Set("log_level", "debug", model.SourceRC)
+	config.UnsetForSource("log_level", model.SourceRC)
 
 	assert.Equal(t, []string{"info", "debug", "info"}, logLevels)
 }

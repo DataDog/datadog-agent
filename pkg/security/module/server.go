@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -543,6 +544,45 @@ func (a *APIServer) ApplyPolicyStates(policies []*monitor.PolicyState) {
 
 		a.policiesStatus = append(a.policiesStatus, &entry)
 	}
+}
+
+// GetSECLVariables sets the secl variables for the apiClient
+func (a *APIServer) GetSECLVariables() []*api.SECLVariableState {
+	ruleset := a.cwsConsumer.ruleEngine.GetRuleSet()
+	if ruleset == nil {
+		return nil
+	}
+	var seclVariables = []*api.SECLVariableState{}
+	for name, value := range ruleset.GetVariables() {
+		if strings.HasPrefix(name, "process.") {
+			a.probe.Walk(func(entry *model.ProcessCacheEntry) {
+				entry.Retain()
+				defer entry.Release()
+				event := a.probe.PlatformProbe.NewEvent()
+				event.ProcessCacheEntry = entry
+				ctx := eval.NewContext(event)
+				scopedName := strings.Replace(name, "process.", fmt.Sprintf("process_%d.", entry.Pid), 1)
+				v := value.(eval.ScopedVariable).GetValue(ctx)
+				seclVariables = append(seclVariables,
+					&api.SECLVariableState{
+						Name:  scopedName,
+						Value: fmt.Sprintf("%v", v),
+					})
+			})
+		} else if strings.HasPrefix(name, "container.") {
+			continue // skip container variables for now
+		} else { // global variables
+			seclVariables = append(seclVariables,
+				&api.SECLVariableState{
+					Name:  name,
+					Value: fmt.Sprintf("%v", value.(eval.Variable).GetValue()),
+				})
+
+		}
+
+	}
+
+	return seclVariables
 }
 
 // Stop stops the API server

@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/tagset
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0
 	github.com/stretchr/testify v1.10.0
 	github.com/twmb/murmur3 v1.1.8
 )
@@ -84,6 +84,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../pkg/gohai

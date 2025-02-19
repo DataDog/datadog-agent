@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -124,9 +126,14 @@ func (s *Setup) Run() (err error) {
 	}
 	for _, group := range s.DdAgentAdditionalGroups {
 		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
+		if _, err := user.LookupGroup(group); err != nil {
+			log.Infof("Skipping group %s as it does not exist", group)
+			continue
+		}
 		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
 		if err != nil {
-			return fmt.Errorf("failed to add dd-agent to group yarn: %w", err)
+			s.Out.WriteString("Failed to add dd-agent to group" + group + ": " + err.Error())
+			log.Warnf("failed to add dd-agent to group %s:  %v", group, err)
 		}
 	}
 
