@@ -25,7 +25,7 @@ def _is_fips_dll_loaded(logger):
     try:
         handle = win32api.GetModuleHandle("fips.dll")
     except Exception as e:
-        logger.exception(e, exc_info=True)
+        logger.exception(e)
         handle = 0
     return handle != 0
 
@@ -35,7 +35,7 @@ def _is_cryptography_fips(logger):
         default_backend()._enable_fips()
         return 1
     except Exception as e:
-        logger.exception(e, exc_info=True)
+        logger.exception(e)
         return 0
 
 
@@ -47,5 +47,5 @@ def _is_ssl_fips(logger):
         ctx.set_ciphers("MD5")
         return 0
     except ssl.SSLError as e:
-        logger.exception(e, exc_info=True)
+        logger.exception(e)
         return 1
