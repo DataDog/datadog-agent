@@ -127,7 +127,6 @@ type APIServer struct {
 	cwsConsumer        *CWSConsumer
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
-	seclVariables      []*api.SECLVariableState
 	msgSender          MsgSender
 	connEstablished    *atomic.Bool
 
