@@ -24,6 +24,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -55,6 +56,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 
+	mockGpuSubscriber := gpusubscriberfxmock.SetupMockGpuSubscriber(t)
+
 	return &ProcessCheck{
 		probe:             probe,
 		scrubber:          procutil.NewDefaultDataScrubber(),
@@ -65,6 +68,7 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		skipAmount:        2,
 		serviceExtractor:  serviceExtractor,
 		extractors:        []metadata.Extractor{serviceExtractor},
+		gpuSubscriber:     mockGpuSubscriber,
 	}, probe
 }
 
