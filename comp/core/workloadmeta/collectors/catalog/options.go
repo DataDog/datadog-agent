@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecsfargate"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubeapiserver"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nvml"
@@ -36,7 +35,7 @@ func getCollectorOptions() []fx.Option {
 		docker.GetFxOptions(),
 		ecs.GetFxOptions(),
 		ecsfargate.GetFxOptions(),
-		kubeapiserver.GetFxOptions(),
+		//kubeapiserver.GetFxOptions(),
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
