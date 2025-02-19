@@ -2,6 +2,45 @@
 Release Notes
 =============
 
+.. _Release Notes_7.63.0:
+
+7.63.0
+======
+
+.. _Release Notes_7.63.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-02-19
+Pinned to datadog-agent v7.63.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7630>`_.
+
+.. _Release Notes_7.63.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added support for `kubernetesResourcesLabelsAsTags` and `kubernetesResourcesAnnotationsAsTags` in the
+  orchestrator check. Kubernetes resources processed by the orchestrator check can now include labels 
+  and annotations as tags, improving consistency with existing tagging configurations.
+
+- The Cluster Agent is now able to delete `ValidatingAdmissionWebhook` and `MutatingAdmissionWebhook`
+  depending on the `admission_controller.validation.enabled` and `admission_controller.mutation.enabled` settings.
+  Note that `admission_controller.enabled` must be set to `true` to allow the Cluster Agent to
+  interact with the Kubernetes Admission Controller.
+
+
+.. _Release Notes_7.63.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue with the
+  ``datadog.cluster_agent.cluster_checks.configs_dispatched`` metric emitted
+  by the Cluster Agent telemetry. The metric values could become inaccurate
+  after the Cluster Agent loses and then regains leader status.
+
+
 .. _Release Notes_7.62.3:
 
 7.62.3
@@ -127,6 +166,7 @@ New Features
 
 - The cluster-agent now can collect pod disruption budgets from the cluster.
 
+- Add the capability in ``kubernetes_state_core`` check to collect metrics for Kubernetes custom resources
 
 .. _Release Notes_7.61.0_Enhancement Notes:
 
@@ -137,6 +177,8 @@ Enhancement Notes
 
 - Cluster Agent: Don't overwrite the LD_PRELOAD environment variable if it's already set, append the path to Datadog's injection library instead.
 
+- Users can now enable a pod with SSI using a default language library version
+  and no longer need to pin to a specific version.
 
 .. _Release Notes_7.61.0_Bug Fixes:
 
