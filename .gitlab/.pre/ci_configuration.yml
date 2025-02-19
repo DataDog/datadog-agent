@@ -89,3 +89,9 @@ lint_github_actions_workflows:
   script:
     # TODO: Only on diff
     - inv -e linter.github-actions-shellcheck --files "$(ls .github/workflows/*.yml | tr '\n' ',')"
+    - echo
+    - echo
+    - echo
+    - echo
+    - DIFF_FILES="$(git diff --name-only "$(git merge-base main HEAD)" | grep -E '.github/workflows/.*\.yml' | tr '\n' ',')"
+    - inv -e linter.github-actions-shellcheck --files "$(echo .github/workflows/*.yml | tr ' ' ',')"
