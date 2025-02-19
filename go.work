@@ -1,4 +1,4 @@
-go 1.23.3
+go 1.23.5
 
 toolchain go1.23.6
 
@@ -76,6 +76,7 @@ use (
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
+	pkg/config/viperconfig
 	pkg/errors
 	pkg/fips
 	pkg/gohai

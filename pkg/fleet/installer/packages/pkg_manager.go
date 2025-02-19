@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 func dpkgInstalled() (bool, error) {

@@ -8,7 +8,6 @@ package checks
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,7 +17,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -101,7 +99,7 @@ func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout t
 	}
 
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
-	hostname, err := getHostnameFromGRPC(ctx, ddgrpc.GetDDAgentClient, util.GetTLSClientConfig, grpcConnectionTimeout)
+	hostname, err := getHostnameFromGRPC(ctx, ddgrpc.GetDDAgentClient, grpcConnectionTimeout)
 	if err == nil {
 		return hostname, nil
 	}
@@ -146,7 +144,7 @@ func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
-func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, address, port string, tlsConfig func() *tls.Config, opts ...grpc.DialOption) (pb.AgentClient, error), tlsConfigGetter func() *tls.Config, grpcConnectionTimeout time.Duration) (string, error) {
+func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, address, port string, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
@@ -155,7 +153,7 @@ func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Cont
 		return "", err
 	}
 
-	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), tlsConfigGetter)
+	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
 	if err != nil {
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}
