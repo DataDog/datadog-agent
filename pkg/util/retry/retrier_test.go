@@ -341,3 +341,33 @@ func TestLastError(t *testing.T) {
 	err = mocked.LastError()
 	assert.Nil(t, err)
 }
+
+func TestCancel(t *testing.T) {
+	mocked := &DummyLogic{}
+	mocked.On("Attempt").Return(nil)
+
+	initialRetryDelay := 10 * time.Millisecond
+	maxRetryDelay := 50 * time.Millisecond
+	config := &Config{
+		Name:              "mocked",
+		AttemptMethod:     mocked.Attempt,
+		Strategy:          Backoff,
+		InitialRetryDelay: initialRetryDelay,
+		MaxRetryDelay:     maxRetryDelay,
+	}
+	err := mocked.SetupRetrier(config)
+	assert.Nil(t, err)
+
+	// First call should succeed
+	_ = mocked.TriggerRetry()
+	err = mocked.LastError()
+	assert.Nil(t, err)
+
+	// Cancel subsequent retries
+	_ = mocked.Cancel(errors.New("nope"))
+
+	// Second call should return PermaFail
+	_ = mocked.TriggerRetry()
+	err = mocked.LastError()
+	assert.True(t, IsErrPermaFail(err))
+}

@@ -132,6 +132,10 @@ func (r *Retrier) doTry() *Error {
 				r.nextTry = r.cfg.now().Add(r.cfg.RetryDelay - 100*time.Millisecond)
 			}
 		case Backoff:
+			// respect cancellations
+			if r.status == PermaFail {
+				break
+			}
 			sleep := r.cfg.InitialRetryDelay * 1 << r.tryCount
 			if sleep > r.cfg.MaxRetryDelay {
 				sleep = r.cfg.MaxRetryDelay
@@ -142,6 +146,15 @@ func (r *Retrier) doTry() *Error {
 			r.nextTry = r.cfg.now().Add(sleep)
 		}
 	}
+	r.Unlock()
+
+	return r.wrapError(err)
+}
+
+func (r *Retrier) Cancel(err error) *Error {
+	r.Lock()
+	r.lastTryError = err
+	r.status = PermaFail
 	r.Unlock()
 
 	return r.wrapError(err)
