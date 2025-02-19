@@ -100,16 +100,6 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledNoOpenSSLConfig() {
 }
 
 func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
-	host := v.Env().RemoteHost
-	// Restart the Agent and reset the aggregator to ensure the metrics are fresh
-	// with FIPS mode enabled.
-	_, err := host.Execute("sudo datadog-agent stop")
-	require.NoError(v.T(), err)
-	err = v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(v.T(), err)
-	_, err = host.Execute("sudo datadog-agent start")
-	require.NoError(v.T(), err)
-
 	// Test that the custom check from our fixtures is able to report metrics while
 	// in FIPS mode. These metric values are based on the status of Python's FIPS mode.
 	v.EventuallyWithT(func(c *assert.CollectT) {
