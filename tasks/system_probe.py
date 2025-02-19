@@ -552,7 +552,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             pool="cgo_pool",
             command="cd $in_dir && "
             + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
-            + "go run $script_path > $out_file",
+            + "go run $script_path $tests_file $package_name > $out_file",
         )
 
     script_path = os.path.join(os.getcwd(), "pkg", "ebpf", "cgo", "genpost.go")
@@ -561,9 +561,16 @@ def ninja_cgo_type_files(nw: NinjaWriter):
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
         rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
+        tests_file = ""
+        package_name = ""
+        outputs = [os.path.join(in_dir, out_file)]
+        if go_platform == "linux":
+            tests_file = f"{in_base}_{go_platform}_test"
+            package_name = os.path.basename(in_dir)
+            outputs.append(os.path.join(in_dir, f"{tests_file}.go"))
         nw.build(
             inputs=[f],
-            outputs=[os.path.join(in_dir, out_file)],
+            outputs=outputs,
             rule="godefs",
             implicit=headers + [script_path],
             variables={
@@ -572,6 +579,8 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "out_file": out_file,
                 "script_path": script_path,
                 "rel_import": rel_import,
+                "tests_file": tests_file,
+                "package_name": package_name,
             },
         )
 

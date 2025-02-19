@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -43,6 +44,9 @@ var processEventConsumer *consumers.ProcessConsumer
 
 const processConsumerID = "gpu"
 const processConsumerChanSize = 100
+
+const defaultCollectedDebugEvents = 100
+const maxCollectedDebugEvents = 1000000
 
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 
@@ -116,6 +120,7 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpu.GpuModuleName))
 	httpMux.HandleFunc("/debug/attach-pid", usm.GetAttachPIDEndpoint(gpu.GpuModuleName))
 	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpu.GpuModuleName))
+	httpMux.HandleFunc("/debug/collect-events", t.collectEventsHandler)
 
 	return nil
 }
@@ -125,6 +130,46 @@ func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": t.lastCheck.Load(),
 	}
+}
+
+func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *http.Request) {
+	count := defaultCollectedDebugEvents
+
+	countStr := r.URL.Query().Get("count")
+	if countStr != "" {
+		var err error
+		count, err = strconv.Atoi(countStr)
+		if err != nil {
+			w.Write([]byte(fmt.Sprintf("Invalid count: %s", countStr)))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
+
+	if count > maxCollectedDebugEvents {
+		log.Warnf("Count %d is too high, clamping to %d", count, maxCollectedDebugEvents)
+		count = maxCollectedDebugEvents
+	}
+
+	log.Infof("Received request to collect %d GPU events, collecting...", count)
+
+	data, err := t.Probe.CollectConsumedEvents(r.Context(), count)
+	if err != nil {
+		msg := fmt.Sprintf("Error collecting GPU events: %v", err)
+		log.Warn(msg)
+		w.Write([]byte(msg))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	log.Info("Collection finished, writing response...")
+
+	for _, row := range data {
+		w.Write([]byte(row))
+		w.Write([]byte("\n"))
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // Close closes the GPU monitoring module

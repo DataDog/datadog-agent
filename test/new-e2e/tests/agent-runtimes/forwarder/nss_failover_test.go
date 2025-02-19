@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -42,6 +43,7 @@ type multiFakeIntakeEnv struct {
 	Agent       *components.RemoteHostAgent
 	Fakeintake1 *components.FakeIntake
 	Fakeintake2 *components.FakeIntake
+	Docker      *components.RemoteHostDocker
 }
 
 func (e *multiFakeIntakeEnv) Init(ctx common.Context) error {
@@ -52,7 +54,6 @@ func (e *multiFakeIntakeEnv) Init(ctx common.Context) error {
 		}
 		e.Agent.Client = agent
 	}
-
 	return nil
 }
 
@@ -64,11 +65,11 @@ const (
 
 	logFile                 = "/tmp/test.log"
 	logService              = "custom_logs"
-	connectionResetInterval = 120 // seconds
+	connectionResetInterval = 20 // seconds
 
-	intakeMaxWaitTime    = 5 * time.Minute
-	intakeUnusedWaitTime = 1 * time.Minute
-	intakeTick           = 20 * time.Second
+	intakeMaxWaitTime    = 60 * time.Second
+	intakeUnusedWaitTime = 30 * time.Second
+	intakeTick           = 5 * time.Second
 )
 
 // templateVars is used to template the configs
@@ -83,6 +84,26 @@ var customLogsConfigTmplFile string
 
 //go:embed testfixtures/config.yaml.tmpl
 var configTmplFile string
+
+func pullTraceGeneratorImage(h *components.RemoteHost) {
+	h.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:main")
+}
+
+func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags string) func() {
+	rm := "docker rm -f " + service
+	h.MustExecute(rm) // kill any existing leftover container
+
+	run := "docker run -d --rm --name " + service +
+		" -v /var/run/datadog/:/var/run/datadog/ " +
+		" -e DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket " +
+		" -e DD_SERVICE=" + service +
+		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
+		" -e TRACEGEN_ADDSPANTAGS=" + addSpanTags +
+		" ghcr.io/datadog/apps-tracegen:main"
+	h.MustExecute(run)
+
+	return func() { h.MustExecute(rm) }
+}
 
 func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisioner {
 	runFunc := func(ctx *pulumi.Context, env *multiFakeIntakeEnv) error {
@@ -115,6 +136,17 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisi
 		}
 		fakeIntake2.Export(ctx, &env.Fakeintake2.FakeintakeOutput)
 
+		// Create a docker manager
+		dockerManager, err := docker.NewManager(&awsEnv, host)
+		if err != nil {
+			return err
+		}
+		// export the docker manager configurartion to the environment, this will automatically initialize the docker client
+		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	}
 
@@ -141,8 +173,6 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 // Note: although the man page of `nsswitch.conf` states that each process using it should only read
 // it once (ie. no reload), glibc and Go reload it periodically
 // cf. https://go-review.googlesource.com/c/go/+/448075
-//
-// TODO: handle APM traces
 func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	// Ensure that both fakeintakes are using the same scheme
 	v.Assert().Equal(v.Env().Fakeintake1.Scheme, v.Env().Fakeintake2.Scheme)
@@ -152,6 +182,9 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 
 	customLogsConfig, err := readTmplConfig(customLogsConfigTmplFile)
 	v.NoError(err)
+
+	// pull tracegen docker image
+	pullTraceGeneratorImage(v.Env().Host)
 
 	// ensure host uses files for NSS
 	enforceNSSwitchFiles(v.T(), v.Env().Host)
@@ -199,6 +232,12 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 		require.NoError(t, err)
 		assert.NotEmpty(t, logs)
 
+		// check traces
+		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
+		traces, err := intake.GetTraces()
+		require.NoError(t, err)
+		assert.NotEmpty(t, traces)
+
 		// check flares
 		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 		_, err = intake.GetLatestFlare()
@@ -206,6 +245,8 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
 		}
 		assert.NoError(t, err)
+
+		teardownTraceGen()
 	}
 
 	v.T().Logf("checking that the agent contacts intake at %s", intake.URL())
@@ -224,13 +265,18 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMax
 		// send a flare
 		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
-		// give time to the agent to send things
+		// send traces
+		teardownTraceGen := runUDSTraceGenerator(v.Env().Host, "test", "extratags")
+
+		// give time to the agent to flush to the intake
 		time.Sleep(intakeUnusedWaitTime)
 
 		stats, err := intake.RouteStats()
 		require.NoError(t, err)
 
 		assert.Empty(t, stats)
+
+		teardownTraceGen()
 	}
 
 	v.T().Logf("checking that the agent doesn't contact intake at %s", intake.URL())

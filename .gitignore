@@ -64,6 +64,7 @@ datadog-agent*_amd64.deb
 
 # Ignore pem created during the tests
 *.pem
+
 pkg/process/config/testdata/secret
 
 auth_token

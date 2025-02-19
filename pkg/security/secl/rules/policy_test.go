@@ -335,16 +335,50 @@ func TestActionSetVariableTTL(t *testing.T) {
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []*ActionDefinition{{
-				Set: &SetDefinition{
-					Name:   "var1",
-					Append: true,
-					Value:  []string{"foo"},
-					TTL: &HumanReadableDuration{
-						Duration: 1 * time.Second,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Append: true,
+						Value:  "foo",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
 					},
 				},
-			}},
+				{
+					Set: &SetDefinition{
+						Name:   "var2",
+						Append: true,
+						Value:  123,
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar1",
+						Append: true,
+						Value:  []string{"bar"},
+						Scope:  "process",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar2",
+						Append: true,
+						Value:  []int{123},
+						Scope:  "process",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+			},
 		}},
 	}
 
@@ -371,7 +405,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
-	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
@@ -381,16 +414,182 @@ func TestActionSetVariableTTL(t *testing.T) {
 
 	existingVariable := opts.VariableStore.Get("var1")
 	assert.NotNil(t, existingVariable)
-
-	stringArrayVar, ok := existingVariable.(*eval.StringArrayVariable)
+	stringArrayVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
+	strValue := stringArrayVar.GetValue()
+	assert.NotNil(t, strValue)
+	assert.Contains(t, strValue, "foo")
+	assert.IsType(t, strValue, []string{})
 
-	assert.Contains(t, stringArrayVar.Get(nil), "foo")
+	existingVariable = opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
+	intArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	value := intArrayVar.GetValue()
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+
+	ctx := eval.NewContext(event)
+	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+	assert.NotNil(t, existingScopedVariable)
+	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringArrayScopedVar)
+	assert.True(t, ok)
+	value = stringArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, "bar")
+	assert.IsType(t, value, []string{})
+
+	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
+	assert.NotNil(t, existingScopedVariable)
+	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, intArrayScopedVar)
+	assert.True(t, ok)
+	value = intArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+
 	time.Sleep(time.Second + 100*time.Millisecond)
-	assert.NotContains(t, stringArrayVar.Get(nil), "foo")
 
-	rs.Release()
+	value = stringArrayVar.GetValue()
+	assert.NotContains(t, value, "foo")
+	assert.Len(t, value, 0)
+
+	value = intArrayVar.GetValue()
+	assert.NotContains(t, value, 123)
+	assert.Len(t, value, 0)
+
+	value = stringArrayScopedVar.GetValue(ctx)
+	assert.NotContains(t, value, "foo")
+	assert.Len(t, value, 0)
+
+	value = intArrayScopedVar.GetValue(ctx)
+	assert.NotContains(t, value, 123)
+	assert.Len(t, value, 0)
+}
+
+func TestActionSetVariableSize(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Append: true,
+						Value:  "foo",
+						Size:   1,
+					},
+				}, {
+					Set: &SetDefinition{
+						Name:   "var2",
+						Append: true,
+						Value:  1,
+						Size:   2,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar1",
+						Append: true,
+						Value:  "bar",
+						Size:   1,
+						Scope:  "process",
+					},
+				}, {
+					Set: &SetDefinition{
+						Name:   "scopedvar2",
+						Append: true,
+						Value:  123,
+						Size:   2,
+						Scope:  "process",
+					},
+				},
+			},
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test")
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	opts := rs.evalOpts
+
+	existingVariable := opts.VariableStore.Get("var1")
+	assert.NotNil(t, existingVariable)
+	stringArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, stringArrayVar)
+	assert.True(t, ok)
+	value := stringArrayVar.GetValue()
+	assert.Contains(t, value, "foo")
+	assert.Len(t, value, 1)
+	assert.IsType(t, value, []string{})
+
+	existingVariable = opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
+	intArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	assert.IsType(t, value, []string{})
+	value = intArrayVar.GetValue()
+	assert.IsType(t, value, []int{})
+	assert.Contains(t, value, 1)
+	assert.Len(t, value, 1)
+
+	ctx := eval.NewContext(event)
+	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+	assert.NotNil(t, existingScopedVariable)
+	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringArrayScopedVar)
+	assert.True(t, ok)
+	value = stringArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, "bar")
+	assert.IsType(t, value, []string{})
+	assert.Len(t, value, 1)
+
+	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
+	assert.NotNil(t, existingScopedVariable)
+	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, intArrayScopedVar)
+	assert.True(t, ok)
+	value = intArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+	assert.Len(t, value, 1)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {

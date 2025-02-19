@@ -39,11 +39,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/comp/core"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
@@ -56,7 +51,6 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
@@ -77,39 +71,18 @@ func findService(pid int, services []model.Service) *model.Service {
 func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCollectorFactory) (string, *proccontainersmocks.MockContainerProvider, *servicediscovery.Mocktimer) {
 	t.Helper()
 
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		core.MockBundle(),
-		wmmock.MockModule(workloadmeta.NewParams()),
-	)
-
-	tagger := taggermock.SetupFakeTagger(t)
 	mockCtrl := gomock.NewController(t)
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
 
 	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
 
 	mux := gorillamux.NewRouter()
-	cfg := &types.Config{
-		Enabled: true,
-		EnabledModules: map[types.ModuleName]struct{}{
-			config.DiscoveryModule: {},
-		},
-	}
-	m := module.Factory{
-		Name:             config.DiscoveryModule,
-		ConfigNamespaces: []string{"discovery"},
-		Fn: func(*types.Config, module.FactoryDependencies) (module.Module, error) {
-			module := newDiscoveryWithNetwork(mockContainerProvider, mTimeProvider, getNetworkCollector)
-			module.config.cpuUsageUpdateDelay = time.Second
-			module.config.networkStatsPeriod = time.Second
-			return module, nil
-		},
-		NeedsEBPF: func() bool {
-			return false
-		},
-	}
-	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, tagger, nil, nil)
-	require.NoError(t, err)
+
+	discovery := newDiscoveryWithNetwork(mockContainerProvider, mTimeProvider, getNetworkCollector)
+	discovery.config.cpuUsageUpdateDelay = time.Second
+	discovery.config.networkStatsPeriod = time.Second
+	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
+	t.Cleanup(discovery.Close)
 
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
