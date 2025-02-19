@@ -9,7 +9,9 @@ package autoinstrumentation
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -29,14 +31,11 @@ const (
 type language string
 
 func (l language) defaultLibInfo(registry, ctrName string) libInfo {
-	return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
+	return l.libInfo(ctrName, l.libImageName(registry, "default"))
 }
 
-func (l language) libImageName(registry, tag string) string {
-	if tag == defaultVersionMagicString {
-		tag = l.defaultLibVersion()
-	}
-
+func (l language) libImageName(registry, libraryVersion string) string {
+	tag := l.versionToTag(libraryVersion)
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
 }
 
@@ -121,21 +120,80 @@ func (l language) isEnabledByDefault() bool {
 // wishes to utilize the default version found in languageVersions.
 const defaultVersionMagicString = "default"
 
+var majorVersionRegex = regexp.MustCompile(`v?[0-9]+`)
+
+// Maps the specified language version to the correct image tag
+// * If the version is "default", use the default version for the library
+// * If the version is only a major tag, use the pinned version instead
+func (l language) versionToTag(version string) string {
+	if version == defaultVersionMagicString {
+		return l.defaultLibVersion()
+	}
+	if majorVersionRegex.MatchString(version) {
+		majorVersion, _ := strings.CutPrefix(version, "v")
+		if pinnedVersion, ok := languagePinnedTagPerMajor[l][majorVersion]; ok {
+			return pinnedVersion
+		} else {
+			return version
+		}
+	}
+	return version
+}
+
 // languageVersions defines the major library versions we consider "default" for each
 // supported language. If not set, we will default to "latest", see defaultLibVersion.
 //
 // If this language does not appear in supportedLanguages, it will not be injected.
-var languageVersions = map[language]string{
-	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
-	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
-	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
-	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
-	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128
+var defaultLanguageMajors = map[language]string{
+	java:   "1", // https://datadoghq.atlassian.net/browse/APMON-1064
+	dotnet: "3", // https://datadoghq.atlassian.net/browse/APMON-1390
+	python: "2", // https://datadoghq.atlassian.net/browse/APMON-1068
+	ruby:   "2", // https://datadoghq.atlassian.net/browse/APMON-1066
+	js:     "5", // https://datadoghq.atlassian.net/browse/APMON-1065
+	php:    "1", // https://datadoghq.atlassian.net/browse/APMON-1128
 }
 
+// languagePinnedTagPerMajor defines the pinned exact version of the library associated with the current
+// version of the cluster agent.
+// If a language version is specified only using the major version, they will get the currently pinned
+// library associated their release of the cluster agent.
+//
+// This map be kept up-to-date with APM library releases so the latest version of the datadog-agent
+// release always ships with the newest library versions by default.
+var languagePinnedTagPerMajor = map[language]map[string]string{
+	java: {
+		"1": "1.42.2",
+	},
+	dotnet: {
+		"3": "3.5.0",
+	},
+	python: {
+		"2": "2.16.5",
+	},
+	ruby: {
+		"2": "2.7.0",
+	},
+	js: {
+		"5": "5.27.1",
+	},
+	php: {
+		"1": "1.4.2",
+	},
+}
+
+// injectorPinnedVersion defines the pinned exact version of the injector associated with the current
+// version of the cluster agent.
+//
+// This should be kept up-to-date with injector releases so the latest version of the datadog-agent
+// release always ships with the newest injector by default.
+var injectorPinnedVersion = "0.30.0"
+
 func (l language) defaultLibVersion() string {
-	langVersion, ok := languageVersions[l]
+	majorVersion, ok := defaultLanguageMajors[l]
+	if !ok {
+		return "latest"
+	}
+	langVersion, ok := languagePinnedTagPerMajor[l][majorVersion]
 	if !ok {
 		return "latest"
 	}

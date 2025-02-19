@@ -57,7 +57,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		{
 			name:                    "nominal case: java",
 			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedInjectorImage:   commonRegistry + "/apm-inject:0.30.0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
@@ -68,7 +68,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		{
 			name:                    "nominal case: java & python",
 			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedInjectorImage:   commonRegistry + "/apm-inject:0.30.0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
@@ -146,7 +146,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		{
 			name:                    "language detected for a different container",
 			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.30.0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			expectedLangsDetected:   "",
 			libInfo: extractedPodLibInfo{
@@ -163,7 +163,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		{
 			name:                    "language detected but no languages found",
 			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.30.0",
 			expectedSecurityContext: &corev1.SecurityContext{},
 			expectedLangsDetected:   "",
 			libInfo: extractedPodLibInfo{
@@ -232,7 +232,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					python.libInfo("", "gcr.io/datadoghq/dd-lib-python-init:v1"),
 				},
 			},
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.30.0",
 			expectedLibConfigEnvs: map[string]string{
 				"DD_RUNTIME_METRICS_ENABLED": "true",
 				"DD_TRACE_RATE_LIMIT":        "50",
@@ -252,7 +252,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					python.libInfo("", "gcr.io/datadoghq/dd-lib-python-init:v1"),
 				},
 			},
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.30.0",
 			expectedLibConfigEnvs: map[string]string{
 				"DD_RUNTIME_METRICS_ENABLED": "true",
 				"DD_TRACE_RATE_LIMIT":        "50",
@@ -422,11 +422,11 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 
 func TestExtractLibInfo(t *testing.T) {
 	defaultLibImageVersions := map[string]string{
-		"java":   "registry/dd-lib-java-init:v1",
-		"js":     "registry/dd-lib-js-init:v5",
-		"python": "registry/dd-lib-python-init:v2",
-		"dotnet": "registry/dd-lib-dotnet-init:v3",
-		"ruby":   "registry/dd-lib-ruby-init:v2",
+		"java":   "registry/dd-lib-java-init:1.42.2",
+		"js":     "registry/dd-lib-js-init:5.27.1",
+		"python": "registry/dd-lib-python-init:2.16.5",
+		"dotnet": "registry/dd-lib-dotnet-init:3.5.0",
+		"ruby":   "registry/dd-lib-ruby-init:2.7.0",
 	}
 
 	// TODO: Add new entry when a new language is supported
@@ -469,7 +469,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 			},
 		},
@@ -480,7 +480,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 			},
 		},
@@ -491,7 +491,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: fmt.Sprintf("%s/dd-lib-java-init:v1", commonRegistry),
+					image: fmt.Sprintf("%s/dd-lib-java-init:1.42.2", commonRegistry),
 				},
 			},
 		},
@@ -555,7 +555,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 				{
 					lang:  "js",
@@ -588,7 +588,7 @@ func TestExtractLibInfo(t *testing.T) {
 				{
 					ctrName: "java-app",
 					lang:    "java",
-					image:   "registry/dd-lib-java-init:v1",
+					image:   "registry/dd-lib-java-init:1.42.2",
 				},
 				{
 					ctrName: "node-app",
@@ -716,7 +716,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 			},
 		},
@@ -790,7 +790,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:1.42.2",
 				},
 			},
 			setupConfig: func() {
@@ -806,7 +806,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "php",
-					image: "registry/dd-lib-php-init:v1",
+					image: "registry/dd-lib-php-init:1.4.2",
 				},
 			},
 		},
@@ -1575,11 +1575,11 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 	installTime := strconv.FormatInt(time.Now().Unix(), 10)
 
 	defaultLibraries := map[string]string{
-		"java":   "v1",
-		"python": "v2",
-		"ruby":   "v2",
-		"dotnet": "v3",
-		"js":     "v5",
+		"java":   "1.42.2",
+		"python": "2.16.5",
+		"ruby":   "2.7.0",
+		"dotnet": "3.5.0",
+		"js":     "5.27.1",
 	}
 
 	defaultLibrariesFor := func(languages ...string) map[string]string {

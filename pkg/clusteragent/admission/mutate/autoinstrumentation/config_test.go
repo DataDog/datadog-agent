@@ -66,7 +66,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			expected: &InstrumentationConfig{
 				Enabled:           true,
 				EnabledNamespaces: []string{},
-				InjectorImageTag:  "0",
+				InjectorImageTag:  "0.30.0",
 				LibVersions:       map[string]string{},
 				Version:           "v2",
 				DisabledNamespaces: []string{
@@ -114,7 +114,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			expected: &InstrumentationConfig{
 				Enabled:           true,
 				EnabledNamespaces: []string{},
-				InjectorImageTag:  "0",
+				InjectorImageTag:  "0.30.0",
 				LibVersions:       map[string]string{},
 				Version:           "v2",
 				DisabledNamespaces: []string{

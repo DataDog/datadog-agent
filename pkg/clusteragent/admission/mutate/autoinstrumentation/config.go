@@ -197,6 +197,9 @@ func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationC
 			return nil, fmt.Errorf("apm_config.instrumentation.targets[].namespaceSelector.matchNames and apm_config.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
 		}
 	}
+	if cfg.InjectorImageTag == "" {
+		cfg.InjectorImageTag = injectorPinnedVersion
+	}
 
 	return cfg, nil
 }
@@ -333,6 +336,14 @@ func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
 	}
 
 	return value
+}
+
+func getInjectorVersion(datadogConfig config.Component) string {
+	const INJECTOR_TAG = "apm_config.instrumentation.injector_image_tag"
+	if datadogConfig.IsSet(INJECTOR_TAG) {
+		return datadogConfig.GetString(INJECTOR_TAG)
+	}
+	return injectorPinnedVersion
 }
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
