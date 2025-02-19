@@ -356,10 +356,15 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
+	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Kafka,
-		Stats: p.statkeeper.GetAndResetAllStats(),
-	}, nil
+			Type:  protocols.Kafka,
+			Stats: stats,
+		}, func() {
+			for _, s := range stats {
+				s.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.
