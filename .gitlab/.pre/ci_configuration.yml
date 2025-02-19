@@ -81,7 +81,7 @@ lint_gitlab_ci_shellcheck:
   script:
     # Do only on diff and not on main
     - |
-      if [ -f artifacts/diff.gitlab-ci.yml ] && [ "$CI_COMMIT_BRANCH" != "main" ]; then
+      if [ -f artifacts/diff.gitlab-ci.yml ] && [ "$CI_COMMIT_BRANCH" != "main" ] && ! [[ "$CI_COMMIT_BRANCH" =~ /^[0-9]+\.[0-9]+\.x$/ ]]; then
         inv -e linter.gitlab-ci-shellcheck --diff-file artifacts/diff.gitlab-ci.yml || status=1
       fi
     - |
@@ -96,6 +96,8 @@ lint_github_actions_workflows:
   tags: ["arch:arm64"]
   needs: []
   rules:
+    - <<: !reference [.if_release_branch]
+      when: never
     - changes:
         paths:
           - .github/workflows/**/*.yml
