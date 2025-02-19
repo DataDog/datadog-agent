@@ -135,6 +135,10 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		)
 	}
 
+	if slices.Contains(opts.Analyzers, LanguagesAnalyzers) {
+		option.FileChecksum = true
+	}
+
 	return option
 }
 
