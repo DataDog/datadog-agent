@@ -69,9 +69,7 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	a.tm.compilationEnabled = true
 	defer func() {
 		a.tm.compilationDuration = time.Since(start)
-		if opts.StatsdClient != nil {
-			a.tm.SubmitTelemetry(a.filename, opts.StatsdClient)
-		}
+		a.tm.SubmitTelemetry(a.filename)
 	}()
 
 	var kernelHeaders []string

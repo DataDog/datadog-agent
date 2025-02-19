@@ -45,9 +45,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 	a.tm.compilationEnabled = true
 	defer func() {
 		a.tm.compilationDuration = time.Since(start)
-		if client != nil {
-			a.tm.SubmitTelemetry(a.filename, client)
-		}
+		a.tm.SubmitTelemetry(a.filename)
 	}()
 
 	opts := kernel.HeaderOptions{
