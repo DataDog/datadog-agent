@@ -1553,9 +1553,8 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			}
 		}
 
-		enableAPMInstrumentation  = wConfig("apm_config.instrumentation.enabled", true)
-		disableAPMInstrumentation = wConfig("apm_config.instrumentation.enabled", false)
-		disableNamespaces         = func(ns ...string) func() {
+		enableAPMInstrumentation = wConfig("apm_config.instrumentation.enabled", true)
+		disableNamespaces        = func(ns ...string) func() {
 			return wConfig("apm_config.instrumentation.disabled_namespaces", ns)
 		}
 		enabledNamespaces = func(ns ...string) func() {
@@ -2125,10 +2124,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			pod: common.FakePodSpec{
 				Envs: []corev1.EnvVar{
 					{
-						Name:  "DD_SERVICE",
-						Value: "user-deployment",
-					},
-					{
 						Name:  "DD_TRACE_ENABLED",
 						Value: "false",
 					},
@@ -2168,10 +2163,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
 					Value: uuid,
-				},
-				{
-					Name:  "DD_SERVICE",
-					Value: "user-deployment",
 				},
 				{
 					Name:  "DD_TRACE_ENABLED",
@@ -2221,77 +2212,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			setupConfig:               funcs{enableAPMInstrumentation},
 		},
 		{
-			name: "Single Step Instrumentation: default service name for ReplicaSet",
-			pod: common.FakePodSpec{
-				ParentKind: "replicaset",
-				ParentName: "test-deployment-123",
-			}.Create(),
-			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: "test-deployment",
-			},
-				corev1.EnvVar{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
-					Value: "k8s_single_step",
-				},
-				corev1.EnvVar{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				corev1.EnvVar{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			),
-			expectedInjectedLibraries: defaultLibraries,
-			expectedSecurityContext:   &corev1.SecurityContext{},
-			wantErr:                   false,
-			wantWebhookInitErr:        false,
-			setupConfig:               funcs{enableAPMInstrumentation},
-		},
-		{
-			name: "Single Step Instrumentation: default service name for StatefulSet",
-			pod: common.FakePodSpec{
-				ParentKind: "statefulset",
-				ParentName: "test-statefulset-123",
-			}.Create(),
-			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: "test-statefulset-123",
-			},
-				corev1.EnvVar{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
-					Value: "k8s_single_step",
-				},
-				corev1.EnvVar{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				corev1.EnvVar{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-			),
-			expectedInjectedLibraries: defaultLibraries,
-			expectedSecurityContext:   &corev1.SecurityContext{},
-			wantErr:                   false,
-			wantWebhookInitErr:        false,
-			setupConfig:               funcs{enableAPMInstrumentation},
-		},
-		{
-			name: "Single Step Instrumentation: default service name (disabled)",
-			pod: common.FakePodSpec{
-				ParentKind: "replicaset",
-				ParentName: "test-deployment-123",
-			}.Create(),
-			expectedEnvs:              nil,
-			expectedInjectedLibraries: map[string]string{},
-			expectedSecurityContext:   &corev1.SecurityContext{},
-			wantErr:                   false,
-			wantWebhookInitErr:        false,
-			setupConfig:               funcs{disableAPMInstrumentation},
-		},
-		{
 			name: "Single Step Instrumentation: disabled namespaces should not be instrumented",
 			pod: common.FakePodSpec{
 				ParentKind: "replicaset",
@@ -2317,10 +2237,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				ParentName: "test-app-123",
 			}.Create(),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
-				corev1.EnvVar{
-					Name:  "DD_SERVICE",
-					Value: "test-app",
-				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
@@ -2500,10 +2416,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
-					Name:  "DD_SERVICE",
-					Value: "test-app",
-				},
-				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
 				},
@@ -2568,10 +2480,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
-					Name:  "DD_SERVICE",
-					Value: "test-app",
-				},
-				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
 				},
@@ -2634,10 +2542,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "k8s_single_step",
 				},
 				corev1.EnvVar{
-					Name:  "DD_SERVICE",
-					Value: "test-app",
-				},
-				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
@@ -2669,10 +2573,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
-				},
-				corev1.EnvVar{
-					Name:  "DD_SERVICE",
-					Value: "test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -2708,10 +2608,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "k8s_single_step",
 				},
 				corev1.EnvVar{
-					Name:  "DD_SERVICE",
-					Value: "test-app",
-				},
-				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
@@ -2743,10 +2639,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
-				},
-				corev1.EnvVar{
-					Name:  "DD_SERVICE",
-					Value: "test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
