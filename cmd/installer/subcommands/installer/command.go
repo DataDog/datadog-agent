@@ -264,6 +264,7 @@ func bootstrapCommand() *cobra.Command {
 }
 
 func setupCommand() *cobra.Command {
+	flavor := ""
 	cmd := &cobra.Command{
 		Use:     "setup",
 		Hidden:  true,
@@ -271,9 +272,13 @@ func setupCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.Stop(err) }()
-			return setup.Agent7InstallScript(cmd.ctx, cmd.env)
+			if flavor == "" {
+				return setup.Agent7InstallScript(cmd.ctx, cmd.env)
+			}
+			return setup.Setup(cmd.ctx, cmd.env, flavor)
 		},
 	}
+	cmd.Flags().StringVar(&flavor, "flavor", "", "The setup flavor")
 	return cmd
 }
 
