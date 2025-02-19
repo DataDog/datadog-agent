@@ -288,7 +288,7 @@ func init() {
 func (k *KSMCheck) discoverResources(client *apiserver.APIClient) error {
 	// Discover resources that are currently available
 	k.initRetry.Do(func() {
-		k.retrier.SetupRetrier(&retry.Config{
+		_ = k.retrier.SetupRetrier(&retry.Config{
 			Name: fmt.Sprintf("%s_%s", CheckName, resource_discovery),
 			AttemptMethod: func() error {
 				resources, err := discoverResources(client.Cl.Discovery())
