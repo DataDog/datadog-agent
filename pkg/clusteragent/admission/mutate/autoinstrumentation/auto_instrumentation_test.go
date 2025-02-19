@@ -1041,8 +1041,8 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
-					lang:  "php",
-					image: "registry/dd-lib-php-init:v1",
+					lang:  php,
+					image: "registry/dd-lib-php-init:v1.6",
 				},
 			},
 		},
