@@ -34,21 +34,6 @@ agent_dmg-x64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 
-celian:
-  stage: package_build
-  extends: .macos_gitlab
-  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
-  needs: []
-  timeout: 6h
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-  script:
-    - set -e
-    - !reference [.vault_login]
-    - echo Works
-
-
 # new-agent_dmg-x64-a7:
 #   stage: package_build
 #   # extends: .macos_gitlab
@@ -160,7 +145,7 @@ new-agent_dmg-x64-a7:
     # # - set -e
 
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    # - !reference [.vault_login]
+    - !reference [.vault_login]
     - NCPU="$(sysctl -n hw.ncpu)"
 
     # - |
