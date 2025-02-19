@@ -647,7 +647,7 @@ func TestProcessEvents(t *testing.T) {
 			p.processContainerImagesEvents(workloadmeta.EventBundle{
 				Events: test.inputEvents,
 				Ch:     make(chan struct{}),
-			})
+			}, nil)
 
 			p.stop()
 
