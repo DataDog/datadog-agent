@@ -61,6 +61,7 @@ type serviceInfo struct {
 	additionalGeneratedNames   []string
 	containerServiceName       string
 	containerServiceNameSource string
+	containerRelevantTags      []string
 	ddServiceName              string
 	ddServiceInjected          bool
 	ports                      []uint16
@@ -96,6 +97,7 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.AdditionalGeneratedNames = i.additionalGeneratedNames
 	out.ContainerServiceName = i.containerServiceName
 	out.ContainerServiceNameSource = i.containerServiceNameSource
+	out.ContainerRelevantTags = i.containerRelevantTags
 	out.DDService = i.ddServiceName
 	out.DDServiceInjected = i.ddServiceInjected
 	out.Ports = i.ports
@@ -830,21 +832,36 @@ func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) err
 	return nil
 }
 
-func getServiceNameFromContainerTags(tags []string) (string, string) {
-	// The tags we look for service name generation, in their priority order.
-	// The map entries will be filled as we go through the containers tags.
-	tagsPriority := []struct {
-		tagName  string
-		tagValue *string
-	}{
-		{"service", nil},
-		{"app", nil},
-		{"short_image", nil},
-		{"kube_container_name", nil},
-		{"kube_deployment", nil},
-		{"kube_service", nil},
+type containerTag struct {
+	tagName  string
+	tagValue string
+	found    bool
+}
+
+func makeTagSlice(tagsPriority []containerTag) []string {
+	result := make([]string, 0, len(tagsPriority))
+	for _, tag := range tagsPriority {
+		result = append(result, tag.tagName+":"+tag.tagValue)
 	}
 
+	return result
+}
+
+// getServiceNameFromContainerTags checks the provided slice of container tags for
+// tags that could be used to generate a service name.
+//
+// Returns a slice of found tags. The slice is nil if no tags were found.
+func getServiceNameFromContainerTags(tags []string) []containerTag {
+	// The tags we look for service name generation, in their priority order.
+	// The map entries will be filled as we go through the containers tags.
+	tagsPriority := []containerTag{
+		{"service", "", false},
+		{"app", "", false},
+		{"short_image", "", false},
+		{"kube_container_name", "", false},
+		{"kube_deployment", "", false},
+		{"kube_service", "", false},
+	}
 	// Sort the tags to make the function deterministic
 	slices.Sort(tags)
 
@@ -857,7 +874,7 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 		}
 
 		for i := range tagsPriority {
-			if tagsPriority[i].tagValue != nil {
+			if tagsPriority[i].found {
 				// We have seen this tag before, we don't need another value.
 				continue
 			}
@@ -867,22 +884,21 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 				continue
 			}
 
-			value := tag[sepIndex+1:]
-			tagsPriority[i].tagValue = &value
+			tagsPriority[i].tagValue = tag[sepIndex+1:]
+			tagsPriority[i].found = true
 			break
 		}
 	}
 
-	for _, tag := range tagsPriority {
-		if tag.tagValue == nil {
-			continue
-		}
+	// Filter out not found entries, to later send the relevant tags in the payload.
+	tagsPriority = slices.DeleteFunc(tagsPriority, func(tag containerTag) bool {
+		return !tag.found
+	})
 
-		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-		return tag.tagName, *tag.tagValue
+	if len(tagsPriority) == 0 {
+		return nil
 	}
-
-	return "", ""
+	return tagsPriority
 }
 
 func (s *discovery) enrichContainerData(service *model.Service, containers map[string]*agentPayload.Container, pidToCid map[int]string) {
@@ -903,17 +919,30 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[s
 		return
 	}
 
-	tagName, serviceName := getServiceNameFromContainerTags(container.Tags)
-	service.ContainerServiceName = serviceName
-	service.ContainerServiceNameSource = tagName
+	tagsPriority := getServiceNameFromContainerTags(container.Tags)
 	service.CheckedContainerData = true
+	var relevantTags []string
+
+	if tagsPriority != nil {
+		relevantTags = makeTagSlice(tagsPriority)
+
+		service.ContainerServiceName = tagsPriority[0].tagValue
+		service.ContainerServiceNameSource = tagsPriority[0].tagName
+		service.ContainerRelevantTags = relevantTags
+	}
 
 	serviceInfo, ok := s.cache[int32(service.PID)]
-	if ok {
-		serviceInfo.containerServiceName = serviceName
-		serviceInfo.containerServiceNameSource = tagName
-		serviceInfo.checkedContainerData = true
-		serviceInfo.containerID = id
+	if !ok {
+		return
+	}
+
+	serviceInfo.checkedContainerData = true
+	serviceInfo.containerID = id
+
+	if tagsPriority != nil {
+		serviceInfo.containerServiceName = tagsPriority[0].tagValue
+		serviceInfo.containerServiceNameSource = tagsPriority[0].tagName
+		serviceInfo.containerRelevantTags = relevantTags
 	}
 }
 
