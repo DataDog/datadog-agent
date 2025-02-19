@@ -151,13 +151,10 @@ func (r *Retrier) doTry() *Error {
 	return r.wrapError(err)
 }
 
-func (r *Retrier) Cancel(err error) *Error {
+func (r *Retrier) Cancel() {
 	r.Lock()
-	r.lastTryError = err
 	r.status = PermaFail
 	r.Unlock()
-
-	return r.wrapError(err)
 }
 
 func (r *Retrier) errorf(format string, a ...interface{}) *Error {

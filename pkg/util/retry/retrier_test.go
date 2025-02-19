@@ -364,10 +364,10 @@ func TestCancel(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Cancel subsequent retries
-	_ = mocked.Cancel(errors.New("nope"))
+	mocked.Cancel()
 
 	// Second call should return PermaFail
 	_ = mocked.TriggerRetry()
-	err = mocked.LastError()
-	assert.True(t, IsErrPermaFail(err))
+	status := mocked.RetryStatus()
+	assert.Equal(t, PermaFail, status)
 }
