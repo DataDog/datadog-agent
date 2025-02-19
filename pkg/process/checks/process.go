@@ -289,11 +289,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	collectorProcHints := p.generateHints()
 	p.checkCount++
 
-	pidToGPUTags := make(map[int32][]string)
-	if p.gpuSubscriber != nil {
-		log.Info("GPU detected in process check, populating pidToGPUTags mapping")
-		pidToGPUTags = p.gpuSubscriber.GetGPUTags()
-	}
+	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
@@ -495,7 +491,7 @@ func fmtProcesses(
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {
-			log.Info("Detected GPU, and process is in activePids, adding gpu tags to pid:", fp.Pid)
+			log.Debugf("Detected GPU, and process is in activePids, adding gpu tags to pid: %s", fp.Pid)
 			proc.Tags = tags
 		}
 

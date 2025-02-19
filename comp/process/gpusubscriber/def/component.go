@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package gpusubscriber implements a component to subscribe to WorkloadMeta GPU events in the Agent.
+// Package gpusubscriber subscribes to GPU events
 package gpusubscriber
 
 // team: container-intake
 
 // Component is the component type.
 type Component interface {
+	// GetGPUTags returns a map of PIDs to their corresponding GPU tags.
 	GetGPUTags() map[int32][]string
 }

@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-// Package gpusubscriberimpl implements a component to handle GPU detection in the Core Agent.
+// Package gpusubscriberimpl subscribes to GPU events
 package gpusubscriberimpl
 
 import (

@@ -37,7 +37,7 @@ func NewGPUSubscriber(wmeta workloadmeta.Component, tagger tagger.Component) *GP
 
 // Run starts the GPU detector, which listens for workloadmeta events to detect GPUs on the host
 func (g *GPUSubscriber) Run(_ context.Context) error {
-	log.Info("Starting GPU detector")
+	log.Info("Starting GPU subscriber")
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).
 		SetEventType(workloadmeta.EventTypeSet).
@@ -45,7 +45,7 @@ func (g *GPUSubscriber) Run(_ context.Context) error {
 		Build()
 
 	g.gpuEventsCh = g.wmeta.Subscribe(
-		"gpu-detector-set-gpu",
+		"gpu-subscriber-set-gpu",
 		workloadmeta.NormalPriority,
 		filter,
 	)
@@ -58,10 +58,6 @@ func (g *GPUSubscriber) Run(_ context.Context) error {
 				}
 				g.processEvents(eventBundle)
 				eventBundle.Acknowledge()
-
-				if g.IsGPUDetected() {
-					log.Info("GPU detected in event bundle")
-				}
 			case <-g.stopCh:
 				g.wmeta.Unsubscribe(g.gpuEventsCh)
 				return
@@ -85,13 +81,12 @@ func (g *GPUSubscriber) SetGPUDetected(value bool) {
 // processEvents processes the events received from workloadmeta
 func (g *GPUSubscriber) processEvents(eventBundle workloadmeta.EventBundle) {
 	for _, event := range eventBundle.Events {
-		gpu, ok := event.Entity.(*workloadmeta.GPU)
+		_, ok := event.Entity.(*workloadmeta.GPU)
 		if !ok {
 			log.Debugf("Expected workloadmeta.GPU got %T, skipping", event.Entity)
 			continue
 		}
 
-		log.Info("GPU detected, enabling GPU tagging:", gpu)
 		g.SetGPUDetected(true)
 		break
 	}
@@ -100,7 +95,6 @@ func (g *GPUSubscriber) processEvents(eventBundle workloadmeta.EventBundle) {
 // GetGPUTags creates and returns a mapping of active pids to their associated GPU tags
 func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 	if !g.IsGPUDetected() {
-		log.Info("GPU not detected, skipping GPU tag creation")
 		return nil
 	}
 
@@ -114,7 +108,7 @@ func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 		entityID := types.NewEntityID(types.GPU, uuid)
 		tags, err := g.tagger.Tag(entityID, g.tagger.ChecksCardinality())
 		if err != nil {
-			log.Debugf("Could not collect tags for GPU %q, err: %v", uuid, err)
+			log.Debugf("Could not collect tags for GPU %d, err: %v", uuid, err)
 		}
 
 		// Filter tags to remove duplicates
@@ -129,18 +123,16 @@ func (g *GPUSubscriber) GetGPUTags() map[int32][]string {
 	}
 
 	// Convert StringSet to []string
-	pidToGPUTags := make(map[int32][]string)
+	pidToGPUTags := make(map[int32][]string, len(pidToTagSet))
 	for pid, tagSet := range pidToTagSet {
 		pidToGPUTags[pid] = tagSet.GetAll()
 	}
 
-	log.Info("GPU tags created for active pids:", pidToGPUTags)
 	return pidToGPUTags
 }
 
 // Stop stops the GPU detector
 func (g *GPUSubscriber) Stop(_ context.Context) error {
-	log.Info("Stopping GPU detector")
 	close(g.stopCh)
 	return nil
 }

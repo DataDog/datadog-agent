@@ -5,7 +5,7 @@
 
 //go:build test
 
-// Package mock provides the gpu subscriber mock component for the Datadog Agent
+// Package mock provides the gpu subscriber mock component.
 package mock
 
 import (

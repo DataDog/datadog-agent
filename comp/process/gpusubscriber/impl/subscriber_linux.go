@@ -5,7 +5,7 @@
 
 //go:build linux
 
-// Package gpusubscriberimpl implements a component to handle GPU detection in the Core Agent.
+// Package gpusubscriberimpl subscribes to GPU events
 package gpusubscriberimpl
 
 import (
@@ -52,5 +52,8 @@ func NewComponent(reqs Requires) gpusubscriber.Component {
 }
 
 func (g gpusubscriberimpl) GetGPUTags() map[int32][]string {
+	if g.gpuSubscriber == nil {
+		return map[int32][]string{}
+	}
 	return g.gpuSubscriber.GetGPUTags()
 }

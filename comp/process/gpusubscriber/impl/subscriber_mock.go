@@ -5,7 +5,7 @@
 
 //go:build test
 
-// Package gpusubscriberimpl implements a component to provide gpusubscriber used by the core agent.
+// Package gpusubscriberimpl subscribes to GPU events
 package gpusubscriberimpl
 
 import (
@@ -17,7 +17,7 @@ type MockSubscriber struct{}
 
 // GetGPUTags returns empty in mocked implementation.
 func (m *MockSubscriber) GetGPUTags() map[int32][]string {
-	return nil
+	return map[int32][]string{}
 }
 
 // NewGpuSubscriberMock returns a new instance of the mock GPU subscriber.

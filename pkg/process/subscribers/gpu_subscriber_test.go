@@ -21,7 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	fxutil "github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGPUDetection(t *testing.T) {
@@ -304,8 +304,9 @@ func TestGetGPUTags(t *testing.T) {
 			}
 
 			actualTagMap := gpuDetector.GetGPUTags()
-			for pid, tagMap := range actualTagMap {
-				assert.ElementsMatch(t, tagMap, tt.expectedTagMap[pid])
+			assert.Equal(t, len(tt.expectedTagMap), len(actualTagMap))
+			for pid, tagMap := range tt.expectedTagMap {
+				assert.ElementsMatch(t, actualTagMap[pid], tagMap)
 			}
 		})
 	}
