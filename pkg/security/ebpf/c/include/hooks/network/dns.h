@@ -133,12 +133,12 @@ int classifier_dns_response(struct __sk_buff *skb) {
     }
 
     int len = pkt->payload_len;
+
     if (len > DNS_MAX_LENGTH) {
         len = DNS_MAX_LENGTH;
     }
 
     struct dns_response_event_t evt = {0};
-    __builtin_memset(&evt, 0, sizeof(evt));
 
     if (bpf_skb_load_bytes(skb, pkt->offset, &evt.header, sizeof(evt.header)) < 0) {
         return 0;
@@ -151,7 +151,7 @@ int classifier_dns_response(struct __sk_buff *skb) {
 
     int remaining_bytes = len - sizeof(struct dnshdr);
 
-    if (remaining_bytes < 1 || pkt->offset < 1 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
+    if (remaining_bytes <= 0 || pkt->offset <= 0 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
         return 0;
     }
 
