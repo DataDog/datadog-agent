@@ -60,11 +60,12 @@ func TestDNSResolver(t *testing.T) {
 
 		}
 
-		hostList := []string{"datadoghq.com", "datadoghq.eu"}
+		hostList := []string{"example.com", "datadoghq.com", "datadoghq.eu"}
 		var addresses = make(map[string][]net.IP)
 
 		for _, host := range hostList {
 			ipAddresses, _ := net.LookupIP(host)
+			fmt.Printf("Resolved %s to %v\n", host, ipAddresses)
 			addresses[host] = ipAddresses
 		}
 

@@ -752,8 +752,6 @@ func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
 			fmt.Println("Got another layer that's not DNS")
 		}
 	}
-
-	return
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
