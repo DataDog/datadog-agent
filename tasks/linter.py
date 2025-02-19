@@ -42,6 +42,8 @@ from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
 from tasks.update_go import _update_go_mods, _update_references
 
+DEFAULT_SHELLCHECK_EXCLUDES = 'SC2059,SC2028,SC2086,SC2016'
+
 
 @task
 def python(ctx):
@@ -940,7 +942,7 @@ def gitlab_ci_shellcheck(
     ctx,
     diff_file=None,
     config_file=None,
-    exclude='SC2059,SC2028,SC2086',
+    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
     shellcheck_args="",
     fail_fast=False,
     verbose=False,
@@ -986,7 +988,7 @@ def gitlab_ci_shellcheck(
 def github_actions_shellcheck(
     ctx,
     files: str,
-    exclude='SC2059,SC2028,SC2086',
+    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
     shellcheck_args="",
     fail_fast=False,
     use_bat=None,
