@@ -359,7 +359,7 @@ func (k *KSMCheck) configureBuilderOnce(client *apiserver.APIClient, custom cust
 	return configureErr
 }
 
-// configure retries _configure() if it previously failed
+// configureCheck retries _configure() if it previously failed
 func (k *KSMCheck) configureCheck() error {
 	if err := k.configureRetrier.TriggerRetry(); err != nil {
 		return err
