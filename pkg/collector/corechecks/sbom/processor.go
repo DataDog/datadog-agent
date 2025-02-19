@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -99,6 +100,11 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 	var imageEvents []workloadmeta.Event
 	var containerEvents []workloadmeta.Event
 
+	containerFilter, err := containers.GetSharedMetricFilter()
+	if err != nil {
+		return
+	}
+
 	for _, event := range evBundle.Events {
 		entityID := event.Entity.GetID()
 		switch entityID.Kind {
@@ -113,6 +119,10 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 	for _, event := range imageEvents {
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
+			if containerFilter.IsExcluded(nil, "", event.Entity.(*workloadmeta.ContainerImageMetadata).Name, "") {
+				continue
+			}
+
 			p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
 			p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
 		case workloadmeta.EventTypeUnset:
@@ -125,7 +135,11 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 	for _, event := range containerEvents {
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			p.registerContainer(event.Entity.(*workloadmeta.Container))
+			container := event.Entity.(*workloadmeta.Container)
+			if containerFilter.IsExcluded(nil, container.Name, container.Image.Name, "") {
+				continue
+			}
+			p.registerContainer(container)
 		case workloadmeta.EventTypeUnset:
 			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
