@@ -450,11 +450,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
+					defaultLibInfo(js),
 				},
 			},
 		},
@@ -511,11 +507,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1.46",
-					},
+					defaultLibInfo(java),
 				},
 			},
 		},
@@ -599,26 +591,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						lang:  java,
-						image: "registry/dd-lib-java-init:v1.46",
-					},
-					{
-						lang:  js,
-						image: "registry/dd-lib-js-init:v5",
-					},
-					{
-						lang:  python,
-						image: "registry/dd-lib-python-init:v2",
-					},
-					{
-						lang:  dotnet,
-						image: "registry/dd-lib-dotnet-init:v3",
-					},
-					{
-						lang:  ruby,
-						image: "registry/dd-lib-ruby-init:v2",
-					},
+					defaultLibInfo(java),
+					defaultLibInfo(js),
+					defaultLibInfo(python),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
 				},
 			},
 		},

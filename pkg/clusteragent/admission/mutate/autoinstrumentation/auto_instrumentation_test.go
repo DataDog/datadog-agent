@@ -36,6 +36,37 @@ import (
 
 const commonRegistry = "gcr.io/datadoghq"
 
+var (
+	defaultLibraries = map[string]string{
+		"java":   "v1.46",
+		"python": "v2",
+		"ruby":   "v2",
+		"dotnet": "v3",
+		"js":     "v5.37",
+	}
+
+	// TODO: Add new entry when a new language is supported
+	defaultLibImageVersions = map[language]string{
+		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
+		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
+		python: "registry/dd-lib-python-init:v2",
+		dotnet: "registry/dd-lib-dotnet-init:v3",
+		ruby:   "registry/dd-lib-ruby-init:v2",
+	}
+)
+
+func defaultLibInfo(l language) libInfo {
+	return libInfo{lang: l, image: defaultLibImageVersions[l]}
+}
+
+func defaultLibrariesFor(languages ...string) map[string]string {
+	out := map[string]string{}
+	for _, l := range languages {
+		out[l] = defaultLibraries[l]
+	}
+	return out
+}
+
 func TestInjectAutoInstruConfigV2(t *testing.T) {
 	tests := []struct {
 		name                    string
@@ -660,15 +691,6 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 }
 
 func TestExtractLibInfo(t *testing.T) {
-	// TODO: Add new entry when a new language is supported
-	defaultLibImageVersions := map[language]string{
-		java:   "registry/dd-lib-java-init:v1.46",
-		js:     "registry/dd-lib-js-init:v5",
-		python: "registry/dd-lib-python-init:v2",
-		dotnet: "registry/dd-lib-dotnet-init:v3",
-		ruby:   "registry/dd-lib-ruby-init:v2",
-	}
-
 	var allLatestDefaultLibs []libInfo
 	for k, v := range defaultLibImageVersions {
 		allLatestDefaultLibs = append(allLatestDefaultLibs, libInfo{
@@ -1787,22 +1809,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 	uuid := uuid.New().String()
 	installTime := strconv.FormatInt(time.Now().Unix(), 10)
-
-	defaultLibraries := map[string]string{
-		"java":   "v1.46",
-		"python": "v2",
-		"ruby":   "v2",
-		"dotnet": "v3",
-		"js":     "v5",
-	}
-
-	defaultLibrariesFor := func(languages ...string) map[string]string {
-		out := map[string]string{}
-		for _, l := range languages {
-			out[l] = defaultLibraries[l]
-		}
-		return out
-	}
 
 	tests := []struct {
 		name                      string
