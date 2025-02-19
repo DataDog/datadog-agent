@@ -97,20 +97,19 @@ receivers:
   otlp:
     protocols:
       grpc:
-        auth: null
         endpoint: 0.0.0.0:4317
-        include_metadata: false
-        keepalive: null
-        max_concurrent_streams: 0
-        max_recv_msg_size_mib: 0
+        keepalive:
+          enforcement_policy: {}
+          server_parameters: {}
         read_buffer_size: 524288
-        tls: null
         transport: tcp
-        write_buffer_size: 0
       http:
         auth: null
         compression_algorithms: []
-        cors: null
+        cors:
+          allowed_headers: {}
+          allowed_origins: {}
+          max_age: 0
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
         include_metadata: false
