@@ -220,7 +220,9 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    handle_tcp_failure(sk, &t);
+    if (!handle_tcp_failure(sk, &t)) {
+        return 0;
+    }
 
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);

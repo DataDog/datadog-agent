@@ -368,41 +368,43 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
     return val > 0;
 }
 
-static __always_inline void handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
+// handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
+// returns an integer to the caller indicating if there was a failure or not
+static __always_inline int handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
     if (!tcp_failed_connections_enabled()) {
-        return;
+        return 0;
     }
     int err = 0;
     BPF_CORE_READ_INTO(&err, sk, sk_err);
 
     switch (err) {
     case 0:
-        break;
+        return 0; // no error
     case TCP_CONN_FAILED_RESET:
     case TCP_CONN_FAILED_TIMEOUT:
     case TCP_CONN_FAILED_REFUSED: {
         tcp_stats_t stats = { .failure_reason = err };
         update_tcp_stats(t, stats);
-        break;
+        return 1;
     }
     case TCP_CONN_FAILED_HOSTDOWN:
         increment_telemetry_count(tcp_failure_ehostdown);
-        break;
+        return 0;
     case TCP_CONN_FAILED_HOSTUNREACH:
         increment_telemetry_count(tcp_failure_ehostunreach);
-        break;
+        return 0;
     case TCP_CONN_FAILED_NETDOWN:
         increment_telemetry_count(tcp_failure_enetdown);
-        break;
+        return 0;
     case TCP_CONN_FAILED_NETUNREACH:
         increment_telemetry_count(tcp_failure_enetunreach);
-        break;
+        return 0;
     case TCP_CONN_FAILED_NETRESET:
         increment_telemetry_count(tcp_failure_enetreset);
-        break;
+        return 0;
     case TCP_CONN_FAILED_ABORTED:
         increment_telemetry_count(tcp_failure_econnaborted);
-        break;
+        return 0;
     }
 }
 
