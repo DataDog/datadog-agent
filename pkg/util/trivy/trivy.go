@@ -281,18 +281,7 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
-	pkgCount := 0
-	for _, results := range trivyReport.Results {
-		pkgCount += len(results.Packages)
-	}
-	log.Debugf("Found %d packages", pkgCount)
-
-	return &Report{
-		Report:    trivyReport,
-		id:        cache.blobID,
-		marshaler: c.marshaler,
-	}, nil
+	return c.buildReport(trivyReport, cache.blobID), nil
 }
 
 // ScanFilesystem scans file-system
@@ -349,11 +338,22 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
+	return c.buildReport(trivyReport, trivyReport.Metadata.ImageID), nil
+}
+
+func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
+	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
+	pkgCount := 0
+	for _, results := range trivyReport.Results {
+		pkgCount += len(results.Packages)
+	}
+	log.Debugf("Found %d packages", pkgCount)
+
 	return &Report{
 		Report:    trivyReport,
-		id:        trivyReport.Metadata.ImageID,
+		id:        id,
 		marshaler: c.marshaler,
-	}, nil
+	}
 }
 
 func looselyCompareAnalyzers(given []string, against []string) bool {
