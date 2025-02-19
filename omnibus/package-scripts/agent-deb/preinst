@@ -35,11 +35,4 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     fi
 fi
 
-# For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
-# They were not being cleaned by these versions, so let's do that now on install/upgrade
-TUF_REPO_DIR=$INSTALL_DIR/repositories
-if [ -d $TUF_REPO_DIR ]; then
-    rm -rf $TUF_REPO_DIR
-fi
-
 exit 0

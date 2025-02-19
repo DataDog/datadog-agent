@@ -29,13 +29,6 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     fi
 fi
 
-# For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
-# They were not being cleaned by these versions, so let's do that now on install/upgrade
-TUF_REPO_DIR=$INSTALL_DIR/repositories
-if [ -d $TUF_REPO_DIR ]; then
-    rm -rf $TUF_REPO_DIR
-fi
-
 # RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
 # So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
 if [ -f "/etc/init.d/datadog-agent" ]; then
