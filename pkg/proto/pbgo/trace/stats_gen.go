@@ -138,7 +138,7 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				z.IsTraceRoot = Trilean(zb0003)
 			}
 		case "GRPCStatusCode":
-			z.GRPCStatusCode, err = dc.ReadUint32()
+			z.GRPCStatusCode, err = dc.ReadString()
 			if err != nil {
 				err = msgp.WrapError(err, "GRPCStatusCode")
 				return
@@ -329,7 +329,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteUint32(z.GRPCStatusCode)
+	err = en.WriteString(z.GRPCStatusCode)
 	if err != nil {
 		err = msgp.WrapError(err, "GRPCStatusCode")
 		return
@@ -394,7 +394,7 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendInt32(o, int32(z.IsTraceRoot))
 	// string "GRPCStatusCode"
 	o = append(o, 0xae, 0x47, 0x52, 0x50, 0x43, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x43, 0x6f, 0x64, 0x65)
-	o = msgp.AppendUint32(o, z.GRPCStatusCode)
+	o = msgp.AppendString(o, z.GRPCStatusCode)
 	return
 }
 
@@ -530,7 +530,7 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				z.IsTraceRoot = Trilean(zb0003)
 			}
 		case "GRPCStatusCode":
-			z.GRPCStatusCode, bts, err = msgp.ReadUint32Bytes(bts)
+			z.GRPCStatusCode, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "GRPCStatusCode")
 				return
@@ -553,7 +553,7 @@ func (z *ClientGroupedStats) Msgsize() (s int) {
 	for za0001 := range z.PeerTags {
 		s += msgp.StringPrefixSize + len(z.PeerTags[za0001])
 	}
-	s += 12 + msgp.Int32Size + 15 + msgp.Uint32Size
+	s += 12 + msgp.Int32Size + 15 + msgp.StringPrefixSize + len(z.GRPCStatusCode)
 	return
 }
 

@@ -58,36 +58,36 @@ func TestGetStatusCode(t *testing.T) {
 func TestGetGRPCStatusCode(t *testing.T) {
 	for _, tt := range []struct {
 		in  *pb.Span
-		out uint32
+		out string
 	}{
 		{
 			&pb.Span{},
-			200,
+			"",
 		},
 		{
 			&pb.Span{
 				Meta: map[string]string{"rpc.grpc.status_code": "aborted"},
 			},
-			10,
+			"10",
 		},
 		{
 			&pb.Span{
 				Metrics: map[string]float64{"grpc.code": 1},
 			},
-			1,
+			"1",
 		},
 		{
 			&pb.Span{
 				Meta:    map[string]string{"grpc.status.code": "0"},
 				Metrics: map[string]float64{"grpc.status.code": 1},
 			},
-			0,
+			"0",
 		},
 		{
 			&pb.Span{
 				Meta: map[string]string{"rpc.grpc.status.code": "15"},
 			},
-			15,
+			"15",
 		},
 	} {
 		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))

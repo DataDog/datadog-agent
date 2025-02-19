@@ -394,8 +394,8 @@ func TestCountAggregation(t *testing.T) {
 			"status",
 		},
 		{
-			BucketsAggregationKey{GRPCStatusCode: 2},
-			&pb.ClientGroupedStats{GRPCStatusCode: 2},
+			BucketsAggregationKey{GRPCStatusCode: "2"},
+			&pb.ClientGroupedStats{GRPCStatusCode: "2"},
 			"status",
 		},
 	}

@@ -43,7 +43,7 @@ type BucketsAggregationKey struct {
 	Synthetics     bool
 	PeerTagsHash   uint64
 	IsTraceRoot    pb.Trilean
-	GRPCStatusCode uint32
+	GRPCStatusCode string
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -135,7 +135,7 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	}
 }
 
-func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
+func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
 	// List of possible keys to check in order
 	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
@@ -143,24 +143,24 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) uint3
 		if strC, exists := meta[key]; exists && strC != "" {
 			c, err := strconv.ParseUint(strC, 10, 32)
 			if err == nil {
-				return uint32(c)
+				return strconv.FormatUint(c, 10)
 			}
 
 			// If not integer, check for valid gRPC status string
 			if codeStr, found := code.Code_value[strings.ToUpper(strC)]; found {
-				return uint32(codes.Code(codeStr))
+				return strconv.FormatUint(uint64(codes.Code(codeStr)), 10)
 			}
 
 			log.Debugf("Invalid status code %s. Using 0.", strC)
-			return 0
+			return ""
 		}
 	}
 
 	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
 		if code, ok := metrics[key]; ok {
-			return uint32(code)
+			return strconv.FormatUint(uint64(code), 10)
 		}
 	}
 
-	return 200 // invalid gRPC code
+	return "" // invalid gRPC code
 }
