@@ -88,7 +88,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v2",
+				defaultLibInfo(python).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_INJECT_SENDER_TYPE":           "k8s",
@@ -120,7 +120,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v2",
+				defaultLibInfo(python).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_PROFILING_ENABLED":            "true",
@@ -384,11 +384,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v2",
-					},
+					defaultLibInfo(python),
 				},
 			},
 		},
@@ -484,11 +480,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v2",
-					},
+					defaultLibInfo(python),
 				},
 			},
 		},

@@ -39,7 +39,7 @@ const commonRegistry = "gcr.io/datadoghq"
 var (
 	defaultLibraries = map[string]string{
 		"java":   "v1.46",
-		"python": "v2",
+		"python": "v2.21",
 		"ruby":   "v2",
 		"dotnet": "v3",
 		"js":     "v5.37",
@@ -49,9 +49,9 @@ var (
 	defaultLibImageVersions = map[language]string{
 		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
 		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
-		python: "registry/dd-lib-python-init:v2",
-		dotnet: "registry/dd-lib-dotnet-init:v3",
-		ruby:   "registry/dd-lib-ruby-init:v2",
+		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
+		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
+		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
 	}
 )
 
