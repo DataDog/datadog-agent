@@ -11,8 +11,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -38,8 +40,9 @@ func newDefaultConfig() component.Config {
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
 		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 
-		Metrics: mcfg,
-		API:     pkgmcfg.API,
+		Metrics:      mcfg,
+		API:          pkgmcfg.API,
+		HostMetadata: pkgmcfg.HostMetadata,
 	}
 }
 
@@ -61,14 +64,16 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 // Exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type Exporter struct {
-	tr              *metrics.Translator
-	s               serializer.MetricSerializer
-	hostGetter      SourceProviderFunc
-	extraTags       []string
-	enricher        tagenricher
-	apmReceiverAddr string
-	createConsumer  createConsumerFunc
-	params          exporter.Settings
+	tr               *metrics.Translator
+	s                serializer.MetricSerializer
+	hostGetter       SourceProviderFunc
+	extraTags        []string
+	enricher         tagenricher
+	apmReceiverAddr  string
+	createConsumer   createConsumerFunc
+	params           exporter.Settings
+	metadataReporter *inframetadata.Reporter
+	hostmetadata     datadogconfig.HostMetadataConfig
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -133,6 +138,7 @@ func NewExporter(
 	hostGetter SourceProviderFunc,
 	createConsumer createConsumerFunc,
 	tr *metrics.Translator,
+	params exporter.Settings,
 ) (*Exporter, error) {
 	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
@@ -142,14 +148,21 @@ func NewExporter(
 	if cfg.Metrics.Tags != "" {
 		extraTags = strings.Split(cfg.Metrics.Tags, ",")
 	}
+	reporter, err := inframetadata.NewReporter(params.Logger, nil, time.Duration(cfg.HostMetadata.ReporterPeriod))
+	if err != nil {
+		return nil, err
+	}
 	return &Exporter{
-		tr:              tr,
-		s:               s,
-		hostGetter:      hostGetter,
-		enricher:        enricher,
-		apmReceiverAddr: cfg.Metrics.APMStatsReceiverAddr,
-		extraTags:       extraTags,
-		createConsumer:  createConsumer,
+		tr:               tr,
+		s:                s,
+		hostGetter:       hostGetter,
+		enricher:         enricher,
+		apmReceiverAddr:  cfg.Metrics.APMStatsReceiverAddr,
+		extraTags:        extraTags,
+		createConsumer:   createConsumer,
+		params:           params,
+		hostmetadata:     cfg.HostMetadata,
+		metadataReporter: reporter,
 	}, nil
 }
 

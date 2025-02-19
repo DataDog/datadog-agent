@@ -158,7 +158,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
-	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr)
+	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr, params)
 	if err != nil {
 		return nil, err
 	}

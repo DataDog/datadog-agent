@@ -30,6 +30,9 @@ type ExporterConfig struct {
 	// ShutdownFunc is the function to call when the exporter is shutdown.
 	// OpenTelemetry Collector provides additional shutdown logic.
 	ShutdownFunc component.ShutdownFunc `mapstructure:"-"`
+
+	// HostMetadataConfig defines the host metadata related configuration.
+	HostMetadata datadogconfig.HostMetadataConfig `mapstructure:"host_metadata"`
 }
 
 var _ component.Config = (*ExporterConfig)(nil)
