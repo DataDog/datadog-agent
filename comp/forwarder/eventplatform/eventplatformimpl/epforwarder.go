@@ -497,22 +497,26 @@ type dependencies struct {
 	Params                Params
 	Config                configcomp.Component
 	Lc                    fx.Lifecycle
-	EventPlatformReceiver eventplatformreceiver.Component
+	EventPlatformReceiver option.Option[eventplatformreceiver.Component]
 	Hostname              hostnameinterface.Component
 	Compression           logscompression.Component
 }
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder
-func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
+func newEventPlatformForwarder(deps dependencies) (eventplatform.Component, error) {
 	var forwarder *defaultEventPlatformForwarder
 
 	if deps.Params.UseNoopEventPlatformForwarder {
 		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.Compression)
 	} else if deps.Params.UseEventPlatformForwarder {
-		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression)
+		platformReceiver, ok := deps.EventPlatformReceiver.Get()
+		if !ok {
+			return nil, fmt.Errorf("missing EventPlatformReceiver")
+		}
+		forwarder = newDefaultEventPlatformForwarder(deps.Config, platformReceiver, deps.Compression)
 	}
 	if forwarder == nil {
-		return option.NonePtr[eventplatform.Forwarder]()
+		return option.NonePtr[eventplatform.Forwarder](), nil
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
@@ -524,7 +528,7 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 			return nil
 		},
 	})
-	return option.NewPtr[eventplatform.Forwarder](forwarder)
+	return option.NewPtr[eventplatform.Forwarder](forwarder), nil
 }
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events

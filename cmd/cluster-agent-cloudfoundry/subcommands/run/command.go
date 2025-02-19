@@ -91,7 +91,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 				eventplatformreceiverimpl.Module(),
-
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{

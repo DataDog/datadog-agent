@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/afero"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -30,11 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // NewAgent returns a new Logs Agent
-func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component) {
+func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, integrationsLogs integrations.Component) {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -66,7 +64,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, a.grpcClient, a.tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

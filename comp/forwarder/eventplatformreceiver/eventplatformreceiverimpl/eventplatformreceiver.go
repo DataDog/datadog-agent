@@ -17,12 +17,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewReceiver),
+		fx.Provide(
+			NewReceiver,
+		),
+		fx.Provide(func(eventplatformreceiver eventplatformreceiver.Component) optional.Option[eventplatformreceiver.Component] {
+			return optional.NewOption(eventplatformreceiver)
+		}),
 	)
 }
 

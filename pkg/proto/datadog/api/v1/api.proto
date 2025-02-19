@@ -163,6 +163,21 @@ service AgentSecure {
         };
     };
 
+    
+    rpc WorkloadmetaGetContainer(datadog.workloadmeta.WorkloadmetaGetContainerRequest) returns (datadog.workloadmeta.WorkloadmetaGetContainerResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/workloadmeta/get_container"
+            body: "*"
+        };
+    };
+    
+    rpc WorkloadmetaGetKubernetesPodForContainer(datadog.workloadmeta.WorkloadmetaGetKubernetesPodForContainerRequest) returns (datadog.workloadmeta.WorkloadmetaGetKubernetesPodForContainerResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/workloadmeta/get_kubernetes_pod_for_container"
+            body: "*"
+        };
+    };
+    
     // Registers a remote agent.
     rpc RegisterRemoteAgent(datadog.remoteagent.RegisterRemoteAgentRequest) returns (datadog.remoteagent.RegisterRemoteAgentResponse) {
         option (google.api.http) = {

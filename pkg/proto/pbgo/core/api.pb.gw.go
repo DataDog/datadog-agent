@@ -286,6 +286,54 @@ func request_AgentSecure_WorkloadmetaStreamEntities_0(ctx context.Context, marsh
 	return stream, metadata, nil
 }
 
+func request_AgentSecure_WorkloadmetaGetContainer_0(ctx context.Context, marshaler runtime.Marshaler, client AgentSecureClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq WorkloadmetaGetContainerRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := client.WorkloadmetaGetContainer(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_AgentSecure_WorkloadmetaGetContainer_0(ctx context.Context, marshaler runtime.Marshaler, server AgentSecureServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq WorkloadmetaGetContainerRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.WorkloadmetaGetContainer(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(ctx context.Context, marshaler runtime.Marshaler, client AgentSecureClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq WorkloadmetaGetKubernetesPodForContainerRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := client.WorkloadmetaGetKubernetesPodForContainer(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(ctx context.Context, marshaler runtime.Marshaler, server AgentSecureServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq WorkloadmetaGetKubernetesPodForContainerRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.WorkloadmetaGetKubernetesPodForContainer(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 func request_AgentSecure_RegisterRemoteAgent_0(ctx context.Context, marshaler runtime.Marshaler, client AgentSecureClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
 		protoReq RegisterRemoteAgentRequest
@@ -556,6 +604,46 @@ func RegisterAgentSecureHandlerServer(ctx context.Context, mux *runtime.ServeMux
 		_, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 		return
+	})
+	mux.Handle(http.MethodPost, pattern_AgentSecure_WorkloadmetaGetContainer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/datadog.api.v1.AgentSecure/WorkloadmetaGetContainer", runtime.WithHTTPPathPattern("/v1/grpc/workloadmeta/get_container"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_AgentSecure_WorkloadmetaGetContainer_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_AgentSecure_WorkloadmetaGetContainer_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/datadog.api.v1.AgentSecure/WorkloadmetaGetKubernetesPodForContainer", runtime.WithHTTPPathPattern("/v1/grpc/workloadmeta/get_kubernetes_pod_for_container"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 	mux.Handle(http.MethodPost, pattern_AgentSecure_RegisterRemoteAgent_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
@@ -878,6 +966,40 @@ func RegisterAgentSecureHandlerClient(ctx context.Context, mux *runtime.ServeMux
 		}
 		forward_AgentSecure_WorkloadmetaStreamEntities_0(annotatedContext, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPost, pattern_AgentSecure_WorkloadmetaGetContainer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/datadog.api.v1.AgentSecure/WorkloadmetaGetContainer", runtime.WithHTTPPathPattern("/v1/grpc/workloadmeta/get_container"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_AgentSecure_WorkloadmetaGetContainer_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_AgentSecure_WorkloadmetaGetContainer_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodPost, pattern_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/datadog.api.v1.AgentSecure/WorkloadmetaGetKubernetesPodForContainer", runtime.WithHTTPPathPattern("/v1/grpc/workloadmeta/get_kubernetes_pod_for_container"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	mux.Handle(http.MethodPost, pattern_AgentSecure_RegisterRemoteAgent_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -933,33 +1055,37 @@ func RegisterAgentSecureHandlerClient(ctx context.Context, mux *runtime.ServeMux
 }
 
 var (
-	pattern_AgentSecure_TaggerStreamEntities_0                    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "tagger", "stream_entities"}, ""))
-	pattern_AgentSecure_TaggerGenerateContainerIDFromOriginInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "tagger", "generate_container_id_from_origin_info"}, ""))
-	pattern_AgentSecure_TaggerFetchEntity_0                       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "tagger", "fetch_entity"}, ""))
-	pattern_AgentSecure_DogstatsdCaptureTrigger_0                 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "grpc", "dogstatsd", "capture", "trigger"}, ""))
-	pattern_AgentSecure_DogstatsdSetTaggerState_0                 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "grpc", "dogstatsd", "capture", "state"}, ""))
-	pattern_AgentSecure_ClientGetConfigs_0                        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteconfig", "configs"}, ""))
-	pattern_AgentSecure_GetConfigState_0                          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteconfig", "state"}, ""))
-	pattern_AgentSecure_ClientGetConfigsHA_0                      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteconfig", "configs_ha"}, ""))
-	pattern_AgentSecure_GetConfigStateHA_0                        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteconfig", "state_ha"}, ""))
-	pattern_AgentSecure_WorkloadmetaStreamEntities_0              = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "workloadmeta", "stream_entities"}, ""))
-	pattern_AgentSecure_RegisterRemoteAgent_0                     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteagent", "register_remote_agent"}, ""))
-	pattern_AgentSecure_AutodiscoveryStreamConfig_0               = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "autodiscovery", "stream_configs"}, ""))
-	pattern_AgentSecure_GetHostTags_0                             = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "grpc", "host_tags"}, ""))
+	pattern_AgentSecure_TaggerStreamEntities_0                     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "tagger", "stream_entities"}, ""))
+	pattern_AgentSecure_TaggerGenerateContainerIDFromOriginInfo_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "tagger", "generate_container_id_from_origin_info"}, ""))
+	pattern_AgentSecure_TaggerFetchEntity_0                        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "tagger", "fetch_entity"}, ""))
+	pattern_AgentSecure_DogstatsdCaptureTrigger_0                  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "grpc", "dogstatsd", "capture", "trigger"}, ""))
+	pattern_AgentSecure_DogstatsdSetTaggerState_0                  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"v1", "grpc", "dogstatsd", "capture", "state"}, ""))
+	pattern_AgentSecure_ClientGetConfigs_0                         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteconfig", "configs"}, ""))
+	pattern_AgentSecure_GetConfigState_0                           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteconfig", "state"}, ""))
+	pattern_AgentSecure_ClientGetConfigsHA_0                       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteconfig", "configs_ha"}, ""))
+	pattern_AgentSecure_GetConfigStateHA_0                         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteconfig", "state_ha"}, ""))
+	pattern_AgentSecure_WorkloadmetaStreamEntities_0               = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "workloadmeta", "stream_entities"}, ""))
+	pattern_AgentSecure_WorkloadmetaGetContainer_0                 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "workloadmeta", "get_container"}, ""))
+	pattern_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "workloadmeta", "get_kubernetes_pod_for_container"}, ""))
+	pattern_AgentSecure_RegisterRemoteAgent_0                      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "remoteagent", "register_remote_agent"}, ""))
+	pattern_AgentSecure_AutodiscoveryStreamConfig_0                = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "autodiscovery", "stream_configs"}, ""))
+	pattern_AgentSecure_GetHostTags_0                              = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "grpc", "host_tags"}, ""))
 )
 
 var (
-	forward_AgentSecure_TaggerStreamEntities_0                    = runtime.ForwardResponseStream
-	forward_AgentSecure_TaggerGenerateContainerIDFromOriginInfo_0 = runtime.ForwardResponseMessage
-	forward_AgentSecure_TaggerFetchEntity_0                       = runtime.ForwardResponseMessage
-	forward_AgentSecure_DogstatsdCaptureTrigger_0                 = runtime.ForwardResponseMessage
-	forward_AgentSecure_DogstatsdSetTaggerState_0                 = runtime.ForwardResponseMessage
-	forward_AgentSecure_ClientGetConfigs_0                        = runtime.ForwardResponseMessage
-	forward_AgentSecure_GetConfigState_0                          = runtime.ForwardResponseMessage
-	forward_AgentSecure_ClientGetConfigsHA_0                      = runtime.ForwardResponseMessage
-	forward_AgentSecure_GetConfigStateHA_0                        = runtime.ForwardResponseMessage
-	forward_AgentSecure_WorkloadmetaStreamEntities_0              = runtime.ForwardResponseStream
-	forward_AgentSecure_RegisterRemoteAgent_0                     = runtime.ForwardResponseMessage
-	forward_AgentSecure_AutodiscoveryStreamConfig_0               = runtime.ForwardResponseStream
-	forward_AgentSecure_GetHostTags_0                             = runtime.ForwardResponseMessage
+	forward_AgentSecure_TaggerStreamEntities_0                     = runtime.ForwardResponseStream
+	forward_AgentSecure_TaggerGenerateContainerIDFromOriginInfo_0  = runtime.ForwardResponseMessage
+	forward_AgentSecure_TaggerFetchEntity_0                        = runtime.ForwardResponseMessage
+	forward_AgentSecure_DogstatsdCaptureTrigger_0                  = runtime.ForwardResponseMessage
+	forward_AgentSecure_DogstatsdSetTaggerState_0                  = runtime.ForwardResponseMessage
+	forward_AgentSecure_ClientGetConfigs_0                         = runtime.ForwardResponseMessage
+	forward_AgentSecure_GetConfigState_0                           = runtime.ForwardResponseMessage
+	forward_AgentSecure_ClientGetConfigsHA_0                       = runtime.ForwardResponseMessage
+	forward_AgentSecure_GetConfigStateHA_0                         = runtime.ForwardResponseMessage
+	forward_AgentSecure_WorkloadmetaStreamEntities_0               = runtime.ForwardResponseStream
+	forward_AgentSecure_WorkloadmetaGetContainer_0                 = runtime.ForwardResponseMessage
+	forward_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0 = runtime.ForwardResponseMessage
+	forward_AgentSecure_RegisterRemoteAgent_0                      = runtime.ForwardResponseMessage
+	forward_AgentSecure_AutodiscoveryStreamConfig_0                = runtime.ForwardResponseStream
+	forward_AgentSecure_GetHostTags_0                              = runtime.ForwardResponseMessage
 )
