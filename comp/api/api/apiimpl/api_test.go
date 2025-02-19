@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -47,7 +47,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	// third-party dependencies
 	dto "github.com/prometheus/client_model/go"
@@ -74,9 +74,9 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		replaymock.MockModule(),
 		secretsimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
-		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-		fetchonlyimpl.MockModule(),
+		fx.Supply(option.None[rcservice.Component]()),
+		fx.Supply(option.None[rcservicemrf.Component]()),
+		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
 		taggermock.Module(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
@@ -87,8 +87,8 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
 			return mock
 		}),
-		fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
-		fx.Supply(optional.NewNoneOption[collector.Component]()),
+		fx.Supply(option.None[logsAgent.Component]()),
+		fx.Supply(option.None[collector.Component]()),
 		pidmapimpl.Module(),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
@@ -166,7 +166,6 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authTokenValue))
 			resp, err := util.GetClient(false).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()

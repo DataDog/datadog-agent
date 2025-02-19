@@ -54,6 +54,20 @@
       ],
       "description": "AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request"
     },
+    "AcceptEvent": {
+      "properties": {
+        "addr": {
+          "$ref": "#/$defs/IPPortFamily",
+          "description": "Bound address (if any)"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "addr"
+      ],
+      "description": "AcceptEventSerializer serializes a bind event to JSON"
+    },
     "AgentContext": {
       "properties": {
         "rule_id": {
@@ -82,6 +96,12 @@
           "type": "string"
         },
         "origin": {
+          "type": "string"
+        },
+        "kernel_version": {
+          "type": "string"
+        },
+        "distribution": {
           "type": "string"
         }
       },
@@ -605,6 +625,43 @@
       ],
       "description": "FileEventSerializer serializes a file event to JSON"
     },
+    "Flow": {
+      "properties": {
+        "l3_protocol": {
+          "type": "string",
+          "description": "l3_protocol is the layer 3 protocol name"
+        },
+        "l4_protocol": {
+          "type": "string",
+          "description": "l4_protocol is the layer 4 protocol name"
+        },
+        "source": {
+          "$ref": "#/$defs/IPPort",
+          "description": "source is the emitter of the network event"
+        },
+        "destination": {
+          "$ref": "#/$defs/IPPort",
+          "description": "destination is the receiver of the network event"
+        },
+        "ingress": {
+          "$ref": "#/$defs/NetworkStats",
+          "description": "ingress holds the network statistics for ingress traffic"
+        },
+        "egress": {
+          "$ref": "#/$defs/NetworkStats",
+          "description": "egress holds the network statistics for egress traffic"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "l3_protocol",
+        "l4_protocol",
+        "source",
+        "destination"
+      ],
+      "description": "FlowSerializer defines a new flow serializer"
+    },
     "IMDSEvent": {
       "properties": {
         "type": {
@@ -889,6 +946,10 @@
         "size": {
           "type": "integer",
           "description": "size is the size in bytes of the network event"
+        },
+        "network_direction": {
+          "type": "string",
+          "description": "network_direction indicates if the packet was captured on ingress or egress"
         }
       },
       "additionalProperties": false,
@@ -898,7 +959,8 @@
         "l4_protocol",
         "source",
         "destination",
-        "size"
+        "size",
+        "network_direction"
       ],
       "description": "NetworkContextSerializer serializes the network context to JSON"
     },
@@ -925,6 +987,39 @@
         "ifname"
       ],
       "description": "NetworkDeviceSerializer serializes the network device context to JSON"
+    },
+    "NetworkFlowMonitor": {
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/NetworkDevice",
+          "description": "device is the network device on which the event was captured"
+        },
+        "flows": {
+          "items": {
+            "$ref": "#/$defs/Flow"
+          },
+          "type": "array",
+          "description": "flows is the list of flows with network statistics that were captured"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "NetworkFlowMonitorSerializer defines a network monitor event serializer"
+    },
+    "NetworkStats": {
+      "properties": {
+        "data_size": {
+          "type": "integer",
+          "description": "data_size is the total count of bytes sent or received"
+        },
+        "packet_count": {
+          "type": "integer",
+          "description": "packet_count is the total count of packets sent or received"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "NetworkStatsSerializer defines a new network stats serializer"
     },
     "PTraceEvent": {
       "properties": {
@@ -1359,6 +1454,10 @@
           "type": "integer",
           "description": "size is the size in bytes of the network event"
         },
+        "network_direction": {
+          "type": "string",
+          "description": "network_direction indicates if the packet was captured on ingress or egress"
+        },
         "tls": {
           "$ref": "#/$defs/TLSContext"
         }
@@ -1370,7 +1469,8 @@
         "l4_protocol",
         "source",
         "destination",
-        "size"
+        "size",
+        "network_direction"
       ],
       "description": "RawPacketSerializer defines a raw packet serializer"
     },
@@ -1598,6 +1698,12 @@
         },
         "mount": {
           "$ref": "#/$defs/SyscallArgs"
+        },
+        "mkdir": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "rmdir": {
+          "$ref": "#/$defs/SyscallArgs"
         }
       },
       "additionalProperties": false,
@@ -1707,9 +1813,6 @@
     "container": {
       "$ref": "#/$defs/ContainerContext"
     },
-    "cgroup": {
-      "$ref": "#/$defs/CGroupContext"
-    },
     "network": {
       "$ref": "#/$defs/NetworkContext"
     },
@@ -1718,6 +1821,9 @@
     },
     "security_profile": {
       "$ref": "#/$defs/SecurityProfileContext"
+    },
+    "cgroup": {
+      "$ref": "#/$defs/CGroupContext"
     },
     "selinux": {
       "$ref": "#/$defs/SELinuxEvent"
@@ -1749,6 +1855,9 @@
     "imds": {
       "$ref": "#/$defs/IMDSEvent"
     },
+    "accept": {
+      "$ref": "#/$defs/AcceptEvent"
+    },
     "bind": {
       "$ref": "#/$defs/BindEvent"
     },
@@ -1769,6 +1878,9 @@
     },
     "packet": {
       "$ref": "#/$defs/RawPacket"
+    },
+    "network_flow_monitor": {
+      "$ref": "#/$defs/NetworkFlowMonitor"
     }
   },
   "additionalProperties": false,

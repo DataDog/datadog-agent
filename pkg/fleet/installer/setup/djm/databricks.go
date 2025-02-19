@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	databricksInjectorVersion = "0.26.0-1"
-	databricksJavaVersion     = "1.42.2-1"
-	databricksAgentVersion    = "7.58.2-1"
+	databricksInjectorVersion   = "0.26.0-1"
+	databricksJavaTracerVersion = "1.45.2-1"
+	databricksAgentVersion      = "7.62.2-1"
 )
 
 var (
@@ -65,7 +65,7 @@ var (
 			Service: "databricks",
 		},
 	}
-	tracerEnvConfig = []common.InjectTracerConfigEnvVar{
+	tracerEnvConfigDatabricks = []common.InjectTracerConfigEnvVar{
 		{
 			Key:   "DD_DATA_JOBS_ENABLED",
 			Value: "true",
@@ -80,6 +80,8 @@ var (
 // SetupDatabricks sets up the Databricks environment
 func SetupDatabricks(s *common.Setup) error {
 	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
+	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -89,6 +91,8 @@ func SetupDatabricks(s *common.Setup) error {
 	s.Config.DatadogYAML.DJM.Enabled = true
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
+
+	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDatabricks
 
 	setupCommonHostTags(s)
 	installMethod := "manual"
@@ -117,6 +121,7 @@ func setupCommonHostTags(s *common.Setup) {
 		return clusterNameRegex.ReplaceAllString(v, "_")
 	})
 	setIfExists(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
+	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 
 	// dupes for backward compatibility
 	setIfExists(s, "DB_CLUSTER_ID", "cluster_id", nil)
@@ -129,6 +134,7 @@ func setupCommonHostTags(s *common.Setup) {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
 	}
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 }
 
 func getJobAndRunIDs() (jobID, runID string, ok bool) {
@@ -168,11 +174,7 @@ func setHostTag(s *common.Setup, tagKey, value string) {
 func setupDatabricksDriver(s *common.Setup) {
 	s.Span.SetTag("spark_node", "driver")
 
-	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
-	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaVersion)
-
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:driver")
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfig
 
 	var sparkIntegration common.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
@@ -196,8 +198,6 @@ func setupDatabricksDriver(s *common.Setup) {
 
 func setupDatabricksWorker(s *common.Setup) {
 	s.Span.SetTag("spark_node", "worker")
-
-	s.Packages.Install(common.DatadogAgentPackage, databricksAgentVersion)
 
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:worker")
 

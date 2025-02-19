@@ -1,0 +1,4 @@
+security:
+  - |
+    On Windows, the named pipe \\.\pipe\dd_system_probe from system probe is now restricted to
+    Local System, Administrators, and the ddagentuser.  Any other custom users are not supported.

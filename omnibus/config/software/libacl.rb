@@ -34,6 +34,7 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   configure_options = [
+    "--disable-nls",
     "--disable-static",
   ]
 

@@ -13,8 +13,6 @@ package oomkill
 
 import (
 	"fmt"
-	"math"
-
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -104,10 +102,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 		},
 	}
 
-	managerOptions.RLimit = &unix.Rlimit{
-		Cur: math.MaxUint64,
-		Max: math.MaxUint64,
-	}
+	managerOptions.RemoveRlimit = true
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)

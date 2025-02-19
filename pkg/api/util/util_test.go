@@ -6,9 +6,13 @@
 package util
 
 import (
+	"crypto/tls"
+	"net"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsIPv6(t *testing.T) {
@@ -49,4 +53,43 @@ func TestIsIPv6(t *testing.T) {
 			assert.Equal(t, IsIPv6(tt.input), tt.expectedOutput)
 		})
 	}
+}
+
+func TestStartingServerClientWithUninitializedTLS(t *testing.T) {
+	// re initialize the client and server tls config
+	initSource = uninitialized
+	clientTLSConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	// create a server with the provided tls server config
+	l, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	server := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	}
+
+	tlsListener := tls.NewListener(l, GetTLSServerConfig())
+
+	go server.Serve(tlsListener) //nolint:errcheck
+	defer server.Close()
+
+	// create a http client with the provided tls client config
+	_, port, err := net.SplitHostPort(l.Addr().String())
+	require.NoError(t, err)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: GetTLSClientConfig(),
+		},
+	}
+
+	// make a request to the server
+	resp, err := client.Get("https://localhost:" + port)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }

@@ -36,7 +36,7 @@ BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32)
  * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
  * some of the Kernels we support (4.4 ~ 4.6)
  */
-BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1024)
+BPF_HASH_MAP(conn_close_batch, __u32, batch_t, 1)
 
 /*
  * Map to hold struct sock parameter for tcp_sendmsg calls
@@ -131,5 +131,8 @@ BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
 // as we dispatching more protocols, we reached that limit, thus we workaround it
 // by using tail call.
 BPF_PROG_ARRAY(tcp_close_progs, 1)
+
+// Map to store extra information about TLS connections like version, cipher, etc.
+BPF_HASH_MAP(tls_enhanced_tags, conn_tuple_t, tls_info_wrapper_t, 0)
 
 #endif

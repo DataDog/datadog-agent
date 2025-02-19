@@ -57,7 +57,7 @@ func (h *StorageClassHandlers) BuildMessageBody(ctx processors.ProcessorContext,
 //nolint:revive
 func (h *StorageClassHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (StorageClassModel interface{}) {
 	r := resource.(*storagev1.StorageClass)
-	return k8sTransformers.ExtractStorageClass(r)
+	return k8sTransformers.ExtractStorageClass(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

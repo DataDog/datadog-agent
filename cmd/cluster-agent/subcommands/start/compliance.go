@@ -16,6 +16,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -31,9 +32,9 @@ const (
 	intakeTrackType = "compliance"
 )
 
-func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, apiCl *apiserver.APIClient, isLeader func() bool) error {
+func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, apiCl *apiserver.APIClient, compression logscompression.Component, isLeader func() bool) error {
 	stopper := startstop.NewSerialStopper()
-	if err := startCompliance(senderManager, wmeta, stopper, apiCl, isLeader); err != nil {
+	if err := startCompliance(senderManager, wmeta, stopper, apiCl, isLeader, compression); err != nil {
 		return err
 	}
 
@@ -72,7 +73,7 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
-func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
+func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression logscompression.Component) error {
 	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
@@ -87,7 +88,7 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 		return err
 	}
 
-	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx)
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx, compression)
 	statsdClient, err := simpleTelemetrySenderFromSenderManager(senderManager)
 	if err != nil {
 		return err

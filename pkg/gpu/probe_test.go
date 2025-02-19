@@ -47,6 +47,8 @@ func (s *probeTestSuite) getProbe() *Probe {
 	deps := ProbeDependencies{
 		NvmlLib:        testutil.GetBasicNvmlMock(),
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
+		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),
+		Telemetry:      testutil.GetTelemetryMock(t),
 	}
 	probe, err := NewProbe(cfg, deps)
 	require.NoError(t, err)

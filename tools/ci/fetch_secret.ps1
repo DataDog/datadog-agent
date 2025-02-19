@@ -15,10 +15,10 @@ while ($retryCount -lt $maxRetries) {
         $result = (vault kv get -field="$parameterField" kv/k8s/gitlab-runner/datadog-agent/"$parameterName" 2> errorFile.txt)
     } else {
         $result = (aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text 2> errorFile.txt)
-    } 
+    }
     $error = Get-Content errorFile.txt
     if ($result) {
-        "$result" | Out-File -FilePath "$tempFile" -Encoding ASCII
+        "$result" | Out-File -NoNewline -FilePath "$tempFile" -Encoding ASCII
         exit 0
     }
     if ($error -match "Unable to locate credentials") {

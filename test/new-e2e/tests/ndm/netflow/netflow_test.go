@@ -13,9 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -37,8 +39,8 @@ var datadogYaml string
 
 // netflowDockerProvisioner defines a stack with a docker agent on an AmazonLinuxECS VM
 // with the netflow-generator running and sending netflow payloads to the agent
-func netflowDockerProvisioner() e2e.Provisioner {
-	return e2e.NewTypedPulumiProvisioner[environments.DockerHost]("", func(ctx *pulumi.Context, env *environments.DockerHost) error {
+func netflowDockerProvisioner() provisioners.Provisioner {
+	return provisioners.NewTypedPulumiProvisioner[environments.DockerHost]("", func(ctx *pulumi.Context, env *environments.DockerHost) error {
 		name := "netflowvm"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {

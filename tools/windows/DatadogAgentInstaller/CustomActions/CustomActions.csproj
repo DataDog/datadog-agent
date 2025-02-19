@@ -89,6 +89,7 @@
     <Compile Include="Rollback\ServicePermissionRollbackData.cs" />
     <Compile Include="Rollback\RestoreDaclRollbackCustomAction.cs" />
     <Compile Include="Rollback\FilePermissionRollbackData.cs" />
+    <Compile Include="Rollback\FileStorageRollbackData.cs" />
     <Compile Include="Rollback\RollbackDataStore.cs" />
     <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />

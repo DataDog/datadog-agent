@@ -18,6 +18,7 @@ import (
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	localKubernetes "github.com/DataDog/test-infra-definitions/components/kubernetes"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/vpa"
 	resAws "github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -86,6 +87,12 @@ func createCluster(ctx *pulumi.Context) (*resAws.Environment, *localKubernetes.C
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	// Deploy VPA CRD
+	if _, err := vpa.DeployCRD(&awsEnv, kindKubeProvider); err != nil {
+		return nil, nil, nil, err
+	}
+
 	return &awsEnv, kindCluster, kindKubeProvider, nil
 }
 

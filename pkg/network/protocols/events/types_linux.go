@@ -3,7 +3,7 @@
 
 package events
 
-type batch struct {
+type Batch struct {
 	Idx            uint64
 	Cpu            uint16
 	Len            uint16

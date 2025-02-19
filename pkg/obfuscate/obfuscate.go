@@ -70,32 +70,35 @@ type Config struct {
 	SQL SQLConfig
 
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
-	ES JSONConfig
+	ES JSONConfig `mapstructure:"elasticsearch"`
 
 	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
-	OpenSearch JSONConfig
+	OpenSearch JSONConfig `mapstructure:"opensearch"`
 
 	// Mongo holds the obfuscation configuration for MongoDB queries.
-	Mongo JSONConfig
+	Mongo JSONConfig `mapstructure:"mongodb"`
 
 	// SQLExecPlan holds the obfuscation configuration for SQL Exec Plans. This is strictly for safety related obfuscation,
 	// not normalization. Normalization of exec plans is configured in SQLExecPlanNormalize.
-	SQLExecPlan JSONConfig
+	SQLExecPlan JSONConfig `mapstructure:"sql_exec_plan"`
 
 	// SQLExecPlanNormalize holds the normalization configuration for SQL Exec Plans.
-	SQLExecPlanNormalize JSONConfig
+	SQLExecPlanNormalize JSONConfig `mapstructure:"sql_exec_plan_normalize"`
 
 	// HTTP holds the obfuscation settings for HTTP URLs.
-	HTTP HTTPConfig
+	HTTP HTTPConfig `mapstructure:"http"`
 
 	// Redis holds the obfuscation settings for Redis commands.
-	Redis RedisConfig
+	Redis RedisConfig `mapstructure:"redis"`
+
+	// Valkey holds the obfuscation settings for Valkey commands.
+	Valkey ValkeyConfig `mapstructure:"valkey"`
 
 	// Memcached holds the obfuscation settings for Memcached commands.
-	Memcached MemcachedConfig
+	Memcached MemcachedConfig `mapstructure:"memcached"`
 
 	// Memcached holds the obfuscation settings for obfuscation of CC numbers in meta.
-	CreditCard CreditCardsConfig
+	CreditCard CreditCardsConfig `mapstructure:"credit_cards"`
 
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
@@ -105,7 +108,7 @@ type Config struct {
 	Logger Logger
 
 	// Cache enables the query cache for obfuscation for SQL and MongoDB queries.
-	Cache CacheConfig
+	Cache CacheConfig `mapstructure:"cache"`
 }
 
 // StatsClient implementations are able to emit stats.
@@ -232,6 +235,16 @@ type RedisConfig struct {
 	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
+// ValkeyConfig holds the configuration settings for Valkey obfuscation
+type ValkeyConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Valkey
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+}
+
 // MemcachedConfig holds the configuration settings for Memcached obfuscation
 type MemcachedConfig struct {
 	// Enabled specifies whether this feature should be enabled.
@@ -277,6 +290,9 @@ type CreditCardsConfig struct {
 type CacheConfig struct {
 	// Enabled specifies whether caching should be enabled.
 	Enabled bool `mapstructure:"enabled"`
+
+	// MaxSize is the maximum size of the cache in bytes.
+	MaxSize int64 `mapstructure:"max_size"`
 }
 
 // NewObfuscator creates a new obfuscator
@@ -286,7 +302,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd}),
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}

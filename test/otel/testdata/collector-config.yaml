@@ -15,6 +15,9 @@ exporters:
 extensions:
   ddflare:
     include_metadata: true  # Set to true for testing; adjust for production.
+  # ddprofiling:
+  #   api:
+  #     key: abcde12345
 
 service:
   pipelines:

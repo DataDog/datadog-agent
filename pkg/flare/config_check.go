@@ -6,53 +6,14 @@
 package flare
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
 
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
-
-// GetClusterAgentConfigCheck gets config check from the server for cluster agent
-func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-
-	// Set session token
-	err := util.SetAuthToken(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
-	}
-
-	targetURL := url.URL{
-		Scheme: "https",
-		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
-		Path:   "config-check",
-	}
-
-	r, err := util.DoGet(c, targetURL.String(), util.LeaveConnectionOpen)
-	if err != nil {
-		if r != nil && string(r) != "" {
-			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))
-		}
-		return fmt.Errorf("failed to query the agent (running?): %s", err)
-	}
-
-	cr := integration.ConfigCheckResponse{}
-	err = json.Unmarshal(r, &cr)
-	if err != nil {
-		return err
-	}
-
-	PrintConfigCheck(w, cr, withDebug)
-
-	return nil
-}
 
 // PrintConfigCheck prints a human-readable representation of the config check response
 func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug bool) {

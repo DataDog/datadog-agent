@@ -9,8 +9,9 @@
 package activitytree
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/exp/slices"
 )
 
 // BindNode is used to store a bind node

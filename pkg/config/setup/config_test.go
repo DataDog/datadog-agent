@@ -24,8 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -469,7 +470,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -577,7 +578,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -692,9 +693,9 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.input_chan_size"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.processing_chan_size"))
-	assert.Equal(t, 100000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
+	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
 	assert.Equal(t, 15*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
 	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
@@ -1074,7 +1075,7 @@ func TestPeerTagsEnv(t *testing.T) {
 
 func TestLogDefaults(t *testing.T) {
 	// New config
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	c := viperconfig.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
 	require.Equal(t, "", c.GetString("log_file_max_size"))
 	require.Equal(t, "", c.GetString("log_file"))
@@ -1093,7 +1094,7 @@ func TestLogDefaults(t *testing.T) {
 
 	// SystemProbe config
 
-	SystemProbe := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	SystemProbe := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	InitSystemProbeConfig(SystemProbe)
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
@@ -1434,7 +1435,7 @@ func TestServerlessConfigNumComponents(t *testing.T) {
 }
 
 func TestServerlessConfigInit(t *testing.T) {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	initCommonWithServerless(conf)
 
@@ -1450,7 +1451,7 @@ func TestServerlessConfigInit(t *testing.T) {
 
 func TestDisableCoreAgent(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 
 	InitConfig(conf)
@@ -1471,6 +1472,39 @@ func TestDisableCoreAgent(t *testing.T) {
 	assert.False(t, conf.GetBool("enable_payloads.sketches"))
 }
 
+func TestAPMObfuscationDefaultValue(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+
+	InitConfig(conf)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.opensearch.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.opensearch.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.mongodb.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.mongodb.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values"), 0)
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values"), 0)
+	assert.False(t, conf.GetBool("apm_config.obfuscation.http.remove_query_string"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.http.remove_paths_with_digits"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.redis.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.redis.remove_all_args"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.memcached.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.memcached.keep_command"))
+	assert.True(t, conf.GetBool("apm_config.obfuscation.credit_cards.enabled"))
+	assert.False(t, conf.GetBool("apm_config.obfuscation.credit_cards.luhn"))
+	assert.Len(t, conf.GetStringSlice("apm_config.obfuscation.credit_cards.keep_values"), 0)
+	assert.True(t, conf.GetBool("apm_config.obfuscation.cache.enabled"))
+	assert.Equal(t, int64(5000000), conf.GetInt64("apm_config.obfuscation.cache.max_size"))
+}
+
 func TestAgentConfigInit(t *testing.T) {
 	conf := newTestConf()
 
@@ -1483,7 +1517,7 @@ func TestAgentConfigInit(t *testing.T) {
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
-	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	cfg := viperconfig.NewConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	data := `scrubber.additional_keys:
 - yet_another_key
@@ -1496,7 +1530,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	_, err = LoadDatadogCustom(cfg, "test", optional.NewNoneOption[secrets.Component](), []string{})
+	_, err = LoadDatadogCustom(cfg, "test", option.None[secrets.Component](), []string{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

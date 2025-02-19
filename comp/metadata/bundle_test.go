@@ -8,6 +8,7 @@ package metadata
 import (
 	"testing"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"go.uber.org/fx"
 
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -17,18 +18,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(), core.MockBundle(),
-		fx.Supply(optional.NewNoneOption[runnerimpl.MetadataProvider]()),
+		fx.Supply(option.None[runnerimpl.MetadataProvider]()),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		collectorimpl.MockModule(),
-		fx.Provide(func() optional.Option[agent.Component] {
-			return optional.NewNoneOption[agent.Component]()
+		fx.Provide(func() option.Option[agent.Component] {
+			return option.None[agent.Component]()
 		}),
 		authtokenimpl.Module(),
+		haagentmock.Module(),
 	)
 }
 

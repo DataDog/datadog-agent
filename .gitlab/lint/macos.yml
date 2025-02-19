@@ -13,7 +13,7 @@ include:
 
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
-  tags: ["macos:monterey-amd64", "specific:true"]
+  tags: ["macos:ventura-amd64", "specific:true"]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -24,4 +24,4 @@ lint_macos_gitlab_arm64:
   rules:
     - !reference [.on_main]
     - !reference [.manual]
-  tags: ["macos:monterey-arm64", "specific:true"]
+  tags: ["macos:ventura-arm64", "specific:true"]

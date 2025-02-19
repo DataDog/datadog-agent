@@ -37,10 +37,14 @@ type tooLargeEntityStatsEntry struct {
 	compression   bool
 }
 
+type remoteEndpoint struct {
+	logsEndpoint logsconfig.Endpoint
+	url          string
+}
+
 // ActivityDumpRemoteStorage is a remote storage that forwards dumps to the backend
 type ActivityDumpRemoteStorage struct {
-	urls             []string
-	apiKeys          []string
+	endpoints        []remoteEndpoint
 	tooLargeEntities map[tooLargeEntityStatsEntry]*atomic.Uint64
 
 	client *http.Client
@@ -70,10 +74,10 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 		return nil, fmt.Errorf("couldn't generate storage endpoints: %w", err)
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		storage.urls = append(storage.urls, utils.GetEndpointURL(endpoint, "api/v2/secdump"))
-		// TODO - runtime API key refresh: Storing the API key like this will no longer be valid once the
-		// security agent support API key refresh at runtime.
-		storage.apiKeys = append(storage.apiKeys, endpoint.GetAPIKey())
+		storage.endpoints = append(storage.endpoints, remoteEndpoint{
+			logsEndpoint: endpoint,
+			url:          utils.GetEndpointURL(endpoint, "api/v2/secdump"),
+		})
 	}
 
 	return storage, nil
@@ -188,11 +192,11 @@ func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest,
 		return fmt.Errorf("couldn't build request: %w", err)
 	}
 
-	for i, url := range storage.urls {
-		if err := storage.sendToEndpoint(url, storage.apiKeys[i], request, writer, body); err != nil {
-			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), ad.Size, err)
+	for _, endpoint := range storage.endpoints {
+		if err := storage.sendToEndpoint(endpoint.url, endpoint.logsEndpoint.GetAPIKey(), request, writer, body); err != nil {
+			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", endpoint.url, body.Len(), ad.Size, err)
 		} else {
-			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", request.Format, ad.GetSelectorStr(), url)
+			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", request.Format, ad.GetSelectorStr(), endpoint.url)
 		}
 	}
 

@@ -22,26 +22,59 @@ source url: "https://www.openssl.org/source/#{OPENSSL_FIPS_MODULE_FILENAME}",
 relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
+    env = with_standard_compiler_flags()
+    env["MAKEFLAGS"] = "-j#{workers}"
     # Exact build steps from security policy:
     # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
     #
     # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-    command "./Configure enable-fips"
+    unless windows_target?
+      # Exact build steps from security policy:
+      # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
+      #
+      # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
+      command "./Configure enable-fips", env: env
 
-    command "make"
-    command "make install"
+      command "make", env: env
+      command "make install", env: env
     # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
+    else
+      # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
+      command "perl.exe ./Configure enable-fips", env: env
 
-    mkdir "#{install_dir}/embedded/ssl"
-    mkdir "#{install_dir}/embedded/lib/ossl-modules"
-    copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
+      command "make", env: env
+      command "make install_fips", env: env
+      # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
+    end
+
+
+    dest = if !windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
+    mkdir "#{dest}/ssl"
+    mkdir "#{dest}/lib/ossl-modules"
+    mkdir "#{dest}/bin"
+    if linux_target?
+      copy "/usr/local/lib*/ossl-modules/fips.so", "#{dest}/lib/ossl-modules/fips.so"
+    elsif windows_target?
+      copy "providers/fips.dll", "#{dest}/lib/ossl-modules/fips.dll"
+    end
+    if linux_target?
+      embedded_ssl_dir = "#{install_dir}/embedded/ssl"
+    elsif windows_target?
+      # Use the default installation directory instead of install_dir which is just a build path.
+      # This simpifies container setup because we don't need to modify the config file.
+      # The MSI contains logic to replace the path at install time.
+      # Note: We intentionally use forward slashes here
+      embedded_ssl_dir = "C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"
+    end
 
     erb source: "openssl.cnf.erb",
-        dest: "#{install_dir}/embedded/ssl/openssl.cnf.tmp",
+        dest: "#{dest}/ssl/openssl.cnf.tmp",
         mode: 0644,
-        vars: { install_dir: install_dir }
-    erb source: "fipsinstall.sh.erb",
-        dest: "#{install_dir}/embedded/bin/fipsinstall.sh",
-        mode: 0755,
-        vars: { install_dir: install_dir }
+        vars: { embedded_ssl_dir: embedded_ssl_dir }
+    unless windows_target?
+      erb source: "fipsinstall.sh.erb",
+          dest: "#{dest}/bin/fipsinstall.sh",
+          mode: 0755,
+          vars: { install_dir: install_dir }
+    end
 end

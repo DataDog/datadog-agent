@@ -11,7 +11,6 @@ import operator
 import os
 import re
 import sys
-import traceback
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
@@ -22,13 +21,10 @@ from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit
 
-from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
-from tasks.cluster_agent import integration_tests as dca_integration_tests
 from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
-from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
@@ -36,7 +32,6 @@ from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
-    TestsNotSupportedError,
     clean_nested_paths,
     get_build_flags,
     gitlab_section,
@@ -46,8 +41,7 @@ from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
-from tasks.trace_agent import integration_tests as trace_integration_tests
-from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
+from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
@@ -151,6 +145,9 @@ def test_flavor(
                     out_stream=test_profiler,
                     warn=True,
                 )
+                # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+                if res is not None and res.exited == 130:
+                    raise KeyboardInterrupt()
 
         module_result.result_json_path = os.path.join(module_path, GO_TEST_RESULT_TMP_JSON)
 
@@ -208,7 +205,9 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool, extra_flakes_config: str | None = None
+) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path
@@ -228,7 +227,10 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        tw = TestWasher()
+        flakes_configs = ["flakes.yaml"]
+        if extra_flakes_config is not None:
+            flakes_configs.append(extra_flakes_config)
+        tw = TestWasher(flakes_file_paths=flakes_configs)
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
@@ -403,36 +405,6 @@ def test(
         raise Exit(code=1)
 
     print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
-
-
-@task
-def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
-    """
-    Run all the available integration tests
-    """
-    tests = {
-        "Agent": lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "DogStatsD": lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "Cluster Agent": lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
-        "Trace Agent": lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
-    }
-    tests_failures = {}
-    for t_name, t in tests.items():
-        with gitlab_section(f"Running the {t_name} integration tests", collapsed=True, echo=True):
-            try:
-                t()
-            except TestsNotSupportedError as e:
-                print(f"Skipping {t_name}: {e}")
-            except Exception:
-                # Keep printing the traceback not to have to wait until all tests are done to see what failed
-                traceback.print_exc()
-                # Storing the traceback to print it at the end without directly raising the exception
-                tests_failures[t_name] = traceback.format_exc()
-    if tests_failures:
-        print("Integration tests failed:")
-        for t_name, t_failure in tests_failures.items():
-            print(f"{t_name}:\n{t_failure}")
-        raise Exit(code=1)
 
 
 @task
@@ -915,9 +887,10 @@ def check_otel_build(ctx):
 
 
 @task
-def check_otel_module_versions(ctx):
+def check_otel_module_versions(ctx, fix=False):
     pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
-    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
+    # TODO(songy23): restore to OTEL_UPSTREAM_GO_MOD_PATH once otel v0.120.0 is brought to Agent.
+    r = requests.get("https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod")
     matches = re.findall(pattern, r.text, flags=re.MULTILINE)
     if len(matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
@@ -932,4 +905,14 @@ def check_otel_module_versions(ctx):
                 if len(matches) != 1:
                     raise Exit(f"{mod_file} does not match expected go directive format")
                 if matches[0] != upstream_version:
-                    raise Exit(f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}")
+                    if fix:
+                        update_file(
+                            True,
+                            mod_file,
+                            f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$",
+                            f"go {upstream_version}",
+                        )
+                    else:
+                        raise Exit(
+                            f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}"
+                        )

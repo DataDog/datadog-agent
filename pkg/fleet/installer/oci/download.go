@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -62,14 +62,13 @@ const (
 )
 
 const (
-	layerMaxSize        = 3 << 30 // 3GiB
-	extractLayerRetries = 3
+	layerMaxSize   = 3 << 30 // 3GiB
+	networkRetries = 3
 )
 
 var (
 	defaultRegistriesStaging = []string{
 		"install.datad0g.com",
-		"docker.io/datadog",
 	}
 	defaultRegistriesProd = []string{
 		"install.datadoghq.com",
@@ -318,30 +317,32 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 			return fmt.Errorf("could not get layer media type: %w", err)
 		}
 		if layerMediaType == mediaType {
-			// Retry stream reset errors
-			for i := 0; i < extractLayerRetries; i++ {
-				if i > 0 {
-					time.Sleep(time.Second)
-				}
-				uncompressedLayer, err := layer.Uncompressed()
-				if err != nil {
-					return fmt.Errorf("could not uncompress layer: %w", err)
-				}
-				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
-				uncompressedLayer.Close()
-				if err != nil {
-					if !isStreamResetError(err) && !isConnectionResetByPeerError(err) {
-						return fmt.Errorf("could not extract layer: %w", err)
-					}
-					log.Warnf("network error while extracting layer, retrying")
-					// Clean up the directory before retrying to avoid partial extraction
-					err = tar.Clean(dir)
+			err = withNetworkRetries(
+				func() error {
+					var err error
+					defer func() {
+						if err != nil {
+							deferErr := tar.Clean(dir)
+							if deferErr != nil {
+								err = deferErr
+							}
+						}
+					}()
+					uncompressedLayer, err := layer.Uncompressed()
 					if err != nil {
-						return fmt.Errorf("could not clean directory: %w", err)
+						return err
 					}
-				} else {
-					break
-				}
+					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+					uncompressedLayer.Close()
+					if err != nil {
+						return err
+					}
+
+					return nil
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("could not extract layer: %w", err)
 			}
 		}
 	}
@@ -349,26 +350,70 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 }
 
 // WriteOCILayout writes the image as an OCI layout to the given directory.
-func (d *DownloadedPackage) WriteOCILayout(dir string) error {
-	layoutPath, err := layout.Write(dir, empty.Index)
-	if err != nil {
-		return fmt.Errorf("could not write layout: %w", err)
-	}
-	err = layoutPath.AppendImage(d.Image)
-	if err != nil {
-		return fmt.Errorf("could not append image to layout: %w", err)
-	}
-	return nil
+func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
+	var layoutPath layout.Path
+	return withNetworkRetries(
+		func() error {
+			layoutPath, err = layout.Write(dir, empty.Index)
+			if err != nil {
+				return fmt.Errorf("could not write layout: %w", err)
+			}
+
+			err = layoutPath.AppendImage(d.Image)
+			if err != nil {
+				return fmt.Errorf("could not append image to layout: %w", err)
+			}
+			return nil
+		},
+	)
 }
 
 // PackageURL returns the package URL for the given site, package and version.
 func PackageURL(env *env.Env, pkg string, version string) string {
 	switch env.Site {
 	case "datad0g.com":
-		return fmt.Sprintf("oci://install.datad0g.com/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+		return fmt.Sprintf("oci://install.datad0g.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
 		return fmt.Sprintf("oci://install.datadoghq.com/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}
+}
+
+func withNetworkRetries(f func() error) error {
+	var err error
+	for i := 0; i < networkRetries; i++ {
+		err = f()
+		if err == nil {
+			return nil
+		}
+		if !isRetryableNetworkError(err) {
+			return err
+		}
+		log.Warnf("retrying after network error: %s", err)
+		time.Sleep(time.Second)
+	}
+	return err
+}
+
+// isRetryableNetworkError returns true if the error is a network error we should retry on
+func isRetryableNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if netErr, ok := err.(*net.OpError); ok {
+		if netErr.Temporary() {
+			// Temporary errors, such as "connection timed out"
+			return true
+		}
+		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
+			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
+				// Connection reset errors, such as "connection reset by peer"
+				return errno == syscall.ECONNRESET
+			}
+		}
+	}
+
+	return isStreamResetError(err)
 }
 
 // isStreamResetError returns true if the given error is a stream reset error.
@@ -377,9 +422,6 @@ func PackageURL(env *env.Env, pkg string, version string) string {
 // streamed and receives a "reset stream frame", with the code 0x2 (INTERNAL_ERROR). This is an error from the server
 // that we need to retry.
 func isStreamResetError(err error) bool {
-	if err == nil {
-		return false
-	}
 	serr := http2.StreamError{}
 	if errors.As(err, &serr) {
 		return serr.Code == http2.ErrCodeInternal
@@ -387,18 +429,6 @@ func isStreamResetError(err error) bool {
 	serrp := &http2.StreamError{}
 	if errors.As(err, &serrp) {
 		return serrp.Code == http2.ErrCodeInternal
-	}
-	return false
-}
-
-// isConnectionResetByPeer returns true if the error is a connection reset by peer error
-func isConnectionResetByPeerError(err error) bool {
-	if netErr, ok := err.(*net.OpError); ok {
-		if syscallErr, ok := netErr.Err.(*os.SyscallError); ok {
-			if errno, ok := syscallErr.Err.(syscall.Errno); ok {
-				return errno == syscall.ECONNRESET
-			}
-		}
 	}
 	return false
 }

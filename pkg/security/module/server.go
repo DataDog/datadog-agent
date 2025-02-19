@@ -22,7 +22,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -127,6 +127,11 @@ type APIServer struct {
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
+	connEstablished    *atomic.Bool
+
+	// os release data
+	kernelVersion string
+	distribution  string
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
@@ -173,6 +178,13 @@ func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
 
 // GetEvents waits for security events
 func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
+	if prev := a.connEstablished.Swap(true); !prev {
+		// should always be non nil
+		if a.cwsConsumer != nil {
+			a.cwsConsumer.onAPIConnectionEstablished()
+		}
+	}
+
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -286,7 +298,7 @@ func (a *APIServer) start(ctx context.Context) {
 				return true
 			})
 		case <-ctx.Done():
-			a.stopChan <- struct{}{}
+			close(a.stopChan)
 			return
 		}
 	}
@@ -314,12 +326,14 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 	backendEvent := events.BackendEvent{
 		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
-			RuleID:      rule.Def.ID,
-			RuleVersion: rule.Def.Version,
-			Version:     version.AgentVersion,
-			OS:          runtime.GOOS,
-			Arch:        utils.RuntimeArch(),
-			Origin:      a.probe.Origin(),
+			RuleID:        rule.Def.ID,
+			RuleVersion:   rule.Def.Version,
+			Version:       version.AgentVersion,
+			OS:            runtime.GOOS,
+			Arch:          utils.RuntimeArch(),
+			Origin:        a.probe.Origin(),
+			KernelVersion: a.kernelVersion,
+			Distribution:  a.distribution,
 		},
 	}
 
@@ -351,7 +365,6 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 
 	// model event or custom event ? if model event use queuing so that tags and actions can be handled
 	if ev, ok := event.(*model.Event); ok {
-		//return serializers.MarshalEvent(ev, opts)
 		eventActionReports := ev.GetActionReports()
 		actionReports := make([]model.ActionReport, 0, len(eventActionReports))
 		for _, ar := range eventActionReports {
@@ -558,27 +571,30 @@ func (a *APIServer) getGlobalTags() []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	as := &APIServer{
-		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
-		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
-		expiredDumps:  atomic.NewInt64(0),
-		statsdClient:  client,
-		probe:         probe,
-		retention:     cfg.EventServerRetention,
-		cfg:           cfg,
-		stopper:       stopper,
-		selfTester:    selfTester,
-		stopChan:      make(chan struct{}),
-		msgSender:     msgSender,
+		msgs:            make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		activityDumps:   make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		expiredEvents:   make(map[rules.RuleID]*atomic.Int64),
+		expiredDumps:    atomic.NewInt64(0),
+		statsdClient:    client,
+		probe:           probe,
+		retention:       cfg.EventServerRetention,
+		cfg:             cfg,
+		stopper:         stopper,
+		selfTester:      selfTester,
+		stopChan:        make(chan struct{}),
+		msgSender:       msgSender,
+		connEstablished: atomic.NewBool(false),
 	}
 
+	as.collectOSReleaseData()
+
 	if as.msgSender == nil {
-		if pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
-			msgSender, err := NewDirectMsgSender(stopper)
+		if cfg.SendEventFromSystemProbe {
+			msgSender, err := NewDirectMsgSender(stopper, compression)
 			if err != nil {
 				log.Errorf("failed to setup direct reporter: %v", err)
 			} else {

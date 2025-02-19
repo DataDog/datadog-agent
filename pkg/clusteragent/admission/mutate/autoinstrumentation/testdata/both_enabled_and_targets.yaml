@@ -1,0 +1,21 @@
+---
+apm_config:
+  instrumentation:
+    enabled_namespaces:
+      - "foo"
+    targets:
+      - name: "Billing Service"
+        podSelector:
+          matchLabels:
+            app: "billing-service"
+          matchExpressions:
+            - key: "env"
+              operator: "In"
+              values:
+                - "prod"
+        namespaceSelector:
+          matchNames:
+          - "billing"
+        ddTraceVersions:
+          java: "default"
+

@@ -17,10 +17,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 //go:embed etc/process_config.yaml
@@ -55,6 +56,7 @@ func (s *languageDetectionSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
 	s.installPython()
+	s.installPHP()
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string, source string) {

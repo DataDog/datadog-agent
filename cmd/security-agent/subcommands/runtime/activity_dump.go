@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -25,10 +26,12 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -55,6 +58,9 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			model.SECLConstants()
+		},
 	}
 
 	activityDumpCmd.AddCommand(generateCommands(globalParams)...)
@@ -173,7 +179,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.timeout,
 		"timeout",
-		"1m",
+		"",
 		"timeout for the activity dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
@@ -185,7 +191,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.localStorageDirectory,
 		"output",
-		"/tmp/activity_dumps/",
+		"",
 		"local storage output directory",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
@@ -472,6 +478,12 @@ func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Compone
 		return err
 	}
 
+	if activityDumpArgs.timeout != "" {
+		if _, err = time.ParseDuration(activityDumpArgs.timeout); err != nil {
+			return err
+		}
+	}
+
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
 		ContainerID:       activityDumpArgs.containerID,
 		CGroupID:          activityDumpArgs.cgroupID,
@@ -754,7 +766,7 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	}
 
 	generatedRules := dump.GenerateRules(ads, opts)
-	generatedRules = utils.BuildPatterns(generatedRules)
+	generatedRules = pathutils.BuildPatterns(generatedRules)
 
 	policyDef := rules.PolicyDef{
 		Rules: generatedRules,

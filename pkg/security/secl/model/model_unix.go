@@ -5,24 +5,50 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
 
 // Package model holds model related files
 package model
 
 import (
+	"net"
+	"net/netip"
 	"time"
-
-	"modernc.org/mathutil"
 
 	"github.com/google/gopacket"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
+)
+
+const (
+	// FileFieldsSize is the size used by the file_t structure
+	FileFieldsSize = 72
 )
 
 // Event represents an event sent from the kernel
 // genaccessors
+// gengetter: GetContainerCreatedAt
+// gengetter: GetContainerId
+// gengetter: GetExecCmdargv
+// gengetter: GetExecFilePath
+// gengetter: GetExecFilePath)
+// gengetter: GetExitCode
+// gengetter: GetMountMountpointPath
+// gengetter: GetMountRootPath
+// gengetter: GetProcessEnvp
+// gengetter: GetProcessExecTime
+// gengetter: GetProcessExitTime
+// gengetter: GetProcessForkTime
+// gengetter: GetProcessGid
+// gengetter: GetProcessGroup
+// gengetter: GetProcessPid
+// gengetter: GetProcessPpid
+// gengetter: GetProcessUid
+// gengetter: GetProcessUser
+// gengetter: GetTimestamp
+// gengetter: GetEventService
 type Event struct {
 	BaseEvent
 
@@ -51,7 +77,7 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
+	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
 	SetUID        SetuidEvent        `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID        SetgidEvent        `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset        CapsetEvent        `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
@@ -63,6 +89,7 @@ type Event struct {
 	// network syscalls
 	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
 	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
+	Accept  AcceptEvent  `field:"accept" event:"accept"`   // [7.60] [Network] An accept was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -74,9 +101,10 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 
 	// network events
-	DNS       DNSEvent       `field:"dns" event:"dns"`       // [7.36] [Network] A DNS request was sent
-	IMDS      IMDSEvent      `field:"imds" event:"imds"`     // [7.55] [Network] An IMDS event was captured
-	RawPacket RawPacketEvent `field:"packet" event:"packet"` // [7.60] [Network] A raw network packet captured
+	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
+	IMDS               IMDSEvent               `field:"imds" event:"imds"`                                 // [7.55] [Network] An IMDS event was captured
+	RawPacket          RawPacketEvent          `field:"packet" event:"packet"`                             // [7.60] [Network] A raw network packet was captured
+	NetworkFlowMonitor NetworkFlowMonitorEvent `field:"network_flow_monitor" event:"network_flow_monitor"` // [7.63] [Network] A network monitor event was sent
 
 	// on-demand events
 	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
@@ -97,9 +125,9 @@ type Event struct {
 type CGroupContext struct {
 	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupFlags   containerutils.CGroupFlags `field:"-"`
-	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
+	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
 	CGroupFile    PathKey                    `field:"file"`
-	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`Version of the cgroup API`
+	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
 // Merge two cgroup context
@@ -220,6 +248,15 @@ type LinuxBinprm struct {
 	FileEvent FileEvent `field:"file"`
 }
 
+// SetInterpreterFields set the proper field so that this will be seen as a valid interpreter, see HasInterpreter
+func SetInterpreterFields(bprm *LinuxBinprm, subField string, _ interface{}) (bool, error) {
+	// set a fake inode so that the interpreter becomes valid
+	if bprm.FileEvent.Inode == 0 && subField != "file.inode" {
+		bprm.FileEvent.Inode = fakeInodeMSW
+	}
+	return true, nil
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext
@@ -229,12 +266,12 @@ type Process struct {
 	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
-	SpanID  uint64          `field:"-"`
-	TraceID mathutil.Int128 `field:"-"`
+	SpanID  uint64        `field:"-"`
+	TraceID utils.TraceID `field:"-"`
 
-	TTYName     string      `field:"tty_name"`                         // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
-	Comm        string      `field:"comm"`                             // SECLDoc[comm] Definition:`Comm attribute of the process`
-	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter"` // Script interpreter as identified by the shebang
+	TTYName     string      `field:"tty_name"`                                                          // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
+	Comm        string      `field:"comm"`                                                              // SECLDoc[comm] Definition:`Comm attribute of the process`
+	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter,set_handler:SetInterpreterFields"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"fork_time,opts:getters_only"`
@@ -277,8 +314,7 @@ type Process struct {
 	SymlinkBasenameStr string              `field:"-"`
 
 	// cache version
-	ScrubbedArgvResolved bool           `field:"-"`
-	Variables            eval.Variables `field:"-"`
+	ScrubbedArgvResolved bool `field:"-"`
 
 	// IsThread is the negation of IsExec and should be manipulated directly
 	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
@@ -291,6 +327,14 @@ type Process struct {
 	// lineage
 	hasValidLineage *bool `field:"-"`
 	lineageError    error `field:"-"`
+}
+
+// SetAncestorFields force the process cache entry to be valid
+func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (bool, error) {
+	if subField != "is_kworker" {
+		pce.IsKworker = false
+	}
+	return true, nil
 }
 
 // ExecEvent represents a exec event
@@ -373,8 +417,13 @@ type LinkEvent struct {
 // MkdirEvent represents a mkdir event
 type MkdirEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:mkdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallMode uint32 `field:"syscall.mode,ref:mkdir.syscall.int2"` // SECLDoc[syscall.mode] Definition:`Mode of the new directory`
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -479,7 +528,11 @@ type RenameEvent struct {
 // RmdirEvent represents a rmdir event
 type RmdirEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:rmdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 }
 
 // SetXAttrEvent represents an extended attributes event
@@ -624,6 +677,7 @@ type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	CGroupContext    CGroupContext
 	Config           ActivityDumpLoadConfig
+	Pid              uint32
 	ConfigCookie     uint64
 }
 
@@ -641,8 +695,9 @@ type ActivityDumpLoadConfig struct {
 	WaitListTimestampRaw uint64
 	StartTimestampRaw    uint64
 	EndTimestampRaw      uint64
-	Rate                 uint32 // max number of events per sec
+	Rate                 uint16 // max number of events per sec
 	Paused               uint32
+	CGroupFlags          containerutils.CGroupFlags
 }
 
 // NetworkDeviceContext represents the network device context of a network event
@@ -668,6 +723,14 @@ type ConnectEvent struct {
 	Addr       IPPortContext `field:"addr"`        // Connection address
 	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
 	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+}
+
+// AcceptEvent represents an accept event
+type AcceptEvent struct {
+	SyscallEvent
+
+	Addr       IPPortContext `field:"addr"`        // Connection address
+	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device
@@ -727,6 +790,14 @@ type LoginUIDWriteEvent struct {
 	AUID uint32 `field:"-"`
 }
 
+// SnapshottedBoundSocket represents a snapshotted bound socket
+type SnapshottedBoundSocket struct {
+	IP       net.IP
+	Port     uint16
+	Family   uint16
+	Protocol uint16
+}
+
 // RawPacketEvent represents a packet event
 type RawPacketEvent struct {
 	NetworkContext
@@ -734,4 +805,99 @@ type RawPacketEvent struct {
 	Filter      string               `field:"filter" op_override:"PacketFilterMatching"` // SECLDoc[filter] Definition:`pcap filter expression`
 	CaptureInfo gopacket.CaptureInfo `field:"-"`
 	Data        []byte               `field:"-"`
+}
+
+// NetworkStats is used to record network statistics
+type NetworkStats struct {
+	DataSize    uint64 `field:"data_size"`    // SECLDoc[data_size] Definition:`Amount of data transmitted or received`
+	PacketCount uint64 `field:"packet_count"` // SECLDoc[packet_count] Definition:`Count of network packets transmitted or received`
+}
+
+// Add the input stats to the current stats
+func (ns *NetworkStats) Add(input NetworkStats) {
+	ns.DataSize += input.DataSize
+	ns.PacketCount += input.PacketCount
+}
+
+// FiveTuple is used to uniquely identify a flow
+type FiveTuple struct {
+	Source      netip.AddrPort
+	Destination netip.AddrPort
+	L4Protocol  uint16
+}
+
+// Flow is used to represent a network 5-tuple with statistics
+type Flow struct {
+	Source      IPPortContext `field:"source"`      // source of the network packet
+	Destination IPPortContext `field:"destination"` // destination of the network packet
+	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
+	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
+
+	Ingress NetworkStats `field:"ingress"` // SECLDoc[ingress] Definition:`Network statistics about ingress traffic`
+	Egress  NetworkStats `field:"egress"`  // SECLDoc[egress] Definition:`Network statistics about egress traffic`
+}
+
+// GetFiveTuple returns the five tuple identifying the flow
+func (f *Flow) GetFiveTuple() FiveTuple {
+	return FiveTuple{
+		Source:      f.Source.GetComparable(),
+		Destination: f.Destination.GetComparable(),
+		L4Protocol:  f.L4Protocol,
+	}
+}
+
+// NetworkFlowMonitorEvent represents a network flow monitor event
+type NetworkFlowMonitorEvent struct {
+	Device     NetworkDeviceContext `field:"device"` // network device on which the network flows were captured
+	FlowsCount uint64               `field:"-"`
+	Flows      []Flow               `field:"flows,iterator:FlowsIterator"` // list of captured flows
+}
+
+// FlowsIterator defines an iterator of flows
+type FlowsIterator struct {
+	Root interface{} // not used, direct access from the event
+	prev int
+}
+
+// Front returns the first element
+func (it *FlowsIterator) Front(ctx *eval.Context) *Flow {
+	if len(ctx.Event.(*Event).NetworkFlowMonitor.Flows) == 0 {
+		return nil
+	}
+
+	front := ctx.Event.(*Event).NetworkFlowMonitor.Flows[0]
+	it.prev = 0
+	return &front
+}
+
+// Next returns the next element
+func (it *FlowsIterator) Next(ctx *eval.Context) *Flow {
+	if len(ctx.Event.(*Event).NetworkFlowMonitor.Flows) > it.prev+1 {
+		it.prev++
+		return &(ctx.Event.(*Event).NetworkFlowMonitor.Flows[it.prev])
+	}
+	return nil
+}
+
+// At returns the element at the given position
+func (it *FlowsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *Flow {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*Flow)
+	}
+
+	if len(ctx.Event.(*Event).NetworkFlowMonitor.Flows) > pos {
+		flow := &(ctx.Event.(*Event).NetworkFlowMonitor.Flows[pos])
+		ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+			Pos:   pos,
+			Value: flow,
+		}
+		return flow
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *FlowsIterator) Len(ctx *eval.Context) int {
+	return len(ctx.Event.(*Event).NetworkFlowMonitor.Flows)
 }

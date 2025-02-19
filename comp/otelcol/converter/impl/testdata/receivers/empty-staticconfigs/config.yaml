@@ -1,0 +1,30 @@
+receivers:
+    prometheus/user-defined:
+      config:
+        scrape_configs:
+          - job_name: 'custom'
+            scrape_interval: 60s
+            static_configs:
+
+exporters:
+    datadog:
+      api:
+        key: abcde12345
+
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  ddflare/user-defined:
+    
+processors:
+  infraattributes/user-defined:
+
+service:
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
+    pipelines:
+        metrics:
+            receivers: [prometheus/user-defined]
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]

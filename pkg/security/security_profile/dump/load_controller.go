@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -34,6 +35,7 @@ type ActivityDumpLoadController struct {
 
 	// eBPF maps
 	activityDumpConfigDefaults *ebpf.Map
+	activityDumpLoadConfig     map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig
 }
 
 // NewActivityDumpLoadController returns a new activity dump load controller
@@ -58,24 +60,55 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 	}, nil
 }
 
-func (lc *ActivityDumpLoadController) getDefaultLoadConfig() *model.ActivityDumpLoadConfig {
+func (lc *ActivityDumpLoadController) getDefaultLoadConfigs() (map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig, error) {
+	if lc.activityDumpLoadConfig != nil {
+		return lc.activityDumpLoadConfig, nil
+	}
+
 	defaults := NewActivityDumpLoadConfig(
 		lc.adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		lc.adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
 		0,
 		lc.adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		time.Now(),
+		0, // cgroup flags will be set per cgroup manager
 		lc.adm.resolvers.TimeResolver,
 	)
 	defaults.WaitListTimestampRaw = uint64(lc.adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout)
-	return defaults
+
+	allDefaultConfigs := map[string]containerutils.CGroupManager{
+		containerutils.CGroupManagerDocker.String():  containerutils.CGroupManagerDocker,
+		containerutils.CGroupManagerPodman.String():  containerutils.CGroupManagerPodman,
+		containerutils.CGroupManagerCRI.String():     containerutils.CGroupManagerCRI,
+		containerutils.CGroupManagerCRIO.String():    containerutils.CGroupManagerCRIO,
+		containerutils.CGroupManagerSystemd.String(): containerutils.CGroupManagerSystemd,
+	}
+	defaultConfigs := make(map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig)
+	for _, cgroupManager := range lc.adm.config.RuntimeSecurity.ActivityDumpCgroupsManagers {
+		cgroupManager, found := allDefaultConfigs[cgroupManager]
+		if !found {
+			return nil, fmt.Errorf("unsupported cgroup manager '%s'", cgroupManager)
+		}
+		cgroupManagerLoadConfig := *defaults
+		cgroupManagerLoadConfig.CGroupFlags = containerutils.CGroupFlags(cgroupManager)
+		defaultConfigs[cgroupManager] = &cgroupManagerLoadConfig
+	}
+	lc.activityDumpLoadConfig = defaultConfigs
+	return defaultConfigs, nil
 }
 
-// PushCurrentConfig pushes the current load controller config to kernel space
-func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
+// PushDefaultCurrentConfigs pushes the current load controller configs to kernel space
+func (lc *ActivityDumpLoadController) PushDefaultCurrentConfigs() error {
+	defaultConfigs, err := lc.getDefaultLoadConfigs()
+	if err != nil {
+		return err
+	}
+
 	// push default load config values
-	if err := lc.activityDumpConfigDefaults.Put(uint32(0), lc.getDefaultLoadConfig()); err != nil {
-		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
+	for cgroupManager, defaultConfig := range defaultConfigs {
+		if err := lc.activityDumpConfigDefaults.Put(uint32(cgroupManager), defaultConfig); err != nil {
+			return fmt.Errorf("couldn't update default activity dump load config: %w", err)
+		}
 	}
 	return nil
 }
@@ -83,7 +116,7 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 // NextPartialDump returns a new dump with the same parameters as the current one, or with reduced load config parameters
 // when applicable
 func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *ActivityDump {
-	newDump := NewActivityDump(ad.adm)
+	newDump := NewActivityDump(ad.adm, ad.LoadConfig.CGroupFlags)
 	newDump.Metadata.ContainerID = ad.Metadata.ContainerID
 	newDump.Metadata.CGroupContext = ad.Metadata.CGroupContext
 	newDump.Metadata.DifferentiateArgs = ad.Metadata.DifferentiateArgs
@@ -111,6 +144,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	copy(newDump.LoadConfig.TracedEventTypes, ad.LoadConfig.TracedEventTypes)
 	newDump.LoadConfig.Rate = ad.LoadConfig.Rate
 	newDump.LoadConfigCookie = ad.LoadConfigCookie
+	newDump.LoadConfig.CGroupFlags = ad.LoadConfig.CGroupFlags
 
 	if timeToThreshold < lc.minDumpTimeout {
 		if err := lc.reduceDumpRate(ad, newDump); err != nil {

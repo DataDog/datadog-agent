@@ -16,7 +16,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/gopsutil/host"
 
@@ -118,7 +118,7 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initialize the host collector
-func (c *Collector) Init(_ config.Component, _ optional.Option[workloadmeta.Component]) (err error) {
+func (c *Collector) Init(_ config.Component, _ option.Option[workloadmeta.Component]) (err error) {
 	if c.version, err = winutil.GetWindowsBuildString(); err != nil {
 		return err
 	}

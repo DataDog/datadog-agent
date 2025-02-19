@@ -3,9 +3,8 @@ erratic: false
 
 target:
   name: datadog-agent
-  command: /bin/entrypoint.sh
-  cpu_allotment: 8
-  memory_allotment: 4GiB
+  cpu_allotment: 4
+  memory_allotment: 2GiB
 
   environment:
     DD_API_KEY: 00000001
@@ -24,8 +23,8 @@ target:
     DD_SYSTEM_PROBE_INTERNAL_PROFILING_CPU_DURATION: 1m
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
     # destination
-    DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
-    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     # tags
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:file_tree
     DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:file_tree

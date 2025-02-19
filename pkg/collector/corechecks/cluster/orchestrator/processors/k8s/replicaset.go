@@ -58,7 +58,7 @@ func (h *ReplicaSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, r
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ReplicaSetHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*appsv1.ReplicaSet)
-	return k8sTransformers.ExtractReplicaSet(r)
+	return k8sTransformers.ExtractReplicaSet(ctx, r)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

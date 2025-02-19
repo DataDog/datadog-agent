@@ -108,7 +108,7 @@ def _verify_unknown_licenses(licenses, licenses_filename):
 
 def is_valid_quote(copyright):
     stack = []
-    quotes_to_check = ["'", '"']
+    quotes_to_check = ['"']
     for c in copyright:
         if c in quotes_to_check:
             if stack and stack[-1] == c:

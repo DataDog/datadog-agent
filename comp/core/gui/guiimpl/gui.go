@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"html/template"
 	"io"
@@ -24,7 +25,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/dvsekhvalnov/jose2go/base64url"
 	"github.com/gorilla/mux"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
@@ -41,7 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -91,7 +91,7 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp     optional.Option[guicomp.Component]
+	Comp     option.Option[guicomp.Component]
 	Endpoint api.AgentEndpointProvider
 }
 
@@ -101,7 +101,7 @@ type provides struct {
 func newGui(deps dependencies) provides {
 
 	p := provides{
-		Comp: optional.NewNoneOption[guicomp.Component](),
+		Comp: option.None[guicomp.Component](),
 	}
 	guiPort := deps.Config.GetString("GUI_port")
 
@@ -158,7 +158,7 @@ func newGui(deps dependencies) provides {
 		OnStart: g.start,
 		OnStop:  g.stop})
 
-	p.Comp = optional.NewOption[guicomp.Component](g)
+	p.Comp = option.New[guicomp.Component](g)
 	p.Endpoint = api.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
 
 	return p
@@ -196,7 +196,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, e.Error(), 500)
 	}
 
-	token := base64url.Encode(key)
+	token := base64.RawURLEncoding.EncodeToString(key)
 	g.intentTokens[token] = true
 	w.Write([]byte(token))
 }

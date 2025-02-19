@@ -19,7 +19,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -58,7 +61,7 @@ func testHeaders(t *testing.T) {
 	Headers(&headers)
 	require.NotNil(t, headers)
 
-	h := util.HTTPHeaders()
+	h := httpHeaders()
 	yamlPayload, _ := yaml.Marshal(h)
 	assert.Equal(t, string(yamlPayload), C.GoString(headers))
 }
@@ -121,4 +124,53 @@ func testEmitAgentTelemetry(t *testing.T) {
 	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("gauge"))
 
 	assert.True(t, true)
+}
+
+func testObfuscaterConfig(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := pkgconfigmock.New(t)
+	pkgconfigsetup.InitConfig(conf)
+	o := lazyInitObfuscator()
+	o.Stop()
+	expected := obfuscate.Config{
+		ES: obfuscate.JSONConfig{
+			Enabled:            true,
+			KeepValues:         []string{},
+			ObfuscateSQLValues: []string{},
+		},
+		OpenSearch: obfuscate.JSONConfig{
+			Enabled:            true,
+			KeepValues:         []string{},
+			ObfuscateSQLValues: []string{},
+		},
+		Mongo:                defaultMongoObfuscateSettings,
+		SQLExecPlan:          defaultSQLPlanObfuscateSettings,
+		SQLExecPlanNormalize: defaultSQLPlanNormalizeSettings,
+		HTTP: obfuscate.HTTPConfig{
+			RemoveQueryString: false,
+			RemovePathDigits:  false,
+		},
+		Redis: obfuscate.RedisConfig{
+			Enabled:       true,
+			RemoveAllArgs: false,
+		},
+		Valkey: obfuscate.ValkeyConfig{
+			Enabled:       true,
+			RemoveAllArgs: false,
+		},
+		Memcached: obfuscate.MemcachedConfig{
+			Enabled:     true,
+			KeepCommand: false,
+		},
+		CreditCard: obfuscate.CreditCardsConfig{
+			Enabled:    true,
+			Luhn:       false,
+			KeepValues: []string{},
+		},
+		Cache: obfuscate.CacheConfig{
+			Enabled: true,
+			MaxSize: 5000000,
+		},
+	}
+	assert.Equal(t, expected, obfuscaterConfig)
 }

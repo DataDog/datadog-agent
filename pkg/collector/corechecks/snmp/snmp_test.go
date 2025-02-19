@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 
 	"github.com/gosnmp/gosnmp"
@@ -53,7 +52,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, compressionmock.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -997,10 +996,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck(agentconfig.NewMock(t))
-	check2 := newCheck(agentconfig.NewMock(t))
-	check3 := newCheck(agentconfig.NewMock(t))
-	checkSubnet := newCheck(agentconfig.NewMock(t))
+	check1 := newCheck(agentconfig.NewMock(t), nil)
+	check2 := newCheck(agentconfig.NewMock(t), nil)
+	check3 := newCheck(agentconfig.NewMock(t), nil)
+	checkSubnet := newCheck(agentconfig.NewMock(t), nil)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1505,8 +1504,8 @@ tags:
 		"1.3.6.1.2.1.1.5.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
-		//"1.3.6.1.2.1.2.2.1.13",
-		//"1.3.6.1.2.1.2.2.1.14",
+		// "1.3.6.1.2.1.2.2.1.13",
+		// "1.3.6.1.2.1.2.2.1.14",
 		"1.3.6.1.2.1.2.2.1.2",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
@@ -1951,7 +1950,7 @@ metric_tags:
 	}
 
 	sess.On("GetBulk", []string{
-		//"1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1"
+		// "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1"
 		"1.3.6.1.2.1.2.2.1.2",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",

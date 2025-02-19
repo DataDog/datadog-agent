@@ -5,7 +5,8 @@ from invoke import task
 
 from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.utils import REPO_PATH, TestsNotSupportedError, bin_name, get_build_flags
+from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
@@ -81,15 +82,14 @@ def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     """
     Run integration tests for trace agent
     """
-    if sys.platform == 'win32':
-        raise TestsNotSupportedError('Trace Agent integration tests are not supported on Windows')
-
-    go_build_tags = " ".join(get_default_build_tags(build="test"))
-    race_opt = "-race" if race else ""
-    timeout_opt = f"-timeout {timeout}" if timeout else ""
-
-    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -v -tags "{go_build_tags}"'
-    ctx.run(f"{go_cmd} ./cmd/trace-agent/test/testsuite/...", env={"INTEGRATION": "yes"})
+    containerized_integration_tests(
+        ctx,
+        TRACE_AGENT_IT_CONF,
+        race=race,
+        remote_docker=False,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 @task

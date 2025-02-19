@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -148,7 +148,9 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 		return nil
 	}
 
-	for i := 0; i < 3; i++ {
+	currentRuntime := ""
+	maxRetries := 10
+	for i := 0; i < maxRetries; i++ {
 		if i > 0 {
 			time.Sleep(time.Second)
 		}
@@ -157,17 +159,26 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 		cmd.Stdout = &outb
 		err = cmd.Run()
 		if err != nil {
-			if i < 2 {
+			if i < maxRetries {
 				log.Debug("failed to verify docker runtime, retrying: ", err)
 			} else {
 				log.Warn("failed to verify docker runtime: ", err)
 			}
+			// Reload Docker daemon again in case the signal was lost
+			if reloadErr := reloadDockerConfig(ctx); reloadErr != nil {
+				log.Warn("failed to reload docker daemon: ", reloadErr)
+			}
 		}
 		if strings.TrimSpace(outb.String()) == "dd-shim" {
+			span.SetTag("retries", i)
+			span.SetTag("docker_runtime", "dd-shim")
 			return nil
 		}
+		currentRuntime = strings.TrimSpace(outb.String())
 	}
-	err = fmt.Errorf("docker default runtime has not been set to injector docker runtime")
+	span.SetTag("retries", maxRetries)
+	span.SetTag("docker_runtime", currentRuntime)
+	err = fmt.Errorf("docker default runtime has not been set to injector docker runtime (is \"%s\")", currentRuntime)
 	return err
 }
 
@@ -209,11 +220,16 @@ func isDockerInstalled(ctx context.Context) bool {
 	defer span.Finish(nil)
 
 	// Docker is installed if the docker binary is in the PATH
-	_, err := exec.LookPath("docker")
+	dockerPath, err := exec.LookPath("docker")
 	if err != nil && errors.Is(err, exec.ErrNotFound) {
 		return false
 	} else if err != nil {
 		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
+		return false
+	}
+	span.SetTag("docker_path", dockerPath)
+	if strings.Contains(dockerPath, "/snap/") {
+		log.Warn("installer: docker is installed via snap, skipping docker instrumentation")
 		return false
 	}
 	return true

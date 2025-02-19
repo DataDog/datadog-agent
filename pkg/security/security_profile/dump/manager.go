@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
@@ -321,7 +322,8 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the activity dump load controller: %w", err)
 	}
-	if err = loadController.PushCurrentConfig(); err != nil {
+
+	if err = loadController.PushDefaultCurrentConfigs(); err != nil {
 		return nil, fmt.Errorf("failed to push load controller config settings to kernel space: %w", err)
 	}
 	adm.loadController = loadController
@@ -332,7 +334,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 
 func (adm *ActivityDumpManager) prepareContextTags() {
 	// add hostname tag
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
@@ -409,7 +411,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 
 // handleDefaultDumpRequest starts dumping a new workload with the provided load configuration and the default dump configuration
 func (adm *ActivityDumpManager) startDumpWithConfig(containerID containerutils.ContainerID, cgroupContext model.CGroupContext, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
-	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
+	newDump := NewActivityDump(adm, loadConfig.CGroupFlags, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerID
 		ad.Metadata.CGroupContext = cgroupContext
 		ad.SetLoadConfig(cookie, loadConfig)
@@ -449,8 +451,8 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 	adm.Lock()
 	defer adm.Unlock()
 
-	if len(event.ContainerContext.ContainerID) == 0 {
-		seclog.Warnf("received a cgroup tracing event with an empty container ID")
+	if len(event.CGroupContext.CGroupID) == 0 {
+		seclog.Warnf("received a cgroup tracing event with an empty cgroup ID")
 		return
 	}
 
@@ -514,7 +516,19 @@ workloadLoop:
 		}
 
 		// if we're still here, we can start tracing this workload
-		if err := adm.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
+		defaultConfigs, err := adm.loadController.getDefaultLoadConfigs()
+		if err != nil {
+			seclog.Errorf("%v", err)
+			continue
+		}
+
+		defaultConfig, found := defaultConfigs[containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags)]
+		if !found {
+			seclog.Errorf("Failed to find default activity dump config for %s", containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags).String())
+			continue
+		}
+
+		if err := adm.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
 			if !errors.Is(err, unix.E2BIG) {
 				seclog.Debugf("%v", err)
 				break
@@ -548,11 +562,24 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 	adm.Lock()
 	defer adm.Unlock()
 
-	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
+	var dumpDuration time.Duration
+	var err error
+	if params.Timeout != "" {
+		if dumpDuration, err = time.ParseDuration(params.Timeout); err != nil {
+			return nil, err
+		}
+	} else {
+		dumpDuration = adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout
+	}
+
+	if params.Storage.LocalStorageDirectory == "" {
+		params.Storage.LocalStorageDirectory = adm.config.RuntimeSecurity.ActivityDumpLocalStorageDirectory
+	}
+
+	newDump := NewActivityDump(adm, 0, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerutils.ContainerID(params.GetContainerID())
 		ad.Metadata.CGroupContext.CGroupID = containerutils.CGroupID(params.GetCGroupID())
 
-		dumpDuration, _ := time.ParseDuration(params.Timeout)
 		ad.SetTimeout(dumpDuration)
 
 		if params.GetDifferentiateArgs() {
@@ -744,7 +771,7 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 func (adm *ActivityDumpManager) TranscodingRequest(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
-	ad := NewActivityDump(adm)
+	ad := NewActivityDump(adm, 0)
 
 	// open and parse input file
 	if err := ad.Decode(params.GetActivityDumpFile()); err != nil {
@@ -828,16 +855,24 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 
 		if err = adm.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, remove expired entries
-			seclog.Errorf("config not found for (%v): %v", cgroupFile, err)
+			seclog.Warnf("config not found for (%v): %v", cgroupFile, err)
 			_ = adm.tracedCgroupsMap.Delete(cgroupFile)
 			continue
 		}
+
+		cgroupContext, err := adm.resolvers.ResolveCGroupContext(cgroupFile, event.Config.CGroupFlags)
+		if err != nil {
+			seclog.Warnf("couldn't resolve cgroup context for (%v): %v", cgroupFile, err)
+			continue
+		}
+
+		event.CGroupContext = *cgroupContext
 
 		adm.HandleCGroupTracingEvent(&event)
 	}
 
 	if err = iterator.Err(); err != nil {
-		seclog.Errorf("couldn't iterate over the map traced_cgroups: %v", err)
+		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
 	}
 }
 

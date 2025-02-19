@@ -217,7 +217,8 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 			},
 			KernelLockdown:  string(kernel.GetLockdownMode()),
 			UseMmapableMaps: p.GetKernelVersion().HaveMmapableMaps(),
-			UseRingBuffer:   p.UseRingBuffers(),
+			UseRingBuffer:   p.GetUseRingBuffers(),
+			UseFentry:       p.GetUseFentry(),
 		}
 
 		envErrors := p.VerifyEnvironment()
@@ -266,4 +267,16 @@ func (a *APIServer) RunSelfTest(_ context.Context, _ *api.RunSelfTestParams) (*a
 		Ok:    true,
 		Error: "",
 	}, nil
+}
+
+func (a *APIServer) collectOSReleaseData() {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return
+	}
+
+	kv := p.GetKernelVersion()
+
+	a.kernelVersion = kv.Code.String()
+	a.distribution = fmt.Sprintf("%s - %s", kv.OsRelease["ID"], kv.OsRelease["VERSION_ID"])
 }

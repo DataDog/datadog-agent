@@ -237,7 +237,8 @@ var gnuTLSProbes = []manager.ProbesSelector{
 }
 
 const (
-	sslSockByCtxMap = "ssl_sock_by_ctx"
+	sslSockByCtxMap    = "ssl_sock_by_ctx"
+	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
 )
 
 var (
@@ -271,7 +272,7 @@ var opensslSpec = &protocols.ProtocolSpec{
 			Name: "fd_by_ssl_bio",
 		},
 		{
-			Name: "ssl_ctx_by_pid_tgid",
+			Name: sslCtxByPIDTGIDMap,
 		},
 	},
 	Probes: []*manager.Probe{
@@ -491,6 +492,10 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
+		MaxEntries: o.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 }
 
 // PreStart is called before the start of the provided eBPF manager.
@@ -552,7 +557,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_ctx_by_pid_tgid": // maps/ssl_ctx_by_pid_tgid (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void *
+	case sslCtxByPIDTGIDMap: // maps/ssl_ctx_by_pid_tgid (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void *
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'uintptr // C.void *'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -564,9 +569,9 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 
 }
 
-// GetStats returns the latest monitoring stats from a protocol implementation.
-func (o *sslProgram) GetStats() *protocols.ProtocolStats {
-	return nil
+// GetStats is a no-op.
+func (o *sslProgram) GetStats() (*protocols.ProtocolStats, func()) {
+	return nil, nil
 }
 
 const (

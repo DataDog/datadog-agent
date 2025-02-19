@@ -6,9 +6,9 @@ description "Enforce building dependencies as soon as possible so they can be ca
 if linux_target?
   dependency 'procps-ng'
   dependency 'curl'
-  if fips_mode?
-    dependency 'openssl-fips-provider'
-  end
+end
+if fips_mode?
+  dependency 'openssl-fips-provider'
 end
 
 # Bundled cacerts file (is this a good idea?)

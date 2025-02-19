@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -28,7 +29,11 @@ type CronJobV1Collector struct {
 }
 
 // NewCronJobV1Collector creates a new collector for the Kubernetes Job resource.
-func NewCronJobV1Collector() *CronJobV1Collector {
+func NewCronJobV1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1Collector {
+	resourceType := getResourceType(cronJobName, cronJobVersionV1)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &CronJobV1Collector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
@@ -36,9 +41,11 @@ func NewCronJobV1Collector() *CronJobV1Collector {
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:                      "cronjobs",
+			Name:                      cronJobName,
 			NodeType:                  orchestrator.K8sCronJob,
-			Version:                   "batch/v1",
+			Version:                   cronJobVersionV1,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Handlers)),
 	}
@@ -67,6 +74,11 @@ func (c *CronJobV1Collector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *CronJobV1Collector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
@@ -77,7 +89,7 @@ func (c *CronJobV1Collector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

@@ -26,9 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
+var (
 	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
-	// and lowering it might cause constant cpu usage.
+	// and lowering it might cause constant cpu usage. This is a var instead of a const only because the test code changes
+	// this value to speed up test execution.
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
@@ -55,6 +56,7 @@ type Rule struct {
 
 // Watcher provides a way to tie callback functions to the lifecycle of shared libraries
 type Watcher struct {
+	syncMutex      sync.RWMutex
 	wg             sync.WaitGroup
 	done           chan struct{}
 	procRoot       string
@@ -64,6 +66,7 @@ type Watcher struct {
 	ebpfProgram    *EbpfProgram
 	libset         Libset
 	thisPID        int
+	scannedPIDs    map[uint32]int
 
 	// telemetry
 	libHits    *telemetry.Counter
@@ -90,6 +93,7 @@ func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, err
 		processMonitor: monitor.GetProcessMonitor(),
 		ebpfProgram:    ebpfProgram,
 		registry:       utils.NewFileRegistry(consts.USMModuleName, "shared_libraries"),
+		scannedPIDs:    make(map[uint32]int),
 
 		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
 		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
@@ -274,11 +278,7 @@ func (w *Watcher) Start() {
 			case <-w.done:
 				return
 			case <-processSync.C:
-				processSet := w.registry.GetRegisteredProcesses()
-				deletedPids := findDeletedProcesses(processSet)
-				for deletedPid := range deletedPids {
-					_ = w.registry.Unregister(deletedPid)
-				}
+				w.sync()
 			}
 		}
 	}()
@@ -291,28 +291,60 @@ func (w *Watcher) Start() {
 	utils.AddAttacher(consts.USMModuleName, "native", w)
 }
 
-// findDeletedProcesses returns the terminated PIDs from the given map.
-func findDeletedProcesses[V any](pids map[uint32]V) map[uint32]struct{} {
-	existingPids := make(map[uint32]struct{}, len(pids))
+// sync unregisters from any terminated processes which we missed the exit
+// callback for, and also attempts to register to running processes to ensure
+// that we don't miss any process.
+func (w *Watcher) sync() {
+	// The mutex is only used for protection with the test code which reads the
+	// scannedPIDs map.
+	w.syncMutex.Lock()
+	defer w.syncMutex.Unlock()
 
-	procIter := func(pid int) error {
-		if _, exists := pids[uint32(pid)]; exists {
-			existingPids[uint32(pid)] = struct{}{}
+	deletionCandidates := w.registry.GetRegisteredProcesses()
+	alivePIDs := make(map[uint32]struct{})
+
+	_ = kernel.WithAllProcs(kernel.ProcFSRoot(), func(origPid int) error {
+		if origPid == w.thisPID { // don't scan ourselves
+			return nil
 		}
-		return nil
-	}
-	// Scanning already running processes
-	if err := kernel.WithAllProcs(kernel.ProcFSRoot(), procIter); err != nil {
-		return nil
-	}
 
-	res := make(map[uint32]struct{}, len(pids)-len(existingPids))
-	for pid := range pids {
-		if _, exists := existingPids[pid]; exists {
-			continue
+		pid := uint32(origPid)
+		alivePIDs[pid] = struct{}{}
+
+		if _, ok := deletionCandidates[pid]; ok {
+			// We have previously hooked into this process and it remains
+			// active, so we remove it from the deletionCandidates list, and
+			// move on to the next PID
+			delete(deletionCandidates, pid)
+			return nil
 		}
-		res[pid] = struct{}{}
+
+		scanned := w.scannedPIDs[pid]
+
+		// Try to scan twice. This is because we may happen to scan the process
+		// just after it has been exec'd and before it has opened its shared
+		// libraries. Scanning twice with the sync interval reduce this risk of
+		// missing shared libraries due to this.
+		if scanned < 2 {
+			w.scannedPIDs[pid]++
+			err := w.AttachPID(pid)
+			if err == nil {
+				log.Debugf("watcher attached to %v via periodic scan", pid)
+				w.scannedPIDs[pid] = 2
+			}
+		}
+
+		return nil
+	})
+
+	// Clean up dead processes from the list of scanned PIDs
+	for pid := range w.scannedPIDs {
+		if _, alive := alivePIDs[pid]; !alive {
+			delete(w.scannedPIDs, pid)
+		}
 	}
 
-	return res
+	for pid := range deletionCandidates {
+		_ = w.registry.Unregister(pid)
+	}
 }

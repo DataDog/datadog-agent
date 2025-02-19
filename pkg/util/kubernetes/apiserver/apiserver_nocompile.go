@@ -11,9 +11,6 @@ package apiserver
 import (
 	"context"
 	"errors"
-	"time"
-
-	"k8s.io/client-go/kubernetes"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -64,9 +61,7 @@ func GetNodeLabels(_ *APIClient, _ string) (map[string]string, error) {
 	return nil, nil
 }
 
-// GetKubeClient returns a Kubernetes client.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func GetKubeClient(_ time.Duration, _ float32, _ int) (kubernetes.Interface, error) {
+// GetKubeSecret fetches a secret from k8s
+func GetKubeSecret(string, string) (map[string][]byte, error) {
 	return nil, ErrNotCompiled
 }

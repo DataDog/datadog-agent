@@ -9,6 +9,8 @@
 package autodiscovery
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -77,7 +79,7 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 	// Auto-activate autodiscovery without listeners: - snmp
 	snmpConfig, err := snmplistener.NewListenerConfig()
 
-	if err != nil {
+	if err != nil && !errors.Is(err, snmplistener.ErrNoConfigGiven) {
 		log.Errorf("Error unmarshalling snmp listener config. Error: %v", err)
 	} else if len(snmpConfig.Configs) > 0 {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "snmp"})
@@ -121,6 +123,12 @@ func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkg
 	if isKubeEnv {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "kubelet"})
 		log.Info("Adding Kubelet listener from environment")
+	}
+
+	isGPUEnv := env.IsFeaturePresent(env.NVML)
+	if isGPUEnv {
+		detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.GPU})
+		log.Info("Adding GPU provider from environment")
 	}
 
 	return detectedProviders, detectedListeners

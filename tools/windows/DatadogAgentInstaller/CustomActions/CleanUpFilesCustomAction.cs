@@ -3,6 +3,7 @@ using Datadog.CustomActions.Interfaces;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.IO;
+using System.Linq;
 
 namespace Datadog.CustomActions
 {
@@ -11,16 +12,16 @@ namespace Datadog.CustomActions
         private static ActionResult CleanupFiles(ISession session)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
-            var applicationDataLocation = session.Property("APPLICATIONDATADIRECTORY");
             var toDelete = new[]
             {
                 // may contain python files created outside of install
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
-                // installation specific files
-                Path.Combine(applicationDataLocation, "install_info"),
-                Path.Combine(applicationDataLocation, "auth_token")
-            };
+                Path.Combine(projectLocation, "python-scripts"),
+            }
+            // installation specific files
+            .Concat(session.GeneratedPaths());
+
             foreach (var path in toDelete)
             {
                 try

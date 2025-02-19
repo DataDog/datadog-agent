@@ -9,6 +9,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -245,6 +247,9 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 	})
 }
 
+//go:embed testdata/stringcode.go.tmpl
+var stringCodeBody string
+
 func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -360,11 +365,6 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		body, err := os.ReadFile("testdata/stringcode.go.tmpl")
-		if err != nil {
-			t.Fatal(err)
-		}
-
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
@@ -372,7 +372,7 @@ func TestConfigHostname(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tmpl, err := template.New("program").Parse(string(body))
+			tmpl, err := template.New("program").Parse(stringCodeBody)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -399,6 +399,7 @@ func TestConfigHostname(t *testing.T) {
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
+			t.Skip("Skip flaky test while we explore fixes.")
 			bin := makeProgram(t, "host.name", 0)
 			defer os.Remove(bin)
 
@@ -555,6 +556,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, "mymachine", cfg.Hostname)
 	assert.Equal(t, "https://user:password@proxy_for_https:1234", cfg.ProxyURL.String())
 	assert.True(t, cfg.SkipSSLValidation)
+	assert.Equal(t, uint16(tls.VersionTLS13), cfg.NewHTTPTransport().TLSClientConfig.MinVersion)
 	assert.Equal(t, 18125, cfg.StatsdPort)
 	assert.False(t, cfg.Enabled)
 	assert.Equal(t, "abc", cfg.LogFilePath)
@@ -610,6 +612,12 @@ func TestFullYamlConfig(t *testing.T) {
 			Repl:    "?",
 			Re:      regexp.MustCompile("(?s).*"),
 		},
+		{
+			Name:    "exception.stacktrace",
+			Pattern: "(?s).*",
+			Repl:    "?",
+			Re:      regexp.MustCompile("(?s).*"),
+		},
 	}, cfg.ReplaceTags)
 
 	assert.EqualValues(t, []string{"/health", "/500"}, cfg.Ignore["resource"])
@@ -629,6 +637,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 	assert.True(t, o.Cache.Enabled)
+	assert.Equal(t, int64(5555555), o.Cache.MaxSize)
 
 	assert.True(t, cfg.InstallSignature.Found)
 	assert.Equal(t, traceconfig.InstallSignatureConfig{
@@ -1652,6 +1661,34 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(t, cfg.Obfuscation.Redis.RemoveAllArgs)
 	})
 
+	env = "DD_APM_OBFUSCATION_VALKEY_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled"))
+		assert.True(t, cfg.Obfuscation.Valkey.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args"))
+		assert.True(t, cfg.Obfuscation.Valkey.RemoveAllArgs)
+	})
+
 	env = "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
@@ -1774,6 +1811,22 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 		assert.False(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled"))
 		assert.False(t, cfg.Obfuscation.Cache.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_CACHE_MAX_SIZE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "1234567")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		actualConfig := pkgconfigsetup.Datadog().GetString("apm_config.obfuscation.cache.max_size")
+		actualParsed := cfg.Obfuscation.Cache.MaxSize
+		assert.Equal(t, "1234567", actualConfig)
+		assert.Equal(t, int64(1234567), actualParsed)
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"

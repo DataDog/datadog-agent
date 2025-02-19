@@ -193,7 +193,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 		}
 		first = false
 
-		ptr = it.Next()
+		ptr = it.Next(ctx)
 	}
 
 	return &ps
@@ -209,8 +209,8 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, opts *eval.Opts) ([]byte, error) {
-	s := NewEventSerializer(event, opts)
+func MarshalEvent(event *model.Event) ([]byte, error) {
+	s := NewEventSerializer(event, nil)
 	return json.Marshal(s)
 }
 

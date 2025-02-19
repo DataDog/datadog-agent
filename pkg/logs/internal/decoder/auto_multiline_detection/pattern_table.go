@@ -142,7 +142,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 }
 
 // ProcessAndContinue adds a pattern to the table and updates its label based on it's frequency.
-// This implements the Herustic interface - so we should stop processing if the label was changed
+// This implements the Heuristic interface - so we should stop processing if the label was changed
 // due to pattern detection.
 func (p *PatternTable) ProcessAndContinue(context *messageContext) bool {
 

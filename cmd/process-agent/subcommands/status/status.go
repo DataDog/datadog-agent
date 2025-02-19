@@ -21,6 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -137,13 +138,18 @@ func getStatusURL() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}
-	return fmt.Sprintf("http://%s/agent/status", addressPort), nil
+	return fmt.Sprintf("https://%s/agent/status", addressPort), nil
 }
 
 func runStatus(deps dependencies) error {
 	statusURL, err := getStatusURL()
 	if err != nil {
 		writeError(deps.Log, os.Stdout, err)
+		return err
+	}
+
+	err = util.SetAuthToken(deps.Config)
+	if err != nil {
 		return err
 	}
 

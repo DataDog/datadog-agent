@@ -296,33 +296,39 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 		log.Warnf("Error getting list of running services %v", err)
 		return nil, err
 	}
+	list = filterDatadogServices(list)
+	// need to add the drivers manually as they are not returned by ListServices
+	drivers := []string{"ddnpm", "ddprocmon"}
+	list = append(list, drivers...)
 
 	for _, serviceName := range list {
-		if strings.HasPrefix(serviceName, "datadog") {
-			srvc, err := winutil.OpenService(manager, serviceName, windows.GENERIC_READ)
-			if err != nil {
-				log.Warnf("Error Opening Service %s: %v", serviceName, err)
-			} else {
-				conf2, err := getServiceInfo(srvc)
-				if err != nil {
-					log.Warnf("Error getting info for %s: %v", serviceName, err)
-				}
-				ddServices = append(ddServices, conf2)
-			}
-		}
-	}
-
-	// Getting ddnpm service info separately
-	ddnpm, err := winutil.OpenService(manager, "ddnpm", windows.GENERIC_READ)
-	if err != nil {
-		log.Warnf("Error Opening Service ddnpm %v", err)
-	} else {
-		ddnpmConf, err := getServiceInfo(ddnpm)
+		srvc, err := winutil.OpenService(manager, serviceName, windows.GENERIC_READ)
 		if err != nil {
-			log.Warnf("Error getting info for ddnpm: %v", err)
+			log.Warnf("Error Opening Service %s: %v", serviceName, err)
+		} else {
+			conf2, err := getServiceInfo(srvc)
+			if err != nil {
+				log.Warnf("Error getting info for %s: %v", serviceName, err)
+			}
+			ddServices = append(ddServices, conf2)
+			srvc.Close()
 		}
-		ddServices = append(ddServices, ddnpmConf)
 	}
 
 	return ddServices, nil
+}
+
+// filterDatadogServices returns the services that start with "datadog" (case insensitive)
+func filterDatadogServices(services []string) []string {
+	ddServices := []string{}
+
+	for _, serviceName := range services {
+		// "The service control manager database preserves the case of the characters, but service name comparisons are always case insensitive."
+		// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew
+		if strings.HasPrefix(strings.ToLower(serviceName), "datadog") {
+			ddServices = append(ddServices, serviceName)
+		}
+	}
+
+	return ddServices
 }

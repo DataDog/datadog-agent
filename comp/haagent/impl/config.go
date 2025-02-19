@@ -25,13 +25,13 @@ var validHaIntegrations = map[string]bool{
 }
 
 type haAgentConfigs struct {
-	enabled bool
-	group   string
+	enabled  bool
+	configID string
 }
 
 func newHaAgentConfigs(agentConfig config.Component) *haAgentConfigs {
 	return &haAgentConfigs{
-		enabled: helpers.IsEnabled(agentConfig),
-		group:   helpers.GetGroup(agentConfig),
+		enabled:  helpers.IsEnabled(agentConfig),
+		configID: helpers.GetConfigID(agentConfig),
 	}
 }

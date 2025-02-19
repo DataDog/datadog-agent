@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 const (
@@ -44,12 +44,12 @@ func main() {
 	ctx := context.Background()
 
 	t := telemetry.NewTelemetry(env.HTTPClient(), env.APIKey, env.Site, fmt.Sprintf("datadog-installer-downloader-%s", Flavor))
-	_ = t.Start(ctx)
-	defer func() { _ = t.Stop(ctx) }()
 	var err error
 	span, ctx := telemetry.StartSpanFromEnv(ctx, fmt.Sprintf("downloader-%s", Flavor))
-	defer func() { span.Finish(err) }()
 	err = runDownloader(ctx, env, Version, Flavor)
+
+	span.Finish(err)
+	t.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Installation failed: %v\n", err)
 		os.Exit(1)

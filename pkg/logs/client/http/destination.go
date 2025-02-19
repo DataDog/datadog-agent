@@ -396,6 +396,7 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 	var transport *http.Transport
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
+
 	// Configure transport based on user setting
 	switch transportConfig {
 	case "http1":

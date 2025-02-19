@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy && containerd
 
 // Package trivy holds the scan components
 package trivy
@@ -57,6 +57,56 @@ func TestExtractLayersFromOverlayFSMounts(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, extractLayersFromOverlayFSMounts(tt.mounts))
+		})
+	}
+}
+
+func TestLooselyCompareAnalyzers(t *testing.T) {
+	entries := []struct {
+		name     string
+		given    []string
+		against  []string
+		expected bool
+	}{
+		{
+			name:     "empty lists",
+			expected: true,
+		},
+		{
+			name:     "os simple",
+			given:    []string{"os"},
+			against:  []string{"os"},
+			expected: true,
+		},
+		{
+			name:     "os duplicated",
+			given:    []string{"os", "os"},
+			against:  []string{"os"},
+			expected: true,
+		},
+		{
+			name:     "os wrong",
+			given:    []string{"languages"},
+			against:  []string{"os"},
+			expected: false,
+		},
+		{
+			name:     "languages and os",
+			given:    []string{"os", "languages"},
+			against:  []string{"os", "languages"},
+			expected: true,
+		},
+		{
+			name:     "languages and os 2",
+			given:    []string{"languages", "os"},
+			against:  []string{"os", "languages"},
+			expected: true,
+		},
+	}
+
+	for _, entry := range entries {
+		t.Run(entry.name, func(t *testing.T) {
+			assert.Equal(t, entry.expected, looselyCompareAnalyzers(entry.given, entry.against))
 		})
 	}
 }

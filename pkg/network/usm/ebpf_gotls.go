@@ -285,8 +285,8 @@ func (p *goTLSProgram) PostStart(*manager.Manager) error {
 func (p *goTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
 // GetStats is a no-op.
-func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
-	return nil
+func (p *goTLSProgram) GetStats() (*protocols.ProtocolStats, func()) {
+	return nil, nil
 }
 
 // Stop terminates goTLS main goroutine.
@@ -387,7 +387,7 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 			if errors.Is(err, safeelf.ErrNoSymbols) {
 				binNoSymbolsMetric.Add(1)
 			}
-			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
+			return fmt.Errorf("error extracting inspection data from %s: %w", filePath.HostPath, err)
 		}
 
 		if err := addInspectionResultToMap(offsetsDataMap, filePath.ID, inspectionResult); err != nil {

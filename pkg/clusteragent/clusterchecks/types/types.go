@@ -74,13 +74,14 @@ type Stats struct {
 	LeaderIP string
 
 	// Leading
-	Leader          bool
-	Active          bool
-	NodeCount       int
-	ActiveConfigs   int
-	DanglingConfigs int
-	TotalConfigs    int
-	CheckNames      map[string]struct{}
+	Leader            bool
+	Active            bool
+	NodeCount         int
+	ActiveConfigs     int
+	DanglingConfigs   int
+	UnscheduledChecks int
+	TotalConfigs      int
+	CheckNames        map[string]struct{}
 }
 
 // LeaderIPCallback describes the leader-election method we

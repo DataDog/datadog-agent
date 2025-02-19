@@ -29,13 +29,6 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     fi
 fi
 
-# For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
-# They were not being cleaned by these versions, so let's do that now on install/upgrade
-TUF_REPO_DIR=$INSTALL_DIR/repositories
-if [ -d $TUF_REPO_DIR ]; then
-    rm -rf $TUF_REPO_DIR
-fi
-
 # RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
 # So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
 if [ -f "/etc/init.d/datadog-agent" ]; then
@@ -50,6 +43,24 @@ if ! getent passwd dd-agent >/dev/null; then
     useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin -c "Datadog Agent" dd-agent
     if ! usermod -L dd-agent; then
         echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"
+    fi
+fi
+
+
+
+if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
+    if [ -f "${INSTALL_DIR}/python-scripts/pre.py" ]; then
+        PRE_PYTHON_FILE="${INSTALL_DIR}/python-scripts/pre.py"
+    else
+        # Search for previous version of the python file
+        if [ -f "${INSTALL_DIR}/python-scripts/prerm.py" ]; then
+            PRE_PYTHON_FILE="${INSTALL_DIR}/python-scripts/prerm.py"
+        fi
+    fi
+    if [ -n "$PRE_PYTHON_FILE" ]; then
+        ${INSTALL_DIR}/embedded/bin/python "${PRE_PYTHON_FILE}" "${INSTALL_DIR}" || true
+    else
+        echo "[ WARNING ]\tPRE_PYTHON_FILE is not set"
     fi
 fi
 

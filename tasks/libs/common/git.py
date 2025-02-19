@@ -160,7 +160,7 @@ def check_base_branch(branch, release_version):
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == get_default_branch() or branch == release_version.branch()
+    return branch == get_default_branch() or branch == release_version
 
 
 def try_git_command(ctx, git_command, non_interactive_retries=2, non_interactive_delay=5):
@@ -253,16 +253,24 @@ def get_last_commit(ctx, repo, branch):
     )
 
 
+def get_git_references(ctx, repo, ref, tags=False):
+    """
+    Fetches a specific reference (ex: branch, tag, or HEAD) from a remote Git repository
+    """
+    filter_by = " -t" if tags else ""
+    return ctx.run(
+        rf'git ls-remote{filter_by} https://github.com/DataDog/{repo} "{ref}"',
+        hide=True,
+    ).stdout.strip()
+
+
 def get_last_release_tag(ctx, repo, pattern):
     import re
     from functools import cmp_to_key
 
     import semver
 
-    tags = ctx.run(
-        rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
-        hide=True,
-    ).stdout.strip()
+    tags = get_git_references(ctx, repo, pattern, tags=True)
     if not tags:
         raise Exit(
             color_message(
@@ -272,7 +280,8 @@ def get_last_release_tag(ctx, repo, pattern):
             code=1,
         )
 
-    release_pattern = re.compile(r'.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$')
+    major = 6 if is_agent6(ctx) else 7
+    release_pattern = re.compile(rf'^.*{major}' + r'\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?(\^{})?$')
     tags_without_suffix = [
         line for line in tags.splitlines() if not line.endswith("^{}") and release_pattern.match(line)
     ]
@@ -292,3 +301,23 @@ def get_last_release_tag(ctx, repo, pattern):
             last_tag_name = last_tag_name_with_suffix.removesuffix("^{}")
     last_tag_name = last_tag_name.removeprefix("refs/tags/")
     return last_tag_commit, last_tag_name
+
+
+def get_git_config(ctx, key):
+    try:
+        result = ctx.run(f'git config --get {key}')
+    except Exit:
+        return None
+    return result.stdout.strip() if result.return_code == 0 else None
+
+
+def set_git_config(ctx, key, value):
+    ctx.run(f'git config {key} {value}')
+
+
+def revert_git_config(ctx, original_config):
+    for key, value in original_config.items():
+        if value is None:
+            ctx.run(f'git config --unset {key}', hide=True)
+        else:
+            ctx.run(f'git config {key} {value}', hide=True)
