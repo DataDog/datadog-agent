@@ -1105,7 +1105,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
+	c, err := testutil.DialTCP("tcp", server.Address())
 	require.NoError(t, err)
 
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
@@ -1304,7 +1304,7 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 
 	// try to connect to a port where no server is accepting connections
 	srvAddr := "127.0.0.1:9998"
-	conn, err := net.Dial("tcp", srvAddr)
+	conn, err := testutil.DialTCP("tcp", srvAddr)
 	if err == nil {
 		conn.Close() // If the connection unexpectedly succeeds, close it immediately.
 		require.Fail(t, "expected connection to be refused, but it succeeded")
@@ -1350,7 +1350,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithData() {
 	t.Cleanup(srv.Shutdown)
 
 	serverAddr := srv.Address()
-	c, err := net.Dial("tcp", serverAddr)
+	c, err := testutil.DialTCP("tcp", serverAddr)
 	require.NoError(t, err, "could not connect to server: ", err)
 
 	// Write to the server and expect a reset
@@ -1403,7 +1403,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 	t.Cleanup(srv.Shutdown)
 
 	serverAddr := srv.Address()
-	c, err := net.Dial("tcp", serverAddr)
+	c, err := testutil.DialTCP("tcp", serverAddr)
 	require.NoError(t, err, "could not connect to server: ", err)
 
 	// Wait briefly to give the server time to close the connection

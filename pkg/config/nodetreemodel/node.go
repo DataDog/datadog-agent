@@ -97,7 +97,6 @@ type InnerNode interface {
 	SetAt([]string, interface{}, model.Source) (bool, error)
 	InsertChildNode(string, Node)
 	RemoveChild(string)
-	makeRemapCase()
 	DumpSettings(func(model.Source) bool) map[string]interface{}
 }
 

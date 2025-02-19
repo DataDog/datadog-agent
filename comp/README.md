@@ -167,6 +167,12 @@ Package lsof provides a flare file with data about files opened by the agent pro
 Package pid writes the current PID to a file, ensuring that the file
 doesn't exist or doesn't contain a PID for a running process.
 
+### [comp/core/profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/profiler)
+
+*Datadog Team*: agent-configuration
+
+Package profiler provides a flare folder containing the output of various agent's pprof servers
+
 ### [comp/core/remoteagentregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteagentregistry)
 
 Package remoteagentregistry provides an integration point for remote agents to register and be able to report their
@@ -289,6 +295,14 @@ Package adscheduler is glue code to connect autodiscovery to the logs agent. It 
 
 Package agent contains logs agent component.
 
+### [comp/logs/auditor](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/auditor)
+
+*Datadog Team*: agent-metrics-logs
+
+Package auditor records the log files the agent is tracking. It tracks
+filename, time last updated, offset (how far into the file the agent has
+read), and tailing mode for each log file.
+
 ### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
 
 Package integrations adds a go interface for integrations to register and
@@ -381,7 +395,7 @@ It does not expose any public methods.
 
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
-*Datadog Team*: Networks network-device-monitoring
+*Datadog Team*: Networks
 
 Package networkpath implements the "networkpath" bundle,
 

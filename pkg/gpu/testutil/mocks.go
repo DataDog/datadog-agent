@@ -64,6 +64,15 @@ var DefaultGPUAttributes = nvml.DeviceAttributes{
 	MultiprocessorCount: 10,
 }
 
+// DefaultProcessInfo is the list of processes running on the default device returned by the mock
+var DefaultProcessInfo = []nvml.ProcessInfo{
+	{Pid: 1, UsedGpuMemory: 100},
+	{Pid: 5678, UsedGpuMemory: 200},
+}
+
+// DefaultTotalMemory is the total memory for the default device returned by the mock
+var DefaultTotalMemory = uint64(1000)
+
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 	return &nvmlmock.Device{
@@ -84,6 +93,12 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		},
 		GetAttributesFunc: func() (nvml.DeviceAttributes, nvml.Return) {
 			return DefaultGPUAttributes, nvml.SUCCESS
+		},
+		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
+			return DefaultProcessInfo, nvml.SUCCESS
+		},
+		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 	}
 }
@@ -111,6 +126,12 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 		},
 		DeviceGetMigModeFunc: func(nvml.Device) (int, int, nvml.Return) {
 			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		},
+		DeviceGetComputeRunningProcessesFunc: func(nvml.Device) ([]nvml.ProcessInfo, nvml.Return) {
+			return DefaultProcessInfo, nvml.SUCCESS
+		},
+		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
+			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 	}
 }

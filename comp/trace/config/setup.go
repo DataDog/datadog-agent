@@ -45,6 +45,8 @@ import (
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
+	// mrfPrefix is the MRF site prefix.
+	mrfPrefix = "mrf."
 	// rcClientName is the default name for remote configuration clients in the trace agent
 	rcClientName = "trace-agent"
 )
@@ -130,6 +132,10 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
 	}
+
+	cfg.IsMRFEnabled = func() bool {
+		return coreConfigObject.GetBool("multi_region_failover.enabled") && coreConfigObject.GetBool("multi_region_failover.failover_apm")
+	}
 	return cfg, nil
 }
 
@@ -176,6 +182,22 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	} else {
 		c.Endpoints[0].Host = utils.GetMainEndpoint(pkgconfigsetup.Datadog(), apiEndpointPrefix, "apm_config.apm_dd_url")
 	}
+
+	// Add MRF endpoint, if enabled
+	if core.GetBool("multi_region_failover.enabled") {
+		prefix := apiEndpointPrefix + mrfPrefix
+		mrfURL, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
+		if err != nil {
+			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+
+		c.Endpoints = append(c.Endpoints, &config.Endpoint{
+			Host:   mrfURL,
+			APIKey: utils.SanitizeAPIKey(core.GetString("multi_region_failover.api_key")),
+			IsMRF:  true,
+		})
+	}
+
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if core.IsSet("proxy.no_proxy") {

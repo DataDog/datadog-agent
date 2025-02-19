@@ -98,18 +98,8 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     ctx.run(f"chmod +x {latest_file}")
 
     build_context = "Dockerfiles/cws-instrumentation"
-    cws_instrumentation_base = f"{build_context}/datadog-cws-instrumentation"
-    exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
+    exec_path = f"{build_context}/cws-instrumentation.{arch}"
     dockerfile_path = f"{build_context}/Dockerfile"
-
-    try:
-        os.mkdir(cws_instrumentation_base)
-    except FileExistsError:
-        # Directory already exists
-        pass
-    except OSError as e:
-        # Handle other OS-related errors
-        print(f"Error creating directory: {e}")
 
     shutil.copy2(latest_file, exec_path)
     ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")

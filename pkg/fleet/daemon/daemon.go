@@ -26,10 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -123,6 +123,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		HTTPProxy:            config.GetString("proxy.http"),
 		HTTPSProxy:           config.GetString("proxy.https"),
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
+		IsCentos6:            env.DetectCentos6(),
 	}
 	installer := newInstaller(installerBin)
 	return newDaemon(rc, installer, env), nil
@@ -430,7 +431,11 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, vers
 	if !ok {
 		return fmt.Errorf("could not find config version %s", version)
 	}
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, config.Configs)
+	serializedConfigFiles, err := json.Marshal(config.Files)
+	if err != nil {
+		return fmt.Errorf("could not serialize config files: %w", err)
+	}
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigFiles)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}

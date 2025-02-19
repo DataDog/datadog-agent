@@ -2,6 +2,65 @@
 Release Notes
 =============
 
+.. _Release Notes_7.62.3:
+
+7.62.3
+======
+
+.. _Release Notes_7.62.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-14
+
+- Please refer to the `7.62.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7623>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.62.2:
+
+7.62.2
+======
+
+.. _Release Notes_7.62.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-10
+
+- Please refer to the `7.62.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7622>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.62.2_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Removes Datadog user's full control of the Datadog data directory on Windows.
+  If you are using custom configured values for log files, confd_path, run_path, or additional_checksd
+  that are within the Datadog ProgramData folder, then you will have to explicitly give the Datadog user
+  write permissions to the folders and files configured.
+
+
+.. _Release Notes_7.62.2_Security Notes:
+
+Security Notes
+--------------
+
+- Removes Datadog user's full control of the Datadog data directory on Windows.
+
+
+.. _Release Notes_7.62.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, ensures the ipc_perm.pem file's permissions are updated during installation.
+
+- Disables fentry by default in event stream.
+
+
 .. _Release Notes_7.62.1:
 
 7.62.1
@@ -46,18 +105,18 @@ New Features
   This will allow you to filter and aggregate metrics based on the TLS version and cipher used in the connection.
   The tags will be added in CNM and USM.
 
-- Add new system.cpu.user.total, system.cpu.nice.total, 
-  system.cpu.system.total, system.cpu.idle.total, system.cpu.iowait.total, 
-  system.cpu.irq.total, system.cpu.softirq.total, system.cpu.steal.total, 
-  system.cpu.guest.total, system.cpu.guestnice.total metrics 
+- Add new system.cpu.user.total, system.cpu.nice.total,
+  system.cpu.system.total, system.cpu.idle.total, system.cpu.iowait.total,
+  system.cpu.irq.total, system.cpu.softirq.total, system.cpu.steal.total,
+  system.cpu.guest.total, system.cpu.guestnice.total metrics
   with core tag for each one of them.
 
 - Implement External Data resolution for APM. This is needed to support the
   latest Origin Detection spec and resolution with nested virtualization.
 
-- The Logs Agent Analyze feature introduces a new subcommand, `agent analyze-logs`, within the Datadog Agent. 
-  This tool helps users test log configurations, regular expressions, and processing rules in isolation. 
-  It offers a streamlined, cost-effective way to validate log configurations without 
+- The Logs Agent Analyze feature introduces a new subcommand, `agent analyze-logs`, within the Datadog Agent.
+  This tool helps users test log configurations, regular expressions, and processing rules in isolation.
+  It offers a streamlined, cost-effective way to validate log configurations without
   running the entire Datadog Agent or sending data to Datadog. This allows users to quickly identify configuration issues.
 
 
@@ -143,7 +202,7 @@ Bug Fixes
 - Fixes consistency issue with container image filters.
   Depending on the Agent configuration, filters were sometimes behaving differently
   for metrics and logs. For example, an image filter that worked for excluding logs
-  didn't work when used to exclude metrics, and vice versa. 
+  didn't work when used to exclude metrics, and vice versa.
   The exclusion logic is now consistent between metrics and logs.
 
 - Fixed race condition in stream UDS clients of Dogstatsd that

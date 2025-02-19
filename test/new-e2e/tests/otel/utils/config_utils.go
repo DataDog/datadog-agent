@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
@@ -38,7 +38,7 @@ type OTelMetadata struct {
 	Description      string `json:"description"`
 	Enabled          bool   `json:"enabled"`
 	ExtensionVersion string `json:"extension_version"`
-	extension.ConfigResponse
+	extensiontypes.ConfigResponse
 }
 
 // TestOTelAgentInstalled checks that the OTel Agent is installed in the test suite
@@ -87,7 +87,7 @@ func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg
 	otelflares := fetchFromFlare(s.T(), flare)
 
 	require.Contains(s.T(), otelflares, "otel/otel-response.json")
-	var resp extension.Response
+	var resp extensiontypes.Response
 	require.NoError(s.T(), json.Unmarshal([]byte(otelflares["otel/otel-response.json"]), &resp))
 
 	assert.Equal(s.T(), "otel-agent", resp.AgentCommand)
@@ -266,4 +266,19 @@ func validateStatus(t *testing.T, status string) {
 	require.Contains(t, status, "Spans Sent:")
 	require.Contains(t, status, "Metric Points Sent:")
 	require.Contains(t, status, "Log Records Sent:")
+}
+
+// TestCoreAgentConfigCmd tests the output of core agent's config command contains the embedded collector's config
+func TestCoreAgentConfigCmd(s OTelTestSuite, expectedCfg string) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Calling config command in core agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "config"})
+	require.NoError(s.T(), err, "Failed to execute config")
+	require.Empty(s.T(), stderr)
+	require.NotNil(s.T(), stdout)
+	s.T().Log("Full output of config command in core agent\n", stdout)
+	assert.Contains(s.T(), stdout, expectedCfg)
 }
