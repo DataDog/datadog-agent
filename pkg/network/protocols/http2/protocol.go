@@ -426,10 +426,15 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 func (p *Protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
+	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.HTTP2,
-		Stats: p.statkeeper.GetAndResetAllStats(),
-	}, nil
+			Type:  protocols.HTTP2,
+			Stats: stats,
+		}, func() {
+			for _, elem := range stats {
+				elem.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.
