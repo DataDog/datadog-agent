@@ -22,7 +22,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -147,7 +146,7 @@ func TestMutatePod(t *testing.T) {
 		},
 		"service name is applied when set in tracer configs": {
 			configPath: "testdata/filter_simple_service.yaml",
-			in: common.FakePodSpec{
+			in: mutatecommon.FakePodSpec{
 				Labels:     map[string]string{"language": "python"},
 				NS:         "application",
 				ParentKind: "replicaset",
