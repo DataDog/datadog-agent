@@ -465,7 +465,7 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 
 func (c *Controller) updateActiveScalingSource(podAutoscalerInternal *model.PodAutoscalerInternal) *datadoghq.DatadogPodAutoscalerValueSource {
 	currentTime := c.clock.Now()
-	activeSource := getActiveSource(currentTime, podAutoscalerInternal.MainScalingValues().Horizontal, podAutoscalerInternal.LocalScalingValues().Horizontal)
+	activeSource := getActiveSource(currentTime, podAutoscalerInternal.MainScalingValues().Horizontal, podAutoscalerInternal.FallbackScalingValues().Horizontal)
 
 	if activeSource == nil {
 		return nil
