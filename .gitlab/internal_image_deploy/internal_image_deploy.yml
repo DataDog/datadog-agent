@@ -108,9 +108,9 @@ docker_trigger_internal-ot:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
     IMAGE_VERSION: tmpl-v11
     IMAGE_NAME: datadog-agent
-    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-ot-beta-jmx
-    BUILD_TAG: ${CI_COMMIT_REF_SLUG}-ot-beta-jmx
-    TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx
+    RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-full
+    BUILD_TAG: ${CI_COMMIT_REF_SLUG}-full
+    TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full
     TMPL_SRC_REPO: ci/datadog-agent/agent
     RELEASE_STAGING: "true"
   script:
