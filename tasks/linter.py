@@ -935,95 +935,51 @@ def shellcheck_linter(
                 )
 
 
-# @task
-# def gitlab_ci_shellcheck(
-#     ctx,
-#     diff_file=None,
-#     config_file=None,
-#     exclude='SC2059,SC2028,SC2086',
-#     shellcheck_args="",
-#     fail_fast=False,
-#     verbose=False,
-#     use_bat=None,
-# ):
-#     """Verifies that shell scripts with gitlab config are valid.
+@task
+def gitlab_ci_shellcheck(
+    ctx,
+    diff_file=None,
+    config_file=None,
+    exclude='SC2059,SC2028,SC2086',
+    shellcheck_args="",
+    fail_fast=False,
+    verbose=False,
+    use_bat=None,
+    only_errors=False,
+):
+    """Verifies that shell scripts with gitlab config are valid.
 
-#     Args:
-#         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
-#         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
-#     """
+    Args:
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+    """
 
-#     exclude = ' '.join(f'-e {e}' for e in exclude.split(','))
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
 
-#     if use_bat is None:
-#         use_bat = ctx.run('which bat', warn=True, hide=True)
-#     elif use_bat.casefold() == 'false':
-#         use_bat = False
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
 
-#     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+    scripts = {}
+    for job, content in jobs:
+        # Skip jobs that are not executed
+        if not is_leaf_job(job, content):
+            continue
 
-#     # No change, info already printed in get_gitlab_ci_lintable_jobs
-#     if not full_config:
-#         return
+        # Shellcheck is only for bash like scripts
+        is_powershell = 'tags' in content and any('win' in tag for tag in content['tags'])
+        if is_powershell:
+            continue
 
-#     with TemporaryDirectory() as tmpdir:
-#         errors = {}
-#         for job, content in jobs:
-#             # Skip jobs that are not executed
-#             if not is_leaf_job(job, content):
-#                 continue
+        if verbose:
+            print('Verifying job:', job)
 
-#             # Shellcheck is only for bash like scripts
-#             is_powershell = 'tags' in content and any('win' in tag for tag in content['tags'])
-#             if is_powershell:
-#                 continue
+        # Lint scripts
+        for keyword in ('before_script', 'script', 'after_script'):
+            if keyword in content:
+                scripts[f'{job}.{keyword}'] = f'#!/bin/bash\n{flatten_script(content[keyword]).strip()}\n'
 
-#             if verbose:
-#                 print('Verifying job:', job)
-
-#             # Lint scripts
-#             if 'script' in content:
-#                 before = (
-#                     ('# Before script\n' + flatten_script(content['before_script']))
-#                     if 'before_script' in content
-#                     else ''
-#                 )
-#                 after = (
-#                     ('\n\n# After script\n' + flatten_script(content['after_script']))
-#                     if 'after_script' in content
-#                     else ''
-#                 )
-#                 script = '\n\n# Script\n' + flatten_script(content['script'])
-#                 full_script = f"#!/bin/bash\n\n{before}{script}{after}".strip() + '\n'
-#                 with open(tmpdir + "/script.sh", 'w') as f:
-#                     f.write(full_script)
-
-#                 res = ctx.run(f"shellcheck {shellcheck_args} {exclude} {tmpdir}/script.sh", warn=True, hide=True)
-#                 if res.stderr or res.stdout:
-#                     errors[job] = (res.stderr + '\n' + res.stdout).strip()
-#                     if fail_fast:
-#                         break
-
-#         if errors:
-#             with gitlab_section(color_message("Shellcheck errors", color=Color.ORANGE), collapsed=True):
-#                 for job, error in sorted(errors.items()):
-#                     with gitlab_section(f"Shellcheck errors for {job}"):
-#                         print(f"{color_message('Error', Color.RED)}: {job}")
-#                         print('Script:')
-#                         if use_bat:
-#                             res = ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/script.sh", hide=True)
-#                             # Avoid buffering issues
-#                             print(res.stderr)
-#                             print(res.stdout)
-#                         else:
-#                             with open(f'{tmpdir}/script.sh') as f:
-#                                 print(f.read())
-#                         print('\nError:')
-#                         print(error)
-
-#             raise Exit(
-#                 f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
-#             )
+    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)
 
 
 @task
@@ -1038,7 +994,7 @@ def github_actions_shellcheck(
 ):
     """Lint github action workflows with shellcheck."""
 
-    files = files.split(',')
+    files = [file for file in files.split(',') if file]
 
     scripts = {}
     for file in files:
