@@ -21,17 +21,23 @@ import (
 // inspectGoBinaries goes through each service and populates information about the binary
 // and the relevant parameters, and their types
 // configEvent maps service names to info about the service and their configurations
-func inspectGoBinaries(configEvent ditypes.DIProcs) bool {
+func inspectGoBinaries(configEvent ditypes.DIProcs) error {
+	var err error
 	var inspectedAtLeastOneBinary bool
 	for i := range configEvent {
-		err := AnalyzeBinary(configEvent[i])
+		err = AnalyzeBinary(configEvent[i])
 		if err != nil {
 			log.Info("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
 		} else {
 			inspectedAtLeastOneBinary = true
 		}
 	}
-	return inspectedAtLeastOneBinary
+
+	if !inspectedAtLeastOneBinary {
+		return fmt.Errorf("failed to inspect all tracked go binaries")
+	}
+
+	return nil
 }
 
 // AnalyzeBinary reads the binary associated with the specified process and parses
