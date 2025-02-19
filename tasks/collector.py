@@ -97,11 +97,11 @@ def find_matching_components(manifest, components_to_match: dict, present: bool)
     return res
 
 
-def versions_equal(version1, version2):
+def versions_equal(version1, version2, fuzzy=False):
     idx = version1.find("/")
     if idx != -1:
         # version may be in the format of "v1.xx.0/v0.yyy.0"
-        version1 = version1[idx + 1 :]
+        version1 = version1[idx + 1:]
     # strip leading 'v' if present
     if version1.startswith("v"):
         version1 = version1[1:]
@@ -110,8 +110,16 @@ def versions_equal(version1, version2):
     # Split the version strings by '.'
     parts1 = version1.split(".")
     parts2 = version2.split(".")
+
     # Compare the first two parts (major and minor versions)
-    return parts1[0] == parts2[0] and parts1[1] == parts2[1]
+    major_minor_match = parts1[0] == parts2[0] and parts1[1] == parts2[1]
+
+    if fuzzy:
+        # If fuzzy matching is enabled, check if major and minor match
+        return major_minor_match
+    else:
+        # Otherwise, check all parts for exact match
+        return major_minor_match and parts1 == parts2
 
 
 def validate_manifest(manifest) -> list:
@@ -120,7 +128,7 @@ def validate_manifest(manifest) -> list:
 
     # validate collector version matches ocb version
     manifest_version = manifest.get("dist", {}).get("otelcol_version")
-    if manifest_version and not versions_equal(manifest_version, OCB_VERSION):
+    if manifest_version and not versions_equal(manifest_version, OCB_VERSION, True):
         raise YAMLValidationError(
             f"Collector version ({manifest_version}) in manifest does not match required OCB version ({OCB_VERSION})"
         )
