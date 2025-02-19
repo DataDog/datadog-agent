@@ -11,9 +11,15 @@
 #define false 0
 
 // TCP Failures
+#define TCP_CONN_FAILED_NETDOWN 100
+#define TCP_CONN_FAILED_NETUNREACH 101
+#define TCP_CONN_FAILED_NETRESET 102
+#define TCP_CONN_FAILED_ABORTED 103
 #define TCP_CONN_FAILED_RESET 104
 #define TCP_CONN_FAILED_TIMEOUT 110
 #define TCP_CONN_FAILED_REFUSED 111
+#define TCP_CONN_FAILED_HOSTDOWN 112
+#define TCP_CONN_FAILED_HOSTUNREACH 113
 
 typedef enum {
     CONN_DIRECTION_UNKNOWN = 0b00,
@@ -128,6 +134,12 @@ typedef struct {
     __u64 tcp_close_target_failures;
     __u64 tcp_done_connection_flush;
     __u64 tcp_close_connection_flush;
+    __u64 tcp_failure_ehostdown;
+    __u64 tcp_failure_ehostunreach;
+    __u64 tcp_failure_enetdown;
+    __u64 tcp_failure_enetunreach;
+    __u64 tcp_failure_enetreset;
+    __u64 tcp_failure_econnaborted;
 } telemetry_t;
 
 typedef struct {

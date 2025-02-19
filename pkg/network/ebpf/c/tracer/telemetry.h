@@ -28,7 +28,13 @@ enum telemetry_counter {
     tcp_finish_connect_failed_tuple,
     tcp_close_target_failures,
     tcp_done_connection_flush,
-    tcp_close_connection_flush
+    tcp_close_connection_flush,
+    tcp_failure_ehostdown,
+    tcp_failure_ehostunreach,
+    tcp_failure_enetdown,
+    tcp_failure_enetunreach,
+    tcp_failure_enetreset,
+    tcp_failure_econnaborted,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -81,6 +87,24 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case tcp_close_connection_flush:
         __sync_fetch_and_add(&val->tcp_close_connection_flush, 1);
+        break;
+    case tcp_failure_ehostdown:
+        __sync_fetch_and_add(&val->tcp_failure_ehostdown, 1);
+        break;
+    case tcp_failure_ehostunreach:
+        __sync_fetch_and_add(&val->tcp_failure_ehostunreach, 1);
+        break;
+    case tcp_failure_enetdown:
+        __sync_fetch_and_add(&val->tcp_failure_enetdown, 1);
+        break;
+    case tcp_failure_enetunreach:
+        __sync_fetch_and_add(&val->tcp_failure_enetunreach, 1);
+        break;
+    case tcp_failure_enetreset:
+        __sync_fetch_and_add(&val->tcp_failure_enetreset, 1);
+        break;
+    case tcp_failure_econnaborted:
+        __sync_fetch_and_add(&val->tcp_failure_econnaborted, 1);
         break;
     }
 }
