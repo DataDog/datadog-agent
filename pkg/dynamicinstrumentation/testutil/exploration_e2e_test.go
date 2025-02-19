@@ -10,8 +10,10 @@ package testutil
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
 	"debug/dwarf"
 	"debug/elf"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -208,6 +210,15 @@ func getProcessEnv(pid int) ([]string, error) {
 		env = env[:len(env)-1]
 	}
 	return env, nil
+}
+
+func extractDDService(env []string) (string, error) {
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "DD_SERVICE=") {
+			return strings.TrimPrefix(entry, "DD_SERVICE="), nil
+		}
+	}
+	return "", fmt.Errorf("DD_SERVICE not found")
 }
 
 func hasDWARFInfo(binaryPath string) (bool, error) {
@@ -528,7 +539,7 @@ func shouldProfileFunction(name string) bool {
 //  return false
 // }
 
-var NUMBER_OF_PROBES int = 100
+var NUMBER_OF_PROBES int = 10
 
 func filterFunctions(funcs []FunctionInfo) []FunctionInfo {
 	var validFuncs []FunctionInfo
@@ -669,6 +680,117 @@ func hasDWARF(binaryPath string) (bool, error) {
 
 var analyzedBinaries []BinaryInfo
 var waitForAttach bool = true
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+var g_configsAccumulator *ConfigAccumulator
+
+type rcConfig struct {
+	ID        string
+	Version   int
+	ProbeType string `json:"type"`
+	Language  string
+	Where     struct {
+		TypeName   string `json:"typeName"`
+		MethodName string `json:"methodName"`
+		SourceFile string
+		Lines      []string
+	}
+	Tags            []string
+	Template        string
+	CaptureSnapshot bool
+	EvaluatedAt     string
+	Capture         struct {
+		MaxReferenceDepth int `json:"maxReferenceDepth"`
+		MaxFieldCount     int `json:"maxFieldCount"`
+	}
+}
+
+type ConfigAccumulator struct {
+	configs map[string]map[string]rcConfig
+	tmpl    *template.Template
+	mu      sync.RWMutex
+}
+
+func NewConfigAccumulator() (*ConfigAccumulator, error) {
+	tmpl, err := template.New("config_template").Parse(explorationTestConfigTemplateText)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	return &ConfigAccumulator{
+		configs: make(map[string]map[string]rcConfig),
+		tmpl:    tmpl,
+	}, nil
+}
+
+// fingerprintGoBinary opens an ELF binary at binaryPath,
+// iterates over its sections (in a sorted order by name),
+// skips known non-deterministic sections (like .note.go.buildid),
+// and computes a SHA256 hash over the remaining content.
+func fingerprintGoBinary(binaryPath string) (string, error) {
+	// Open the ELF file.
+	f, err := elf.Open(binaryPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// Make a copy of the sections and sort them by name.
+	sections := make([]*elf.Section, len(f.Sections))
+	copy(sections, f.Sections)
+	sort.Slice(sections, func(i, j int) bool {
+		return sections[i].Name < sections[j].Name
+	})
+
+	// Create a hash to accumulate the fingerprint.
+	hash := sha256.New()
+	for _, sec := range sections {
+		// Skip sections with no bytes in the file.
+		if sec.Type == elf.SHT_NOBITS {
+			continue
+		}
+
+		// Skip the Go build ID section.
+		if sec.Name == ".note.go.buildid" {
+			continue
+		}
+
+		// Write the section name to the hash.
+		if _, err := io.WriteString(hash, sec.Name); err != nil {
+			return "", err
+		}
+
+		// Read the section data.
+		data, err := sec.Data()
+		if err != nil {
+			return "", err
+		}
+		if _, err := hash.Write(data); err != nil {
+			return "", err
+		}
+	}
+
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// HaveISeenItBefore uses a simple in-memory map to record fingerprints.
+var seenBinaries = make(map[string]struct{})
+
+func isAlreadyProcessed(binaryPath string) (bool, error) {
+	fingerprint, err := fingerprintGoBinary(binaryPath)
+	if err != nil {
+		return false, err
+	}
+	if _, exists := seenBinaries[fingerprint]; exists {
+		return true, nil
+	}
+	seenBinaries[fingerprint] = struct{}{}
+	return false, nil
+}
 
 func InspectBinary(t *testing.T, binaryPath string, pid int) error {
 	// // check that we can analyse the binary without targeting a specific function
@@ -690,6 +812,18 @@ func InspectBinary(t *testing.T, binaryPath string, pid int) error {
 	//  return nil
 	// }
 
+	//processed, err := isAlreadyProcessed(binaryPath)
+	//
+	//if err != nil {
+	//	LogDebug(t, "Failed to determine if `binaryPath` is already processed args: %v, binaryPath: %s", err, binaryPath)
+	//	// Don't fail the entire processing
+	//}
+	//
+	//if processed {
+	//	LogDebug(t, "Already processed %s, skipping.", binaryPath)
+	//	return nil
+	//}
+
 	allFuncs, err := listAllFunctions(binaryPath)
 	if err != nil {
 		analyzedBinaries = append(analyzedBinaries, BinaryInfo{
@@ -700,8 +834,8 @@ func InspectBinary(t *testing.T, binaryPath string, pid int) error {
 		return nil
 	}
 
-	// targets := filterFunctions(allFuncs)
-	targets := allFuncs
+	targets := filterFunctions(allFuncs)
+	//targets := allFuncs
 
 	// Get process arguments
 	args, err := getProcessArgs(pid)
@@ -716,13 +850,20 @@ func InspectBinary(t *testing.T, binaryPath string, pid int) error {
 	}
 
 	// // Get process environment variables
-	// env, err := getProcessEnv(pid)
-	// if err != nil {
-	//  return fmt.Errorf("Failed to get Env: %v", err)
-	// }
+	env, err := getProcessEnv(pid)
+	if err != nil {
+		return fmt.Errorf("Failed to get Env: %v", err)
+	}
+
+	serviceName, err := extractDDService(env)
+	if err != nil {
+		return fmt.Errorf("Failed to get Env: %v, binaryPath: %s", err, binaryPath)
+	}
 
 	LogDebug(t, "\n=======================================")
+	LogDebug(t, "🔍 SERVICE NAME: %s", serviceName)
 	LogDebug(t, "🔍 ANALYZING BINARY: %s", binaryPath)
+	LogDebug(t, "🔍 ENV: %v", env)
 	LogDebug(t, "🔍 ARGS: %v", args)
 	LogDebug(t, "🔍 CWD: %s", cwd)
 	LogDebug(t, "🔍 Elected %d target functions:", len(targets))
@@ -777,62 +918,98 @@ func InspectBinary(t *testing.T, binaryPath string, pid int) error {
 	LogDebug(t, "✅ Analysis complete for: %s", binaryPath)
 	LogDebug(t, "=======================================\n")
 
+	// Notify the ConfigManager that a new process has arrived
+	g_ConfigManager.ProcTracker.Test_HandleProcessStart(uint32(pid))
+
 	t.Logf("About to request instrumentations for binary: %s, pid: %d.", binaryPath, pid)
 
-	cfgTemplate, err := template.New("config_template").Parse(explorationTestConfigTemplateText)
-	require.NoError(t, err)
+	if err := g_configsAccumulator.AddTargets(targets, serviceName); err != nil {
+		t.Logf("Error adding target: %v, binaryPath: %s", err, binaryPath)
+		return fmt.Errorf("add targets failed: %v, binary: %s", err, binaryPath)
+	}
 
-	b := []byte{}
-	var buf *bytes.Buffer
+	if err = g_configsAccumulator.WriteConfigs(); err != nil {
+		t.Logf("Error writing configs: %v, binaryPath: %s", err, binaryPath)
+		return fmt.Errorf("error adding configs: %v, binary: %s", err, binaryPath)
+	}
 
-	// if waitForAttach {
-	//  pid := os.Getpid()
-	//  t.Logf("(1) Waiting to attach for PID: %d", pid)
-	//  time.Sleep(30 * time.Second)
-	//  waitForAttach = false
-	// }
+	//cfgTemplate, err := template.New("config_template").Parse(explorationTestConfigTemplateText)
+	//require.NoError(t, err)
+	//
+	//buf := bufferPool.Get().(*bytes.Buffer)
+	//buf.Reset()
+	//defer bufferPool.Put(buf)
+	//
+	//if err = cfgTemplate.Execute(buf, targets); err != nil {
+	//	return fmt.Errorf("template execution failed: %w", err)
+	//}
+	//
+	//_, err = g_ConfigManager.ConfigWriter.Write(buf.Bytes())
+	//
+	//if err != nil {
+	//	return fmt.Errorf("config writing failed: %v, binary: %s", err, binaryPƒath)
+	//}
 
-	requesterdFuncs := 0
+	time.Sleep(2 * time.Second)
+
+	t.Logf("Requested to instrument %d functions for binary: %s, pid: %d.", len(targets), binaryPath, pid)
+
 	for _, f := range targets {
-
-		// if !strings.Contains(f.FullName, "blabla_blabla") {
-		// 	continue
-		// }
-
-		if !strings.Contains(f.FullName, "FullName") {
-			continue
-		}
-
-		// if f.FullName != "regexp.(*bitState).shouldVisit" {
-		// 	continue
-		// }
-
-		// if f.FullName != "google.golang.org/protobuf/encoding/protodelim_test.(*notBufioReader).UnreadRune" {
-		//  continue
-		// }
-
-		buf = bytes.NewBuffer(b)
-		err = cfgTemplate.Execute(buf, f)
-		if err != nil {
-			continue
-		}
-
-		// LogDebug(t, "Requesting instrumentation for %v", f)
-		t.Logf("Requesting instrumentation for %v", f)
-		_, err := g_ConfigManager.ConfigWriter.Write(buf.Bytes())
-
-		if err != nil {
-			continue
-		}
-
-		requesterdFuncs++
+		t.Logf("		-> requested instrumentation for %v", f)
 	}
 
-	if !waitForAttach {
+	//b := []byte{}
+	//var buf *bytes.Buffer
+
+	if waitForAttach && os.Getenv("DEBUG") == "true" {
+		pid := os.Getpid()
+		t.Logf("(1) Waiting to attach for PID: %d", pid)
+		time.Sleep(30 * time.Second)
+		waitForAttach = false
+	}
+
+	/*
+		requesterdFuncs := 0
+		for _, f := range targets {
+
+			// if !strings.Contains(f.FullName, "blabla_blabla") {
+			// 	continue
+			// }
+
+			// if !strings.Contains(f.FullName, "FullName") {
+			// 	continue
+			// }
+
+			// if f.FullName != "regexp.(*bitState).shouldVisit" {
+			// 	continue
+			// }
+
+			// if f.FullName != "google.golang.org/protobuf/encoding/protodelim_test.(*notBufioReader).UnreadRune" {
+			//  continue
+			// }
+
+			buf = bytes.NewBuffer(b)
+			err = cfgTemplate.Execute(buf, f)
+			if err != nil {
+				continue
+			}
+
+			// LogDebug(t, "Requesting instrumentation for %v", f)
+			t.Logf("Requesting instrumentation for %v", f)
+			_, err := g_ConfigManager.ConfigWriter.Write(buf.Bytes())
+
+			if err != nil {
+				continue
+			}
+
+			requesterdFuncs++
+		}
+	*/
+	/*if !waitForAttach {
 		time.Sleep(100 * time.Second)
-	}
+	}*/
 
-	if requesterdFuncs > 0 {
+	/*if requesterdFuncs > 0 {
 		// if waitForAttach {
 		//  pid := os.Getpid()
 		//  t.Logf("(2) Waiting to attach for PID: %d", pid)
@@ -844,9 +1021,55 @@ func InspectBinary(t *testing.T, binaryPath string, pid int) error {
 		time.Sleep(2 * time.Second)
 
 		t.Logf("Requested to instrument %d functions for binary: %s, pid: %d.", requesterdFuncs, binaryPath, pid)
+	}*/
+
+	return nil
+}
+
+func (ca *ConfigAccumulator) AddTargets(targets []FunctionInfo, serviceName string) error {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
+
+	buf.WriteString("{")
+	if err := ca.tmpl.Execute(buf, targets); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
+	}
+	buf.WriteString("}")
+
+	var newConfigs map[string]rcConfig
+	if err := json.NewDecoder(buf).Decode(&newConfigs); err != nil {
+		return fmt.Errorf("failed to decode generated configs: %w", err)
+	}
+
+	if ca.configs[serviceName] == nil {
+		ca.configs[serviceName] = make(map[string]rcConfig)
+	}
+
+	for probeID, config := range newConfigs {
+		ca.configs[serviceName][probeID] = config
 	}
 
 	return nil
+}
+
+func (ca *ConfigAccumulator) WriteConfigs() error {
+	ca.mu.RLock()
+	defer ca.mu.RUnlock()
+
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer bufferPool.Put(buf)
+
+	// Marshal the full config structure (service name -> probe configs)
+	if err := json.NewEncoder(buf).Encode(ca.configs); err != nil {
+		return fmt.Errorf("failed to marshal configs: %w", err)
+	}
+
+	return g_ConfigManager.ConfigWriter.WriteSync(buf.Bytes())
 }
 
 func (pt *ProcessTracker) addProcess(pid int, parentPID int) *ProcessInfo {
@@ -1296,7 +1519,7 @@ func (pt *ProcessTracker) logProcessTree() {
 	}
 }
 
-var DEBUG bool = false
+var DEBUG bool = true
 var TRACE bool = false
 
 func (pt *ProcessTracker) LogTrace(format string, args ...any) {
@@ -1348,6 +1571,11 @@ func TestExplorationGoDI(t *testing.T) {
 	}
 
 	g_ConfigManager = cm
+	g_configsAccumulator, err = NewConfigAccumulator()
+
+	if err != nil {
+		t.Fatal("Failed to create ConfigAccumulator")
+	}
 
 	tempDir := initializeTempDir(t, "/tmp/protobuf-integration-1060272402")
 	modulePath := filepath.Join(tempDir, "src", "google.golang.org", "protobuf")
@@ -1584,42 +1812,41 @@ func copyFile(srcFile, dstFile string) error {
 }
 
 var explorationTestConfigTemplateText = `
-{
-    "go-di-exploration-test-service": {
-        "{{.ProbeId}}": {
-            "id": "{{.ProbeId}}",
-            "version": 0,
-            "type": "LOG_PROBE",
-            "language": "go",
-            "where": {
-                "typeName": "{{.PackageName}}",
-                "methodName": "{{.FunctionName}}"
+    {{- range $index, $target := .}}
+    {{- if $index}},{{end}}
+    "{{$target.ProbeId}}": {
+        "id": "{{$target.ProbeId}}",
+        "version": 0,
+        "type": "LOG_PROBE",
+        "language": "go",
+        "where": {
+            "typeName": "{{$target.PackageName}}",
+            "methodName": "{{$target.FunctionName}}"
+        },
+        "tags": [],
+        "template": "Executed {{$target.PackageName}}.{{$target.FunctionName}}, it took {@duration}ms",
+        "segments": [
+            {
+                "str": "Executed {{$target.PackageName}}.{{$target.FunctionName}}, it took "
             },
-            "tags": [],
-            "template": "Executed {{.PackageName}}.{{.FunctionName}}, it took {@duration}ms",
-            "segments": [
-                {
-                "str": "Executed {{.PackageName}}.{{.FunctionName}}, it took "
-                },
-                {
+            {
                 "dsl": "@duration",
                 "json": {
                     "ref": "@duration"
                 }
-                },
-                {
+            },
+            {
                 "str": "ms"
-                }
-            ],
-            "captureSnapshot": false,
-            "capture": {
-                "maxReferenceDepth": 10
-            },
-            "sampling": {
-                "snapshotsPerSecond": 5000
-            },
-            "evaluateAt": "EXIT"
-        }
+            }
+        ],
+        "captureSnapshot": false,
+        "capture": {
+            "maxReferenceDepth": 10
+        },
+        "sampling": {
+            "snapshotsPerSecond": 5000
+        },
+        "evaluateAt": "EXIT"
     }
-}
+    {{- end}}
 `
