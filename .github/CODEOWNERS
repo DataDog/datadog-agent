@@ -243,7 +243,6 @@
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-agent
-/cmd/installer-downloader/              @DataDog/fleet
 
 /dev/                                   @DataDog/agent-devx-loops
 /devenv/                                @DataDog/agent-devx-loops

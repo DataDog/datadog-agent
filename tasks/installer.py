@@ -71,7 +71,7 @@ def build(
 
 
 @task
-def build_linux_script(ctx, domain, flavor, bin_amd64, bin_arm64, output):
+def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
     '''
     Builds the script that is used to install datadog on linux.
     '''
@@ -82,13 +82,10 @@ def build_linux_script(ctx, domain, flavor, bin_amd64, bin_arm64, output):
     commit_sha = ctx.run('git rev-parse HEAD', hide=True).stdout.strip()
     install_script = install_script.replace('INSTALLER_COMMIT', commit_sha)
     install_script = install_script.replace('INSTALLER_FLAVOR', flavor)
+    install_script = install_script.replace('INSTALLER_VERSION', version)
 
     bin_amd64_sha256 = hashlib.sha256(open(bin_amd64, 'rb').read()).hexdigest()
     bin_arm64_sha256 = hashlib.sha256(open(bin_arm64, 'rb').read()).hexdigest()
-    bin_amd64_url = f'https://{domain}/v2/installer-package/blobs/sha256:{bin_amd64_sha256}'
-    bin_arm64_url = f'https://{domain}/v2/installer-package/blobs/sha256:{bin_arm64_sha256}'
-    install_script = install_script.replace('INSTALLER_AMD64_URL', bin_amd64_url)
-    install_script = install_script.replace('INSTALLER_ARM64_URL', bin_arm64_url)
     install_script = install_script.replace('INSTALLER_AMD64_SHA256', bin_amd64_sha256)
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
 

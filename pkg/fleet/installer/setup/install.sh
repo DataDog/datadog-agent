@@ -18,6 +18,7 @@ if ! command -v sha256sum >/dev/null || ! (command -v curl >/dev/null || command
 fi
 
 flavor="INSTALLER_FLAVOR"
+version="INSTALLER_VERSION"
 case "$arch" in
 x86_64)
   installer_sha256="INSTALLER_AMD64_SHA256"
@@ -48,13 +49,13 @@ if command -v curl >/dev/null; then
 else
   wget --tries=3 -O "$tmp_bin" "$installer_url"
 fi
+"${sudo_cmd[@]}" chmod +x "$tmp_bin"
 
 echo "Verifying installer integrity..."
 sha256sum -c <<<"$installer_sha256  $tmp_bin"
 
 echo "Starting the Datadog installer..."
-"${sudo_cmd[@]}" chmod +x "$tmp_bin"
-"${sudo_env_cmd[@]}" "$tmp_bin" setup --flavor "$flavor" "$@"
+"${sudo_env_cmd[@]}" DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT="$version" "$tmp_bin" setup --flavor "$flavor" "$@"
 
 "${sudo_cmd[@]}" rm -f "$tmp_bin"
 
