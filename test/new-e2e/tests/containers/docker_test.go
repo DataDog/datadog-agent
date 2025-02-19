@@ -6,7 +6,11 @@
 package containers
 
 import (
+	"fmt"
+	"math/rand"
+	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -75,6 +79,44 @@ func (suite *DockerSuite) TestDockerMetrics() {
 			},
 		})
 	}
+}
+
+func (suite *DockerSuite) TestDockerEvents() {
+	const ctrNameSize = 12
+	const ctrNameCharset = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+	rand.Seed(time.Now().UnixNano())
+
+	ctrNameData := make([]byte, ctrNameSize)
+	for i := range ctrNameSize {
+		ctrNameData[i] = ctrNameCharset[rand.Intn(len(ctrNameCharset))]
+	}
+	ctrName := "exit_42_" + string(ctrNameData)
+
+	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" busybox sh -c \"exit 42\"", ctrName))
+
+	suite.testEvent(&testEventArgs{
+		Filter: testEventFilterArgs{
+			Source: "docker",
+			Tags: []string{
+				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
+			},
+		},
+		Expect: testEventExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
+				`^docker_image:busybox$`,
+				`^image_id:sha256:`,
+				`^image_name:busybox$`,
+				`^short_image:busybox$`,
+			},
+			Title:     `busybox .*1 die`,
+			Text:      "DIE\t" + regexp.QuoteMeta(ctrName),
+			Priority:  "normal",
+			AlertType: "info",
+		},
+	})
 }
 
 func (suite *DockerSuite) TestDSDWithUDS() {
