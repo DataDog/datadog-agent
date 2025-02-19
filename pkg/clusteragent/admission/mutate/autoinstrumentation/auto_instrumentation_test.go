@@ -67,6 +67,52 @@ func defaultLibrariesFor(languages ...string) map[string]string {
 	return out
 }
 
+func TestDefaultLibVersions(t *testing.T) {
+	// N.B. This test uses js since there are many major versions.
+	tests := []struct {
+		in, out string
+	}{
+		{
+			in:  "v5",
+			out: defaultLibImageVersions[js],
+		},
+		{
+			in:  "5",
+			out: defaultLibImageVersions[js],
+		},
+		{
+			in:  "default",
+			out: defaultLibImageVersions[js],
+		},
+		{
+			in:  "v1",
+			out: "registry/dd-lib-js-init:v1",
+		},
+		{
+			in:  "v1.0",
+			out: "registry/dd-lib-js-init:v1.0",
+		},
+		{
+			in:  "5.0",
+			out: "registry/dd-lib-js-init:5.0",
+		},
+		{
+			in:  "v5.0",
+			out: "registry/dd-lib-js-init:v5.0",
+		},
+		{
+			in:  "latest",
+			out: "registry/dd-lib-js-init:latest",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s->%s", tt.in, tt.out), func(t *testing.T) {
+			require.Equal(t, tt.out, js.libImageName("registry", tt.in))
+		})
+	}
+}
+
 func TestInjectAutoInstruConfigV2(t *testing.T) {
 	tests := []struct {
 		name                    string
