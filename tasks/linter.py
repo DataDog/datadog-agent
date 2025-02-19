@@ -939,14 +939,80 @@ def gitlab_ci_shellcheck(
                         if use_bat:
                             res = ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh", hide=True)
                             # Avoid buffering issues
-                            print(res.stdout)
                             print(res.stderr)
+                            print(res.stdout)
                         else:
                             with open(f'{tmpdir}/{job}.sh') as f:
                                 print(f.read())
                         print('\nError:')
                         print(error)
 
+            raise Exit(
+                f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
+            )
+
+
+@task
+def github_actions_shellcheck(
+    ctx, files: str, exclude='SC2059,SC2028,2086', shellcheck_args="", fail_fast=False, use_bat=None
+):
+    """Lint github action workflows with shellcheck."""
+
+    files = files.split(',')
+
+    if use_bat is None:
+        use_bat = ctx.run('which bat', warn=True, hide=True)
+    elif use_bat.casefold() == 'false':
+        use_bat = False
+
+    errors = {}
+    for file in files:
+        with open(file) as f:
+            workflow = yaml.safe_load(f)
+
+        for job_name, job in workflow.get('jobs').items():
+            for step_name, step in job['steps']:
+                if 'run' in step:
+                    script = step['run']
+                    if isinstance(script, list):
+                        script = '\n'.join(script)
+
+                    # We suppose all jobs are bash like scripts and not powershell or other exotic shells
+                    script = '#!/bin/bash\n' + script.strip() + '\n'
+
+                    with TemporaryDirectory() as tmpdir:
+                        with open(tmpdir + '/script.sh', 'w') as f:
+                            f.write(script)
+
+                        res = ctx.run(
+                            f"shellcheck {shellcheck_args} -e {exclude} {tmpdir}/script.sh", warn=True, hide=True
+                        )
+                        if res.stderr or res.stdout:
+                            errors[f'{file}:{job_name}:{step_name}'] = {
+                                'output': (res.stderr + '\n' + res.stdout + '\n').strip(),
+                                'code': res.return_code,
+                            }
+                            if fail_fast:
+                                break
+
+    if errors:
+        with gitlab_section(color_message("Shellcheck errors", color=Color.ORANGE), collapsed=True):
+            for job, error in sorted(errors.items()):
+                with gitlab_section(f"Shellcheck errors for {job}"):
+                    print(f"{color_message('Error', Color.RED)}: {job}")
+                    print('Script:')
+                    if use_bat:
+                        res = ctx.run(f"bat --color=always --file-name={job} -l bash {tmpdir}/{job}.sh", hide=True)
+                        # Avoid buffering issues
+                        print(res.stderr)
+                        print(res.stdout)
+                    else:
+                        with open(f'{tmpdir}/{job}.sh') as f:
+                            print(f.read())
+                    print('\nError:')
+                    print(error)
+
+        if any(error['code'] != 0 for error in errors.values()):
             raise Exit(
                 f"{color_message('Error', Color.RED)}: {len(errors)} shellcheck errors found, please fix them", code=1
             )
