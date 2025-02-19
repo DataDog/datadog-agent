@@ -406,6 +406,7 @@ static __always_inline int handle_tcp_failure(struct sock *sk, conn_tuple_t *t) 
         increment_telemetry_count(tcp_failure_econnaborted);
         return 0;
     }
+    return 0;
 }
 
 #endif // __TRACER_STATS_H
