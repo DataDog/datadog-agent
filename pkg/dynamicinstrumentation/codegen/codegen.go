@@ -228,6 +228,9 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not generate header text for underlying slice element type: %w", err)
 	}
+	if slice == nil || len(slice.ParameterPieces) == 0 || slice.ParameterPieces[1] == nil {
+		return fmt.Errorf("could not read slice length parameter")
+	}
 	excludePopPointerAddressExpressions(&slice.ParameterPieces[1].LocationExpressions)
 	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{slice.ParameterPieces[1]}, lenHeaderBuf)
 	if err != nil {
@@ -267,6 +270,9 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not execute template for generating string header: %w", err)
 	}
+	if stringParam == nil || len(stringParam.ParameterPieces) == 0 || stringParam.ParameterPieces[1] == nil {
+		return fmt.Errorf("could not read string length parameter")
+	}
 	excludePopPointerAddressExpressions(&stringParam.ParameterPieces[1].LocationExpressions)
 	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{stringParam.ParameterPieces[1]}, out)
 	if err != nil {
@@ -279,6 +285,9 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 }
 
 func excludePopPointerAddressExpressions(expressions *[]ditypes.LocationExpression) {
+	if expressions == nil {
+		return
+	}
 	filteredExpressions := []ditypes.LocationExpression{}
 	for i := range *expressions {
 		if (*expressions)[i].Opcode != ditypes.OpPopPointerAddress {
