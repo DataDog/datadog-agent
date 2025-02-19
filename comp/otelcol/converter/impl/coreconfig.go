@@ -25,6 +25,8 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 	addEnv(conf, coreCfg)
 }
 
+// test 
+
 // addEnv adds the env from core agent config to the profiler_options env setting,
 // if it is unset.
 func addEnv(conf *confmap.Conf, coreCfg config.Component) {
