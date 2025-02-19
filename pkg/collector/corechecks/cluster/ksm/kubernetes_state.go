@@ -618,13 +618,9 @@ func (k *KSMCheck) Run() error {
 
 	// Perform resource discovery if it hasn't successfully completed yet
 	if k.resourceDiscoveryInfo == nil {
-		// Acquire the API Server client, retrying with exponential backoff
-		apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
-		defer apiCancel()
-
 		var err error
-		// WaitForAPIClient handles its own retries
-		client, err = apiserver.WaitForAPIClient(apiCtx)
+		// If this fails it will retry next check
+		client, err = apiserver.GetAPIClient()
 		if err != nil {
 			return err
 		}
