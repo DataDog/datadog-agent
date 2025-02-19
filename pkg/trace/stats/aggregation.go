@@ -7,6 +7,7 @@
 package stats
 
 import (
+	"fmt"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -137,17 +138,28 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 
 func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
 	// List of possible keys to check in order
+	fmt.Println("inside getGRPCSTatusCode", meta)
 	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
 	for _, key := range metaKeys {
 		if strC, exists := meta[key]; exists && strC != "" {
+			fmt.Println("exists and all")
 			c, err := strconv.ParseUint(strC, 10, 32)
 			if err == nil {
+				fmt.Println("whee", c, strconv.FormatUint(c, 10))
 				return strconv.FormatUint(c, 10)
+			} else {
+				fmt.Println(err)
+			}
+			fmt.Println(code.Code_value, "le map")
+			fmt.Println("upper", strings.ToUpper(strC))
+			if strings.ToUpper(strC) == "CANCELED" { // the rpc code google api checks for "CANCELLED" but we pass "canceled"
+				return "1"
 			}
 
 			// If not integer, check for valid gRPC status string
 			if codeStr, found := code.Code_value[strings.ToUpper(strC)]; found {
+				fmt.Println("whee", codeStr, strconv.FormatUint(uint64(codes.Code(codeStr)), 10))
 				return strconv.FormatUint(uint64(codes.Code(codeStr)), 10)
 			}
 
