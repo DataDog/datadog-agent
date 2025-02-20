@@ -186,7 +186,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 	}
 
 	if metaURI == "" {
-		log.Errorf("failed to get client for metadata v3 or v4 API from task %q and the following containers: %v", entity.ID, entity.Containers)
+		log.Warnf("failed to get client for metadata v3 or v4 API from task %q and the following containers: %v", entity.ID, entity.Containers)
 		return rt
 	}
 
