@@ -19,7 +19,7 @@ import (
 
  */
 
-func TestPcapReproducer(t *testing.T) {
+func BenchmarkPcapReproducer(b *testing.B) {
 	filters := []string{
 		"not port 42",
 		"port 5555",
@@ -33,16 +33,17 @@ func TestPcapReproducer(t *testing.T) {
 		"((port 67 or port 68) and (udp[38:4] = 0x3e0ccf08))",
 		"portrange 21-23",
 		"tcp[13] & 8!=0",
+		"",
 	}
 
 	captureLength := 256 // sizeof(struct raw_packet_t.data)
 
-	for _, filter := range filters {
-		t.Run(filter, func(t *testing.T) {
+	for range b.N {
+		for _, filter := range filters {
 			filter, err := pcap.NewBPF(layers.LinkTypeEthernet, captureLength, filter)
 			if err != nil {
-				t.Errorf("failed to compile packet filter `%s`: %v", filter, err)
+				b.Errorf("failed to compile packet filter `%s`: %v", filter, err)
 			}
-		})
+		}
 	}
 }
