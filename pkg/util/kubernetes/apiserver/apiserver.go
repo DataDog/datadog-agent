@@ -20,18 +20,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/cached/memory"
 
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
@@ -42,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -80,7 +75,7 @@ type APIClient struct {
 	//
 
 	// Cl holds the main kubernetes client
-	Cl kubernetes.Interface
+	//Cl kubernetes.Interface
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
@@ -98,7 +93,7 @@ type APIClient struct {
 	//
 
 	// InformerCl holds the main kubernetes client with long TO
-	InformerCl kubernetes.Interface
+	//InformerCl kubernetes.Interface
 
 	// DynamicCl holds a dynamic kubernetes client with long TO
 	DynamicInformerCl dynamic.Interface
@@ -246,19 +241,6 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 	return clientConfig, nil
 }
 
-// GetKubeClient returns a kubernetes API server client
-// You should not use this function except if you need to create a *NEW* Client.
-func GetKubeClient(timeout time.Duration, qps float32, burst int) (kubernetes.Interface, error) {
-	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
-	rest.SetDefaultWarningHandler(CustomWarningLogger{})
-	clientConfig, err := GetClientConfig(timeout, qps, burst)
-	if err != nil {
-		return nil, err
-	}
-
-	return kubernetes.NewForConfig(clientConfig)
-}
-
 func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynamic.Interface, error) {
 	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
@@ -319,104 +301,6 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 */
 
 func (c *APIClient) connect() error {
-	var err error
-	// Clients
-	c.Cl, err = GetKubeClient(c.defaultClientTimeout, standardClientQPSLimit, standardClientQPSBurst)
-	if err != nil {
-		log.Infof("Could not get apiserver client: %v", err)
-		return err
-	}
-
-	c.DynamicCl, err = getKubeDynamicClient(c.defaultClientTimeout, controllerClientQPSLimit, controllerClientQPSBurst)
-	if err != nil {
-		log.Infof("Could not get apiserver dynamic client: %v", err)
-		return err
-	}
-
-	// RESTMapper
-	cachedClient := memory.NewMemCacheClient(c.Cl.Discovery())
-	c.RESTMapper = restmapper.NewDeferredDiscoveryRESTMapper(cachedClient)
-
-	// Scale client  has specific init and dependencies
-	c.ScaleCl, err = getScaleClient(c.Cl.Discovery(), c.RESTMapper, c.defaultClientTimeout, controllerClientQPSLimit, controllerClientQPSBurst)
-	if err != nil {
-		log.Infof("Could not get scale client: %v", err)
-		return err
-	}
-
-	// Informer clients
-	c.InformerCl, err = GetKubeClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
-	if err != nil {
-		log.Infof("Could not get apiserver client: %v", err)
-		return err
-	}
-
-	c.DynamicInformerCl, err = getKubeDynamicClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
-	if err != nil {
-		log.Infof("Could not get apiserver dynamic client: %v", err)
-		return err
-	}
-
-	c.VPAInformerClient, err = getKubeVPAClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
-	if err != nil {
-		log.Infof("Could not get apiserver vpa client: %v", err)
-		return err
-	}
-
-	c.CRDInformerClient, err = getCRDClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
-	if err != nil {
-		log.Infof("Could not get apiserver CRDClient client: %v", err)
-		return err
-	}
-
-	c.APISInformerClient, err = getAPISClient(c.defaultInformerTimeout, informerClientQPSLimit, informerClientQPSBurst)
-	if err != nil {
-		log.Infof("Could not get apiserver APISClient client: %v", err)
-		return err
-	}
-
-	// Creating informers
-	//c.InformerFactory = c.GetInformerWithOptions(nil)
-
-	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
-		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
-		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
-		//c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
-	}
-
-	/*
-		if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") {
-			nameFieldkey := "metadata.name"
-			optionsForService := func(options *metav1.ListOptions) {
-				options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")).String()
-			}
-			c.CertificateSecretInformerFactory = c.GetInformerWithOptions(
-				nil,
-				informers.WithTweakListOptions(optionsForService),
-				informers.WithNamespace(common.GetResourcesNamespace()),
-			)
-
-			optionsForWebhook := func(options *metav1.ListOptions) {
-				options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name")).String()
-			}
-			c.WebhookConfigInformerFactory = c.GetInformerWithOptions(
-				nil,
-				informers.WithTweakListOptions(optionsForWebhook),
-			)
-		}
-	*/
-
-	// Try to get apiserver version to confim connectivity
-	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
-	if APIversion.Empty() {
-		return fmt.Errorf("cannot retrieve the version of the API server at the moment")
-	}
-	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
-
 	return nil
 }
 
@@ -436,25 +320,31 @@ func NewMetadataMapperBundle() *MetadataMapperBundle {
 
 // ComponentStatuses returns the component status list from the APIServer
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
-	return c.Cl.CoreV1().ComponentStatuses().List(context.TODO(), metav1.ListOptions{TimeoutSeconds: pointer.Ptr(int64(c.defaultClientTimeout.Seconds()))})
+	/*
+		return c.Cl.CoreV1().ComponentStatuses().List(context.TODO(), metav1.ListOptions{TimeoutSeconds: pointer.Ptr(int64(c.defaultClientTimeout.Seconds()))})
+	*/
+	return nil, nil
 }
 
 func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.ConfigMap, err error) {
-	cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", name, err.Error())
-		cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Create(context.TODO(), &v1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-			},
-		}, metav1.CreateOptions{})
+	/*
+		cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			return nil, fmt.Errorf("could not create the ConfigMap: %s", err.Error())
+			log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", name, err.Error())
+			cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Create(context.TODO(), &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+			}, metav1.CreateOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("could not create the ConfigMap: %s", err.Error())
+			}
+			log.Infof("Created the ConfigMap %s", name)
 		}
-		log.Infof("Created the ConfigMap %s", name)
-	}
-	return cmEvent, nil
+		return cmEvent, nil
+	*/
+	return nil, nil
 }
 
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
@@ -514,40 +404,54 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp t
 
 	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
 	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC3339) // Timestamps in the ConfigMap should all use the type int.
+	/*
+		_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(context.TODO(), tokenConfigMap, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
 
-	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(context.TODO(), tokenConfigMap, metav1.UpdateOptions{})
-	if err != nil {
-		return err
-	}
+	*/
 	log.Debugf("Updated %s to %s in the ConfigMap %s", eventTokenKey, tokenValue, configMapDCAToken)
 	return nil
 }
 
 // NodeLabels is used to fetch the labels attached to a given node.
 func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
-	node, err := c.Cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return node.Labels, nil
+	/*
+		node, err := c.Cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return node.Labels, nil
+
+	*/
+	return nil, nil
 }
 
 // NodeAnnotations is used to fetch the annotations attached to a given node.
 func (c *APIClient) NodeAnnotations(nodeName string) (map[string]string, error) {
-	node, err := c.Cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return node.Annotations, nil
+	/*
+		node, err := c.Cl.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return node.Annotations, nil
+
+	*/
+	return nil, nil
 }
 
 // GetNodeForPod retrieves a pod and returns the name of the node it is scheduled on
 func (c *APIClient) GetNodeForPod(ctx context.Context, namespace, podName string) (string, error) {
-	pod, err := c.Cl.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-	return pod.Spec.NodeName, nil
+	/*
+		pod, err := c.Cl.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+		return pod.Spec.NodeName, nil
+
+	*/
+	return "", nil
 }
 
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.
@@ -620,40 +524,56 @@ func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
 }
 
 func getNodeList(cl *APIClient) ([]v1.Node, error) {
-	nodes, err := cl.Cl.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{TimeoutSeconds: pointer.Ptr(int64(cl.defaultClientTimeout.Seconds()))})
-	if err != nil {
-		log.Errorf("Can't list nodes from the API server: %s", err.Error())
-		return nil, err
-	}
-	return nodes.Items, nil
+	/*
+		nodes, err := cl.Cl.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{TimeoutSeconds: pointer.Ptr(int64(cl.defaultClientTimeout.Seconds()))})
+		if err != nil {
+			log.Errorf("Can't list nodes from the API server: %s", err.Error())
+			return nil, err
+		}
+		return nodes.Items, nil
+
+	*/
+
+	return nil, nil
 }
 
 // GetNode retrieves a node by name
 func GetNode(cl *APIClient, name string) (*v1.Node, error) {
-	node, err := cl.Cl.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		log.Errorf("Can't get node from the API server: %s", err.Error())
-		return nil, err
-	}
-	return node, nil
+	/*
+		node, err := cl.Cl.CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			log.Errorf("Can't get node from the API server: %s", err.Error())
+			return nil, err
+		}
+		return node, nil
+	*/
+	return nil, nil
 }
 
 // GetRESTObject allows to retrieve a custom resource from the APIserver
 func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
-	result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do(context.TODO())
-	if result.Error() != nil {
-		return result.Error()
-	}
+	/*
+		result := c.Cl.CoreV1().RESTClient().Get().AbsPath(path).Do(context.TODO())
+		if result.Error() != nil {
+			return result.Error()
+		}
 
-	return result.Into(output)
+		return result.Into(output)
+
+	*/
+	return nil
 }
 
 // IsAPIServerReady retrieves the API Server readiness status
 func (c *APIClient) IsAPIServerReady(ctx context.Context) (bool, error) {
-	path := "/readyz"
-	_, err := c.Cl.Discovery().RESTClient().Get().AbsPath(path).DoRaw(ctx)
+	/*
+		path := "/readyz"
+		_, err := c.Cl.Discovery().RESTClient().Get().AbsPath(path).DoRaw(ctx)
 
-	return err == nil, err
+		return err == nil, err
+
+	*/
+	return false, nil
 }
 
 func convertmetadataMapperBundleToAPI(input *MetadataMapperBundle) *apiv1.MetadataResponseBundle {
@@ -670,18 +590,22 @@ func convertmetadataMapperBundleToAPI(input *MetadataMapperBundle) *apiv1.Metada
 // GetARandomNodeName chooses a random node and returns its name. Returns an
 // error if there are no nodes or if there's an error listing them.
 func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
-	nodeList, err := c.Cl.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-		Limit: 1,
-	})
-	if err != nil {
-		return "", err
-	}
+	/*
+		nodeList, err := c.Cl.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+			Limit: 1,
+		})
+		if err != nil {
+			return "", err
+		}
 
-	if len(nodeList.Items) == 0 {
-		return "", fmt.Errorf("No node found")
-	}
+		if len(nodeList.Items) == 0 {
+			return "", fmt.Errorf("No node found")
+		}
 
-	return nodeList.Items[0].Name, nil
+		return nodeList.Items[0].Name, nil
+
+	*/
+	return "", nil
 }
 
 // RESTClient returns a new REST client
@@ -725,15 +649,19 @@ func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVe
 
 // GetKubeSecret fetches a secret from k8s
 func GetKubeSecret(namespace string, name string) (map[string][]byte, error) {
-	kubeClient, err := GetKubeClient(10*time.Second, 0, 0) // Default QPS and burst to Kube client defaults using 0)
-	if err != nil {
-		return nil, err
-	}
+	/*
+		kubeClient, err := GetKubeClient(10*time.Second, 0, 0) // Default QPS and burst to Kube client defaults using 0)
+		if err != nil {
+			return nil, err
+		}
 
-	secret, err := kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
+		secret, err := kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
 
-	return secret.Data, nil
+		return secret.Data, nil
+
+	*/
+	return nil, nil
 }

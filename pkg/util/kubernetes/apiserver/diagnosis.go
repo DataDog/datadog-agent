@@ -8,14 +8,11 @@
 package apiserver
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func init() {
@@ -52,16 +49,20 @@ func printRBAC(client *APIClient, namespace string) {
 }
 
 func listRBAC(client *APIClient, namespace string) (*authorizationv1.SubjectRulesReviewStatus, error) {
-	sar := &authorizationv1.SelfSubjectRulesReview{
-		Spec: authorizationv1.SelfSubjectRulesReviewSpec{
-			Namespace: namespace,
-		},
-	}
+	/*
+		sar := &authorizationv1.SelfSubjectRulesReview{
+			Spec: authorizationv1.SelfSubjectRulesReviewSpec{
+				Namespace: namespace,
+			},
+		}
 
-	response, err := client.Cl.AuthorizationV1().SelfSubjectRulesReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
-	if err != nil {
-		return nil, err
-	}
+		response, err := client.Cl.AuthorizationV1().SelfSubjectRulesReviews().Create(context.TODO(), sar, metav1.CreateOptions{})
+		if err != nil {
+			return nil, err
+		}
 
-	return &response.Status, nil
+		return &response.Status, nil
+
+	*/
+	return nil, nil
 }
