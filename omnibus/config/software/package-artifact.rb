@@ -15,6 +15,33 @@ build do
     delete path
   end
 
+  # Merge version manifests together
+  # The agent file is the main one, with no .$product suffix.
+  # We will merge suffixed files into the main one
+  block do
+    main_json_manifest = "#{install_dir}/version-manifest.json"
+    versions = FFI_Yajl::Parser.parse(File.read(main_json_manifest))
+    Dir.glob("#{install_dir}/version-manifest.*.json").each do |version_manifest_json_path|
+      additional_versions = FFI_Yajl::Parser.parse(File.read(version_manifest_json_path))
+
+      versions["software"].merge!(additional_versions["software"])
+      delete version_manifest_json_path
+    end
+    File.open(main_json_manifest, "w") do |f|
+      f.write(FFI_Yajl::Encoder.encode(versions.to_hash, pretty: true))
+    end
+  end
+
+  block do
+    main_txt_manifest = "#{install_dir}/version-manifest.txt"
+    Dir.glob("#{install_dir}/version-manifest.*.txt").each do |version_manifest_txt_path|
+      # Simply append the listing part. The first 4 lines are the package name, blank lines
+      # listing headers and a separator.
+      command "tail -n +5 #{version_manifest_txt_path} >> #{main_txt_manifest}"
+      delete version_manifest_txt_path
+    end
+  end
+
   if project.name == "installer"
     # This file depends on the type of package and must therefor be generated during
     # packaging, not building.
