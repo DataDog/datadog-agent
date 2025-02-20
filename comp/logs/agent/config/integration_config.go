@@ -102,6 +102,7 @@ type TagsField []string
 func (t *TagsField) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err == nil {
+		// note that we are intentionally avoiding the trimming of any spaces whilst splitting the string
 		*t = strings.Split(str, ",")
 		return nil
 	}
