@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -170,7 +171,7 @@ func resourcesForAPMConfig(cfg config.Reader) []string {
 	// targets defined and do not check if the targets actually require
 	// namespace labels.
 	targets := []interface{}{}
-	err := cfg.UnmarshalKey("apm_config.instrumentation.targets", &targets)
+	err := structure.UnmarshalKey(cfg, "apm_config.instrumentation.targets", &targets)
 	if err != nil {
 		log.Errorf("failed to unmarshal apm_config.instrumentation.targets: %v", err)
 		return nil
