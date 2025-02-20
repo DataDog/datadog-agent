@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -23,7 +24,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
-from tasks.libs.common.git import get_commit_sha, get_default_branch
+from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
 
@@ -324,11 +325,6 @@ def get_build_flags(
     if os.getenv('DD_CXX'):
         env['CXX'] = os.getenv('DD_CXX')
 
-    if sys.platform == 'linux' and os.getenv('GOOS') != "windows":
-        # Enable lazy binding, which seems to be overridden when loading containerd
-        # Required to fix go-nvml compilation (see https://github.com/NVIDIA/go-nvml/issues/18)
-        extldflags += "-Wl,-z,lazy "
-
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
 
@@ -506,6 +502,15 @@ def is_pr_context(branch, pr_id, test_name):
     return True
 
 
+def set_gitconfig_in_ci(ctx):
+    """
+    Set username and email when runing git "write" commands in CI
+    """
+    if running_in_ci():
+        set_git_config(ctx, 'user.name', 'github-actions[bot]')
+        set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
+
+
 @contextmanager
 def gitlab_section(section_name, collapsed=False, echo=False):
     """
@@ -676,3 +681,7 @@ def is_linux():
 
 def is_windows():
     return sys.platform == 'win32'
+
+
+def is_installed(binary) -> bool:
+    return shutil.which(binary) is not None

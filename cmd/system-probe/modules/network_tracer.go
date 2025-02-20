@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	usmconsts "github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,7 +49,7 @@ var networkTracerModuleConfigNamespaces = []string{"network_config", "service_mo
 
 const maxConntrackDumpSize = 3000
 
-func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	ncfg := networkconfig.New()
 
 	// Checking whether the current OS + kernel version is supported by the tracer
@@ -67,19 +66,13 @@ func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDe
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry)
 
-	done := make(chan struct{})
-	if err == nil {
-		startTelemetryReporter(cfg, done)
-	}
-
-	return &networkTracer{tracer: t, done: done}, err
+	return &networkTracer{tracer: t}, err
 }
 
 var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
 	tracer       *tracer.Tracer
-	done         chan struct{}
 	restartTimer *time.Timer
 }
 
@@ -322,7 +315,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 // Close will stop all system probe activities
 func (nt *networkTracer) Close() {
-	close(nt.done)
 	nt.tracer.Stop()
 }
 
@@ -361,23 +353,6 @@ func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *ne
 	}
 
 	log.Tracef("/connections: %d connections", len(cs.Conns))
-}
-
-func startTelemetryReporter(_ *sysconfigtypes.Config, done <-chan struct{}) {
-	telemetry.SetStatsdClient(statsd.Client)
-	ticker := time.NewTicker(30 * time.Second)
-	go func() {
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				telemetry.ReportStatsd()
-			case <-done:
-				return
-			}
-		}
-	}()
 }
 
 func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {

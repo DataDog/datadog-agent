@@ -109,7 +109,6 @@ func TestECSEC2CoreAgentSuite(t *testing.T) {
 
 func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
-	flake.Mark(t)
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()

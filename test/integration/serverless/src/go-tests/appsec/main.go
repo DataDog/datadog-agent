@@ -18,7 +18,7 @@ func main() {
 	tracer.Start()
 	defer tracer.Stop()
 
-	lambda.Start(ddlambda.WrapHandler(handleRequest, nil))
+	lambda.Start(ddlambda.WrapFunction(handleRequest, nil))
 }
 
 func handleRequest(_ context.Context, _ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {

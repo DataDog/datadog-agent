@@ -19,7 +19,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -501,13 +500,9 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 
 func (p *EBPFResolver) statFile(filename string) (uint64, []byte, error) {
 	// first stat to reserve the entry in the map and let the second stat update the entry
-	fi, err := os.Stat(filename)
+	stat, err := utils.UnixStat(filename)
 	if err != nil {
 		return 0, nil, err
-	}
-	stat, ok := fi.Sys().(*syscall.Stat_t)
-	if !ok {
-		return 0, nil, errors.New("wrong type")
 	}
 
 	inodeb := make([]byte, 8)
@@ -530,7 +525,7 @@ func (p *EBPFResolver) statFile(filename string) (uint64, []byte, error) {
 	}
 
 	// stat again to let the kernel part update the entry
-	if _, err = os.Stat(filename); err != nil {
+	if _, err = utils.UnixStat(filename); err != nil {
 		return 0, nil, err
 	}
 

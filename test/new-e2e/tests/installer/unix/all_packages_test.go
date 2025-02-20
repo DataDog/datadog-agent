@@ -162,11 +162,21 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.setupFakeIntake()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
+	s.updateCurlOnUbuntu()
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
 		s.Env().RemoteHost.MustExecute("sudo apt remove -y unattended-upgrades")
+	}
+}
+
+func (s *packageBaseSuite) updateCurlOnUbuntu() {
+	// There is an issue with the default cURL version on Ubuntu that causes sporadic
+	// SSL failures, and the fix is to update it.
+	// See https://stackoverflow.com/questions/72627218/openssl-error-messages-error0a000126ssl-routinesunexpected-eof-while-readin
+	if s.os.Flavor == e2eos.Ubuntu {
+		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt upgrade -y curl")
 	}
 }
 

@@ -81,6 +81,9 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideTagsField) {
 			rd1.Def.Tags = rd2.Def.Tags
 		}
+		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideProductTagsField) {
+			rd1.Def.ProductTags = rd2.Def.ProductTags
+		}
 	}
 }
 
