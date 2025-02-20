@@ -20,11 +20,11 @@ func shouldScheduleNetworkPathForConn(conn *model.Connection, networkID string, 
 	}
 	remoteIP := net.ParseIP(conn.Raddr.Ip)
 	if remoteIP.IsLoopback() || conn.IntraHost {
-		statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.skipped", []string{"reason:skip_loopback"}, 1) //nolint:errcheck
+		statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.conn_skipped", []string{"reason:skip_loopback"}, 1) //nolint:errcheck
 		return false
 	}
 	if conn.RemoteNetworkId != "" && conn.RemoteNetworkId == networkID {
-		statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.skipped", []string{"reason:skip_same_network_id"}, 1) //nolint:errcheck
+		statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.conn_skipped", []string{"reason:skip_same_network_id"}, 1) //nolint:errcheck
 		return false
 	}
 	return conn.Family == model.ConnectionFamily_v4
