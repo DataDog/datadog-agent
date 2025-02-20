@@ -171,12 +171,17 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
-
 func (s *VMFakeintakeSuite) TestStatsForService() {
+	// Test both normal stats computes by agent, and client stats from tracer
+	s.testStatsForService(false)
+	s.testStatsForService(true)
+}
+
+func (s *VMFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	service := fmt.Sprintf("tracegen-stats-%t-%s", enableClientSideStats, s.transport)
 	addSpanTags := "peer.hostname:foo,span.kind:producer"
 	expectPeerTag := "peer.hostname:foo"
 
@@ -187,7 +192,11 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{
+		transport:             s.transport,
+		addSpanTags:           addSpanTags,
+		enableClientSideStats: enableClientSideStats,
+	})
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {

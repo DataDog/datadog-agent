@@ -20,7 +20,5 @@ jobs:
       with:
         dd_api_key: ${{ secrets.DD_STATIC_ANALYZER_API_KEY }}
         dd_app_key: ${{ secrets.DD_STATIC_ANALYZER_APP_KEY }}
-        dd_service: datadog-agent
-        dd_env: ci
         dd_site: datadoghq.com
         cpu_count: 2

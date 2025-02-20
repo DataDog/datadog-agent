@@ -1743,6 +1743,42 @@ func TestHandleContainer(t *testing.T) {
 			},
 		},
 		{
+			name: "OTel new env convention",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					// env as tags
+					"TEAM": "container-integrations",
+					"TIER": "node",
+
+					// otel standard tags
+					"OTEL_SERVICE_NAME":        svc,
+					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=%s,service.version=%s,deployment.environment.name=%s", svc, version, env),
+				},
+			},
+			envAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"owner_team:container-integrations",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
 			name: "tags from environment with opentelemetry sdk with whitespace",
 			container: workloadmeta.Container{
 				EntityID: entityID,
