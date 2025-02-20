@@ -21,7 +21,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
@@ -29,8 +28,6 @@ import (
 	"k8s.io/client-go/discovery/cached/memory"
 
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
@@ -126,20 +123,20 @@ type APIClient struct {
 	//
 
 	// InformerFactory gives access to informers.
-	InformerFactory informers.SharedInformerFactory
+	//InformerFactory informers.SharedInformerFactory
 
 	// CertificateSecretInformerFactory gives access to filtered informers
 	// This informer can be used by the Admission Controller to only watch the secret object
 	// that contains the webhook certificate.
-	CertificateSecretInformerFactory informers.SharedInformerFactory
+	//CertificateSecretInformerFactory informers.SharedInformerFactory
 
 	// WebhookConfigInformerFactory gives access to filtered informers
 	// This informer can be used by the Admission Controller to only watch
 	// the corresponding MutatingWebhookConfiguration object.
-	WebhookConfigInformerFactory informers.SharedInformerFactory
+	//WebhookConfigInformerFactory informers.SharedInformerFactory
 
 	// DynamicInformerFactory gives access to dynamic informers
-	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
+	//DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 
 	//
 	// Internal
@@ -310,6 +307,7 @@ func getScaleClient(discoveryCl discovery.ServerResourcesInterface, restMapper m
 	return scale.NewForConfig(clientConfig, restMapper, dynamic.LegacyAPIPathResolverFunc, scaleKindResolver)
 }
 
+/*
 // GetInformerWithOptions returns
 func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options ...informers.SharedInformerOption) informers.SharedInformerFactory {
 	if resyncPeriod == nil {
@@ -318,6 +316,7 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 
 	return informers.NewSharedInformerFactoryWithOptions(c.InformerCl, *resyncPeriod, options...)
 }
+*/
 
 func (c *APIClient) connect() error {
 	var err error
@@ -377,7 +376,7 @@ func (c *APIClient) connect() error {
 	}
 
 	// Creating informers
-	c.InformerFactory = c.GetInformerWithOptions(nil)
+	//c.InformerFactory = c.GetInformerWithOptions(nil)
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
@@ -386,28 +385,30 @@ func (c *APIClient) connect() error {
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
-		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
+		//c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") {
-		nameFieldkey := "metadata.name"
-		optionsForService := func(options *metav1.ListOptions) {
-			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")).String()
-		}
-		c.CertificateSecretInformerFactory = c.GetInformerWithOptions(
-			nil,
-			informers.WithTweakListOptions(optionsForService),
-			informers.WithNamespace(common.GetResourcesNamespace()),
-		)
+	/*
+		if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") {
+			nameFieldkey := "metadata.name"
+			optionsForService := func(options *metav1.ListOptions) {
+				options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")).String()
+			}
+			c.CertificateSecretInformerFactory = c.GetInformerWithOptions(
+				nil,
+				informers.WithTweakListOptions(optionsForService),
+				informers.WithNamespace(common.GetResourcesNamespace()),
+			)
 
-		optionsForWebhook := func(options *metav1.ListOptions) {
-			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name")).String()
+			optionsForWebhook := func(options *metav1.ListOptions) {
+				options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name")).String()
+			}
+			c.WebhookConfigInformerFactory = c.GetInformerWithOptions(
+				nil,
+				informers.WithTweakListOptions(optionsForWebhook),
+			)
 		}
-		c.WebhookConfigInformerFactory = c.GetInformerWithOptions(
-			nil,
-			informers.WithTweakListOptions(optionsForWebhook),
-		)
-	}
+	*/
 
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
