@@ -62,9 +62,10 @@ var (
 	}
 
 	otelResourceAttributesMapping = map[string]string{
-		"service.name":           tags.Service,
-		"service.version":        tags.Version,
-		"deployment.environment": tags.Env,
+		"service.name":                tags.Service,
+		"service.version":             tags.Version,
+		"deployment.environment":      tags.Env,
+		"deployment.environment.name": tags.Env,
 	}
 
 	lowCardOrchestratorEnvKeys = map[string]string{
