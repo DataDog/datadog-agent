@@ -7,15 +7,15 @@
 package stats
 
 import (
+	"fmt"
 	"hash/fnv"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/grpc/codes"
 )
@@ -146,16 +146,17 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 				return strconv.FormatUint(c, 10)
 			}
 
-			if strings.ToUpper(strC) == "CANCELED" { // the rpc code google api checks for "CANCELLED" but we pass "canceled"
-				return "1"
+			if strings.ToUpper(strC) == "CANCELED" || strings.ToUpper(strC) == "CANCELLED" { // the rpc code google api checks for "CANCELLED" but we receive "Canceled" from upstream
+				fmt.Println(codes.Canceled.String())
+				return codes.Canceled.String()
 			}
 
 			// If not integer, check for valid gRPC status string
-			if codeStr, found := code.Code_value[strings.ToUpper(strC)]; found {
-				return strconv.FormatUint(uint64(codes.Code(codeStr)), 10)
+			if codeNum, found := code.Code_value[strings.ToUpper(strC)]; found {
+				return strconv.FormatUint(uint64(codes.Code(codeNum)), 10)
 			}
 
-			log.Debugf("Invalid status code %s. Using 0.", strC)
+			log.Debugf("Invalid status code %s. Using empty string", strC)
 			return ""
 		}
 	}
