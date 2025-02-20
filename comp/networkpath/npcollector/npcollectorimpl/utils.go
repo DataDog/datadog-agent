@@ -10,14 +10,21 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
+func shouldScheduleNetworkPathForConn(conn *model.Connection, networkID string, statsdClient statsd.ClientInterface) bool {
+	// TODO: REFACTOR AS METHOD OF NPCOLLECTOR to make it easier to use statsdClient ?
 	if conn == nil || conn.Direction != model.ConnectionDirection_outgoing {
 		return false
 	}
 	remoteIP := net.ParseIP(conn.Raddr.Ip)
 	if remoteIP.IsLoopback() || conn.IntraHost {
+		statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.skipped", []string{"reason:skip_loopback"}, 1) //nolint:errcheck
+		return false
+	}
+	if conn.RemoteNetworkId != "" && conn.RemoteNetworkId == networkID {
+		statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.skipped", []string{"reason:skip_same_network_id"}, 1) //nolint:errcheck
 		return false
 	}
 	return conn.Family == model.ConnectionFamily_v4

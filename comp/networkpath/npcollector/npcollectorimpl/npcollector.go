@@ -155,14 +155,14 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	}
 }
 
-func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
+func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry, networkID string) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
 	startTime := s.TimeNowFn()
 	s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
 	for _, conn := range conns {
-		if !shouldScheduleNetworkPathForConn(conn) {
+		if !shouldScheduleNetworkPathForConn(conn, networkID, s.statsdClient) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
