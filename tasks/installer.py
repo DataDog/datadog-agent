@@ -3,7 +3,7 @@ installer namespaced tasks
 """
 
 import hashlib
-from os import path
+from os import path, makedirs
 
 from invoke import task
 
@@ -88,5 +88,6 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
     install_script = install_script.replace('INSTALLER_AMD64_SHA256', bin_amd64_sha256)
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
 
+    makedirs(DIR_BIN, exist_ok=True)
     with open(path.join(DIR_BIN, output), 'w') as f:
         f.write(install_script)
