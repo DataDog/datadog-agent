@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import yaml
 from invoke import Context, task
@@ -127,6 +127,14 @@ def failure_summary_send_notifications(
     assert (
         daily_summary or weekly_summary and not (daily_summary and weekly_summary)
     ), "Exactly one of daily or weekly summary must be set"
+
+    pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
+    if not (pipeline_start.hour == 6 and pipeline_start.minute < 30):
+        print(
+            "Failure summary notifications are only sent if the pipeline started at 6:00 UTC, skipping",
+            file=sys.stderr,
+        )
+        return
 
     period = timedelta(days=1) if daily_summary else timedelta(weeks=1)
     failure_summary.send_summary_messages(ctx, weekly_summary, max_length, period, dry_run=dry_run)
