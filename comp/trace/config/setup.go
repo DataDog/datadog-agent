@@ -308,6 +308,17 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.probabilistic_sampler.sampling_percentage") {
 		c.ProbabilisticSamplerSamplingPercentage = float32(core.GetFloat64("apm_config.probabilistic_sampler.sampling_percentage"))
 	}
+	if k := "apm_config.probabilistic_sampler.trace_sampling_rules"; core.IsConfigured(k) {
+		rules, ok := core.Get(k).([]interface{})
+		if ok {
+			c.ProbabilisticSamplerTraceSamplingRules = make([]config.ProbabilisticSamplerRule, len(rules))
+			if err := structure.UnmarshalKey(core, k, &c.ProbabilisticSamplerTraceSamplingRules); err != nil {
+				log.Errorf("Unmarshalling probabilistic_sampler.trace_sampling_rules: %v", err)
+			}
+		} else {
+			log.Errorf("Bad format for probabilistic_sampler.trace_sampling_rules, expected a list of maps, got %T", core.Get("apm_config.probabilistic_sampler.trace_sampling_rules"))
+		}
+	}
 	if core.IsSet("apm_config.probabilistic_sampler.hash_seed") {
 		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
 	}
