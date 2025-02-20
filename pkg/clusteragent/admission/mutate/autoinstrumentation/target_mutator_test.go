@@ -157,7 +157,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v2",
+				defaultLibInfo(python).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_SERVICE": "best-service",
