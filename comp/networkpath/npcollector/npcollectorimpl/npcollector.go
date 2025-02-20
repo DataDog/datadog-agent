@@ -356,6 +356,7 @@ func (s *npCollectorImpl) flush() {
 	// keep this metric after the flows are flushed
 	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1) //nolint:errcheck
 
+	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"input_chan_size", float64(len(s.pathtestInputChan)), []string{}, 1) //nolint:errcheck
 }
 
 // enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.

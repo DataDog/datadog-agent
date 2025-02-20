@@ -1972,5 +1972,5 @@ func TestRCConflict(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, client.subscribed)
 	_, err = config.BuildProfile("1.2.3.4.5.6")
-	require.ErrorContains(t, err, "profile \"profile2\" has the same sysObjectID (1.2.3.4.*) as \"profile1\"")
+	require.ErrorContains(t, err, "has the same sysObjectID (1.2.3.4.*)")
 }

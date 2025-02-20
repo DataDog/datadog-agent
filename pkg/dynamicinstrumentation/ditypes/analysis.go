@@ -19,12 +19,12 @@ type TypeMap struct {
 
 	// FunctionsByPC places DWARF subprogram (function) entries in order by
 	// its low program counter which is necessary for resolving stack traces
-	FunctionsByPC []*LowPCEntry
+	FunctionsByPC []*FuncByPCEntry
 
 	// DeclaredFiles places DWARF compile unit entries in order by its
 	// low program counter which is necessary for resolving declared file
 	// for the sake of stack traces
-	DeclaredFiles []*LowPCEntry
+	DeclaredFiles []*DwarfFilesEntry
 }
 
 // Parameter represents a function parameter as read from DWARF info
@@ -37,6 +37,7 @@ type Parameter struct {
 	Location            *Location            // Location represents where the parameter will be in memory when passed to the target function
 	LocationExpressions []LocationExpression // LocationExpressions are the needed instructions for extracting the parameter value from memory
 	FieldOffset         uint64               // FieldOffset is the offset of Parameter field within a struct, if it is a struct field
+	DoNotCapture        bool                 // DoNotCapture signals to code generation that this parameter or field shouldn't have it's value captured
 	NotCaptureReason    NotCaptureReason     // NotCaptureReason conveys to the user why the parameter was not captured
 	ParameterPieces     []*Parameter         // ParameterPieces are the sub-fields, such as struct fields or array elements
 }
@@ -382,10 +383,10 @@ func (l Location) String() string {
 	return fmt.Sprintf("Location{InReg: %t, StackOffset: %d, Register: %d}", l.InReg, l.StackOffset, l.Register)
 }
 
-// LowPCEntry is a helper type used to sort DWARF entries by their low program counter
-type LowPCEntry struct {
+// DwarfFilesEntry represents the list of files used in a DWARF compile unit
+type DwarfFilesEntry struct {
 	LowPC uint64
-	Entry *dwarf.Entry
+	Files []*dwarf.LineFile
 }
 
 // BPFProgram represents a bpf program that's created for a single probe
@@ -394,4 +395,26 @@ type BPFProgram struct {
 
 	// Used for bpf code generation
 	Probe *Probe
+}
+
+//nolint:all
+func PrintLocationExpressions(expressions []LocationExpression) {
+	for i := range expressions {
+		fmt.Printf("%s %d %d %d %s %s\n",
+			expressions[i].Opcode.String(),
+			expressions[i].Arg1,
+			expressions[i].Arg2,
+			expressions[i].Arg3,
+			expressions[i].Label,
+			expressions[i].CollectionIdentifier,
+		)
+	}
+}
+
+// FuncByPCEntry represents useful data associated with a function entry in DWARF
+type FuncByPCEntry struct {
+	LowPC      uint64
+	Fn         string
+	FileNumber int64
+	Line       int64
 }

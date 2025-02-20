@@ -10,14 +10,16 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/mitchellh/mapstructure"
+	"github.com/spf13/cast"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
-	"github.com/DataDog/viper"
-	"github.com/spf13/cast"
 )
 
 // features allowed for handling edge-cases
@@ -25,6 +27,7 @@ type featureSet struct {
 	allowSquash        bool
 	convertEmptyStrNil bool
 	convertArrayToMap  bool
+	errorUnused        bool
 }
 
 // UnmarshalKeyOption is an option that affects the enabled features in UnmarshalKey
@@ -34,6 +37,11 @@ type UnmarshalKeyOption func(*featureSet)
 // a squashed field hoists its fields up a level in the marshalled representation and directly embeds them
 var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
 	fs.allowSquash = true
+}
+
+// ErrorUnused allows UnmarshalKey to return an error if there are unused keys in the config.
+var ErrorUnused UnmarshalKeyOption = func(fs *featureSet) {
+	fs.errorUnused = true
 }
 
 // ConvertEmptyStringToNil allows UnmarshalKey to implicitly convert empty strings into nil slices
@@ -46,9 +54,14 @@ var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
 }
 
+// errorUnused is a mapstructure.DecoderConfig that enables erroring on unused keys
+var errorUnused = func(cfg *mapstructure.DecoderConfig) {
+	cfg.ErrorUnused = true
+}
+
 // legacyConvertArrayToMap convert array to map when DD_CONF_NODETREEMODEL is disabled
-var legacyConvertArrayToMap = viper.DecodeHook(
-	func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
+var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
+	c.DecodeHook = func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
 		if rf != reflect.Slice {
 			return data, nil
 		}
@@ -60,8 +73,8 @@ var legacyConvertArrayToMap = viper.DecodeHook(
 			newData[i] = true
 		}
 		return newData, nil
-	},
-)
+	}
+}
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct.
@@ -81,10 +94,15 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 		o(fs)
 	}
 
+	decodeHooks := []func(c *mapstructure.DecoderConfig){}
 	if fs.convertArrayToMap {
-		return cfg.UnmarshalKey(key, target, legacyConvertArrayToMap)
+		decodeHooks = append(decodeHooks, legacyConvertArrayToMap)
 	}
-	return cfg.UnmarshalKey(key, target)
+	if fs.errorUnused {
+		decodeHooks = append(decodeHooks, errorUnused)
+	}
+
+	return cfg.UnmarshalKey(key, target, decodeHooks...)
 }
 
 func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
@@ -164,6 +182,7 @@ func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 
 func copyStruct(target reflect.Value, source nodetreemodel.Node, fs *featureSet) error {
 	targetType := target.Type()
+	usedFields := make(map[string]struct{})
 	for i := 0; i < targetType.NumField(); i++ {
 		f := targetType.Field(i)
 		ch, _ := utf8.DecodeRuneInString(f.Name)
@@ -179,6 +198,7 @@ func copyStruct(target reflect.Value, source nodetreemodel.Node, fs *featureSet)
 			if err != nil {
 				return err
 			}
+			usedFields[fieldKey] = struct{}{}
 			continue
 		}
 		child, err := source.GetChild(fieldKey)
@@ -191,6 +211,24 @@ func copyStruct(target reflect.Value, source nodetreemodel.Node, fs *featureSet)
 		err = copyAny(target.FieldByName(f.Name), child, fs)
 		if err != nil {
 			return err
+		}
+		usedFields[fieldKey] = struct{}{}
+	}
+
+	if fs.errorUnused {
+		inner, ok := source.(nodetreemodel.InnerNode)
+		if !ok {
+			return fmt.Errorf("source is not an inner node")
+		}
+		var unusedKeys []string
+		for _, key := range inner.ChildrenKeys() {
+			if _, used := usedFields[key]; !used {
+				unusedKeys = append(unusedKeys, key)
+			}
+		}
+		if len(unusedKeys) > 0 {
+			sort.Strings(unusedKeys)
+			return fmt.Errorf("found unused config keys: %v", unusedKeys)
 		}
 	}
 	return nil

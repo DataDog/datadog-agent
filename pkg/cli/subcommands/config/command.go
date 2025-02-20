@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -138,7 +138,7 @@ func insertOTelCollectorConfig(extensionURL string, runtimeConfig string, httpCl
 	if err != nil {
 		return runtimeConfig, err
 	}
-	var extensionResp ddflareextension.Response
+	var extensionResp ddflareextensiontypes.Response
 	if err = json.Unmarshal(resp, &extensionResp); err != nil {
 		return runtimeConfig, err
 	}

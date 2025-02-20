@@ -35,8 +35,8 @@ type systemContext struct {
 	// nvmlLib is the NVML library used to query GPU devices
 	nvmlLib nvml.Interface
 
-	// deviceSmVersions maps each device index to its SM (Compute architecture) version
-	deviceSmVersions map[int]int
+	// deviceSmVersions maps each device UUID to its SM (Compute architecture) version
+	deviceSmVersions map[string]uint32
 
 	// smVersionSet is a set of all the seen SM versions, to filter kernels to parse
 	smVersionSet map[uint32]struct{}
@@ -113,7 +113,7 @@ func (e *symbolsEntry) updateLastUsedTime() {
 
 func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
 	ctx := &systemContext{
-		deviceSmVersions:          make(map[int]int),
+		deviceSmVersions:          make(map[string]uint32),
 		smVersionSet:              make(map[uint32]struct{}),
 		cudaSymbols:               make(map[symbolFileIdentifier]*symbolsEntry),
 		pidMaps:                   make(map[int][]*procfs.ProcMap),
@@ -164,13 +164,13 @@ func newfatbinTelemetry(tm telemetry.Component) *fatbinTelemetry {
 	}
 }
 
-func getDeviceSmVersion(device nvml.Device) (int, error) {
+func getDeviceSmVersion(device nvml.Device) (uint32, error) {
 	major, minor, ret := device.GetCudaComputeCapability()
 	if ret != nvml.SUCCESS {
 		return 0, fmt.Errorf("error getting SM version: %s", nvml.ErrorString(ret))
 	}
 
-	return major*10 + minor, nil
+	return uint32(major*10 + minor), nil
 }
 
 func (ctx *systemContext) fillDeviceInfo() error {
@@ -187,9 +187,13 @@ func (ctx *systemContext) fillDeviceInfo() error {
 		if err != nil {
 			return err
 		}
-		ctx.deviceSmVersions[i] = smVersion
-		ctx.smVersionSet[uint32(smVersion)] = struct{}{}
+		ctx.smVersionSet[smVersion] = struct{}{}
+		devUUID, ret := dev.GetUUID()
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("error getting device UUID: %s", nvml.ErrorString(ret))
+		}
 
+		ctx.deviceSmVersions[devUUID] = smVersion
 		ctx.gpuDevices = append(ctx.gpuDevices, dev)
 	}
 	return nil

@@ -390,7 +390,6 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
     ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
@@ -575,7 +574,7 @@ new-e2e-ndm-netflow:
     - qa_agent
   variables:
     TARGETS: ./tests/ndm/netflow
-    TEAM: network-device-monitoring
+    TEAM: ndm-integrations
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-ndm-snmp:
@@ -588,7 +587,7 @@ new-e2e-ndm-snmp:
     - qa_agent
   variables:
     TARGETS: ./tests/ndm/snmp
-    TEAM: network-device-monitoring
+    TEAM: ndm-core
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-ha-agent:

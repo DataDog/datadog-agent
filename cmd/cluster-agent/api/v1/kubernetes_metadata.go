@@ -21,7 +21,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -212,7 +211,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
 	ns := vars["ns"]
-	metaList, errMetaList := controllers.GetPodMetadataNames(nodeName, ns, podName)
+	metaList, errMetaList := as.GetPodMetadataNames(nodeName, ns, podName)
 	if errMetaList != nil {
 		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName) //nolint:errcheck
 		http.Error(w, errMetaList.Error(), http.StatusInternalServerError)

@@ -162,6 +162,7 @@ func convertSlice(capture *ditypes.Param) *ditypes.CapturedValue {
 		})
 	}
 	sliceValue := &ditypes.CapturedValue{
+		Type:   capture.Type,
 		Fields: convertArgs(defs, capture.Fields),
 	}
 	return sliceValue
