@@ -908,7 +908,7 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 	}
 }
 
-func Test_shouldScheduleNetworkPathForConn(t *testing.T) {
+func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
@@ -920,6 +920,7 @@ func Test_shouldScheduleNetworkPathForConn(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		vpcCidr        string
 		conn           *model.Connection
 		shouldSchedule bool
 	}{
@@ -983,9 +984,32 @@ func Test_shouldScheduleNetworkPathForConn(t *testing.T) {
 			},
 			shouldSchedule: false,
 		},
+		{
+			name:    "should not schedule for same vpc",
+			vpcCidr: "10.0.0.0/24",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name:    "should schedule for different network_id",
+			vpcCidr: "10.0.0.0/24",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.10.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			npCollector.vpcCidrBlock = tt.vpcCidr
 			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn))
 		})
 	}

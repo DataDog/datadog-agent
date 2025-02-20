@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
+	"net/netip"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -487,9 +487,26 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 	if conn == nil || conn.Direction != model.ConnectionDirection_outgoing {
 		return false
 	}
-	remoteIP := net.ParseIP(conn.Raddr.Ip)
-	if remoteIP.IsLoopback() || conn.IntraHost {
+	remoteIP, err := netip.ParseAddr(conn.Raddr.Ip)
+	if err != nil {
+		s.logger.Warnf("Invalid Remote IP: %s", conn.Raddr.Ip)
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.conn_skipped", []string{"reason:invalid_remote_ip"}, 1) //nolint:errcheck
 		return false
+	}
+	if remoteIP.IsLoopback() || conn.IntraHost {
+		s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.conn_skipped", []string{"reason:remote_ip_is_loopback"}, 1) //nolint:errcheck
+		return false
+	}
+	if s.vpcCidrBlock != "" {
+		network, err := netip.ParsePrefix(s.vpcCidrBlock)
+		if err != nil {
+			s.logger.Warnf("Invalid VPC CIDR: %s", s.vpcCidrBlock)
+		} else {
+			if network.Contains(remoteIP) {
+				s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.conn_skipped", []string{"reason:remote_ip_in_same_vpc"}, 1) //nolint:errcheck
+				return false
+			}
+		}
 	}
 	return conn.Family == model.ConnectionFamily_v4
 }
