@@ -9,9 +9,14 @@ struct pid_route_t {
     // u16 l4_protocol;
 };
 
+struct sock_meta_t {
+    struct pid_route_t existing_route;
+};
+
 struct pid_route_entry_t {
+    struct sock* owner_sk; // stores which struct sock* was responsible for adding this entry
     u32 pid;
-    u32 type;
+    u16 type;
 };
 
 struct flow_t {

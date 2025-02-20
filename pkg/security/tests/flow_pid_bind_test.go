@@ -11,26 +11,34 @@ package tests
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/cilium/ebpf"
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/nettest"
 	"os"
 	"regexp"
 	"strconv"
 	"syscall"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/nettest"
-
-	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
 
 func htons(port uint16) uint16 {
 	return (port<<8)&0xFF00 | (port>>8)&0x00FF
+}
+
+func dumpMap(t *testing.T, m *ebpf.Map) {
+	t.Log("Dumping flow_pid map ...")
+	it := m.Iterate()
+	a := FlowPid{}
+	b := FlowPidEntry{}
+	for it.Next(&a, &b) {
+		t.Logf(" - key %+v value %+v", a, b)
+	}
 }
 
 func getCurrentNetns() (uint32, error) {
@@ -67,8 +75,10 @@ type FlowPid struct {
 }
 
 type FlowPidEntry struct {
+	OwnerSK   uint64
 	Pid       uint32
-	EntryType uint32
+	EntryType uint16
+	Padding   uint16
 }
 
 func createSocketAndBind(t *testing.T, sockDomain int, sockType int, sockAddr syscall.Sockaddr, bound chan int, next chan struct{}, closed chan struct{}, errorExpected bool) {
@@ -117,22 +127,19 @@ func createSocketAndBind(t *testing.T, sockDomain int, sockType int, sockAddr sy
 	<-next
 }
 
-func checkFlowPidEntry(t *testing.T, testModule *testModule, key FlowPid, expectedEntry FlowPidEntry, bound chan int, next chan struct{}, closed chan struct{}, errorExpected bool) {
-	boundPort := <-bound
-	if key.Port == 0 && !errorExpected {
-		key.Port = htons(uint16(boundPort))
-	}
-
+func checkFlowPidEntry(t *testing.T, testModule *testModule, key FlowPid, expectedEntry FlowPidEntry, closeClientSocket chan struct{}, clientSocketClosed chan struct{}, errorExpected bool, shouldTriggerTCPReset bool, sendTCPReset chan struct{}) {
+	fmt.Printf("looking up client flow_pid, port %d\n", key.Port)
 	// check that an entry exists for the newly bound server
 	p, ok := testModule.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		close(next)
+		close(closeClientSocket)
 		t.Skip("skipping non eBPF probe")
+		return
 	}
 
 	m, _, err := p.Manager.GetMap("flow_pid")
 	if err != nil {
-		close(next)
+		close(closeClientSocket)
 		t.Errorf("failed to get map flow_pid: %v", err)
 		return
 	}
@@ -140,41 +147,26 @@ func checkFlowPidEntry(t *testing.T, testModule *testModule, key FlowPid, expect
 	value := FlowPidEntry{}
 	if !errorExpected {
 		if err := m.Lookup(&key, &value); err != nil {
-			t.Log("Dumping flow_pid map ...")
-			it := m.Iterate()
-			a := FlowPid{}
-			b := FlowPidEntry{}
-			for it.Next(&a, &b) {
-				t.Logf(" - key %+v value %+v", a, b)
-			}
-			t.Logf("The test was looking for key %+v", key)
-
-			close(next)
+			dumpMap(t, m)
 			t.Errorf("Failed to lookup flow_pid: %v", err)
-			return
+		} else {
+			assert.Equal(t, expectedEntry.Pid, value.Pid, "wrong pid")
+			assert.Equal(t, expectedEntry.EntryType, value.EntryType, "wrong entry type")
 		}
-
-		assert.Equal(t, expectedEntry.Pid, value.Pid, "wrong pid")
-		assert.Equal(t, expectedEntry.EntryType, value.EntryType, "wrong entry type")
 	}
 
-	close(next)
+	if shouldTriggerTCPReset {
+		fmt.Println("triggering TCP reset")
+		close(sendTCPReset)
+		fmt.Println("sending TCP reset")
+	}
+	close(closeClientSocket)
 
 	// wait until the socket is closed and make sure the entry is no longer present
-	<-closed
+	<-clientSocketClosed
 	if err := m.Lookup(&key, &value); err == nil {
+		dumpMap(t, m)
 		t.Errorf("flow_pid entry wasn't deleted: %+v", value)
-	}
-
-	// make sure that no other entry in the map contains the EntryPid port
-	it := m.Iterate()
-	a := FlowPid{}
-	b := FlowPidEntry{}
-	for it.Next(&a, &b) {
-		if a.Port == key.Port {
-			t.Errorf("flow_pid entry with matching port found %+v -> %+v", a, b)
-			return
-		}
 	}
 }
 
@@ -197,7 +189,6 @@ func TestFlowPidBind(t *testing.T) {
 		},
 	}
 
-	t.Logf("host proc: %s", kernel.ProcFSRoot())
 	pid := utils.Getpid()
 	netns, err := getCurrentNetns()
 	if err != nil {
@@ -211,18 +202,18 @@ func TestFlowPidBind(t *testing.T) {
 	defer test.Close()
 
 	t.Run("test_sock_ipv4_udp_bind_0.0.0.0:1234", func(t *testing.T) {
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet4{Port: 1234, Addr: [4]byte{0, 0, 0, 0}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -230,32 +221,33 @@ func TestFlowPidBind(t *testing.T) {
 			test,
 			FlowPid{
 				Netns: netns,
-				Port:  htons(1234),
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
 	t.Run("test_sock_ipv4_udp_bind_127.0.0.1:1235", func(t *testing.T) {
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet4{Port: 1235, Addr: [4]byte{127, 0, 0, 1}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -264,32 +256,33 @@ func TestFlowPidBind(t *testing.T) {
 			FlowPid{
 				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
 				Netns: netns,
-				Port:  htons(1235),
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
 	t.Run("test_sock_ipv4_udp_bind_127.0.0.1:0", func(t *testing.T) {
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet4{Port: 0, Addr: [4]byte{127, 0, 0, 1}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -298,16 +291,17 @@ func TestFlowPidBind(t *testing.T) {
 			FlowPid{
 				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
 				Netns: netns,
-				Port:  0, // will be set later
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
@@ -316,18 +310,18 @@ func TestFlowPidBind(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET6,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet6{Port: 1236, Addr: [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -335,16 +329,17 @@ func TestFlowPidBind(t *testing.T) {
 			test,
 			FlowPid{
 				Netns: netns,
-				Port:  htons(1236),
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
@@ -353,18 +348,18 @@ func TestFlowPidBind(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET6,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet6{Port: 1237, Addr: [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -373,16 +368,17 @@ func TestFlowPidBind(t *testing.T) {
 			FlowPid{
 				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
 				Netns: netns,
-				Port:  htons(1237),
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
@@ -391,18 +387,18 @@ func TestFlowPidBind(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET6,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet6{Port: 0, Addr: [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -411,32 +407,33 @@ func TestFlowPidBind(t *testing.T) {
 			FlowPid{
 				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
 				Netns: netns,
-				Port:  0, // will be set later
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
 	t.Run("test_sock_ipv4_tcp_bind_0.0.0.0:1234", func(t *testing.T) {
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET,
 			syscall.SOCK_STREAM,
 			&syscall.SockaddrInet4{Port: 1234, Addr: [4]byte{0, 0, 0, 0}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -444,32 +441,33 @@ func TestFlowPidBind(t *testing.T) {
 			test,
 			FlowPid{
 				Netns: netns,
-				Port:  htons(1234),
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
 	t.Run("test_sock_ipv4_tcp_bind_127.0.0.1:1235", func(t *testing.T) {
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET,
 			syscall.SOCK_STREAM,
 			&syscall.SockaddrInet4{Port: 1235, Addr: [4]byte{127, 0, 0, 1}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -478,32 +476,33 @@ func TestFlowPidBind(t *testing.T) {
 			FlowPid{
 				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
 				Netns: netns,
-				Port:  htons(1235),
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
 	t.Run("test_sock_ipv4_tcp_bind_127.0.0.1:0", func(t *testing.T) {
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET,
 			syscall.SOCK_STREAM,
 			&syscall.SockaddrInet4{Port: 0, Addr: [4]byte{127, 0, 0, 1}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -512,16 +511,17 @@ func TestFlowPidBind(t *testing.T) {
 			FlowPid{
 				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
 				Netns: netns,
-				Port:  0, // will be set later
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
@@ -530,18 +530,18 @@ func TestFlowPidBind(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET6,
 			syscall.SOCK_STREAM,
 			&syscall.SockaddrInet6{Port: 1236, Addr: [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -549,16 +549,17 @@ func TestFlowPidBind(t *testing.T) {
 			test,
 			FlowPid{
 				Netns: netns,
-				Port:  htons(1236),
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
@@ -567,18 +568,18 @@ func TestFlowPidBind(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET6,
 			syscall.SOCK_STREAM,
 			&syscall.SockaddrInet6{Port: 1237, Addr: [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -587,16 +588,17 @@ func TestFlowPidBind(t *testing.T) {
 			FlowPid{
 				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
 				Netns: netns,
-				Port:  htons(1237),
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 
@@ -605,18 +607,18 @@ func TestFlowPidBind(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET6,
 			syscall.SOCK_STREAM,
 			&syscall.SockaddrInet6{Port: 0, Addr: [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
 		)
 		checkFlowPidEntry(
@@ -625,16 +627,17 @@ func TestFlowPidBind(t *testing.T) {
 			FlowPid{
 				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
 				Netns: netns,
-				Port:  0, // will be set later
+				Port:  htons(uint16(<-boundPort)),
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			false,
+			false,
+			nil,
 		)
 	})
 }
@@ -649,8 +652,6 @@ func TestFlowPidBindLeak(t *testing.T) {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
 	}
-
-	t.Logf("host proc: %s", kernel.ProcFSRoot())
 
 	ruleDefs := []*rules.RuleDefinition{
 		// We use this dummy DNS rule to make sure the flow <-> pid tracking probes are loaded
@@ -673,20 +674,23 @@ func TestFlowPidBindLeak(t *testing.T) {
 	defer test.Close()
 
 	t.Run("test_sock_ipv4_udp_bind_99.99.99.99:2234", func(t *testing.T) {
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet4{Port: 2234, Addr: [4]byte{99, 99, 99, 99}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			true,
 		)
+
+		<-boundPort
+
 		checkFlowPidEntry(
 			t,
 			test,
@@ -697,30 +701,34 @@ func TestFlowPidBindLeak(t *testing.T) {
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			true,
+			false,
+			nil,
 		)
 	})
 
 	t.Run("test_sock_ipv4_tcp_bind_99.99.99.99:2235", func(t *testing.T) {
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET,
 			syscall.SOCK_STREAM,
 			&syscall.SockaddrInet4{Port: 2235, Addr: [4]byte{99, 99, 99, 99}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			true,
 		)
+
+		<-boundPort
+
 		checkFlowPidEntry(
 			t,
 			test,
@@ -731,12 +739,13 @@ func TestFlowPidBindLeak(t *testing.T) {
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			true,
+			false,
+			nil,
 		)
 	})
 
@@ -745,20 +754,23 @@ func TestFlowPidBindLeak(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET6,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet6{Port: 2236, Addr: [16]byte{99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			true,
 		)
+
+		<-boundPort
+
 		checkFlowPidEntry(
 			t,
 			test,
@@ -770,12 +782,13 @@ func TestFlowPidBindLeak(t *testing.T) {
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			true,
+			false,
+			nil,
 		)
 	})
 
@@ -784,20 +797,23 @@ func TestFlowPidBindLeak(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		bound := make(chan int)
-		next := make(chan struct{})
-		closed := make(chan struct{})
+		boundPort := make(chan int)
+		closeClientSocket := make(chan struct{})
+		clientSocketClosed := make(chan struct{})
 
 		go createSocketAndBind(
 			t,
 			syscall.AF_INET6,
 			syscall.SOCK_DGRAM,
 			&syscall.SockaddrInet6{Port: 2237, Addr: [16]byte{99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99}},
-			bound,
-			next,
-			closed,
+			boundPort,
+			closeClientSocket,
+			clientSocketClosed,
 			true,
 		)
+
+		<-boundPort
+
 		checkFlowPidEntry(
 			t,
 			test,
@@ -809,12 +825,13 @@ func TestFlowPidBindLeak(t *testing.T) {
 			},
 			FlowPidEntry{
 				Pid:       pid,
-				EntryType: uint32(0), /* BIND_ENTRY */
+				EntryType: uint16(0), /* BIND_ENTRY */
 			},
-			bound,
-			next,
-			closed,
+			closeClientSocket,
+			clientSocketClosed,
 			true,
+			false,
+			nil,
 		)
 	})
 }
