@@ -72,9 +72,7 @@ func (w *workloadmeta) start(ctx context.Context) {
 		// Start a pull immediately to fill the store without waiting for the
 		// next tick.
 		w.pull(ctx)
-		if !w.IsInitialized() {
-			w.updateCollectorStatus(wmdef.CollectorsInitialized)
-		}
+		w.updateCollectorStatus(wmdef.CollectorsInitialized)
 
 		for {
 			select {
@@ -507,9 +505,10 @@ func (w *workloadmeta) Reset(newEntities []wmdef.Entity, source wmdef.Source) {
 
 // IsInitialized: If startCandidates is run at least once, return true.
 func (w *workloadmeta) IsInitialized() bool {
-	w.storeMut.Lock()
+
+	w.collectorMut.RLock()
 	ret := w.collectorsInited == wmdef.CollectorsInitialized
-	w.storeMut.Unlock()
+	w.collectorMut.RUnlock()
 	return ret
 }
 
@@ -609,7 +608,7 @@ func (w *workloadmeta) updateCollectorStatus(status wmdef.CollectorStatus) {
 		return // no collectors to initialize yet
 	}
 	w.collectorsInited = status
-	defer w.collectorMut.Unlock()
+	w.collectorMut.Unlock()
 }
 
 func (w *workloadmeta) pull(ctx context.Context) {
