@@ -143,8 +143,8 @@ receivers:
         auth: null
         compression_algorithms: []
         cors:
-          allowed_headers: {}
-          allowed_origins: {}
+          allowed_headers: []
+          allowed_origins: []
           max_age: 0
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
@@ -174,7 +174,7 @@ receivers:
       scrape_configs:
       - enable_compression: true
         enable_http2: true
-        fallback_scrape_protocol: PrometheusText0.0.4
+        fallback_scrape_protocol: PrometheusText1.0.0
         follow_redirects: true
         honor_timestamps: true
         job_name: datadog-agent

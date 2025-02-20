@@ -93,8 +93,8 @@ receivers:
         auth: null
         compression_algorithms: []
         cors:
-          allowed_headers: {}
-          allowed_origins: {}
+          allowed_headers: []
+          allowed_origins: []
           max_age: 0
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
