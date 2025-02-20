@@ -76,12 +76,7 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 
 	instance := snmpparse.GetIPConfig(deviceIP, snmpConfigList)
 	if instance.IPAddress != "" {
-		snmp, err := snmpparse.NewSNMP(&instance, s.log)
-		if err != nil {
-			return fmt.Errorf("unable to create SNMP instance: %w", err)
-		}
-		s.log.Infof("Using IP address %s", instance.IPAddress)
-		return s.RunDeviceScan(snmp, ns, deviceIP)
+		return s.ScanDeviceAndSendData(&instance, s.log, ns)
 	}
 	return fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
 
