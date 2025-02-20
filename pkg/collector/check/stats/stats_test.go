@@ -20,12 +20,13 @@ import (
 
 // Mock Check implementation used for testing
 type mockCheck struct {
-	cfgSource  string
-	loaderName string
-	id         checkid.ID
-	stringVal  string
-	version    string
-	interval   time.Duration
+	cfgSource   string
+	loaderName  string
+	id          checkid.ID
+	stringVal   string
+	version     string
+	interval    time.Duration
+	isHAEnabled bool
 }
 
 // Mock Check interface implementation
@@ -35,6 +36,7 @@ func (mc *mockCheck) ID() checkid.ID          { return mc.id }
 func (mc *mockCheck) String() string          { return mc.stringVal }
 func (mc *mockCheck) Version() string         { return mc.version }
 func (mc *mockCheck) Interval() time.Duration { return mc.interval }
+func (mc *mockCheck) IsHAEnabled() bool       { return mc.isHAEnabled }
 
 func newMockCheck() StatsCheck {
 	return &mockCheck{
@@ -49,12 +51,13 @@ func newMockCheck() StatsCheck {
 
 func newMockCheckWithInterval(interval time.Duration) StatsCheck {
 	return &mockCheck{
-		cfgSource:  "checkConfigSrc",
-		id:         "checkID",
-		stringVal:  "checkString",
-		loaderName: "mockloader",
-		version:    "checkVersion",
-		interval:   interval,
+		cfgSource:   "checkConfigSrc",
+		id:          "checkID",
+		stringVal:   "checkString",
+		loaderName:  "mockLoader",
+		version:     "checkVersion",
+		interval:    interval,
+		isHAEnabled: false,
 	}
 }
 
@@ -80,6 +83,7 @@ func TestNewStats(t *testing.T) {
 	assert.Equal(t, stats.CheckVersion, "checkVersion")
 	assert.Equal(t, stats.CheckConfigSource, "checkConfigSrc")
 	assert.Equal(t, stats.Interval, 15*time.Second)
+	assert.Equal(t, stats.HAEnabled, false)
 }
 
 func TestNewStatsStateTelemetryInitialized(t *testing.T) {

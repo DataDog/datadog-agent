@@ -66,3 +66,7 @@ func TestConfigureDeprecated(t *testing.T) {
 func TestCheckDiagnosesDeserialization(t *testing.T) {
 	testGetDiagnoses(t)
 }
+
+func TestConfigureHA(t *testing.T) {
+	testConfigureHA(t)
+}

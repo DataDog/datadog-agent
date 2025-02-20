@@ -44,6 +44,7 @@ type testCheck struct {
 	t           *testing.T
 	runFunc     func(id checkid.ID)
 	runCount    *atomic.Uint64
+	haEnabled   bool
 }
 
 func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
@@ -64,6 +65,10 @@ func (c *testCheck) GetWarnings() []error {
 	}
 
 	return []error{}
+}
+
+func (c *testCheck) IsHAEnabled() bool {
+	return c.haEnabled
 }
 
 func (c *testCheck) Run() error {
@@ -644,24 +649,47 @@ func TestWorker_HaIntegration(t *testing.T) {
 	tests := []struct {
 		name                         string
 		haAgentEnabled               bool
+		haAgentEnabledForSnmp        bool
 		setLeaderValue               string
 		expectedSnmpCheckRunCount    int
 		expectedUnknownCheckRunCount int
 	}{
 		{
+			name: "ha-agent enabled but not at integration level and is leader",
+			// should run HA-integrations
+			// should run "non HA integrations"
+			haAgentEnabled:               true,
+			haAgentEnabledForSnmp:        false,
+			setLeaderValue:               testHostname,
+			expectedSnmpCheckRunCount:    1,
+			expectedUnknownCheckRunCount: 1,
+		},
+		{
+			name: "ha-agent enabled but not at integration level and not leader",
+			// should run HA-integrations
+			// should run "non HA integrations"
+			haAgentEnabled:               true,
+			haAgentEnabledForSnmp:        false,
+			setLeaderValue:               "leader-is-another-agent",
+			expectedSnmpCheckRunCount:    1,
+			expectedUnknownCheckRunCount: 1,
+		},
+		{
 			name: "ha-agent enabled and is leader",
 			// should run HA-integrations
 			// should run "non HA integrations"
 			haAgentEnabled:               true,
+			haAgentEnabledForSnmp:        true,
 			setLeaderValue:               testHostname,
 			expectedSnmpCheckRunCount:    1,
 			expectedUnknownCheckRunCount: 1,
 		},
 		{
 			name: "ha-agent enabled and not leader",
-			// should skip HA-integrations
-			// should run "non HA integrations"
+			// should run HA-integrations
+			// should not run "non HA integrations"
 			haAgentEnabled:               true,
+			haAgentEnabledForSnmp:        true,
 			setLeaderValue:               "leader-is-another-agent",
 			expectedSnmpCheckRunCount:    0,
 			expectedUnknownCheckRunCount: 1,
@@ -687,6 +715,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 			snmpCheck := newCheck(t, "snmp:123", false, nil)
+			snmpCheck.haEnabled = tt.haAgentEnabledForSnmp
 			unknownCheck := newCheck(t, "unknown-check:123", false, nil)
 
 			pendingChecksChan <- snmpCheck
