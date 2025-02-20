@@ -219,7 +219,7 @@ def build(
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    cmd = "go build -trimpath -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
