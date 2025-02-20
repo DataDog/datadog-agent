@@ -11,8 +11,6 @@ package_name 'datadog-otel-agent'
 
 license "Apache-2.0"
 license_file "../LICENSE"
-json_manifest_path File.join(install_dir, "version-manifest.otel-agent.json")
-text_manifest_path File.join(install_dir, "version-manifest.otel-agent.txt")
 
 third_party_licenses "../LICENSE-3rdparty.csv"
 
@@ -41,6 +39,9 @@ end
 INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 
 install_dir INSTALL_DIR
+
+json_manifest_path File.join(install_dir, "version-manifest.otel-agent.json")
+text_manifest_path File.join(install_dir, "version-manifest.otel-agent.txt")
 
 # build_version is computed by an invoke command/function.
 # We can't call it directly from there, we pass it through the environment instead.
