@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -46,6 +47,7 @@ func NewCRDCollector() *CRDCollector {
 			IsMetadataProducer:        false,
 			SupportsManifestBuffering: false,
 			Name:                      crdName,
+			Kind:                      kubernetes.CustomResourceDefinitionKind,
 			NodeType:                  orchestrator.K8sCRD,
 			Version:                   crdVersion,
 		},
@@ -88,7 +90,7 @@ func (c *CRDCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 func (c *CRDCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list, c.metadata)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic

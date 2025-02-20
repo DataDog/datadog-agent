@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -107,7 +108,7 @@ type Handlers interface {
 	// BeforeMarshalling runs before the Processor marshals the resource to
 	// generate a manifest. If skip is true then the resource processing loop
 	// moves on to the next resource.
-	BeforeMarshalling(ctx ProcessorContext, resource, resourceModel interface{}) (skip bool)
+	BeforeMarshalling(ctx ProcessorContext, resource, resourceModel interface{}, metadata *collectors.CollectorMetadata) (skip bool)
 
 	// BuildMessageBody is used to build a message containing a chunk of
 	// resource models of a certain size. If skip is true then the resource
@@ -173,7 +174,7 @@ func (p *Processor) Handlers() Handlers {
 }
 
 // Process is used to process a list of resources of a certain type.
-func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResult ProcessResult, processed int) {
+func (p *Processor) Process(ctx ProcessorContext, list interface{}, metadata *collectors.CollectorMetadata) (processResult ProcessResult, processed int) {
 	// This default allows detection of panic recoveries.
 	processed = -1
 
@@ -205,7 +206,7 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		}
 
 		// Execute code before marshalling.
-		if skip := p.h.BeforeMarshalling(ctx, resource, resourceMetadataModel); skip {
+		if skip := p.h.BeforeMarshalling(ctx, resource, resourceMetadataModel, metadata); skip {
 			continue
 		}
 

@@ -13,6 +13,8 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+
 	"k8s.io/apimachinery/pkg/labels"
 	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
 	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
@@ -49,6 +51,7 @@ func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCo
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      clusterRoleName,
+			Kind:                      kubernetes.ClusterRoleKind,
 			NodeType:                  orchestrator.K8sClusterRole,
 			Version:                   clusterRoleVersion,
 			LabelsAsTags:              labelsAsTags,
@@ -88,7 +91,7 @@ func (c *ClusterRoleCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 func (c *ClusterRoleCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list, c.metadata)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
