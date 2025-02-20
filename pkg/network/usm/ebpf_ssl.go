@@ -499,8 +499,9 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 }
 
 // PreStart is called before the start of the provided eBPF manager.
-func (o *sslProgram) PreStart(*manager.Manager) error {
+func (o *sslProgram) PreStart(m *manager.Manager) error {
 	o.watcher.Start()
+	o.watcher.SetEbpfManager(m)
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
@@ -535,6 +536,33 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 		iter := currentMap.Iterate()
 		var key uint64
 		var value http.SslReadArgs
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case "ssl_read_ex_args": // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_ex_args_t'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value http.SslReadExArgs
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case "ssl_write_args": // maps/ssl_write_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_args_t'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value http.SslWriteArgs
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case "ssl_write_ex_args_t": // maps/ssl_write_ex_args_t (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_ex_args_t'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		var value http.SslWriteExArgs
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}

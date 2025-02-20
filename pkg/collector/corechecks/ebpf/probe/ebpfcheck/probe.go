@@ -965,3 +965,15 @@ func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map, mapid ebpf.MapID, mphCache *
 
 	return int64(res), nil
 }
+
+// HashMapNumberOfEntries returns the number of entries in the map
+func HashMapNumberOfEntries(mp *ebpf.Map) (int64, error) {
+	if isPerCPU(mp.Type()) {
+		return -1, fmt.Errorf("unsupported map type: %s", mp.String())
+	}
+	buffers := entryCountBuffers{
+		keysBufferSizeLimit:   0, // No limit
+		valuesBufferSizeLimit: 0, // No limit
+	}
+	return hashMapNumberOfEntriesWithIteration(mp, &buffers, 1)
+}

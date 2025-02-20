@@ -10,6 +10,7 @@ package usm
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -24,12 +25,15 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
+	"github.com/cilium/ebpf"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
@@ -48,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 type tlsSuite struct {
@@ -892,9 +897,9 @@ func reinitializeEventConsumer(t *testing.T) {
 }
 
 const (
-	// useExistingConsumer is used to indicate that we should use the existing consumer instance
+	// reInitEventConsumer is used to indicate that we should create a new consumer instance
 	reInitEventConsumer = true
-	// useExistingConsumer is used to indicate that we should create a new consumer instance
+	// useExistingConsumer is used to indicate that we should use the existing consumer instance
 	useExistingConsumer = false
 )
 
@@ -996,4 +1001,131 @@ func (s *tlsSuite) TestNodeJSTLS() {
 			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
 		}
 	}
+}
+
+// TestSSLMapsCleaner verifies that SSL-related kernel maps are cleared correctly.
+// the map entry is deleted when the thread exits, and periodic map cleaner removes dead threads.
+func (s *tlsSuite) TestSSLMapsCleaner() {
+	t := s.T()
+	// setup monitor
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableNativeTLSMonitoring = true
+	cfg.EnableUSMEventStream = false
+
+	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
+
+	units := []struct {
+		mapName string
+	}{
+		{
+			mapName: "ssl_read_args",
+		},
+		{
+			mapName: "ssl_read_ex_args",
+		},
+		{
+			mapName: "ssl_write_args",
+		},
+		{
+			mapName: "ssl_write_ex_args",
+		},
+		{
+			mapName: "ssl_ctx_by_pid_tgid",
+		},
+		{
+			mapName: "bio_new_socket_args",
+		},
+	}
+	for _, unit := range units {
+		testName := fmt.Sprintf("verify %s", unit.mapName)
+		t.Run(testName, func(t *testing.T) {
+			cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
+			// find map by name
+			emap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap(unit.mapName)
+			require.NotNil(t, emap)
+
+			// add random pid to the map
+			addPidEntryToMap(t, emap, 100)
+			verifyMap(t, emap, 1)
+
+			// call SSL map cleaner and verify that map is empty
+			cleanDeadPids(t, monitor, unit.mapName)
+			verifyMap(t, emap, 0)
+
+			// start dummy program and add it's pid to the map
+			cmd, cancel := startDummyProgram(t)
+			addPidEntryToMap(t, emap, cmd.Process.Pid)
+			verifyMap(t, emap, 1)
+
+			// verify exit of process cleans the map
+			cancel()
+			_ = cmd.Wait()
+			verifyMap(t, emap, 0)
+		})
+		if t.Failed() {
+			t.Logf("unexpect number of entries in the map '%s'", unit.mapName)
+			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, unit.mapName)
+		}
+	}
+}
+
+// verifyMap checks if the number of entries in the map matches the expected number.
+func verifyMap(t *testing.T, m *ebpf.Map, expected int64) {
+	require.Eventually(t, func() bool {
+		num, err := ebpfcheck.HashMapNumberOfEntries(m)
+		assert.NoError(t, err)
+		return num == expected
+	}, 1*time.Second, 100*time.Millisecond, "unexpected map entries")
+}
+
+// addPidEntryToMap adds an entry to the map using the PID as a key.
+func addPidEntryToMap(t *testing.T, m *ebpf.Map, pid int) {
+	require.Equal(t, m.KeySize(), uint32(unsafe.Sizeof(uint64(0))), "wrong key size")
+
+	// make the key for single thread process when pid and tgid are the same
+	key := uint64(pid)<<32 | uint64(pid)
+	value := make([]byte, m.ValueSize())
+
+	err := m.Put(&key, value)
+	require.NoError(t, err)
+}
+
+// startDummyProgram starts sleeping thread.
+func startDummyProgram(t *testing.T) (*exec.Cmd, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	return cmd, cancel
+}
+
+// cleanDeadPids calls the map cleaner for map 'name', as the periodic job does.
+func cleanDeadPids(t *testing.T, monitor *Monitor, name string) {
+	err := monitor.ebpfProgram.cleanDeadPidsInSslMap(name)
+	require.NoError(t, err)
+}
+
+// cleanDeadPidsInSslMap finds activated 'sslProgram' and calls map cleaner.
+func (e *ebpfProgram) cleanDeadPidsInSslMap(name string) error {
+	for _, prot := range e.enabledProtocols {
+		if prot.Instance.Name() == "openssl" {
+			switch prot.Instance.(type) {
+			case *sslProgram:
+				p, ok := prot.Instance.(*sslProgram)
+				if ok {
+					return p.cleanDeadPidsInMap(e.Manager.Manager, name)
+				}
+			default:
+			}
+		}
+	}
+	return nil
+}
+
+// cleanDeadPidsInMap clears terminated processes from SSL-related kernel map.
+func (o *sslProgram) cleanDeadPidsInMap(manager *manager.Manager, mapName string) error {
+	return o.watcher.CleanDeadPidsInMaps(manager, []string{mapName}, nil)
 }
