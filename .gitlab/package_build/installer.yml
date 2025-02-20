@@ -104,8 +104,6 @@ installer-install-scripts:
     - VERSION="$(inv agent.version --url-safe)-1" || exit $?
     - echo "About to build for $VERSION"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - ls -la $OMNIBUS_PACKAGE_DIR
-    - tar -tvJf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz
     - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-amd64
     - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*arm64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-arm64
     - inv -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "install.sh"
