@@ -91,9 +91,6 @@ else
   # creates required build directories
   dependency 'datadog-agent-prepare'
 
-  # version manifest file
-  dependency 'version-manifest'
-
   # Dogstatsd
   dependency 'datadog-dogstatsd'
 

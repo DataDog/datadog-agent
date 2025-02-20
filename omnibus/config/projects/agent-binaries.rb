@@ -78,9 +78,6 @@ dependency 'preparation'
 dependency 'datadog-iot-agent'
 dependency 'datadog-dogstatsd'
 
-# version manifest file
-dependency 'version-manifest'
-
 dependency 'datadog-buildpack-finalize'
 exclude '\.git*'
 exclude 'bundler\/git'
