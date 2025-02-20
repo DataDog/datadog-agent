@@ -11,7 +11,7 @@ build do
   # that have been stripped out during the build
   Dir.glob("*.tar.xz", base: input_dir).each do |input|
     path = File.join(input_dir, input)
-    command "tar xf #{path} -C /"
+    command "tar xvf #{path} -C /"
     delete path
   end
 
