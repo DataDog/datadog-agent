@@ -380,6 +380,10 @@ variables:
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
+# Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification 
+.if_scheduled_main: &if_scheduled_main
+  if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
+
 # Rule to trigger jobs only when a branch matches the mergequeue pattern.
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
@@ -1079,6 +1083,10 @@ workflow:
         - test/new-e2e/tests/security-agent-functional/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
+
+.on_scheduled_main:
+  - <<: *if_scheduled_main
+    when: always
 
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests
