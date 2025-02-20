@@ -23,7 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configLog "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -317,7 +317,7 @@ func TestMakeK8sSource(t *testing.T) {
 			require.Equal(t, wildcard, child.Config.Path)
 			require.Equal(t, "src", child.Config.Source)
 			require.Equal(t, "svc", child.Config.Service)
-			require.Equal(t, []string{"tag!"}, child.Config.Tags)
+			require.Equal(t, logConfig.TagsField{"tag!"}, child.Config.Tags)
 			require.Equal(t, *child.Config.AutoMultiLine, true)
 			require.Equal(t, child.Config.AutoMultiLineSampleSize, 123)
 			require.Equal(t, child.Config.AutoMultiLineMatchThreshold, 0.123)
