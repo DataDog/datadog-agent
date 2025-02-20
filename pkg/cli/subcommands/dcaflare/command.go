@@ -106,7 +106,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func readProfileData(seconds int) (clusterAgentFlare.ProfileData, error) {
 	pdata := clusterAgentFlare.ProfileData{}
-	c := util.GetClient(false)
+	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("expvar_port"))
@@ -154,7 +154,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 		profile clusterAgentFlare.ProfileData
 		e       error
 	)
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	logFile := pkgconfigsetup.Datadog().GetString("log_file")
@@ -234,7 +234,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 }
 
 func newSettingsClient() (settings.Client, error) {
-	c := util.GetClient(false)
+	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 
 	apiConfigURL := fmt.Sprintf(
 		"https://localhost:%v/config",

@@ -28,7 +28,7 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
@@ -48,7 +48,7 @@ func SecurityAgentConfigBySource(config config.Reader) (string, error) {
 		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
@@ -68,7 +68,7 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 		return "", fmt.Errorf("invalid apm_config.debug.port -- %d", port)
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	ipcAddressWithPort := fmt.Sprintf("https://127.0.0.1:%d/config", port)
@@ -99,7 +99,7 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 		ipcAddressWithPort += "/all"
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))

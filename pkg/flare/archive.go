@@ -417,7 +417,7 @@ func getProcessAgentTaggerList() ([]byte, error) {
 
 // GetTaggerList fetches the tagger list from the given URL.
 func GetTaggerList(remoteURL string) ([]byte, error) {
-	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+	c := apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
 
 	r, err := apiutil.DoGet(c, remoteURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
@@ -442,12 +442,17 @@ func getAgentWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), false)
 }
 
 // GetWorkloadList fetches the workload list from the given URL.
-func GetWorkloadList(url string) ([]byte, error) {
-	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
+func GetWorkloadList(url string, withInsecureClient bool) ([]byte, error) {
+	var c *http.Client
+	if withInsecureClient {
+		c = apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	} else {
+		c = apiutil.GetClient()
+	}
 
 	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
 	if err != nil {
@@ -499,7 +504,7 @@ func getHTTPCallContent(url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	client := apiutil.GetClient(false) // FIX: get certificates right then make this true
+	client := apiutil.GetClient()
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
