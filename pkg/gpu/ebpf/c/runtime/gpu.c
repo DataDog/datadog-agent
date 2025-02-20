@@ -295,6 +295,8 @@ int BPF_UPROBE(uprobe__cudaEventDestroy, __u64 event) {
     key.pid = pid_tgid >> 32;
 
     log_debug("cudaEventDestroy: pid_tgid=%llu, event=%llu", pid_tgid, event);
+
+    // If this deletion doesn't get triggered, the map cleaner will clean these entries up
     bpf_map_delete_elem(&cuda_event_to_stream, &key);
 
     return 0;
