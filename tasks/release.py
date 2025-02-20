@@ -66,6 +66,7 @@ from tasks.libs.releasing.json import (
     set_new_release_branch,
     update_release_json,
 )
+from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
     FINAL_VERSION_RE,
     MINOR_RC_VERSION_RE,
@@ -336,7 +337,24 @@ def finish(ctx, release_branch, upstream="origin"):
                 code=1,
             )
 
-        # Step 4: Push branch and create PR
+        # Step 4: Add release changelog preludes
+        print(color_message("Adding Agent release changelog prelude", "bold"))
+        _add_prelude(ctx, str(new_version))
+
+        print(color_message("Adding DCA release changelog prelude", "bold"))
+        _add_dca_prelude(ctx, str(new_version))
+
+        ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        # Step 5: Push branch and create PR
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
         if res.exited is None or res.exited > 0:
@@ -349,7 +367,7 @@ def finish(ctx, release_branch, upstream="origin"):
             )
 
         create_release_pr(
-            f"Final updates for release.json and Go modules for {new_version} release",
+            f"Final updates for release.json and Go modules for {new_version} release + preludes",
             release_branch,
             final_branch,
             new_version,
@@ -581,7 +599,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
-        run_rc_pipeline(ctx, release_branch, gitlab_tag.name, k8s_deployments)
+        run_rc_pipeline(ctx, gitlab_tag.name, k8s_deployments)
 
 
 def get_qualification_rc_tag(ctx, release_branch):
@@ -1055,12 +1073,12 @@ def get_next_version(gh, latest_release=None):
 
 
 @task
-def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     """Task to run after the release is done to generate release metrics.
 
     Args:
         milestone: Github milestone number for the release. Expected format like '7.54.0'
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cutoff was started. Expected format YYYY-MM-DD, like '2022-02-01'
         release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
 
     Notes:
@@ -1069,17 +1087,20 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     """
 
     # Step 1: Lead Time for Changes data
-    lead_time = get_release_lead_time(freeze_date, release_date)
+    lead_time = get_release_lead_time(cutoff_date, release_date)
     print("Lead Time for Changes data")
     print("--------------------------")
     print(lead_time)
 
     # Step 2: Agent stability data
-    prs = get_prs_metrics(milestone, freeze_date)
+    prs = get_prs_metrics(milestone, cutoff_date)
     print("\n")
-    print("Agent stability data")
+    print("Agent stability data: Pull Requests")
     print("--------------------")
-    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    print(
+        f"total: {prs['total']}, before_cutoff: {prs['before_cutoff']}, on_cutoff: {prs['on_cutoff']}, after_cutoff: {prs['after_cutoff']}"
+    )
 
     # Step 3: Code changes
     code_stats = ctx.run(
@@ -1124,7 +1145,7 @@ def chase_release_managers(_, version):
 
     from slack_sdk import WebClient
 
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     for channel in sorted(channels):
         print(f"Sending message to {channel}")
         client.chat_postMessage(channel=channel, text=message)
@@ -1143,7 +1164,7 @@ def chase_for_qa_cards(_, version):
         grouped_cards[card["fields"]["project"]["key"]].append(card)
     GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
     GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
         team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
@@ -1399,6 +1420,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
     current = current_version(ctx, 7)
     current.rc = False
     current.devel = False
+    current.patch = 0
     pr_url = create_datadog_agent_pr(
         commit_message, main_branch, bump_integrations_core_branch, str(current), body=github_workflow_url
     )

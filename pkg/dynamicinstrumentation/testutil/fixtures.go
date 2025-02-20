@@ -243,6 +243,24 @@ var structCaptures = fixtures{
 	}}},
 }
 
+var pointerCaptures = fixtures{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_pointer": {"x": {Type: "*uint", Fields: fieldMap{
+		"arg_0": capturedValue("uint", "1"),
+	}}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_pointer": {"z": {Type: "*bool"}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_pointer": {"x": {Type: "*struct", Fields: fieldMap{
+		"arg_0": &ditypes.CapturedValue{
+			Type: "struct",
+			Fields: fieldMap{
+				"arg_0": capturedValue("bool", "true"),
+				"arg_1": capturedValue("int", "1"),
+				"arg_2": capturedValue("int16", "2"),
+			},
+		},
+	}}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_struct_pointer": {"x": {Type: "*struct"}},
+}
+
 // mergeMaps combines multiple fixture maps into a single map
 func mergeMaps(maps ...fixtures) fixtures {
 	result := make(fixtures)
@@ -260,6 +278,7 @@ var expectedCaptures = mergeMaps(
 	arrayCaptures,
 	structCaptures,
 	sliceCaptures,
+	pointerCaptures,
 	// mapCaptures,
 	// genericCaptures,
 	// multiParamCaptures,

@@ -475,8 +475,9 @@ EMAIL_SLACK_ID_MAP = {
 @task
 def changelog(ctx, new_commit_sha):
     from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
 
-    client = WebClient(token=os.environ["SLACK_API_TOKEN"])
+    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     # Environment variable to deal with both local and CI environments
     if "CI_PROJECT_DIR" in os.environ:
         parent_dir = os.environ["CI_PROJECT_DIR"]
@@ -515,17 +516,23 @@ def changelog(ctx, new_commit_sha):
     for commit in commits:
         # see https://git-scm.com/docs/pretty-formats for format string
         commit_str = ctx.run(f"git show --name-only --pretty=format:%s%n%aN%n%aE {commit}", hide=True).stdout
-        title, author, author_email, files, url = parse(commit_str)
+        title, _, author_email, files, url = parse(commit_str)
         if not is_system_probe(owners, files):
             continue
         message_link = f"• <{url}|{title}>" if url else f"• {title}"
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
+        author_handle = ""
         if author_email in EMAIL_SLACK_ID_MAP:
             author_handle = EMAIL_SLACK_ID_MAP[author_email]
         else:
-            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
+            try:
+                recipient = client.users_lookupByEmail(email=author_email)
+                author_handle = recipient.data["user"]["id"]
+            except SlackApiError:
+                # The email on the Github account is not a datadoghhq.com address, it cannot be decoded by slack.
+                pass
         if author_handle:
             author_handle = f"<@{author_handle}>"
         else:

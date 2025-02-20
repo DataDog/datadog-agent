@@ -62,6 +62,7 @@ type Daemon interface {
 	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	StartExperiment(ctx context.Context, url string) error
+	StartInstallerExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
@@ -123,6 +124,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		HTTPProxy:            config.GetString("proxy.http"),
 		HTTPSProxy:           config.GetString("proxy.https"),
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
+		IsCentos6:            env.DetectCentos6(),
 	}
 	installer := newInstaller(installerBin)
 	return newDaemon(rc, installer, env), nil
@@ -349,6 +351,13 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 	return nil
 }
 
+// StartInstallerExperiment starts an installer experiment with the given package.
+func (d *daemonImpl) StartInstallerExperiment(ctx context.Context, url string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.startInstallerExperiment(ctx, url)
+}
+
 func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_installer_experiment")
 	defer func() { span.Finish(err) }()
@@ -430,7 +439,11 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, vers
 	if !ok {
 		return fmt.Errorf("could not find config version %s", version)
 	}
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, config.Configs)
+	serializedConfigFiles, err := json.Marshal(config.Files)
+	if err != nil {
+		return fmt.Errorf("could not serialize config files: %w", err)
+	}
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigFiles)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
