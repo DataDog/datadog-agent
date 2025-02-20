@@ -273,11 +273,24 @@ int BPF_URETPROBE(uretprobe__cudaEventQuery) {
     bpf_ringbuf_output_with_telemetry(&cuda_events, &sync_event, sizeof(sync_event), 0);
 
 cleanup:
-    // We don't remove the event from the stream map, as it can be queried multiple times
-    // Only remove it from the cache for matching uprobe/uretprobe pairs
+    // We don't remove the event from the stream map here, as it can be queried multiple times
+    // Only remove it on cudaEventDestroy.
+    // In this function we only remove the pid entry in the event cache that helps us link
     bpf_map_delete_elem(&cuda_event_cache, &pid_tgid);
 
     return 0;
+}
+
+SEC("uprobe/cudaEventDestroy")
+int BPF_UPROBE(uprobe__cudaEventDestroy, __u64 event) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    cuda_event_key_t key = { 0 };
+
+    key.event = event;
+    key.pid = pid_tgid >> 32;
+
+    log_debug("cudaEventDestroy: pid_tgid=%llu, event=%llu, stream=%llu", pid_tgid, event, stream);
+    bpf_map_delete_elem(&cuda_event_to_stream, &key);
 }
 
 char __license[] SEC("license") = "GPL";

@@ -76,6 +76,7 @@ const (
 	cudaEventRecordProbe   probeFuncName = "uprobe__cudaEventRecord"
 	cudaEventQueryProbe    probeFuncName = "uprobe__cudaEventQuery"
 	cudaEventQueryRetProbe probeFuncName = "uretprobe__cudaEventQuery"
+	cudaEventDestroyProbe  probeFuncName = "uprobe__cudaEventDestroy"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -341,6 +342,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventRecordProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventDestroyProbe}},
 						},
 					},
 				},
