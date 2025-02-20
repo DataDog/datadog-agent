@@ -534,9 +534,27 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
-		var value http.SslReadArgs
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			spew.Fdump(w, key, value)
+		// The wrapper array prevents access to pointer contents, as pointers are invalid in user mode.
+		a := [2]unsafe.Pointer{
+			unsafe.Pointer(http.SslReadArgs{}.Ctx),
+			unsafe.Pointer(http.SslReadArgs{}.Buf),
+		}
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&a)) {
+			spew.Fdump(w, key, a)
+		}
+
+	case "ssl_read_ex_args": // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_ex_args_t'\n")
+		iter := currentMap.Iterate()
+		var key uint64
+		// The wrapper array prevents access to pointer contents, as pointers are invalid in user mode.
+		a := [3]unsafe.Pointer{
+			unsafe.Pointer(http.SslReadExArgs{}.Ctx),
+			unsafe.Pointer(http.SslReadExArgs{}.Buf),
+			unsafe.Pointer(http.SslReadExArgs{}.Out_param),
+		}
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&a)) {
+			spew.Fdump(w, key, a)
 		}
 
 	case "bio_new_socket_args": // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
