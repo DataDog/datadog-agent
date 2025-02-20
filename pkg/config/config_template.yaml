@@ -1489,6 +1489,19 @@ api_key:
     ## hash_seed: A seed used for the hash algorithm. This must match other agents and OTel
     ##            collectors using the probabilistic sampler to ensure consistent sampling.
     #  hash_seed: 0
+    #
+    ## @env DD_APM_PROBABILISTIC_SAMPLER_RULES - list of objects - optional
+    ## service, operation_name, resource_name, and span attributes can be used in a rule.
+    ## Within a single rule, conditions are combined using AND, while multiple rules are combined using OR.
+    # rules:
+    # - service: "^example-service.*"
+    #   operation_name: "^example-operation-name.*"
+    #   percentage: 30
+    #   attributes:
+    #   - key1: "^value1.*"
+    #   - key2: "^value2.*"
+    # - resource_name: "^GET /api/v1/.*"
+    #   percentage: 12.34
 
   ## @param error_tracking_standalone - object - optional
   ## Enables Error Tracking Standalone
