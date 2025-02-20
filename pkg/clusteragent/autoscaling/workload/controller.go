@@ -23,7 +23,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -48,7 +49,7 @@ var (
 	podAutoscalerGVR  = datadoghq.GroupVersion.WithResource("datadogpodautoscalers")
 	podAutoscalerMeta = metav1.TypeMeta{
 		Kind:       "DatadogPodAutoscaler",
-		APIVersion: "datadoghq.com/v1alpha1",
+		APIVersion: "datadoghq.com/v1alpha2",
 	}
 )
 
@@ -128,7 +129,7 @@ func NewController(
 
 // PreStart is called before the controller starts
 func (c *Controller) PreStart(ctx context.Context) {
-	startLocalTelemetry(ctx, c.localSender, []string{"kube_cluster_id:" + c.clusterID})
+	startLocalTelemetry(ctx, c.localSender, []string{"kube_cluster_id:" + c.clusterID, "crd_api_version:" + podAutoscalerGVR.Version})
 }
 
 // Process implements the Processor interface (so required to be public)
@@ -207,7 +208,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// Object is not present in Kubernetes
 		// If flagged for deletion, we just need to clear up our store (deletion complete)
 		// Also if object was not owned by remote config, we also need to delete it (deleted by user)
-		if podAutoscalerInternal.Deleted() || podAutoscalerInternal.Spec().Owner != datadoghq.DatadogPodAutoscalerRemoteOwner {
+		if podAutoscalerInternal.Deleted() || podAutoscalerInternal.Spec().Owner != datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
 			log.Infof("Object %s not present in Kubernetes and flagged for deletion (remote) or owner == local, clearing internal store", key)
 			c.store.UnlockDelete(key, c.ID)
 			return autoscaling.NoRequeue, nil
@@ -223,7 +224,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 	// Object is present in both our store and Kubernetes, we need to sync depending on ownership.
 	// Implement info sync based on ownership.
-	if podAutoscaler.Spec.Owner == datadoghq.DatadogPodAutoscalerRemoteOwner {
+	if podAutoscaler.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
 		// First implement deletion logic, as if it's a deletion, we don't need to update the object.
 		// Deletion can only happen if the object is owned by remote config.
 		if podAutoscalerInternal.Deleted() {
@@ -285,7 +286,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	}
 
 	// Implement sync logic for local ownership, source of truth is Kubernetes
-	if podAutoscalerInternal.Spec().Owner == datadoghq.DatadogPodAutoscalerLocalOwner {
+	if podAutoscalerInternal.Spec().Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
 		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
 			podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
 		}
@@ -332,7 +333,7 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 	c.updateLocalFallbackEnabled(podAutoscalerInternal, desiredHorizontalScalingSource)
 
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
-	// While vertical scaling is in progress we should only allow horizontal upscale
+	// While vertical scaling is in progress we should only allow horizontal scale up
 	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
 	if err != nil {
 		return horizontalRes, err
