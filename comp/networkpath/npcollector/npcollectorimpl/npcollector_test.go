@@ -231,6 +231,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	assert.Equal(t, uint64(2), npCollector.processedTracerouteCount.Load())
 	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
 	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 4.0, Tags: []string{}, Rate: 1})
+	assert.Contains(t, statsdConvertToMetricNames(stats.HistogramCalls), "datadog.network_path.collector.worker.task_duration")
+	assert.NotContains(t, statsdConvertToMetricNames(stats.HistogramCalls), "datadog.network_path.collector.worker.pathtest_interval")
 
 	// WHEN
 	npCollector.TimeNowFn = func() time.Time {
@@ -239,9 +241,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	waitForProcessedPathtests(npCollector, 5*time.Second, 4)
 
 	// THEN
-	histogramMetricNames := statsdConvertToMetricNames(stats.HistogramCalls)
-	assert.Contains(t, histogramMetricNames, "datadog.network_path.collector.worker.pathtest_interval")
-	assert.Contains(t, histogramMetricNames, "datadog.network_path.collector.worker.task_duration")
+	assert.Contains(t, statsdConvertToMetricNames(stats.HistogramCalls), "datadog.network_path.collector.worker.pathtest_interval")
 
 	app.RequireStop()
 }
