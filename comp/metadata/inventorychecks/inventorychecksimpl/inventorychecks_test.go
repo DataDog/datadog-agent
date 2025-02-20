@@ -25,6 +25,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	configLog "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -249,7 +250,7 @@ func TestGetPayload(t *testing.T) {
 				assert.Equal(t, expectedSourceStatus, actualSource[0]["state"])
 				assert.Equal(t, "awesome_cache", actualSource[0]["service"])
 				assert.Equal(t, "redis", actualSource[0]["source"])
-				assert.Equal(t, []string{"env:prod"}, actualSource[0]["tags"])
+				assert.Equal(t, configLog.TagsField(configLog.TagsField{"env:prod"}), actualSource[0]["tags"])
 			} else {
 				assert.Len(t, p.LogsMetadata, 0)
 			}
