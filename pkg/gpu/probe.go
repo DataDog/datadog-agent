@@ -64,7 +64,6 @@ const (
 	cudaSyncCacheMap       bpfMapName = "cuda_sync_cache"
 	cudaSetDeviceCacheMap  bpfMapName = "cuda_set_device_cache"
 	cudaEventStreamMap     bpfMapName = "cuda_event_to_stream"
-	cudaEventSyncCacheMap  bpfMapName = "cuda_event_sync_cache"
 	cudaEventQueryCacheMap bpfMapName = "cuda_event_query_cache"
 )
 
@@ -280,7 +279,6 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 			{Name: cudaSyncCacheMap},
 			{Name: cudaSetDeviceCacheMap},
 			{Name: cudaEventStreamMap},
-			{Name: cudaEventSyncCacheMap},
 			{Name: cudaEventQueryCacheMap},
 		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 

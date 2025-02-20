@@ -16,6 +16,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 #include "cgroup.h"
+#include "pid_tgid.h"
 
 #include "types.h"
 
@@ -24,7 +25,6 @@ BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
 BPF_LRU_MAP(cuda_sync_cache, __u64, __u64, 1024)
 BPF_LRU_MAP(cuda_set_device_cache, __u64, int, 1024)
 BPF_LRU_MAP(cuda_event_query_cache, __u64, __u64, 1024) // maps PID/TGID -> event
-BPF_LRU_MAP(cuda_event_sync_cache, __u64, __u64, 1024) // maps PID/TGID -> event
 BPF_HASH_MAP(cuda_event_to_stream, cuda_event_key_t, cuda_event_value_t, 1024) // maps PID + event -> stream id
 
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
@@ -218,12 +218,15 @@ int BPF_UPROBE(uprobe__cudaEventRecord, __u64 event, __u64 stream) {
     cuda_event_value_t value = { 0 };
 
     key.event = event;
-    key.pid = pid_tgid >> 32;
+    key.pid = GET_USER_MODE_PID(pid_tgid);
 
     value.stream = stream;
     value.last_access_ktime_ns = bpf_ktime_get_ns();
 
     log_debug("cudaEventRecord: pid_tgid=%llu, event=%llu, stream=%llu", pid_tgid, event, stream);
+
+    // Add the event regardless of return value to avoid having an extra retprobe. If
+    // the call fails, the map cleaner will clean it up.
     bpf_map_update_with_telemetry(cuda_event_to_stream, &key, &value, BPF_ANY);
 
     return 0;
@@ -244,7 +247,7 @@ int BPF_UPROBE(uprobe__cudaEventSynchronize, __u64 event) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
 
     log_debug("cudaEventSynchronize: pid_tgid=%llu, event=%llu", pid_tgid, event);
-    bpf_map_update_with_telemetry(cuda_event_sync_cache, &pid_tgid, &event, BPF_ANY);
+    bpf_map_update_with_telemetry(cuda_event_query_cache, &pid_tgid, &event, BPF_ANY);
 
     return 0;
 }
@@ -255,8 +258,6 @@ static inline int _event_api_trigger_sync(__u32 retval, void *event_cache_map) {
     cuda_event_key_t event_key = { 0 };
     cuda_event_value_t *event_value = NULL;
     cuda_sync_t sync_event = { 0 };
-
-    log_debug("cudaEventQuery/Synchronize[ret]: pid_tgid=%llu, retval=%u", pid_tgid, retval);
 
     if (retval != 0) {
         // Do not emit event if the function failed
@@ -271,7 +272,7 @@ static inline int _event_api_trigger_sync(__u32 retval, void *event_cache_map) {
     log_debug("cudaEventQuery/Synchronize[ret]: pid_tgid=%llu -> event = %llu", pid_tgid, *event);
 
     event_key.event = *event;
-    event_key.pid = pid_tgid >> 32;
+    event_key.pid = GET_USER_MODE_PID(pid_tgid);
     event_value = bpf_map_lookup_elem(&cuda_event_to_stream, &event_key);
     if (!event_value) {
         goto cleanup;
@@ -281,8 +282,6 @@ static inline int _event_api_trigger_sync(__u32 retval, void *event_cache_map) {
     log_debug("cudaEventQuery/Synchronize[ret]: pid_tgid=%llu -> event = %llu -> stream = %llu", pid_tgid, *event, event_value->stream);
 
     fill_header(&sync_event.header, event_value->stream, cuda_sync);
-
-    log_debug("cudaEventQuery/Synchronize[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", sync_event.header.pid_tgid, sync_event.header.stream_id);
 
     bpf_ringbuf_output_with_telemetry(&cuda_events, &sync_event, sizeof(sync_event), 0);
 
@@ -298,12 +297,18 @@ cleanup:
 
 SEC("uretprobe/cudaEventQuery")
 int BPF_URETPROBE(uretprobe__cudaEventQuery) {
-    return _event_api_trigger_sync(PT_REGS_RC(ctx), &cuda_event_query_cache);
+    __u64 retval = PT_REGS_RC(ctx);
+
+    log_debug("cudaEventQuery[ret]: pid_tgid=%llu, retval=%llu", bpf_get_current_pid_tgid(), retval);
+    return _event_api_trigger_sync(retval, &cuda_event_query_cache);
 }
 
 SEC("uretprobe/cudaEventSynchronize")
 int BPF_URETPROBE(uretprobe__cudaEventSynchronize) {
-    return _event_api_trigger_sync(PT_REGS_RC(ctx), &cuda_event_sync_cache);
+    __u64 retval = PT_REGS_RC(ctx);
+
+    log_debug("cudaEventSynchronize[ret]: pid_tgid=%llu, retval=%llu", bpf_get_current_pid_tgid(), retval);
+    return _event_api_trigger_sync(retval, &cuda_event_query_cache);
 }
 
 SEC("uprobe/cudaEventDestroy")
@@ -312,7 +317,7 @@ int BPF_UPROBE(uprobe__cudaEventDestroy, __u64 event) {
     cuda_event_key_t key = { 0 };
 
     key.event = event;
-    key.pid = pid_tgid >> 32;
+    key.pid = GET_USER_MODE_PID(pid_tgid);
 
     log_debug("cudaEventDestroy: pid_tgid=%llu, event=%llu", pid_tgid, event);
 
