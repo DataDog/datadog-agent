@@ -118,6 +118,7 @@ notify_gitlab_ci_changes:
 notify_failure_summary_on_pipeline:
   extends: [.failure_summary_job, .notify-job]
   rules:
+    - !reference [.on_scheduled_main]
     - if: $CI_PIPELINE_SOURCE != "push" && $CI_PIPELINE_SOURCE != "api"
       when: never
     - !reference [.on_main_always]
