@@ -151,6 +151,7 @@ func (r *Retrier) doTry() *Error {
 	return r.wrapError(err)
 }
 
+// Cancel sets the status to PermaFail so all subsequent retries are skipped
 func (r *Retrier) Cancel() {
 	r.Lock()
 	r.status = PermaFail
