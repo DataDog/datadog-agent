@@ -100,6 +100,12 @@ func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection)
 func (v *baseStatusSuite) TestDefaultInstallStatus() {
 	expectedSections := []expectedSection{
 		{
+			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
+			shouldBePresent:  true,
+			shouldContain:    shouldContainsFips(v),
+			shouldNotContain: []string{"FIPS proxy"},
+		},
+		{
 			name:            "Aggregator",
 			shouldBePresent: true,
 		},
@@ -195,18 +201,12 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		},
 	}
 
-	FIPSSection := expectedSection{
-		name:             `Agent \(.*\)`, // TODO: verify that the right version is output
-		shouldBePresent:  true,
-		shouldNotContain: []string{"FIPS proxy"},
-	}
-
-	if v.Env().Agent.FIPSEnabled {
-		FIPSSection.shouldContain = []string{"FIPS Mode: enabled"}
-	} else {
-		FIPSSection.shouldContain = []string{"FIPS Mode: not available"}
-	}
-	expectedSections = append(expectedSections, FIPSSection)
-
 	fetchAndCheckStatus(v, expectedSections)
+}
+
+func shouldContainsFips(v *baseStatusSuite) []string {
+	if v.Env().Agent.FIPSEnabled {
+		return []string{"FIPS Mode: enabled"}
+	}
+	return []string{"FIPS Mode: not available"}
 }
