@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 	"sync"
@@ -46,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/cenkalti/backoff"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -94,6 +96,15 @@ type AutoConfig struct {
 	ranOnce *atomic.Bool
 }
 
+const (
+	// MaxWmetaWaitTime is the maximum time to wait for wmeta being ready
+	MaxWmetaWaitTime = 10 * time.Second
+	// WmetaCheckMinInterval is the initial interval to check if wmeta is ready
+	WmetaCheckMinInterval = 200 * time.Microsecond
+	// WmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
+	WmetaCheckMaxInterval = 1 * time.Second
+)
+
 type provides struct {
 	fx.Out
 
@@ -136,7 +147,36 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	schController := scheduler.CreateNewController()
+	// Non-blocking start of the scheduler controller
+	go func() {
+		retries := 0
+		expBackoff := backoff.NewExponentialBackOff()
+		expBackoff.InitialInterval = WmetaCheckMinInterval
+		expBackoff.MaxInterval = WmetaCheckMaxInterval
+		expBackoff.MaxElapsedTime = MaxWmetaWaitTime
+		err := backoff.Retry(func() error {
+			instance, found := deps.WMeta.Get()
+			if found {
+				if instance.IsInitialized() {
+					deps.Log.Infof("Workloadmeta collectors are ready, starting autodiscovery scheduler controller")
+					schController.Start()
+					return nil
+				}
+				retries++
+				deps.Log.Warnf("Workloadmeta collectors are not ready, will possibly retry")
+				return errors.New("workloadmeta not initialized")
+			}
+			schController.Start()
+			return nil
+		}, expBackoff)
+		if err != nil {
+			deps.Log.Errorf("Workloadmeta collectors are not ready after %d retries: %s, starting check scheduler controller anyway.", retries, err)
+			schController.Start()
+		}
+	}()
+
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.Start()
