@@ -207,8 +207,10 @@ func (s *npCollectorImpl) initVpcCidr() {
 	vpcCidr, err := ec2.GetVpcIPv4CidrBlock(context.TODO())
 	if err != nil {
 		s.logger.Errorf("Error fetching VPC CIDR: %s", vpcCidr)
+		return
 	}
-	s.logger.Infof("[ScheduleConns] VPC CIDR: %s", vpcCidr)
+
+	s.logger.Debugf("VPC CIDR Block: %s", vpcCidr)
 	s.vpcCidrBlock = vpcCidr
 }
 
