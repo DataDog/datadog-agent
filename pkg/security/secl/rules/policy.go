@@ -66,10 +66,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 
 	wasOverridden := false
 	// for backward compatibility, by default only the expression is copied if no options
-	if len(rd2.Def.OverrideOptions.Fields) == 0 {
-		rd1.Def.Expression = rd2.Def.Expression
-		wasOverridden = true
-	} else if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) && rd1.Policy.Type == DefaultPolicyType {
+	if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) && rd1.Policy.Type == DefaultPolicyType {
 		tmpExpression := rd1.Def.Expression
 		*rd1.Def = *rd2.Def
 		rd1.Def.Expression = tmpExpression
