@@ -1,2 +1,4 @@
+network_config:
+  enabled: true
 runtime_security_config:
   enabled: true
