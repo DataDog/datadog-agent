@@ -167,13 +167,13 @@ func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.
 }
 
 // MergeScalingValues updates the PodAutoscalerInternal scaling values based on the desired source of recommendations
-func (p *PodAutoscalerInternal) MergeScalingValues(horizontalActiveSource, verticalActiveSource *datadoghq.DatadogPodAutoscalerValueSource) {
+func (p *PodAutoscalerInternal) MergeScalingValues(horizontalActiveSource, verticalActiveSource *datadoghqcommon.DatadogPodAutoscalerValueSource) {
 	// Helper function to select scaling values based on the source
-	selectScalingValues := func(source *datadoghq.DatadogPodAutoscalerValueSource) ScalingValues {
+	selectScalingValues := func(source *datadoghqcommon.DatadogPodAutoscalerValueSource) ScalingValues {
 		switch {
 		case source == nil:
 			return p.scalingValues
-		case *source == datadoghq.DatadogPodAutoscalerLocalValueSource:
+		case *source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource:
 			return p.fallbackScalingValues
 		default:
 			return p.mainScalingValues

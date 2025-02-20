@@ -11,14 +11,16 @@ import (
 	"context"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
-
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
-	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -29,7 +31,7 @@ const (
 var (
 	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 	commonOpts                      = telemetry.Options{NoDoubleUnderscoreSep: true}
-	validRecommendationSources      = []datadoghq.DatadogPodAutoscalerValueSource{datadoghq.DatadogPodAutoscalerAutoscalingValueSource, datadoghq.DatadogPodAutoscalerLocalValueSource}
+	validRecommendationSources      = []datadoghqcommon.DatadogPodAutoscalerValueSource{datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource, datadoghqcommon.DatadogPodAutoscalerLocalValueSource}
 
 	// telemetryHorizontalScaleActions tracks the number of horizontal scaling attempts
 	telemetryHorizontalScaleActions = telemetry.NewCounterWithOpts(
@@ -110,9 +112,9 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	}
 }
 
-func trackLocalFallbackEnabled(currentSource datadoghq.DatadogPodAutoscalerValueSource, podAutoscalerInternal model.PodAutoscalerInternal) {
+func trackLocalFallbackEnabled(currentSource datadoghqcommon.DatadogPodAutoscalerValueSource, podAutoscalerInternal model.PodAutoscalerInternal) {
 	var value float64
-	if currentSource == datadoghq.DatadogPodAutoscalerLocalValueSource {
+	if currentSource == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
 		value = 1
 	} else {
 		value = 0
