@@ -95,12 +95,14 @@ type LogsConfig struct {
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
 }
 
+// TagsField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
 type TagsField []string
 
+// UnmarshalYAML is a custom unmarshalling function is needed for string array fields to split comma-separated values.
 func (t *TagsField) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err == nil {
-		*t = strings.Split(str, ", ")
+		*t = strings.Split(str, ",")
 		return nil
 	}
 

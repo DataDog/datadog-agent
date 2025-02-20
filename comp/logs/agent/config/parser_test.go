@@ -100,6 +100,29 @@ logs:
 				assert.Equal(t, "/var/log/app.log", config.Path)
 				assert.Len(t, config.Tags, 2)
 				assert.Equal(t, "a", config.Tags[0])
+				assert.Equal(t, " b:c", config.Tags[1])
+			},
+		},
+		{
+			name: "Test 0.5: Same as Test 0, but without string separation",
+			yaml: []byte(`
+logs:
+  - type: file
+    path: /var/log/app.log
+    tags: a,b:c
+    container_mode: false
+    auto_multi_line_detection: false
+    auto_multi_line_match_threshold: 3.0
+    port: 8080
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				assert.Len(t, configs, 1)
+				config := configs[0]
+				assert.Equal(t, "file", config.Type)
+				assert.Equal(t, "/var/log/app.log", config.Path)
+				assert.Len(t, config.Tags, 2)
+				assert.Equal(t, "a", config.Tags[0])
 				assert.Equal(t, "b:c", config.Tags[1])
 			},
 		},
