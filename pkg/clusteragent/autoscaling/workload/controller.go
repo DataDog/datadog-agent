@@ -460,6 +460,22 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	return nil
 }
 
+func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+	// Update status based on latest state
+	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
+	if statusErr != nil {
+		log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
+
+		// We want to return the status error if none to count in the requeue retries.
+		if err == nil {
+			err = statusErr
+		}
+	}
+
+	c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+	return err
+}
+
 func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.PodAutoscalerInternal, activeHorizontalSource *datadoghq.DatadogPodAutoscalerValueSource) {
 	if activeHorizontalSource == nil {
 		return
@@ -475,22 +491,6 @@ func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.Pod
 	}
 
 	trackLocalFallbackEnabled(*activeHorizontalSource, *podAutoscalerInternal)
-}
-
-func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
-	// Update status based on latest state
-	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
-	if statusErr != nil {
-		log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
-
-		// We want to return the status error if none to count in the requeue retries.
-		if err == nil {
-			err = statusErr
-		}
-	}
-
-	c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
-	return err
 }
 
 func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghq.DatadogPodAutoscalerValueSource, *datadoghq.DatadogPodAutoscalerValueSource) {
