@@ -82,6 +82,12 @@ const (
 
 	// LegacyStepFunctionEvent describes an event with a Legacy Lambda Step Function execution context
 	LegacyStepFunctionEvent
+
+	// NestedStepFunctionEvent describes an event with an upstream Step Function's execution context and Execution ID from the top-most Step Function
+	NestedStepFunctionEvent
+
+	// LambdaRootStepFunctionEvent describes an event with an upstream Step Function's execution context and Trace ID from the top-most Lambda
+	LambdaRootStepFunctionEvent
 )
 
 // eventParseFunc defines the signature of AWS event parsing functions
@@ -118,6 +124,8 @@ var (
 		{isLambdaFunctionURLEvent, LambdaFunctionURLEvent},
 		{isStepFunctionEvent, StepFunctionEvent},
 		{isLegacyStepFunctionEvent, LegacyStepFunctionEvent},
+		{isNestedStepFunctionEvent, NestedStepFunctionEvent},
+		{isLambdaRootStepFunctionPayload, LambdaRootStepFunctionEvent},
 		// Ultimately check this is a Kong API Gateway event as a last resort.
 		// This is because Kong API Gateway events are a subset of API Gateway events
 		// as of https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260
@@ -296,12 +304,56 @@ func isStepFunctionEvent(event map[string]any) bool {
 	if execId == nil {
 		return false
 	}
+	execRedriveCount := json.GetNestedValue(event, "execution", "redrivecount")
+	if execRedriveCount == nil {
+		return false
+	}
 	stateName := json.GetNestedValue(event, "state", "name")
 	if stateName == nil {
 		return false
 	}
 	stateEnteredTime := json.GetNestedValue(event, "state", "enteredtime")
-	return stateEnteredTime != nil
+	if stateEnteredTime == nil {
+		return false
+	}
+	stateRetryCount := json.GetNestedValue(event, "state", "retrycount")
+	return stateRetryCount != nil
+}
+
+func isNestedStepFunctionEvent(event map[string]any) bool {
+	ddData, ok := event["_datadog"].(map[string]any)
+	if !ok {
+		return false
+	}
+	serverlessVersion := json.GetNestedValue(ddData, "serverless-version")
+	if serverlessVersion == nil {
+		return false
+	}
+	rootExecutionId := json.GetNestedValue(ddData, "rootexecutionid")
+	if rootExecutionId == nil {
+		return false
+	}
+	return isStepFunctionEvent(ddData)
+}
+
+func isLambdaRootStepFunctionPayload(event map[string]any) bool {
+	ddData, ok := event["_datadog"].(map[string]any)
+	if !ok {
+		return false
+	}
+	serverlessVersion := json.GetNestedValue(ddData, "serverless-version")
+	if serverlessVersion == nil {
+		return false
+	}
+	traceId := json.GetNestedValue(ddData, "x-datadog-trace-id")
+	if traceId == nil {
+		return false
+	}
+	tags := json.GetNestedValue(ddData, "x-datadog-tags")
+	if tags == nil {
+		return false
+	}
+	return isStepFunctionEvent(ddData)
 }
 
 func eventRecordsKeyExists(event map[string]any, key string) bool {

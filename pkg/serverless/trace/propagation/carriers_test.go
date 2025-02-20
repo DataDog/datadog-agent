@@ -878,8 +878,10 @@ func TestHeadersOrMultiheadersCarrier(t *testing.T) {
 func Test_stringToDdSpanId(t *testing.T) {
 	type args struct {
 		execArn          string
+		execRedriveCount string
 		stateName        string
 		stateEnteredTime string
+		stateRetryCount  string
 	}
 	tests := []struct {
 		name string
@@ -889,8 +891,10 @@ func Test_stringToDdSpanId(t *testing.T) {
 		{"first Test Case",
 			args{
 				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
+				"0",
 				"step-one",
 				"2022-12-08T21:08:19.224Z",
+				"0",
 			},
 			4340734536022949921,
 		},
@@ -898,15 +902,17 @@ func Test_stringToDdSpanId(t *testing.T) {
 			"second Test Case",
 			args{
 				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
+				"0",
 				"step-one",
 				"2022-12-08T21:08:19.224Y",
+				"0",
 			},
 			981693280319792699,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, stringToDdSpanID(tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime), "stringToDdSpanID(%v, %v, %v)", tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime)
+			assert.Equalf(t, tt.want, stringToDdSpanID(tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime, tt.args.stateRetryCount, tt.args.execRedriveCount), "stringToDdSpanID(%v, %v, %v)", tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime)
 		})
 	}
 }

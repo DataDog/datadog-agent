@@ -263,21 +263,31 @@ func headersOrMultiheadersCarrier(hdrs map[string]string, multiHdrs map[string][
 	return tracer.HTTPHeadersCarrier(multiHdrs), nil
 }
 
-// extractTraceContextFromStepFunctionContext extracts the execution ARN, state name, and state entered time and uses them to generate Trace ID and Parent ID
-// The logic is based on the trace context conversion in Logs To Traces, dd-trace-py, dd-trace-js, etc.
+// extractTraceContextFromStepFunctionContext extracts the execution ARN, execution redrive count, state name, state
+// entered time, and state retry count and uses them to generate Trace ID and Parent ID. The logic is based on the trace
+// context conversion in Logs To Traces, dd-trace-py, dd-trace-js, etc.
 func extractTraceContextFromStepFunctionContext(event events.StepFunctionPayload) (*TraceContext, error) {
 	tc := new(TraceContext)
 
 	execArn := event.Execution.ID
+	execRedriveCount := event.Execution.RedriveCount
 	stateName := event.State.Name
 	stateEnteredTime := event.State.EnteredTime
+	stateRetryCount := event.State.RetryCount
 
 	if execArn == "" || stateName == "" || stateEnteredTime == "" {
 		return nil, errorNoStepFunctionContextFound
 	}
 
+	if execRedriveCount == "" {
+		execRedriveCount = "0"
+	}
+	if stateRetryCount == "" {
+		stateRetryCount = "0"
+	}
+
 	lowerTraceID, upperTraceID := stringToDdTraceIDs(execArn)
-	parentID := stringToDdSpanID(execArn, stateName, stateEnteredTime)
+	parentID := stringToDdSpanID(execArn, stateName, stateEnteredTime, stateRetryCount, execRedriveCount)
 
 	tc.TraceID = lowerTraceID
 	tc.TraceIDUpper64Hex = upperTraceID
@@ -286,9 +296,50 @@ func extractTraceContextFromStepFunctionContext(event events.StepFunctionPayload
 	return tc, nil
 }
 
-// stringToDdSpanID hashes the Execution ARN, state name, and state entered time to generate a 64-bit span ID
-func stringToDdSpanID(execArn string, stateName string, stateEnteredTime string) uint64 {
-	uniqueSpanString := fmt.Sprintf("%s#%s#%s", execArn, stateName, stateEnteredTime)
+// extractTraceContextFromNestedStepFunctionContext extracts the root Step Function's execution ARN to generate the Trace ID
+func extractTraceContextFromNestedStepFunctionContext(event events.NestedStepFunctionPayload) (*TraceContext, error) {
+	tc, err := extractTraceContextFromStepFunctionContext(event.Payload)
+	if err == nil {
+		return nil, err
+	}
+
+	if event.RootExecutionId == "" {
+		return nil, errorNoStepFunctionContextFound
+	}
+
+	lowerTraceID, upperTraceID := stringToDdTraceIDs(event.RootExecutionId)
+	tc.TraceID = lowerTraceID
+	tc.TraceIDUpper64Hex = upperTraceID
+
+	return tc, nil
+}
+
+// extractTraceContextFromLambdaRootStepFunctionContext extracts the explicitly defined Trace ID and uses that value
+func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRootStepFunctionPayload) (*TraceContext, error) {
+	tc, err := extractTraceContextFromStepFunctionContext(event.Payload)
+	if err == nil {
+		return nil, err
+	}
+
+	if event.TraceId == 0 || event.TraceIDUpper64Hex == "" {
+		return nil, errorNoStepFunctionContextFound
+	}
+
+	tc.TraceID = event.TraceId
+	tc.TraceIDUpper64Hex = event.TraceIDUpper64Hex
+
+	return tc, nil
+}
+
+// stringToDdSpanID hashes relevant values from the Step Function context object to generate a 64-bit span ID
+func stringToDdSpanID(execArn string, stateName string, stateEnteredTime string, stateRetryCount string, execRedriveCount string) uint64 {
+	var uniqueSpanString string
+	if stateRetryCount != "0" || execRedriveCount != "0" {
+		uniqueSpanString = fmt.Sprintf("%s#%s#%s#%s#%s", execArn, stateName, stateEnteredTime, stateRetryCount, execRedriveCount)
+	} else {
+		// omit stateRetryCount and execRedriveCount when both are 0 to maintain backwards compatability
+		uniqueSpanString = fmt.Sprintf("%s#%s#%s", execArn, stateName, stateEnteredTime)
+	}
 	spanHash := sha256.Sum256([]byte(uniqueSpanString))
 	parentID := getPositiveUInt64(spanHash[0:8])
 	return parentID

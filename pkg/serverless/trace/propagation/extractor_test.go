@@ -9,10 +9,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"net/http"
 	"os"
 	"testing"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -602,16 +603,20 @@ func TestExtractorExtract(t *testing.T) {
 			events: []interface{}{
 				events.StepFunctionPayload{
 					Execution: struct {
-						ID string
+						ID           string
+						RedriveCount string
 					}{
-						ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+						ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+						RedriveCount: "0",
 					},
 					State: struct {
 						Name        string
 						EnteredTime string
+						RetryCount  string
 					}{
 						Name:        "agocsTest1",
 						EnteredTime: "2024-07-30T20:46:20.824Z",
+						RetryCount:  "0",
 					},
 				},
 			},
