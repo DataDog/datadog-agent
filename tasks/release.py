@@ -599,7 +599,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
-        run_rc_pipeline(ctx, release_branch, gitlab_tag.name, k8s_deployments)
+        run_rc_pipeline(ctx, gitlab_tag.name, k8s_deployments)
 
 
 def get_qualification_rc_tag(ctx, release_branch):
@@ -1073,12 +1073,12 @@ def get_next_version(gh, latest_release=None):
 
 
 @task
-def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     """Task to run after the release is done to generate release metrics.
 
     Args:
         milestone: Github milestone number for the release. Expected format like '7.54.0'
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cutoff was started. Expected format YYYY-MM-DD, like '2022-02-01'
         release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
 
     Notes:
@@ -1087,17 +1087,20 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     """
 
     # Step 1: Lead Time for Changes data
-    lead_time = get_release_lead_time(freeze_date, release_date)
+    lead_time = get_release_lead_time(cutoff_date, release_date)
     print("Lead Time for Changes data")
     print("--------------------------")
     print(lead_time)
 
     # Step 2: Agent stability data
-    prs = get_prs_metrics(milestone, freeze_date)
+    prs = get_prs_metrics(milestone, cutoff_date)
     print("\n")
-    print("Agent stability data")
+    print("Agent stability data: Pull Requests")
     print("--------------------")
-    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    print(
+        f"total: {prs['total']}, before_cutoff: {prs['before_cutoff']}, on_cutoff: {prs['on_cutoff']}, after_cutoff: {prs['after_cutoff']}"
+    )
 
     # Step 3: Code changes
     code_stats = ctx.run(
@@ -1142,7 +1145,7 @@ def chase_release_managers(_, version):
 
     from slack_sdk import WebClient
 
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     for channel in sorted(channels):
         print(f"Sending message to {channel}")
         client.chat_postMessage(channel=channel, text=message)
@@ -1161,7 +1164,7 @@ def chase_for_qa_cards(_, version):
         grouped_cards[card["fields"]["project"]["key"]].append(card)
     GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
     GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
         team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)

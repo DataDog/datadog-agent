@@ -2,6 +2,15 @@ module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types
 
 go 1.23.0
 
+replace (
+
+<<<<<<< HEAD
+
+=======
+>>>>>>> origin/main
+
+)
+
 // This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
 
 replace (
