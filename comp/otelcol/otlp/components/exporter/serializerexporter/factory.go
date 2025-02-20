@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
@@ -32,13 +33,18 @@ const (
 )
 
 type factory struct {
-	s              serializer.MetricSerializer
-	enricher       tagenricher
-	hostProvider   SourceProviderFunc
-	statsIn        chan []byte
-	wg             *sync.WaitGroup // waits for consumeStatsPayload to exit
+	s            serializer.MetricSerializer
+	enricher     tagenricher
+	hostProvider SourceProviderFunc
+
+	statsIn chan []byte
+	wg      *sync.WaitGroup // waits for consumeStatsPayload to exit
+
 	createConsumer createConsumerFunc
 	options        []otlpmetrics.TranslatorOption
+
+	onceReporter sync.Once
+	reporter     *inframetadata.Reporter
 }
 
 type tagenricher interface {
@@ -83,7 +89,7 @@ func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hos
 
 	return exp.NewFactory(
 		cfgType,
-		newDefaultConfig,
+		newDefaultConfigForAgent,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
 }
@@ -119,6 +125,23 @@ func NewFactory() exp.Factory {
 		newDefaultConfig,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
+}
+
+// Reporter builds and returns an *inframetadata.Reporter.
+func (f *factory) Reporter(params exp.Settings, forwarder defaultforwarder.Forwarder, reporterPeriod time.Duration) (*inframetadata.Reporter, error) {
+	var reporterErr error
+	f.onceReporter.Do(func() {
+		pusher := &hostMetadataPusher{forwarder: forwarder}
+		f.reporter, reporterErr = inframetadata.NewReporter(params.Logger, pusher, reporterPeriod)
+		if reporterErr == nil {
+			go func() {
+				if err := f.reporter.Run(context.Background()); err != nil {
+					params.Logger.Error("Host metadata reporter failed at runtime", zap.Error(err))
+				}
+			}()
+		}
+	})
+	return f.reporter, reporterErr
 }
 
 // createMetricsExporter creates a new metrics exporter.
@@ -158,7 +181,11 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
-	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr, params)
+	reporter, err := f.Reporter(params, forwarder, cfg.HostMetadata.ReporterPeriod)
+	if err != nil {
+		return nil, err
+	}
+	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr, params, reporter)
 	if err != nil {
 		return nil, err
 	}
