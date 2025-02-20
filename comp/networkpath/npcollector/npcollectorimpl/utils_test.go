@@ -10,6 +10,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,6 +19,7 @@ func Test_shouldScheduleNetworkPathForConn(t *testing.T) {
 		name           string
 		conn           *model.Connection
 		shouldSchedule bool
+		networkID      string
 	}{
 		{
 			name: "should schedule",
@@ -79,10 +81,35 @@ func Test_shouldScheduleNetworkPathForConn(t *testing.T) {
 			},
 			shouldSchedule: false,
 		},
+		{
+			name:      "should not schedule for same network_id",
+			networkID: "abc-network",
+			conn: &model.Connection{
+				Laddr:           &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:           &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction:       model.ConnectionDirection_outgoing,
+				Family:          model.ConnectionFamily_v4,
+				RemoteNetworkId: "abc-network",
+			},
+			shouldSchedule: false,
+		},
+		{
+			name:      "should schedule for different network_id",
+			networkID: "abc-network",
+			conn: &model.Connection{
+				Laddr:           &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:           &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction:       model.ConnectionDirection_outgoing,
+				Family:          model.ConnectionFamily_v4,
+				RemoteNetworkId: "123-network",
+			},
+			shouldSchedule: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.shouldSchedule, shouldScheduleNetworkPathForConn(tt.conn))
+			stats := &teststatsd.Client{}
+			assert.Equal(t, tt.shouldSchedule, shouldScheduleNetworkPathForConn(tt.conn, tt.networkID, stats))
 		})
 	}
 }
