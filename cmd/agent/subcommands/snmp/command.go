@@ -226,21 +226,8 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func getParamsFromAgent(deviceIP string, conf config.Component) (*snmpparse.SNMPConfig, error) {
-	snmpConfigList, err := snmpparse.GetConfigCheckSnmp(conf)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
-	}
-	instance := snmpparse.GetIPConfig(deviceIP, snmpConfigList)
-	if instance.IPAddress != "" {
-		instance.IPAddress = deviceIP
-		return &instance, nil
-	}
-	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
-}
-
 func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component) error {
-	agentParams, agentError := getParamsFromAgent(connParams.IPAddress, conf)
+	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf)
 	if agentError != nil {
 		return agentError
 	}

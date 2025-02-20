@@ -7,7 +7,6 @@
 package snmpscanimpl
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -72,15 +71,10 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 			ns = "default"
 		}
 	}
-	snmpConfigList, err := snmpparse.GetConfigCheckSnmp(s.config)
+	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config)
 	if err != nil {
-		return fmt.Errorf("unable to load SNMP config from agent: %w", err)
+		return err
 	}
-
-	instance := snmpparse.GetIPConfig(deviceIP, snmpConfigList)
-	if instance.IPAddress != "" {
-		return s.ScanDeviceAndSendData(&instance, s.log, ns)
-	}
-	return fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
+	return s.ScanDeviceAndSendData(instance, s.log, ns)
 
 }
