@@ -82,6 +82,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.flush_interval":       "1s",
+		"network_path.collector.pathtest_interval":    "1s",
 		"network_devices.namespace":                   "my-ns1",
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs)
@@ -200,12 +201,12 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
 		message.NewMessage(compactJSON(event1), nil, "", 0),
 		eventplatform.EventTypeNetworkPath,
-	).Return(nil).Times(1)
+	).Return(nil).Times(2)
 
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
 		message.NewMessage(compactJSON(event2), nil, "", 0),
 		eventplatform.EventTypeNetworkPath,
-	).Return(nil).Times(1)
+	).Return(nil).Times(2)
 
 	// WHEN
 	conns := []*model.Connection{
@@ -229,6 +230,18 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// THEN
 	assert.Equal(t, uint64(2), npCollector.processedTracerouteCount.Load())
 	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 4.0, Tags: []string{}, Rate: 1})
+
+	// WHEN
+	npCollector.TimeNowFn = func() time.Time {
+		return MockTimeNow().Add(1 * time.Second)
+	}
+	waitForProcessedPathtests(npCollector, 5*time.Second, 4)
+
+	// THEN
+	histogramMetricNames := statsdConvertToMetricNames(stats.HistogramCalls)
+	assert.Contains(t, histogramMetricNames, "datadog.network_path.collector.worker.pathtest_interval")
+	assert.Contains(t, histogramMetricNames, "datadog.network_path.collector.worker.task_duration")
 
 	app.RequireStop()
 }
