@@ -22,12 +22,6 @@ import (
 )
 
 type (
-	rawConnWrapper interface {
-		SetReadDeadline(t time.Time) error
-		ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error)
-		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
-	}
-
 	packetResponse struct {
 		IP   net.IP
 		Type uint8
