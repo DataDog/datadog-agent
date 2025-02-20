@@ -298,7 +298,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
 	namespace := conf.GetString("network_devices.namespace")
-	return snmpScanner.ScanDeviceAndSendData(connParams, logger, namespace, deviceAddr)
+	return snmpScanner.ScanDeviceAndSendData(connParams, logger, namespace)
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
