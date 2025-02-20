@@ -184,7 +184,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 
 func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string) (payload.NetworkPath, error) {
 	if res == nil {
-		return payload.NetworkPath{}, fmt.Errorf("no results to process")
+		return payload.NetworkPath{}, nil
 	}
 
 	traceroutePath := payload.NetworkPath{

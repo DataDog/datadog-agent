@@ -45,9 +45,9 @@ func TestProcessResults(t *testing.T) {
 		errMsg           string
 	}{
 		{
-			description:  "nil results should return an error",
+			description:  "nil results should return an empty result",
 			inputResults: nil,
-			errMsg:       "no results to process",
+			errMsg:       "",
 		},
 		{
 			description:      "successful processing no gateway lookup, did not reach target",
