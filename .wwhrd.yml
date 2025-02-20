@@ -35,6 +35,8 @@ overrides:
   "github.com/JohnCGriffin/overflow": MIT
   # https://github.com/GoogleCloudPlatform/grpc-gcp-go/blob/main/LICENSE
   "github.com/GoogleCloudPlatform/grpc-gcp-go": Apache-2.0
+  # https://github.com/bhmj/xpression/blob/master/LICENCE
+  "github.com/bhmj/xpression": MIT
 
 exceptions:
   - "golang.org/x/mobile/..."
