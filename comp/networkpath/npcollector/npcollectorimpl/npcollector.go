@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -75,6 +76,7 @@ type npCollectorImpl struct {
 	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
+	vpcCidrBlock            string
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -162,16 +164,10 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 		return
 	}
 
-	vpcCidr, err := ec2.GetVpcIPv4CidrBlock(context.TODO())
-	if err != nil {
-		s.logger.Errorf("Error fetching VPC CIDR: %s", vpcCidr)
-	}
-	s.logger.Infof("[ScheduleConns] VPC CIDR: %s", vpcCidr)
-
 	startTime := s.TimeNowFn()
 	s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
 	for _, conn := range conns {
-		if !shouldScheduleNetworkPathForConn(conn) {
+		if !s.shouldScheduleNetworkPathForConn(conn) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
@@ -207,6 +203,15 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 	}
 }
 
+func (s *npCollectorImpl) initVpcCidr() {
+	vpcCidr, err := ec2.GetVpcIPv4CidrBlock(context.TODO())
+	if err != nil {
+		s.logger.Errorf("Error fetching VPC CIDR: %s", vpcCidr)
+	}
+	s.logger.Infof("[ScheduleConns] VPC CIDR: %s", vpcCidr)
+	s.vpcCidrBlock = vpcCidr
+}
+
 func (s *npCollectorImpl) initStatsdClient(statsdClient ddgostatsd.ClientInterface) {
 	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
 	// due to statsd.Client not being configured yet.
@@ -224,6 +229,7 @@ func (s *npCollectorImpl) start() error {
 	s.logger.Info("Start NpCollector")
 
 	s.initStatsdClient(statsd.Client)
+	s.initVpcCidr()
 
 	go s.listenPathtests()
 	go s.flushLoop()
@@ -475,4 +481,15 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1) //nolint:errcheck
 		}
 	}
+}
+
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
+	if conn == nil || conn.Direction != model.ConnectionDirection_outgoing {
+		return false
+	}
+	remoteIP := net.ParseIP(conn.Raddr.Ip)
+	if remoteIP.IsLoopback() || conn.IntraHost {
+		return false
+	}
+	return conn.Family == model.ConnectionFamily_v4
 }
