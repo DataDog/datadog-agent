@@ -100,7 +100,7 @@ var profilingFiles = []string{
 	"profiles/trace-mutex.pprof",
 }
 
-var profilingWindowsFiles = []string{
+var profilingNonLinuxFiles = []string{
 	"profiles/process-1st-heap.pprof",
 	"profiles/process-2nd-heap.pprof",
 	"profiles/process-block.pprof",

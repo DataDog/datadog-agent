@@ -41,7 +41,7 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS != "linux" {
 		assertFilesExist(v.T(), flare, []string{"process-agent_tagger-list.json"})
 		assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
 		assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
@@ -78,9 +78,9 @@ func (v *baseFlareSuite) TestFlareProfiling() {
 	assert.Contains(v.T(), logs, "Getting a 31s profile snapshot from security-agent.")
 	assertFilesExist(v.T(), flare, profilingFiles)
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS != "linux" {
 		assert.Contains(v.T(), logs, "Getting a 31s profile snapshot from process.")
-		assertFilesExist(v.T(), flare, profilingWindowsFiles)
+		assertFilesExist(v.T(), flare, profilingNonLinuxFiles)
 	}
 }
 
