@@ -89,7 +89,7 @@ func (c *PersistentVolumeCollector) Run(rcfg *collectors.CollectorRunConfig) (*c
 func (c *PersistentVolumeCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list, c.metadata)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic

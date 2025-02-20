@@ -62,6 +62,12 @@ const (
 	ServiceKind = "Service"
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
+	// ClusterRoleKind represents the ClusterRole object kind
+	ClusterRoleKind = "ClusterRole"
+	// ClusterRoleBindingKind represents the ClusterRoleBinding object kind
+	ClusterRoleBindingKind = "ClusterRoleBinding"
+	// CustomResourceDefinitionKind represents the CustomResourceDefinition object kind
+	CustomResourceDefinitionKind = "CustomResourceDefinition"
 
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"

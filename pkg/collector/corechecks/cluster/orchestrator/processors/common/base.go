@@ -9,7 +9,10 @@
 package common
 
 import (
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 )
 
@@ -22,7 +25,10 @@ func (BaseHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, 
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (BaseHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (BaseHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, metadata *collectors.CollectorMetadata) (skip bool) {
+	resourceSpec := resource.(*v1.TypeMeta)
+	resourceSpec.Kind = metadata.Kind
+	resourceSpec.APIVersion = metadata.Version
 	return
 }
 
