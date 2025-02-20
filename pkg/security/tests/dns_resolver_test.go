@@ -60,7 +60,7 @@ func TestDNSResolver(t *testing.T) {
 
 		}
 
-		hostList := []string{"perdu.com"}
+		hostList := []string{"sapo.pt"}
 		var addresses = make(map[string][]net.IP)
 
 		for _, host := range hostList {
