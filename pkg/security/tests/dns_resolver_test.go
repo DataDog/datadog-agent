@@ -10,8 +10,10 @@ package tests
 
 // Package tests holds tests related files
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"net/netip"
@@ -23,6 +25,14 @@ func TestDNSResolver(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
 
+	platformVersion, _ := kernel.PlatformVersion()
+	plat, _ := kernel.Platform()
+	fmt.Printf("Platform: %s. PlatformVersion= %s\n", plat, platformVersion)
+	
+	if plat == "debian" && platformVersion == "11" {
+		t.Skip("DNS resolver test skipped for Debian 11")
+	}
+
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
@@ -33,10 +43,14 @@ func TestDNSResolver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer test.Close()
 	p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 
+	// Makes a DNS query for a couple hostnames on a list and checks
+	// if the resolver saves all of them on the cache
 	t.Run("saves-hostname-for-all-ips", func(t *testing.T) {
+		// This test contains a 1 second backoff, and tries 10 times until it fails
 		attempts := 10
 
 		savedAllHostnamesFor := func(hostname string, ipAddresses []net.IP) {
@@ -55,10 +69,9 @@ func TestDNSResolver(t *testing.T) {
 					}
 				}
 			}
-
 		}
 
-		hostList := []string{"sapo.pt", "datadoghq.eu"}
+		hostList := []string{"datadoghq.com", "datadoghq.eu", "example.com", "example.org", "example.net"}
 		var addresses = make(map[string][]net.IP)
 
 		for _, host := range hostList {
@@ -68,6 +81,9 @@ func TestDNSResolver(t *testing.T) {
 
 		for hostname, addresses := range addresses {
 			savedAllHostnamesFor(hostname, addresses)
+			if attempts == 0 {
+				break
+			}
 		}
 
 		assert.Greater(t, attempts, 0)

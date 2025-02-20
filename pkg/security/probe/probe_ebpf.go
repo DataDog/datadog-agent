@@ -725,17 +725,11 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
-	fmt.Println("DNS response received")
 	packet := gopacket.NewPacket(data, layers.LayerTypeDNS, gopacket.Default)
-	if len(packet.Layers()) == 0 {
-		fmt.Println("DNS Invalid layer")
-	}
 
-	fmt.Println("DNS data ", data)
 	for _, layer := range packet.Layers() {
 		switch layer := layer.(type) {
 		case *layers.DNS:
-			fmt.Println("Got a DNS layer")
 			for _, answer := range layer.Answers {
 				if answer.Type == layers.DNSTypeCNAME {
 					p.Resolvers.DNSResolver.AddNewCname(string(answer.CNAME), string(answer.Name))
@@ -748,8 +742,6 @@ func (p *EBPFProbe) unmarshalDNSResponse(data []byte) {
 					}
 				}
 			}
-		default:
-			fmt.Println("Got another layer that's not DNS")
 		}
 	}
 }

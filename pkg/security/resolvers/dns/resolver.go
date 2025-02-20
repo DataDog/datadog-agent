@@ -9,7 +9,6 @@
 package dns
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -18,7 +17,7 @@ import (
 	"net/netip"
 )
 
-// Resolver defines a resolver
+// CacheStats defines metrics for the LRU
 type CacheStats struct {
 	cacheHits       atomic.Int64
 	cacheMisses     atomic.Int64
@@ -78,7 +77,6 @@ func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
 	hostname, ok := r.cache.Get(addr)
 	if ok {
 		r.resolverStats.cacheHits.Inc()
-		fmt.Printf("DNS cache hit for %s. count = %d\n", addr, r.resolverStats.cacheHits.Load())
 		// Create a set wil all the hostnames to be returned
 		allHosts := make(map[string]bool)
 		for k := range hostname {
@@ -94,14 +92,11 @@ func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
 	}
 
 	r.resolverStats.cacheMisses.Inc()
-	fmt.Printf("DNS cache miss for %s. count = %d\n", addr, r.resolverStats.cacheMisses.Load())
 	return nil
 }
 
 // AddNew add new ip address to the resolver cache
 func (r *Resolver) AddNew(hostname string, ip netip.Addr) {
-	fmt.Printf("Adding new IP to resolver %v, %v\n", hostname, ip)
-
 	hostnames, ok := r.cache.Get(ip)
 
 	if !ok {
@@ -127,7 +122,6 @@ func (r *Resolver) AddNewCname(cname string, hostname string) {
 }
 
 // SendStats sends the DNS resolver metrics
-
 func (r *Resolver) SendStats() error {
 	entry := []string{
 		metrics.CacheTag,
