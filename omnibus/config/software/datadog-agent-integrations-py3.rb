@@ -278,6 +278,52 @@ build do
     end
   end
 
+  # Zip python dependencies (that are safe to import from within a zip file) into a single zip file
+  site_packages = File.join(install_dir, "embedded", "lib", "python#{python_version}", "site-packages")
+  safe_to_zip_extensions = [
+    ".py",
+    ".pyc",
+    ".pyi",
+  ]
+  safe_to_zip_names = [
+    "py.typed",
+    "README",
+    "README.txt",
+    "README.md",
+    "README.rst",
+    ".gitignore",
+  ]
+
+  safe_to_zip = lambda do |f|
+    if Dir.exist?(f)
+      Dir.each_child(f).all? { |ch| safe_to_zip.call(File.join(f, ch)) }
+    else
+      safe_to_zip_extensions.include?(File.extname(f)) ||
+        safe_to_zip_names.include?(File.basename(f))
+    end
+  end
+
+  block do
+    entries_to_zip =
+      Dir.each_child(site_packages)
+        # Leave package data alone
+        .filter { |entry| not entry.end_with?(".dist-info") }
+        # Ignore the integrations
+        .filter { |entry| entry !=  "datadog_checks" }
+        # Keep the remaining zip-safe entries
+        .filter do |entry|
+      full_path = File.join(site_packages, entry)
+      safe_to_zip.call(full_path)
+    end
+
+    # Add safe entries to the zip file and then remove them.
+    # This relies on the default configuration of the python site, which already points sys.path to python3xx.zip
+    zip_name = "python#{python_version.delete('.')}.zip"
+    shellout! "python -m zipfile -c #{File.join(install_dir, "embedded", "lib", zip_name)} #{entries_to_zip.join(' ')}",
+              cwd: site_packages
+    FileUtils.rm_r(entries_to_zip.map { |entry| File.join(site_packages, entry) } )
+  end
+
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
