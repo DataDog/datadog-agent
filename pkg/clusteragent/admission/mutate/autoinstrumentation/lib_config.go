@@ -32,10 +32,6 @@ type basicLibConfigInjector struct{}
 
 func (basicLibConfigInjector) mutatePod(pod *corev1.Pod) error {
 	libConfig := basicConfig()
-	if name, err := getServiceNameFromPod(pod); err == nil {
-		// Set service name if it can be derived from a pod
-		libConfig.ServiceName = &name
-	}
 	for _, env := range libConfig.ToEnvs() {
 		_ = mutatecommon.InjectEnv(pod, env)
 	}
