@@ -306,7 +306,13 @@ func TestPorts(t *testing.T) {
 			continue
 		}
 
-		assert.NotContains(t, startEvent.Ports, port)
+		// Do not assert about this since this check can spuriously fail since
+		// the test infrastructure opens a listening TCP socket on an ephimeral
+		// port, and since we mix the different protocols we could find that on
+		// the unexpected port list.
+		if slices.Contains(startEvent.Ports, port) {
+			t.Logf("unexpected port %v also found", port)
+		}
 	}
 }
 

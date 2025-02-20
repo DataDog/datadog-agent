@@ -87,14 +87,6 @@ remove_run_dir()
     fi
 }
 
-remove_sysprobe_core_files()
-{
-    # Remove any unpacked BTF files
-    find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
-    # And remove empty directories
-    find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re" -type d -empty -delete || true
-}
-
 remove_persist_integration_files()
 {
     # Remove any file related to reinstalling non-core integrations (see python-scripts/packages.py for the names)
@@ -118,7 +110,6 @@ remove_fips_module()
 
 stop_agent
 deregister_agent
-remove_sysprobe_core_files
 
 case "$*" in
     0)

@@ -273,7 +273,7 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, cache, false)
+	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache))
 	if err != nil {
 		if imgMeta != nil {
 			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
@@ -281,18 +281,7 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
-	pkgCount := 0
-	for _, results := range trivyReport.Results {
-		pkgCount += len(results.Packages)
-	}
-	log.Debugf("Found %d packages", pkgCount)
-
-	return &Report{
-		Report:    trivyReport,
-		id:        cache.blobID,
-		marshaler: c.marshaler,
-	}, nil
+	return c.buildReport(trivyReport, cache.blobID), nil
 }
 
 // ScanFilesystem scans file-system
@@ -300,17 +289,19 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
 
-func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner, useCache bool) (*types.Report, error) {
-	if useCache && imgMeta != nil && cache != nil {
-		// The artifact reference is only needed to clean up the blobs after the scan.
-		// It is re-generated from cached partial results during the scan.
-		artifactReference, err := artifact.Inspect(ctx)
-		if err != nil {
-			return nil, err
-		}
-		cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
+func (c *Collector) fixupCacheKeyForImgMeta(ctx context.Context, artifact artifact.Artifact, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner) error {
+	// The artifact reference is only needed to clean up the blobs after the scan.
+	// It is re-generated from cached partial results during the scan.
+	artifactReference, err := artifact.Inspect(ctx)
+	if err != nil {
+		return err
 	}
 
+	cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
+	return nil
+}
+
+func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
 	localScanner := local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient)
 	s := scanner.NewScanner(localScanner, artifact)
 
@@ -338,16 +329,31 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta, c.persistentCache, true)
+	if err := c.fixupCacheKeyForImgMeta(ctx, imageArtifact, imgMeta, cache); err != nil {
+		return nil, fmt.Errorf("unable to fixup cache key for image, err: %w", err)
+	}
+
+	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache))
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
+	return c.buildReport(trivyReport, trivyReport.Metadata.ImageID), nil
+}
+
+func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
+	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
+	pkgCount := 0
+	for _, results := range trivyReport.Results {
+		pkgCount += len(results.Packages)
+	}
+	log.Debugf("Found %d packages", pkgCount)
+
 	return &Report{
 		Report:    trivyReport,
-		id:        trivyReport.Metadata.ImageID,
+		id:        id,
 		marshaler: c.marshaler,
-	}, nil
+	}
 }
 
 func looselyCompareAnalyzers(given []string, against []string) bool {

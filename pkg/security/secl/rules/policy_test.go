@@ -180,8 +180,8 @@ func TestRuleMerge(t *testing.T) {
 
 	t.Run("enabled-disabled", func(t *testing.T) {
 		rule := rs.GetRules()["test_rule_foo"]
-		if rule != nil {
-			t.Fatal("expected test_rule_foo to not be loaded")
+		if rule == nil {
+			t.Fatal("expected test_rule_foo to be loaded now")
 		}
 	})
 
@@ -417,7 +417,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	stringArrayVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
-	strValue := stringArrayVar.GetValue()
+	strValue, _ := stringArrayVar.GetValue()
 	assert.NotNil(t, strValue)
 	assert.Contains(t, strValue, "foo")
 	assert.IsType(t, strValue, []string{})
@@ -427,7 +427,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	intArrayVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, intArrayVar)
 	assert.True(t, ok)
-	value := intArrayVar.GetValue()
+	value, _ := intArrayVar.GetValue()
 	assert.NotNil(t, value)
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
@@ -438,7 +438,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
 	assert.NotNil(t, stringArrayScopedVar)
 	assert.True(t, ok)
-	value = stringArrayScopedVar.GetValue(ctx)
+	value, _ = stringArrayScopedVar.GetValue(ctx)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, "bar")
 	assert.IsType(t, value, []string{})
@@ -448,26 +448,26 @@ func TestActionSetVariableTTL(t *testing.T) {
 	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
 	assert.NotNil(t, intArrayScopedVar)
 	assert.True(t, ok)
-	value = intArrayScopedVar.GetValue(ctx)
+	value, _ = intArrayScopedVar.GetValue(ctx)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
 
 	time.Sleep(time.Second + 100*time.Millisecond)
 
-	value = stringArrayVar.GetValue()
+	value, _ = stringArrayVar.GetValue()
 	assert.NotContains(t, value, "foo")
 	assert.Len(t, value, 0)
 
-	value = intArrayVar.GetValue()
+	value, _ = intArrayVar.GetValue()
 	assert.NotContains(t, value, 123)
 	assert.Len(t, value, 0)
 
-	value = stringArrayScopedVar.GetValue(ctx)
+	value, _ = stringArrayScopedVar.GetValue(ctx)
 	assert.NotContains(t, value, "foo")
 	assert.Len(t, value, 0)
 
-	value = intArrayScopedVar.GetValue(ctx)
+	value, _ = intArrayScopedVar.GetValue(ctx)
 	assert.NotContains(t, value, 123)
 	assert.Len(t, value, 0)
 }
@@ -531,6 +531,39 @@ func TestActionSetVariableSize(t *testing.T) {
 		t.Error(err)
 	}
 
+	opts := rs.evalOpts
+
+	existingVariable := opts.VariableStore.Get("var1")
+	assert.NotNil(t, existingVariable)
+
+	stringArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, stringArrayVar)
+	assert.True(t, ok)
+	value, set := stringArrayVar.GetValue()
+	assert.NotNil(t, value)
+	assert.False(t, set)
+
+	existingVariable = opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
+
+	intArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	_, set = intArrayVar.GetValue()
+	assert.False(t, set)
+
+	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+	assert.NotNil(t, existingScopedVariable)
+	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringArrayScopedVar)
+	assert.True(t, ok)
+
+	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
+	assert.NotNil(t, existingScopedVariable)
+	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, intArrayScopedVar)
+	assert.True(t, ok)
+
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
@@ -538,6 +571,14 @@ func TestActionSetVariableSize(t *testing.T) {
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
 
+	ctx := eval.NewContext(event)
+
+	_, set = stringArrayScopedVar.GetValue(ctx)
+	assert.False(t, set)
+
+	_, set = intArrayScopedVar.GetValue(ctx)
+	assert.False(t, set)
+
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
 	}
@@ -545,51 +586,31 @@ func TestActionSetVariableSize(t *testing.T) {
 		t.Errorf("Expected event to match rule")
 	}
 
-	opts := rs.evalOpts
-
-	existingVariable := opts.VariableStore.Get("var1")
-	assert.NotNil(t, existingVariable)
-	stringArrayVar, ok := existingVariable.(eval.Variable)
-	assert.NotNil(t, stringArrayVar)
-	assert.True(t, ok)
-	value := stringArrayVar.GetValue()
+	value, set = stringArrayVar.GetValue()
 	assert.Contains(t, value, "foo")
 	assert.Len(t, value, 1)
 	assert.IsType(t, value, []string{})
+	assert.True(t, set)
 
-	existingVariable = opts.VariableStore.Get("var2")
-	assert.NotNil(t, existingVariable)
-	intArrayVar, ok := existingVariable.(eval.Variable)
-	assert.NotNil(t, intArrayVar)
-	assert.True(t, ok)
-	assert.IsType(t, value, []string{})
-	value = intArrayVar.GetValue()
+	value, set = intArrayVar.GetValue()
 	assert.IsType(t, value, []int{})
 	assert.Contains(t, value, 1)
 	assert.Len(t, value, 1)
+	assert.True(t, set)
 
-	ctx := eval.NewContext(event)
-	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
-	assert.NotNil(t, existingScopedVariable)
-	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	assert.NotNil(t, stringArrayScopedVar)
-	assert.True(t, ok)
-	value = stringArrayScopedVar.GetValue(ctx)
+	value, set = stringArrayScopedVar.GetValue(ctx)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, "bar")
 	assert.IsType(t, value, []string{})
 	assert.Len(t, value, 1)
+	assert.True(t, set)
 
-	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
-	assert.NotNil(t, existingScopedVariable)
-	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	assert.NotNil(t, intArrayScopedVar)
-	assert.True(t, ok)
-	value = intArrayScopedVar.GetValue(ctx)
+	value, set = intArrayScopedVar.GetValue(ctx)
 	assert.NotNil(t, value)
 	assert.Contains(t, value, 123)
 	assert.IsType(t, value, []int{})
 	assert.Len(t, value, 1)
+	assert.True(t, set)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
@@ -1018,6 +1039,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
 		name         string
+		policyType   PolicyType
 		source       string
 		fileContent  string
 		macroFilters []MacroFilter
@@ -1034,6 +1056,7 @@ func TestLoadPolicy(t *testing.T) {
 			args: args{
 				name:         "myLocal.policy",
 				source:       PolicyProviderTypeRC,
+				policyType:   DefaultPolicyType,
 				fileContent:  ``,
 				macroFilters: nil,
 				ruleFilters:  nil,
@@ -1046,8 +1069,9 @@ func TestLoadPolicy(t *testing.T) {
 		{
 			name: "empty yaml file with new line char",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `
 `,
 				macroFilters: nil,
@@ -1061,8 +1085,9 @@ func TestLoadPolicy(t *testing.T) {
 		{
 			name: "no rules in yaml file",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `
 rules:
 `,
@@ -1072,6 +1097,7 @@ rules:
 			want: &Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
+				Type:   CustomPolicyType,
 				rules:  map[string][]*PolicyRule{},
 				macros: map[string][]*PolicyMacro{},
 			},
@@ -1080,8 +1106,9 @@ rules:
 		{
 			name: "broken yaml file",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `
 broken
 `,
@@ -1096,8 +1123,9 @@ broken
 		{
 			name: "disabled tag",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `rules:
  - id: rule_test
    disabled: true
@@ -1108,6 +1136,7 @@ broken
 			want: fixupRulesPolicy(&Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
+				Type:   CustomPolicyType,
 				rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
@@ -1127,8 +1156,9 @@ broken
 		{
 			name: "combine:override tag",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `rules:
  - id: rule_test
    expression: open.file.path == "/etc/gshadow"
@@ -1140,6 +1170,7 @@ broken
 			want: fixupRulesPolicy(&Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
+				Type:   CustomPolicyType,
 				rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
@@ -1161,7 +1192,7 @@ broken
 		t.Run(tt.name, func(t *testing.T) {
 			r := strings.NewReader(tt.args.fileContent)
 
-			got, err := LoadPolicy(tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+			got, err := LoadPolicy(tt.args.name, tt.args.source, tt.args.policyType, r, tt.args.macroFilters, tt.args.ruleFilters)
 
 			if !tt.wantErr(t, err, fmt.Sprintf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)) {
 				return
