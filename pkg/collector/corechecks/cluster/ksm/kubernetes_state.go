@@ -406,7 +406,8 @@ func _configureCheck(k *KSMCheck) error {
 	// Execute builder as a singleton, mimicking Configure()
 	// TODO: does this need to be a singleton? Is there anything unsafe in retrying?
 	if err := k.configureBuilderOnce(client, custom, collectors); err != nil {
-		return k.configureRetrier.Cancel(err)
+		k.configureRetrier.Cancel()
+		return err
 	}
 
 	return nil
