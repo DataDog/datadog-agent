@@ -110,7 +110,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 		ebpf.CudaEventTypeKernelLaunch.String(): 1,
 		ebpf.CudaEventTypeSetDevice.String():    1,
 		ebpf.CudaEventTypeMemory.String():       2,
-		ebpf.CudaEventTypeSync.String():         2, // One from cudaStreamSynchronize and another from cudaEventQuery
+		ebpf.CudaEventTypeSync.String():         3, // cudaStreamSynchronize, cudaEventQuery and cudaEventSynchronize
 	}
 
 	for evName, value := range expectedEvents {
