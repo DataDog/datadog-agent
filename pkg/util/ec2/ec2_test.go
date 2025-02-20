@@ -78,6 +78,10 @@ func TestGetInstanceID(t *testing.T) {
 	var expected string
 	var responseCode int
 	var lastRequest *http.Request
+
+	// Force refresh
+	token.ExpirationDate = time.Now()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.Method {
