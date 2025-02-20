@@ -507,9 +507,10 @@ func (w *workloadmeta) Reset(newEntities []wmdef.Entity, source wmdef.Source) {
 
 // IsInitialized: If startCandidates is run at least once, return true.
 func (w *workloadmeta) IsInitialized() bool {
-	w.storeMut.RLock()
-	defer w.storeMut.RUnlock()
-	return w.collectorsInited == wmdef.CollectorsInitialized
+	w.storeMut.Lock()
+	ret := w.collectorsInited == wmdef.CollectorsInitialized
+	w.storeMut.Unlock()
+	return ret
 }
 
 func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
@@ -602,13 +603,13 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 
 func (w *workloadmeta) updateCollectorStatus(status wmdef.CollectorStatus) {
 	w.collectorMut.Lock()
-	defer w.collectorMut.Unlock()
 	if w.collectorsInited == wmdef.CollectorsInitialized {
 		return // already initialized
 	} else if status == wmdef.CollectorsInitialized && w.collectorsInited == wmdef.CollectorsNotStarted {
 		return // no collectors to initialize yet
 	}
 	w.collectorsInited = status
+	defer w.collectorMut.Unlock()
 }
 
 func (w *workloadmeta) pull(ctx context.Context) {
