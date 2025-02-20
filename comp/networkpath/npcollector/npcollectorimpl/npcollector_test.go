@@ -996,8 +996,19 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule: false,
 		},
 		{
-			name:    "should schedule for different network_id",
+			name:    "should schedule for different vpc",
 			vpcCidr: "10.0.0.0/24",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.10.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name:    "should schedule for invalid vpc cidr",
+			vpcCidr: "10.0.0.0/xx",
 			conn: &model.Connection{
 				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "10.10.0.2", Port: int32(80)},
