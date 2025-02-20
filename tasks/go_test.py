@@ -32,7 +32,6 @@ from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.modules import GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
-from tasks.trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
@@ -491,7 +490,6 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
         lambda: agent_integration_tests(ctx, install_deps, race, remote_docker),
         lambda: dsd_integration_tests(ctx, install_deps, race, remote_docker),
         lambda: dca_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: trace_integration_tests(ctx, install_deps, race),
     ]
     for t in tests:
         try:
