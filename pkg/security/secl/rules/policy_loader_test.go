@@ -778,7 +778,6 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						},
 					},
 				}
-				fmt.Println("fffffffffff")
 				return checkOverrideResult(t, expected, got)
 			},
 		},
@@ -1663,6 +1662,100 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									},
 								},
 								Combine: OverridePolicy,
+							},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR enabled 1 Action A, P1.CR  same Action A + Action B => P1.CR + 1 Action A (not duplicated) + Action B",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							policies, _ := testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Combine:    OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													}, {
+														Kill: &KillDefinition{
+															Signal: "SIGUSR2",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							})
+							return policies, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID:         "rule_1",
+								Expression: "open.file.path == \"/etc/default/foo\"",
+								Combine:    OverridePolicy,
+								Actions: []*ActionDefinition{
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR1",
+										},
+									},
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR2",
+										},
+									},
+								},
 							},
 							Policy: &Policy{
 								Name:   "P1.policy",

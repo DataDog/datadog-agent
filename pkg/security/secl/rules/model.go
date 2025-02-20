@@ -138,89 +138,76 @@ func (a *ActionDefinition) Equals(other *ActionDefinition) bool {
 		return false
 	}
 
-	if a.Filter != nil && other.Filter != nil {
-		if *a.Filter != *other.Filter {
-			return false
-		}
+	// Compare Filter
+	if (a.Filter == nil) != (other.Filter == nil) || (a.Filter != nil && *a.Filter != *other.Filter) {
+		return false
+	}
+
+	// Compare Set
+	if (a.Set == nil) != (other.Set == nil) {
+		return false
 	}
 	if a.Set != nil && other.Set != nil {
-		if a.Set.Name != other.Set.Name {
-			return false
-		}
-		if a.Set.Value != other.Set.Value {
-			return false
-		}
-		if a.Set.Field != other.Set.Field {
-			return false
-		}
-		if a.Set.Append != other.Set.Append {
-			return false
-		}
-		if a.Set.Scope != other.Set.Scope {
-			return false
-		}
-		if a.Set.Size != other.Set.Size {
-			return false
-		}
-		if a.Set.TTL != other.Set.TTL {
+		if a.Set.Name != other.Set.Name ||
+			a.Set.Value != other.Set.Value ||
+			a.Set.Field != other.Set.Field ||
+			a.Set.Append != other.Set.Append ||
+			a.Set.Scope != other.Set.Scope ||
+			a.Set.Size != other.Set.Size ||
+			a.Set.TTL != other.Set.TTL {
 			return false
 		}
 	}
 
+	// Compare Kill
+	if (a.Kill == nil) != (other.Kill == nil) {
+		return false
+	}
 	if a.Kill != nil && other.Kill != nil {
-		if a.Kill.Signal != other.Kill.Signal {
+		if a.Kill.Signal != other.Kill.Signal ||
+			a.Kill.Scope != other.Kill.Scope {
 			return false
 		}
-		if a.Kill.Scope != other.Kill.Scope {
+		if (a.Kill.Disarmer == nil) != (other.Kill.Disarmer == nil) {
 			return false
 		}
-		if a.Kill.Disarmer != nil && other.Kill.Disarmer != nil {
-			if a.Kill.Disarmer.Container != nil && other.Kill.Disarmer.Container != nil {
-				if a.Kill.Disarmer.Container.MaxAllowed != other.Kill.Disarmer.Container.MaxAllowed {
-					return false
-				}
-				if a.Kill.Disarmer.Container.Period != other.Kill.Disarmer.Container.Period {
+		if a.Kill.Disarmer != nil {
+			// Compare Disarmer's Container
+			if (a.Kill.Disarmer.Container == nil) != (other.Kill.Disarmer.Container == nil) {
+				return false
+			}
+			if a.Kill.Disarmer.Container != nil {
+				if a.Kill.Disarmer.Container.MaxAllowed != other.Kill.Disarmer.Container.MaxAllowed ||
+					a.Kill.Disarmer.Container.Period != other.Kill.Disarmer.Container.Period {
 					return false
 				}
 			}
-			if a.Kill.Disarmer.Executable != nil && other.Kill.Disarmer.Executable != nil {
-				if a.Kill.Disarmer.Executable.MaxAllowed != other.Kill.Disarmer.Executable.MaxAllowed {
-					return false
-				}
-				if a.Kill.Disarmer.Executable.Period != other.Kill.Disarmer.Executable.Period {
+			// Compare Disarmer's Executable
+			if (a.Kill.Disarmer.Executable == nil) != (other.Kill.Disarmer.Executable == nil) {
+				return false
+			}
+			if a.Kill.Disarmer.Executable != nil {
+				if a.Kill.Disarmer.Executable.MaxAllowed != other.Kill.Disarmer.Executable.MaxAllowed ||
+					a.Kill.Disarmer.Executable.Period != other.Kill.Disarmer.Executable.Period {
 					return false
 				}
 			}
 		}
 	}
 
+	// Compare CoreDump
+	if (a.CoreDump == nil) != (other.CoreDump == nil) {
+		return false
+	}
 	if a.CoreDump != nil && other.CoreDump != nil {
-		if a.CoreDump.Process != other.CoreDump.Process {
-			return false
-		}
-		if a.CoreDump.Mount != other.CoreDump.Mount {
-			return false
-		}
-		if a.CoreDump.Dentry != other.CoreDump.Dentry {
-			return false
-		}
-		if a.CoreDump.NoCompression != other.CoreDump.NoCompression {
+		if a.CoreDump.Process != other.CoreDump.Process ||
+			a.CoreDump.Mount != other.CoreDump.Mount ||
+			a.CoreDump.Dentry != other.CoreDump.Dentry ||
+			a.CoreDump.NoCompression != other.CoreDump.NoCompression {
 			return false
 		}
 	}
 
-	if a.Filter == nil || other.Filter == nil {
-		return false
-	}
-	if a.Set == nil || other.Set == nil {
-		return false
-	}
-	if a.Kill == nil || other.Kill == nil {
-		return false
-	}
-	if a.CoreDump == nil || other.CoreDump == nil {
-		return false
-	}
 	return true
 }
 

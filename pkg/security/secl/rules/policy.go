@@ -75,18 +75,23 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 		wasOverridden = true
 	} else {
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideActionFields) {
+			var toAdd []*ActionDefinition
 			for _, action := range rd2.Def.Actions {
 				duplicated := false
-				for _, a := range rd1.Actions {
-					if action.Equals(a.Def) {
+				for _, a := range rd1.Def.Actions {
+					if action.Equals(a) {
 						duplicated = true
 						break
 					}
 				}
 				if !duplicated {
-					rd1.Def.Actions = append(rd1.Def.Actions, action)
-					wasOverridden = true
+					toAdd = append(toAdd, action)
 				}
+			}
+
+			if len(toAdd) > 0 {
+				wasOverridden = true
+				rd1.Def.Actions = append(rd1.Def.Actions, toAdd...)
 			}
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideEveryField) {
