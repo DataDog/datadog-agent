@@ -494,7 +494,12 @@ func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.Pod
 }
 
 func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghq.DatadogPodAutoscalerValueSource, *datadoghq.DatadogPodAutoscalerValueSource) {
-	activeVerticalSource := pointer.Ptr(podAutoscalerInternal.MainScalingValues().Vertical.Source)
+	// Set default vertical scaling source
+	activeVerticalSource := (*datadoghq.DatadogPodAutoscalerValueSource)(nil)
+	if podAutoscalerInternal.MainScalingValues().Vertical != nil {
+		activeVerticalSource = pointer.Ptr(podAutoscalerInternal.MainScalingValues().Vertical.Source)
+	}
+
 	// Check if horizontal scaling is disabled; if disabled, always use main values as source
 	if podAutoscalerInternal.Spec().Policy != nil {
 		upscaleStrategy := podAutoscalerInternal.Spec().Policy.Upscale
