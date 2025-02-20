@@ -9,6 +9,7 @@ package rules
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"slices"
 
 	"github.com/hashicorp/go-multierror"
@@ -79,7 +80,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 			for _, action := range rd2.Def.Actions {
 				duplicated := false
 				for _, a := range rd1.Def.Actions {
-					if action.Equals(a) {
+					if reflect.DeepEqual(action, a) {
 						duplicated = true
 						break
 					}
