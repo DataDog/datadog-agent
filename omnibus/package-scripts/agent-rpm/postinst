@@ -1,9 +1,0 @@
-#!/bin/sh
-#
-# Perform necessary datadog-agent setup steps after package is installed.
-# NOTE: part of the setup is done in the posttrans (rpm-only) script
-#
-# .rpm: STEP 3 of 6
-
-INSTALL_DIR=/opt/datadog-agent
-
