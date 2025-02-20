@@ -73,7 +73,8 @@ type bpfObjects struct {
 }
 
 type mapStats struct {
-	targetMap
+	id        uint32
+	name      string
 	totalTime uint64
 }
 
@@ -436,7 +437,11 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		if !ok {
 			return fmt.Errorf("map with id %d not tracked", id)
 		}
-		l.trackedLockMemRanges[lockRanges[i]] = &mapStats{*tm, 0}
+		l.trackedLockMemRanges[lockRanges[i]] = &mapStats{
+			id:        tm.id,
+			name:      tm.name,
+			totalTime: 0,
+		}
 	}
 
 	// sort lock ranges and write to per cpu array map
