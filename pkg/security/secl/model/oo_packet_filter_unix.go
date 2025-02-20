@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	_ "github.com/ianlancetaylor/cgosymbolizer"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -35,11 +36,13 @@ func errorNonStaticPacketFilterField(a eval.Evaluator, b eval.Evaluator) error {
 func newPacketFilterEvaluator(field string, value string, state *eval.State) (*eval.BoolEvaluator, error) {
 	switch field {
 	case "packet.filter":
+		fmt.Printf("filter content before: %s\n", value)
 		captureLength := 256 // sizeof(struct raw_packet_t.data)
 		filter, err := pcap.NewBPF(layers.LinkTypeEthernet, captureLength, value)
 		if err != nil {
 			return nil, fmt.Errorf("failed to compile packet filter `%s` on field `%s`: %v", value, field, err)
 		}
+		fmt.Printf("filter content after: %s\n", value)
 
 		// needed to track filter values and to apply tc filters
 		if err := state.UpdateFieldValues(field, eval.FieldValue{Value: value, Type: eval.ScalarValueType}); err != nil {
