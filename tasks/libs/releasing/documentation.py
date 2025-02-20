@@ -24,6 +24,7 @@ NON_RELEASING_TEAMS = {
     'sdlc-security',
     'data-jobs-monitoring',
     'serverless-aws',
+    'apm-ecosystems-performance',
 }
 
 
