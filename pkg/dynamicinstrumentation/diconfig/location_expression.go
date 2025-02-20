@@ -87,10 +87,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					)
 					_, ok := seenPointers[elementParam.ID]
 					if !ok {
-						targetExpressions = append(targetExpressions,
-							ditypes.CopyLocationExpression(),
-							ditypes.PopLocationExpression(1, 8),
-						)
+						targetExpressions = append(targetExpressions, ditypes.PopPointerAddressCompoundLocationExpression())
 						seenPointers[elementParam.ID] = true
 					}
 				} else {
@@ -108,10 +105,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					)
 					_, ok := seenPointers[elementParam.ID]
 					if !ok {
-						targetExpressions = append(targetExpressions,
-							ditypes.CopyLocationExpression(),
-							ditypes.PopLocationExpression(1, 8),
-						)
+						targetExpressions = append(targetExpressions, ditypes.PopPointerAddressCompoundLocationExpression())
 						seenPointers[elementParam.ID] = true
 					}
 				} else if elementParam.Kind == uint(reflect.Struct) {
@@ -137,6 +131,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 
+					stringLength.LocationExpressions = append(stringLength.LocationExpressions, targetExpressions...)
 					if stringLength.Location != nil {
 						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
 							ditypes.DirectReadLocationExpression(stringLength),
@@ -174,6 +169,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
 						ditypes.PrintStatement("%s", "Reading the length of slice"),
 					)
+					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions, targetExpressions...)
 					if sliceLength.Location != nil {
 						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
 							ditypes.DirectReadLocationExpression(sliceLength),
