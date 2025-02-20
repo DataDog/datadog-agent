@@ -815,6 +815,34 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
+			name: "datadog autoscaling tag",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						datadogAutoscalingIDAnnotation: "datadogpodautoscaler",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_autoscaler_kind:datadogpodautoscaler",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "disable kube_service",
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -2458,7 +2486,8 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collector.children = map[types.EntityID]map[types.EntityID]struct{}{
 		// Notice that here we set the container that belonged to the pod
 		// but that no longer exists
-		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}}}
+		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}},
+	}
 
 	eventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{

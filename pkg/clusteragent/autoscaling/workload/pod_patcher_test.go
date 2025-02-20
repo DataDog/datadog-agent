@@ -250,7 +250,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 			},
 		},
 		{
-			name: "no update on empty recommendations",
+			name: "only autoscaler id on empty recommendations",
 			pod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -271,7 +271,8 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 					}},
 				},
 			},
-			wantErr: false,
+			wantErr:      false,
+			wantInjected: true,
 			wantPod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -281,6 +282,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "foo.com/v1",
 						Name:       "test",
 					}},
+					Annotations: map[string]string{
+						model.AutoscalerIDAnnotation: "ns1/autoscaler1",
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{

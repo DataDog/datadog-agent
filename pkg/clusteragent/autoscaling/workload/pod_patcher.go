@@ -68,33 +68,34 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return false, nil
 	}
 
+	// We're always adding annotation to Pods when a matching Autoscaler is found even if we do not have recommendations ATM
+	patched := false
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+
+	autoscalerID := autoscaler.ID()
+	if pod.Annotations[model.AutoscalerIDAnnotation] != autoscalerID {
+		pod.Annotations[model.AutoscalerIDAnnotation] = autoscalerID
+		patched = true
+	}
+
 	// Check if the autoscaler has recommendations
 	if autoscaler.ScalingValues().Vertical == nil || autoscaler.ScalingValues().Vertical.ResourcesHash == "" || len(autoscaler.ScalingValues().Vertical.ContainerResources) == 0 {
 		log.Debugf("Autoscaler %s has no vertical recommendations for POD %s/%s, not patching", autoscaler.ID(), pod.Namespace, pod.Name)
-		return false, nil
+		return patched, nil
 	}
 
 	// Check if we're allowed to patch the POD
 	strategy, reason := getVerticalPatchingStrategy(autoscaler)
 	if strategy == datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy {
 		log.Debugf("Autoscaler %s has vertical patching disabled for POD %s/%s, reason: %s", autoscaler.ID(), pod.Namespace, pod.Name, reason)
-		return false, nil
+		return patched, nil
 	}
 
 	// Patching the pod with the recommendations
-	patched := false
-	if pod.Annotations == nil {
-		pod.Annotations = map[string]string{}
-	}
-
 	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
 		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
-		patched = true
-	}
-
-	autoscalerID := autoscaler.ID()
-	if pod.Annotations[model.AutoscalerIDAnnotation] != autoscalerID {
-		pod.Annotations[model.AutoscalerIDAnnotation] = autoscalerID
 		patched = true
 	}
 

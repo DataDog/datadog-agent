@@ -46,6 +46,11 @@ const (
 	dockerLabelService = "com.datadoghq.tags.service"
 
 	autodiscoveryLabelTagsKey = "com.datadoghq.ad.tags"
+
+	// Datadog Autoscaling annotation
+	// (from pkg/clusteragent/autoscaling/workload/model/const.go)
+	// no importing due to packages it pulls
+	datadogAutoscalingIDAnnotation = "autoscaling.datadoghq.com/autoscaler-id"
 )
 
 var (
@@ -357,6 +362,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	// gpu requested vendor as tags
 	for _, gpuVendor := range pod.GPUVendorList {
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
+	}
+
+	// autoscaler presence
+	if pod.Annotations[datadogAutoscalingIDAnnotation] != "" {
+		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
 	}
 
 	kubeServiceDisabled := false
