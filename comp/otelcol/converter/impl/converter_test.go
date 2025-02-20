@@ -217,6 +217,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/apikey/no-api-key-section/acfg.yaml",
 		},
 		{
+			name:           "dd-core-cfg/apikey/no-api-no-add",
+			provided:       "dd-core-cfg/apikey/no-api-no-add/config.yaml",
+			expectedResult: "dd-core-cfg/apikey/no-api-no-add/config-result.yaml",
+			agentConfig:    "dd-core-cfg/apikey/no-api-no-add/acfg.yaml",
+		},
+		{
 			name:           "dd-core-cfg/apikey/multiple-dd-exporter",
 			provided:       "dd-core-cfg/apikey/multiple-dd-exporter/config.yaml",
 			expectedResult: "dd-core-cfg/apikey/multiple-dd-exporter/config-result.yaml",
@@ -287,6 +293,30 @@ func TestConvert(t *testing.T) {
 			provided:       "dd-core-cfg/none/config.yaml",
 			expectedResult: "dd-core-cfg/none/config-result.yaml",
 			agentConfig:    "dd-core-cfg/none/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/env/no-profiler-options",
+			provided:       "dd-core-cfg/env/no-profiler-options/config.yaml",
+			expectedResult: "dd-core-cfg/env/no-profiler-options/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/no-profiler-options/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/env/no-env",
+			provided:       "dd-core-cfg/env/no-env/config.yaml",
+			expectedResult: "dd-core-cfg/env/no-env/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/no-env/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/env/no-override",
+			provided:       "dd-core-cfg/env/no-override/config.yaml",
+			expectedResult: "dd-core-cfg/env/no-override/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/no-override/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/env/empty-profiler-options",
+			provided:       "dd-core-cfg/env/empty-profiler-options/config.yaml",
+			expectedResult: "dd-core-cfg/env/empty-profiler-options/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/empty-profiler-options/acfg.yaml",
 		},
 	}
 
