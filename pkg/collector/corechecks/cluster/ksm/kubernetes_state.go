@@ -236,7 +236,7 @@ type KSMCheck struct {
 	metricAggregators    map[string]metricAggregator
 	metricTransformers   map[string]metricTransformerFunc
 	metadataMetricsRegex *regexp.Regexp
-	configureRetrier     retry.Retrier
+	initRetry            retry.Retrier
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -316,7 +316,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
 	// Retry configuration steps related to API Server in check executions if necessary
-	_ = k.configureRetrier.SetupRetrier(&retry.Config{
+	err = k.initRetry.SetupRetrier(&retry.Config{
 		Name: fmt.Sprintf("%s_%s", CheckName, "configuration"),
 		AttemptMethod: func() error {
 			builder := kubestatemetrics.New()
@@ -435,6 +435,9 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		InitialRetryDelay: k.Interval(),
 		MaxRetryDelay:     10 * k.Interval(),
 	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -577,7 +580,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
-	if err := k.configureRetrier.TriggerRetry(); err != nil {
+	if err := k.initRetry.TriggerRetry(); err != nil {
 		return err.LastTryError
 	}
 
