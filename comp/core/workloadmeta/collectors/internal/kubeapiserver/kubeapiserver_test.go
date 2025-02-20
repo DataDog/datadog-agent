@@ -469,10 +469,22 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"language_detection.reporting.enabled":             false,
 				"cluster_agent.kube_metadata_collection.enabled":   false,
 				"cluster_agent.kube_metadata_collection.resources": "",
-				"kubernetes_resources_labels_as_tags":              `{"deployments.apps": {"x-team": "team"}}`,
+				"kubernetes_resources_labels_as_tags":              `{"deployments.apps": {"x-team": "team"}, "custom.example.com": {"x-team": "team"}}`,
 				"kubernetes_resources_annotations_as_tags":         `{"namespaces": {"x-team": "team"}}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces"},
+			expectedResources: []string{"//nodes", "//namespaces", "example.com//custom"},
+		},
+		{
+			name: "generic resources tagging should be exclude invalid resources",
+			cfg: map[string]interface{}{
+				"language_detection.enabled":                       false,
+				"language_detection.reporting.enabled":             false,
+				"cluster_agent.kube_metadata_collection.enabled":   false,
+				"cluster_agent.kube_metadata_collection.resources": "",
+				"kubernetes_resources_labels_as_tags":              `{"-invalid": {"x-team": "team"}, "invalid.exa_mple.com": {"x-team": "team"}}`,
+				"kubernetes_resources_annotations_as_tags":         `{"in valid.example.com": {"x-team": "team"}, "invalid.example.com-": {"x-team": "team"}}`,
+			},
+			expectedResources: []string{"//nodes"},
 		},
 		{
 			name: "deployments should be excluded from metadata collection",
@@ -497,9 +509,9 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			name: "resources explicitly requested",
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets",
+				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets example.com/custom",
 			},
-			expectedResources: []string{"//nodes", "apps//statefulsets"},
+			expectedResources: []string{"//nodes", "apps//statefulsets", "example.com//custom"},
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",

@@ -16,7 +16,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -119,7 +119,7 @@ func setupAppArmor(ctx context.Context) (err error) {
 		return fmt.Errorf("failed validate %s contains an include to base.d: %w", appArmorBaseProfile, err)
 	}
 
-	if err = reloadAppArmor(); err != nil {
+	if err = reloadAppArmor(ctx); err != nil {
 		if rollbackErr := os.Remove(appArmorInjectorProfilePath); rollbackErr != nil {
 			log.Warnf("failed to remove apparmor profile: %v", rollbackErr)
 		}
@@ -147,19 +147,20 @@ func removeAppArmor(ctx context.Context) (err error) {
 	if err = os.Remove(appArmorInjectorProfilePath); err != nil {
 		return err
 	}
-	return reloadAppArmor()
+	_ = reloadAppArmor(ctx)
+	return nil
 }
 
-func reloadAppArmor() error {
+func reloadAppArmor(ctx context.Context) error {
 	if !isAppArmorRunning() {
 		return nil
 	}
 	if running, err := isSystemdRunning(); err != nil {
 		return err
 	} else if running {
-		return exec.Command("systemctl", "reload", "apparmor").Run()
+		return tracedCommand(ctx, "systemctl", "reload", "apparmor")
 	}
-	return exec.Command("service", "apparmor", "reload").Run()
+	return tracedCommand(ctx, "service", "apparmor", "reload")
 }
 
 func isAppArmorRunning() bool {
@@ -168,4 +169,13 @@ func isAppArmorRunning() bool {
 		return false
 	}
 	return strings.TrimSpace(string(data)) == "Y"
+}
+
+func tracedCommand(ctx context.Context, name string, arg ...string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, name)
+	defer func() { span.Finish(err) }()
+
+	cmd := exec.Command(name, arg...)
+	_, err = cmd.Output()
+	return err
 }

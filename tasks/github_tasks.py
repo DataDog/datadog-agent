@@ -25,7 +25,6 @@ from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_git_pretty_ref
-from tasks.libs.notify.pipeline_status import send_slack_message
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
@@ -143,7 +142,10 @@ def _update_windows_runner_version(new_version=None, buildenv_ref="master"):
 
     message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
 
-    send_slack_message("ci-infra-support", message)
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
+    client.chat_postMessage(channel="ci-infra-support", text=message)
     return workflow_conclusion
 
 
@@ -345,7 +347,7 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
 
     # Post message
-    client = WebClient(os.environ['SLACK_API_TOKEN'])
+    client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     for channel in channels:
         client.chat_postMessage(channel=channel, text=message)
 
@@ -711,7 +713,7 @@ def check_permissions(_, repo: str, channel: str = "agent-devx-help"):
     if idle_teams or idle_contributors:
         from slack_sdk import WebClient
 
-        client = WebClient(token=os.environ['SLACK_API_TOKEN'])
+        client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
         header = f":github: {repo} permissions check\n"
         blocks = [
             {
