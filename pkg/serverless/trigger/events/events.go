@@ -343,17 +343,34 @@ type LambdaFunctionURLRequestContextHTTPDescription struct {
 // StepFunctionEvent is the event you get when you instrument a legacy Stepfunction Lambda:Invoke task state
 // as recommended by https://docs.datadoghq.com/serverless/step_functions/installation?tab=custom
 // This isn't an "official" event, as a default StepFunction invocation will just contain {}
-type StepFunctionEvent struct {
-	Payload StepFunctionPayload
+type StepFunctionEvent[T any] struct {
+	Payload T
 }
 
 // StepFunctionPayload is the payload of a StepFunctionEvent. It's also a non-legacy version of the `StepFunctionEvent`.
 type StepFunctionPayload struct {
 	Execution struct {
-		ID string
+		ID           string
+		RedriveCount string
 	}
 	State struct {
 		Name        string
 		EnteredTime string
+		RetryCount  string
 	}
+}
+
+// NestedStepFunctionPayload contains a StepFunctionPayload but also has the Execution ID of the top-most Step Function in the trace
+type NestedStepFunctionPayload struct {
+	Payload           StepFunctionPayload
+	RootExecutionId   string
+	ServerlessVersion string
+}
+
+// LambdaRootStepFunctionPayload contains a StepFunctionPayload but also has the Trace ID of the top-most Lambda in the trace
+type LambdaRootStepFunctionPayload struct {
+	Payload           StepFunctionPayload
+	TraceId           uint64
+	TraceIDUpper64Hex string
+	ServerlessVersion string
 }
