@@ -117,16 +117,20 @@ func TestStartExecutionSpan(t *testing.T) {
 
 	stepFunctionEvent := events.StepFunctionPayload{
 		Execution: struct {
-			ID string
+			ID           string
+			RedriveCount string
 		}{
-			ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			RedriveCount: "0",
 		},
 		State: struct {
 			Name        string
 			EnteredTime string
+			RetryCount  string
 		}{
 			Name:        "agocsTest1",
 			EnteredTime: "2024-07-30T20:46:20.824Z",
+			RetryCount:  "0",
 		},
 	}
 
@@ -763,17 +767,24 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 	}
 
 	stepFunctionEvent := events.StepFunctionPayload{
-		Execution: struct{ ID string }(struct {
-			ID string `json:"id"`
+		Execution: struct {
+			ID           string
+			RedriveCount string
+		}(struct {
+			ID           string `json:"id"`
+			RedriveCount string `json:"redrivecount"`
 		}{
-			ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			RedriveCount: "0",
 		}),
 		State: struct {
 			Name        string
 			EnteredTime string
+			RetryCount  string
 		}{
 			Name:        "agocsTest1",
 			EnteredTime: "2024-07-30T20:46:20.824Z",
+			RetryCount:  "0",
 		},
 	}
 

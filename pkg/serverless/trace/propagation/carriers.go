@@ -303,11 +303,11 @@ func extractTraceContextFromNestedStepFunctionContext(event events.NestedStepFun
 		return nil, err
 	}
 
-	if event.RootExecutionId == "" {
+	if event.RootExecutionID == "" {
 		return nil, errorNoStepFunctionContextFound
 	}
 
-	lowerTraceID, upperTraceID := stringToDdTraceIDs(event.RootExecutionId)
+	lowerTraceID, upperTraceID := stringToDdTraceIDs(event.RootExecutionID)
 	tc.TraceID = lowerTraceID
 	tc.TraceIDUpper64Hex = upperTraceID
 
@@ -321,11 +321,11 @@ func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRoo
 		return nil, err
 	}
 
-	if event.TraceId == 0 || event.TraceIDUpper64Hex == "" {
+	if event.TraceID == 0 || event.TraceIDUpper64Hex == "" {
 		return nil, errorNoStepFunctionContextFound
 	}
 
-	tc.TraceID = event.TraceId
+	tc.TraceID = event.TraceID
 	tc.TraceIDUpper64Hex = event.TraceIDUpper64Hex
 
 	return tc, nil
@@ -337,7 +337,7 @@ func stringToDdSpanID(execArn string, stateName string, stateEnteredTime string,
 	if stateRetryCount != "0" || execRedriveCount != "0" {
 		uniqueSpanString = fmt.Sprintf("%s#%s#%s#%s#%s", execArn, stateName, stateEnteredTime, stateRetryCount, execRedriveCount)
 	} else {
-		// omit stateRetryCount and execRedriveCount when both are 0 to maintain backwards compatability
+		// omit stateRetryCount and execRedriveCount when both are 0 to maintain backwards compatibility
 		uniqueSpanString = fmt.Sprintf("%s#%s#%s", execArn, stateName, stateEnteredTime)
 	}
 	spanHash := sha256.Sum256([]byte(uniqueSpanString))

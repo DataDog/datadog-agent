@@ -363,14 +363,14 @@ type StepFunctionPayload struct {
 // NestedStepFunctionPayload contains a StepFunctionPayload but also has the Execution ID of the top-most Step Function in the trace
 type NestedStepFunctionPayload struct {
 	Payload           StepFunctionPayload
-	RootExecutionId   string
+	RootExecutionID   string
 	ServerlessVersion string
 }
 
 // LambdaRootStepFunctionPayload contains a StepFunctionPayload but also has the Trace ID of the top-most Lambda in the trace
 type LambdaRootStepFunctionPayload struct {
 	Payload           StepFunctionPayload
-	TraceId           uint64
+	TraceID           uint64
 	TraceIDUpper64Hex string
 	ServerlessVersion string
 }
