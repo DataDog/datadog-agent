@@ -2,7 +2,7 @@
 # Installer for Datadog (www.datadoghq.com).
 # Copyright 2016-present Datadog, Inc.
 #
-set -e
+set -euo pipefail
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -27,8 +27,8 @@ aarch64)
   installer_sha256="INSTALLER_ARM64_SHA256"
   ;;
 esac
-site=$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")
-installer_url="https://${site}/v2/installer-package/blobs/sha256:${installer_sha256}"
+installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
+installer_url="https://${installer_domain}/v2/installer-package/blobs/sha256:${installer_sha256}"
 
 tmp_dir="/opt/datadog-packages/tmp"
 tmp_bin="${tmp_dir}/installer"
@@ -45,9 +45,15 @@ fi
 
 echo "Downloading the Datadog installer..."
 if command -v curl >/dev/null; then
-  curl -L --retry 3 "$installer_url" | "${sudo_cmd[@]}" tee "$tmp_bin" >/dev/null
+  if ! curl -L --retry 3 "$installer_url" | "${sudo_cmd[@]}" tee "$tmp_bin" >/dev/null; then
+    echo "Error: Download failed with curl." >&2
+    exit 1
+  fi
 else
-  wget --tries=3 -O - "$installer_url" | "${sudo_cmd[@]}" tee "$tmp_bin" >/dev/null
+  if ! wget --tries=3 -O - "$installer_url" | "${sudo_cmd[@]}" tee "$tmp_bin" >/dev/null; then
+    echo "Error: Download failed with wget." >&2
+    exit 1
+  fi
 fi
 "${sudo_cmd[@]}" chmod +x "$tmp_bin"
 
