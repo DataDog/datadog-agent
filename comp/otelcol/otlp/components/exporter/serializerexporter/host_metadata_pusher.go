@@ -6,8 +6,6 @@
 package serializerexporter
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,15 +29,6 @@ func (h *hostMetadataPusher) Push(_ context.Context, hm payload.HostMetadata) er
 		return fmt.Errorf("error marshaling metadata payload: %w", err)
 	}
 
-	var buf bytes.Buffer
-	g := gzip.NewWriter(&buf)
-	if _, err = g.Write(marshaled); err != nil {
-		return fmt.Errorf("error compressing metadata payload: %w", err)
-	}
-	if err = g.Close(); err != nil {
-		return fmt.Errorf("error closing gzip writer: %w", err)
-	}
-	bufBytes := buf.Bytes()
-	bytesPayload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&bufBytes})
+	bytesPayload := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&marshaled})
 	return h.forwarder.SubmitHostMetadata(bytesPayload, http.Header{})
 }

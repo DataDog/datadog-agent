@@ -134,6 +134,7 @@ func (f *factory) Reporter(params exp.Settings, forwarder defaultforwarder.Forwa
 		pusher := &hostMetadataPusher{forwarder: forwarder}
 		f.reporter, reporterErr = inframetadata.NewReporter(params.Logger, pusher, reporterPeriod)
 		if reporterErr == nil {
+			params.Logger.Info("Starting host metadata reporter")
 			go func() {
 				if err := f.reporter.Run(context.Background()); err != nil {
 					params.Logger.Error("Host metadata reporter failed at runtime", zap.Error(err))
@@ -181,9 +182,12 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
-	reporter, err := f.Reporter(params, forwarder, cfg.HostMetadata.ReporterPeriod)
-	if err != nil {
-		return nil, err
+	var reporter *inframetadata.Reporter
+	if cfg.HostMetadata.Enabled {
+		reporter, err = f.Reporter(params, forwarder, cfg.HostMetadata.ReporterPeriod)
+		if err != nil {
+			return nil, err
+		}
 	}
 	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr, params, reporter)
 	if err != nil {
