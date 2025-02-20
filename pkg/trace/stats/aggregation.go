@@ -7,7 +7,6 @@
 package stats
 
 import (
-	"fmt"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -147,7 +146,6 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 			}
 
 			if strings.ToUpper(strC) == "CANCELED" || strings.ToUpper(strC) == "CANCELLED" { // the rpc code google api checks for "CANCELLED" but we receive "Canceled" from upstream
-				fmt.Println(codes.Canceled.String())
 				return codes.Canceled.String()
 			}
 
