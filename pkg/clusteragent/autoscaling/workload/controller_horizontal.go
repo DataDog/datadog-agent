@@ -133,13 +133,12 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	}
 
 	telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "ok", le.JoinLeaderValue)
-	telemetryHorizontalScaleAppliedRecommendations.Set(
+	setHorizontalScaleAppliedRecommendations(
 		float64(horizontalAction.ToReplicas),
 		scale.Namespace,
 		scale.Name,
 		podAutoscaler.Name,
 		string(scalingValues.Horizontal.Source),
-		le.JoinLeaderValue,
 	)
 
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)

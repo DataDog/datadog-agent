@@ -81,7 +81,7 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 		return fmt.Errorf("failed to parse scaling values for PodAutoscaler %s: %w", id, err)
 	}
 
-	podAutoscaler.UpdateFromValues(scalingValues)
+	podAutoscaler.UpdateFromMainValues(scalingValues)
 
 	// Emit telemetry for received values
 	// Target name cannot normally be empty, but we handle it just in case
@@ -147,7 +147,7 @@ func (p autoscalingValuesProcessor) postProcess(errors []error) {
 	p.store.Update(func(podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
 		if _, found := p.processed[podAutoscaler.ID()]; !found {
 			log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s", podAutoscaler.ID())
-			podAutoscaler.RemoveValues()
+			podAutoscaler.RemoveMainValues()
 			return podAutoscaler, true
 		}
 

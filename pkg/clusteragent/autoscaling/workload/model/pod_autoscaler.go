@@ -165,9 +165,28 @@ func (p *PodAutoscalerInternal) UpdateFromSettings(podAutoscalerSpec *datadoghq.
 	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscalerSpec.Policy, longestScalingRulePeriodAllowed)
 }
 
-// UpdateFromValues updates the PodAutoscalerInternal scaling values
-func (p *PodAutoscalerInternal) UpdateFromValues(scalingValues ScalingValues) {
-	p.scalingValues = scalingValues
+// MergeScalingValues updates the PodAutoscalerInternal scaling values based on the desired source of recommendations
+func (p *PodAutoscalerInternal) MergeScalingValues(horizontalActiveSource, verticalActiveSource *datadoghq.DatadogPodAutoscalerValueSource) {
+	// Helper function to select scaling values based on the source
+	selectScalingValues := func(source *datadoghq.DatadogPodAutoscalerValueSource) ScalingValues {
+		switch {
+		case source == nil:
+			return p.scalingValues
+		case *source == datadoghq.DatadogPodAutoscalerLocalValueSource:
+			return p.fallbackScalingValues
+		default:
+			return p.mainScalingValues
+		}
+	}
+
+	// Update scaling values
+	p.scalingValues.Horizontal = selectScalingValues(horizontalActiveSource).Horizontal
+	p.scalingValues.Vertical = selectScalingValues(verticalActiveSource).Vertical
+
+	// Update error states based on main product recommendations
+	p.scalingValues.HorizontalError = p.mainScalingValues.HorizontalError
+	p.scalingValues.VerticalError = p.mainScalingValues.VerticalError
+	p.scalingValues.Error = p.mainScalingValues.Error
 }
 
 // UpdateFromMainValues updates the PodAutoscalerInternal from new main scaling values
