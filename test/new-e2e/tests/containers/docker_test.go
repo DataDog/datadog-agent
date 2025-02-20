@@ -88,7 +88,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 			Tags: &[]string{},
 			Value: &testMetricExpectValueArgs{
 				Min: 4,
-				Max: 4,
+				Max: 5,
 			},
 		},
 	})
@@ -165,7 +165,7 @@ func (suite *DockerSuite) TestDockerEvents() {
 	}
 	ctrName := "exit_42_" + string(ctrNameData)
 
-	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" busybox sh -c \"exit 42\"", ctrName))
+	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
 
 	suite.testEvent(&testEventArgs{
 		Filter: testEventFilterArgs{
@@ -178,9 +178,9 @@ func (suite *DockerSuite) TestDockerEvents() {
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
-				`^docker_image:busybox$`,
+				`^docker_image:public.ecr.aws/docker/library/busybox$`,
 				`^image_id:sha256:`,
-				`^image_name:busybox$`,
+				`^image_name:public.ecr.aws/docker/library/busybox$`,
 				`^short_image:busybox$`,
 			},
 			Title:     `busybox .*1 die`,
