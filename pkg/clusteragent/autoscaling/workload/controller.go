@@ -477,16 +477,16 @@ func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, n
 	return err
 }
 
-func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.PodAutoscalerInternal, activeHorizontalSource *datadoghq.DatadogPodAutoscalerValueSource) {
+func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.PodAutoscalerInternal, activeHorizontalSource *datadoghqcommon.DatadogPodAutoscalerValueSource) {
 	if activeHorizontalSource == nil {
 		return
 	}
 
 	// Logic when local fallback is activated/deactivated for horizontal scaling
-	if c.isFallbackEnabled && *activeHorizontalSource == datadoghq.DatadogPodAutoscalerAutoscalingValueSource {
+	if c.isFallbackEnabled && *activeHorizontalSource == datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource {
 		log.Debugf("Product horizontal scaling values are no longer stale, deactivating local fallback")
 		c.isFallbackEnabled = false
-	} else if !c.isFallbackEnabled && *activeHorizontalSource == datadoghq.DatadogPodAutoscalerLocalValueSource {
+	} else if !c.isFallbackEnabled && *activeHorizontalSource == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
 		log.Debugf("Product horizontal scaling values are stale, activating local fallback")
 		c.isFallbackEnabled = true
 	}
@@ -494,19 +494,19 @@ func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.Pod
 	trackLocalFallbackEnabled(*activeHorizontalSource, *podAutoscalerInternal)
 }
 
-func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghq.DatadogPodAutoscalerValueSource, *datadoghq.DatadogPodAutoscalerValueSource) {
+func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghqcommon.DatadogPodAutoscalerValueSource, *datadoghqcommon.DatadogPodAutoscalerValueSource) {
 	// Set default vertical scaling source
-	activeVerticalSource := (*datadoghq.DatadogPodAutoscalerValueSource)(nil)
+	activeVerticalSource := (*datadoghqcommon.DatadogPodAutoscalerValueSource)(nil)
 	if podAutoscalerInternal.MainScalingValues().Vertical != nil {
 		activeVerticalSource = pointer.Ptr(podAutoscalerInternal.MainScalingValues().Vertical.Source)
 	}
 
 	// Check if horizontal scaling is disabled; if disabled, always use main values as source
-	if podAutoscalerInternal.Spec().Policy != nil {
-		upscaleStrategy := podAutoscalerInternal.Spec().Policy.Upscale
-		downscaleStrategy := podAutoscalerInternal.Spec().Policy.Downscale
-		if (upscaleStrategy != nil && *upscaleStrategy.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect) && (downscaleStrategy != nil && *downscaleStrategy.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect) {
-			return pointer.Ptr(datadoghq.DatadogPodAutoscalerAutoscalingValueSource), activeVerticalSource
+	if podAutoscalerInternal.Spec().ApplyPolicy != nil {
+		scaleUpStrategy := podAutoscalerInternal.Spec().ApplyPolicy.ScaleUp
+		scaleDownStrategy := podAutoscalerInternal.Spec().ApplyPolicy.ScaleDown
+		if (scaleUpStrategy != nil && *scaleUpStrategy.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect) && (scaleDownStrategy != nil && *scaleDownStrategy.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect) {
+			return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), activeVerticalSource
 		}
 	}
 
@@ -516,7 +516,7 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 
 	// If main scaling values are not stale, use those
 	if mainHorizontalScalingValues != nil && !isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp) {
-		return pointer.Ptr(datadoghq.DatadogPodAutoscalerAutoscalingValueSource), activeVerticalSource
+		return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), activeVerticalSource
 	}
 
 	// Check if one of the following conditions are met:
@@ -528,7 +528,7 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues == nil && isTimestampStale(currentTime, podAutoscalerInternal.CreationTimestamp())) {
 		// If local fallback values are usable, activate local fallback
 		if fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp) {
-			return pointer.Ptr(datadoghq.DatadogPodAutoscalerLocalValueSource), activeVerticalSource
+			return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerLocalValueSource), activeVerticalSource
 		}
 	}
 
