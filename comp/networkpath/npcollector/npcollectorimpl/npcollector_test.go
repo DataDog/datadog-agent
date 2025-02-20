@@ -907,3 +907,121 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 		})
 	}
 }
+
+func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+
+	stats := &teststatsd.Client{}
+	npCollector.initStatsdClient(stats)
+
+	tests := []struct {
+		name           string
+		vpcCidr        string
+		conn           *model.Connection
+		shouldSchedule bool
+	}{
+		{
+			name: "should schedule",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name: "should not schedule incoming conn",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_incoming,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule conn with none direction",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_none,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule ipv6",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v6,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule for loopback",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule for intrahost",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+				IntraHost: true,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name:    "should not schedule for same vpc",
+			vpcCidr: "10.0.0.0/24",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name:    "should schedule for different vpc",
+			vpcCidr: "10.0.0.0/24",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.10.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name:    "should schedule for invalid vpc cidr",
+			vpcCidr: "10.0.0.0/xx",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.10.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			npCollector.vpcCidrBlock = tt.vpcCidr
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn))
+		})
+	}
+}
