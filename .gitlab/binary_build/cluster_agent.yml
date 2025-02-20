@@ -27,12 +27,18 @@ cluster_agent-build_amd64:
   extends: .cluster_agent-build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  variables:
-    ARCH: amd64
 
 cluster_agent-build_arm64:
   extends: .cluster_agent-build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
+
+cluster_agent_fips-build_amd64:
+  extends: cluster_agent-build_amd64
   variables:
-    ARCH: arm64
+    GOEXPERIMENT: boringcrypto
+
+cluster_agent_fips-build_arm64:
+  extends: cluster_agent-build_arm64
+  variables:
+    GOEXPERIMENT: boringcrypto
