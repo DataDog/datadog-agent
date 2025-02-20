@@ -59,30 +59,33 @@ var (
 type bpfMapName = string
 
 const (
-	cudaEventsRingbuf     bpfMapName = "cuda_events"
-	cudaAllocCacheMap     bpfMapName = "cuda_alloc_cache"
-	cudaSyncCacheMap      bpfMapName = "cuda_sync_cache"
-	cudaSetDeviceCacheMap bpfMapName = "cuda_set_device_cache"
-	cudaEventStreamMap    bpfMapName = "cuda_event_to_stream"
-	cudaEventCacheMap     bpfMapName = "cuda_event_cache"
+	cudaEventsRingbuf      bpfMapName = "cuda_events"
+	cudaAllocCacheMap      bpfMapName = "cuda_alloc_cache"
+	cudaSyncCacheMap       bpfMapName = "cuda_sync_cache"
+	cudaSetDeviceCacheMap  bpfMapName = "cuda_set_device_cache"
+	cudaEventStreamMap     bpfMapName = "cuda_event_to_stream"
+	cudaEventSyncCacheMap  bpfMapName = "cuda_event_sync_cache"
+	cudaEventQueryCacheMap bpfMapName = "cuda_event_query_cache"
 )
 
 // probeFuncName stores the ebpf hook function name
 type probeFuncName = string
 
 const (
-	cudaLaunchKernelProbe  probeFuncName = "uprobe__cudaLaunchKernel"
-	cudaMallocProbe        probeFuncName = "uprobe__cudaMalloc"
-	cudaMallocRetProbe     probeFuncName = "uretprobe__cudaMalloc"
-	cudaStreamSyncProbe    probeFuncName = "uprobe__cudaStreamSynchronize"
-	cudaStreamSyncRetProbe probeFuncName = "uretprobe__cudaStreamSynchronize"
-	cudaFreeProbe          probeFuncName = "uprobe__cudaFree"
-	cudaSetDeviceProbe     probeFuncName = "uprobe__cudaSetDevice"
-	cudaSetDeviceRetProbe  probeFuncName = "uretprobe__cudaSetDevice"
-	cudaEventRecordProbe   probeFuncName = "uprobe__cudaEventRecord"
-	cudaEventQueryProbe    probeFuncName = "uprobe__cudaEventQuery"
-	cudaEventQueryRetProbe probeFuncName = "uretprobe__cudaEventQuery"
-	cudaEventDestroyProbe  probeFuncName = "uprobe__cudaEventDestroy"
+	cudaLaunchKernelProbe        probeFuncName = "uprobe__cudaLaunchKernel"
+	cudaMallocProbe              probeFuncName = "uprobe__cudaMalloc"
+	cudaMallocRetProbe           probeFuncName = "uretprobe__cudaMalloc"
+	cudaStreamSyncProbe          probeFuncName = "uprobe__cudaStreamSynchronize"
+	cudaStreamSyncRetProbe       probeFuncName = "uretprobe__cudaStreamSynchronize"
+	cudaFreeProbe                probeFuncName = "uprobe__cudaFree"
+	cudaSetDeviceProbe           probeFuncName = "uprobe__cudaSetDevice"
+	cudaSetDeviceRetProbe        probeFuncName = "uretprobe__cudaSetDevice"
+	cudaEventRecordProbe         probeFuncName = "uprobe__cudaEventRecord"
+	cudaEventQueryProbe          probeFuncName = "uprobe__cudaEventQuery"
+	cudaEventQueryRetProbe       probeFuncName = "uretprobe__cudaEventQuery"
+	cudaEventSynchronizeProbe    probeFuncName = "uprobe__cudaEventSynchronize"
+	cudaEventSynchronizeRetProbe probeFuncName = "uretprobe__cudaEventSynchronize"
+	cudaEventDestroyProbe        probeFuncName = "uprobe__cudaEventDestroy"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -277,7 +280,8 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 			{Name: cudaSyncCacheMap},
 			{Name: cudaSetDeviceCacheMap},
 			{Name: cudaEventStreamMap},
-			{Name: cudaEventCacheMap},
+			{Name: cudaEventSyncCacheMap},
+			{Name: cudaEventQueryCacheMap},
 		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
@@ -353,6 +357,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventRecordProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventQueryRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventSynchronizeRetProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaEventDestroyProbe}},
 						},
 					},

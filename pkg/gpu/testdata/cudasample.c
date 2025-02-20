@@ -45,6 +45,10 @@ cudaError_t cudaEventQuery(cudaEvent_t event) {
     return 0;
 }
 
+cudaError_t cudaEventSynchronize(cudaEvent_t event) {
+    return 0;
+}
+
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
     cudaEvent_t event = 42;
@@ -75,6 +79,7 @@ int main(int argc, char **argv) {
 
     cudaEventRecord(event, stream);
     cudaEventQuery(event);
+    cudaEventSynchronize(event);
 
     // we don't exit to avoid flakiness when the process is terminated before it was hooked for gpu monitoring
     // the expected usage is to send a kill signal to the process (or stop the container that is running it)
