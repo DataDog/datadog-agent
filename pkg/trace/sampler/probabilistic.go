@@ -8,7 +8,9 @@ package sampler
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"hash/fnv"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -39,7 +41,10 @@ type ProbabilisticSampler struct {
 	hashSeed                 []byte
 	scaledSamplingPercentage uint32
 	samplingPercentage       float64
-	metrics                  metrics
+	// If any rules don't match the span, it fallbacks to the `samplingPercentage`.
+	// samplingRules is a list of rules that can be used to override the `samplingPercentage`.
+	samplingRules []probabilisticSamplerRules
+	metrics       metrics
 	// fullTraceIDMode looks at the full 128-bit trace ID to make the sampling decision
 	// This can be useful when trying to run this probabilistic sampler alongside the
 	// OTEL probabilistic sampler processor which always looks at the full 128-bit trace id.
@@ -53,17 +58,66 @@ type ProbabilisticSampler struct {
 	stopped  chan struct{}
 }
 
+type probabilisticSamplerRules struct {
+	service          *regexp.Regexp
+	operationMame    *regexp.Regexp
+	resourceName     *regexp.Regexp
+	attributes       map[string]*regexp.Regexp
+	scaledPercentage uint32
+	percentage       float64
+}
+
+func compileProbabilisticSamplerRules(rules []config.ProbabilisticSamplerRule) ([]probabilisticSamplerRules, error) {
+	compiledRules := make([]probabilisticSamplerRules, len(rules))
+	for i, rule := range rules {
+		var err error
+		if rule.Service != "" {
+			compiledRules[i].service, err = regexp.Compile(rule.Service)
+			if err != nil {
+				return nil, fmt.Errorf("service regex: %w", err)
+			}
+		}
+		if rule.OperationName != "" {
+			compiledRules[i].operationMame, err = regexp.Compile(rule.OperationName)
+			if err != nil {
+				return nil, fmt.Errorf("name regex: %w", err)
+			}
+		}
+		if rule.ResourceName != "" {
+			compiledRules[i].resourceName, err = regexp.Compile(rule.ResourceName)
+			if err != nil {
+				return nil, fmt.Errorf("resource regex: %w", err)
+			}
+		}
+		compiledRules[i].attributes = make(map[string]*regexp.Regexp, len(rule.Attributes))
+		for k, v := range rule.Attributes {
+			compiledRules[i].attributes[k], err = regexp.Compile(v)
+			if err != nil {
+				return nil, fmt.Errorf("tag regex: key=%s, value=%s: %w", k, v, err)
+			}
+		}
+		compiledRules[i].scaledPercentage = uint32(rule.Percentage * percentageScaleFactor)
+		compiledRules[i].percentage = float64(rule.Percentage) / 100.
+	}
+	return compiledRules, nil
+}
+
 // NewProbabilisticSampler returns a new ProbabilisticSampler that deterministically samples
 // a given percentage of incoming spans based on their trace ID
 func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *ProbabilisticSampler {
 	hashSeedBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(hashSeedBytes, conf.ProbabilisticSamplerHashSeed)
 	_, fullTraceIDMode := conf.Features["probabilistic_sampler_full_trace_id"]
+	rules, err := compileProbabilisticSamplerRules(conf.ProbabilisticSamplerRules)
+	if err != nil {
+		log.Errorf("Compiling probabilistic sampler rules: %v", err)
+	}
 	return &ProbabilisticSampler{
 		enabled:                  conf.ProbabilisticSamplerEnabled,
 		hashSeed:                 hashSeedBytes,
 		scaledSamplingPercentage: uint32(conf.ProbabilisticSamplerSamplingPercentage * percentageScaleFactor),
 		samplingPercentage:       float64(conf.ProbabilisticSamplerSamplingPercentage) / 100.,
+		samplingRules:            rules,
 		metrics: metrics{
 			statsd: statsd,
 			tags:   []string{"sampler:probabilistic"},
@@ -73,6 +127,44 @@ func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInter
 		stopped:         make(chan struct{}),
 		fullTraceIDMode: fullTraceIDMode,
 	}
+}
+
+func (ps *ProbabilisticSampler) percentage(root *trace.Span) (uint32, float64) {
+	for _, rule := range ps.samplingRules {
+		// In a single rule, AND conditions are applied.
+		evaluated := false
+		match := true
+
+		if rule.service != nil {
+			evaluated = true
+			if !rule.service.MatchString(root.Service) {
+				match = false
+			}
+		}
+		if rule.operationMame != nil {
+			evaluated = true
+			if !rule.operationMame.MatchString(root.Name) {
+				match = false
+			}
+		}
+		if rule.resourceName != nil {
+			evaluated = true
+			if !rule.resourceName.MatchString(root.Resource) {
+				match = false
+			}
+		}
+		for k, v := range rule.attributes {
+			evaluated = true
+			if val, ok := root.Meta[k]; !ok || !v.MatchString(val) {
+				match = false
+				break
+			}
+		}
+		if match && evaluated {
+			return rule.scaledPercentage, rule.percentage
+		}
+	}
+	return ps.scaledSamplingPercentage, ps.samplingPercentage
 }
 
 // Start starts up the ProbabilisticSamler's support routine, which periodically sends stats.
@@ -136,10 +228,11 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) (sampled bool) {
 	_, _ = hasher.Write(ps.hashSeed)
 	_, _ = hasher.Write(tid)
 	hash := hasher.Sum32()
-	keep := hash&bitMaskHashBuckets < ps.scaledSamplingPercentage
+	scaledSamplingPercentage, samplingPercentage := ps.percentage(root)
+	keep := hash&bitMaskHashBuckets < scaledSamplingPercentage
 	if keep {
 		sampled = true
-		setMetric(root, probRateKey, ps.samplingPercentage)
+		setMetric(root, probRateKey, samplingPercentage)
 	}
 	return
 }

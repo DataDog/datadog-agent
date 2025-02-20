@@ -284,6 +284,22 @@ type SymDBProxyConfig struct {
 	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 }
 
+// ProbabilisticSamplerRule is used for applying sampling percentage to spans that match
+// the service name, operation name, resource, and/or tags.
+type ProbabilisticSamplerRule struct {
+	// Service specifies the regex pattern that a span service name must match.
+	Service string `mapstructure:"service"`
+	// OperationName specifies the regex pattern that a span operation name must match.
+	OperationName string `mapstructure:"operation_name"`
+	// ResourceName specifies the regex pattern that a span resource must match.
+	ResourceName string `mapstructure:"resource_name"`
+	// Attributes specifies the map of key-value patterns that span attributes must match.
+	Attributes map[string]string `mapstructure:"attributes"`
+	// Percentage specifies the sampling percentage that should be applied to spans that match
+	// service and/or name of the rule.
+	Percentage float32 `mapstructure:"percentage"`
+}
+
 // AgentConfig handles the interpretation of the configuration (with default
 // behaviors) in one place. It is also a simple structure to share across all
 // the Agent components, with 100% safe and reliable values.
@@ -335,6 +351,7 @@ type AgentConfig struct {
 	ProbabilisticSamplerEnabled            bool
 	ProbabilisticSamplerHashSeed           uint32
 	ProbabilisticSamplerSamplingPercentage float32
+	ProbabilisticSamplerRules              []ProbabilisticSamplerRule
 
 	// Error Tracking Standalone
 	ErrorTrackingStandalone bool

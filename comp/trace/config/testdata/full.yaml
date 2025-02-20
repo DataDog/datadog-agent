@@ -46,6 +46,18 @@ apm_config:
   target_traces_per_second: 5
   max_events_per_second: 50
   max_remote_traces_per_second: 9999
+  probabilistic_sampler:
+    enabled: true
+    sampling_percentage: 1.13
+    rules:
+    - service: "^example-service.*"
+      operation_name: "^example-operation-name.*"
+      percentage: 30
+      attributes:
+        key1: "^value1-.*"
+        key2: "^value2-.*"
+    - resource_name: "^GET /api/v1/.*"
+      percentage: 12.34
   ignore_resources:
     - /health
     - /500
