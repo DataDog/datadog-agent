@@ -204,10 +204,8 @@ dev_nightly-a7-full:
     - docker_build_agent7_full_arm64
   variables:
     IMG_REGISTRIES: dev
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
-        IMG_DESTINATIONS: agent-dev:nightly-full-${CI_COMMIT_REF_SLUG}-jmx
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
+    IMG_DESTINATIONS: agent-dev:nightly-full-${CI_COMMIT_REF_SLUG}-jmx
 
 # deploy nightly build to single-machine-performance
 single_machine_performance-nightly-amd64-a7:
@@ -263,7 +261,5 @@ dev_branch-full:
     - docker_build_agent7_full_arm64
   variables:
     IMG_REGISTRIES: dev
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-full
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
+    IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-full
