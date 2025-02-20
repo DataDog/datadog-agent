@@ -114,6 +114,26 @@ func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *te
 	}
 }
 
+type testHACheck struct {
+	testCheck
+}
+
+func (c *testHACheck) IsHASupported() bool {
+	return true
+}
+
+func newHACheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *testHACheck {
+	return &testHACheck{
+		testCheck: testCheck{
+			doErr:    doErr,
+			t:        t,
+			id:       id,
+			runFunc:  runFunc,
+			runCount: atomic.NewUint64(0),
+		},
+	}
+}
+
 func assertErrorCount(t *testing.T, c check.Check, count int) {
 	stats, found := expvars.CheckStats(c.ID())
 	require.True(t, found)
@@ -686,7 +706,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			pendingChecksChan := make(chan check.Check, 10)
 			mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
-			snmpCheck := newCheck(t, "snmp:123", false, nil)
+			snmpCheck := newHACheck(t, "snmp:123", false, nil)
 			unknownCheck := newCheck(t, "unknown-check:123", false, nil)
 
 			pendingChecksChan <- snmpCheck

@@ -241,6 +241,11 @@ int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const c
     return AS_TYPE(RtLoader, rtloader)->getAttrString(AS_TYPE(RtLoaderPyObject, py_class), attr_name, *value);
 }
 
+int get_attr_bool(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *attr_name, bool *value)
+{
+    return AS_TYPE(RtLoader, rtloader)->getAttrBool(AS_TYPE(RtLoaderPyObject, py_class), attr_name, *value);
+}
+
 int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
               const char *check_id, const char *check_name, rtloader_pyobject_t **check)
 {
