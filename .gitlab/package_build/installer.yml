@@ -106,8 +106,8 @@ installer-install-scripts:
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - ls -la $OMNIBUS_PACKAGE_DIR
     - tar -tvJf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz
-    - tar -xJf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz -C installer-amd64 --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer"
-    - tar -xJf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*arm64.tar.xz -C installer-arm64 --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer"
+    - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-amd64
+    - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*arm64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-arm64
     - inv -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "install.sh"
     - inv -e installer.build-linux-script "databricks" "$VERSION" "installer-amd64" "installer-arm64" "install-databricks.sh"
     - inv -e installer.build-linux-script "emr" "$VERSION" "installer-amd64" "installer-arm64" "install-emr.sh"
