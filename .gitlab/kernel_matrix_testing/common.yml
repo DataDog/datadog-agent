@@ -294,7 +294,7 @@
         - $EXTERNAL_LINKS_PATH
 
 notify_ebpf_complexity_changes:
-  stage: notify
+  extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
@@ -333,7 +333,6 @@ notify_ebpf_complexity_changes:
               - suse_12.5
               - fedora_38
             TEST_SET: no_usm
-  allow_failure: true
   before_script:
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
