@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps after package is installed.
+# NOTE: part of the setup is done in the posttrans (rpm-only) script
+#
+# .rpm: STEP 3 of 6
+
+INSTALL_DIR=/opt/datadog-agent
+LOG_DIR=/var/log/datadog
+CONFIG_DIR=/etc/datadog-agent
+
+# Set up `dd-agent` user and group
+if ! getent group dd-agent >/dev/null; then
+    groupadd -r dd-agent
+fi
+if ! getent passwd dd-agent >/dev/null; then
+    useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin -c "Datadog Agent" dd-agent
+    if ! usermod -L dd-agent; then
+        echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"
+    fi
+fi
+
+# Set proper rights to the dd-agent user
+chown -R dd-agent:dd-agent ${CONFIG_DIR}
+chown -R dd-agent:dd-agent ${LOG_DIR}
+chown -R dd-agent:dd-agent ${INSTALL_DIR}
+
+# Make system-probe configs read-only
+chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
+if [ -f "$CONFIG_DIR/system-probe.yaml" ]; then
+    chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
+fi
+
+# Make security-agent config read-only
+chmod 0440 ${CONFIG_DIR}/security-agent.yaml.example || true
+if [ -f "$CONFIG_DIR/security-agent.yaml" ]; then
+    chmod 0440 ${CONFIG_DIR}/security-agent.yaml || true
+fi
+
+if [ -d "$CONFIG_DIR/compliance.d" ]; then
+    chown -R root:root ${CONFIG_DIR}/compliance.d || true
+fi
+
+if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
+    chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
+fi
+
+# Make the system-probe and security-agent binaries and eBPF programs owned by root
+chown root:root ${INSTALL_DIR}/embedded/bin/system-probe
+chown root:root ${INSTALL_DIR}/embedded/bin/security-agent
+chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/ebpf
+chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/java
+
+if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
+    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/post.py" "${INSTALL_DIR}" || true
+fi
+
+exit 0
