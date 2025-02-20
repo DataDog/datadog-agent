@@ -654,11 +654,8 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSynRetransmit, prometheus.CounterValue, float64(delta))
 
 	// Collect the TCP failure telemetry
-	tcpFailureTelemetry := t.getTCPFailureTelemetry()
-	if tcpFailureTelemetry != nil {
-		for k, v := range tcpFailureTelemetry {
-			EbpfTracerTelemetry.tcpFailedConnections.Add(float64(v), fmt.Sprintf("%d", k))
-		}
+	for k, v := range t.getTCPFailureTelemetry() {
+		EbpfTracerTelemetry.tcpFailedConnections.Add(float64(v), fmt.Sprintf("%d", k))
 	}
 }
 
