@@ -3,7 +3,7 @@ installer namespaced tasks
 """
 
 import hashlib
-from os import path, makedirs
+from os import makedirs, path
 
 from invoke import task
 
