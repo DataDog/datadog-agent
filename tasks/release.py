@@ -30,7 +30,6 @@ from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
-    clone,
     get_default_branch,
     get_git_references,
     get_last_commit,
@@ -47,6 +46,7 @@ from tasks.libs.pipeline.notifications import (
     DEFAULT_SLACK_CHANNEL,
     load_and_validate,
     warn_new_commits,
+    warn_new_tags,
 )
 from tasks.libs.releasing.documentation import (
     create_release_page,
@@ -1186,6 +1186,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
         next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
         changes = 'false'
+        message = [f":warning: Please add the `{next_version}` tag on the head of `{release_branch}` for:\n"]
         for repo_name, repo in repo_data.items():
             head_commit = get_last_commit(ctx, repo_name, repo['branch'])
             last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
@@ -1198,12 +1199,9 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                     warn_new_commits(emails, team, repo['branch'], next_version)
                 else:
                     if repo_name not in ["datadog-agent", "integrations-core"]:
-                        with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):
-                            # We can add the new commit now to be used by release candidate creation
-                            print(f"Creating new tag {next_version} on {repo_name}", file=sys.stderr)
-                            set_gitconfig_in_ci(ctx)
-                            ctx.run(f"git tag {next_version}")
-                            ctx.run(f"git push origin tag {next_version}")
+                        message.append(
+                            f" - <https://github.com/DataDog/{repo_name}/commits/{release_branch}/|{repo_name}>\n"
+                        )
                 # This repo has changes, the next check is not needed
                 continue
             if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
@@ -1212,6 +1210,10 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                     f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
                     file=sys.stderr,
                 )
+        # Notify the release manager if there are changes
+        if len(message) > 1:
+            message.append("Make sure to tag them before merging the next RC PR.")
+            warn_new_tags("".join(message))
         # Send a value for the create_rc_pr.yml workflow
         print(changes)
 

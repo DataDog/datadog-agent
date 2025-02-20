@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	installerOCILayoutURL  = "file://." // the installer OCI layout is written by the downloader in the current directory
 	commandTimeoutDuration = 10 * time.Second
 )
 
@@ -112,11 +111,19 @@ func (s *Setup) Run() (err error) {
 	}
 	packages := resolvePackages(s.Packages)
 	s.Out.WriteString("The following packages will be installed:\n")
-	s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", "datadog-installer", version.AgentVersion))
+	installerVersion := "latest"
+	if s.Env.DefaultPackagesVersionOverride["datadog-installer"] != "" {
+		installerVersion = s.Env.DefaultPackagesVersionOverride["datadog-installer"]
+	}
+	s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", "datadog-installer", installerVersion))
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
-	err = s.installPackage("datadog-installer", installerOCILayoutURL)
+	// HACK: even if the setup and installer are currently merged we can't self install since we
+	// don't have the full OCI and only the installer CLI.
+	// To solve this issue we assume our parent OCI is available with our version as tag.
+	url := oci.PackageURL(s.Env, "datadog-installer", installerVersion)
+	err = s.installPackage("datadog-installer", url)
 	if err != nil {
 		return fmt.Errorf("failed to install installer: %w", err)
 	}

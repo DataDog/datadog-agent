@@ -246,7 +246,6 @@
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-agent
-/cmd/installer-downloader/              @DataDog/fleet
 
 /dev/                                   @DataDog/agent-devx-loops
 /devenv/                                @DataDog/agent-devx-loops
@@ -693,6 +692,9 @@
 # Add here modules that need explicit review from the team owning them
 /internal/tools/**/go.mod                @DataDog/agent-devx-loops
 /internal/tools/**/go.sum                @DataDog/agent-devx-loops
+
+/pkg/fleet/installer/go.mod              @DataDog/fleet
+/pkg/fleet/installer/go.sum              @DataDog/fleet
 
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes

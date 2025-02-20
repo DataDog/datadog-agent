@@ -193,7 +193,7 @@ def start(ctx, path="."):
         print(color_message("No devcontainer settings found.  Run `invoke devcontainer.setup` first.", Color.RED))
         raise Exit(code=1)
 
-    if not is_installed(ctx, "devcontainer"):
+    if not is_installed("devcontainer"):
         print(
             color_message("Devcontainer CLI is not installed.  Run `invoke install-devcontainer-cli` first.", Color.RED)
         )

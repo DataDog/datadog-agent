@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 )
 
-//go:generate $GOPATH/bin/include_headers pkg/gpu/ebpf/c/runtime/gpu.c pkg/ebpf/bytecode/build/runtime/gpu.c pkg/ebpf/c pkg/gpu/ebpf/c/runtime pkg/gpu/ebpf/c
+//go:generate $GOPATH/bin/include_headers pkg/gpu/ebpf/c/runtime/gpu.c pkg/ebpf/bytecode/build/runtime/gpu.c pkg/ebpf/c pkg/gpu/ebpf/c/runtime pkg/gpu/ebpf/c pkg/network/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/gpu.c pkg/ebpf/bytecode/runtime/gpu.go runtime
 
 func getRuntimeCompiledGPUMonitoring(config *config.Config) (runtime.CompiledOutput, error) {
