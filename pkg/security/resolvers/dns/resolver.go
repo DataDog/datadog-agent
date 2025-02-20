@@ -19,28 +19,38 @@ import (
 )
 
 // Resolver defines a resolver
-type Resolver struct {
-	cache           *lru.Cache[netip.Addr, map[string]bool]
-	cnameCache      *lru.Cache[string, map[string]bool]
-	statsdClient    statsd.ClientInterface
+type CacheStats struct {
 	cacheHits       atomic.Int64
 	cacheMisses     atomic.Int64
 	cacheInsertions atomic.Int64
 	cacheEvictions  atomic.Int64
 }
+type Resolver struct {
+	cache         *lru.Cache[netip.Addr, map[string]bool]
+	cnameCache    *lru.Cache[string, map[string]bool]
+	statsdClient  statsd.ClientInterface
+	resolverStats *CacheStats
+	cnameStats    *CacheStats
+}
 
 // NewDNSResolver returns a new resolver
 func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) *Resolver {
 	ret := &Resolver{
-		statsdClient: statsdClient,
+		statsdClient:  statsdClient,
+		resolverStats: &CacheStats{},
+		cnameStats:    &CacheStats{},
 	}
 
-	cb := func(netip.Addr, map[string]bool) {
-		ret.cacheEvictions.Inc()
+	cbResolver := func(netip.Addr, map[string]bool) {
+		ret.resolverStats.cacheEvictions.Inc()
 	}
 
-	ret.cache, _ = lru.NewWithEvict[netip.Addr, map[string]bool](cfg.DNSResolverCacheSize, cb)
-	ret.cnameCache, _ = lru.New[string, map[string]bool](cfg.DNSResolverCacheSize)
+	cbCname := func(string, map[string]bool) {
+		ret.cnameStats.cacheEvictions.Inc()
+	}
+
+	ret.cache, _ = lru.NewWithEvict[netip.Addr, map[string]bool](cfg.DNSResolverCacheSize, cbResolver)
+	ret.cnameCache, _ = lru.NewWithEvict[string, map[string]bool](cfg.DNSResolverCacheSize, cbCname)
 
 	return ret
 }
@@ -53,10 +63,13 @@ func (r *Resolver) fillWithCnames(hostname string, set *map[string]bool, depth i
 
 	c, ok := r.cnameCache.Get(hostname)
 	if ok {
+		r.cnameStats.cacheHits.Inc()
 		for hostname := range c {
 			(*set)[hostname] = true
 			r.fillWithCnames(hostname, set, depth-1)
 		}
+	} else {
+		r.cnameStats.cacheMisses.Inc()
 	}
 }
 
@@ -64,8 +77,8 @@ func (r *Resolver) fillWithCnames(hostname string, set *map[string]bool, depth i
 func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
 	hostname, ok := r.cache.Get(addr)
 	if ok {
-		r.cacheHits.Inc()
-		fmt.Printf("DNS cache hit for %s. count = %d\n", addr, r.cacheHits.Load())
+		r.resolverStats.cacheHits.Inc()
+		fmt.Printf("DNS cache hit for %s. count = %d\n", addr, r.resolverStats.cacheHits.Load())
 		// Create a set wil all the hostnames to be returned
 		allHosts := make(map[string]bool)
 		for k := range hostname {
@@ -80,8 +93,8 @@ func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
 		return ret
 	}
 
-	r.cacheMisses.Inc()
-	fmt.Printf("DNS cache miss for %s. count = %d\n", addr, r.cacheMisses.Load())
+	r.resolverStats.cacheMisses.Inc()
+	fmt.Printf("DNS cache miss for %s. count = %d\n", addr, r.resolverStats.cacheMisses.Load())
 	return nil
 }
 
@@ -92,7 +105,7 @@ func (r *Resolver) AddNew(hostname string, ip netip.Addr) {
 	hostnames, ok := r.cache.Get(ip)
 
 	if !ok {
-		r.cacheInsertions.Inc()
+		r.resolverStats.cacheInsertions.Inc()
 		hostnames = map[string]bool{}
 	}
 
@@ -105,6 +118,7 @@ func (r *Resolver) AddNewCname(cname string, hostname string) {
 	hostnames, ok := r.cnameCache.Get(cname)
 
 	if !ok {
+		r.cnameStats.cacheInsertions.Inc()
 		hostnames = map[string]bool{}
 	}
 
@@ -113,23 +127,36 @@ func (r *Resolver) AddNewCname(cname string, hostname string) {
 }
 
 // SendStats sends the DNS resolver metrics
+
 func (r *Resolver) SendStats() error {
 	entry := []string{
 		metrics.CacheTag,
 		metrics.SegmentResolutionTag,
 	}
 
-	hits := r.cacheHits.Swap(0)
+	hits := r.resolverStats.cacheHits.Swap(0)
 	_ = r.statsdClient.Count(metrics.MetricDNSResolverHits, hits, entry, 1.0)
 
-	misses := r.cacheMisses.Swap(0)
+	misses := r.resolverStats.cacheMisses.Swap(0)
 	_ = r.statsdClient.Count(metrics.MetricDNSResolverMiss, misses, entry, 1.0)
 
-	evictions := r.cacheEvictions.Swap(0)
+	evictions := r.resolverStats.cacheEvictions.Swap(0)
 	_ = r.statsdClient.Count(metrics.MetricDNSResolverEvictions, evictions, entry, 1.0)
 
-	insertions := r.cacheInsertions.Swap(0)
+	insertions := r.resolverStats.cacheInsertions.Swap(0)
 	_ = r.statsdClient.Count(metrics.MetricDNSResolverInsertions, insertions, entry, 1.0)
+
+	cnameHits := r.cnameStats.cacheHits.Swap(0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameHits, cnameHits, entry, 1.0)
+
+	cnameMisses := r.cnameStats.cacheMisses.Swap(0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameMiss, cnameMisses, entry, 1.0)
+
+	cnameEvictions := r.cnameStats.cacheEvictions.Swap(0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameEvictions, cnameEvictions, entry, 1.0)
+
+	cnameInsertions := r.cnameStats.cacheInsertions.Swap(0)
+	_ = r.statsdClient.Count(metrics.MetricDNSResolverCnameInsertions, cnameInsertions, entry, 1.0)
 
 	return nil
 }

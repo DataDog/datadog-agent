@@ -84,6 +84,16 @@ var (
 	// MetricDNSResolverInsertions Tags: cache
 	MetricDNSResolverInsertions = newRuntimeMetric(".dns_resolver.insertions")
 
+	// MetricDNSResolverCnameHits is the counter of successful DNS resolution
+	// Tags: cache
+	MetricDNSResolverCnameHits = newRuntimeMetric(".dns_resolver.cname_hits")
+	// MetricDNSResolverCnameMiss is the counter of unsuccessful dentry resolution
+	// Tags: cache
+	MetricDNSResolverCnameMiss = newRuntimeMetric(".dns_resolver.cname_miss")
+	// MetricDNSResolverCnameEvictions Tags: cache
+	MetricDNSResolverCnameEvictions = newRuntimeMetric(".dns_resolver.cname_evictions")
+	// MetricDNSResolverCnameInsertions Tags: cache
+	MetricDNSResolverCnameInsertions = newRuntimeMetric(".dns_resolver.cname_insertions")
 	// filtering metrics
 
 	// MetricDiscarderAdded is the number of discarder added

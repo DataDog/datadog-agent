@@ -10,7 +10,6 @@ package tests
 
 // Package tests holds tests related files
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +40,6 @@ func TestDNSResolver(t *testing.T) {
 		attempts := 10
 
 		savedAllHostnamesFor := func(hostname string, ipAddresses []net.IP) {
-			fmt.Printf("saved-all-hostnames for %s. Resolved to %v\n", hostname, ipAddresses)
 			assert.GreaterOrEqual(t, len(ipAddresses), 1)
 
 			for _, ipAddress := range ipAddresses {
@@ -60,12 +58,11 @@ func TestDNSResolver(t *testing.T) {
 
 		}
 
-		hostList := []string{"sapo.pt"}
+		hostList := []string{"sapo.pt", "datadoghq.eu"}
 		var addresses = make(map[string][]net.IP)
 
 		for _, host := range hostList {
 			ipAddresses, _ := net.LookupIP(host)
-			fmt.Printf("Resolved %s to %v\n", host, ipAddresses)
 			addresses[host] = ipAddresses
 		}
 
