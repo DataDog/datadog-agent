@@ -144,17 +144,13 @@ func collectSubLocationExpressions(location ditypes.LocationExpression) []ditype
 	queue := []ditypes.LocationExpression{location}
 	var top ditypes.LocationExpression
 
-	for {
-		if len(queue) == 0 {
-			break
-		}
+	for len(queue) == 0 {
 		top = queue[0]
 		queue = queue[1:]
 		queue = append(queue, top.IncludedExpressions...)
 		if top.Opcode != ditypes.OpPopPointerAddress {
 			collectedExpressions = append(collectedExpressions, top)
 		}
-
 		top.IncludedExpressions = []ditypes.LocationExpression{}
 	}
 	return collectedExpressions

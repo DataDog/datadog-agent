@@ -77,7 +77,13 @@ func (s SpecialKind) String() string {
 }
 
 func (l LocationExpression) String() string {
-	return fmt.Sprintf("%s (%d, %d, %d)", l.Opcode.String(), l.Arg1, l.Arg2, l.Arg3)
+	return fmt.Sprintf("Opcode: %s Args: [%d, %d, %d] Label: %s Collection ID: %s\n",
+		l.Opcode.String(),
+		l.Arg1,
+		l.Arg2,
+		l.Arg3,
+		l.Label,
+		l.CollectionIdentifier)
 }
 
 // LocationExpressionOpcode uniquely identifies each location expression operation
@@ -417,14 +423,7 @@ type BPFProgram struct {
 //nolint:all
 func PrintLocationExpressions(expressions []LocationExpression) {
 	for i := range expressions {
-		fmt.Printf("Opcode: %s Args: [%d, %d, %d] Label: %s Collection ID: %s\n",
-			expressions[i].Opcode.String(),
-			expressions[i].Arg1,
-			expressions[i].Arg2,
-			expressions[i].Arg3,
-			expressions[i].Label,
-			expressions[i].CollectionIdentifier,
-		)
+		fmt.Println(expressions[i].String())
 	}
 }
 
