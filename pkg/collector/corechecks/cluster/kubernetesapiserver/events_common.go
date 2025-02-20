@@ -275,10 +275,10 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	case deploymentKind:
 		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
-		apiGroup := getAPIGroup(involvedObject.APIVersion)
+		apiGroup := apiserver.GetAPIGroup(involvedObject.APIVersion)
 		resourceType, err := apiserver.GetResourceType(involvedObject.Kind, involvedObject.APIVersion)
 		if err != nil {
-			log.Warnf("error getting resource type for kind '%s' and group '%s', tags may be missing: %v", involvedObject.Kind, apiGroup, err)
+			log.Debugf("error getting resource type for kind '%s' and group '%s', tags may be missing: %v", involvedObject.Kind, apiGroup, err)
 		}
 		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name)))
 	}
@@ -454,14 +454,4 @@ func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
 	}
 
 	return false
-}
-
-func getAPIGroup(apiVersion string) string {
-	var apiGroup string
-	if index := strings.Index(apiVersion, "/"); index > 0 {
-		apiGroup = apiVersion[:index]
-	} else {
-		apiGroup = ""
-	}
-	return apiGroup
 }

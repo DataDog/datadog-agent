@@ -38,7 +38,6 @@ func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterf
 			discoveryClient: discoveryClient,
 		}
 
-		// Optionally pre-populate the cache
 		err := resourceCache.prepopulateCache()
 		if err != nil {
 			cacheErr = fmt.Errorf("failed to prepopulate resource type cache: %w", err)
@@ -55,9 +54,21 @@ func GetResourceType(kind, apiVersion string) (string, error) {
 	return resourceCache.getResourceType(kind, apiVersion)
 }
 
+// GetAPIGroup extracts the API group from an API version string (e.g., "apps/v1" → "apps").
+// Returns an empty string if no group is present.
+func GetAPIGroup(apiVersion string) string {
+	var apiGroup string
+	if index := strings.Index(apiVersion, "/"); index > 0 {
+		apiGroup = apiVersion[:index]
+	} else {
+		apiGroup = ""
+	}
+	return apiGroup
+}
+
 // getResourceType is the instance method to retrieve a resource type.
 func (r *ResourceTypeCache) getResourceType(kind, apiVersion string) (string, error) {
-	group := getAPIGroup(apiVersion)
+	group := GetAPIGroup(apiVersion)
 	cacheKey := getCacheKey(kind, group)
 
 	// Check the cache
@@ -96,7 +107,7 @@ func (r *ResourceTypeCache) discoverResourceType(kind, group string) (string, er
 			if !isValidSubresource(resource.Name) {
 				continue
 			}
-			if resource.Kind == kind && getAPIGroup(list.GroupVersion) == group {
+			if resource.Kind == kind && GetAPIGroup(list.GroupVersion) == group {
 				return trimSubResource(resource.Name), nil
 			}
 		}
@@ -111,20 +122,19 @@ func (r *ResourceTypeCache) prepopulateCache() error {
 		return fmt.Errorf("failed to fetch server resources: %w", err)
 	}
 	if discovery.IsGroupDiscoveryFailedError(err) {
-		log.Warnf("Some groups were skipped during discovery: %v", err)
+		log.Debugf("Some groups were skipped during discovery: %v", err)
 	}
 
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// Proceed with populating the cache for valid resource groups
 	for _, list := range apiResourceLists {
 		for _, resource := range list.APIResources {
 			if !isValidSubresource(resource.Name) {
 				continue
 			}
 			trimmedResourceType := trimSubResource(resource.Name)
-			cacheKey := getCacheKey(resource.Kind, getAPIGroup(list.GroupVersion))
+			cacheKey := getCacheKey(resource.Kind, GetAPIGroup(list.GroupVersion))
 			r.kindGroupToType[cacheKey] = trimmedResourceType
 		}
 	}
@@ -133,28 +143,19 @@ func (r *ResourceTypeCache) prepopulateCache() error {
 }
 
 func trimSubResource(resourceType string) string {
-	if strings.Contains(resourceType, "/") {
-		return strings.Split(resourceType, "/")[0]
+	if index := strings.Index(resourceType, "/"); index > 0 {
+		return resourceType[:index]
 	}
 	return resourceType
 }
 
+// isValidSubresource returns true if there is no subresource or if the subresource is /status
 func isValidSubresource(resourceType string) bool {
 	if strings.Contains(resourceType, "/") {
 		parts := strings.Split(resourceType, "/")
-		return len(parts) == 2 && parts[1] == "status" // Valid if the subresource is `/status`
+		return len(parts) == 2 && parts[1] == "status"
 	}
-	return true // Valid if there’s no subresource
-}
-
-func getAPIGroup(apiVersion string) string {
-	var apiGroup string
-	if index := strings.Index(apiVersion, "/"); index > 0 {
-		apiGroup = apiVersion[:index]
-	} else {
-		apiGroup = ""
-	}
-	return apiGroup
+	return true
 }
 
 func getCacheKey(kind, group string) string {

@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 )
@@ -25,33 +24,23 @@ func TestInitializeGlobalResourceTypeCache(t *testing.T) {
 	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
 	fakeDiscoveryClient.Resources = []*v1.APIResourceList{}
 
-	tests := []struct {
-		name      string
-		discovery discovery.DiscoveryInterface
-		wantErr   bool
-	}{
+	err := InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
+	assert.NoError(t, err, "First-time cache initialization should not return an error")
+
+	initialCache := resourceCache.kindGroupToType
+
+	fakeDiscoveryClient.Resources = []*v1.APIResourceList{
 		{
-			name:      "Initialize cache successfully",
-			discovery: fakeDiscoveryClient,
-			wantErr:   false,
-		},
-		{
-			name:      "Re-initialization does nothing",
-			discovery: fakeDiscoveryClient,
-			wantErr:   false,
+			GroupVersion: "v1",
+			APIResources: []v1.APIResource{
+				{Kind: "Pod", Name: "pods"},
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := InitializeGlobalResourceTypeCache(tt.discovery)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+	err = InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
+	assert.NoError(t, err, "Re-initialization should not return an error")
+	assert.Equal(t, initialCache, resourceCache.kindGroupToType, "Cache should remain unchanged after re-initialization")
 }
 
 func TestGetResourceType(t *testing.T) {
@@ -117,6 +106,8 @@ func TestDiscoverResourceType(t *testing.T) {
 			GroupVersion: "apps/v1",
 			APIResources: []v1.APIResource{
 				{Kind: "Deployment", Name: "deployments"},
+				{Kind: "StatefulSet", Name: "statefulsets/status"},
+				{Kind: "DaemonSet", Name: "daemonsets/proxy"},
 			},
 		},
 	}
@@ -137,6 +128,20 @@ func TestDiscoverResourceType(t *testing.T) {
 			group:   "apps",
 			want:    "deployments",
 			wantErr: false,
+		},
+		{
+			name:    "Find StatefulSet with subresource (should trim /status)",
+			kind:    "StatefulSet",
+			group:   "apps",
+			want:    "statefulsets",
+			wantErr: false,
+		},
+		{
+			name:    "Invalid subresource (should not be found)",
+			kind:    "DaemonSet",
+			group:   "apps",
+			want:    "",
+			wantErr: true,
 		},
 		{
 			name:    "Resource not found",
@@ -172,6 +177,7 @@ func TestPrepopulateCache(t *testing.T) {
 				{Kind: "Pod", Name: "pods"},
 				{Kind: "Secret", Name: "secrets"},
 				{Kind: "ConfigMap", Name: "configmaps/status"},
+				{Kind: "InvalidSubresource", Name: "invalidsubresource/notvalid"},
 			},
 		},
 	}
@@ -181,75 +187,44 @@ func TestPrepopulateCache(t *testing.T) {
 		discoveryClient: fakeDiscoveryClient,
 	}
 
-	tests := []struct {
-		name    string
-		wantErr bool
-	}{
-		{
-			name:    "Prepopulate cache successfully",
-			wantErr: false,
-		},
-	}
+	err := resourceCache.prepopulateCache()
+	assert.NoError(t, err, "Cache should prepopulate without errors")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := resourceCache.prepopulateCache()
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, "pods", resourceCache.kindGroupToType["Pod"])
-				assert.Equal(t, "secrets", resourceCache.kindGroupToType["Secret"])
-				assert.Equal(t, "configmaps", resourceCache.kindGroupToType["ConfigMap"])
-			}
-		})
-	}
+	assert.Equal(t, "pods", resourceCache.kindGroupToType["Pod"])
+	assert.Equal(t, "secrets", resourceCache.kindGroupToType["Secret"])
+	assert.Equal(t, "configmaps", resourceCache.kindGroupToType["ConfigMap"])
 }
 
-func TestUtilityFunctions(t *testing.T) {
+func TestCacheRefreshOnMiss(t *testing.T) {
 	resetCache()
-	tests := []struct {
-		name string
-		fn   func() string
-		want string
-	}{
+
+	client := fakeclientset.NewClientset()
+	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
+
+	// Initial API resources (empty)
+	fakeDiscoveryClient.Resources = []*v1.APIResourceList{}
+
+	err := InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
+	assert.NoError(t, err, "Initial cache setup should not fail")
+
+	// Simulate a cache miss
+	_, err = resourceCache.getResourceType("Pod", "v1")
+	assert.Error(t, err, "Cache miss should return an error before refresh")
+
+	// Update the discovery client with new API resources
+	fakeDiscoveryClient.Resources = []*v1.APIResourceList{
 		{
-			name: "getAPIGroup with version",
-			fn:   func() string { return getAPIGroup("apps/v1") },
-			want: "apps",
-		},
-		{
-			name: "getAPIGroup with core API",
-			fn:   func() string { return getAPIGroup("v1") },
-			want: "",
-		},
-		{
-			name: "getCacheKey with group",
-			fn:   func() string { return getCacheKey("Deployment", "apps") },
-			want: "Deployment/apps",
-		},
-		{
-			name: "getCacheKey without group",
-			fn:   func() string { return getCacheKey("Pod", "") },
-			want: "Pod",
-		},
-		{
-			name: "trimSubResource removes subresource",
-			fn:   func() string { return trimSubResource("services/status") },
-			want: "services",
-		},
-		{
-			name: "trimSubResource with normal resource",
-			fn:   func() string { return trimSubResource("pods") },
-			want: "pods",
+			GroupVersion: "v1",
+			APIResources: []v1.APIResource{
+				{Kind: "Pod", Name: "pods"},
+			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.fn())
-		})
-	}
+	// The next call should trigger a refresh and succeed
+	got, err := resourceCache.getResourceType("Pod", "v1")
+	assert.NoError(t, err, "After cache refresh, resource should be found")
+	assert.Equal(t, "pods", got, "Returned resource type should match")
 }
 
 func resetCache() {
