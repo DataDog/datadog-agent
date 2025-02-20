@@ -468,6 +468,17 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 			}
 		}
 
+		// TODO (wassim): debug log
+		if originInfo.LocalData.ContainerID != "" {
+			generatedContainer, err := t.GenerateContainerIDFromProcessID(originInfo, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector()))
+			if err != nil {
+				t.log.Criticalf("Wassim DSD Debug - Failed, DogStatsD: %s", originInfo.ContainerIDFromSocket)
+			}
+			if generatedContainer != "" {
+				t.log.Criticalf("Wassim DSD Debug - Success, Generated: %s, DogStatsD: %s", generatedContainer, originInfo.ContainerIDFromSocket)
+			}
+		}
+
 		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
 			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
 		}
@@ -505,6 +516,11 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
 func (t *TaggerWrapper) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	return t.defaultTagger.GenerateContainerIDFromOriginInfo(originInfo)
+}
+
+// GenerateContainerIDFromProcessID generates a container ID from ProcessID.
+func (t *TaggerWrapper) GenerateContainerIDFromProcessID(originInfo taggertypes.OriginInfo, metricsProvider provider.ContainerIDForPIDRetriever) (string, error) {
+	return metricsProvider.GetContainerIDForPID(int(originInfo.LocalData.ProcessID), pidCacheTTL)
 }
 
 // generateContainerIDFromInode generates a container ID from the CGroup inode.
