@@ -14,6 +14,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -29,6 +30,7 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,6 +44,10 @@ const (
 	// This value must be multiplied by the single event size and the result will represent the heap memory pre-allocated in Go runtime
 	// TODO: probably we need to reduce this value (see pkg/network/protocols/events/configuration.go for reference)
 	consumerChannelSize = 4096
+
+	defaultMapCleanerInterval  = 5 * time.Minute
+	defaultMapCleanerBatchSize = 100
+	defaultEventTTL            = defaultMapCleanerInterval
 )
 
 var (
@@ -97,15 +103,16 @@ type ProbeDependencies struct {
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	m              *ddebpf.Manager
-	cfg            *config.Config
-	consumer       *cudaEventConsumer
-	attacher       *uprobes.UprobeAttacher
-	statsGenerator *statsGenerator
-	deps           ProbeDependencies
-	sysCtx         *systemContext
-	eventHandler   ddebpf.EventHandler
-	telemetry      *probeTelemetry
+	m                *ddebpf.Manager
+	cfg              *config.Config
+	consumer         *cudaEventConsumer
+	attacher         *uprobes.UprobeAttacher
+	statsGenerator   *statsGenerator
+	deps             ProbeDependencies
+	sysCtx           *systemContext
+	eventHandler     ddebpf.EventHandler
+	telemetry        *probeTelemetry
+	mapCleanerEvents *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
 }
 
 type probeTelemetry struct {
@@ -283,6 +290,10 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 		return fmt.Errorf("failed to init manager: %w", err)
 	}
 
+	if err := p.setupMapCleaner(); err != nil {
+		return fmt.Errorf("error setting up map cleaner: %w", err)
+	}
+
 	return nil
 }
 
@@ -354,6 +365,24 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
 	}
+}
+
+func (p *Probe) setupMapCleaner() error {
+	eventsMap, _, err := p.m.GetMap(cudaEventStreamMap)
+	if err != nil {
+		return fmt.Errorf("error getting %s map: %w", cudaEventStreamMap, err)
+	}
+
+	p.mapCleanerEvents, err = ddebpf.NewMapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue](eventsMap, defaultMapCleanerBatchSize, cudaEventStreamMap, GpuModuleName)
+	if err != nil {
+		return fmt.Errorf("error creating map cleaner: %w", err)
+	}
+
+	p.mapCleanerEvents.Clean(defaultMapCleanerInterval, nil, nil, func(now int64, _ gpuebpf.CudaEventKey, val gpuebpf.CudaEventValue) bool {
+		return (now - int64(val.Access_ktime_ns)) > defaultEventTTL.Nanoseconds()
+	})
+
+	return nil
 }
 
 // toPowerOf2 converts a number to its nearest power of 2

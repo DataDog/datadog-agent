@@ -23,8 +23,8 @@ BPF_RINGBUF_MAP(cuda_events, cuda_event_header_t);
 BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
 BPF_LRU_MAP(cuda_sync_cache, __u64, __u64, 1024)
 BPF_LRU_MAP(cuda_set_device_cache, __u64, int, 1024)
-BPF_LRU_MAP(cuda_event_to_stream, cuda_event_key_t, __u64, 1024) // maps PID + event -> stream id
 BPF_LRU_MAP(cuda_event_cache, __u64, __u64, 1024) // maps PID -> event
+BPF_HASH_MAP(cuda_event_to_stream, cuda_event_key_t, cuda_event_value_t, 1024) // maps PID + event -> stream id
 
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
 // a 64 bit register with the x and y values in the lower and upper 32 bits respectively,
@@ -214,12 +214,16 @@ SEC("uprobe/cudaEventRecord")
 int BPF_UPROBE(uprobe__cudaEventRecord, __u64 event, __u64 stream) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     cuda_event_key_t key = { 0 };
+    cuda_event_value_t value = { 0 };
 
     key.event = event;
     key.pid = pid_tgid >> 32;
 
+    value.stream = stream;
+    value.last_access_ktime_ns = bpf_ktime_get_ns();
+
     log_debug("cudaEventRecord: pid_tgid=%llu, event=%llu, stream=%llu", pid_tgid, event, stream);
-    bpf_map_update_with_telemetry(cuda_event_to_stream, &key, &stream, BPF_ANY);
+    bpf_map_update_with_telemetry(cuda_event_to_stream, &key, &value, BPF_ANY);
 
     return 0;
 }
@@ -238,9 +242,9 @@ SEC("uretprobe/cudaEventQuery")
 int BPF_URETPROBE(uretprobe__cudaEventQuery) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     __u64 *event = NULL;
-    __u64 *stream = NULL;
     __u32 retval = PT_REGS_RC(ctx);
     cuda_event_key_t event_key = { 0 };
+    cuda_event_value_t *event_value = NULL;
     cuda_sync_t sync_event = { 0 };
 
     log_debug("cudaEventQuery[ret]: pid_tgid=%llu, retval=%u", pid_tgid, retval);
@@ -259,14 +263,15 @@ int BPF_URETPROBE(uretprobe__cudaEventQuery) {
 
     event_key.event = *event;
     event_key.pid = pid_tgid >> 32;
-    stream = bpf_map_lookup_elem(&cuda_event_to_stream, &event_key);
-    if (!stream) {
+    event_value = bpf_map_lookup_elem(&cuda_event_to_stream, &event_key);
+    if (!event_value) {
         goto cleanup;
     }
 
-    log_debug("cudaEventQuery[ret]: pid_tgid=%llu -> event = %llu -> stream = %llu", pid_tgid, *event, *stream);
+    event_value->last_access_ktime_ns = bpf_ktime_get_ns();
+    log_debug("cudaEventQuery[ret]: pid_tgid=%llu -> event = %llu -> stream = %llu", pid_tgid, *event, event_value->stream);
 
-    fill_header(&sync_event.header, *stream, cuda_sync);
+    fill_header(&sync_event.header, event_value->stream, cuda_sync);
 
     log_debug("cudaEventQuery[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", sync_event.header.pid_tgid, sync_event.header.stream_id);
 
@@ -289,8 +294,10 @@ int BPF_UPROBE(uprobe__cudaEventDestroy, __u64 event) {
     key.event = event;
     key.pid = pid_tgid >> 32;
 
-    log_debug("cudaEventDestroy: pid_tgid=%llu, event=%llu, stream=%llu", pid_tgid, event, stream);
+    log_debug("cudaEventDestroy: pid_tgid=%llu, event=%llu", pid_tgid, event);
     bpf_map_delete_elem(&cuda_event_to_stream, &key);
+
+    return 0;
 }
 
 char __license[] SEC("license") = "GPL";

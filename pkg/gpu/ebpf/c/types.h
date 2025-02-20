@@ -64,4 +64,9 @@ typedef struct {
     __u32 pid;
 } cuda_event_key_t;
 
+typedef struct {
+    __u64 stream;
+    __u64 last_access_ktime_ns;
+} cuda_event_value_t;
+
 #endif
