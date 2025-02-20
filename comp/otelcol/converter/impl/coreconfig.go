@@ -133,7 +133,7 @@ func addAPIKeySite(conf *confmap.Conf, coreCfg config.Component, compType string
 				if keyString, okString := apiKey.(string); okString {
 					key = keyString
 				}
-				if ok && key != "" {
+				if key != "" {
 					match = reg.Match([]byte(key))
 					if !match {
 						continue
