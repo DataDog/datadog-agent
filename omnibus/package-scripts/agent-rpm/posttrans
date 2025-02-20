@@ -12,6 +12,9 @@ SERVICE_NAME=datadog-agent
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 
+# Create a symlink to the agent's binary
+ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
+
 # Set up `dd-agent` user and group
 if ! getent group dd-agent >/dev/null; then
     groupadd -r dd-agent
@@ -59,10 +62,7 @@ if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
 fi
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE|Rocky|AlmaLinux|Oracle)"
-DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
-
-# Create a symlink to the agent's binary
-ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
 echo "Enabling service $SERVICE_NAME"
 if command -v systemctl >/dev/null 2>&1; then
@@ -99,7 +99,7 @@ if [ "$INSTALL_SELINUX_POLICY" = "true" ]; then
             echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe $INSTALL_DIR/bin/agent/agent"
         else
             echo "Labeling SELinux type for the system-probe binary."
-            if command -v semanage >/dev/null 2>&1 && command -v restorecon >/dev/null 2>&1;then
+            if command -v semanage >/dev/null 2>&1 && command -v restorecon >/dev/null 2>&1; then
                 semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe && semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent && restorecon -v $INSTALL_DIR/embedded/bin/system-probe && restorecon -v $INSTALL_DIR/bin/agent/agent
                 if [ "$?" != "0" ]; then
                     echo "Couldn’t install system-probe policy."
@@ -155,17 +155,15 @@ install_method:
   tool_version: $tool_version
   installer_version: $installer_version
 "
-    echo "$install_info_content" > $CONFIG_DIR/install_info
+    echo "$install_info_content" >$CONFIG_DIR/install_info
 fi
 
 if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
     ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
 fi
 
-
 set +e
-generate_install_id()
-{
+generate_install_id() {
     # Try generating a UUID based on /proc/sys/kernel/random/uuid
     uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null)
     # If that does not work, then try uuidgen
@@ -177,8 +175,7 @@ generate_install_id()
     printf "$uuid"
 }
 
-generate_install_signature()
-{
+generate_install_signature() {
     install_id="$1"
     install_type="$2"
     install_time="$3"
@@ -190,7 +187,7 @@ if [ ! -f "$CONFIG_DIR/install.json" ]; then
     install_type="linux_manual_with_rpm"
     install_time=$(date +%s)
     install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
-    echo "$install_signature" > $CONFIG_DIR/install.json
+    echo "$install_signature" >$CONFIG_DIR/install.json
     chown -R dd-agent:dd-agent ${CONFIG_DIR}
 fi
 set -e
