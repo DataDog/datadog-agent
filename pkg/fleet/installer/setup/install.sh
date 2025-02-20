@@ -45,9 +45,9 @@ fi
 
 echo "Downloading the Datadog installer..."
 if command -v curl >/dev/null; then
-  curl -L --retry 3 -o "$tmp_bin" "$installer_url"
+  curl -L --retry 3 "$installer_url" | "${sudo_cmd[@]}" tee "$tmp_bin" >/dev/null
 else
-  wget --tries=3 -O "$tmp_bin" "$installer_url"
+  wget --tries=3 -O - "$installer_url" | "${sudo_cmd[@]}" tee "$tmp_bin" >/dev/null
 fi
 "${sudo_cmd[@]}" chmod +x "$tmp_bin"
 
