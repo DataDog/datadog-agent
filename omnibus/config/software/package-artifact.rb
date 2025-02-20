@@ -15,6 +15,15 @@ build do
     delete path
   end
 
+  # Merge version manifests together
+  # The agent file is the main one, with no .$product suffix.
+  # We will merge suffixed files into the main one
+  versions = FFI_Yafl::Parser.parse(File.read("#{install_dir}/version-manifest.json"))
+  Dir.glob("#{install_dir}/version-manifest.*.json").each do |version_manifest_json_path|
+    additional_versions = FFI_Yafl.Parser.parse(File.read(version_manifest_json_path))
+    versions["software"].merge(additional_versions["software"])
+  end
+
   if project.name == "installer"
     # This file depends on the type of package and must therefor be generated during
     # packaging, not building.
