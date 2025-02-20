@@ -10,24 +10,26 @@ configure_make(
         "--with-dbmliborder=",
         # Fixes an issue with __DATE__ being set to undefined `redacted`
         # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
-        "CFLAGS='-Dredacted=\"redacted\"'",
+        "CPPFLAGS='-Dredacted=\\\"redacted\\\"'",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
-        # "--with-openssl=$(rootpaths //deps/openssl:build)",
-        # "--with-openssl=/home/hugo.beauzee/.cache/bazel/_bazel_hugo.beauzee/95605d1a73395e0c041bb302da387b0e/execroot/_main/bazel-out/k8-fastbuild/bin/deps/openssl/build",
+        "--enable-optimizations",
     ] + select({
         "@platforms//os:macos": [
             "--with-universal-archs=intel",
         ],
         "//conditions:default": [],
     }),
+    copts = [
+        "-O3",
+    ],
     env = {
         "OPT": "-DNDEBUG -fwrapv",
         # manually provide some dependencies cflags/ldflags instead of
         # relying on pkg-config
         "BZIP2_CFLAGS": "-I.",
         "BZIP2_LIBS": "-lbz2",
-        "LIBFFI_CFLAGS": "-I.",
-        "LIBFFI_LIBS": "-lffi",
+        # "LIBFFI_CFLAGS": "-I.",
+        # "LIBFFI_LIBS": "-lffi",
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
