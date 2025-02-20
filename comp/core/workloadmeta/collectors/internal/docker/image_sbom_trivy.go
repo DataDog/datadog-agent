@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	dutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,6 +61,10 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	if resultChan == nil {
 		return fmt.Errorf("error retrieving global docker scanner channel")
 	}
+	containerImageFilter, err := containers.GetSharedMetricFilter()
+	if err != nil {
+		return err
+	}
 	go func() {
 		for {
 			select {
@@ -75,6 +80,10 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 				for _, event := range eventBundle.Events {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
+
+					if containerImageFilter != nil && containerImageFilter.IsExcluded(nil, "", image.Name, "") {
+						continue
+					}
 
 					if image.SBOM.Status != workloadmeta.Pending {
 						// BOM already stored. Can happen when the same image ID
