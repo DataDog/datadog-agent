@@ -144,8 +144,8 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 			if err == nil {
 				return strconv.FormatUint(c, 10)
 			}
-
-			if strings.ToUpper(strC) == "CANCELED" || strings.ToUpper(strC) == "CANCELLED" { // the rpc code google api checks for "CANCELLED" but we receive "Canceled" from upstream
+			strCUpper := strings.ToUpper(strC)
+			if strCUpper == "CANCELED" || strCUpper == "CANCELLED" { // the rpc code google api checks for "CANCELLED" but we receive "Canceled" from upstream
 				return strconv.FormatInt(int64(codes.Canceled), 10)
 			}
 
