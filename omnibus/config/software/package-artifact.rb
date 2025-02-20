@@ -11,17 +11,19 @@ build do
   # that have been stripped out during the build
   Dir.glob("*.tar.xz", base: input_dir).each do |input|
     path = File.join(input_dir, input)
-    command "tar xvf #{path} -C /"
+    command "tar xf #{path} -C /"
     delete path
   end
 
   # Merge version manifests together
   # The agent file is the main one, with no .$product suffix.
   # We will merge suffixed files into the main one
-  versions = FFI_Yajl::Parser.parse(File.read("#{install_dir}/version-manifest.json"))
-  Dir.glob("#{install_dir}/version-manifest.*.json").each do |version_manifest_json_path|
-    additional_versions = FFI_Yajl.Parser.parse(File.read(version_manifest_json_path))
-    versions["software"].merge(additional_versions["software"])
+  block do
+    versions = FFI_Yajl::Parser.parse(File.read("#{install_dir}/version-manifest.json"))
+    Dir.glob("#{install_dir}/version-manifest.*.json").each do |version_manifest_json_path|
+      additional_versions = FFI_Yajl.Parser.parse(File.read(version_manifest_json_path))
+      versions["software"].merge(additional_versions["software"])
+    end
   end
 
   if project.name == "installer"
