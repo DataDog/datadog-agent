@@ -116,10 +116,8 @@ func (p *TraceAgent) Start() {
 		// we don't need the samplers' nor the processor's functionalities;
 		// but they are used by the agent nevertheless, so they need to be
 		// active and functioning.
-		p.PrioritySampler,
-		p.ErrorsSampler,
-		p.NoPrioritySampler,
 		p.EventProcessor,
+		p.SamplerMetrics,
 	} {
 		starter.Start()
 	}
@@ -131,10 +129,8 @@ func (p *TraceAgent) Stop() {
 	for _, stopper := range []interface{ Stop() }{
 		p.Concentrator,
 		p.ClientStatsAggregator,
-		p.PrioritySampler,
-		p.ErrorsSampler,
-		p.NoPrioritySampler,
 		p.EventProcessor,
+		p.SamplerMetrics,
 	} {
 		stopper.Stop()
 	}
