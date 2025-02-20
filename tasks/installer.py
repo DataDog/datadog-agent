@@ -134,7 +134,7 @@ def push_artifact(
     '''
     Pushes an OCI artifact to a registry.
     example:
-        inv -e installer.push-artifact --artifact "datadog-installer" --registry "docker.io/myregistry" --tag "latest"
+        deva inv -e installer.push-artifact --artifact "datadog-installer" --registry "docker.io/myregistry" --tag "latest"
     '''
     if version == "":
         version = get_version(ctx, include_git=True, url_safe=True, major_version='7', include_pipeline_id=True)
