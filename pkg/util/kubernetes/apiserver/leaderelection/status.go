@@ -9,9 +9,7 @@ package leaderelection
 
 import (
 	"embed"
-	"fmt"
 	"io"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -53,17 +51,20 @@ func populateStatus(stats map[string]interface{}) {
 	leaderElectionStats := make(map[string]string)
 	stats["leaderelection"] = leaderElectionStats
 
-	record, err := GetLeaderElectionRecord()
-	if err != nil {
-		leaderElectionStats["status"] = "Failing"
-		leaderElectionStats["error"] = err.Error()
-		return
-	}
-	leaderElectionStats["leaderName"] = record.HolderIdentity
-	leaderElectionStats["acquiredTime"] = record.AcquireTime.Format(time.RFC1123)
-	leaderElectionStats["renewedTime"] = record.RenewTime.Format(time.RFC1123)
-	leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", record.LeaderTransitions)
-	leaderElectionStats["status"] = "Running"
+	/*
+		record, err := GetLeaderElectionRecord()
+		if err != nil {
+			leaderElectionStats["status"] = "Failing"
+			leaderElectionStats["error"] = err.Error()
+			return
+		}
+
+		leaderElectionStats["leaderName"] = record.HolderIdentity
+		leaderElectionStats["acquiredTime"] = record.AcquireTime.Format(time.RFC1123)
+		leaderElectionStats["renewedTime"] = record.RenewTime.Format(time.RFC1123)
+		leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", record.LeaderTransitions)
+		leaderElectionStats["status"] = "Running"
+	*/
 }
 
 func getStatusInfo() map[string]interface{} {
