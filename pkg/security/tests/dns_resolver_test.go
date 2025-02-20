@@ -10,10 +10,8 @@ package tests
 
 // Package tests holds tests related files
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
 	"net"
 	"net/netip"
@@ -24,14 +22,6 @@ import (
 func TestDNSResolver(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
-
-	platformVersion, _ := kernel.PlatformVersion()
-	plat, _ := kernel.Platform()
-	fmt.Printf("Platform: %s. PlatformVersion= %s\n", plat, platformVersion)
-	
-	if plat == "debian" && platformVersion == "11" {
-		t.Skip("DNS resolver test skipped for Debian 11")
-	}
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {

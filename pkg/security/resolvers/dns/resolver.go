@@ -24,6 +24,8 @@ type CacheStats struct {
 	cacheInsertions atomic.Int64
 	cacheEvictions  atomic.Int64
 }
+
+// Resolver defines a DNS resolver
 type Resolver struct {
 	cache         *lru.Cache[netip.Addr, map[string]bool]
 	cnameCache    *lru.Cache[string, map[string]bool]
