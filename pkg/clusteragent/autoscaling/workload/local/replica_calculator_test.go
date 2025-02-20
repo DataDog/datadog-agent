@@ -14,10 +14,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -429,12 +431,12 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -795,12 +797,12 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
-				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+				ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 					Container: "container-name1",
@@ -858,12 +860,12 @@ func TestCalculateReplicas(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(tt.targetUtilization),
 					},
 				},
@@ -1505,12 +1507,12 @@ func TestRecommend(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -1561,14 +1563,14 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 			Name:       deploymentName,
 			APIVersion: "apps/v1",
 		},
-		Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
-		Targets: []datadoghq.DatadogPodAutoscalerTarget{
+		Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
 			{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -1578,15 +1580,15 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 	dpa := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DatadogPodAutoscaler",
-			APIVersion: "datadoghq.com/v1alpha1",
+			APIVersion: "datadoghq.com/v1alpha2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
 			Namespace: ns,
 		},
 		Spec: dpaSpec,
-		Status: datadoghq.DatadogPodAutoscalerStatus{
-			Conditions: []datadoghq.DatadogPodAutoscalerCondition{},
+		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{},
 		},
 	}
 	dpai := model.NewPodAutoscalerInternal(dpa)

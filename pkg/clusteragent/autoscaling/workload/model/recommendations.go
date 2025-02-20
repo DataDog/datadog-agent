@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 )
 
 // ScalingValues represents the scaling values (horizontal and vertical) for a target
@@ -32,7 +32,7 @@ type ScalingValues struct {
 // HorizontalScalingValues holds the horizontal scaling values for a target
 type HorizontalScalingValues struct {
 	// Source is the source of the value
-	Source datadoghq.DatadogPodAutoscalerValueSource
+	Source datadoghqcommon.DatadogPodAutoscalerValueSource
 
 	// Timestamp is the time at which the data was generated
 	Timestamp time.Time
@@ -44,7 +44,7 @@ type HorizontalScalingValues struct {
 // VerticalScalingValues holds the vertical scaling values for a target
 type VerticalScalingValues struct {
 	// Source is the source of the value
-	Source datadoghq.DatadogPodAutoscalerValueSource
+	Source datadoghqcommon.DatadogPodAutoscalerValueSource
 
 	// Timestamp is the time at which the data was generated
 	Timestamp time.Time
@@ -53,7 +53,7 @@ type VerticalScalingValues struct {
 	ResourcesHash string
 
 	// ContainerResources holds the resources for a container
-	ContainerResources []datadoghq.DatadogPodAutoscalerContainerResources
+	ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
 }
 
 // RecommenderConfiguration holds the configuration for a custom recommender

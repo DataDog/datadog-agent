@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -76,7 +76,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 
 	// Check if we're allowed to patch the POD
 	strategy, reason := getVerticalPatchingStrategy(autoscaler)
-	if strategy == datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy {
+	if strategy == datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy {
 		log.Debugf("Autoscaler %s has vertical patching disabled for POD %s/%s, reason: %s", autoscaler.ID(), pod.Namespace, pod.Name, reason)
 		return false, nil
 	}

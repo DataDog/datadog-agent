@@ -19,7 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 // FakePodAutoscalerInternal is a fake PodAutoscalerInternal object.
@@ -31,11 +32,11 @@ type FakePodAutoscalerInternal struct {
 	SettingsTimestamp              time.Time
 	CreationTimestamp              time.Time
 	ScalingValues                  ScalingValues
-	HorizontalLastActions          []datadoghq.DatadogPodAutoscalerHorizontalAction
+	HorizontalLastActions          []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
 	HorizontalLastLimitReason      string
 	HorizontalLastActionError      error
 	HorizontalEventsRetention      time.Duration
-	VerticalLastAction             *datadoghq.DatadogPodAutoscalerVerticalAction
+	VerticalLastAction             *datadoghqcommon.DatadogPodAutoscalerVerticalAction
 	VerticalLastActionError        error
 	CurrentReplicas                *int32
 	ScaledReplicas                 *int32
@@ -71,7 +72,7 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 }
 
 // AddHorizontalAction mimics the behavior of adding an horizontal event.
-func (f *FakePodAutoscalerInternal) AddHorizontalAction(currentTime time.Time, action *datadoghq.DatadogPodAutoscalerHorizontalAction) {
+func (f *FakePodAutoscalerInternal) AddHorizontalAction(currentTime time.Time, action *datadoghqcommon.DatadogPodAutoscalerHorizontalAction) {
 	f.HorizontalLastActions = addHorizontalAction(currentTime, f.HorizontalEventsRetention, f.HorizontalLastActions, action)
 }
 
