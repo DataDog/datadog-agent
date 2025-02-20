@@ -111,7 +111,7 @@ func (s *shardKeyGeneratorPerOrigin) Generate(sample metrics.MetricSample, shard
 	i, j := uint64(0), uint64(0)
 	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.LocalData.PodUID)
 	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.LocalData.ContainerID)
-	i, _ = murmur3.SeedStringSum128(i, j, strconv.Itoa(int(sample.OriginInfo.LocalData.ProcessID)))
+	i = i ^ uint64(sample.OriginInfo.LocalData.ProcessID)
 
 	return fastrange(ckey.ContextKey(i), shards)
 }
