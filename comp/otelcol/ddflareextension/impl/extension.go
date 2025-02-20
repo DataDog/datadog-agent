@@ -146,7 +146,7 @@ func NewExtension(ctx context.Context, cfg *Config, telemetry component.Telemetr
 	}
 	envConfMap, err := newEnvConfMap(ctx, cfg.configProviderSettings)
 	if err != nil {
-		ext.telemetry.Logger.Error("Failed to create envConfMap", zap.Error(err))
+		ext.telemetry.Logger.Warn(fmt.Sprintf("Cannot report environment variables to fleet automation: %v", err))
 	}
 	ext.envConfMap = envConfMap
 
