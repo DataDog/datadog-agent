@@ -203,3 +203,17 @@ func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	}
 	return SNMPConfig{}
 }
+
+// GetParamsFromAgent returns the SNMPConfig for a specific IP address, by querying the local agent.
+func GetParamsFromAgent(deviceIP string, conf config.Component) (*SNMPConfig, error) {
+	snmpConfigList, err := GetConfigCheckSnmp(conf)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
+	}
+	instance := GetIPConfig(deviceIP, snmpConfigList)
+	if instance.IPAddress != "" {
+		instance.IPAddress = deviceIP
+		return &instance, nil
+	}
+	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
+}
