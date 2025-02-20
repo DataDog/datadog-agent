@@ -15,13 +15,11 @@
 #include "compiler.h"
 
 enum telemetry_counter {
-    tcp_failed_connect,
     unbatched_tcp_close,
     unbatched_udp_close,
     udp_send_processed,
     udp_send_missed,
     udp_dropped_conns,
-    unsupported_tcp_failures,
     tcp_done_missing_pid,
     tcp_connect_failed_tuple,
     tcp_done_failed_tuple,
@@ -41,9 +39,6 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
     }
 
     switch (counter_name) {
-    case tcp_failed_connect:
-        __sync_fetch_and_add(&val->tcp_failed_connect, times);
-        break;
     case unbatched_tcp_close:
         __sync_fetch_and_add(&val->unbatched_tcp_close, times);
         break;
@@ -58,9 +53,6 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
         break;
     case udp_dropped_conns:
         __sync_fetch_and_add(&val->udp_dropped_conns, times);
-        break;
-    case unsupported_tcp_failures:
-        __sync_fetch_and_add(&val->unsupported_tcp_failures, times);
         break;
     case tcp_done_missing_pid:
         __sync_fetch_and_add(&val->tcp_done_missing_pid, times);
