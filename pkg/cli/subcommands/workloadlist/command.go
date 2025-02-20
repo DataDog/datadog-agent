@@ -78,7 +78,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func workloadList(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient(util.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
+	c := util.GetClient()
 
 	// Set session token
 	err := util.SetAuthToken(config)
