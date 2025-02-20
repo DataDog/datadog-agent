@@ -20,6 +20,7 @@ retract (
 // Internal deps fix version
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
+	github.com/cilium/ebpf => github.com/ti-mo/ebpf v0.5.1-0.20250220092824-fbe9df5b6286
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 )
 
@@ -41,7 +42,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250114151552-463ab54482b4
-	github.com/DataDog/ebpf-manager v0.7.9
+	github.com/DataDog/ebpf-manager v0.7.10-0.20250220205547-cad332928a99
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.9
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
