@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
 const (
@@ -159,6 +161,13 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
+
+	vpcCidr, err := ec2.GetVpcIPv4CidrBlock(context.TODO())
+	if err != nil {
+		s.logger.Errorf("Error fetching VPC CIDR: %s", vpcCidr)
+	}
+	s.logger.Infof("[ScheduleConns] VPC CIDR: %s", vpcCidr)
+
 	startTime := s.TimeNowFn()
 	s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
 	for _, conn := range conns {

@@ -98,3 +98,21 @@ func GetSubnetForHardwareAddr(ctx context.Context, hwAddr net.HardwareAddr) (sub
 	subnet.Cidr = strings.TrimSpace(resp)
 	return
 }
+
+// GetVpcIPv4CidrBlock returns VPC CIDR block
+func GetVpcIPv4CidrBlock(ctx context.Context) (string, error) {
+	var resp string
+	resp, err := getMetadataItem(ctx, imdsNetworkMacs, imdsV2, true)
+	if err != nil {
+		return "", err
+	}
+
+	macAddr := strings.TrimSpace(strings.Split(resp, "\n")[0])
+
+	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/vpc-ipv4-cidr-block", imdsNetworkMacs, macAddr), imdsV2, true)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(resp), nil
+}
