@@ -150,7 +150,7 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 			}
 
 			// If not integer, check for valid gRPC status string
-			if codeNum, found := code.Code_value[strings.ToUpper(strC)]; found {
+			if codeNum, found := code.Code_value[strCUpper]; found {
 				return strconv.FormatUint(uint64(codes.Code(codeNum)), 10)
 			}
 
