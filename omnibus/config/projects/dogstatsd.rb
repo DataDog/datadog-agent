@@ -91,9 +91,6 @@ else
   # creates required build directories
   dependency 'datadog-agent-prepare'
 
-  # version manifest file
-  dependency 'version-manifest'
-
   # Dogstatsd
   dependency 'datadog-dogstatsd'
 
@@ -220,3 +217,8 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
+
+if linux_target? or windows_target?
+  strip_build windows_target? || !do_package
+  debug_path '.debug'
+end

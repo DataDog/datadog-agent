@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

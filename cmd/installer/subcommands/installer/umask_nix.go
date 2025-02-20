@@ -10,7 +10,7 @@ package installer
 import (
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // setInstallerUmask sets umask 0 to override any inherited umask

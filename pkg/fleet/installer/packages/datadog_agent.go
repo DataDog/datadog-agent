@@ -17,10 +17,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -147,7 +146,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	}
 
 	// write installinfo before start, or the agent could write it
-	if err = installinfo.WriteInstallInfo("installer", fmt.Sprintf("installer-%s", version.AgentVersion), "manual_update"); err != nil {
+	if err = installinfo.WriteInstallInfo("manual_update"); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
@@ -207,8 +206,7 @@ func RemoveAgent(ctx context.Context) error {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 		spanErr = err
 	}
-	installinfo.RmInstallInfo()
-	// TODO: Return error to caller?
+	installinfo.RemoveInstallInfo()
 	return nil
 }
 

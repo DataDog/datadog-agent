@@ -172,11 +172,9 @@ c:
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("c.e.f"))
 
 	expected := &innerNode{
-		remapCase: map[string]string{"a": "a", "c": "c"},
 		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
-				remapCase: map[string]string{"d": "d"},
 				children: map[string]Node{
 					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
 				},
@@ -209,11 +207,9 @@ c:
 	assert.Equal(t, "unknown key from YAML: c.unknown", c.warnings[0])
 
 	expected := &innerNode{
-		remapCase: map[string]string{"a": "a", "c": "c"},
 		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
-				remapCase: map[string]string{"d": "d"},
 				children: map[string]Node{
 					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
 				},
@@ -244,12 +240,10 @@ c: 1234
 	assert.Equal(t, "invalid type from configuration for key 'c'", c.warnings[0])
 
 	expected := &innerNode{
-		remapCase: map[string]string{"a": "a", "c": "c"},
 		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
-				remapCase: map[string]string{},
-				children:  map[string]Node{},
+				children: map[string]Node{},
 			},
 		},
 	}

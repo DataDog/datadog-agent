@@ -12,6 +12,9 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -37,8 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (

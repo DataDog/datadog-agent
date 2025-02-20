@@ -123,10 +123,13 @@ def containerized_integration_tests(
             ctx.run(f"{go_cmd} {it.prefix}", env=integration_tests_config.env)
 
 
-@task
-def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
+@task(iterable=["only"])
+def integration_tests(ctx, race=False, remote_docker=False, timeout="", only: list[str] | None = None):
     """
     Run all the available integration tests
+
+    Args:
+        only: Filter tests to run.
     """
     core_agent_conf = CORE_AGENT_WINDOWS_IT_CONF if sys.platform == 'win32' else CORE_AGENT_LINUX_IT_CONF
     tests = {
@@ -141,6 +144,10 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout=""):
         ),
         "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT_IT_CONF, race=race, timeout=timeout),
     }
+
+    if only:
+        tests = {name: tests[name] for name in tests if name in only}
+
     tests_failures = {}
     for t_name, t in tests.items():
         with gitlab_section(f"Running the {t_name} integration tests", collapsed=True, echo=True):

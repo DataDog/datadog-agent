@@ -53,6 +53,8 @@ func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*Namespa
 // MutatePod implements the common.Mutator interface for the auto-instrumentation injector. It injects all of the
 // required tracer libraries into the pod template.
 func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
+	log.Debugf("Mutating pod in namespace mutator %q", mutatecommon.PodString(pod))
+
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}

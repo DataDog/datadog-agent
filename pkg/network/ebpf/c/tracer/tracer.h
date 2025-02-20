@@ -36,8 +36,8 @@ typedef struct {
 } tls_info_t;
 
 typedef struct {
-    tls_info_t info;
     __u64 updated;
+    tls_info_t info;
 } tls_info_wrapper_t;
 
 typedef struct {
@@ -128,6 +128,7 @@ typedef struct {
     __u64 tcp_close_target_failures;
     __u64 tcp_done_connection_flush;
     __u64 tcp_close_connection_flush;
+    __u64 tcp_syn_retransmit;
 } telemetry_t;
 
 typedef struct {

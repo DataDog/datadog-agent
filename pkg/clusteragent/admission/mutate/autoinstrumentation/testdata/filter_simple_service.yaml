@@ -1,0 +1,14 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "Python Apps"
+        podSelector:
+          matchLabels:
+            language: "python"
+        ddTraceVersions:
+          python: "v2"
+        ddTraceConfigs:
+          - name: "DD_SERVICE"
+            value: "best-service"

@@ -7,22 +7,25 @@ package installer
 
 import (
 	"context"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 )
 
 var testCtx = context.TODO()
@@ -276,5 +279,58 @@ func doTestInstallers(t *testing.T, testFunc func(installFnFactory, *testing.T))
 		t.Run(runtime.FuncForPC(reflect.ValueOf(inst).Pointer()).Name(), func(t *testing.T) {
 			testFunc(inst, t)
 		})
+	}
+}
+
+func TestNoOutsideImport(t *testing.T) {
+	// Root directory to start the walk
+	rootDir := "."
+
+	// Define the unwanted import path
+	datadogAgentPrefix := "github.com/DataDog/datadog-agent/"
+	allowedPaths := []string{
+		"pkg/fleet/installer",
+		"pkg/fleet/internal",
+		"pkg/version",  // TODO: cleanup & remove
+		"pkg/util/log", // TODO: cleanup & remove
+	}
+
+	// Walk the directory tree
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Only check .go files
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
+			// Create a file set and parse the file
+			fs := token.NewFileSet()
+			node, err := parser.ParseFile(fs, path, nil, parser.ImportsOnly)
+			if err != nil {
+				t.Fatalf("failed to parse file: %v", err)
+			}
+
+			// Loop through the imports in the AST
+			for _, imp := range node.Imports {
+				// Check if the import path matches the unwanted import
+				isAllowedImport := true
+				if strings.HasPrefix(imp.Path.Value, "\""+datadogAgentPrefix) {
+					isAllowedImport = false
+					for _, allowedPath := range allowedPaths {
+						if strings.HasPrefix(imp.Path.Value, "\""+datadogAgentPrefix+allowedPath) {
+							isAllowedImport = true
+						}
+					}
+				}
+				if !isAllowedImport {
+					t.Errorf("file %s imports %s, which is not allowed", path, imp.Path.Value)
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("failed to walk directory: %v", err)
 	}
 }

@@ -40,7 +40,7 @@ type dependencies struct {
 
 func newAuthToken(deps dependencies) (authtoken.Component, error) {
 	if err := util.CreateAndSetAuthToken(deps.Conf); err != nil {
-		deps.Log.Error("could not create auth_token: %s", err)
+		deps.Log.Errorf("could not create auth_token: %s", err)
 		return nil, err
 	}
 

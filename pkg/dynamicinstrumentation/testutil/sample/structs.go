@@ -27,6 +27,14 @@ func test_struct_with_a_slice(s structWithASlice) {}
 
 //nolint:all
 //go:noinline
+func test_struct_with_an_empty_slice(s structWithASlice) {}
+
+//nolint:all
+//go:noinline
+func test_struct_with_a_nil_slice(s structWithASlice) {}
+
+//nolint:all
+//go:noinline
 func test_pointer_to_struct_with_a_slice(s *structWithASlice) {}
 
 //nolint:all
@@ -99,8 +107,10 @@ func ExecuteStructFuncs() {
 	test_ten_strings(tenStrings{})
 	test_struct_and_byte('a', s)
 	test_struct_with_array(structWithAnArray{[5]uint8{1, 2, 3, 4, 5}})
-	test_struct_with_a_slice(structWithASlice{1, []uint8{2, 3, 4}})
-	test_pointer_to_struct_with_a_slice(&structWithASlice{5, []uint8{2, 3, 4}})
+	test_struct_with_a_slice(structWithASlice{1, []uint8{2, 3, 4}, 5})
+	test_struct_with_an_empty_slice(structWithASlice{9, []uint8{}, 5})
+	test_struct_with_a_nil_slice(structWithASlice{9, nil, 5})
+	test_pointer_to_struct_with_a_slice(&structWithASlice{5, []uint8{2, 3, 4}, 5})
 	test_pointer_to_struct_with_a_string(&structWithAString{5, "abcdef"})
 
 	tenStr := tenStrings{
@@ -214,6 +224,7 @@ type structWithAnArray struct {
 type structWithASlice struct {
 	x     int
 	slice []uint8
+	z     uint64
 }
 
 type structWithAString struct {

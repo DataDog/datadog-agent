@@ -15,10 +15,12 @@ import (
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/maps"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -76,6 +78,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
+		handlerStream, handlerGlobal = nil, nil // Ensure we see both handlers in the same iteration
 		for key, h := range probe.consumer.streamHandlers {
 			if key.pid == uint32(cmd.Process.Pid) {
 				if key.stream == 0 {
@@ -86,8 +89,36 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 			}
 		}
 
-		return handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
+		return len(probe.consumer.streamHandlers) == 2 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
 	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
+
+	// Check that we're receiving the events we expect
+	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
+	require.True(t, ok)
+
+	eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+	require.NoError(t, err)
+
+	actualEvents := make(map[string]int)
+	for _, m := range eventMetrics {
+		if evType, ok := m.Tags()["event_type"]; ok {
+			actualEvents[evType] = int(m.Value())
+		}
+	}
+
+	expectedEvents := map[string]int{
+		ebpf.CudaEventTypeKernelLaunch.String(): 1,
+		ebpf.CudaEventTypeSetDevice.String():    1,
+		ebpf.CudaEventTypeMemory.String():       2,
+		ebpf.CudaEventTypeSync.String():         3, // cudaStreamSynchronize, cudaEventQuery and cudaEventSynchronize
+	}
+
+	for evName, value := range expectedEvents {
+		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
+		delete(actualEvents, evName)
+	}
+
+	require.Empty(t, actualEvents, "unexpected events: %v", actualEvents)
 
 	// Check device assignments
 	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)

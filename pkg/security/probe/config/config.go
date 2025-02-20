@@ -97,6 +97,9 @@ type Config struct {
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
 
+	// EventStreamUseKprobeFallback specifies whether to use fentry fallback can be used
+	EventStreamUseKprobeFallback bool
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -181,14 +184,16 @@ func NewConfig() (*Config, error) {
 		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
-		EnvsWithValue:                      getStringSlice("envs_with_value"),
-		NetworkEnabled:                     getBool("network.enabled"),
-		NetworkIngressEnabled:              getBool("network.ingress.enabled"),
-		NetworkRawPacketEnabled:            getBool("network.raw_packet.enabled"),
-		NetworkPrivateIPRanges:             getStringSlice("network.private_ip_ranges"),
-		NetworkExtraPrivateIPRanges:        getStringSlice("network.extra_private_ip_ranges"),
-		StatsPollingInterval:               time.Duration(getInt("events_stats.polling_interval")) * time.Second,
-		SyscallsMonitorEnabled:             getBool("syscalls_monitor.enabled"),
+		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
+
+		EnvsWithValue:               getStringSlice("envs_with_value"),
+		NetworkEnabled:              getBool("network.enabled"),
+		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
+		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
+		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
+		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
+		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
 
 		// event server
 		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),

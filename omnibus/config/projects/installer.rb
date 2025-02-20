@@ -85,8 +85,6 @@ else
 
   dependency 'installer'
 
-  # version manifest file
-  dependency 'version-manifest'
   generate_distro_package = false
 end
 

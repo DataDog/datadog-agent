@@ -20,9 +20,11 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
+	extensionTypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -38,8 +40,9 @@ type ddExtension struct {
 	telemetry   component.TelemetrySettings
 	server      *server
 	info        component.BuildInfo
-	debug       extensionDef.DebugSourceResponse
+	debug       extensionTypes.DebugSourceResponse
 	configStore *configStore
+	envConfMap  *envConfMap
 }
 
 var _ extensioncapabilities.ConfigWatcher = (*ddExtension)(nil)
@@ -60,7 +63,21 @@ func extensionType(s string) string {
 // calling Start.
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	var err error
-	ext.configStore.setEnhancedConf(conf)
+	confMap := conf.ToStringMap()
+	enhancedBytes, err := yaml.Marshal(confMap)
+	if err != nil {
+		return err
+	}
+
+	if ext.envConfMap != nil {
+		envConfMap := ext.envConfMap.useEnvVarValues(confMap)
+		envBytes, err := yaml.Marshal(envConfMap)
+		if err != nil {
+			return err
+		}
+
+		ext.configStore.set(string(envBytes), string(enhancedBytes))
+	}
 
 	extensionConfs, err := conf.Sub("extensions")
 	if err != nil {
@@ -108,7 +125,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		}
 
 		ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
-		ext.debug.Sources[extension] = extensionDef.OTelFlareSource{
+		ext.debug.Sources[extension] = extensionTypes.OTelFlareSource{
 			URLs: uris,
 		}
 	}
@@ -117,16 +134,22 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, providedConfigSupported bool) (extensionDef.Component, error) {
+func NewExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, providedConfigSupported bool) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:         cfg,
 		telemetry:   telemetry,
 		info:        info,
 		configStore: &configStore{},
-		debug: extensionDef.DebugSourceResponse{
-			Sources: map[string]extensionDef.OTelFlareSource{},
+		debug: extensionTypes.DebugSourceResponse{
+			Sources: map[string]extensionTypes.OTelFlareSource{},
 		},
 	}
+	envConfMap, err := newEnvConfMap(ctx, cfg.configProviderSettings)
+	if err != nil {
+		ext.telemetry.Logger.Error("Failed to create envConfMap", zap.Error(err))
+	}
+	ext.envConfMap = envConfMap
+
 	// only initiate the configprovider and set provided config if factories are provided
 	if providedConfigSupported {
 		ocpProvided, err := otelcol.NewConfigProvider(cfg.configProviderSettings)
@@ -143,9 +166,13 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 			return nil, err
 		}
 
-		ext.configStore.setProvidedConf(conf)
+		providedConfig := conf.ToStringMap()
+		providedConfig = envConfMap.useEnvVarNames(providedConfig)
+		if envbytes, err := yaml.Marshal(providedConfig); err == nil {
+			ext.configStore.setProvided(string(envbytes))
+		}
 	}
-	var err error
+
 	// auth = providedConfigSupported; if value true, component was likely built by Agent and has
 	// bearer auth token, if false, component was likely built by OCB and has no auth token
 	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, providedConfigSupported)
@@ -181,47 +208,23 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 // ServeHTTP the request handler for the extension.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	var (
-		customer  string
-		err       error
-		envconfig string
+		err error
 	)
-	providedConfig, err := ext.configStore.getProvidedConf()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Unable to get provided config\n")
-		return
-	}
-	if providedConfig != nil {
-		customer, err = ext.configStore.getProvidedConfAsString()
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Unable to get provided config\n")
-			return
-		}
-	}
-	enhanced, err := ext.configStore.getEnhancedConfAsString()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Unable to get enhanced config\n")
-		return
-	}
-	envvars := getEnvironmentAsMap()
-	if envbytes, err := json.Marshal(envvars); err == nil {
-		envconfig = string(envbytes)
-	}
 
-	resp := extensionDef.Response{
-		BuildInfoResponse: extensionDef.BuildInfoResponse{
+	envvars := getEnvironmentAsMap()
+
+	resp := extensionTypes.Response{
+		BuildInfoResponse: extensionTypes.BuildInfoResponse{
 			AgentVersion:     version.AgentVersion,
 			AgentCommand:     ext.info.Command,
 			AgentDesc:        ext.info.Description,
 			ExtensionVersion: ext.info.Version,
 		},
-		ConfigResponse: extensionDef.ConfigResponse{
-			CustomerConfig:        customer,
-			RuntimeConfig:         enhanced,
+		ConfigResponse: extensionTypes.ConfigResponse{
+			CustomerConfig:        ext.configStore.getProvidedConf(),
+			RuntimeConfig:         ext.configStore.getEnhancedConf(),
 			RuntimeOverrideConfig: "", // TODO: support RemoteConfig
-			EnvConfig:             envconfig,
+			EnvConfig:             ext.configStore.getEnvConf(),
 		},
 		DebugSourceResponse: ext.debug,
 		Environment:         envvars,

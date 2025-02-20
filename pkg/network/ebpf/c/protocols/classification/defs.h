@@ -108,8 +108,8 @@ typedef struct {
 // connection_protocol map, but elsewhere in the code we're still using
 // protocol_stack_t, so this is change is "transparent" to most of the code.
 typedef struct {
-    protocol_stack_t stack;
     __u64 updated;
+    protocol_stack_t stack;
 } protocol_stack_wrapper_t;
 
 typedef enum {

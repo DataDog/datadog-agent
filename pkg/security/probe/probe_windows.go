@@ -396,11 +396,6 @@ func (p *WindowsProbe) reconfigureProvider() error {
 	return nil
 }
 
-// Setup the runtime security probe
-func (p *WindowsProbe) Setup() error {
-	return nil
-}
-
 // Stop the probe
 func (p *WindowsProbe) Stop() {
 	if p.fimSession != nil || p.auditSession != nil {
@@ -1073,6 +1068,11 @@ func (p *WindowsProbe) DispatchEvent(event *model.Event) {
 // require to sync with the current state of the system
 func (p *WindowsProbe) Snapshot() error {
 	return p.Resolvers.Snapshot()
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *WindowsProbe) Walk(callback func(*model.ProcessCacheEntry)) {
+	p.Resolvers.ProcessResolver.Walk(callback)
 }
 
 // Close the probe

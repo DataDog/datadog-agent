@@ -10,7 +10,6 @@
 package ditypes
 
 import (
-	"debug/dwarf"
 	"fmt"
 	"io"
 	"strconv"
@@ -133,8 +132,7 @@ type ProcessInfo struct {
 	RuntimeID   string
 	BinaryPath  string
 
-	TypeMap   *TypeMap
-	DwarfData *dwarf.Data
+	TypeMap *TypeMap
 
 	ConfigurationUprobe    *link.Link
 	ProbesByID             ProbesByID

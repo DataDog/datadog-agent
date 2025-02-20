@@ -102,7 +102,7 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
 			shouldBePresent:  true,
-			shouldContain:    []string{"FIPS Mode: not available"},
+			shouldContain:    shouldContainsFips(v),
 			shouldNotContain: []string{"FIPS proxy"},
 		},
 		{
@@ -202,4 +202,11 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 	}
 
 	fetchAndCheckStatus(v, expectedSections)
+}
+
+func shouldContainsFips(v *baseStatusSuite) []string {
+	if v.Env().Agent.FIPSEnabled {
+		return []string{"FIPS Mode: enabled"}
+	}
+	return []string{"FIPS Mode: not available"}
 }

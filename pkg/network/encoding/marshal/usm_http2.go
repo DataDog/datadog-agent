@@ -10,8 +10,6 @@ import (
 	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -76,10 +74,8 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
-
-							blob, _ := proto.Marshal(latencies.ToProto())
 							w.SetLatencies(func(b *bytes.Buffer) {
-								b.Write(blob)
+								latencies.EncodeProto(b)
 							})
 						} else {
 							w.SetFirstLatencySample(stats.FirstLatencySample)

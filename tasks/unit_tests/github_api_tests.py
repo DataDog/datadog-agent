@@ -133,11 +133,12 @@ class TestFindAllTeams(unittest.TestCase):
             team_f = MagicMock()
             team_a.get_teams.return_value = [team_b, team_c]
             team_b.get_teams.return_value = [team_d]
-            team_b.permission = "pull"
+            team_f.permission = "pull"
             team_e.permission = "triage"
             mock_repo.get_teams.return_value = [team_a, team_e, team_f]
             self.assertCountEqual(
-                github.find_all_teams(mock_repo, exclude_permissions=['pull', 'triage']), [team_f, team_a, team_c]
+                github.find_all_teams(mock_repo, exclude_permissions=['pull', 'triage']),
+                [team_a, team_b, team_c, team_d],
             )
 
     @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)

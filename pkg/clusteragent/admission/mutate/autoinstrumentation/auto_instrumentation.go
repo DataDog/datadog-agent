@@ -66,6 +66,7 @@ func NewWebhook(config *Config, wmeta workloadmeta.Component, mutator mutatecomm
 		config:          config.Webhook,
 	}
 
+	log.Debug("Successfully created SSI webhook")
 	return webhook, nil
 }
 
@@ -121,6 +122,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 }
 
 func (w *Webhook) inject(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
+	log.Debugf("Mutating pod with SSI %q", mutatecommon.PodString(pod))
 	return w.mutator.MutatePod(pod, ns, cl)
 }
 

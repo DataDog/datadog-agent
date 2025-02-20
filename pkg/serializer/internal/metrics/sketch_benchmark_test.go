@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -24,6 +25,7 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 	for i := 0; i < numPoints; i++ {
 		testSketchSeries.Append(Makeseries(200))
 	}
+	logger := logmock.New(b)
 
 	serializer := SketchSeriesList{SketchesSource: testSketchSeries}
 	b.ReportAllocs()
@@ -32,7 +34,7 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serializer, true, split.ProtoMarshalFct, compressor)
+		split.Payloads(serializer, true, split.ProtoMarshalFct, compressor, logger)
 	}
 }
 
@@ -46,9 +48,10 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	b.ResetTimer()
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	logger := logmock.New(b)
 
 	for n := 0; n < b.N; n++ {
-		payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor)
+		payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor, logger)
 		require.NoError(b, err)
 		var pb int
 		for _, p := range payloads {

@@ -77,9 +77,6 @@ func (n *structNodeImpl) InsertChildNode(string, Node) {}
 // RemoveChild is not implemented for struct node
 func (n *structNodeImpl) RemoveChild(string) {}
 
-// makeRemapCase not implemented
-func (n *structNodeImpl) makeRemapCase() {}
-
 // Clone clones a LeafNode
 func (n *structNodeImpl) Clone() Node {
 	return &structNodeImpl{val: n.val}

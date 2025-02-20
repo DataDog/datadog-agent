@@ -309,6 +309,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	deviceID := namespace + ":" + connParams.IPAddress
 	// Since the snmp connection can take a while, start by sending an in progress status for the start of the scan
 	// before connecting to the agent
+	fmt.Printf("Initializing scan for device: %s\n", deviceAddr)
 	inProgressStatusPayload := metadata.NetworkDevicesMetadata{
 		DeviceScanStatus: &metadata.ScanStatusMetadata{
 			DeviceID:   deviceID,
@@ -335,6 +336,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
+	fmt.Printf("Starting scan for device: %s\n", deviceAddr)
 	err = snmpScanner.RunDeviceScan(snmp, namespace, deviceID)
 	if err != nil {
 		// Send an error status if we can't scan the device
@@ -363,6 +365,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	if err = snmpScanner.SendPayload(completedStatusPayload); err != nil {
 		return fmt.Errorf("unable to send completed status: %v", err)
 	}
+	fmt.Printf("Completed scan successfully for device: %s\n", deviceAddr)
 	return nil
 }
 

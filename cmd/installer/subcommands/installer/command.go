@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"

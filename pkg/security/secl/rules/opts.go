@@ -83,12 +83,12 @@ func NewRuleOpts(eventTypeEnabled map[eval.EventType]bool) *Opts {
 		WithEventTypeEnabled(eventTypeEnabled).
 		WithStateScopes(map[Scope]VariableProviderFactory{
 			"process": func() VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) eval.ScopedVariable {
+				return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
 					return ctx.Event.(*model.Event).ProcessCacheEntry
 				})
 			},
 			"container": func() VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) eval.ScopedVariable {
+				return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
 					return ctx.Event.(*model.Event).ContainerContext
 				})
 			},

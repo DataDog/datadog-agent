@@ -96,6 +96,11 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             conn.tcp_stats = *tst;
         } else {
             if (!cst_flushable) {
+                int *count = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
+                if (count) {
+                    increment_telemetry_count_times(tcp_syn_retransmit, *count);
+                    bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
+                }
                 return -1;
             }
         }

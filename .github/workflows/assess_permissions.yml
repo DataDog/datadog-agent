@@ -37,5 +37,5 @@ jobs:
             - name: Assess Repository Permissions
               env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                SLACK_API_TOKEN: ${{ secrets.SLACK_API_TOKEN }}
+                SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
               run: inv -e github.check-permissions --repo ${{ matrix.value }}

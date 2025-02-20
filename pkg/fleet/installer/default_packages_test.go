@@ -39,6 +39,25 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 	}, packages)
 }
 
+func TestCentos6PackagesAPMInjectEnabled(t *testing.T) {
+	env := &env.Env{
+		InstallScript: env.InstallScriptEnv{
+			APMInstrumentationEnabled: env.APMInstrumentationEnabledAll,
+		},
+		IsCentos6: true,
+	}
+	packages := DefaultPackages(env)
+
+	assert.Equal(t, []string{
+		"oci://install.datadoghq.com/apm-inject-package:0.30.0-1",
+		"oci://install.datadoghq.com/apm-library-java-package:1.45.2-1",
+		"oci://install.datadoghq.com/apm-library-ruby-package:2",
+		"oci://install.datadoghq.com/apm-library-js-package:5",
+		"oci://install.datadoghq.com/apm-library-dotnet-package:3",
+		"oci://install.datadoghq.com/apm-library-python-package:2",
+	}, packages)
+}
+
 func TestDefaultPackagesAgentVersion(t *testing.T) {
 	env := &env.Env{
 		AgentMajorVersion: "7",

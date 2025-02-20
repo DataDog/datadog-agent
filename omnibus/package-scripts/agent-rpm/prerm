@@ -80,60 +80,10 @@ remove_custom_integrations()
     fi
 }
 
-remove_version_history()
+remove_run_dir()
 {
-    # Since 6.22.0/7.22.0, a file containing the version history of the currently installed
-    # Agent is created (by default in /opt/datadog-agent/run). On a full uninstall, remove this
-    # file.
-    # This is a best-effort solution, as users can decide to put this file in another place
-    # by changing the logs_config.run_path value.
-
-    if [ -f "$INSTALL_DIR/run/version-history.json" ]; then
-        echo "Removing version history file"
-        rm "$INSTALL_DIR/run/version-history.json" || true
-    fi
-}
-
-remove_sysprobe_secagent_files()
-{
-    # removing sbom files and dirs
-    find "$INSTALL_DIR/run" -name "sbom*" -type d -exec rm -r {} +
-
-    # removing security profiles
-    find "$INSTALL_DIR/run/runtime-security/profiles" -delete || true
-
-    # remove other runtime files
-    for file in run/runtime-security-registry.json run/compliance-registry.json run/sysprobe.sock run/event-monitor.sock run/runtime-security.sock run/system-probe.pid run/runtime-security
-    do
-        if [ -d "$INSTALL_DIR/$file" ]; then
-            rmdir "$INSTALL_DIR/$file" 2>/dev/null || true
-        elif [ -e "$INSTALL_DIR/$file" ]; then
-            rm "$INSTALL_DIR/$file" || true
-        fi
-    done
-
     if [ -d "$INSTALL_DIR/run" ]; then
-        rmdir "$INSTALL_DIR/run" 2>/dev/null || true
-    fi
-}
-
-remove_sysprobe_core_files()
-{
-    # Remove any unpacked BTF files
-    find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
-    # And remove empty directories
-    find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re" -type d -empty -delete || true
-}
-
-remove_remote_config_db()
-{
-    # Remote config stores a cache of the current repository state in
-    # /opt/datadog-agent/run. This is a best-effort solution, as users can
-    # decide to put this file in another place by changing the top-level
-    # run_path config value.
-    if [ -f "$INSTALL_DIR/run/remote-config.db" ]; then
-        echo "Removing remote configuration config database"
-        rm "$INSTALL_DIR/run/remote-config.db" || true
+        rm -rf "$INSTALL_DIR/run" || true
     fi
 }
 
@@ -160,16 +110,13 @@ remove_fips_module()
 
 stop_agent
 deregister_agent
-remove_sysprobe_core_files
 
 case "$*" in
     0)
         # We're uninstalling.
         remove_custom_integrations
         remove_py_compiled_files
-        remove_version_history
-        remove_sysprobe_secagent_files
-        remove_remote_config_db
+        remove_run_dir
         remove_fips_module
         remove_persist_integration_files
     ;;

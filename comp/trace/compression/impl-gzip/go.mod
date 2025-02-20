@@ -1,8 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip
 
-go 1.22.0
+go 1.23.0
 
-require github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.0-rc.3
+require github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
 
 // This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
 
@@ -43,6 +43,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ../../../../comp/otelcol/converter/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ../../../../comp/otelcol/ddflareextension/def
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl => ../../../../comp/otelcol/ddflareextension/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types => ../../../../comp/otelcol/ddflareextension/types
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def => ../../../../comp/otelcol/ddprofilingextension/def
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../../../comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../../comp/otelcol/logsagentpipeline
@@ -71,8 +72,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
+	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../../../pkg/linters/components/pkgconfigusage
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../../pkg/logs/auditor

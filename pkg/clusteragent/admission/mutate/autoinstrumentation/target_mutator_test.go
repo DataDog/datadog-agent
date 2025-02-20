@@ -27,12 +27,57 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+func TestNewTargetMutator(t *testing.T) {
+	tests := map[string]struct {
+		configPath string
+		shouldErr  bool
+	}{
+		"valid config": {
+			configPath: "testdata/filter.yaml",
+			shouldErr:  false,
+		},
+		"invalid config": {
+			configPath: "testdata/filter_invalid_configs.yaml",
+			shouldErr:  true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Load the config.
+			mockConfig := configmock.NewFromFile(t, test.configPath)
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			config, err := NewConfig(mockConfig)
+			require.NoError(t, err)
+
+			// Create a mock meta.
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Supply(coreconfig.Params{}),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				coreconfig.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			// Create the mutator.
+			_, err = NewTargetMutator(config, wmeta)
+
+			// Validate the output.
+			if test.shouldErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestMutatePod(t *testing.T) {
 	tests := map[string]struct {
 		configPath                  string
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
 		expectedEnv                 map[string]string
+		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
 		expectNoChange              bool
 	}{
@@ -44,7 +89,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v2",
+				defaultLibInfo(python).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_INJECT_SENDER_TYPE":           "k8s",
@@ -55,6 +100,10 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+			},
+			expectedAnnotations: map[string]string{
+				AppliedTargetAnnotation: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"no matching rule does not mutate pod": {
@@ -64,6 +113,55 @@ func TestMutatePod(t *testing.T) {
 				newTestNamespace("foo", nil),
 			},
 			expectNoChange: true,
+		},
+		"tracer configs get applied": {
+			configPath: "testdata/filter_simple_configs.yaml",
+			in: mutatecommon.WithLabels(
+				mutatecommon.FakePodWithNamespace("foo-service", "application"),
+				map[string]string{"language": "python"},
+			),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				defaultLibInfo(python).image,
+			},
+			expectedEnv: map[string]string{
+				"DD_PROFILING_ENABLED":            "true",
+				"DD_DATA_JOBS_ENABLED":            "true",
+				"DD_INJECT_SENDER_TYPE":           "k8s",
+				"DD_INSTRUMENTATION_INSTALL_ID":   "",
+				"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
+				"DD_LOGS_INJECTION":               "true",
+				"DD_RUNTIME_METRICS_ENABLED":      "true",
+				"DD_TRACE_ENABLED":                "true",
+				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+			},
+			expectedAnnotations: map[string]string{
+				AppliedTargetAnnotation: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+			},
+		},
+		"service name is applied when set in tracer configs": {
+			configPath: "testdata/filter_simple_service.yaml",
+			in: mutatecommon.FakePodSpec{
+				Labels:     map[string]string{"language": "python"},
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-1234",
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				defaultLibInfo(python).image,
+			},
+			expectedEnv: map[string]string{
+				"DD_SERVICE": "best-service",
+			},
 		},
 	}
 
@@ -124,6 +222,11 @@ func TestMutatePod(t *testing.T) {
 				actualInitContainerImages[i] = ctr.Image
 			}
 			require.ElementsMatch(t, test.expectedInitContainerImages, actualInitContainerImages)
+
+			// Validate the annotations.
+			for k, v := range test.expectedAnnotations {
+				require.Equal(t, v, test.in.Annotations[k])
+			}
 		})
 	}
 }
@@ -287,11 +390,11 @@ func TestIsNamespaceEligible(t *testing.T) {
 	}
 }
 
-func TestGetAnnotationLibraries(t *testing.T) {
+func TestGetTargetFromAnnotation(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
-		expected   []libInfo
+		expected   *targetInternal
 	}{
 		"a pod with no annotations gets no values": {
 			configPath: "testdata/filter_limited.yaml",
@@ -312,11 +415,9 @@ func TestGetAnnotationLibraries(t *testing.T) {
 					},
 				},
 			},
-			expected: []libInfo{
-				{
-					ctrName: "",
-					lang:    python,
-					image:   "registry/dd-lib-python-init:v2",
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfo(python),
 				},
 			},
 		},
@@ -342,11 +443,16 @@ func TestGetAnnotationLibraries(t *testing.T) {
 			f, err := NewTargetMutator(config, wmeta)
 			require.NoError(t, err)
 
-			// Filter the pod.
-			actual := f.getAnnotationLibraries(test.in)
+			// Get the target from the annotation.
+			actual := f.getTargetFromAnnotation(test.in)
 
 			// Validate the output.
-			require.Equal(t, test.expected, actual)
+			if test.expected == nil {
+				require.Nil(t, actual)
+			} else {
+				require.NotNil(t, actual)
+				require.Equal(t, test.expected.libVersions, actual.libVersions)
+			}
 		})
 	}
 }
@@ -356,7 +462,7 @@ func TestGetTargetLibraries(t *testing.T) {
 		configPath string
 		in         *corev1.Pod
 		namespaces []workloadmeta.KubernetesMetadata
-		expected   []libInfo
+		expected   *targetInternal
 	}{
 		"a rule without selectors applies as a default": {
 			configPath: "testdata/filter.yaml",
@@ -371,11 +477,9 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("foo", nil),
 			},
-			expected: []libInfo{
-				{
-					ctrName: "",
-					lang:    js,
-					image:   "registry/dd-lib-js-init:v5",
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfo(js),
 				},
 			},
 		},
@@ -407,11 +511,9 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("billing-service", nil),
 			},
-			expected: []libInfo{
-				{
-					ctrName: "",
-					lang:    python,
-					image:   "registry/dd-lib-python-init:v2",
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfo(python),
 				},
 			},
 		},
@@ -428,11 +530,9 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: []libInfo{
-				{
-					ctrName: "",
-					lang:    java,
-					image:   "registry/dd-lib-java-init:v1",
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfo(java),
 				},
 			},
 		},
@@ -465,11 +565,13 @@ func TestGetTargetLibraries(t *testing.T) {
 					"env":     "prod",
 				}),
 			},
-			expected: []libInfo{
-				{
-					ctrName: "",
-					lang:    dotnet,
-					image:   "registry/dd-lib-dotnet-init:v1",
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					{
+						ctrName: "",
+						lang:    dotnet,
+						image:   "registry/dd-lib-dotnet-init:v1",
+					},
 				},
 			},
 		},
@@ -512,31 +614,13 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: []libInfo{
-				{
-					ctrName: "",
-					lang:    java,
-					image:   "registry/dd-lib-java-init:v1",
-				},
-				{
-					ctrName: "",
-					lang:    js,
-					image:   "registry/dd-lib-js-init:v5",
-				},
-				{
-					ctrName: "",
-					lang:    python,
-					image:   "registry/dd-lib-python-init:v2",
-				},
-				{
-					ctrName: "",
-					lang:    dotnet,
-					image:   "registry/dd-lib-dotnet-init:v3",
-				},
-				{
-					ctrName: "",
-					lang:    ruby,
-					image:   "registry/dd-lib-ruby-init:v2",
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(js),
+					defaultLibInfo(python),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
 				},
 			},
 		},
@@ -583,10 +667,15 @@ func TestGetTargetLibraries(t *testing.T) {
 			require.NoError(t, err)
 
 			// Filter the pod.
-			actual := f.getTargetLibraries(test.in)
+			actual := f.getMatchingTarget(test.in)
 
 			// Validate the output.
-			require.Equal(t, test.expected, actual)
+			if test.expected == nil {
+				require.Nil(t, actual)
+			} else {
+				require.NotNil(t, actual)
+				require.Equal(t, test.expected.libVersions, actual.libVersions)
+			}
 		})
 	}
 }

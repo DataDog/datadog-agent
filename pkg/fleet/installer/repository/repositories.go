@@ -12,15 +12,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/shirou/gopsutil/v4/disk"
 )
 
 const (
 	tempDirPrefix = "tmp-i-"
-)
-
-var (
-	fsDisk = filesystem.NewDisk()
 )
 
 // Repositories manages multiple repositories.
@@ -155,9 +151,9 @@ func (r *Repositories) AvailableDiskSpace() (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("could not stat root path %s: %w", r.rootPath, err)
 	}
-	s, err := fsDisk.GetUsage(r.rootPath)
+	usage, err := disk.Usage(r.rootPath)
 	if err != nil {
 		return 0, err
 	}
-	return s.Available, nil
+	return usage.Free, nil
 }

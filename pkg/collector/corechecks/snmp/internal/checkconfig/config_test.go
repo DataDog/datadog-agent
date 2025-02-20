@@ -6,6 +6,10 @@
 package checkconfig
 
 import (
+	"encoding/json"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
@@ -139,7 +143,7 @@ global_metrics:
 oid_batch_size: 10
 bulk_max_repetitions: 20
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, 10, config.OidBatchSize)
@@ -279,7 +283,7 @@ workers: 30
 	// language=yaml
 	rawInitConfig := []byte(`
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, "127.0.0.0/24", config.Network)
@@ -313,7 +317,7 @@ profiles:
         - {OID: 1.3.6.1.2.1.4.24.6.0, name: IAmAGauge32}
         - {OID: 1.3.6.1.2.1.88.1.1.1.0, name: IAmAnInteger}
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:172.26.0.2", "device_ip:172.26.0.2", "device_id:default:172.26.0.2"}, config.GetStaticTags())
@@ -365,7 +369,7 @@ profiles:
             OID: 1.4.5
             name: myMetric
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
@@ -403,7 +407,7 @@ community_string: abc
 `)
 	// language=yaml
 	rawInitConfig := []byte(``)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, "default", config.Namespace)
@@ -432,7 +436,7 @@ func TestPortConfiguration(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: abc
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(161), config.Port)
 
@@ -443,7 +447,7 @@ ip_address: 1.2.3.4
 port: 1234
 community_string: abc
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, []byte(``))
+	config, err = NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(1234), config.Port)
 }
@@ -456,7 +460,7 @@ func TestBatchSizeConfiguration(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: abc
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, 5, config.OidBatchSize)
 
@@ -467,7 +471,7 @@ ip_address: 1.2.3.4
 community_string: abc
 oid_batch_size: 10
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, []byte(``))
+	config, err = NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, 10, config.OidBatchSize)
 
@@ -481,7 +485,7 @@ community_string: abc
 	rawInitConfig := []byte(`
 oid_batch_size: 15
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, 15, config.OidBatchSize)
 
@@ -496,7 +500,7 @@ oid_batch_size: 20
 	rawInitConfig = []byte(`
 oid_batch_size: 15
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, 20, config.OidBatchSize)
 }
@@ -509,7 +513,7 @@ func TestBulkMaxRepetitionConfiguration(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: abc
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(10), config.BulkMaxRepetitions)
 
@@ -520,7 +524,7 @@ ip_address: 1.2.3.4
 community_string: abc
 bulk_max_repetitions: 10
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, []byte(``))
+	config, err = NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(10), config.BulkMaxRepetitions)
 
@@ -534,7 +538,7 @@ community_string: abc
 	rawInitConfig := []byte(`
 bulk_max_repetitions: 15
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(15), config.BulkMaxRepetitions)
 
@@ -549,7 +553,7 @@ bulk_max_repetitions: 20
 	rawInitConfig = []byte(`
 bulk_max_repetitions: 15
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(20), config.BulkMaxRepetitions)
 
@@ -562,7 +566,7 @@ bulk_max_repetitions: -5
 `)
 	// language=yaml
 	rawInitConfig = []byte(``)
-	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.EqualError(t, err, "bulk max repetition must be a positive integer. Invalid value: -5")
 }
 
@@ -585,7 +589,7 @@ global_metrics:
     OID: 1.2.3.4
     name: aGlobalMetric
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	require.NoError(t, err)
 
 	profile, err := config.BuildProfile("")
@@ -619,7 +623,7 @@ global_metrics:
     OID: 1.2.3.4
     name: aGlobalMetric
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	require.NoError(t, err)
 
 	profile, err := config.BuildProfile("")
@@ -697,7 +701,7 @@ network_address: 10.0.0.0/xx
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			for _, errStr := range tt.expectedErrors {
 				require.NotNil(t, err, "expected error %q", errStr)
 				assert.Contains(t, err.Error(), errStr)
@@ -748,7 +752,7 @@ func Test_Configure_invalidYaml(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			assert.EqualError(t, err, tt.expectedErr)
 		})
 	}
@@ -764,7 +768,7 @@ port: "123"
 timeout: "15"
 retries: "5"
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(123), config.Port)
 	assert.Equal(t, 15, config.Timeout)
@@ -779,7 +783,7 @@ func TestExtraTags(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: abc
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
 
@@ -789,7 +793,7 @@ ip_address: 1.2.3.4
 community_string: abc
 extra_tags: "extratag1:val1,extratag2:val2"
 `)
-	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``))
+	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``), nil)
 	assert.Nil(t, err)
 	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
@@ -832,7 +836,7 @@ community_string: "abc"
 	rawInitConfig := []byte(`
 oid_batch_size: 10
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.CollectDeviceMetadata)
 
@@ -846,7 +850,7 @@ community_string: "abc"
 oid_batch_size: 10
 collect_device_metadata: true
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.CollectDeviceMetadata)
 
@@ -860,7 +864,7 @@ collect_device_metadata: true
 	rawInitConfig = []byte(`
 oid_batch_size: 10
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.CollectDeviceMetadata)
 
@@ -875,7 +879,7 @@ collect_device_metadata: false
 oid_batch_size: 10
 collect_device_metadata: true
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.CollectDeviceMetadata)
 }
@@ -890,7 +894,7 @@ community_string: "abc"
 	rawInitConfig := []byte(`
 oid_batch_size: 10
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.CollectTopology)
 
@@ -904,7 +908,7 @@ community_string: "abc"
 oid_batch_size: 10
 collect_topology: true
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.CollectTopology)
 
@@ -918,7 +922,7 @@ collect_topology: true
 	rawInitConfig = []byte(`
 oid_batch_size: 10
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.CollectTopology)
 
@@ -933,7 +937,7 @@ collect_topology: false
 oid_batch_size: 10
 collect_topology: true
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.CollectTopology)
 }
@@ -950,7 +954,7 @@ namespace: my-ns
 `)
 	rawInitConfig := []byte(``)
 
-	conf, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	conf, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "my-ns", conf.Namespace)
 
@@ -961,7 +965,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "default", conf.Namespace)
 
@@ -973,7 +977,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(`
 namespace: ns-from-datadog-conf`)
-	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "ns-from-datadog-conf", conf.Namespace)
 
@@ -985,7 +989,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
 	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "totoro")
-	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "totoro", conf.Namespace)
 
@@ -999,7 +1003,7 @@ namespace: ""
 `)
 	rawInitConfig = []byte(`
 namespace: ponyo`)
-	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "ponyo", conf.Namespace)
 
@@ -1013,7 +1017,7 @@ community_string: "abc"
 	rawInitConfig = []byte(`
 namespace: `)
 	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "mononoke")
-	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "mononoke", conf.Namespace)
 
@@ -1025,7 +1029,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
 	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "")
-	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
 
@@ -1039,7 +1043,7 @@ community_string: "abc"
 	rawInitConfig := []byte(`
 oid_batch_size: 10
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.UseDeviceIDAsHostname)
 
@@ -1053,7 +1057,7 @@ community_string: "abc"
 oid_batch_size: 10
 use_device_id_as_hostname: true
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.UseDeviceIDAsHostname)
 
@@ -1067,7 +1071,7 @@ use_device_id_as_hostname: true
 	rawInitConfig = []byte(`
 oid_batch_size: 10
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.UseDeviceIDAsHostname)
 
@@ -1082,7 +1086,7 @@ use_device_id_as_hostname: false
 oid_batch_size: 10
 use_device_id_as_hostname: true
 `)
-	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.UseDeviceIDAsHostname)
 }
@@ -1188,7 +1192,7 @@ min_collection_interval: -10
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
 			} else {
@@ -1260,7 +1264,7 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
 			} else {
@@ -1430,7 +1434,7 @@ ip_address: 1.2.3.4
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
 			} else {
@@ -1823,4 +1827,150 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedTags, tt.config.GetStaticTags())
 		})
 	}
+}
+
+// This type mocks rcclient.Component
+type mockRCClient struct {
+	subscribed bool
+	err        error
+	profiles   map[string]state.RawConfig
+}
+
+func makeMockClient(profiles []profiledefinition.ProfileDefinition) (*mockRCClient, error) {
+	update := make(map[string]state.RawConfig)
+	for _, profile := range profiles {
+		bytes, err := json.Marshal(profiledefinition.DeviceProfileRcConfig{Profile: profile})
+		if err != nil {
+			return nil, err
+		}
+		update[profile.Name] = state.RawConfig{
+			Config: bytes,
+		}
+	}
+	return &mockRCClient{
+		subscribed: false,
+		err:        nil,
+		profiles:   update,
+	}, nil
+}
+
+func (m *mockRCClient) SubscribeAgentTask() {}
+
+// noop
+func (m *mockRCClient) applyStateCallback(string, state.ApplyStatus) {}
+
+func (m *mockRCClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig,
+	applyStateCallback func(string, state.ApplyStatus))) {
+	if product != state.ProductNDMDeviceProfilesCustom {
+		m.err = fmt.Errorf("unexpected subscription to %v", product)
+		return
+	}
+	if m.subscribed {
+		m.err = fmt.Errorf("double subscription to ProductNDMDeviceProfilesCustom")
+		return
+	}
+	m.subscribed = true
+	fn(m.profiles, m.applyStateCallback)
+}
+
+func TestExplicitRCConfig(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+profile: profile1`)
+	// language=yaml
+	rawInitConfig := []byte(`use_remote_config_profiles: true`)
+	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
+		{
+			Name: "profile1",
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.7.1.0",
+					Name: "IAmACounter32",
+				}},
+			},
+		},
+	})
+	defer profile.ResetRCProvider()
+	require.NoError(t, err)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
+	require.NoError(t, err)
+	assert.True(t, client.subscribed)
+	profile, err := config.BuildProfile("")
+	require.NoError(t, err)
+	assert.Equal(t, profile.Name, "profile1")
+	metrics := []profiledefinition.MetricsConfig{
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.7.1.0", Name: "IAmACounter32"}},
+	}
+	assert.Equal(t, profile.Metrics, metrics)
+}
+
+func TestDynamicRCConfig(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
+	// language=yaml
+	rawInitConfig := []byte(`use_remote_config_profiles: true`)
+	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
+		{
+			Name:         "profile1",
+			SysObjectIDs: []string{"1.2.3.4.*"},
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.7.1.0",
+					Name: "IAmACounter32",
+				}},
+			},
+		},
+	})
+	defer profile.ResetRCProvider()
+	require.NoError(t, err)
+
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
+	require.NoError(t, err)
+	assert.True(t, client.subscribed)
+	profile, err := config.BuildProfile("1.2.3.4.5.6")
+	require.NoError(t, err)
+	assert.Equal(t, profile.Name, "profile1")
+	metrics := []profiledefinition.MetricsConfig{
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.7.1.0", Name: "IAmACounter32"}},
+	}
+	assert.Equal(t, profile.Metrics, metrics)
+}
+
+func TestRCConflict(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
+	// language=yaml
+	rawInitConfig := []byte(`use_remote_config_profiles: true`)
+	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
+		{
+			Name:         "profile1",
+			SysObjectIDs: []string{"1.2.3.4.*"},
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.7.1.0",
+					Name: "IAmACounter32",
+				}},
+			},
+		}, {
+			Name:         "profile2",
+			SysObjectIDs: []string{"1.2.3.4.*"},
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.7.1.0",
+					Name: "IAmACounter32",
+				}},
+			},
+		},
+	})
+	defer profile.ResetRCProvider()
+	require.NoError(t, err)
+
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
+	require.NoError(t, err)
+	assert.True(t, client.subscribed)
+	_, err = config.BuildProfile("1.2.3.4.5.6")
+	require.ErrorContains(t, err, "has the same sysObjectID (1.2.3.4.*)")
 }
