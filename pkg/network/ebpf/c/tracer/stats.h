@@ -389,11 +389,11 @@ static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t)
         }
     }
     __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
-    if (count) {
-        __sync_fetch_and_add(count, 1);
+    __u64 one = 1;
+    if (count != NULL) {
+        __sync_fetch_and_add(&count, one);
         bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, count, BPF_ANY);
     } else {
-        __u64 one = 1;
         bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_ANY);
     }
 
