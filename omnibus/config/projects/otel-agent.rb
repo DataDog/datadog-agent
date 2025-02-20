@@ -11,8 +11,8 @@ package_name 'datadog-otel-agent'
 
 license "Apache-2.0"
 license_file "../LICENSE"
-json_manifest_path "version-manifest.otel-agent.json"
-text_manifest_path "version-manifest.otel-agent.txt"
+json_manifest_path File.join(install_dir, "version-manifest.otel-agent.json")
+text_manifest_path File.join(install_dir, "version-manifest.otel-agent.txt")
 
 third_party_licenses "../LICENSE-3rdparty.csv"
 
