@@ -41,8 +41,7 @@ const (
 
 	controllerID = "dpa-c"
 
-	staleRecommendationThreshold      = time.Minute * 10 // time to wait between two recommendations before considering them stale
-	noRecommendationReceivedThreshold = time.Minute * 3  // time to wait between CR creation and when first recommendation is received
+	staleTimestampThreshold = time.Minute * 10 // time to wait before considering a recommendation stale
 )
 
 var (
@@ -516,7 +515,7 @@ func getActiveSource(currentTime time.Time, podAutoscalerInternal *model.PodAuto
 	fallbackHorizontalScalingValues := podAutoscalerInternal.FallbackScalingValues().Horizontal
 
 	// If main scaling values are not stale, use those
-	if mainHorizontalScalingValues != nil && !isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, staleRecommendationThreshold) {
+	if mainHorizontalScalingValues != nil && !isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp) {
 		return pointer.Ptr(datadoghq.DatadogPodAutoscalerAutoscalingValueSource)
 	}
 
@@ -524,11 +523,11 @@ func getActiveSource(currentTime time.Time, podAutoscalerInternal *model.PodAuto
 	// 1. Main scaling values are stale
 	// 2. No main scaling values have been received, and last scaling values (updated from status in event of leader election change) are stale
 	// 3. No main scaling values have been received, no scaling values have been received from status, and the pod autoscaler was created more than 3 minutes ago
-	if (mainHorizontalScalingValues != nil && isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, staleRecommendationThreshold)) ||
-		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues != nil && isTimestampStale(currentTime, currentHorizontalScalingValues.Timestamp, staleRecommendationThreshold)) ||
-		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues == nil && isTimestampStale(currentTime, podAutoscalerInternal.CreationTimestamp(), noRecommendationReceivedThreshold)) {
+	if (mainHorizontalScalingValues != nil && isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp)) ||
+		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues != nil && isTimestampStale(currentTime, currentHorizontalScalingValues.Timestamp)) ||
+		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues == nil && isTimestampStale(currentTime, podAutoscalerInternal.CreationTimestamp())) {
 		// If local fallback values are usable, activate local fallback
-		if fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp, staleRecommendationThreshold) {
+		if fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp) {
 			return pointer.Ptr(datadoghq.DatadogPodAutoscalerLocalValueSource)
 		}
 	}
@@ -536,6 +535,6 @@ func getActiveSource(currentTime time.Time, podAutoscalerInternal *model.PodAuto
 	return nil
 }
 
-func isTimestampStale(currentTime, receivedTime time.Time, threshold time.Duration) bool {
-	return currentTime.Sub(receivedTime) > threshold
+func isTimestampStale(currentTime, receivedTime time.Time) bool {
+	return currentTime.Sub(receivedTime) > staleTimestampThreshold
 }
