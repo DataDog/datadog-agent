@@ -170,9 +170,9 @@ variables:
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v51662543-bc5e2989
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: "-dev"
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: c00b9368
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 13fc087677f0
   DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
