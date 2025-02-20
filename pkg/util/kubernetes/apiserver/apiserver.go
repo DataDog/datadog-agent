@@ -18,17 +18,13 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
-	"k8s.io/client-go/discovery"
 
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
@@ -81,7 +77,7 @@ type APIClient struct {
 	DynamicCl dynamic.Interface
 
 	// ScaleCl holds the scale kubernetes client
-	ScaleCl scale.ScalesGetter
+	//ScaleCl scale.ScalesGetter
 
 	// RESTMapper is used to map resources to GVR
 	// Implement with restmapper.NewDeferredDiscoveryRESTMapper(cachedClient)
@@ -99,13 +95,10 @@ type APIClient struct {
 	DynamicInformerCl dynamic.Interface
 
 	// CRDInformerClient holds the extension kubernetes client with long TO
-	CRDInformerClient clientset.Interface
+	//CRDInformerClient clientset.Interface
 
 	// APISInformerClient holds the APIService kubernetes client with long TO
 	APISInformerClient apiregistrationclient.ApiregistrationV1Interface
-
-	// VPAInformerClient holds kubernetes VerticalPodAutoscalers client with long TO
-	VPAInformerClient vpa.Interface
 
 	//
 	// Informer factories (based on informers client)
@@ -250,15 +243,6 @@ func getKubeDynamicClient(timeout time.Duration, qps float32, burst int) (dynami
 	return dynamic.NewForConfig(clientConfig)
 }
 
-func getCRDClient(timeout time.Duration, qps float32, burst int) (*clientset.Clientset, error) {
-	clientConfig, err := GetClientConfig(timeout, qps, burst)
-	if err != nil {
-		return nil, err
-	}
-
-	return clientset.NewForConfig(clientConfig)
-}
-
 func getAPISClient(timeout time.Duration, qps float32, burst int) (*apiregistrationclient.ApiregistrationV1Client, error) {
 	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
@@ -266,39 +250,6 @@ func getAPISClient(timeout time.Duration, qps float32, burst int) (*apiregistrat
 	}
 	return apiregistrationclient.NewForConfig(clientConfig)
 }
-
-func getKubeVPAClient(timeout time.Duration, qps float32, burst int) (vpa.Interface, error) {
-	clientConfig, err := GetClientConfig(timeout, qps, burst)
-	if err != nil {
-		return nil, err
-	}
-
-	return vpa.NewForConfig(clientConfig)
-}
-
-func getScaleClient(discoveryCl discovery.ServerResourcesInterface, restMapper meta.RESTMapper, timeout time.Duration, qps float32, burst int) (scale.ScalesGetter, error) {
-	clientConfig, err := GetClientConfig(timeout, qps, burst)
-	if err != nil {
-		return nil, err
-	}
-
-	// borrowed from HPA controller
-	// we don't use cached discovery because DiscoveryScaleKindResolver does its own caching,
-	// so we want to re-fetch every time when we actually ask for it
-	scaleKindResolver := scale.NewDiscoveryScaleKindResolver(discoveryCl)
-	return scale.NewForConfig(clientConfig, restMapper, dynamic.LegacyAPIPathResolverFunc, scaleKindResolver)
-}
-
-/*
-// GetInformerWithOptions returns
-func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options ...informers.SharedInformerOption) informers.SharedInformerFactory {
-	if resyncPeriod == nil {
-		resyncPeriod = &c.defaultInformerResyncPeriod
-	}
-
-	return informers.NewSharedInformerFactoryWithOptions(c.InformerCl, *resyncPeriod, options...)
-}
-*/
 
 func (c *APIClient) connect() error {
 	return nil
