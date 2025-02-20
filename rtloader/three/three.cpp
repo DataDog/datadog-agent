@@ -840,6 +840,34 @@ bool Three::getAttrString(RtLoaderPyObject *obj, const char *attributeName, char
     return res;
 }
 
+bool Three::getAttrBool(RtLoaderPyObject *obj, const char *attributeName, bool &value) const
+{
+    if (obj == NULL) {
+        return false;
+    }
+
+    bool res = false;
+    PyObject *py_attr = NULL;
+    PyObject *py_obj = reinterpret_cast<PyObject *>(obj);
+
+    py_attr = PyObject_GetAttrString(py_obj, attributeName);
+    if (py_attr != NULL) {
+        if (PyBool_Check(py_attr)) {
+            value = (py_attr == Py_True);
+            res = true;
+        } else {
+            setError("error attribute " + std::string(attributeName) + " has a different type than bool");
+            PyErr_Clear();
+        }
+    } else {
+        setError("error fetching attribute " + std::string(attributeName) + " does not exist");
+        PyErr_Clear();
+    }
+
+    Py_XDECREF(py_attr);
+    return res;
+}
+
 void Three::decref(RtLoaderPyObject *obj)
 {
     Py_XDECREF(reinterpret_cast<PyObject *>(obj));
