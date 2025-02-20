@@ -126,6 +126,7 @@ typedef struct {
     __u64 tcp_close_target_failures;
     __u64 tcp_done_connection_flush;
     __u64 tcp_close_connection_flush;
+    __u64 tcp_syn_retransmit;
 } telemetry_t;
 
 typedef struct {

@@ -30,7 +30,6 @@ from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
-    clone,
     get_default_branch,
     get_git_references,
     get_last_commit,
@@ -47,6 +46,7 @@ from tasks.libs.pipeline.notifications import (
     DEFAULT_SLACK_CHANNEL,
     load_and_validate,
     warn_new_commits,
+    warn_new_tags,
 )
 from tasks.libs.releasing.documentation import (
     create_release_page,
@@ -1073,12 +1073,12 @@ def get_next_version(gh, latest_release=None):
 
 
 @task
-def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     """Task to run after the release is done to generate release metrics.
 
     Args:
         milestone: Github milestone number for the release. Expected format like '7.54.0'
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cutoff was started. Expected format YYYY-MM-DD, like '2022-02-01'
         release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
 
     Notes:
@@ -1087,17 +1087,20 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     """
 
     # Step 1: Lead Time for Changes data
-    lead_time = get_release_lead_time(freeze_date, release_date)
+    lead_time = get_release_lead_time(cutoff_date, release_date)
     print("Lead Time for Changes data")
     print("--------------------------")
     print(lead_time)
 
     # Step 2: Agent stability data
-    prs = get_prs_metrics(milestone, freeze_date)
+    prs = get_prs_metrics(milestone, cutoff_date)
     print("\n")
-    print("Agent stability data")
+    print("Agent stability data: Pull Requests")
     print("--------------------")
-    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    print(
+        f"total: {prs['total']}, before_cutoff: {prs['before_cutoff']}, on_cutoff: {prs['on_cutoff']}, after_cutoff: {prs['after_cutoff']}"
+    )
 
     # Step 3: Code changes
     code_stats = ctx.run(
@@ -1142,7 +1145,7 @@ def chase_release_managers(_, version):
 
     from slack_sdk import WebClient
 
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     for channel in sorted(channels):
         print(f"Sending message to {channel}")
         client.chat_postMessage(channel=channel, text=message)
@@ -1161,7 +1164,7 @@ def chase_for_qa_cards(_, version):
         grouped_cards[card["fields"]["project"]["key"]].append(card)
     GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
     GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
         team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
@@ -1183,6 +1186,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
         next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
         changes = 'false'
+        message = [f":warning: Please add the `{next_version}` tag on the head of `{release_branch}` for:\n"]
         for repo_name, repo in repo_data.items():
             head_commit = get_last_commit(ctx, repo_name, repo['branch'])
             last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
@@ -1195,12 +1199,9 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                     warn_new_commits(emails, team, repo['branch'], next_version)
                 else:
                     if repo_name not in ["datadog-agent", "integrations-core"]:
-                        with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):
-                            # We can add the new commit now to be used by release candidate creation
-                            print(f"Creating new tag {next_version} on {repo_name}", file=sys.stderr)
-                            set_gitconfig_in_ci(ctx)
-                            ctx.run(f"git tag {next_version}")
-                            ctx.run(f"git push origin tag {next_version}")
+                        message.append(
+                            f" - <https://github.com/DataDog/{repo_name}/commits/{release_branch}/|{repo_name}>\n"
+                        )
                 # This repo has changes, the next check is not needed
                 continue
             if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
@@ -1209,6 +1210,10 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                     f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
                     file=sys.stderr,
                 )
+        # Notify the release manager if there are changes
+        if len(message) > 1:
+            message.append("Make sure to tag them before merging the next RC PR.")
+            warn_new_tags("".join(message))
         # Send a value for the create_rc_pr.yml workflow
         print(changes)
 

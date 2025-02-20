@@ -65,6 +65,7 @@ var EbpfTracerTelemetry = struct {
 	tcpDoneConnectionFlush      *prometheus.Desc
 	tcpCloseConnectionFlush     *prometheus.Desc
 	tcpFailedConnections        telemetry.Counter
+	tcpSynRetransmit            *prometheus.Desc
 	ongoingConnectPidCleaned    telemetry.Counter
 	PidCollisions               *telemetry.StatCounterWrapper
 	iterationDups               telemetry.Counter
@@ -84,6 +85,7 @@ var EbpfTracerTelemetry = struct {
 	lastTCPCloseTargetFailures      *atomic.Int64
 	lastTCPDoneConnectionFlush      *atomic.Int64
 	lastTCPCloseConnectionFlush     *atomic.Int64
+	lastTCPSynRetransmit            *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_sent_miscounts", "Counter measuring the number of miscounted tcp sends in the EBPF map", nil, nil),
@@ -100,10 +102,12 @@ var EbpfTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__tcp_done_connection_flush", "Counter measuring the number of connection flushes performed in tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_connection_flush", "Counter measuring the number of connection flushes performed in tcp_close", nil, nil),
 	telemetry.NewCounter(connTracerModuleName, "tcp_failed_connections", []string{}, "Gauge measuring the number of unsupported failed TCP connections"),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
 	telemetry.NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -644,6 +648,10 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Tcp_close_connection_flush) - EbpfTracerTelemetry.lastTCPCloseConnectionFlush.Load()
 	EbpfTracerTelemetry.lastTCPCloseConnectionFlush.Store(int64(ebpfTelemetry.Tcp_close_connection_flush))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpCloseConnectionFlush, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_syn_retransmit) - EbpfTracerTelemetry.lastTCPSynRetransmit.Load()
+	EbpfTracerTelemetry.lastTCPSynRetransmit.Store(int64(ebpfTelemetry.Tcp_syn_retransmit))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSynRetransmit, prometheus.CounterValue, float64(delta))
 
 	// Collect the TCP failure telemetry
 	tcpFailureTelemetry := t.getTCPFailureTelemetry()

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-multierror"
@@ -45,8 +47,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return testPoliciesToPolicies([]*testPolicyDef{
 								{
-									name:   "myLocal.policy",
-									source: PolicyProviderTypeDir,
+									name:       "myLocal.policy",
+									source:     PolicyProviderTypeDir,
+									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
 											{
@@ -61,8 +64,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									},
 								},
 								{
-									name:   DefaultPolicyName,
-									source: PolicyProviderTypeDir,
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeDir,
+									policyType: DefaultPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
 											{
@@ -83,8 +87,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return testPoliciesToPolicies([]*testPolicyDef{
 								{
-									name:   "myRC.policy",
-									source: PolicyProviderTypeRC,
+									name:       "myRC.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
 											{
@@ -99,8 +104,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									},
 								},
 								{
-									name:   DefaultPolicyName,
-									source: PolicyProviderTypeRC,
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
 											{
@@ -124,6 +130,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					{
 						Name:   DefaultPolicyName,
 						Source: PolicyProviderTypeRC,
+						Type:   DefaultPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules: map[string][]*PolicyRule{
 							"foo": {
@@ -149,6 +156,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					{
 						Name:   "myRC.policy",
 						Source: PolicyProviderTypeRC,
+						Type:   CustomPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules: map[string][]*PolicyRule{
 							"foo": {
@@ -174,6 +182,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					{
 						Name:   "myLocal.policy",
 						Source: PolicyProviderTypeDir,
+						Type:   CustomPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules: map[string][]*PolicyRule{
 							"foo": {
@@ -222,8 +231,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return testPoliciesToPolicies([]*testPolicyDef{
 								{
-									name:   "myLocal.policy",
-									source: PolicyProviderTypeDir,
+									name:       "myLocal.policy",
+									source:     PolicyProviderTypeDir,
+									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
 											{
@@ -244,8 +254,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return testPoliciesToPolicies([]*testPolicyDef{
 								{
-									name:   "myRC.policy",
-									source: PolicyProviderTypeRC,
+									name:       "myRC.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Rules: []*RuleDefinition{
 											{
@@ -269,6 +280,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					{
 						Name:   "myRC.policy",
 						Source: PolicyProviderTypeRC,
+						Type:   CustomPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules: map[string][]*PolicyRule{
 							"foo": {
@@ -294,6 +306,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					{
 						Name:   "myLocal.policy",
 						Source: PolicyProviderTypeDir,
+						Type:   CustomPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules: map[string][]*PolicyRule{
 							"foo": {
@@ -340,8 +353,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return testPoliciesToPolicies([]*testPolicyDef{
 								{
-									name:   "myLocal.policy",
-									source: PolicyProviderTypeDir,
+									name:       "myLocal.policy",
+									source:     PolicyProviderTypeDir,
+									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Version: "",
 										Rules: []*RuleDefinition{
@@ -374,6 +388,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					{
 						Name:   "myLocal.policy",
 						Source: PolicyProviderTypeDir,
+						Type:   CustomPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules: map[string][]*PolicyRule{
 							"foo": {
@@ -422,8 +437,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return testPoliciesToPolicies([]*testPolicyDef{
 								{
-									name:   "myLocal.policy",
-									source: PolicyProviderTypeDir,
+									name:       "myLocal.policy",
+									source:     PolicyProviderTypeDir,
+									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Version: "",
 										Rules: []*RuleDefinition{
@@ -456,6 +472,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					{
 						Name:   "myLocal.policy",
 						Source: PolicyProviderTypeDir,
+						Type:   CustomPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules: map[string][]*PolicyRule{
 							"foo": {
@@ -502,8 +519,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return testPoliciesToPolicies([]*testPolicyDef{
 								{
-									name:   "myLocal.policy",
-									source: PolicyProviderTypeDir,
+									name:       "myLocal.policy",
+									source:     PolicyProviderTypeDir,
+									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Version: "",
 										Rules: []*RuleDefinition{
@@ -525,8 +543,9 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return testPoliciesToPolicies([]*testPolicyDef{
 								{
-									name:   "myRC.policy",
-									source: PolicyProviderTypeRC,
+									name:       "myRC.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
 									def: PolicyDef{
 										Version: "",
 										Rules:   nil,
@@ -542,12 +561,14 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					{
 						Name:   "myRC.policy",
 						Source: PolicyProviderTypeRC,
+						Type:   CustomPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules:  map[string][]*PolicyRule{},
 					},
 					{
 						Name:   "myLocal.policy",
 						Source: PolicyProviderTypeDir,
+						Type:   CustomPolicyType,
 						macros: map[string][]*PolicyMacro{},
 						rules: map[string][]*PolicyRule{
 							"foo": {
@@ -585,6 +606,1170 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 		},
 	}
 
+	overridesTestCases := []struct {
+		name   string
+		fields fields
+		args   args
+		want   func(t assert.TestingT, got map[eval.RuleID]*Rule, msgs ...interface{}) bool
+	}{
+		{
+			name: "P0.DR enabled, P1.DR enabled => P0.DR enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+							Policy: &Policy{
+								Name:   DefaultPolicyName,
+								Source: PolicyProviderTypeRC,
+								Type:   DefaultPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR enabled, P1.DR disabled => P0.DR enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+							Policy: &Policy{
+								Name:   DefaultPolicyName,
+								Source: PolicyProviderTypeRC,
+								Type:   DefaultPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+
+			},
+		},
+		{
+			name: "P0.DR disabled, P1.DR enabled => P1.DR enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"", Disabled: false},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   DefaultPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR disabled, P1.DR disabled => P0.DR disabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR enabled, P1.CR disabled => P1.CR disabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR disabled, P1.CR disabled => CR disabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR disabled, P1.CR enabled => P1.CR enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: false},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR enabled, P1.CR enabled => P0.CR enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+							Policy: &Policy{
+								Name:   DefaultPolicyName,
+								Source: PolicyProviderTypeRC,
+								Type:   DefaultPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.CR enabled, P1.CR enabled => P0.CR enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P0.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
+							Policy: &Policy{
+								Name:   "P0.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.CR disabled, P1.CR enabled => P1.CR enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P0.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: false},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.CR enabled, P1.CR disabled => P0.CR enabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P0.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\""},
+							Policy: &Policy{
+								Name:   "P0.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.CR disabled, P1.CR disabled => P0.CR disabled",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P0.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Disabled: true},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR no action , P1.DR 1 action => P1.DR + 1 action",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\""},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
+												Combine: OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR2",
+														},
+													},
+												},
+											},
+										},
+									},
+								}})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
+								Combine: OverridePolicy,
+								Actions: []*ActionDefinition{
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR2",
+										},
+									},
+								},
+							},
+
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   DefaultPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR 1 action, P1.CR 1 action => P1.CR + 2 actions",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Combine:    OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR2",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
+								Combine: OverridePolicy,
+								Actions: []*ActionDefinition{
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR1",
+										},
+									},
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR2",
+										},
+									},
+								},
+							},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR 1 action, P1.CR no action => P1.DR 1 action",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Combine:    OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
+								Combine: OverridePolicy,
+								Actions: []*ActionDefinition{
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR1",
+										},
+									},
+								},
+							},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.CR 1 action, P1.CR no action => P1.CR + 1 action",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P0.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/custom/foo\"",
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/custom/foo\"",
+												Combine:    OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID: "rule_1", Expression: "open.file.path == \"/etc/custom/foo\"",
+								Combine: OverridePolicy,
+								Actions: []*ActionDefinition{
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR1",
+										},
+									},
+								},
+							},
+							Policy: &Policy{
+								Name:   "P0.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR enabled, P1.CR 1 actionA, enabled, P2 1 actionB, disabled => P1.CR + 1 actionA",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Disabled:   false,
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													},
+												},
+												Combine: OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+											},
+										},
+									},
+								},
+								{
+									name:       "P2.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Disabled:   true,
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR2",
+														},
+													},
+												},
+												Combine: OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID: "rule_1", Expression: "open.file.path == \"/etc/default/foo\"",
+								Actions: []*ActionDefinition{
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR1",
+										},
+									},
+								},
+								Combine: OverridePolicy,
+							},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
+			name: "P0.DR enabled 1 Action A, P1.CR  same Action A + Action B => P1.CR + 1 Action A (not duplicated) + Action B",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							policies, _ := testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "open.file.path == \"/etc/default/foo\"",
+												Combine:    OverridePolicy,
+												OverrideOptions: OverrideOptions{
+													Fields: []OverrideField{OverrideActionFields},
+												},
+												Actions: []*ActionDefinition{
+													{
+														Kill: &KillDefinition{
+															Signal: "SIGUSR1",
+														},
+													}, {
+														Kill: &KillDefinition{
+															Signal: "SIGUSR2",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							})
+							return policies, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID:         "rule_1",
+								Expression: "open.file.path == \"/etc/default/foo\"",
+								Combine:    OverridePolicy,
+								Actions: []*ActionDefinition{
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR1",
+										},
+									},
+									{
+										Kill: &KillDefinition{
+											Signal: "SIGUSR2",
+										},
+									},
+								},
+							},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &PolicyLoader{
@@ -596,10 +1781,21 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 			tt.wantErr(t, errs)
 		})
 	}
+
+	for _, tt := range overridesTestCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ruleOpts, evalOpts := NewBothOpts(map[eval.EventType]bool{"*": true})
+			rs := NewRuleSet(&model.Model{}, func() eval.Event { return model.NewFakeEvent() }, ruleOpts, evalOpts)
+			p := &PolicyLoader{
+				Providers: tt.fields.Providers,
+			}
+			rs.LoadPolicies(p, tt.args.opts)
+			tt.want(t, rs.rules)
+		})
+	}
 }
 
 // Utils
-
 func numAndLastIdxOfDefaultPolicies(policies []*Policy) (int, int) {
 	var defaultPolicyCount int
 	var lastSeenDefaultPolicyIdx int
@@ -654,13 +1850,14 @@ func (dummyRCProvider) Type() string {
 }
 
 type testPolicyDef struct {
-	def    PolicyDef
-	name   string
-	source string
+	def        PolicyDef
+	name       string
+	source     string
+	policyType PolicyType
 }
 
 func testPolicyToPolicy(testPolicy *testPolicyDef) (*Policy, *multierror.Error) {
-	policy, err := LoadPolicyFromDefinition(testPolicy.name, testPolicy.source, &testPolicy.def, nil, nil)
+	policy, err := LoadPolicyFromDefinition(testPolicy.name, testPolicy.source, testPolicy.policyType, &testPolicy.def, nil, nil)
 	if err != nil {
 		return nil, multierror.Append(nil, err)
 	}
@@ -698,4 +1895,23 @@ func fixupPoliciesRulesPolicy(policies []*Policy) []*Policy {
 		fixupRulesPolicy(policy)
 	}
 	return policies
+}
+
+func checkOverrideResult(t assert.TestingT, expected map[eval.RuleID]*Rule, got map[eval.RuleID]*Rule) bool {
+	if len(expected) == 0 {
+		return assert.Equal(t, len(expected), len(got))
+	}
+
+	// From here, we know that we expect exacly one element
+	var ruleID eval.RuleID
+	for r := range expected {
+		ruleID = r
+		break
+	}
+	return (assert.Equal(t, 1, len(got)) &&
+		assert.Equal(t, expected[ruleID].PolicyRule.Def, got[ruleID].PolicyRule.Def) &&
+		assert.Equal(t, expected[ruleID].PolicyRule.Policy.Name, got[ruleID].Policy.Name) &&
+		assert.Equal(t, expected[ruleID].PolicyRule.Policy.Source, got[ruleID].Policy.Source) &&
+		assert.Equal(t, expected[ruleID].PolicyRule.Policy.Type, got[ruleID].Policy.Type) &&
+		assert.Equal(t, expected[ruleID].PolicyRule.Accepted, got[ruleID].PolicyRule.Accepted))
 }
