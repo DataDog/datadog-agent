@@ -378,19 +378,19 @@ static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t)
     BPF_CORE_READ_INTO(&err, sk, sk_err);
 
     switch (err) {
-    case 0:
-    return false; // no error
-    case TCP_CONN_FAILED_RESET:
-    case TCP_CONN_FAILED_TIMEOUT:
-    case TCP_CONN_FAILED_REFUSED: {
-        tcp_stats_t stats = { .failure_reason = err };
-        update_tcp_stats(t, stats);
-        return true;
-    }
+        case 0:
+            return false; // no error
+        case TCP_CONN_FAILED_RESET:
+        case TCP_CONN_FAILED_TIMEOUT:
+        case TCP_CONN_FAILED_REFUSED: {
+            tcp_stats_t stats = { .failure_reason = err };
+            update_tcp_stats(t, stats);
+            return true;
+        }
     }
     __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
     if (count) {
-        (*count)++;
+        __sync_fetch_and_add(count, 1);
         bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, count, BPF_ANY);
     } else {
         __u64 one = 1;
