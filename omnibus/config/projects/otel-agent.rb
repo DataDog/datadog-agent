@@ -10,7 +10,9 @@ name 'otel-agent'
 package_name 'datadog-otel-agent'
 
 license "Apache-2.0"
-license_file "../LICENSE"
+license_file "../LICENSE.otel-agent"
+json_manifest_path "version-manifest.otel-agent.json"
+text_manifest_path "version-manifest.otel-agent.txt"
 
 third_party_licenses "../LICENSE-3rdparty.csv"
 
