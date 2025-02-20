@@ -203,8 +203,9 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	logger := logmock.New(b)
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serviceChecks, true, split.JSONMarshalFct, compressor, logmock.New(b))
+		split.Payloads(serviceChecks, true, split.JSONMarshalFct, compressor, logger)
 	}
 }
 

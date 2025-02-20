@@ -140,10 +140,11 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 	var r transaction.BytesPayloads
+	logger := logmock.New(b)
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = Payloads(testSeries, true, JSONMarshalFct, compressor, logmock.New(b))
+		r, _ = Payloads(testSeries, true, JSONMarshalFct, compressor, logger)
 	}
 	// ensure we actually had to split
 	if len(r) < 2 {
