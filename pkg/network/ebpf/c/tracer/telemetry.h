@@ -15,13 +15,11 @@
 #include "compiler.h"
 
 enum telemetry_counter {
-    tcp_failed_connect,
     unbatched_tcp_close,
     unbatched_udp_close,
     udp_send_processed,
     udp_send_missed,
     udp_dropped_conns,
-    unsupported_tcp_failures,
     tcp_done_missing_pid,
     tcp_connect_failed_tuple,
     tcp_done_failed_tuple,
@@ -29,12 +27,6 @@ enum telemetry_counter {
     tcp_close_target_failures,
     tcp_done_connection_flush,
     tcp_close_connection_flush,
-    tcp_failure_ehostdown,
-    tcp_failure_ehostunreach,
-    tcp_failure_enetdown,
-    tcp_failure_enetunreach,
-    tcp_failure_enetreset,
-    tcp_failure_econnaborted,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -46,9 +38,6 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     }
 
     switch (counter_name) {
-    case tcp_failed_connect:
-        __sync_fetch_and_add(&val->tcp_failed_connect, 1);
-        break;
     case unbatched_tcp_close:
         __sync_fetch_and_add(&val->unbatched_tcp_close, 1);
         break;
@@ -63,9 +52,6 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case udp_dropped_conns:
         __sync_fetch_and_add(&val->udp_dropped_conns, 1);
-        break;
-    case unsupported_tcp_failures:
-        __sync_fetch_and_add(&val->unsupported_tcp_failures, 1);
         break;
     case tcp_done_missing_pid:
         __sync_fetch_and_add(&val->tcp_done_missing_pid, 1);
@@ -87,24 +73,6 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case tcp_close_connection_flush:
         __sync_fetch_and_add(&val->tcp_close_connection_flush, 1);
-        break;
-    case tcp_failure_ehostdown:
-        __sync_fetch_and_add(&val->tcp_failure_ehostdown, 1);
-        break;
-    case tcp_failure_ehostunreach:
-        __sync_fetch_and_add(&val->tcp_failure_ehostunreach, 1);
-        break;
-    case tcp_failure_enetdown:
-        __sync_fetch_and_add(&val->tcp_failure_enetdown, 1);
-        break;
-    case tcp_failure_enetunreach:
-        __sync_fetch_and_add(&val->tcp_failure_enetunreach, 1);
-        break;
-    case tcp_failure_enetreset:
-        __sync_fetch_and_add(&val->tcp_failure_enetreset, 1);
-        break;
-    case tcp_failure_econnaborted:
-        __sync_fetch_and_add(&val->tcp_failure_econnaborted, 1);
         break;
     }
 }

@@ -387,26 +387,16 @@ static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t)
         update_tcp_stats(t, stats);
         return true;
     }
-    case TCP_CONN_FAILED_HOSTDOWN:
-        increment_telemetry_count(tcp_failure_ehostdown);
-        return false;
-    case TCP_CONN_FAILED_HOSTUNREACH:
-        increment_telemetry_count(tcp_failure_ehostunreach);
-        return false;
-    case TCP_CONN_FAILED_NETDOWN:
-        increment_telemetry_count(tcp_failure_enetdown);
-        return false;
-    case TCP_CONN_FAILED_NETUNREACH:
-        increment_telemetry_count(tcp_failure_enetunreach);
-        return false;
-    case TCP_CONN_FAILED_NETRESET:
-        increment_telemetry_count(tcp_failure_enetreset);
-        return false;
-    case TCP_CONN_FAILED_ABORTED:
-        increment_telemetry_count(tcp_failure_econnaborted);
-        return false;
     }
-    increment_telemetry_count(unsupported_tcp_failures);
+    __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
+    if (count) {
+        (*count)++;
+        bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, count, BPF_ANY);
+    } else {
+        __u64 one = 1;
+        bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_ANY);
+    }
+
     return false;
 }
 
