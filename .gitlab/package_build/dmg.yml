@@ -17,21 +17,21 @@
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# agent_dmg-x64-a7:
-#   extends: .agent_build_common_dmg
-#   rules:
-#     - !reference [.on_macos_gui_change]
-#     - !reference [.on_packaging_change]
-#     - !reference [.on_main_or_release_branch]
-#     - !reference [.on_all_builds]
-#     - !reference [.manual]
-#   stage: package_build
-#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-#   tags: ["arch:amd64"]
-#   needs: ["go_mod_tidy_check"]
-#   timeout: 6h
-#   before_script:
-#     - export RELEASE_VERSION=$RELEASE_VERSION_7
+agent_dmg-x64-a7:
+  extends: .agent_build_common_dmg
+  rules:
+    - !reference [.on_macos_gui_change]
+    - !reference [.on_packaging_change]
+    - !reference [.on_main_or_release_branch]
+    - !reference [.on_all_builds]
+    - !reference [.manual]
+  stage: package_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_mod_tidy_check"]
+  timeout: 6h
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 custom-homebrew:
   stage: package_build
