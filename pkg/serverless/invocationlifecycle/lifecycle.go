@@ -222,33 +222,47 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 	case trigger.LegacyStepFunctionEvent:
-		var event events.StepFunctionEvent[any] // hoping this will handle anything wrapped in Payload: {} but sus
+		var event events.StepFunctionEvent[events.StepFunctionPayload]
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
 			break
 		}
 		ev = event.Payload
 	case trigger.StepFunctionEvent:
-		var event events.StepFunctionPayload
+		var eventPayload events.StepFunctionPayload
+		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = eventPayload
+	case trigger.LegacyNestedStepFunctionEvent:
+		var event events.StepFunctionEvent[events.NestedStepFunctionPayload]
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
 			break
 		}
-		ev = event
+		ev = event.Payload
 	case trigger.NestedStepFunctionEvent:
-		var event events.NestedStepFunctionPayload
+		var eventPayload events.NestedStepFunctionPayload
+		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = eventPayload
+	case trigger.LegacyLambdaRootStepFunctionEvent:
+		var event events.StepFunctionEvent[events.LambdaRootStepFunctionPayload]
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
 			break
 		}
-		ev = event
+		ev = event.Payload
 	case trigger.LambdaRootStepFunctionEvent:
-		var event events.LambdaRootStepFunctionPayload
-		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+		var eventPayload events.LambdaRootStepFunctionPayload
+		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
 			break
 		}
-		ev = event
+		ev = eventPayload
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}

@@ -86,8 +86,12 @@ const (
 	// NestedStepFunctionEvent describes an event with an upstream Step Function's execution context and Execution ID from the top-most Step Function
 	NestedStepFunctionEvent
 
+	LegacyNestedStepFunctionEvent
+
 	// LambdaRootStepFunctionEvent describes an event with an upstream Step Function's execution context and Trace ID from the top-most Lambda
 	LambdaRootStepFunctionEvent
+
+	LegacyLambdaRootStepFunctionEvent
 )
 
 // eventParseFunc defines the signature of AWS event parsing functions
@@ -125,7 +129,9 @@ var (
 		{isStepFunctionEvent, StepFunctionEvent},
 		{isLegacyStepFunctionEvent, LegacyStepFunctionEvent},
 		{isNestedStepFunctionEvent, NestedStepFunctionEvent},
+		{isLegacyNestedStepFunctionEvent, LegacyNestedStepFunctionEvent},
 		{isLambdaRootStepFunctionPayload, LambdaRootStepFunctionEvent},
+		{isLegacyLambdaRootStepFunctionPayload, LegacyLambdaRootStepFunctionEvent},
 		// Ultimately check this is a Kong API Gateway event as a last resort.
 		// This is because Kong API Gateway events are a subset of API Gateway events
 		// as of https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260
@@ -287,16 +293,11 @@ func isLambdaFunctionURLEvent(event map[string]any) bool {
 }
 
 func isLegacyStepFunctionEvent(event map[string]any) bool {
-	execId := json.GetNestedValue(event, "payload", "execution", "id")
-	if execId == nil {
+	context, ok := event["payload"].(map[string]any)
+	if !ok {
 		return false
 	}
-	stateName := json.GetNestedValue(event, "payload", "state", "name")
-	if stateName == nil {
-		return false
-	}
-	stateEnteredTime := json.GetNestedValue(event, "payload", "state", "enteredtime")
-	return stateEnteredTime != nil
+	return isStepFunctionEvent(context)
 }
 
 func isStepFunctionEvent(event map[string]any) bool {
@@ -320,6 +321,14 @@ func isStepFunctionEvent(event map[string]any) bool {
 	return stateRetryCount != nil
 }
 
+func isLegacyNestedStepFunctionEvent(event map[string]any) bool {
+	context, ok := event["payload"].(map[string]any)
+	if !ok {
+		return false
+	}
+	return isNestedStepFunctionEvent(context)
+}
+
 func isNestedStepFunctionEvent(event map[string]any) bool {
 	ddData, ok := event["_datadog"].(map[string]any)
 	if !ok {
@@ -334,6 +343,14 @@ func isNestedStepFunctionEvent(event map[string]any) bool {
 		return false
 	}
 	return isStepFunctionEvent(ddData)
+}
+
+func isLegacyLambdaRootStepFunctionPayload(event map[string]any) bool {
+	context, ok := event["payload"].(map[string]any)
+	if !ok {
+		return false
+	}
+	return isLambdaRootStepFunctionPayload(context)
 }
 
 func isLambdaRootStepFunctionPayload(event map[string]any) bool {

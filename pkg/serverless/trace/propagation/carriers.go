@@ -279,13 +279,6 @@ func extractTraceContextFromStepFunctionContext(event events.StepFunctionPayload
 		return nil, errorNoStepFunctionContextFound
 	}
 
-	if execRedriveCount == "" {
-		execRedriveCount = "0"
-	}
-	if stateRetryCount == "" {
-		stateRetryCount = "0"
-	}
-
 	lowerTraceID, upperTraceID := stringToDdTraceIDs(execArn)
 	parentID := stringToDdSpanID(execArn, stateName, stateEnteredTime, stateRetryCount, execRedriveCount)
 
@@ -332,10 +325,10 @@ func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRoo
 }
 
 // stringToDdSpanID hashes relevant values from the Step Function context object to generate a 64-bit span ID
-func stringToDdSpanID(execArn string, stateName string, stateEnteredTime string, stateRetryCount string, execRedriveCount string) uint64 {
+func stringToDdSpanID(execArn string, stateName string, stateEnteredTime string, stateRetryCount uint16, execRedriveCount uint16) uint64 {
 	var uniqueSpanString string
-	if stateRetryCount != "0" || execRedriveCount != "0" {
-		uniqueSpanString = fmt.Sprintf("%s#%s#%s#%s#%s", execArn, stateName, stateEnteredTime, stateRetryCount, execRedriveCount)
+	if stateRetryCount != 0 || execRedriveCount != 0 {
+		uniqueSpanString = fmt.Sprintf("%s#%s#%s#%d#%d", execArn, stateName, stateEnteredTime, stateRetryCount, execRedriveCount)
 	} else {
 		// omit stateRetryCount and execRedriveCount when both are 0 to maintain backwards compatibility
 		uniqueSpanString = fmt.Sprintf("%s#%s#%s", execArn, stateName, stateEnteredTime)

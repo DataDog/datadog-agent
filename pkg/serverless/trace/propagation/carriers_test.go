@@ -878,10 +878,10 @@ func TestHeadersOrMultiheadersCarrier(t *testing.T) {
 func Test_stringToDdSpanId(t *testing.T) {
 	type args struct {
 		execArn          string
-		execRedriveCount string
+		execRedriveCount uint16
 		stateName        string
 		stateEnteredTime string
-		stateRetryCount  string
+		stateRetryCount  uint16
 	}
 	tests := []struct {
 		name string
@@ -891,10 +891,10 @@ func Test_stringToDdSpanId(t *testing.T) {
 		{"first Test Case",
 			args{
 				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
-				"0",
+				0,
 				"step-one",
 				"2022-12-08T21:08:19.224Z",
-				"0",
+				0,
 			},
 			4340734536022949921,
 		},
@@ -902,10 +902,10 @@ func Test_stringToDdSpanId(t *testing.T) {
 			"second Test Case",
 			args{
 				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
-				"0",
+				0,
 				"step-one",
 				"2022-12-08T21:08:19.224Y",
-				"0",
+				0,
 			},
 			981693280319792699,
 		},

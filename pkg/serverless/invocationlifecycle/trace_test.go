@@ -118,19 +118,19 @@ func TestStartExecutionSpan(t *testing.T) {
 	stepFunctionEvent := events.StepFunctionPayload{
 		Execution: struct {
 			ID           string
-			RedriveCount string
+			RedriveCount uint16
 		}{
 			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
-			RedriveCount: "0",
+			RedriveCount: 0,
 		},
 		State: struct {
 			Name        string
 			EnteredTime string
-			RetryCount  string
+			RetryCount  uint16
 		}{
 			Name:        "agocsTest1",
 			EnteredTime: "2024-07-30T20:46:20.824Z",
-			RetryCount:  "0",
+			RetryCount:  0,
 		},
 	}
 
@@ -769,22 +769,22 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 	stepFunctionEvent := events.StepFunctionPayload{
 		Execution: struct {
 			ID           string
-			RedriveCount string
+			RedriveCount uint16
 		}(struct {
 			ID           string `json:"id"`
-			RedriveCount string `json:"redrivecount"`
+			RedriveCount uint16 `json:"redrivecount"`
 		}{
 			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
-			RedriveCount: "0",
+			RedriveCount: 0,
 		}),
 		State: struct {
 			Name        string
 			EnteredTime string
-			RetryCount  string
+			RetryCount  uint16
 		}{
 			Name:        "agocsTest1",
 			EnteredTime: "2024-07-30T20:46:20.824Z",
-			RetryCount:  "0",
+			RetryCount:  0,
 		},
 	}
 

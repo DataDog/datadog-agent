@@ -351,12 +351,12 @@ type StepFunctionEvent[T any] struct {
 type StepFunctionPayload struct {
 	Execution struct {
 		ID           string
-		RedriveCount string
+		RedriveCount uint16
 	}
 	State struct {
 		Name        string
 		EnteredTime string
-		RetryCount  string
+		RetryCount  uint16
 	}
 }
 
