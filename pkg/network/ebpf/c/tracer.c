@@ -21,12 +21,6 @@
 #include "protocols/classification/protocol-classification.h"
 #include "pid_tgid.h"
 
-__maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("tcp_failed_connections_enabled", val);
-    return val > 0;
-}
-
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);
@@ -214,25 +208,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
-    if (!tcp_failed_connections_enabled()) {
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
-        return 0;
-    }
-
-    int err = 0;
-    BPF_CORE_READ_INTO(&err, sk, sk_err);
-    if (err == 0) {
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
-        return 0; // no failure
-    }
-
-    if (err != TCP_CONN_FAILED_RESET && err != TCP_CONN_FAILED_TIMEOUT && err != TCP_CONN_FAILED_REFUSED) {
-        log_debug("kprobe/tcp_done: unsupported error code: %d", err);
-        increment_telemetry_count(unsupported_tcp_failures);
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
-        return 0;
-    }
-
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
@@ -245,14 +220,13 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    tcp_stats_t stats = {.failure_reason = err};
-    update_tcp_stats(&t, stats);
+    if (!handle_tcp_failure(sk, &t)) {
+        return 0;
+    }
 
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
-
-    increment_telemetry_count(tcp_failed_connect);
 
     return 0;
 }
@@ -286,18 +260,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
 
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
-    if (!tcp_failed_connections_enabled()) {
-        cleanup_conn(ctx, &t, sk);
-        return 0;
-    }
-
-    int err = 0;
-    BPF_CORE_READ_INTO(&err, sk, sk_err);
-    if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
-        increment_telemetry_count(tcp_close_target_failures);
-        tcp_stats_t stats = {.failure_reason = err};
-        update_tcp_stats(&t, stats);
-    }
+    handle_tcp_failure(sk, &t);
 
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_close_connection_flush);

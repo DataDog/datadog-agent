@@ -435,7 +435,10 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         check_clean_branch_state(ctx, github, update_branch)
         active_releases = [branch.name for branch in github.latest_unreleased_release_branches()]
-        if not any(check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases):
+        # Bypass if we want to cut a patch release, in that case the branch is not considered "active"
+        if not patch_version and not any(
+            check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases
+        ):
             raise Exit(
                 color_message(
                     f"The branch you are on is neither {get_default_branch()} or amongst the active release branches ({active_releases}). Aborting.",
