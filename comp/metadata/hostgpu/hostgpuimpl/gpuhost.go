@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/hostgpu"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -31,6 +30,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
+const flareFileName = "hostgpu.json"
+
+// PCIVendorMap maps PCI vendor IDs to vendor names
+var PCIVendorMap = map[string]string{
+	"0x10de": "nvidia",
+	"0x8086": "intel",
+	"0x1002": "amd",
+}
+
+// Collector functions
+var (
+	baseGPUGet = collectBaseGPUInfo
+)
+
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
@@ -38,17 +51,30 @@ func Module() fxutil.Module {
 }
 
 type gpuDeviceMetadata struct {
-	Vendor            string
-	Device            string
-	Architecture      string
-	ComputeCapability workloadmeta.GPUComputeCapability
-	SMCount           int
-	MigEnabled        bool
+	ID             int    `json:"gou_id"`
+	Vendor         string `json:"gpu_vendor"`
+	Device         string `json:"gpu_device"`
+	DriverVersion  string `json:"driver_version"`
+	RuntimeVersion string `json:"runtime_version"`
+	UUID           string `json:"gpu_uuid"`
+	Architecture   string `json:"gpu_architecture"`
+
+	ComputeVersion string `json:"gpu_compute_version"` //e.g: in nvidia this refers to Compute Capability
+	ProcessorUnits int    `json:"gpu_processor_units"` // e.g: in nvidia it is SMCount (Streaming MultiProcessor Count)
+	Cores          int    `json:"gpu_cores"`           //e.g: for nvidia it is cuda cores
+
+	TotalMemory       int64 `json:"device_total memory"`
+	MaxClockRate      int   `json:"device_max_clock_rate"`
+	MemoryClockRate   int   `json:"device_memory_clock_rate"`
+	MemoryBusWidth    int   `json:"device_memory_bus_width"`
+	L2CacheSize       int   `json:"device_l2_cache_size"`
+	WarpSize          int   `json:"device_warp_size"`
+	RegistersPerBlock int   `json:"device_registers_per_block"`
 }
 
 // hostGPUMetadata contains host's gpu metadata
 type hostGPUMetadata struct {
-	devices []gpuDeviceMetadata
+	Devices []gpuDeviceMetadata `json:"devices"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -66,10 +92,19 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 }
 
 // SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
 // In this case, the payload can't be split any further.
 func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories host payload any more, payload is too big for intake")
+	return nil, fmt.Errorf("could not split inventories host gpu payload any more, payload is too big for intake")
+}
+
+// collectBaseGPUInfo collects basic GPU information available through filesystem
+func collectBaseGPUInfo() (*hostGPUMetadata, error) {
+	return nil, nil
+}
+
+// collectNvidiaGPUInfo enhances GPU information for NVIDIA devices using NVML
+func collectNvidiaGPUInfo(device gpuDeviceMetadata) (*gpuDeviceMetadata, error) {
+	return nil, nil
 }
 
 type gpuHost struct {
@@ -100,40 +135,47 @@ type provides struct {
 
 func newGPUHostProvider(deps dependencies) provides {
 	hname, _ := hostname.Get(context.Background())
-	ih := &gpuHost{
+	gh := &gpuHost{
 		conf:     deps.Config,
 		log:      deps.Log,
 		hostname: hname,
 		data:     &hostGPUMetadata{},
 	}
-	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json")
+	gh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, gh.getPayload, flareFileName)
 
 	return provides{
-		Comp:          ih,
-		Provider:      ih.MetadataProvider(),
-		FlareProvider: ih.FlareProvider(),
-		Endpoint:      api.NewAgentEndpointProvider(ih.writePayloadAsJSON, "/metadata/inventory-host", "GET"),
+		Comp:          gh,
+		Provider:      gh.MetadataProvider(),
+		FlareProvider: gh.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(gh.writePayloadAsJSON, "/metadata/inventory-host", "GET"),
 	}
 }
 
-func (ih *gpuHost) fillData() {
-	//TODO:
+func (gh *gpuHost) fillData() {
+
+	var err error
+	gh.data, err = baseGPUGet()
+	if err != nil {
+		gh.log.Errorf("Failed to collect base GPU information: %v", err)
+		return
+	}
+
 }
 
-func (ih *gpuHost) getPayload() marshaler.JSONMarshaler {
-	ih.fillData()
+func (gh *gpuHost) getPayload() marshaler.JSONMarshaler {
+	gh.fillData()
 
 	return &Payload{
-		Hostname:  ih.hostname,
+		Hostname:  gh.hostname,
 		Timestamp: time.Now().UnixNano(),
-		Metadata:  ih.data,
+		Metadata:  gh.data,
 		UUID:      uuid.GetUUID(),
 	}
 }
 
-func (ih *gpuHost) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+func (gh *gpuHost) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	// GetAsJSON already return scrubbed data
-	scrubbed, err := ih.GetAsJSON()
+	scrubbed, err := gh.GetAsJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
