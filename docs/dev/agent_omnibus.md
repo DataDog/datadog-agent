@@ -45,7 +45,7 @@ affected by [this bug](https://github.com/moby/moby/issues/28705).
 ## Building on your system (Linux and Mac)
 
 The project will be built locally and provide a .tar.xz tarball (in the omnibus/pkg folder)
-with the resulting arfifacts by default on linux.
+with the resulting artifacts by default on linux.
 This artifact is the expected source when building a container image.
 You can chose to generate an installable package in the form of a deb/rpm artifact by
 providing a `OMNIBUS_FORCE_PACKAGES` environment variable during the build.
