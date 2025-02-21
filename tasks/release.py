@@ -542,14 +542,6 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
     """
 
     with agent_context(ctx, release_branch):
-        with agent_context(ctx, release_branch):
-            print('ok')
-
-        with agent_context(ctx, 'ab'):
-            print('ko')
-
-        exit()
-
         datadog_agent = get_gitlab_repo()
 
         # Get the version of the highest major: needed for tag_version and to know
