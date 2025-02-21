@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"sync"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
@@ -68,13 +70,13 @@ func newAutoscaler() model.PodAutoscalerInternal {
 				APIVersion: "apps/v1",
 				Name:       "test-deployment",
 			},
-			Targets: []datadoghq.DatadogPodAutoscalerTarget{
+			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
 				{
-					Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-					PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+					Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+					PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 						Name: "cpu",
-						Value: datadoghq.DatadogPodAutoscalerTargetValue{
-							Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+						Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+							Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 							Utilization: pointer.Ptr(int32(80)),
 						},
 					},
