@@ -59,19 +59,20 @@ custom-homebrew:
       export GPG_VERSION=1.4.23
       export CODECOV_VERSION=v0.6.1
       export OPENSSL_VERSION=1.1
-    # - |
-    #   echo Setup env
-    #   mkdir bin
-    #   binaries="curl chmod cp mkdir tar rm mv ls bash make xz"
-    #   for binary in $binaries; do
-    #     echo Using $binary
-    #     ln -s "$(which $binary)" bin/$binary
-    #   done
-    #   # TODO A: PATH="$PWD/bin"
+    - |
+      echo Setup env
+      mkdir bin
+      binaries="curl chmod cp mkdir tar rm mv ls bash make xz true"
+      for binary in $binaries; do
+        echo Using $binary
+        ln -s "$(which $binary)" bin/$binary
+      done
     - |
       echo Setup homebrew
       mkdir homebrew
       curl -L https://github.com/Homebrew/brew/tarball/$HOMEBREW_VERSION | tar xz --strip-components 1 -C homebrew
+      # Enable custom env
+      PATH="$PWD/bin"
       eval "$(homebrew/bin/brew shellenv)"
       brew update --force
       chmod -R go-w "$(brew --prefix)/share/zsh"
