@@ -6,7 +6,6 @@
 package repository
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -22,8 +21,7 @@ func createTestRepository(t *testing.T, dir string, stablePackageName string) *R
 	os.MkdirAll(locksPath, 0777)
 	stablePackagePath := createTestDownloadedPackage(t, dir, stablePackageName)
 	r := Repository{
-		rootPath:  repositoryPath,
-		locksPath: locksPath,
+		rootPath: repositoryPath,
 	}
 	err := r.Create(stablePackageName, stablePackagePath)
 	assert.NoError(t, err)
@@ -70,31 +68,6 @@ func TestCreateOverwrite(t *testing.T) {
 	assert.DirExists(t, repository.rootPath)
 	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
 	assert.NoDirExists(t, path.Join(oldRepository.rootPath, "old"))
-}
-
-func TestCreateOverwriteWithLockedPackage(t *testing.T) {
-	dir := t.TempDir()
-	oldRepository := createTestRepository(t, dir, "old")
-	err := os.MkdirAll(path.Join(oldRepository.locksPath, "garbagetocollect"), 0777)
-	assert.NoError(t, err)
-
-	// Add a running process... our own! So we're sure it's running.
-	err = os.MkdirAll(path.Join(oldRepository.locksPath, "old"), 0777)
-	assert.NoError(t, err)
-	err = os.WriteFile(
-		path.Join(oldRepository.locksPath, "old", fmt.Sprint(os.Getpid())),
-		nil,
-		0644,
-	)
-	assert.NoError(t, err)
-
-	repository := createTestRepository(t, dir, "v1")
-
-	assert.Equal(t, oldRepository.rootPath, repository.rootPath)
-	assert.DirExists(t, repository.rootPath)
-	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
-	assert.DirExists(t, path.Join(repository.rootPath, "old"))
-	assert.NoDirExists(t, path.Join(oldRepository.locksPath, "garbagetocollect"))
 }
 
 func TestSetExperiment(t *testing.T) {
@@ -187,42 +160,6 @@ func TestDeleteExperimentWithoutExperiment(t *testing.T) {
 
 	err := repository.DeleteExperiment()
 	assert.NoError(t, err)
-}
-
-func TestDeleteExperimentWithLockedPackage(t *testing.T) {
-	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
-	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
-
-	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
-	assert.NoError(t, err)
-
-	// Add a running process... our own! So we're sure it's running.
-	err = os.MkdirAll(path.Join(repository.locksPath, "v2"), 0766)
-	assert.NoError(t, err)
-	err = os.WriteFile(
-		path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())),
-		nil,
-		0644,
-	)
-	assert.NoError(t, err)
-
-	// Add a running process that's not running to check its deletion
-	err = os.MkdirAll(path.Join(repository.locksPath, "v2"), 0766)
-	assert.NoError(t, err)
-	err = os.WriteFile(
-		path.Join(repository.locksPath, "v2", "-1"), // We're sure not to hit a running process
-		nil,
-		0644,
-	)
-	assert.NoError(t, err)
-
-	err = repository.DeleteExperiment()
-	assert.NoError(t, err)
-	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
-	assert.DirExists(t, path.Join(repository.locksPath, "v2"))
-	assert.NoFileExists(t, path.Join(repository.locksPath, "v2", "-1"))
-	assert.FileExists(t, path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())))
 }
 
 func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
