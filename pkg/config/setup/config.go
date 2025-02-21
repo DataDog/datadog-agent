@@ -1307,6 +1307,9 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// ... and overridden by the following two lines - do not switch these 3 lines order
 	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
+
+	// Get the version of every python package in the embedded python
+	config.BindEnvAndSetDefault("telemetry.python_packages", true)
 }
 
 func serializer(config pkgconfigmodel.Setup) {

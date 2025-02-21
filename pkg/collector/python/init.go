@@ -8,10 +8,12 @@
 package python
 
 import (
+	"bufio"
 	"errors"
 	"expvar"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -290,6 +292,41 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 	return absPath, nil
 }
 
+func getPythonPackagesVersion(pythonBinPath string) map[string]string {
+	args := []string{
+		"-m",
+		"pip",
+		"freeze",
+	}
+	pipCmd := exec.Command(pythonBinPath, args...)
+
+	// forward the standard output to stdout
+	pipStdout, err := pipCmd.StdoutPipe()
+	if err != nil {
+		return map[string]string{}
+	}
+	defer pipStdout.Close()
+
+	// Execute pip freeze to get the list of installed packages
+	err = pipCmd.Run()
+	if err != nil {
+		return map[string]string{}
+	}
+
+	packageVersions := make(map[string]string)
+	in := bufio.NewScanner(pipStdout)
+	for in.Scan() {
+		line := in.Text()
+		pkgVersion := strings.SplitN(line, "==", 2)
+		if len(pkgVersion) != 2 {
+			continue
+		}
+		packageVersions[pkgVersion[0]] = pkgVersion[1]
+	}
+
+	return packageVersions
+}
+
 func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// Allow to relatively import python
 	_here, err := executable.Folder()
@@ -420,6 +457,14 @@ func Initialize(paths ...string) error {
 		if interval > 0 {
 			initPymemTelemetry(interval)
 		}
+	}
+
+	// If we want to report the packages version
+	if pkgconfigsetup.Datadog().GetBool("telemetry.python_packages") {
+		// Get the python packages version
+		// New packages can be installed, but they're not taken into account until the agent is restarted,
+		// so it's safe to cache the versions here.
+		cache.Cache.Set(pythonPackagesCacheKey, getPythonPackagesVersion(pythonBinPath), cache.NoExpiration)
 	}
 
 	// Set the PYTHONPATH if needed.
