@@ -17,18 +17,74 @@
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-agent_dmg-x64-a7:
-  extends: .agent_build_common_dmg
-  rules:
-    - !reference [.on_macos_gui_change]
-    - !reference [.on_packaging_change]
-    - !reference [.on_main_or_release_branch]
-    - !reference [.on_all_builds]
-    - !reference [.manual]
+# agent_dmg-x64-a7:
+#   extends: .agent_build_common_dmg
+#   rules:
+#     - !reference [.on_macos_gui_change]
+#     - !reference [.on_packaging_change]
+#     - !reference [.on_main_or_release_branch]
+#     - !reference [.on_all_builds]
+#     - !reference [.manual]
+#   stage: package_build
+#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+#   tags: ["arch:amd64"]
+#   needs: ["go_mod_tidy_check"]
+#   timeout: 6h
+#   before_script:
+#     - export RELEASE_VERSION=$RELEASE_VERSION_7
+
+custom-homebrew:
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check"]
-  timeout: 6h
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
+  # extends: .macos_gitlab
+  tags: ["macos:ventura-amd64-test", "specific:true"]
+  # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
+  needs: []
+  # timeout: 6h
+  # artifacts:
+  #   expire_in: 2 weeks
+  #   paths:
+  script:
+    - set -e
+    # TODO: Do it in runner
+    - |
+      export HOMEBREW_VERSION=4.4.21
+      export PKG_CONFIG_VERSION=0.29.2
+      export RUBY_VERSION=2.7.4
+      export BUNDLER_VERSION=2.3.18
+      export PYTHON_VERSION=3.12.6
+      export RUST_VERSION=1.74.0
+      export RUSTUP_VERSION=1.25.1
+      export CMAKE_VERSION=3.30.2
+      export GIMME_VERSION=1.5.4
+      export GPG_VERSION=1.4.23
+      export CODECOV_VERSION=v0.6.1
+      export OPENSSL_VERSION=1.1
+    # - |
+    #   echo Setup env
+    #   mkdir bin
+    #   binaries="curl chmod cp mkdir tar rm mv ls bash make xz"
+    #   for binary in $binaries; do
+    #     echo Using $binary
+    #     ln -s "$(which $binary)" bin/$binary
+    #   done
+    #   # TODO A: PATH="$PWD/bin"
+    - |
+      echo Setup homebrew
+      mkdir homebrew
+      curl -L https://github.com/Homebrew/brew/tarball/$HOMEBREW_VERSION | tar xz --strip-components 1 -C homebrew
+      eval "$(homebrew/bin/brew shellenv)"
+      brew update --force
+      chmod -R go-w "$(brew --prefix)/share/zsh"
+      brew tap DataDog/datadog-agent-macos-build
+    - |
+      echo Install cmake
+      brew install DataDog/datadog-agent-macos-build/cmake@$CMAKE_VERSION -f
+      brew link --overwrite cmake@$CMAKE_VERSION
+    - |
+      echo Install pkg-config
+      brew install DataDog/datadog-agent-macos-build/pkg-config@$PKG_CONFIG_VERSION -f
+      brew link --overwrite pkg-config@$PKG_CONFIG_VERSION
+    - |
+      echo Install python
+      brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
+      brew link --overwrite python@$PYTHON_VERSION
