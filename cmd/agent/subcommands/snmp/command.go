@@ -267,7 +267,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	return nil
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
