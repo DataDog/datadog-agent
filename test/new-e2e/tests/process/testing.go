@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
@@ -205,6 +206,21 @@ func filterProcess(name string, processes []*agentmodel.Process) []*agentmodel.P
 		}
 	}
 	return found
+}
+
+// filterPayloadsSince filters payloads that were collected since the given time. Also returns the
+// time of the last payload.
+func filterPayloadsSince(payloads []*aggregator.ProcessPayload, since time.Time) ([]*aggregator.ProcessPayload, time.Time) {
+	var filtered []*aggregator.ProcessPayload
+	lastCollectedTime := since
+	for _, payload := range payloads {
+		if payload.GetCollectedTime().After(since) {
+			filtered = append(filtered, payload)
+		}
+		lastCollectedTime = payload.GetCollectedTime()
+	}
+
+	return filtered, lastCollectedTime
 }
 
 // processHasData asserts that the given process has the expected data populated

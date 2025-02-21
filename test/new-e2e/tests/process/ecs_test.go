@@ -110,12 +110,22 @@ func TestECSEC2CoreAgentSuite(t *testing.T) {
 func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
 
+	var lastPayloadTime time.Time
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		// check the process-agent is not running. It should terminate by itself after a while as we are expecting the
+		// process checks to run in the core agent
+		payloads, lastPayloadTime = filterPayloadsSince(payloads, lastPayloadTime)
+		requireProcessNotCollected(c, payloads, "process-agent")
+	}, 2*time.Minute, 10*time.Second)
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
-		requireProcessNotCollected(c, payloads, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 	}, 2*time.Minute, 10*time.Second)
 }
