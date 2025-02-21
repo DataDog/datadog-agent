@@ -9,8 +9,6 @@
 package ebpf
 
 import (
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -21,7 +19,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/ebpf/bytecode/runtime/runtime-security.go runtime
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ../../ebpf/bytecode/build/runtime/runtime-security.c -output ../../security/secl/model/consts_map_names_linux.go -pkg-name model
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool) (bytecode.AssetReader, error) {
 	var cflags []string
 
 	if useFentry {
@@ -46,5 +44,5 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFen
 
 	cflags = append(cflags, "-g")
 
-	return runtime.RuntimeSecurity.Compile(&config.Config, cflags, client)
+	return runtime.RuntimeSecurity.Compile(&config.Config, cflags)
 }
