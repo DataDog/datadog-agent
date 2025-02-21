@@ -79,6 +79,7 @@ use (
 	pkg/config/viperconfig
 	pkg/errors
 	pkg/fips
+	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor

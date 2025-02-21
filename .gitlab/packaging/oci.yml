@@ -48,6 +48,9 @@
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
           EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
         fi
+        if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
+          EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
+        fi
         datadog-package create \
           --version ${PACKAGE_VERSION} \
           --package ${OCI_PRODUCT} \

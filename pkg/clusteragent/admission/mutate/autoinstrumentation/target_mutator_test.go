@@ -89,7 +89,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v2",
+				defaultLibInfo(python).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_INJECT_SENDER_TYPE":           "k8s",
@@ -100,6 +100,7 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
 				AppliedTargetAnnotation: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
@@ -124,7 +125,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				"registry/dd-lib-python-init:v2",
+				defaultLibInfo(python).image,
 			},
 			expectedEnv: map[string]string{
 				"DD_PROFILING_ENABLED":            "true",
@@ -137,9 +138,29 @@ func TestMutatePod(t *testing.T) {
 				"DD_TRACE_ENABLED":                "true",
 				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
 				"LD_PRELOAD":                      "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
 				AppliedTargetAnnotation: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v2\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+			},
+		},
+		"service name is applied when set in tracer configs": {
+			configPath: "testdata/filter_simple_service.yaml",
+			in: mutatecommon.FakePodSpec{
+				Labels:     map[string]string{"language": "python"},
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-1234",
+			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectedInitContainerImages: []string{
+				"registry/apm-inject:0",
+				defaultLibInfo(python).image,
+			},
+			expectedEnv: map[string]string{
+				"DD_SERVICE": "best-service",
 			},
 		},
 	}
@@ -396,11 +417,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v2",
-					},
+					defaultLibInfo(python),
 				},
 			},
 		},
@@ -462,11 +479,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
+					defaultLibInfo(js),
 				},
 			},
 		},
@@ -500,11 +513,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v2",
-					},
+					defaultLibInfo(python),
 				},
 			},
 		},
@@ -523,11 +532,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1",
-					},
+					defaultLibInfo(java),
 				},
 			},
 		},
@@ -611,31 +616,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					{
-						ctrName: "",
-						lang:    java,
-						image:   "registry/dd-lib-java-init:v1",
-					},
-					{
-						ctrName: "",
-						lang:    js,
-						image:   "registry/dd-lib-js-init:v5",
-					},
-					{
-						ctrName: "",
-						lang:    python,
-						image:   "registry/dd-lib-python-init:v2",
-					},
-					{
-						ctrName: "",
-						lang:    dotnet,
-						image:   "registry/dd-lib-dotnet-init:v3",
-					},
-					{
-						ctrName: "",
-						lang:    ruby,
-						image:   "registry/dd-lib-ruby-init:v2",
-					},
+					defaultLibInfo(java),
+					defaultLibInfo(js),
+					defaultLibInfo(python),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
 				},
 			},
 		},

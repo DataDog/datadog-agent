@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/converter/def
 
 go 1.23.0
 
-require go.opentelemetry.io/collector/confmap v1.25.0
+require go.opentelemetry.io/collector/confmap v1.26.0
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -90,6 +90,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../pkg/fips
+	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../../../pkg/linters/components/pkgconfigusage
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../../pkg/logs/auditor

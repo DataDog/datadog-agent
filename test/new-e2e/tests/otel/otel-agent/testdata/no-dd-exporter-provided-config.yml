@@ -25,8 +25,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dialer:
-        timeout: 0s
       dump_payloads: false
       use_compression: true
     max_conns_per_host: 0
@@ -34,8 +32,6 @@ exporters:
     max_idle_conns_per_host: 0
     metrics:
       delta_ttl: 3600
-      dialer:
-        timeout: 0s
       histograms:
         mode: distributions
         send_aggregation_metrics: false
@@ -64,27 +60,10 @@ exporters:
       queue_size: 1000
       storage: null
     timeout: 15s
-    tls:
-      ca_file: ""
-      ca_pem: '[REDACTED]'
-      cert_file: ""
-      cert_pem: '[REDACTED]'
-      cipher_suites: []
-      curve_preferences: []
-      include_system_ca_certs_pool: false
-      insecure: false
-      insecure_skip_verify: false
-      key_file: ""
-      key_pem: '[REDACTED]'
-      max_version: ""
-      min_version: ""
-      reload_interval: 0s
-      server_name_override: ""
+    tls: {}
     traces:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
-      dialer:
-        timeout: 0s
       ignore_resources: []
       peer_service_aggregation: true
       peer_tags: []
@@ -104,22 +83,19 @@ receivers:
   otlp:
     protocols:
       grpc:
-        auth: null
-        dialer:
-          timeout: 0s
         endpoint: 0.0.0.0:4317
-        include_metadata: false
-        keepalive: null
-        max_concurrent_streams: 0
-        max_recv_msg_size_mib: 0
+        keepalive:
+          enforcement_policy: {}
+          server_parameters: {}
         read_buffer_size: 524288
-        tls: null
         transport: tcp
-        write_buffer_size: 0
       http:
         auth: null
         compression_algorithms: []
-        cors: null
+        cors:
+          allowed_headers: []
+          allowed_origins: []
+          max_age: 0
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
         include_metadata: false

@@ -27,6 +27,8 @@ import (
 const (
 	// AppliedTargetAnnotation is the JSON of the target that was applied to the pod.
 	AppliedTargetAnnotation = "internal.apm.datadoghq.com/applied-target"
+	// AppliedTargetEnvVar is the environment variable that contains the JSON of the target that was applied to the pod.
+	AppliedTargetEnvVar = "DD_INSTRUMENTATION_APPLIED_TARGET"
 )
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -182,16 +184,23 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		}
 	}
 
+	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
+	// in the target.
+	for _, envVar := range target.envVars {
+		mutatecommon.InjectEnv(pod, envVar)
+	}
+
 	// Inject the libraries.
 	err := m.core.injectTracers(pod, extracted)
 	if err != nil {
 		return false, fmt.Errorf("error injecting libraries: %w", err)
 	}
 
-	// Inject the tracer configs.
-	for _, envVar := range target.envVars {
-		mutatecommon.InjectEnv(pod, envVar)
-	}
+	// Inject the target json. The is added so that the injector can make use of the target information.
+	mutatecommon.InjectEnv(pod, corev1.EnvVar{
+		Name:  AppliedTargetEnvVar,
+		Value: target.json,
+	})
 
 	// Add the annotations to the pod.
 	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)

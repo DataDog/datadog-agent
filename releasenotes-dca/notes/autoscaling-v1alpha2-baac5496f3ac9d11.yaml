@@ -1,0 +1,3 @@
+upgrade:
+  - |
+    Datadog Autoscaling is upgraded to use DatadogPodAutoscaler CRD v1alpha2 instead of v1alpha1. Remote (created in Datadog) autoscalers are automatically migrated. In-cluster (Local) autoscalers need to be migrated manually.

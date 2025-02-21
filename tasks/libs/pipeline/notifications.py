@@ -185,3 +185,10 @@ def warn_new_commits(release_managers, team, branch, next_rc):
     message += f"cc {' '.join(release_managers)}"
     client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     client.chat_postMessage(channel=f"#{team}", text=message)
+
+
+def warn_new_tags(message):
+    from slack_sdk import WebClient
+
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
+    client.chat_postMessage(channel="#agent-release-sync", text=message)
