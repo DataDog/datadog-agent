@@ -250,7 +250,5 @@ dev_branch-ot-standalone-alpine:
     - docker_build_ot_agent_standalone_alpine_arm64
   variables:
     IMG_REGISTRIES: dev
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-alpine-amd64,${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-alpine-arm64
-        IMG_DESTINATIONS: otel-agent-dev:${CI_COMMIT_REF_SLUG}-alpine
+    IMG_SOURCES: ${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-alpine-amd64,${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-alpine-arm64
+    IMG_DESTINATIONS: otel-agent-dev:${CI_COMMIT_REF_SLUG}-alpine
