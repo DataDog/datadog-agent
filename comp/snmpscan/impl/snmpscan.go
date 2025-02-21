@@ -75,6 +75,6 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 	if err != nil {
 		return err
 	}
-	return s.ScanDeviceAndSendData(instance, s.log, ns)
+	return s.ScanDeviceAndSendData(instance, ns)
 
 }

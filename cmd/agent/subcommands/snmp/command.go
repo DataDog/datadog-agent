@@ -285,7 +285,15 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
 	namespace := conf.GetString("network_devices.namespace")
-	return snmpScanner.ScanDeviceAndSendData(connParams, logger, namespace)
+	deviceID := namespace + ":" + connParams.IPAddress
+	// Start the scan
+	fmt.Printf("Launching scan for device: %s\n", deviceID)
+	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace)
+	if err != nil {
+		fmt.Printf("Unable to perform device scan for device %s : %e", deviceID, err)
+	}
+	fmt.Printf("Completed scan successfully for device: %s\n", deviceID)
+	return err
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
