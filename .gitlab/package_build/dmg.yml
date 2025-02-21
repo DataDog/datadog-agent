@@ -93,9 +93,9 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  extends: .macos_gitlab
-  tags: ["macos:ventura-amd64-test", "specific:true"]
-  # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
+  # extends: .macos_gitlab
+  # tags: ["macos:ventura-amd64-test", "specific:true"]
+  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
   artifacts:
@@ -108,6 +108,13 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
+    - echo AWS config
+    - which aws
+    - ls ~/.aws/config
+    - cat ~/.aws/config
+    - aws configure list
+    - aws configure get region
+    - exit
     - echo Verifying libintl
     - sudo find /usr -name "libintl*" || true
     - sudo find /opt -name "libintl*" || true
