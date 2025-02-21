@@ -352,7 +352,10 @@ func getFakeModuleWithBool() (bool, error) {
 	var value C.bool
 
 	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	state := C.ensure_gil(rtloader)
+	defer C.release_gil(rtloader, state)
 
 	// class
 	moduleStr := (*C.char)(helpers.TrackedCString("fake_check"))
@@ -371,9 +374,6 @@ func getFakeModuleWithBool() (bool, error) {
 	if ret != 1 {
 		return false, fmt.Errorf(C.GoString(C.get_error(rtloader)))
 	}
-
-	C.release_gil(rtloader, state)
-	runtime.UnlockOSThread()
 
 	return value == C.bool(true), nil
 }
