@@ -176,7 +176,7 @@ func TestStartExecutionSpan(t *testing.T) {
 				RetryCount:  0,
 			},
 		},
-		TraceID:           5821803790426892636,
+		TraceID:           "5821803790426892636",
 		TraceTags:         "_dd.p.dm=-0,_dd.p.tid=672a7cb100000000",
 		ServerlessVersion: "v1",
 	}
@@ -1002,7 +1002,7 @@ func TestEndExecutionSpanWithLambdaRootStepFunctions(t *testing.T) {
 				RetryCount:  0,
 			},
 		},
-		TraceID:           5821803790426892636,
+		TraceID:           "5821803790426892636",
 		TraceTags:         "_dd.p.dm=-0,_dd.p.tid=672a7cb100000000",
 		ServerlessVersion: "v1",
 	}

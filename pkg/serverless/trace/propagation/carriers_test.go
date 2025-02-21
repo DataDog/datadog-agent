@@ -883,7 +883,7 @@ func Test_stringToDdSpanId(t *testing.T) {
 		stateEnteredTime string
 		stateRetryCount  uint16
 	}
-	tests := []struct {
+	testcases := []struct {
 		name string
 		args args
 		want uint64
@@ -910,9 +910,9 @@ func Test_stringToDdSpanId(t *testing.T) {
 			981693280319792699,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, stringToDdSpanID(tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime, tt.args.stateRetryCount, tt.args.execRedriveCount), "stringToDdSpanID(%v, %v, %v)", tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime)
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equalf(t, tc.want, stringToDdSpanID(tc.args.execArn, tc.args.stateName, tc.args.stateEnteredTime, tc.args.stateRetryCount, tc.args.execRedriveCount), "stringToDdSpanID(%v, %v, %v)", tc.args.execArn, tc.args.stateName, tc.args.stateEnteredTime)
 		})
 	}
 }
@@ -921,7 +921,7 @@ func Test_stringToDdTraceIds(t *testing.T) {
 	type args struct {
 		toHash string
 	}
-	tests := []struct {
+	testcases := []struct {
 		name               string
 		args               args
 		expectedLower64    uint64
@@ -944,17 +944,17 @@ func Test_stringToDdTraceIds(t *testing.T) {
 			"1914fe7789eb32be",
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := stringToDdTraceIDs(tt.args.toHash)
-			assert.Equalf(t, tt.expectedLower64, got, "stringToDdTraceIDs(%v)", tt.args.toHash)
-			assert.Equalf(t, tt.expectedUpper64Hex, got1, "stringToDdTraceIDs(%v)", tt.args.toHash)
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, got1 := stringToDdTraceIDs(tc.args.toHash)
+			assert.Equalf(t, tc.expectedLower64, got, "stringToDdTraceIDs(%v)", tc.args.toHash)
+			assert.Equalf(t, tc.expectedUpper64Hex, got1, "stringToDdTraceIDs(%v)", tc.args.toHash)
 		})
 	}
 }
 
 func TestParseUpper64Bits(t *testing.T) {
-	tests := []struct {
+	testcases := []struct {
 		name     string
 		input    string
 		expected string
@@ -981,10 +981,10 @@ func TestParseUpper64Bits(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseUpper64Bits(tt.input)
-			assert.Equal(t, tt.expected, result, "For input '%s', expected '%s' but got '%s'", tt.input, tt.expected, result)
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := parseUpper64Bits(tc.input)
+			assert.Equal(t, tc.expected, result, "For input '%s', expected '%s' but got '%s'", tc.input, tc.expected, result)
 		})
 	}
 }

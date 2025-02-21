@@ -370,7 +370,47 @@ type NestedStepFunctionPayload struct {
 // LambdaRootStepFunctionPayload contains a StepFunctionPayload but also has the Trace ID of the top-most Lambda in the trace
 type LambdaRootStepFunctionPayload struct {
 	Payload           StepFunctionPayload
-	TraceID           uint64
+	TraceID           string
 	TraceTags         string
 	ServerlessVersion string
+}
+
+// genericUnmarshal helps extract fields from _datadog.
+func genericUnmarshal(data []byte, fieldMap map[string]interface{}) error {
+	var aux struct {
+		Datadog map[string]json.RawMessage `json:"_datadog"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	for key, field := range fieldMap {
+		if val, exists := aux.Datadog[key]; exists {
+			if err := json.Unmarshal(val, field); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// UnmarshalJSON for NestedStepFunctionPayload.
+func (n *NestedStepFunctionPayload) UnmarshalJSON(data []byte) error {
+	return genericUnmarshal(data, map[string]interface{}{
+		"Execution":          &n.Payload.Execution,
+		"State":              &n.Payload.State,
+		"RootExecutionId":    &n.RootExecutionID,
+		"serverless-version": &n.ServerlessVersion,
+	})
+}
+
+// UnmarshalJSON for LambdaRootStepFunctionPayload.
+func (l *LambdaRootStepFunctionPayload) UnmarshalJSON(data []byte) error {
+	return genericUnmarshal(data, map[string]interface{}{
+		"Execution":          &l.Payload.Execution,
+		"State":              &l.Payload.State,
+		"x-datadog-trace-id": &l.TraceID,
+		"x-datadog-tags":     &l.TraceTags,
+		"serverless-version": &l.ServerlessVersion,
+	})
 }

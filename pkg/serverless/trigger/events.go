@@ -86,11 +86,13 @@ const (
 	// NestedStepFunctionEvent describes an event with an upstream Step Function's execution context and Execution ID from the top-most Step Function
 	NestedStepFunctionEvent
 
+	// LegacyNestedStepFunctionEvent describes a NestedStepFunctionEvent wrapped by the Legacy Lambda
 	LegacyNestedStepFunctionEvent
 
 	// LambdaRootStepFunctionEvent describes an event with an upstream Step Function's execution context and Trace ID from the top-most Lambda
 	LambdaRootStepFunctionEvent
 
+	// LegacyLambdaRootStepFunctionEvent describes a LambdaRootStepFunctionEvent wrapped by the Legacy Lambda
 	LegacyLambdaRootStepFunctionEvent
 )
 
