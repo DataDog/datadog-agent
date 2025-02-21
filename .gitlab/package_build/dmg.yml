@@ -33,6 +33,10 @@ agent_dmg-x64-a7:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
+.cc_debug:
+  - echo Verifying libintl
+  - find . -name "libintl*" || true
+
 .runner_setup_custom_homebrew:
   # TODO: Do it in runner
   - |
@@ -51,11 +55,12 @@ agent_dmg-x64-a7:
   - |
     echo Setup env
     mkdir bin
-    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true which vault du security"
+    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true which vault du security touch cat basename"
     for binary in $binaries; do
       echo Using $binary
       ln -s "$(which $binary)" bin/$binary
     done
+    # TODO: Find a better way
   - |
     echo Setup homebrew
     mkdir homebrew
@@ -139,6 +144,7 @@ new-agent_dmg-x64-a7:
   script:
     - set -e
     - !reference [.runner_setup_custom_homebrew]
+    - !reference [.cc_debug]
     # TODO A: - !reference [.vault_login]
     - |
       echo Starting build script
