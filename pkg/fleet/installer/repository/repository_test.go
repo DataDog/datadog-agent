@@ -16,9 +16,7 @@ import (
 
 func createTestRepository(t *testing.T, dir string, stablePackageName string) *Repository {
 	repositoryPath := path.Join(dir, "repository")
-	locksPath := path.Join(dir, "run")
 	os.MkdirAll(repositoryPath, 0755)
-	os.MkdirAll(locksPath, 0777)
 	stablePackagePath := createTestDownloadedPackage(t, dir, stablePackageName)
 	r := Repository{
 		rootPath: repositoryPath,
