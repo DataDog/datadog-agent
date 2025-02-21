@@ -44,7 +44,7 @@ BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 
-TEST_DIR = os.getenv("DD_AGENT_TESTING_DIR") or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
+TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
@@ -119,7 +119,7 @@ def ninja_define_ebpf_compiler(
     kernel_release=None,
     with_unit_test=False,
     arch: Arch | None = None,
-    compiler: str = "clang",
+    compiler: str = 'clang',
 ):
     if arch is not None and arch.is_cross_compiling():
         # -target ARCH is important even if we're just emitting LLVM. If we're cross-compiling, clang
@@ -152,7 +152,7 @@ def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None, compi
     )
 
 
-def ninja_define_exe_compiler(nw: NinjaWriter, compiler="clang"):
+def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     nw.rule(
         name="exe" + compiler,
         command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
@@ -195,20 +195,14 @@ def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None):
 
 
 def ninja_security_ebpf_programs(
-    nw: NinjaWriter,
-    build_dir: Path,
-    debug: bool,
-    kernel_release: str | None,
-    arch: Arch | None = None,
+    nw: NinjaWriter, build_dir: Path, debug: bool, kernel_release: str | None, arch: Arch | None = None
 ):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
 
     kernel_headers = get_linux_header_dirs(
-        kernel_release=kernel_release,
-        minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION,
-        arch=arch,
+        kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION, arch=arch
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
     debugdef = "-DDEBUG=1" if debug else ""
@@ -297,7 +291,7 @@ def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
         outfile = os.path.join(co_re_build_dir, f"{prog}.c")
 
         co_re_flags = [f"-I{src_dir}"]
-        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, " ".join(co_re_flags))
+        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags))
 
 
 def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags):
@@ -384,10 +378,7 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
         root, ext = os.path.splitext(outfile)
         ninja_ebpf_co_re_program(
-            nw,
-            infile,
-            f"{root}-debug{ext}",
-            {"flags": container_integrations_co_re_flags + " -DDEBUG=1"},
+            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
         )
 
 
@@ -440,13 +431,11 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
 
     nw.rule(
         name="headerincl",
-        command='go generate -run="include_headers" -mod=readonly -tags linux_bpf $in',
+        command="go generate -run=\"include_headers\" -mod=readonly -tags linux_bpf $in",
         depfile="$out.d",
     )
     nw.rule(
-        name="integrity",
-        command='go generate -run="integrity" -mod=readonly -tags linux_bpf $in',
-        depfile="$out.d",
+        name="integrity", command="go generate -run=\"integrity\" -mod=readonly -tags linux_bpf $in", depfile="$out.d"
     )
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
@@ -487,7 +476,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             + "(cd $in_dir);"
             + "(go tool cgo -godefs -- -fsigned-char $in_file | "
             + "go run $script_path | Out-File -encoding ascii $out_file);"
-            + 'exit $$LastExitCode"',
+            + "exit $$LastExitCode\"",
         )
     else:
         go_platform = "linux"
@@ -599,19 +588,19 @@ def ninja_cgo_type_files(nw: NinjaWriter):
 def ninja_generate(
     ctx: Context,
     ninja_path,
-    major_version="7",
+    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     debug=False,
     strip_object_files=False,
     kernel_release: str | None = None,
     with_unit_test=False,
-    ebpf_compiler="clang",
+    ebpf_compiler='clang',
 ):
     arch = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch)
     co_re_build_dir = os.path.join(build_dir, "co-re")
 
-    with open(ninja_path, "w") as ninja_file:
+    with open(ninja_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
 
         if is_windows:
@@ -621,8 +610,8 @@ def ninja_generate(
             in_name = os.path.splitext(os.path.basename(in_path))[0]
             in_dir = os.path.dirname(in_path)
             rcout = os.path.join(in_dir, f"{in_name}.rc")
-            hout = os.path.join(in_dir, f"{in_name}.h")
-            msgout = os.path.join(in_dir, "MSG00409.bin")
+            hout = os.path.join(in_dir, f'{in_name}.h')
+            msgout = os.path.join(in_dir, 'MSG00409.bin')
             nw.build(
                 inputs=[in_path],
                 outputs=[rcout],
@@ -630,23 +619,14 @@ def ninja_generate(
                 rule="windmc",
                 variables={"rcdir": in_dir},
             )
-            nw.build(
-                inputs=[rcout],
-                outputs=[os.path.join(in_dir, "rsrc.syso")],
-                rule="windres",
-            )
+            nw.build(inputs=[rcout], outputs=[os.path.join(in_dir, "rsrc.syso")], rule="windres")
             # system-probe
             rcin = "cmd/system-probe/windows_resources/system-probe.rc"
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(
-                nw,
-                strip_object_files,
-                kernel_release,
-                with_unit_test,
-                arch=arch,
-                compiler=ebpf_compiler,
+                nw, strip_object_files, kernel_release, with_unit_test, arch=arch, compiler=ebpf_compiler
             )
             ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
@@ -707,15 +687,15 @@ def get_libpcap_cgo_flags(ctx, install_path: str = None):
     """
     if install_path is not None:
         return {
-            "CGO_CFLAGS": f"-I{os.path.join(install_path, 'embedded', 'include')}",
-            "CGO_LDFLAGS": f"-L{os.path.join(install_path, 'embedded', 'lib')}",
+            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
         }
     else:
         embedded_path = get_embedded_path(ctx)
         assert embedded_path, "Failed to find embedded path"
         return {
-            "CGO_CFLAGS": f"-I{os.path.join(embedded_path, 'include')}",
-            "CGO_LDFLAGS": f"-L{os.path.join(embedded_path, 'lib')}",
+            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
+            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
         }
 
 
@@ -724,7 +704,7 @@ def build(
     ctx,
     race=False,
     rebuild=False,
-    major_version="7",
+    major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -733,7 +713,7 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
-    ebpf_compiler="clang",
+    ebpf_compiler='clang',
     static=False,
     fips_mode=False,
 ):
@@ -781,7 +761,7 @@ def build_sysprobe_binary(
     ctx,
     race=False,
     rebuild=False,
-    major_version="7",
+    major_version='7',
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -806,7 +786,7 @@ def build_sysprobe_binary(
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
-        ldflags += " -s -w"
+        ldflags += ' -s -w'
 
     if static:
         build_tags.extend(["osusergo", "netgo", "static"])
@@ -996,12 +976,12 @@ def go_package_dirs(packages, build_tags):
     This handles the ellipsis notation (eg. ./pkg/ebpf/...)
     """
 
-    format_arg = "{{ .Dir }}"
+    format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
     packages_arg = " ".join(packages)
-    cmd = f'go list -find -f "{format_arg}" -mod=readonly -tags "{buildtags_arg}" {packages_arg}'
+    cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
-    target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding="utf-8").split("\n")]
+    target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
     return [p for p in target_packages if len(p) > 0]
 
 
@@ -1104,7 +1084,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
-                    ctx.run(f'go build -o {binary_path} -tags="test" -ldflags="-extldflags \'-static\'" {gobin}.go')
+                    ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
         for cbin in TEST_HELPER_CBINS:
             source = Path(pkg) / "testdata" / f"{cbin}.c"
@@ -1124,10 +1104,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
-    ctx.run(
-        f'go build -o {files_dir}/test2json -ldflags="-s -w" cmd/test2json',
-        env={"CGO_ENABLED": "0"},
-    )
+    ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
@@ -1135,16 +1112,16 @@ def get_kernel_arch() -> Arch:
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     kernel_arch = (
         check_output(
-            """uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
+            '''uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
                 -e s/sun4u/sparc64/ \
                 -e s/arm.*/arm/ -e s/sa110/arm/ \
                 -e s/s390x/s390/ -e s/parisc64/parisc/ \
                 -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
                 -e s/sh[234].*/sh/ -e s/aarch64.*/arm64/ \
-                -e s/riscv.*/riscv/""",
+                -e s/riscv.*/riscv/''',
             shell=True,
         )
-        .decode("utf-8")
+        .decode('utf-8')
         .strip()
     )
 
@@ -1221,10 +1198,7 @@ def get_linux_header_dirs(
         # Completely discard kernels that don't match the minimal version
         if minimal_kernel_release is not None and candidate_kernel_vers < minimal_kernel_release:
             discarded_paths.append(
-                (
-                    f"kernel version {candidate_kernel_vers} less than minimal {minimal_kernel_release}",
-                    path,
-                )
+                (f"kernel version {candidate_kernel_vers} less than minimal {minimal_kernel_release}", path)
             )
             continue
 
@@ -1290,11 +1264,11 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
     flags = []
     flags.extend(
         [
-            "-D__KERNEL__",
-            "-DCONFIG_64BIT",
-            "-D__BPF_TRACING__",
+            '-D__KERNEL__',
+            '-DCONFIG_64BIT',
+            '-D__BPF_TRACING__',
             '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
-            "-DCOMPILE_PREBUILT",
+            '-DCOMPILE_PREBUILT',
         ]
     )
     if arch is not None:
@@ -1304,15 +1278,15 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
         flags.append(f"-D__{arch.gcc_arch.replace('-', '_')}__")
 
     if unit_test:
-        flags.extend(["-D__BALOUM__"])
+        flags.extend(['-D__BALOUM__'])
     flags.extend(
         [
-            "-Wno-unused-value",
-            "-Wno-pointer-sign",
-            "-Wno-compare-distinct-pointer-types",
-            "-Wunused",
-            "-Wall",
-            "-Werror",
+            '-Wno-unused-value',
+            '-Wno-pointer-sign',
+            '-Wno-compare-distinct-pointer-types',
+            '-Wunused',
+            '-Wall',
+            '-Werror',
         ]
     )
     flags.extend(["-include pkg/ebpf/c/asm_goto_workaround.h"])
@@ -1320,12 +1294,12 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
     flags.extend(
         [
             # Some linux distributions enable stack protector by default which is not available on eBPF
-            "-fno-stack-protector",
-            "-fno-color-diagnostics",
-            "-fno-unwind-tables",
-            "-fno-asynchronous-unwind-tables",
-            "-fno-jump-tables",
-            "-fmerge-all-constants",
+            '-fno-stack-protector',
+            '-fno-color-diagnostics',
+            '-fno-unwind-tables',
+            '-fno-asynchronous-unwind-tables',
+            '-fno-jump-tables',
+            '-fmerge-all-constants',
         ]
     )
     flags.extend(["-Ipkg/ebpf/c"])
@@ -1335,15 +1309,15 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
 def get_co_re_build_flags(arch: Arch | None = None):
     flags = get_ebpf_build_flags(arch=arch)
 
-    flags.remove("-DCOMPILE_PREBUILT")
-    flags.remove("-DCONFIG_64BIT")
-    flags.remove("-include pkg/ebpf/c/asm_goto_workaround.h")
+    flags.remove('-DCOMPILE_PREBUILT')
+    flags.remove('-DCONFIG_64BIT')
+    flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
 
     flags.extend(
         [
             "-DCOMPILE_CORE",
-            "-emit-llvm",
-            "-g",
+            '-emit-llvm',
+            '-g',
         ]
     )
 
@@ -1361,9 +1335,7 @@ def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None, a
     return [
         f"-isystem{d}"
         for d in get_linux_header_dirs(
-            kernel_release=kernel_release,
-            minimal_kernel_release=minimal_kernel_release,
-            arch=arch,
+            kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release, arch=arch
         )
     ]
 
@@ -1374,11 +1346,7 @@ def check_for_inline(ctx):
     grep_filter = "--include='*.c' --include '*.h'"
     grep_exclude = "--exclude='bpf_helpers.h'"
     pattern = "'^[^/]*\\binline\\b'"
-    grep_res = ctx.run(
-        f"grep -n {grep_filter} {grep_exclude} -r {pattern} {' '.join(src_dirs)}",
-        warn=True,
-        hide=True,
-    )
+    grep_res = ctx.run(f"grep -n {grep_filter} {grep_exclude} -r {pattern} {' '.join(src_dirs)}", warn=True, hide=True)
     if grep_res.ok:
         print(color_message("Use __always_inline instead of inline:", "red"))
         print(grep_res.stdout)
@@ -1390,16 +1358,16 @@ def run_ninja(
     task="",
     target="",
     explain=False,
-    major_version="7",
+    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
-    ebpf_compiler="clang",
+    ebpf_compiler='clang',
 ) -> None:
     check_for_ninja(ctx)
-    nf_path = os.path.join(ctx.cwd, "system-probe.ninja")
+    nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
     ninja_generate(
         ctx,
         nf_path,
@@ -1421,9 +1389,7 @@ def run_ninja(
 
 
 def setup_runtime_clang(
-    ctx: Context,
-    arch: Arch | None = None,
-    target_dir: Path | str = "/opt/datadog-agent/embedded/bin",
+    ctx: Context, arch: Arch | None = None, target_dir: Path | str = "/opt/datadog-agent/embedded/bin"
 ) -> None:
     target_dir = Path(target_dir)
     needs_sudo = not os.access(target_dir, os.W_OK)
@@ -1471,7 +1437,7 @@ def setup_runtime_clang(
 
 
 def verify_system_clang_version(ctx):
-    if os.getenv("DD_SYSPROBE_SKIP_CLANG_CHECK") == "true":
+    if os.getenv('DD_SYSPROBE_SKIP_CLANG_CHECK') == "true":
         return
 
     clang_res = ctx.run("clang --version", warn=True)
@@ -1523,14 +1489,14 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
-    major_version="7",
+    major_version='7',
     arch: str = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
-    ebpf_compiler="clang",
+    ebpf_compiler='clang',
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1618,14 +1584,14 @@ def copy_bundled_ebpf_files(
 
 def build_cws_object_files(
     ctx,
-    major_version="7",
+    major_version='7',
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
-    ebpf_compiler="clang",
+    ebpf_compiler='clang',
 ):
     run_ninja(
         ctx,
@@ -1642,7 +1608,7 @@ def build_cws_object_files(
         copy_bundled_ebpf_files(ctx, arch=arch)
 
 
-def clean_object_files(ctx, major_version="7", kernel_release=None, debug=False, strip_object_files=False):
+def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
     run_ninja(
         ctx,
         task="clean",
@@ -1682,7 +1648,7 @@ def check_for_ninja(ctx):
 no_minimize = ["lock_contention.o"]
 
 
-@task(iterable=["bpf_programs"])
+@task(iterable=['bpf_programs'])
 def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
     """
     Given an input directory containing compressed full-sized BTFs, generates an identically-structured
@@ -1713,15 +1679,12 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
     check_for_ninja(ctx)
 
-    ninja_file_path = os.path.join(ctx.cwd, "generate-minimized-btfs.ninja")
-    with open(ninja_file_path, "w") as ninja_file:
+    ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
+    with open(ninja_file_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=180)
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
-        nw.rule(
-            name="minimize_btf",
-            command="bpftool gen min_core_btf $in $out $input_bpf_programs",
-        )
+        nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
         nw.rule(
             name="compress_minimized_btf",
             command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
@@ -1769,10 +1732,7 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     },
                 )
 
-    ctx.run(
-        f"ninja -f {ninja_file_path}",
-        env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "},
-    )
+    ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
 
 
 @task
@@ -1818,10 +1778,7 @@ def process_btfhub_archive(ctx, branch="main"):
                                 # iterate over arch directories
                                 with os.scandir(rdir.path) as ait:
                                     for adir in ait:
-                                        if not adir.is_dir() or adir.name not in {
-                                            "x86_64",
-                                            "arm64",
-                                        }:
+                                        if not adir.is_dir() or adir.name not in {"x86_64", "arm64"}:
                                             continue
 
                                         print(f"{pdir.name}/{rdir.name}/{adir.name}")
@@ -1869,9 +1826,9 @@ def generate_event_monitor_proto(ctx):
 
             plugin_opts = " ".join(
                 [
-                    f'--plugin protoc-gen-go="{temp_gobin}/protoc-gen-go"',
-                    f'--plugin protoc-gen-go-grpc="{temp_gobin}/protoc-gen-go-grpc"',
-                    f'--plugin protoc-gen-go-vtproto="{temp_gobin}/protoc-gen-go-vtproto"',
+                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
+                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
+                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
                 ]
             )
 
@@ -1908,9 +1865,9 @@ def print_failed_tests(_, output_dir):
                 with open(test_json) as tf:
                     for line in tf:
                         json_test = json.loads(line.strip())
-                        if "Test" in json_test:
-                            name = json_test["Test"]
-                            package = json_test["Package"]
+                        if 'Test' in json_test:
+                            name = json_test['Test']
+                            package = json_test['Package']
                             action = json_test["Action"]
 
                             if action == "pass" or action == "fail" or action == "skip":
@@ -1945,12 +1902,12 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
         arch = "amd64"
 
     # only download images not present in preprepared vm disk
-    resp = requests.get("https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls")
-    docker_ls = {line for line in resp.text.split("\n") if line.strip()}
+    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
+    docker_ls = {line for line in resp.text.split('\n') if line.strip()}
 
     images = _test_docker_image_list()
     for image in images - docker_ls:
-        output_path = image.translate(str.maketrans("", "", string.punctuation))
+        output_path = image.translate(str.maketrans('', '', string.punctuation))
         output_file = f"{os.path.join(output_dir, output_path)}.tar"
         if use_crane:
             ctx.run(f"crane pull --platform linux/{arch} {image} {output_file}")
@@ -1962,7 +1919,7 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
 @task
 def test_docker_image_list(_):
     images = _test_docker_image_list()
-    print("\n".join(images))
+    print('\n'.join(images))
 
 
 def _test_docker_image_list():
@@ -2028,7 +1985,7 @@ def start_microvms(
         "--provision-microvms" if provision_microvms else "",
     ]
 
-    go_args = " ".join(filter(lambda x: x != "", args))
+    go_args = ' '.join(filter(lambda x: x != "", args))
 
     # building the binary improves start up time for local usage where we invoke this multiple times.
     ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
@@ -2066,7 +2023,7 @@ def save_build_outputs(ctx, destfile):
                 outdir = os.path.join(stagedir, filedir)
                 ctx.run(f"mkdir -p {outdir}")
                 ctx.run(f"cp {outputitem['output']} {outdir}/")
-                outfiles.append(outputitem["output"])
+                outfiles.append(outputitem['output'])
                 count += 1
 
         if count == 0:
@@ -2121,7 +2078,7 @@ def build_usm_debugger(
     cmd = 'go build -tags="linux_bpf,usm_debugger" -o bin/usm-debugger -ldflags="{ldflags}" ./pkg/network/usm/debugger/cmd/'
 
     if strip_binary:
-        ldflags += " -s -w"
+        ldflags += ' -s -w'
 
     args = {
         "ldflags": ldflags,
