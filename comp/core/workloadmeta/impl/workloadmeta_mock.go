@@ -29,7 +29,6 @@ func NewWorkloadMetaMock(deps Dependencies) wmmock.Mock {
 	w := &workloadMetaMock{
 		workloadmeta: NewWorkloadMeta(deps).Comp.(*workloadmeta),
 	}
-	w.updateCollectorStatus(wmdef.CollectorsInitialized)
 	return w
 }
 

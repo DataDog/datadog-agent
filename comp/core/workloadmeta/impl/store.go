@@ -505,8 +505,8 @@ func (w *workloadmeta) Reset(newEntities []wmdef.Entity, source wmdef.Source) {
 
 // IsInitialized: If startCandidates is run at least once, return true.
 func (w *workloadmeta) IsInitialized() bool {
-	w.storeMut.RLock()
-	defer w.storeMut.RUnlock()
+	w.collectorMut.RLock()
+	defer w.collectorMut.RUnlock()
 	return w.collectorsInited == wmdef.CollectorsInitialized
 }
 

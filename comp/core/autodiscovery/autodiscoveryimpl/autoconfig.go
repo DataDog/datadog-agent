@@ -98,7 +98,7 @@ const (
 	// MaxWmetaWaitTime is the maximum time to wait for wmeta being ready
 	MaxWmetaWaitTime = 10 * time.Second
 	// WmetaCheckInterval is the interval to check if wmeta is ready
-	WmetaCheckInterval = 1 * time.Second
+	WmetaCheckInterval = 200 * time.Microsecond
 )
 
 type provides struct {
