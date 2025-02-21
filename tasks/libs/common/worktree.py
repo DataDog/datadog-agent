@@ -131,8 +131,19 @@ def agent_context(ctx, branch: str | None = None, skip_checkout=False, commit: s
 
     # Do not stack two environments
     if is_worktree():
-        yield
-        return
+        if not skip_checkout and (
+            branch
+            and branch != get_current_branch(ctx)
+            or commit
+            and commit != ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+        ):
+            raise RuntimeError('Cannot stack two different worktree environments (two different branches requested)')
+        else:
+            # Some tasks need to stack two different worktree environments but
+            # on the same branch
+            # Simulate worktree environment
+            yield
+            return
 
     try:
         # Enter
