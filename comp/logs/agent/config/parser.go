@@ -6,7 +6,6 @@
 package config
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -32,8 +31,7 @@ func ParseJSON(data []byte) ([]*LogsConfig, error) {
 // returns an error if the parsing failed.
 func ParseYAML(data []byte) ([]*LogsConfig, error) {
 	var yamlConfigsWrapper yamlLogsConfigsWrapper
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	err := decoder.Decode(&yamlConfigsWrapper)
+	err := yaml.Unmarshal(data, &yamlConfigsWrapper)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode YAML logs config: %v", err)
 	}

@@ -6,10 +6,10 @@
 package config
 
 import (
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestParseJSONWithValidFormatShouldSucceed(t *testing.T) {
@@ -70,7 +70,7 @@ foo:
 
 	for _, format := range invalidFormats {
 		configs, _ := ParseYAML([]byte(format))
-		assert.Equal(t, 0, len(configs))
+		require.Equal(t, 0, len(configs))
 	}
 }
 
@@ -94,11 +94,11 @@ logs:
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
-				assert.Len(t, configs, 1)
+				require.Equal(t, len(configs), 1)
 				config := configs[0]
 				assert.Equal(t, "file", config.Type)
 				assert.Equal(t, "/var/log/app.log", config.Path)
-				assert.Len(t, config.Tags, 2)
+				require.Equal(t, len(config.Tags), 2)
 				assert.Equal(t, "a", config.Tags[0])
 				assert.Equal(t, " b:c", config.Tags[1])
 			},
@@ -117,11 +117,11 @@ logs:
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
-				assert.Len(t, configs, 1)
+				require.Equal(t, len(configs), 1)
 				config := configs[0]
 				assert.Equal(t, "file", config.Type)
 				assert.Equal(t, "/var/log/app.log", config.Path)
-				assert.Len(t, config.Tags, 2)
+				require.Equal(t, len(config.Tags), 2)
 				assert.Equal(t, "a", config.Tags[0])
 				assert.Equal(t, "b:c", config.Tags[1])
 			},
@@ -141,13 +141,13 @@ logs:
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
-				assert.Len(t, configs, 1)
+				require.Equal(t, len(configs), 1)
 				config := configs[0]
 				assert.Equal(t, "file", config.Type)
 				assert.Equal(t, "/my/test/file.log", config.Path)
 				assert.Equal(t, "cardpayment", config.Service)
 				assert.Equal(t, "java", config.Source)
-				assert.Len(t, config.ProcessingRules, 1)
+				require.Equal(t, len(config.ProcessingRules), 1)
 				assert.Equal(t, "include_at_match", config.ProcessingRules[0].Type)
 				assert.Equal(t, "include_datadoghq_users", config.ProcessingRules[0].Name)
 				assert.Equal(t, `\w+@datadoghq.com`, config.ProcessingRules[0].Pattern)
@@ -170,13 +170,13 @@ logs:
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
-				assert.Len(t, configs, 1)
+				require.Equal(t, len(configs), 1)
 				config := configs[0]
 				assert.Equal(t, "file", config.Type)
 				assert.Equal(t, "/my/test/file.log", config.Path)
 				assert.Equal(t, "cardpayment", config.Service)
 				assert.Equal(t, "java", config.Source)
-				assert.Len(t, config.ProcessingRules, 1)
+				require.Equal(t, len(config.ProcessingRules), 1)
 				assert.Equal(t, "include_at_match", config.ProcessingRules[0].Type)
 				assert.Equal(t, "include_datadoghq_users", config.ProcessingRules[0].Name)
 				assert.Equal(t, `abc|123`, config.ProcessingRules[0].Pattern)
@@ -199,13 +199,13 @@ logs:
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
-				assert.Len(t, configs, 1)
+				require.Equal(t, len(configs), 1)
 				config := configs[0]
 				assert.Equal(t, "file", config.Type)
 				assert.Equal(t, "/var/log/pg_log.log", config.Path)
 				assert.Equal(t, "database", config.Service)
 				assert.Equal(t, "postgresql", config.Source)
-				assert.Len(t, config.ProcessingRules, 1)
+				require.Equal(t, len(config.ProcessingRules), 1)
 				assert.Equal(t, "multi_line", config.ProcessingRules[0].Type)
 				assert.Equal(t, "new_log_start_with_date", config.ProcessingRules[0].Name)
 				assert.Equal(t, `\d{4}\-(0?[1-9]|1[012])\-(0?[1-9]|[12][0-9]|3[01])`, config.ProcessingRules[0].Pattern)
@@ -229,13 +229,13 @@ logs:
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
-				assert.Len(t, configs, 1)
+				require.Equal(t, len(configs), 1)
 				config := configs[0]
 				assert.Equal(t, "file", config.Type)
 				assert.Equal(t, "/my/test/file.log", config.Path)
 				assert.Equal(t, "cardpayment", config.Service)
 				assert.Equal(t, "java", config.Source)
-				assert.Len(t, config.ProcessingRules, 1)
+				require.Equal(t, len(config.ProcessingRules), 1)
 				assert.Equal(t, "mask_sequences", config.ProcessingRules[0].Type)
 				assert.Equal(t, "mask_credit_cards", config.ProcessingRules[0].Name)
 				assert.Equal(t, "[masked_credit_card]", config.ProcessingRules[0].ReplacePlaceholder)
