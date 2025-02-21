@@ -94,8 +94,8 @@ agent_dmg-x64-a7:
 new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
-  # tags: ["macos:ventura-amd64-test", "specific:true"]
-  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
+  tags: ["macos:ventura-amd64-test", "specific:true"]
+  # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
   artifacts:
@@ -108,22 +108,22 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    - echo AWS config
-    - which aws
-    - python3 -m venv .venv
-    - . .venv/bin/activate
-    - pip install awscli
-    - which aws
-    - instance_id="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
-    - aws configure list
-    - export PATH="$PWD/bin:$PATH"
-    - |
-      association_id="$(aws ec2 describe-iam-instance-profile-associations --filter "Name=instance-id,Values=$instance_id" --query 'IamInstanceProfileAssociations[0].AssociationId' --out text)" || true
-      echo "ASSOCIATION ID (v1): $association_id" || true
-    - aws configure set region us-east-1
-    -  |
-      association_id="$(aws ec2 describe-iam-instance-profile-associations --filter "Name=instance-id,Values=$instance_id" --query 'IamInstanceProfileAssociations[0].AssociationId' --out text)"
-      echo "ASSOCIATION ID (v2): $association_id"
+    # - echo AWS config
+    # - which aws
+    # - python3 -m venv .venv
+    # - . .venv/bin/activate
+    # - pip install awscli
+    # - which aws
+    # - instance_id="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+    # - aws configure list
+    # - export PATH="$PWD/bin:$PATH"
+    # - |
+    #   association_id="$(aws ec2 describe-iam-instance-profile-associations --filter "Name=instance-id,Values=$instance_id" --query 'IamInstanceProfileAssociations[0].AssociationId' --out text)" || true
+    #   echo "ASSOCIATION ID (v1): $association_id" || true
+    # - aws configure set region us-east-1
+    # -  |
+    #   association_id="$(aws ec2 describe-iam-instance-profile-associations --filter "Name=instance-id,Values=$instance_id" --query 'IamInstanceProfileAssociations[0].AssociationId' --out text)"
+    #   echo "ASSOCIATION ID (v2): $association_id"
 
     # - env | grep -i aws
     # - sudo find ~ -name "*aws*" || true
@@ -134,7 +134,7 @@ new-agent_dmg-x64-a7:
     # - cat ~/.aws/config
     # - aws configure list
     # - aws configure get region
-    - exit
+    # - exit
     - echo Verifying libintl
     - sudo find /usr -name "libintl*" || true
     - sudo find /opt -name "libintl*" || true
