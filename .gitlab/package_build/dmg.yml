@@ -114,7 +114,6 @@ new-agent_dmg-x64-a7:
     - . .venv/bin/activate
     - pip install awscli
     - aws configure list
-    - aws configure get region
     -  |
       instance_id="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
       association_id="$(aws ec2 describe-iam-instance-profile-associations --filter "Name=instance-id,Values=$instance_id" --query 'IamInstanceProfileAssociations[0].AssociationId' --out text)" || true
