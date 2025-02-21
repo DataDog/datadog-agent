@@ -21,8 +21,8 @@ var rcTelemetry = struct {
 	success telemetry.Counter
 	error   telemetry.Counter
 }{
-	success: telemetry.NewCounter("ebpf__runtime_compilation__compile", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "result"}, "gauge of runtime compilation compile successes"),
-	error:   telemetry.NewCounter("ebpf__runtime_compilation__compile", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "result"}, "gauge of runtime compilation compile errors"),
+	success: telemetry.NewCounter("ebpf__runtime_compilation__compile", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "result"}, "counter of runtime compilation compile successes"),
+	error:   telemetry.NewCounter("ebpf__runtime_compilation__compile", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "result"}, "counter of runtime compilation compile errors"),
 }
 
 // CompilationResult enumerates runtime compilation success & failure modes

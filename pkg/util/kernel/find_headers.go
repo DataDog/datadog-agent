@@ -32,8 +32,8 @@ var headerTelemetry = struct {
 	success telemetry.Counter
 	error   telemetry.Counter
 }{
-	success: telemetry.NewCounter("ebpf__runtime_compilation__header_download", "success", []string{"platform", "platform_version", "kernel", "arch", "result"}, "gauge of kernel header download successes"),
-	error:   telemetry.NewCounter("ebpf__runtime_compilation__header_download", "error", []string{"platform", "platform_version", "kernel", "arch", "result"}, "gauge of kernel header download errors"),
+	success: telemetry.NewCounter("ebpf__runtime_compilation__header_download", "success", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download successes"),
+	error:   telemetry.NewCounter("ebpf__runtime_compilation__header_download", "error", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download errors"),
 }
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
