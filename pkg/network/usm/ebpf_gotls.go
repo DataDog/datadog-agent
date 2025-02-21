@@ -139,6 +139,7 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 		ExcludeTargets:                 uprobes.ExcludeInternal,
 		PerformInitialScan:             false,
 		EnablePeriodicScanNewProcesses: false,
+		ScanProcessesInterval:          scanTerminatedProcessesInterval,
 	}
 
 	if c.GoTLSExcludeSelf {
