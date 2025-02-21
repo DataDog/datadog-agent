@@ -94,6 +94,7 @@ AGENT_TAGS = {
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     {
+        "bundle_installer",
         "containerd",
         "no_dynamic_plugins",
         "cri",
