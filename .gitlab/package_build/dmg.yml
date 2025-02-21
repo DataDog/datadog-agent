@@ -110,10 +110,15 @@ new-agent_dmg-x64-a7:
   script:
     - echo AWS config
     - which aws
+    - env | grep -i aws
+    - sudo find ~ -name "*aws*" || true
+    - sudo find /etc -name "*aws*" || true
+    - sudo find /var -name "*aws*" || true
+    - sudo find /usr -name "*aws*" || true
     # - ls ~/.aws/config
     # - cat ~/.aws/config
-    - aws configure list
-    - aws configure get region
+    # - aws configure list
+    # - aws configure get region
     - exit
     - echo Verifying libintl
     - sudo find /usr -name "libintl*" || true
