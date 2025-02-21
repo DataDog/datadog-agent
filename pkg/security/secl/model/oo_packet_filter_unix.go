@@ -11,6 +11,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"runtime"
 
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -38,10 +39,13 @@ func newPacketFilterEvaluator(field string, value string, state *eval.State) (*e
 	case "packet.filter":
 		fmt.Printf("filter content before: %s\n", value)
 		captureLength := 256 // sizeof(struct raw_packet_t.data)
+		runtime.LockOSThread()
 		filter, err := pcap.NewBPF(layers.LinkTypeEthernet, captureLength, value)
 		if err != nil {
+			runtime.UnlockOSThread()
 			return nil, fmt.Errorf("failed to compile packet filter `%s` on field `%s`: %v", value, field, err)
 		}
+		runtime.UnlockOSThread()
 		fmt.Printf("filter content after: %s\n", value)
 
 		// needed to track filter values and to apply tc filters
