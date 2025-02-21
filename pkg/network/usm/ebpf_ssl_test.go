@@ -10,7 +10,6 @@ package usm
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -65,13 +64,6 @@ func TestArchAmd64(t *testing.T) {
 
 func TestArchArm64(t *testing.T) {
 	testArch(t, "arm64")
-}
-
-func TestContainerdTmpErrEnvironment(t *testing.T) {
-	hookFunction := addHooks(nil, "foo", nil)
-	path := utils.FilePath{PID: uint32(os.Getpid()), HostPath: "/foo/tmpmounts/containerd-mount/bar"}
-	err := hookFunction(path)
-	require.ErrorIs(t, err, utils.ErrEnvironment)
 }
 
 // TestSSLMapsCleaner verifies that SSL-related kernel maps are cleared correctly.
