@@ -27,7 +27,7 @@ import (
 )
 
 // iteration is the number of time we will check the auth stack
-const iteration = 200
+const iteration = 100
 
 // timeout is the time we will wait for one iteration to success
 const timeout = time.Minute
