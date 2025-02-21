@@ -79,14 +79,15 @@ type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	env           *env.Env
-	installer     func(env *env.Env) installer.Installer
-	rc            *remoteConfig
-	catalog       catalog
-	configs       map[string]installerConfig
-	requests      chan remoteAPIRequest
-	requestsWG    sync.WaitGroup
-	requestsState map[string]requestState
+	env             *env.Env
+	installer       func(env *env.Env) installer.Installer
+	rc              *remoteConfig
+	catalog         catalog
+	catalogOverride catalog
+	configs         map[string]installerConfig
+	requests        chan remoteAPIRequest
+	requestsWG      sync.WaitGroup
+	requestsState   map[string]requestState
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -132,14 +133,15 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 
 func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env) *daemonImpl {
 	i := &daemonImpl{
-		env:           env,
-		rc:            rc,
-		installer:     installer,
-		requests:      make(chan remoteAPIRequest, 32),
-		catalog:       catalog{},
-		configs:       make(map[string]installerConfig),
-		stopChan:      make(chan struct{}),
-		requestsState: make(map[string]requestState),
+		env:             env,
+		rc:              rc,
+		installer:       installer,
+		requests:        make(chan remoteAPIRequest, 32),
+		catalog:         catalog{},
+		catalogOverride: catalog{},
+		configs:         make(map[string]installerConfig),
+		stopChan:        make(chan struct{}),
+		requestsState:   make(map[string]requestState),
 	}
 	i.refreshState(context.Background())
 	return i
@@ -226,7 +228,11 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	catalogPackage, ok := d.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	catalog := d.catalog
+	if len(d.catalogOverride.Packages) > 0 {
+		catalog = d.catalogOverride
+	}
+	catalogPackage, ok := catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return Package{}, fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
@@ -237,7 +243,7 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 func (d *daemonImpl) SetCatalog(c catalog) {
 	d.m.Lock()
 	defer d.m.Unlock()
-	d.catalog = c
+	d.catalogOverride = c
 }
 
 // Start starts remote config and the garbage collector.
@@ -365,11 +371,7 @@ func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting installer experiment for package from %s", url)
-	if runtime.GOOS == "windows" {
-		err = d.installer(d.env).InstallExperiment(ctx, url)
-	} else {
-		err = bootstrap.InstallExperiment(ctx, d.env, url)
-	}
+	err = bootstrap.InstallExperiment(ctx, d.env, url)
 	if err != nil {
 		return fmt.Errorf("could not install installer experiment: %w", err)
 	}
@@ -554,11 +556,11 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			newEnv.InstallScript.APMInstrumentationEnabled = params.ApmInstrumentation
 		}
 
-		pkg, ok := d.catalog.getPackage(request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
-		if !ok {
+		pkg, err := d.GetPackage(request.Package, params.Version)
+		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrPackageNotFound,
-				fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS),
+				err,
 			)
 		}
 		return d.install(ctx, &newEnv, pkg.URL, nil)

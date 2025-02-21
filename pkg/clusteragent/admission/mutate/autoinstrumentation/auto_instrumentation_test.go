@@ -36,6 +36,83 @@ import (
 
 const commonRegistry = "gcr.io/datadoghq"
 
+var (
+	defaultLibraries = map[string]string{
+		"java":   "v1.46",
+		"python": "v2.21",
+		"ruby":   "v2.10",
+		"dotnet": "v3.10",
+		"js":     "v5.37",
+	}
+
+	// TODO: Add new entry when a new language is supported
+	defaultLibImageVersions = map[language]string{
+		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
+		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
+		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
+		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
+		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+	}
+)
+
+func defaultLibInfo(l language) libInfo {
+	return libInfo{lang: l, image: defaultLibImageVersions[l]}
+}
+
+func defaultLibrariesFor(languages ...string) map[string]string {
+	out := map[string]string{}
+	for _, l := range languages {
+		out[l] = defaultLibraries[l]
+	}
+	return out
+}
+
+func TestDefaultLibVersions(t *testing.T) {
+	// N.B. This test uses js since there are many major versions.
+	tests := []struct {
+		in, out string
+	}{
+		{
+			in:  "v5",
+			out: defaultLibImageVersions[js],
+		},
+		{
+			in:  "5",
+			out: defaultLibImageVersions[js],
+		},
+		{
+			in:  "default",
+			out: defaultLibImageVersions[js],
+		},
+		{
+			in:  "v1",
+			out: "registry/dd-lib-js-init:v1",
+		},
+		{
+			in:  "v1.0",
+			out: "registry/dd-lib-js-init:v1.0",
+		},
+		{
+			in:  "5.0",
+			out: "registry/dd-lib-js-init:5.0",
+		},
+		{
+			in:  "v5.0",
+			out: "registry/dd-lib-js-init:v5.0",
+		},
+		{
+			in:  "latest",
+			out: "registry/dd-lib-js-init:latest",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s->%s", tt.in, tt.out), func(t *testing.T) {
+			require.Equal(t, tt.out, js.libImageName("registry", tt.in))
+		})
+	}
+}
+
 func TestInjectAutoInstruConfigV2(t *testing.T) {
 	tests := []struct {
 		name                    string
@@ -421,36 +498,12 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 }
 
 func TestExtractLibInfo(t *testing.T) {
-	defaultLibImageVersions := map[string]string{
-		"java":   "registry/dd-lib-java-init:v1",
-		"js":     "registry/dd-lib-js-init:v5",
-		"python": "registry/dd-lib-python-init:v2",
-		"dotnet": "registry/dd-lib-dotnet-init:v3",
-		"ruby":   "registry/dd-lib-ruby-init:v2",
-	}
-
-	// TODO: Add new entry when a new language is supported
-	allLatestDefaultLibs := []libInfo{
-		{
-			lang:  "java",
-			image: defaultLibImageVersions["java"],
-		},
-		{
-			lang:  "js",
-			image: defaultLibImageVersions["js"],
-		},
-		{
-			lang:  "python",
-			image: defaultLibImageVersions["python"],
-		},
-		{
-			lang:  "dotnet",
-			image: defaultLibImageVersions["dotnet"],
-		},
-		{
-			lang:  "ruby",
-			image: defaultLibImageVersions["ruby"],
-		},
+	var allLatestDefaultLibs []libInfo
+	for k, v := range defaultLibImageVersions {
+		allLatestDefaultLibs = append(allLatestDefaultLibs, libInfo{
+			lang:  k,
+			image: v,
+		})
 	}
 
 	var mockConfig model.Config
@@ -469,7 +522,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:v1.46",
 				},
 			},
 		},
@@ -480,7 +533,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:v1.46",
 				},
 			},
 		},
@@ -491,7 +544,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: fmt.Sprintf("%s/dd-lib-java-init:v1", commonRegistry),
+					image: fmt.Sprintf("%s/dd-lib-java-init:v1.46", commonRegistry),
 				},
 			},
 		},
@@ -553,10 +606,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
-				},
+				java.libInfo("", defaultLibImageVersions[java]),
 				{
 					lang:  "js",
 					image: "registry/dd-lib-js-init:v1",
@@ -585,11 +635,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					ctrName: "java-app",
-					lang:    "java",
-					image:   "registry/dd-lib-java-init:v1",
-				},
+				java.libInfo("java-app", defaultLibImageVersions[java]),
 				{
 					ctrName: "node-app",
 					lang:    "js",
@@ -716,7 +762,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
+					image: "registry/dd-lib-java-init:v1.46",
 				},
 			},
 		},
@@ -788,10 +834,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:v1",
-				},
+				java.libInfo("", defaultLibImageVersions[java]),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -805,8 +848,8 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
-					lang:  "php",
-					image: "registry/dd-lib-php-init:v1",
+					lang:  php,
+					image: "registry/dd-lib-php-init:v1.6",
 				},
 			},
 		},
@@ -1573,22 +1616,6 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 
 	uuid := uuid.New().String()
 	installTime := strconv.FormatInt(time.Now().Unix(), 10)
-
-	defaultLibraries := map[string]string{
-		"java":   "v1",
-		"python": "v2",
-		"ruby":   "v2",
-		"dotnet": "v3",
-		"js":     "v5",
-	}
-
-	defaultLibrariesFor := func(languages ...string) map[string]string {
-		out := map[string]string{}
-		for _, l := range languages {
-			out[l] = defaultLibraries[l]
-		}
-		return out
-	}
 
 	tests := []struct {
 		name                      string

@@ -184,6 +184,12 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		}
 	}
 
+	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
+	// in the target.
+	for _, envVar := range target.envVars {
+		mutatecommon.InjectEnv(pod, envVar)
+	}
+
 	// Inject the libraries.
 	err := m.core.injectTracers(pod, extracted)
 	if err != nil {
@@ -195,11 +201,6 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		Name:  AppliedTargetEnvVar,
 		Value: target.json,
 	})
-
-	// Inject the tracer configs.
-	for _, envVar := range target.envVars {
-		mutatecommon.InjectEnv(pod, envVar)
-	}
 
 	// Add the annotations to the pod.
 	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)
