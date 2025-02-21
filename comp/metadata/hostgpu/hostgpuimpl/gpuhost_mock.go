@@ -43,8 +43,8 @@ func (m *hostgpuMock) GetAsJSON() ([]byte, error) {
 func (m *hostgpuMock) Refresh() {}
 
 func newMock() MockProvides {
-	ih := &hostgpuMock{}
+	gh := &hostgpuMock{}
 	return MockProvides{
-		Comp: ih,
+		Comp: gh,
 	}
 }

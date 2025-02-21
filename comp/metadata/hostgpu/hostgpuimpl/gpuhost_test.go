@@ -14,64 +14,58 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
-	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
-	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func cpuMock() *cpu.Info {
-	return &cpu.Info{
-		CPUCores:             gohaiutils.NewValue[uint64](6),
-		CPULogicalProcessors: gohaiutils.NewValue[uint64](6),
-		VendorID:             gohaiutils.NewValue("GenuineIntel"),
-		ModelName:            gohaiutils.NewValue("Intel_i7-8750H"),
-		Model:                gohaiutils.NewValue("158"),
-		Family:               gohaiutils.NewValue("6"),
-		Stepping:             gohaiutils.NewValue("10"),
-		Mhz:                  gohaiutils.NewValue(2208.006),
-		CacheSizeKB:          gohaiutils.NewValue[uint64](9216),
-		CPUPkgs:              gohaiutils.NewValue[uint64](6),
-		CPUNumaNodes:         gohaiutils.NewValue[uint64](6),
-		CacheSizeL1Bytes:     gohaiutils.NewValue[uint64](1234),
-		CacheSizeL2Bytes:     gohaiutils.NewValue[uint64](1234),
-		CacheSizeL3Bytes:     gohaiutils.NewValue[uint64](1234),
+// Test helpers
+func collectBaseGPUMock() (*hostGPUMetadata, error) {
+	device := gpuDeviceMetadata{
+		ID:            0,
+		Vendor:        "nvidia",
+		Device:        "Tesla T4",
+		DriverVersion: "460.32.03",
 	}
+	nvidiaDevice, _ := collectNvidiaGPUMock(device)
+	return &hostGPUMetadata{
+
+		Devices: []gpuDeviceMetadata{
+			*nvidiaDevice,
+		},
+	}, nil
 }
 
-func platformMock() *platform.Info {
-	return &platform.Info{
-		KernelName:       gohaiutils.NewValue("Linux"),
-		KernelRelease:    gohaiutils.NewValue("5.17.0-1-amd64"),
-		KernelVersion:    gohaiutils.NewValue("Debian_5.17.3-1"),
-		OS:               gohaiutils.NewValue("GNU/Linux"),
-		HardwarePlatform: gohaiutils.NewValue("unknown"),
-		GoVersion:        gohaiutils.NewValue("1.17.7"),
-		GoOS:             gohaiutils.NewValue("linux"),
-		GoArch:           gohaiutils.NewValue("amd64"),
-		Hostname:         gohaiutils.NewValue("debdev"),
-		Machine:          gohaiutils.NewValue("x86_64"),
-		Family:           gohaiutils.NewErrorValue[string](gohaiutils.ErrNotCollectable),
-		Processor:        gohaiutils.NewValue("unknown"),
-	}
+func collectNvidiaGPUMock(device gpuDeviceMetadata) (*gpuDeviceMetadata, error) {
+	device.UUID = "GPU-123456789"
+	device.Architecture = "Turing"
+	device.RuntimeVersion = "11.2"
+	device.ComputeVersion = "12.4"
+	device.ProcessorUnits = 40
+	device.Cores = 2560
+	device.TotalMemory = 16000000000 // 16GB
+	device.MaxClockRate = 1590
+	device.MemoryClockRate = 5000
+	device.MemoryBusWidth = 256
+	device.L2CacheSize = 4194304
+	device.WarpSize = 32
+	device.RegistersPerBlock = 65536
+	return &device, nil
 }
-func pkgSigningMock(_ log.Component) (bool, bool) { return true, false }
 
-func cpuErrorMock() *cpu.Info           { return &cpu.Info{} }
-func platformErrorMock() *platform.Info { return &platform.Info{} }
+func gpuErrorMock() (*hostGPUMetadata, error) { return &hostGPUMetadata{Devices: nil}, nil }
 
-func setupHostMetadataMock(t *testing.T) {
+func setupHostGPUMetadataMock(t *testing.T) {
 	t.Cleanup(func() {
+		baseGPUGet = collectBaseGPUInfo
 	})
+
+	baseGPUGet = collectBaseGPUMock
 }
 
 func setupHostMetadataErrorMock(t *testing.T) {
-	setupHostMetadataMock(t)
-
-	dmi.SetupMock(t, "", "", "", "")
+	setupHostGPUMetadataMock(t)
+	baseGPUGet = gpuErrorMock
 }
 
 func getTestInventoryHost(t *testing.T) *gpuHost {
@@ -87,37 +81,68 @@ func getTestInventoryHost(t *testing.T) *gpuHost {
 }
 
 func TestGetPayload(t *testing.T) {
-	setupHostMetadataMock(t)
+	setupHostGPUMetadataMock(t)
 
-	expectedMetadata := &hostGPUMetadata{
-		devices: []gpuDeviceMetadata{
+	expectedMetadata := hostGPUMetadata{
+		Devices: []gpuDeviceMetadata{
 			{
-				//TODO: fill
+				ID:                1,
+				Vendor:            "NVIDIA",
+				Device:            "GeForce GTX 1080",
+				UUID:              "GPU-12345678-1234-5678-1234-567812345678",
+				DriverVersion:     "460.32.03",
+				RuntimeVersion:    "11.2",
+				Architecture:      "Pascal",
+				ComputeVersion:    "6.1",
+				ProcessorUnits:    20,
+				Cores:             2560,
+				TotalMemory:       8 * 1024 * 1024 * 1024, // 8 GB
+				MaxClockRate:      1733,                   // MHz
+				MemoryClockRate:   10000,                  // MHz
+				MemoryBusWidth:    256,                    // bits
+				L2CacheSize:       2048 * 1024,            // 2 MB
+				WarpSize:          32,
+				RegistersPerBlock: 65536,
+			},
+			{
+				ID:                2,
+				Vendor:            "AMD",
+				Device:            "Radeon RX 5700 XT",
+				UUID:              "GPU-87654321-4321-8765-4321-876543218765",
+				Architecture:      "RDNA",
+				ComputeVersion:    "1.0",
+				ProcessorUnits:    40,
+				Cores:             2560,
+				TotalMemory:       8 * 1024 * 1024 * 1024, // 8 GB
+				MaxClockRate:      1905,                   // MHz
+				MemoryClockRate:   14000,                  // MHz
+				MemoryBusWidth:    256,                    // bits
+				L2CacheSize:       4096 * 1024,            // 4 MB
+				WarpSize:          64,
+				RegistersPerBlock: 131072,
 			},
 		},
 	}
 
-	ih := getTestInventoryHost(t)
+	gh := getTestInventoryHost(t)
 
-	p := ih.getPayload().(*Payload)
+	p := gh.getPayload().(*Payload)
 	assert.Equal(t, expectedMetadata, p.Metadata)
 }
 
 func TestGetPayloadError(t *testing.T) {
 	setupHostMetadataErrorMock(t)
 
-	ih := getTestInventoryHost(t)
-
-	p := ih.getPayload().(*Payload)
 	expected := &hostGPUMetadata{
-		devices: []gpuDeviceMetadata{
-			//TODO: fill
-		},
+		Devices: nil,
 	}
+
+	gh := getTestInventoryHost(t)
+	p := gh.getPayload().(*Payload)
 	assert.Equal(t, expected, p.Metadata)
 }
 
 func TestFlareProviderFilename(t *testing.T) {
-	ih := getTestInventoryHost(t)
-	assert.Equal(t, "host.json", ih.FlareFileName)
+	gh := getTestInventoryHost(t)
+	assert.Equal(t, flareFileName, gh.FlareFileName)
 }
