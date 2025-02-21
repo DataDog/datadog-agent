@@ -74,7 +74,7 @@ func getDefaultProvisionerParams() *provisionerParams {
 			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
 		},
 		ami:          gpuEnabledAMI,
-		amiOS:        os.Ubuntu2204,
+		amiOS:        os.Ubuntu2404,
 		instanceType: gpuInstanceType,
 		dockerImages: []string{cudaSanityCheckImage},
 	}
