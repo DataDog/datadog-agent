@@ -282,20 +282,20 @@ func (fh *forwarderHealth) checkValidAPIKey() bool {
 	for domain, apiKeys := range keysPerDomain {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
-			scrubbedApiKey := scrubber.HideKeyExceptLastFiveChars(apiKey)
+			scrubbedAPIKey := scrubber.HideKeyExceptLastFiveChars(apiKey)
 			if err != nil {
 				fh.log.Debugf(
 					"api_key '%s' for domain %s could not be validated: %s",
-					scrubbedApiKey,
+					scrubbedAPIKey,
 					domain,
 					err.Error(),
 				)
 				apiError = true
 			} else if v {
-				fh.log.Debugf("api_key '%s' for domain %s is valid", scrubbedApiKey, domain)
+				fh.log.Debugf("api_key '%s' for domain %s is valid", scrubbedAPIKey, domain)
 				validKey = true
 			} else {
-				fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedApiKey, domain)
+				fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
 			}
 		}
 	}
