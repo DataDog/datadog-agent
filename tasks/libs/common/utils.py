@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -682,6 +683,5 @@ def is_windows():
     return sys.platform == 'win32'
 
 
-def is_installed(ctx, binary) -> bool:
-    res = ctx.run(f"which {binary}", hide=True, warn=True)
-    return res.ok
+def is_installed(binary) -> bool:
+    return shutil.which(binary) is not None
