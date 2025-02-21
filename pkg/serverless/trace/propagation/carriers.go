@@ -291,13 +291,13 @@ func extractTraceContextFromStepFunctionContext(event events.StepFunctionPayload
 
 // extractTraceContextFromNestedStepFunctionContext extracts the root Step Function's execution ARN to generate the Trace ID
 func extractTraceContextFromNestedStepFunctionContext(event events.NestedStepFunctionPayload) (*TraceContext, error) {
-	tc, err := extractTraceContextFromStepFunctionContext(event.Payload)
-	if err == nil {
-		return nil, err
-	}
-
 	if event.RootExecutionID == "" {
 		return nil, errorNoStepFunctionContextFound
+	}
+
+	tc, err := extractTraceContextFromStepFunctionContext(event.Payload)
+	if err != nil {
+		return nil, err
 	}
 
 	lowerTraceID, upperTraceID := stringToDdTraceIDs(event.RootExecutionID)
@@ -309,17 +309,17 @@ func extractTraceContextFromNestedStepFunctionContext(event events.NestedStepFun
 
 // extractTraceContextFromLambdaRootStepFunctionContext extracts the explicitly defined Trace ID and uses that value
 func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRootStepFunctionPayload) (*TraceContext, error) {
-	tc, err := extractTraceContextFromStepFunctionContext(event.Payload)
-	if err == nil {
-		return nil, err
-	}
-
-	if event.TraceID == 0 || event.TraceIDUpper64Hex == "" {
+	if event.TraceID == 0 || event.TraceTags == "" {
 		return nil, errorNoStepFunctionContextFound
 	}
 
+	tc, err := extractTraceContextFromStepFunctionContext(event.Payload)
+	if err != nil {
+		return nil, err
+	}
+
 	tc.TraceID = event.TraceID
-	tc.TraceIDUpper64Hex = event.TraceIDUpper64Hex
+	tc.TraceIDUpper64Hex = parseHigh64Bits(event.TraceTags)
 
 	return tc, nil
 }
@@ -362,4 +362,17 @@ func getPositiveUInt64(hashBytes []byte) uint64 {
 func getHexEncodedString(toEncode uint64) string {
 	//return hex.EncodeToString(hashBytes[:8])
 	return fmt.Sprintf("%x", toEncode) //maybe?
+}
+
+func parseHigh64Bits(traceTags string) string {
+	for _, tag := range strings.Split(traceTags, ",") {
+		if strings.HasPrefix(tag, "_dd.p.tid=") {
+			parts := strings.SplitN(tag, "=", 2)
+			if len(parts) == 2 {
+				return parts[1]
+			}
+		}
+	}
+
+	return ""
 }

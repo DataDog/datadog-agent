@@ -371,6 +371,6 @@ type NestedStepFunctionPayload struct {
 type LambdaRootStepFunctionPayload struct {
 	Payload           StepFunctionPayload
 	TraceID           uint64
-	TraceIDUpper64Hex string
+	TraceTags         string
 	ServerlessVersion string
 }
