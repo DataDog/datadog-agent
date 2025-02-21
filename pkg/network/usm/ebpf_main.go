@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -148,29 +147,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 				},
 			}...)
 		}
-	}
-
-	if rawTracepointsSupported() {
-		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps.
-		mgr.Probes = append(mgr.Probes, []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "raw_tracepoint__sched_process_exit",
-					UID:          probeUID,
-				},
-				TracepointName: "sched_process_exit",
-			},
-		}...)
-	} else {
-		// use a regular tracepoint to intercept terminated threads.
-		mgr.Probes = append(mgr.Probes, []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__sched__sched_process_exit",
-					UID:          probeUID,
-				},
-			},
-		}...)
 	}
 
 	program := &ebpfProgram{
@@ -486,14 +462,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	if rawTracepointsSupported() {
-		// exclude regular tracepoint if kernel supports raw tracepoint
-		options.ExcludedFunctions = append(options.ExcludedFunctions, "tracepoint__sched__sched_process_exit")
-	} else {
-		//exclude a raw tracepoint if kernel does not support it.
-		options.ExcludedFunctions = append(options.ExcludedFunctions, "raw_tracepoint__sched_process_exit")
-	}
-
 	err := e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()
@@ -504,11 +472,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return err
-}
-
-func rawTracepointsSupported() bool {
-	kversion, err := kernel.HostVersion()
-	return err == nil && kversion >= kernel.VersionCode(4, 17, 0)
 }
 
 func getAssetName(module string, debug bool) string {

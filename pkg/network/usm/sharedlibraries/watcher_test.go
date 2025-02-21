@@ -84,7 +84,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		},
 	)
 	require.NoError(t, err)
-	watcher.Start()
+	watcher.Start(nil)
 	t.Cleanup(watcher.Stop)
 
 	// create files
@@ -161,7 +161,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryIgnoreWrite() {
 				},
 			)
 			require.NoError(t, err)
-			watcher.Start()
+			watcher.Start(nil)
 			t.Cleanup(watcher.Stop)
 			// Overriding PID, to allow the watcher to watch the test process
 			watcher.thisPID = 0
@@ -208,7 +208,7 @@ func (s *SharedLibrarySuite) TestLongPath() {
 		},
 	)
 	require.NoError(t, err)
-	watcher.Start()
+	watcher.Start(nil)
 	t.Cleanup(watcher.Stop)
 
 	// create files
@@ -276,7 +276,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionPeriodic() {
 		},
 	)
 	require.NoError(t, err)
-	watcher.Start()
+	watcher.Start(nil)
 	t.Cleanup(watcher.Stop)
 
 	// create files
@@ -370,7 +370,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 		},
 	)
 	require.NoError(t, err)
-	watcher.Start()
+	watcher.Start(nil)
 	t.Cleanup(watcher.Stop)
 
 	time.Sleep(10 * time.Millisecond)
@@ -419,7 +419,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 		},
 	)
 	require.NoError(t, err)
-	watcher.Start()
+	watcher.Start(nil)
 	t.Cleanup(watcher.Stop)
 
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
@@ -465,7 +465,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 		},
 	)
 	require.NoError(t, err)
-	watcher.Start()
+	watcher.Start(nil)
 	t.Cleanup(watcher.Stop)
 
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
@@ -537,7 +537,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	command2, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
 	require.NoError(t, err)
 
-	watcher.Start()
+	watcher.Start(nil)
 	t.Cleanup(watcher.Stop)
 
 	require.Eventually(t, func() bool {
@@ -664,7 +664,7 @@ func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 				},
 			)
 			require.NoError(t, err)
-			watcher.Start()
+			watcher.Start(nil)
 			t.Cleanup(watcher.Stop)
 			// Overriding PID, to allow the watcher to watch the test process
 			watcher.thisPID = 0

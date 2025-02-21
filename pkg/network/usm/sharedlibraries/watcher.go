@@ -9,7 +9,6 @@ package sharedlibraries
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -18,6 +17,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 var (
@@ -74,7 +75,7 @@ type Watcher struct {
 	libHits    *telemetry.Counter
 	libMatches *telemetry.Counter
 
-	ebpfManager *manager.Manager
+	mapsCleaner func(map[uint32]struct{})
 }
 
 // Validate that Watcher implements the Attacher interface.
@@ -212,10 +213,11 @@ func (w *Watcher) handleLibraryOpen(lib LibPath) {
 }
 
 // Start consuming shared-library events
-func (w *Watcher) Start() {
+func (w *Watcher) Start(mapsCleaner func(map[uint32]struct{})) {
 	if w == nil {
 		return
 	}
+	w.mapsCleaner = mapsCleaner
 
 	var err error
 	w.thisPID, err = kernel.RootNSPID()
@@ -352,69 +354,8 @@ func (w *Watcher) sync() {
 		_ = w.registry.Unregister(pid)
 	}
 
-	if w.ebpfManager != nil && rawTracepointsNotSupported() {
-		maps := []string{
-			"ssl_read_args",
-			"ssl_read_ex_args",
-			"ssl_write_args",
-			"ssl_write_ex_args",
-			"ssl_ctx_by_pid_tgid",
-			"bio_new_socket_args",
-		}
-		err := w.CleanDeadPidsInMaps(w.ebpfManager, maps, alivePIDs)
-		if err != nil {
-			log.Debugf("clean 'ssl_read_args' map error: %v", err)
-		}
+	if w.mapsCleaner != nil && features.HaveProgramType(ebpf.RawTracepoint) != nil {
+		// call maps cleaner if raw tracepoints are not supported
+		w.mapsCleaner(alivePIDs)
 	}
-}
-
-// SetEbpfManager assigns eBPF manager
-func (w *Watcher) SetEbpfManager(m *manager.Manager) {
-	if w == nil {
-		return
-	}
-	w.ebpfManager = m
-}
-
-// CleanDeadPidsInMaps finds a map by name and deletes dead processes, used for maps with the key 'u64 pid_tgid'
-func (w *Watcher) CleanDeadPidsInMaps(manager *manager.Manager, mapNames []string, alivePIDs map[uint32]struct{}) error {
-	var errs []error
-	for _, n := range mapNames {
-		err := cleanDeadPidsInMap(manager, n, alivePIDs)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func cleanDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map[uint32]struct{}) error {
-	emap, _, err := manager.GetMap(mapName)
-	if err != nil {
-		return fmt.Errorf("dead process cleaner failed to get map: %q error: %s", emap, err)
-	}
-	iter := emap.Iterate()
-	var keysToDelete []uint64
-	var key uint64
-	value := make([]byte, emap.ValueSize())
-
-	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-		pid := uint32(key >> 32)
-		if _, exists := alivePIDs[pid]; !exists {
-			keysToDelete = append(keysToDelete, key)
-		}
-	}
-	var lastError error
-	for _, k := range keysToDelete {
-		if err := emap.Delete(&k); err != nil {
-			lastError = err
-		}
-	}
-
-	return lastError
-}
-
-func rawTracepointsNotSupported() bool {
-	kversion, err := kernel.HostVersion()
-	return err == nil && kversion < kernel.VersionCode(4, 17, 0)
 }
