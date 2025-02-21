@@ -110,8 +110,8 @@ new-agent_dmg-x64-a7:
   script:
     - echo AWS config
     - which aws
-    - ls ~/.aws/config
-    - cat ~/.aws/config
+    # - ls ~/.aws/config
+    # - cat ~/.aws/config
     - aws configure list
     - aws configure get region
     - exit
