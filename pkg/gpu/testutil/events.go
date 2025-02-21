@@ -47,7 +47,7 @@ func parseCompleteEvent(eventType ebpf.CudaEventType, data []byte) (any, error) 
 	}
 }
 
-// EventsCollection represents a collection of recorded CUDA events from the system-probe
+// EventCollection represents a collection of recorded CUDA events from the system-probe
 // module, as returned by the `gpu/debug/collect-events` endpoint. This struct encapsulates methods to
 // parse, manipulate and display the events.
 type EventCollection struct {
@@ -116,6 +116,8 @@ func (c *EventCollection) headerToString(header *ebpf.CudaEventHeader, prevKtime
 	return fmt.Sprintf("PID/TID: %d/%d | STR: %d | T %6.3f%s", pid, tid, header.Stream_id, tsMsec, diffStr)
 }
 
+// OutputEvents outputs the events in the collection to the given writer, including a summary of
+// grouped events by type for each PID.
 func (c *EventCollection) OutputEvents(writer io.Writer) error {
 	prevKtimeNs := uint64(0)
 
@@ -138,7 +140,7 @@ func (c *EventCollection) OutputEvents(writer io.Writer) error {
 			evStr = fmt.Sprintf("memory %s addr 0x%X size %d", memName, e.Addr, e.Size)
 		case *ebpf.CudaSync:
 			header = &e.Header
-			evStr = fmt.Sprintf("sync event")
+			evStr = "sync event"
 		case *ebpf.CudaSetDeviceEvent:
 			header = &e.Header
 			evStr = fmt.Sprintf("set device event device %d", e.Device)
@@ -186,15 +188,15 @@ type eventGrouper struct {
 	firstTimestampMs  float64
 	lastTimestampMs   float64
 
-	firstEventId int
-	lastEventId  int
+	firstEventID int
+	lastEventID  int
 }
 
 // flushCurrent flushes the current event count to the groups slice
 func (g *eventGrouper) flushCurrent(nextTsMs float64) {
 	if g.currentEventCount > 0 {
 		typeStr := strings.Replace(g.currentEventType.String(), "CudaEventType", "", 1)
-		g.groups = append(g.groups, fmt.Sprintf("%13s x %3d: from %.3f to %.3f (lasts %.3fms) | IDs %d -> %d", typeStr, g.currentEventCount, g.firstTimestampMs, g.lastTimestampMs, g.lastTimestampMs-g.firstTimestampMs, g.firstEventId, g.lastEventId))
+		g.groups = append(g.groups, fmt.Sprintf("%13s x %3d: from %.3f to %.3f (lasts %.3fms) | IDs %d -> %d", typeStr, g.currentEventCount, g.firstTimestampMs, g.lastTimestampMs, g.lastTimestampMs-g.firstTimestampMs, g.firstEventID, g.lastEventID))
 
 		// if the last group was too long ago, print a "INACTIVE" group
 		timeSinceLast := nextTsMs - g.lastTimestampMs
@@ -211,10 +213,10 @@ func (g *eventGrouper) addEvent(eventType ebpf.CudaEventType, tsMsec float64, ev
 		g.currentEventType = eventType
 		g.currentEventCount = 0
 		g.firstTimestampMs = tsMsec
-		g.firstEventId = evNumber
+		g.firstEventID = evNumber
 	}
 
 	g.currentEventCount++
 	g.lastTimestampMs = tsMsec
-	g.lastEventId = evNumber
+	g.lastEventID = evNumber
 }

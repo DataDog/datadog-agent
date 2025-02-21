@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package main is the entry point for the event-viewer utility for visualizing GPU collected events
 package main
 
 import (
