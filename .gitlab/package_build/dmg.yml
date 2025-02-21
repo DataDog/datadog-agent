@@ -110,11 +110,25 @@ new-agent_dmg-x64-a7:
   script:
     - echo AWS config
     - which aws
-    - env | grep -i aws
-    - sudo find ~ -name "*aws*" || true
-    - sudo find /etc -name "*aws*" || true
-    - sudo find /var -name "*aws*" || true
-    - sudo find /usr -name "*aws*" || true
+    - python3 -m venv .venv
+    - . .venv/bin/activate
+    - pip install awscli
+    - aws configure list
+    - aws configure get region
+    -  |
+      instance_id="$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+      association_id="$(aws ec2 describe-iam-instance-profile-associations --filter "Name=instance-id,Values=$instance_id" --query 'IamInstanceProfileAssociations[0].AssociationId' --out text)" || true
+      echo "ASSOCIATION ID (v1): $association_id" || true
+    - aws configure set region us-east-1
+    -  |
+      association_id="$(aws ec2 describe-iam-instance-profile-associations --filter "Name=instance-id,Values=$instance_id" --query 'IamInstanceProfileAssociations[0].AssociationId' --out text)"
+      echo "ASSOCIATION ID (v2): $association_id"
+
+    # - env | grep -i aws
+    # - sudo find ~ -name "*aws*" || true
+    # - sudo find /etc -name "*aws*" || true
+    # - sudo find /var -name "*aws*" || true
+    # - sudo find /usr -name "*aws*" || true
     # - ls ~/.aws/config
     # - cat ~/.aws/config
     # - aws configure list
