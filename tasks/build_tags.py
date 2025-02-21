@@ -63,6 +63,7 @@ ALL_TAGS = {
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
+    "bundle_installer",
     "consul",
     "containerd",
     "no_dynamic_plugins",
