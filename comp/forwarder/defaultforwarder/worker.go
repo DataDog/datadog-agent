@@ -90,10 +90,18 @@ func NewWorker(
 
 // NewHTTPClient creates a new http.Client
 func NewHTTPClient(config config.Component) *http.Client {
-	var transport http.RoundTripper
-	if config.GetBool("forwarder_force_h2c") {
-		transport = httputils.CreateH2CTransport(config)
-	} else {
+	var transport *http.Transport
+
+	transportConfig := config.Get("forwarder_http_protocol")
+
+	switch transportConfig {
+	case "http1":
+		transport = httputils.CreateHTTPTransport(config, func(t *http.Transport) {
+			t.MaxConnsPerHost = 1
+		})
+	case "auto":
+		fallthrough
+	default:
 		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), func(t *http.Transport) {
 			t.MaxConnsPerHost = 1
 		})
