@@ -80,7 +80,7 @@ RUN . venv/bin/activate && invoke otel-agent.build
 FROM alpine:3.21.3
 
 # Install gcompat to get glibc compatibility
-RUN apk add gcompat=1.1.0-r4
+RUN apk add gcompat=1.1.0-r4 zlib=1.3.1-r2
 
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
