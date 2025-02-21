@@ -74,7 +74,7 @@ func TestGetConfDump(t *testing.T) {
 	}
 
 	t.Run("provided-string", func(t *testing.T) {
-		actualString, _ := ext.configStore.getProvidedConfAsString()
+		actualString := ext.configStore.getProvidedConf()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
 
@@ -87,11 +87,8 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("provided-confmap", func(t *testing.T) {
-		actualConfmap, _ := ext.configStore.getProvidedConf()
-		// marshal to yaml and then to map to drop the types for comparison
-		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
-		assert.NoError(t, err)
-		actualStringMap, err := yamlBytesToMap(bytesConf)
+		providedConf := ext.configStore.getProvidedConf()
+		actualStringMap, err := yamlBytesToMap([]byte(providedConf))
 		assert.NoError(t, err)
 
 		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-provided-result.yaml")
@@ -119,7 +116,7 @@ func TestGetConfDump(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("enhanced-string", func(t *testing.T) {
-		actualString, _ := ext.configStore.getEnhancedConfAsString()
+		actualString := ext.configStore.getEnhancedConf()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
 
@@ -132,11 +129,8 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("enhance-confmap", func(t *testing.T) {
-		actualConfmap, _ := ext.configStore.getEnhancedConf()
-		// marshal to yaml and then to map to drop the types for comparison
-		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
-		assert.NoError(t, err)
-		actualStringMap, err := yamlBytesToMap(bytesConf)
+		actualConfmap := ext.configStore.getEnhancedConf()
+		actualStringMap, err := yamlBytesToMap([]byte(actualConfmap))
 		assert.NoError(t, err)
 
 		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-enhanced-result.yaml")

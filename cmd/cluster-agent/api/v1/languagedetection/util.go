@@ -66,6 +66,37 @@ func newOwnersLanguages() *OwnersLanguages {
 	}
 }
 
+// String returns the current state of the owners languages including the detected languages
+// and whether they are dirty or not.
+// This method is thread-safe.
+func (ownersLanguages *OwnersLanguages) String() string {
+	if ownersLanguages == nil {
+		return ""
+	}
+
+	ownersLanguages.mutex.Lock()
+	defer ownersLanguages.mutex.Unlock()
+
+	state := ""
+	for owner, langs := range ownersLanguages.containersLanguages {
+		state += fmt.Sprintf("===== %s/%s/%s ====\n", owner.Namespace, owner.Kind, owner.Name)
+		if langs.dirty {
+			state += "dirty\n"
+		} else {
+			state += "clean\n"
+		}
+
+		for container, languageSet := range langs.languages {
+			state += container.Name + ": "
+			for languagename := range languageSet {
+				state += fmt.Sprintf("%s,", languagename)
+			}
+			state += "\n"
+		}
+	}
+	return state
+}
+
 // getOrInitialize returns the containers languages for a specific namespaced owner, initialising it if it doesn't already
 // exist.
 // This method is not thread-safe.
@@ -96,7 +127,6 @@ func (ownersLanguages *OwnersLanguages) flush(wlm workloadmeta.Component) error 
 	pushErrors := make([]error, 0)
 
 	for owner, containersLanguages := range ownersLanguages.containersLanguages {
-
 		// Skip if not dirty
 		if !containersLanguages.dirty {
 			continue

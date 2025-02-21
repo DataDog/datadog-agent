@@ -210,6 +210,8 @@ const (
 	UDPPortBindingsMap BPFMapName = "udp_port_bindings"
 	// TelemetryMap is the map storing telemetry data
 	TelemetryMap BPFMapName = "telemetry"
+	// TCPFailureTelemetry is the map storing telemetry for TCP Failures
+	TCPFailureTelemetry BPFMapName = "tcp_failure_telemetry"
 	// ConnCloseBatchMap is the map storing connection close batch events
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
 	// ConntrackMap is the map storing conntrack entries

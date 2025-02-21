@@ -30,23 +30,23 @@ from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
-    clone,
     get_default_branch,
     get_git_references,
     get_last_commit,
     get_last_release_tag,
     is_agent6,
-    set_git_config,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import running_in_github_actions, set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
     load_and_validate,
     warn_new_commits,
+    warn_new_tags,
 )
 from tasks.libs.releasing.documentation import (
     create_release_page,
@@ -66,6 +66,7 @@ from tasks.libs.releasing.json import (
     set_new_release_branch,
     update_release_json,
 )
+from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
     FINAL_VERSION_RE,
     MINOR_RC_VERSION_RE,
@@ -206,6 +207,7 @@ def tag_modules(
 
         if push:
             tags_list = ' '.join(tags)
+            set_gitconfig_in_ci(ctx)
             for idx in range(0, len(tags), TAG_BATCH_SIZE):
                 batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
                 ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
@@ -250,6 +252,7 @@ def tag_version(
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
+        set_gitconfig_in_ci(ctx)
         # create or update the qualification tag using the force option (points tag to next RC)
         if is_agent6(ctx) and (start_qual or is_qualification(ctx, "6.53.x")):
             if FINAL_VERSION_RE.match(agent_version):
@@ -323,6 +326,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
         commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
 
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(ctx, f"git commit -m {commit_message}")
         if not ok:
             raise Exit(
@@ -333,7 +337,24 @@ def finish(ctx, release_branch, upstream="origin"):
                 code=1,
             )
 
-        # Step 4: Push branch and create PR
+        # Step 4: Add release changelog preludes
+        print(color_message("Adding Agent release changelog prelude", "bold"))
+        _add_prelude(ctx, str(new_version))
+
+        print(color_message("Adding DCA release changelog prelude", "bold"))
+        _add_dca_prelude(ctx, str(new_version))
+
+        ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        # Step 5: Push branch and create PR
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
         if res.exited is None or res.exited > 0:
@@ -346,7 +367,7 @@ def finish(ctx, release_branch, upstream="origin"):
             )
 
         create_release_pr(
-            f"Final updates for release.json and Go modules for {new_version} release",
+            f"Final updates for release.json and Go modules for {new_version} release + preludes",
             release_branch,
             final_branch,
             new_version,
@@ -394,12 +415,6 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
-        github_action = os.environ.get("GITHUB_ACTIONS")
-
-        if github_action:
-            set_git_config('user.name', 'github-actions[bot]')
-            set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
-            upstream = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{GITHUB_REPO_NAME}.git"
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
@@ -420,7 +435,10 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         check_clean_branch_state(ctx, github, update_branch)
         active_releases = [branch.name for branch in github.latest_unreleased_release_branches()]
-        if not any(check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases):
+        # Bypass if we want to cut a patch release, in that case the branch is not considered "active"
+        if not patch_version and not any(
+            check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases
+        ):
             raise Exit(
                 color_message(
                     f"The branch you are on is neither {get_default_branch()} or amongst the active release branches ({active_releases}). Aborting.",
@@ -454,10 +472,10 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git add release.json")
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(
             ctx,
             f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
-            github_action,
         )
         if not ok:
             raise Exit(
@@ -584,7 +602,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
-        run_rc_pipeline(ctx, release_branch, gitlab_tag.name, k8s_deployments)
+        run_rc_pipeline(ctx, gitlab_tag.name, k8s_deployments)
 
 
 def get_qualification_rc_tag(ctx, release_branch):
@@ -605,10 +623,7 @@ def get_qualification_rc_tag(ctx, release_branch):
 
 
 @task
-def run_rc_pipeline(ctx, release_branch, gitlab_tag=None, k8s_deployments=False):
-    if not gitlab_tag:
-        gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
-
+def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
     run(
         ctx,
         git_ref=gitlab_tag,
@@ -618,6 +633,15 @@ def run_rc_pipeline(ctx, release_branch, gitlab_tag=None, k8s_deployments=False)
         rc_build=True,
         rc_k8s_deployments=k8s_deployments,
     )
+
+
+@task
+def alert_ci_on_call(ctx, release_branch, slack_webhook):
+    gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
+    payload = {
+        'message': f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ninv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
+    }
+    send_slack_msg(ctx, payload, slack_webhook)
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
@@ -673,6 +697,7 @@ def create_and_update_release_branch(
         # Step 2 - Push newly created release branch to the remote repository
 
         print(color_message("Pushing new branch to the upstream repository", "bold"))
+        set_gitconfig_in_ci(ctx)
         res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
         if res.exited is None or res.exited > 0:
             raise Exit(
@@ -863,6 +888,7 @@ def cleanup(ctx, release_branch):
         ctx.run("git add release.json")
 
         commit_message = f"Update last_stable to {version}"
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
         if not ok:
             raise Exit(
@@ -1050,12 +1076,12 @@ def get_next_version(gh, latest_release=None):
 
 
 @task
-def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     """Task to run after the release is done to generate release metrics.
 
     Args:
         milestone: Github milestone number for the release. Expected format like '7.54.0'
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cutoff was started. Expected format YYYY-MM-DD, like '2022-02-01'
         release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
 
     Notes:
@@ -1064,17 +1090,20 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     """
 
     # Step 1: Lead Time for Changes data
-    lead_time = get_release_lead_time(freeze_date, release_date)
+    lead_time = get_release_lead_time(cutoff_date, release_date)
     print("Lead Time for Changes data")
     print("--------------------------")
     print(lead_time)
 
     # Step 2: Agent stability data
-    prs = get_prs_metrics(milestone, freeze_date)
+    prs = get_prs_metrics(milestone, cutoff_date)
     print("\n")
-    print("Agent stability data")
+    print("Agent stability data: Pull Requests")
     print("--------------------")
-    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    print(
+        f"total: {prs['total']}, before_cutoff: {prs['before_cutoff']}, on_cutoff: {prs['on_cutoff']}, after_cutoff: {prs['after_cutoff']}"
+    )
 
     # Step 3: Code changes
     code_stats = ctx.run(
@@ -1119,7 +1148,7 @@ def chase_release_managers(_, version):
 
     from slack_sdk import WebClient
 
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     for channel in sorted(channels):
         print(f"Sending message to {channel}")
         client.chat_postMessage(channel=channel, text=message)
@@ -1138,7 +1167,7 @@ def chase_for_qa_cards(_, version):
         grouped_cards[card["fields"]["project"]["key"]].append(card)
     GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
     GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
         team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
@@ -1160,6 +1189,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
         next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
         changes = 'false'
+        message = [f":warning: Please add the `{next_version}` tag on the head of `{release_branch}` for:\n"]
         for repo_name, repo in repo_data.items():
             head_commit = get_last_commit(ctx, repo_name, repo['branch'])
             last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
@@ -1172,11 +1202,9 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                     warn_new_commits(emails, team, repo['branch'], next_version)
                 else:
                     if repo_name not in ["datadog-agent", "integrations-core"]:
-                        with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):
-                            # We can add the new commit now to be used by release candidate creation
-                            print(f"Creating new tag {next_version} on {repo_name}", file=sys.stderr)
-                            ctx.run(f"git tag {next_version}")
-                            ctx.run(f"git push origin tag {next_version}")
+                        message.append(
+                            f" - <https://github.com/DataDog/{repo_name}/commits/{release_branch}/|{repo_name}>\n"
+                        )
                 # This repo has changes, the next check is not needed
                 continue
             if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
@@ -1185,6 +1213,10 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                     f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
                     file=sys.stderr,
                 )
+        # Notify the release manager if there are changes
+        if len(message) > 1:
+            message.append("Make sure to tag them before merging the next RC PR.")
+            warn_new_tags("".join(message))
         # Send a value for the create_rc_pr.yml workflow
         print(changes)
 
@@ -1350,13 +1382,10 @@ def bump_integrations_core(ctx, slack_webhook=None):
     Create a PR to bump the integrations core fields in the release.json file
     """
     github_workflow_url = ""
-    if os.environ.get("GITHUB_ACTIONS"):
-        set_git_config('user.name', 'github-actions[bot]')
-        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
-        github_server_url = os.environ.get("GITHUB_SERVER_URL")
-        github_run_id = os.environ.get("GITHUB_RUN_ID")
-        github_workflow_url = f"{github_server_url}/{GITHUB_REPO_NAME}/actions/runs/{github_run_id}"
-
+    if running_in_github_actions():
+        github_workflow_url = (
+            f"{os.environ.get('GITHUB_SERVER_URL')}/{GITHUB_REPO_NAME}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}"
+        )
     commit_hash = get_git_references(ctx, "integrations-core", "HEAD").split()[0]
 
     rj = load_release_json()
@@ -1372,6 +1401,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
     ctx.run("git add release.json")
 
     commit_message = "bump integrations core to HEAD"
+    set_gitconfig_in_ci(ctx)
     ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
     if not ok:
         raise Exit(
@@ -1395,6 +1425,7 @@ def bump_integrations_core(ctx, slack_webhook=None):
     current = current_version(ctx, 7)
     current.rc = False
     current.devel = False
+    current.patch = 0
     pr_url = create_datadog_agent_pr(
         commit_message, main_branch, bump_integrations_core_branch, str(current), body=github_workflow_url
     )

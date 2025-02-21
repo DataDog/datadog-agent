@@ -576,6 +576,8 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		name = nameMeta.Name
 	}
 
+	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
+
 	return &serviceInfo{
 		name:                     name,
 		generatedName:            nameMeta.Name,
@@ -585,7 +587,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		language:                 lang,
 		apmInstrumentation:       apmInstrumentation,
 		ddServiceInjected:        nameMeta.DDServiceInjected,
-		cmdLine:                  sanitizeCmdLine(s.scrubber, cmdline),
+		cmdLine:                  truncateCmdline(lang, cmdline),
 		startTimeMilli:           uint64(createTime),
 	}, nil
 }

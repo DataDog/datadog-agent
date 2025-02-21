@@ -13,13 +13,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"io"
 	"net"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
@@ -582,9 +583,9 @@ func (p *EBPFLessProbe) Snapshot() error {
 	return nil
 }
 
-// Setup the probe
-func (p *EBPFLessProbe) Setup() error {
-	return nil
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFLessProbe) Walk(callback func(*model.ProcessCacheEntry)) {
+	p.Resolvers.ProcessResolver.Walk(callback)
 }
 
 // OnNewDiscarder handles discarders
