@@ -33,7 +33,7 @@
 # context
 .docker_build_artifact:
   before_script:
-    - mv $OMNIBUS_PACKAGE_DIR/*.xz $BUILD_CONTEXT
+    - ls $OMNIBUS_PACKAGE_DIR/*.xz | grep -v -- -dbg- | xargs -I '{}' mv '{}' $BUILD_CONTEXT/
 
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
