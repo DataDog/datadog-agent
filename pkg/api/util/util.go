@@ -155,7 +155,7 @@ func GetTLSClientConfig() *tls.Config {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	if initSource == uninitialized {
-		log.Errorf("GetTLSClientConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
+		log.Warn("GetTLSClientConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function)")
 	}
 	return clientTLSConfig.Clone()
 }
@@ -165,7 +165,7 @@ func GetTLSServerConfig() *tls.Config {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	if initSource == uninitialized {
-		log.Errorf("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function), generating a self-signed certificate")
+		log.Warn("GetTLSServerConfig was called before being initialized (through SetAuthToken or CreateAndSetAuthToken function), generating a self-signed certificate")
 		config, err := generateSelfSignedCert()
 		if err != nil {
 			log.Error(err.Error())
