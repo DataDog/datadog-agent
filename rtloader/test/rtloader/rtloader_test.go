@@ -288,13 +288,24 @@ fake_check.foo = False`,
 fake_check.foo = "bar"`,
 			success: false,
 			value:   false,
+		}, {
+			name: "Test with a None attribute",
+			code: `import fake_check
+fake_check.foo = None`,
+			success: false,
+			value:   false,
+		}, {
+			name:    "Test with a non-existing attribute",
+			code:    `import fake_check`,
+			success: false,
+			value:   false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := runString(tt.code); err != nil {
-				t.Fatalf("`TestGetAttrBool` error resetting was_canceled: %v", err)
+				t.Fatalf("`TestGetAttrBool` error running code for test case: %v", err)
 			}
 
 			res, err := getFakeModuleWithBool()
