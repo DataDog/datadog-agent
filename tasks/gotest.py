@@ -808,7 +808,7 @@ def get_go_module(path):
     while path != '/':
         go_mod_path = os.path.join(path, 'go.mod')
         if os.path.isfile(go_mod_path):
-            return os.path.relpath(path)
+            return normpath(os.path.relpath(path))
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
 
