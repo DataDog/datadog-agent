@@ -258,7 +258,8 @@ func TestCollection(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			overrides := map[string]interface{}{
-				"language_detection.enabled": true,
+				"language_detection.enabled":               true,
+				"process_config.run_in_core_agent.enabled": false,
 			}
 
 			// We do not inject any collectors here; we instantiate
