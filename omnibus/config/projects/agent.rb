@@ -261,6 +261,15 @@ elsif do_package
   dependency "init-scripts-agent"
 end
 
+# version manifest is based on the built softwares.
+# When packaging, we only build 2, which causes very incomplete manifests
+# to be generated. However, we build correct ones during the build stage, which
+# gets extracted in the correct location in the "package-artifacts" recipe.
+# By disabling manifest generation during packaging jobs, we ensure the manifest we
+# will package is the correct one
+disable_version_manifest do_package
+
+
 if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
