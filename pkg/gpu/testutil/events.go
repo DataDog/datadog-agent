@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && test
 
 package testutil
 
@@ -106,6 +106,7 @@ func (c *EventCollection) headerToString(header *ebpf.CudaEventHeader, prevKtime
 
 	var diffStr string
 	if prevKtimeNs != 0 {
+		// Print delta with the previous event, in milliseconds with 3 decimal points
 		diff := header.Ktime_ns - prevKtimeNs
 		diffStr = fmt.Sprintf(" (%+6.3fms)", float64(diff)/1e6)
 	}
@@ -113,7 +114,7 @@ func (c *EventCollection) headerToString(header *ebpf.CudaEventHeader, prevKtime
 	// Output timestamps relative to the start of the first event, it makes it easier to understand
 	tsMsec := float64(header.Ktime_ns-c.firstKtimeNs) / 1e6
 
-	return fmt.Sprintf("PID/TID: %d/%d | STR: %d | T %6.3f%s", pid, tid, header.Stream_id, tsMsec, diffStr)
+	return fmt.Sprintf("PID/TID: %d/%d | Stream ID: %d | Time %6.3f%s", pid, tid, header.Stream_id, tsMsec, diffStr)
 }
 
 // OutputEvents outputs the events in the collection to the given writer, including a summary of
