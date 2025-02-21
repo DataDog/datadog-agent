@@ -156,7 +156,3 @@ func (t *replayTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo
 func (t *replayTagger) ChecksCardinality() types.TagCardinality {
 	return types.LowCardinality
 }
-
-func (t *replayTagger) DogstatsdCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
