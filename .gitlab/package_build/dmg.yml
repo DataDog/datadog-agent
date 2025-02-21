@@ -33,59 +33,115 @@ agent_dmg-x64-a7:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
-custom-homebrew:
+.runner_setup_custom_homebrew:
+  # TODO: Do it in runner
+  - |
+    export HOMEBREW_VERSION=4.4.21
+    export PKG_CONFIG_VERSION=0.29.2
+    export RUBY_VERSION=2.7.4
+    export BUNDLER_VERSION=2.3.18
+    export PYTHON_VERSION=3.12.6
+    export RUST_VERSION=1.74.0
+    export RUSTUP_VERSION=1.25.1
+    export CMAKE_VERSION=3.30.2
+    export GIMME_VERSION=1.5.4
+    export GPG_VERSION=1.4.23
+    export CODECOV_VERSION=v0.6.1
+    export OPENSSL_VERSION=1.1
+  - |
+    echo Setup env
+    mkdir bin
+    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true"
+    for binary in $binaries; do
+      echo Using $binary
+      ln -s "$(which $binary)" bin/$binary
+    done
+  - |
+    echo Setup homebrew
+    mkdir homebrew
+    curl -L https://github.com/Homebrew/brew/tarball/$HOMEBREW_VERSION | tar xz --strip-components 1 -C homebrew
+    # Enable custom env
+    PATH="$PWD/bin"
+    eval "$(homebrew/bin/brew shellenv)"
+    brew update --force
+    # TODO A: Necessary?
+    chmod -R go-w "$(brew --prefix)/share/zsh"
+    brew tap DataDog/datadog-agent-macos-build
+  # TODO A
+  - set +e
+  - |
+    echo Install cmake
+    brew install DataDog/datadog-agent-macos-build/cmake@$CMAKE_VERSION -f
+    brew link --overwrite cmake@$CMAKE_VERSION
+  - |
+    echo Install pkg-config
+    brew install DataDog/datadog-agent-macos-build/pkg-config@$PKG_CONFIG_VERSION -f
+    brew link --overwrite pkg-config@$PKG_CONFIG_VERSION
+  # TODO A: Not the proper path
+  - |
+    brew install DataDog/datadog-agent-macos-build/gnupg@$GPG_VERSION -f
+    brew link --overwrite gnupg@$GPG_VERSION
+    # # Adding gpgbin to the PATH to be able to call gpg and gpgv
+    # echo 'export PATH="/usr/local/opt/gnupg@1.4.23/libexec/gpgbin:$PATH"' >>~/.zshrc
+    which gpg || true
+  - |
+    echo Install openssl
+    brew install -v DataDog/datadog-agent-macos-build/openssl@$OPENSSL_VERSION -f
+    brew link --overwrite openssl@$OPENSSL_VERSION
+  - |
+    echo Install ruby
+    brew install DataDog/datadog-agent-macos-build/ruby@$RUBY_VERSION -f
+    brew link --overwrite ruby@$RUBY_VERSION
+    gem install bundler -v $BUNDLER_VERSION -f
+  - |
+    echo Install python
+    brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
+    brew link --overwrite python@$PYTHON_VERSION
+    # TODO A
+    # echo 'export PATH="/usr/local/opt/python@'"$PYTHON_VERSION"'/libexec/bin:$PATH"' >>~/.zshrc
+    # TODO
+    which python3 || true
+    python3 --version || true
+  # TODO A: Install rust on amd64
+  # curl -sSL -o rustup-init https://static.rust-lang.org/rustup/archive/$RUSTUP_VERSION/x86_64-apple-darwin/rustup-init &&
+  #     chmod +x ./rustup-init &&
+  #     ./rustup-init -y --profile minimal --default-toolchain $RUST_VERSION &&
+  #     rm ./rustup-init
+  # TODO A: Install in homebrew env
+  - |
+    echo Install rust on arm64
+    mkdir -p rust/cargo rust/rustup
+    export CARGO_HOME="$PWD/rust/cargo"
+    export RUSTUP_HOME="$PWD/rust/rustup"
+    curl -sSL -o rustup-init https://static.rust-lang.org/rustup/archive/$RUSTUP_VERSION/aarch64-apple-darwin/rustup-init
+    chmod +x ./rustup-init
+    ./rustup-init -y --profile minimal --default-toolchain $RUST_VERSION
+    rm ./rustup-init
+    export PATH="$CARGO_HOME/bin:$RUSTUP_HOME/bin:$PATH"
+    which cargo
+    which rustc
+  - |
+    echo Install gimme
+    brew install DataDog/datadog-agent-macos-build/gimme@$GIMME_VERSION -f
+    brew link --overwrite gimme@$GIMME_VERSION
+  # TODO A
+  - set -e
+
+new-agent_dmg-x64-a7:
   stage: package_build
-  # extends: .macos_gitlab
-  tags: ["macos:ventura-amd64-test", "specific:true"]
-  # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
+  extends: .macos_gitlab
+  # tags: ["macos:ventura-amd64-test", "specific:true"]
+  tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
-  # timeout: 6h
-  # artifacts:
-  #   expire_in: 2 weeks
-  #   paths:
+  timeout: 6h
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - /tmp/celian
   script:
     - set -e
-    # TODO: Do it in runner
+    - !reference [.runner_setup_custom_homebrew]
+    - !reference [.vault_login]
     - |
-      export HOMEBREW_VERSION=4.4.21
-      export PKG_CONFIG_VERSION=0.29.2
-      export RUBY_VERSION=2.7.4
-      export BUNDLER_VERSION=2.3.18
-      export PYTHON_VERSION=3.12.6
-      export RUST_VERSION=1.74.0
-      export RUSTUP_VERSION=1.25.1
-      export CMAKE_VERSION=3.30.2
-      export GIMME_VERSION=1.5.4
-      export GPG_VERSION=1.4.23
-      export CODECOV_VERSION=v0.6.1
-      export OPENSSL_VERSION=1.1
-    - |
-      echo Setup env
-      mkdir bin
-      binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true"
-      for binary in $binaries; do
-        echo Using $binary
-        ln -s "$(which $binary)" bin/$binary
-      done
-    - |
-      echo Setup homebrew
-      mkdir homebrew
-      curl -L https://github.com/Homebrew/brew/tarball/$HOMEBREW_VERSION | tar xz --strip-components 1 -C homebrew
-      # Enable custom env
-      PATH="$PWD/bin"
-      eval "$(homebrew/bin/brew shellenv)"
-      brew update --force
-      chmod -R go-w "$(brew --prefix)/share/zsh"
-      brew tap DataDog/datadog-agent-macos-build
-    - |
-      echo Install cmake
-      brew install DataDog/datadog-agent-macos-build/cmake@$CMAKE_VERSION -f
-      brew link --overwrite cmake@$CMAKE_VERSION
-    - |
-      echo Install pkg-config
-      brew install DataDog/datadog-agent-macos-build/pkg-config@$PKG_CONFIG_VERSION -f
-      brew link --overwrite pkg-config@$PKG_CONFIG_VERSION
-    - |
-      echo Install python
-      brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
-      brew link --overwrite python@$PYTHON_VERSION
+      echo Starting build script
+      bash .gitlab/package_build/build.sh
