@@ -75,7 +75,7 @@ collect_bgp_neighbor_states: true
 `)
 
 	// Use ID to ensure the mock sender gets registered
-	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, "test", rawInstanceConfig, []byte(``))
 	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -296,7 +296,7 @@ namespace: test
 `)
 
 	// Use ID to ensure the mock sender gets registered
-	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, "test", rawInstanceConfig, []byte(``))
 	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -357,7 +357,7 @@ collect_cloud_applications_metrics: false
 `)
 
 	// Use ID to ensure the mock sender gets registered
-	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, "test", rawInstanceConfig, []byte(``))
 	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

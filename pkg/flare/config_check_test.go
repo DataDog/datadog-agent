@@ -28,12 +28,15 @@ const (
 
 func TestPrintConfigCheck(t *testing.T) {
 	integrationConfigCheckResponse := integration.ConfigCheckResponse{
-		Configs: []integration.Config{
+		Configs: []integration.ConfigResponse{
 			{
-				Instances:    []integration.Data{integration.Data("{foo:bar}")},
-				InitConfig:   integration.Data("{baz:qux}"),
-				LogsConfig:   integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
-				MetricConfig: integration.Data("[{\"metric\":\"some_metric\"}]"),
+				InstanceIDs: []string{":3c3de4a3617771b4"},
+				Config: integration.Config{
+					Instances:    []integration.Data{integration.Data("{foo:bar}")},
+					InitConfig:   integration.Data("{baz:qux}"),
+					LogsConfig:   integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
+					MetricConfig: integration.Data("[{\"metric\":\"some_metric\"}]"),
+				},
 			},
 		},
 		ConfigErrors: map[string]string{
@@ -200,7 +203,7 @@ func TestContainerExclusionRulesInfo(t *testing.T) {
 			config := newConfig(test.configType, test.excluded)
 
 			var result bytes.Buffer
-			PrintConfig(&result, config, "")
+			PrintConfigWithInstanceIDs(&result, config, []string{}, "")
 
 			if test.expectMsg {
 				assert.Contains(t, result.String(), outputMsgs[test.configType])
