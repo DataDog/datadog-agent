@@ -74,9 +74,6 @@ else
     dependency 'datadog-agent-finalize'
   end
 
-  # version manifest file
-  dependency 'version-manifest'
-
   do_package = false
 end
 

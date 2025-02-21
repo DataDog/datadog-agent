@@ -73,7 +73,7 @@ func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.
 	}
 	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
-	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
+	c.opts = sbom.ScanOptionsFromConfigForContainers(cfg)
 	return nil
 }
 

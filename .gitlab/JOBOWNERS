@@ -36,6 +36,7 @@ golang_deps_commenter                @DataDog/ebpf-platform
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
+cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 build_serverless*                    @DataDog/serverless
 build_windows_container_entrypoint   @DataDog/windows-agent

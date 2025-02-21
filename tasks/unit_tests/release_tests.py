@@ -772,6 +772,7 @@ class TestCheckForChanges(unittest.TestCase):
         release.check_for_changes(c, "main")
         print_mock.assert_called_with("false")
 
+    @patch('slack_sdk.WebClient', autospec=True)
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
@@ -787,14 +788,15 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
-    @patch.dict(os.environ, {'GITLAB_CI': 'true', 'GITHUB_ACTIONS': 'true'})
+    @patch.dict(os.environ, {'GITLAB_CI': 'true', 'GITHUB_ACTIONS': 'true', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'slock'})
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_first_repo(self, version_mock, print_mock, _):
+    def test_changes_new_commit_first_repo(self, version_mock, print_mock, _, web_mock):
         with mock_git_clone():
-            next = MagicMock()
+            next, client_mock = MagicMock(), MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
             next.__str__.return_value = "7.55.0-rc.2"
             version_mock.return_value = next
+            web_mock.return_value = client_mock
             c = MockContext(
                 run={
                     'git rev-parse --abbrev-ref HEAD': Result("main"),
@@ -849,12 +851,15 @@ class TestCheckForChanges(unittest.TestCase):
             release.check_for_changes(c, "main")
             calls = [
                 call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on omnibus-software", file=sys.stderr),
                 call("true"),
             ]
             print_mock.assert_has_calls(calls)
-            self.assertEqual(print_mock.call_count, 3)
+            client_mock.chat_postMessage.assert_called_once_with(
+                channel="#agent-release-sync",
+                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `main` for:\n - <https://github.com/DataDog/omnibus-software/commits/main/|omnibus-software>\nMake sure to tag them before merging the next RC PR.",
+            )
 
+    @patch('slack_sdk.WebClient', autospec=True)
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
@@ -871,13 +876,14 @@ class TestCheckForChanges(unittest.TestCase):
         ),
     )
     @patch('os.chdir', new=MagicMock())
-    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})
-    def test_changes_new_commit_all_repo(self, version_mock, print_mock, _):
+    @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'slick'})
+    def test_changes_new_commit_all_repo(self, version_mock, print_mock, _, web_mock):
         with mock_git_clone():
-            next = MagicMock()
+            next, client_mock = MagicMock(), MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
             next.__str__.return_value = "7.55.0-rc.2"
             version_mock.return_value = next
+            web_mock.return_value = client_mock
             c = MockContext(
                 run={
                     'git rev-parse --abbrev-ref HEAD': Result("main"),
@@ -930,17 +936,17 @@ class TestCheckForChanges(unittest.TestCase):
             release.check_for_changes(c, "main")
             calls = [
                 call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on omnibus-software", file=sys.stderr),
                 call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on omnibus-ruby", file=sys.stderr),
                 call("datadog-agent-macos-build has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on datadog-agent-macos-build", file=sys.stderr),
                 call("integrations-core has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("datadog-agent has new commits since 7.55.0-devel", file=sys.stderr),
                 call("true"),
             ]
             print_mock.assert_has_calls(calls)
-            self.assertEqual(print_mock.call_count, 9)
+            client_mock.chat_postMessage.assert_called_once_with(
+                channel="#agent-release-sync",
+                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `main` for:\n - <https://github.com/DataDog/omnibus-software/commits/main/|omnibus-software>\n - <https://github.com/DataDog/omnibus-ruby/commits/main/|omnibus-ruby>\n - <https://github.com/DataDog/datadog-agent-macos-build/commits/main/|datadog-agent-macos-build>\nMake sure to tag them before merging the next RC PR.",
+            )
 
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
@@ -1008,6 +1014,7 @@ class TestCheckForChanges(unittest.TestCase):
         print_mock.assert_has_calls(calls, any_order=True)
         self.assertEqual(print_mock.call_count, 2)
 
+    @patch('slack_sdk.WebClient', autospec=True)
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
@@ -1023,14 +1030,15 @@ class TestCheckForChanges(unittest.TestCase):
             }
         ),
     )
-    @patch.dict(os.environ, {'GITLAB_CI': 'true', 'GITHUB_ACTIONS': 'true'})
+    @patch.dict(os.environ, {'GITLAB_CI': 'true', 'GITHUB_ACTIONS': 'true', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'sluck'})
     @patch('os.chdir', new=MagicMock())
-    def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock, _):
+    def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock, _, web_mock):
         with mock_git_clone():
-            next = MagicMock()
+            next, client_mock = MagicMock(), MagicMock()
             next.tag_pattern.return_value = "7.55.0*"
             next.__str__.return_value = "7.55.0-rc.2"
             version_mock.return_value = next
+            web_mock.return_value = client_mock
             c = MockContext(
                 run={
                     'git rev-parse --abbrev-ref HEAD': Result("main"),
@@ -1085,11 +1093,13 @@ class TestCheckForChanges(unittest.TestCase):
             release.check_for_changes(c, "7.55.x")
             calls = [
                 call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("Creating new tag 7.55.0-rc.2 on omnibus-ruby", file=sys.stderr),
                 call("true"),
             ]
             print_mock.assert_has_calls(calls)
-            self.assertEqual(print_mock.call_count, 3)
+            client_mock.chat_postMessage.assert_called_once_with(
+                channel="#agent-release-sync",
+                text=":warning: Please add the `7.55.0-rc.2` tag on the head of `7.55.x` for:\n - <https://github.com/DataDog/omnibus-ruby/commits/7.55.x/|omnibus-ruby>\nMake sure to tag them before merging the next RC PR.",
+            )
 
     # def test_no_changes_warning(self, print_mock):
     @patch('tasks.release.agent_context')
