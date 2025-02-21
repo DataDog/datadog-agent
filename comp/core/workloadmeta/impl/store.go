@@ -592,19 +592,21 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		// next tick
 		delete(w.candidates, id)
 	}
-	w.collectorsInited = wmdef.CollectorsStarting
+	if w.collectorsInited == wmdef.CollectorsNotStarted {
+		w.collectorsInited = wmdef.CollectorsStarting
+	}
 	return len(w.candidates) == 0
 }
 
 func (w *workloadmeta) updateCollectorStatus(status wmdef.CollectorStatus) {
 	w.collectorMut.Lock()
-	defer w.collectorMut.Unlock()
 	if w.collectorsInited == wmdef.CollectorsInitialized {
 		return // already initialized
 	} else if status == wmdef.CollectorsInitialized && w.collectorsInited == wmdef.CollectorsNotStarted {
 		return // no collectors to initialize yet
 	}
 	w.collectorsInited = status
+	w.collectorMut.Unlock()
 }
 
 func (w *workloadmeta) pull(ctx context.Context) {
