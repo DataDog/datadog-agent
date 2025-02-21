@@ -17,6 +17,7 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
+    "bundle_installer",
     "clusterchecks",
     "consul",
     "containerd",
