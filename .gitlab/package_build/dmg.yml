@@ -62,7 +62,7 @@ custom-homebrew:
     - |
       echo Setup env
       mkdir bin
-      binaries="curl chmod cp date mkdir tar rm mv ls bash make xz true"
+      binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true"
       for binary in $binaries; do
         echo Using $binary
         ln -s "$(which $binary)" bin/$binary
