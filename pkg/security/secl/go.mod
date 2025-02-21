@@ -9,6 +9,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20250210230444-5fae499d98fc
 	github.com/jellydator/ttlcache/v3 v3.3.0
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/spf13/cast v1.7.1
