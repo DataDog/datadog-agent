@@ -11,14 +11,14 @@ import (
 	"context"
 	"time"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
+
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
