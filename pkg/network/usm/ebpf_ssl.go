@@ -71,6 +71,9 @@ const (
 	gnutlsRecordSendRetprobe    = "uretprobe__gnutls_record_send"
 	gnutlsByeProbe              = "uprobe__gnutls_bye"
 	gnutlsDeinitProbe           = "uprobe__gnutls_deinit"
+
+	rawTracepointSchedProcessExit = "raw_tracepoint__sched_process_exit"
+	oldTracepointSchedProcessExit = "tracepoint__sched__sched_process_exit"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -418,6 +421,16 @@ var opensslSpec = &protocols.ProtocolSpec{
 				EBPFFuncName: gnutlsDeinitProbe,
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: rawTracepointSchedProcessExit,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: oldTracepointSchedProcessExit,
+			},
+		},
 	},
 }
 
@@ -480,6 +493,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 			watcher:       watcher,
 			istioMonitor:  istio,
 			nodeJSMonitor: nodejs,
+			ebpfManager:   m,
 		}, nil
 	}
 }
@@ -503,8 +517,7 @@ func (o *sslProgram) ConfigureOptions(m *manager.Manager, options *manager.Optio
 }
 
 // PreStart is called before the start of the provided eBPF manager.
-func (o *sslProgram) PreStart(m *manager.Manager) error {
-	o.ebpfManager = m
+func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start(o.cleanupDeadPids)
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
@@ -813,9 +826,6 @@ func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
 
 // addProcessExitProbe adds a raw or regular tracepoint program depending on which is supported.
 func (o *sslProgram) addProcessExitProbe(mgr *manager.Manager, options *manager.Options) {
-	const rawTracepointSchedProcessExit = "raw_tracepoint__sched_process_exit"
-	const oldTracepointSchedProcessExit = "tracepoint__sched__sched_process_exit"
-
 	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
 		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps
 		p := &manager.Probe{
