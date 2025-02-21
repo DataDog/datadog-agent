@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -20,7 +21,9 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.uber.org/zap"
 )
 
 func newDefaultConfig() component.Config {
@@ -42,6 +45,12 @@ func newDefaultConfig() component.Config {
 		API:          pkgmcfg.API,
 		HostMetadata: pkgmcfg.HostMetadata,
 	}
+}
+
+func newDefaultConfigForAgent() component.Config {
+	cfg := newDefaultConfig().(*ExporterConfig)
+	cfg.HostMetadata.Enabled = false
+	return cfg
 }
 
 var _ source.Provider = (*SourceProviderFunc)(nil)
@@ -71,6 +80,7 @@ type Exporter struct {
 	createConsumer  createConsumerFunc
 	params          exporter.Settings
 	hostmetadata    datadogconfig.HostMetadataConfig
+	reporter        *inframetadata.Reporter
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -136,6 +146,7 @@ func NewExporter(
 	createConsumer createConsumerFunc,
 	tr *metrics.Translator,
 	params exporter.Settings,
+	reporter *inframetadata.Reporter,
 ) (*Exporter, error) {
 	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
@@ -145,6 +156,11 @@ func NewExporter(
 	if cfg.Metrics.Tags != "" {
 		extraTags = strings.Split(cfg.Metrics.Tags, ",")
 	}
+	params.Logger.Info("serializer exporter configuration", zap.Bool("host_metadata_enabled", cfg.HostMetadata.Enabled),
+		zap.Strings("extra_tags", extraTags),
+		zap.String("apm_receiver_url", cfg.Metrics.APMStatsReceiverAddr),
+		zap.String("tag_cardinality", cfg.Metrics.TagCardinality),
+		zap.String("histogram_mode", fmt.Sprintf("%v", cfg.Metrics.Metrics.HistConfig.Mode)))
 	return &Exporter{
 		tr:              tr,
 		s:               s,
@@ -155,11 +171,19 @@ func NewExporter(
 		createConsumer:  createConsumer,
 		params:          params,
 		hostmetadata:    cfg.HostMetadata,
+		reporter:        reporter,
 	}, nil
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+	if e.hostmetadata.Enabled {
+		// Consume resources for host metadata
+		for i := 0; i < ld.ResourceMetrics().Len(); i++ {
+			res := ld.ResourceMetrics().At(i).Resource()
+			e.consumeResource(e.reporter, res)
+		}
+	}
 	consumer := e.createConsumer(e.enricher, e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, nil)
 	if err != nil {
@@ -176,4 +200,10 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil
+}
+
+func (e *Exporter) consumeResource(metadataReporter *inframetadata.Reporter, res pcommon.Resource) {
+	if err := metadataReporter.ConsumeResource(res); err != nil {
+		e.params.Logger.Warn("failed to consume resource for host metadata", zap.Error(err), zap.Any("resource", res))
+	}
 }
