@@ -145,6 +145,53 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	return nil
 }
 
+// Delete deletes the repository.
+//
+// 1. Remove the stable and experiment links.
+// 2. Cleanup the repository to remove all package versions after running the pre-remove hooks.
+// 3. Remove the root directory.
+func (r *Repository) Delete() error {
+	// Remove symlinks first so that cleanup will attempt to remove all package versions
+	repositoryFiles, err := readRepository(r.rootPath, r.preRemoveHooks)
+	if err != nil {
+		return err
+	}
+	if repositoryFiles.experiment.Exists() {
+		err = repositoryFiles.experiment.Delete()
+		if err != nil {
+			return fmt.Errorf("could not delete experiment link: %w", err)
+		}
+	}
+	if repositoryFiles.stable.Exists() {
+		err = repositoryFiles.stable.Delete()
+		if err != nil {
+			return fmt.Errorf("could not delete stable link: %w", err)
+		}
+	}
+
+	// Delete all package versions
+	err = r.Cleanup()
+	if err != nil {
+		return fmt.Errorf("could not cleanup repository for package %w", err)
+	}
+
+	files, err := os.ReadDir(r.rootPath)
+	if err != nil {
+		return fmt.Errorf("could not read root directory: %w", err)
+	}
+
+	if len(files) > 0 {
+		return fmt.Errorf("could not delete root directory, not empty after cleanup")
+	}
+
+	// Delete the repository directory
+	err = os.RemoveAll(r.rootPath)
+	if err != nil {
+		return fmt.Errorf("could not delete root directory for package %w", err)
+	}
+	return nil
+}
+
 // SetExperiment moves package files from the given source path to the repository and sets it as the experiment.
 //
 // 1. Cleanup the repository.

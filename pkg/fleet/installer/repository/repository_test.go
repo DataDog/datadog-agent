@@ -227,3 +227,61 @@ func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
 	assertLinkTarget(t, repository, stableVersionLink, "v1")
 	assertLinkTarget(t, repository, experimentVersionLink, "v1")
 }
+
+func TestDelete(t *testing.T) {
+	dir := t.TempDir()
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	err := repository.Delete()
+	assert.NoError(t, err)
+	assert.NoDirExists(t, repository.rootPath)
+}
+
+func TestDeleteHookAllow(t *testing.T) {
+	dir := t.TempDir()
+	hook := func(string) (bool, error) { return true, nil }
+	repository := createTestRepository(t, dir, "v1", hook)
+
+	err := repository.Delete()
+	assert.NoError(t, err)
+	assert.NoDirExists(t, repository.rootPath)
+}
+
+func TestDeleteHookDeny(t *testing.T) {
+	dir := t.TempDir()
+	hook := func(string) (bool, error) { return false, nil }
+	repository := createTestRepository(t, dir, "v1", hook)
+
+	err := repository.Delete()
+	assert.Error(t, err)
+	assert.DirExists(t, repository.rootPath)
+}
+
+func TestDeleteExtraFilesDoNotPreventDeletion(t *testing.T) {
+	dir := t.TempDir()
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	extraFilePath := path.Join(repository.rootPath, "extra")
+	err := os.WriteFile(extraFilePath, []byte("extra"), 0644)
+	assert.NoError(t, err)
+
+	err = repository.Delete()
+	assert.NoError(t, err)
+	assert.NoDirExists(t, repository.rootPath)
+}
+
+func TestDeleteHookDenyDoesNotPreventReinstall(t *testing.T) {
+	dir := t.TempDir()
+	hook := func(string) (bool, error) { return false, nil }
+	oldRepository := createTestRepository(t, dir, "old", hook)
+
+	err := oldRepository.Delete()
+	assert.Error(t, err)
+
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	assert.Equal(t, oldRepository.rootPath, repository.rootPath)
+	assert.DirExists(t, repository.rootPath)
+	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
+	assert.NoDirExists(t, path.Join(oldRepository.rootPath, "old"))
+}
