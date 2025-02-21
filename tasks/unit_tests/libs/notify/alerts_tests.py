@@ -229,7 +229,7 @@ class TestAlertsSendNotification(unittest.TestCase):
 
     @patch("tasks.libs.notify.alerts.send_metrics")
     @patch('slack_sdk.WebClient', autospec=True)
-    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coucou'})
     @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, _: '\n'.join(self.failures) + '\n')
     @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
     @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())
@@ -293,7 +293,7 @@ class TestAlertsSendNotification(unittest.TestCase):
 
     @patch("tasks.libs.notify.alerts.send_metrics")
     @patch('slack_sdk.WebClient', autospec=True)
-    @patch.dict('os.environ', {'SLACK_API_TOKEN': 'coucou'})
+    @patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coucou'})
     @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, _: '\n'.join(self.failures) + '\n')
     @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
     @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())

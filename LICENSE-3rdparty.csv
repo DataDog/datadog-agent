@@ -125,6 +125,7 @@ core,github.com/DataDog/datadog-api-client-go/v2/api/datadogV2,Apache-2.0,"Copyr
 core,github.com/DataDog/datadog-go/v5/statsd,MIT,"Copyright (c) 2015 Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/dd-sensitive-data-scanner/sds-go/go,Apache-2.0,"Copyright 2024-present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/appsec/events,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/datastreams/options,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
@@ -212,7 +213,9 @@ core,github.com/DataDog/nikos/rpm/dnfv2/types,MIT,"Copyright (c) 2020-present Da
 core,github.com/DataDog/nikos/types,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/wsl,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/xmlite,MIT,"Copyright (c) 2020-present Datadog, Inc"
+core,github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/gohai,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
+core,github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/internal/hostmap,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/azure,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
@@ -226,12 +229,12 @@ core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics/internal/instr
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics/internal/utils,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/quantile,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/quantile/summary,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
-core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Copyright 2021 DataDog, Inc | Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Copyright 2021 Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Copyright 2021 Datadog, Inc"
 core,github.com/DataDog/viper,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/zstd,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
@@ -671,6 +674,7 @@ core,github.com/aws/aws-sdk-go/private/protocol/rest,Apache-2.0,"Copyright 2014-
 core,github.com/aws/aws-sdk-go/private/protocol/restjson,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ec2,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/service/ec2/ec2iface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ecs,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/lightsail,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/sso,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -1136,6 +1140,7 @@ core,github.com/godror/godror/odpi/include,Apache-2.0,"Alberto Andria <alberto.a
 core,github.com/godror/godror/odpi/src,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
 core,github.com/godror/knownpb/internal,Apache-2.0,"Copyright 2014, 2021 Tamás Gulácsi"
 core,github.com/godror/knownpb/timestamppb,Apache-2.0,"Copyright 2019, 2021 Tamás Gulácsi"
+core,github.com/gofrs/flock,BSD-3-Clause,"Copyright (c) 2015-2020, Tim Heckman | Copyright (c) 2018-2024, The Gofrs"
 core,github.com/gogo/googleapis/google/api,Apache-2.0,"Copyright 2015, Google Inc | Copyright 2018, GoGo Authors"
 core,github.com/gogo/protobuf/gogoproto,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/gogo/protobuf/jsonpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
@@ -1195,7 +1200,6 @@ core,github.com/google/go-containerregistry/internal/and,Apache-2.0,Copyright 20
 core,github.com/google/go-containerregistry/internal/compression,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/internal/estargz,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/internal/gzip,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
-core,github.com/google/go-containerregistry/internal/httptest,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/internal/redact,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/internal/retry,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/internal/retry/wait,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
@@ -1209,7 +1213,6 @@ core,github.com/google/go-containerregistry/pkg/legacy,Apache-2.0,Copyright 2018
 core,github.com/google/go-containerregistry/pkg/legacy/tarball,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/logs,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/name,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
-core,github.com/google/go-containerregistry/pkg/registry,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/empty,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/google,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
@@ -1364,17 +1367,17 @@ core,github.com/jackc/pgx/v5/pgtype,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/pgxpool,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/puddle/v2,MIT,Copyright (c) 2018 Jack Christensen
 core,github.com/jackc/puddle/v2/internal/genstack,MIT,Copyright (c) 2018 Jack Christensen
+core,github.com/jaegertracing/jaeger-idl/model/v1,Apache-2.0,"Copyright (c) 2017 Uber Technologies, Inc. | Copyright (c) 2019 The Jaeger Authors."
+core,github.com/jaegertracing/jaeger-idl/proto-gen/api_v2,Apache-2.0,"Copyright (c) 2017 Uber Technologies, Inc. | Copyright (c) 2019 The Jaeger Authors."
+core,github.com/jaegertracing/jaeger-idl/thrift-gen/agent,Apache-2.0,"Copyright (c) 2017 Uber Technologies, Inc. | Copyright (c) 2019 The Jaeger Authors."
+core,github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger,Apache-2.0,"Copyright (c) 2017 Uber Technologies, Inc. | Copyright (c) 2019 The Jaeger Authors."
+core,github.com/jaegertracing/jaeger-idl/thrift-gen/zipkincore,Apache-2.0,"Copyright (c) 2017 Uber Technologies, Inc. | Copyright (c) 2019 The Jaeger Authors."
 core,github.com/jaegertracing/jaeger/cmd/agent/app/customtransport,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/processors,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/servers,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/model,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/model/converter/thrift/zipkin,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/pkg/metrics,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/proto-gen/api_v2,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/thrift-gen/agent,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/thrift-gen/jaeger,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
-core,github.com/jaegertracing/jaeger/thrift-gen/zipkincore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
 core,github.com/jedisct1/go-minisign,MIT,Copyright (c) 2018-2023 Frank Denis
 core,github.com/jellydator/ttlcache/v3,MIT,Copyright (c) 2022 Jellydator
@@ -1713,7 +1716,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil,Apa
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/adapter,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/decode,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/entry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/errors,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1768,6 +1770,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/trim,A
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/internal/zipkin,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinthriftconverter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin/zipkinv2,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1804,6 +1807,8 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourc
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/consul/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/docker,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/docker/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/dynatrace,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/dynatrace/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/env,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/gcp,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/gcp/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1824,7 +1829,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/routing
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor/internal/common,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/cache,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/cache,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/idbatcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/sampling,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1951,6 +1956,7 @@ core,github.com/prometheus/client_model/go,Apache-2.0,Copyright 2012-2015 The Pr
 core,github.com/prometheus/common/config,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/expfmt,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/model,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/common/promslog,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/sigv4,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/common/version,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/procfs,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
@@ -1999,11 +2005,14 @@ core,github.com/prometheus/prometheus/promql/parser/posrange,Apache-2.0,Copyrigh
 core,github.com/prometheus/prometheus/scrape,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/storage,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/storage/remote/azuread,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/prometheus/storage/remote/googleiam,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/tsdb/chunkenc,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/tsdb/chunks,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/tsdb/errors,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/tsdb/fileutil,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/util/annotations,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/prometheus/util/convertnhcb,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/prometheus/util/logging,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/util/osutil,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/util/pool,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/util/strutil,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
@@ -2449,6 +2458,7 @@ core,go.opentelemetry.io/collector/confmap/provider/httpprovider,Apache-2.0,Copy
 core,go.opentelemetry.io/collector/confmap/provider/httpsprovider,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/internal/configurablehttpprovider,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/confmap/provider/yamlprovider,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/confmap/xconfmap,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/connector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/connector/connectortest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/connector/internal,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2468,13 +2478,13 @@ core,go.opentelemetry.io/collector/exporter/debugexporter/internal/otlptext,Apac
 core,go.opentelemetry.io/collector/exporter/exporterbatcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/exporter/exporterhelper/internal/batcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/exporter/exporterhelper/internal/request,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterqueue,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exportertest,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/exporter/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/internal/experr,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/exporter/internal/queue,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/nopexporter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/nopexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2492,11 +2502,13 @@ core,go.opentelemetry.io/collector/extension/zpagesextension/internal/metadata,A
 core,go.opentelemetry.io/collector/featuregate,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/filter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/fanoutconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/internal/httphelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/memorylimiter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/memorylimiter/cgroups,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/memorylimiter/iruntime,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/internal/statusutil,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/internal/telemetry/componentattribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol/internal/configunmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/otelcol/internal/grpclog,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2570,11 +2582,12 @@ core,go.opentelemetry.io/collector/semconv/v1.8.0,Apache-2.0,Copyright The OpenT
 core,go.opentelemetry.io/collector/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/extensions,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/internal/attribute,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/builders,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/capabilityconsumer,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/service/internal/components,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/graph,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/service/internal/moduleinfo,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/proctelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/resource,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/internal/status,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2700,6 +2713,7 @@ core,go.uber.org/fx/internal/testutil,MIT,"Copyright (c) 2016-2018 Uber Technolo
 core,go.uber.org/multierr,MIT,"Copyright (c) 2017-2021 Uber Technologies, Inc"
 core,go.uber.org/zap,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/buffer,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
+core,go.uber.org/zap/exp/zapslog,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc | Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.uber.org/zap/internal,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/internal/bufferpool,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/internal/color,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"

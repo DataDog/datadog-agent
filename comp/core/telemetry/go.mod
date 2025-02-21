@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/telemetry
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/stretchr/testify v1.10.0
@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -103,6 +103,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
+	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../../pkg/linters/components/pkgconfigusage
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../pkg/logs/auditor
