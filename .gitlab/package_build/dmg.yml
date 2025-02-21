@@ -61,7 +61,7 @@ agent_dmg-x64-a7:
     mkdir homebrew
     curl -L https://github.com/Homebrew/brew/tarball/$HOMEBREW_VERSION | tar xz --strip-components 1 -C homebrew
     # Enable custom env
-    PATH="$PWD/bin"
+    export PATH="$PWD/bin"
     eval "$(homebrew/bin/brew shellenv)"
     brew update --force
     # TODO A: Necessary?
