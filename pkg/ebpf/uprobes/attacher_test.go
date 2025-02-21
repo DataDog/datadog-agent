@@ -64,6 +64,21 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 	require.ErrorIs(t, err, ErrInternalDDogProcessRejected)
 }
 
+func TestAttachPidExcludesContainerdTmp(t *testing.T) {
+	exe := "/foo/tmpmounts/containerd-mount/bar"
+	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
+	config := AttacherConfig{
+		ExcludeTargets: ExcludeContainerdTmp,
+		ProcRoot:       procRoot,
+	}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	err = ua.AttachPIDWithOptions(1, false)
+	require.ErrorIs(t, err, utils.ErrEnvironment)
+}
+
 func TestAttachPidReadsSharedLibraries(t *testing.T) {
 	exe := "foobar"
 	pid := uint32(1)
@@ -115,7 +130,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 	require.ErrorIs(t, err, ErrSelfExcluded)
 }
 
-func TestContainerdTmpErrEnvironment(t *testing.T) {
+func TestAttachToBinaryContainerdTmpReturnsErrEnvironment(t *testing.T) {
 	config := AttacherConfig{
 		ExcludeTargets: ExcludeContainerdTmp,
 	}
