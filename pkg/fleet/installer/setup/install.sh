@@ -19,6 +19,7 @@ fi
 
 flavor="INSTALLER_FLAVOR"
 version="INSTALLER_VERSION"
+export DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER="$version"
 case "$arch" in
 x86_64)
   installer_sha256="INSTALLER_AMD64_SHA256"
@@ -61,7 +62,7 @@ echo "Verifying installer integrity..."
 sha256sum -c <<<"$installer_sha256  $tmp_bin"
 
 echo "Starting the Datadog installer..."
-"${sudo_env_cmd[@]}" DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER="$version" "$tmp_bin" setup --flavor "$flavor" "$@"
+"${sudo_env_cmd[@]}" "$tmp_bin" setup --flavor "$flavor" "$@"
 
 "${sudo_cmd[@]}" rm -f "$tmp_bin"
 

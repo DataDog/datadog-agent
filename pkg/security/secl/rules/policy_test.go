@@ -180,8 +180,8 @@ func TestRuleMerge(t *testing.T) {
 
 	t.Run("enabled-disabled", func(t *testing.T) {
 		rule := rs.GetRules()["test_rule_foo"]
-		if rule == nil {
-			t.Fatal("expected test_rule_foo to be loaded now")
+		if rule != nil {
+			t.Fatal("expected test_rule_foo to not be loaded")
 		}
 	})
 
@@ -1039,7 +1039,6 @@ func TestActionSetVariableInvalid(t *testing.T) {
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
 		name         string
-		policyType   PolicyType
 		source       string
 		fileContent  string
 		macroFilters []MacroFilter
@@ -1056,7 +1055,6 @@ func TestLoadPolicy(t *testing.T) {
 			args: args{
 				name:         "myLocal.policy",
 				source:       PolicyProviderTypeRC,
-				policyType:   DefaultPolicyType,
 				fileContent:  ``,
 				macroFilters: nil,
 				ruleFilters:  nil,
@@ -1069,9 +1067,8 @@ func TestLoadPolicy(t *testing.T) {
 		{
 			name: "empty yaml file with new line char",
 			args: args{
-				name:       "myLocal.policy",
-				source:     PolicyProviderTypeRC,
-				policyType: CustomPolicyType,
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
 				fileContent: `
 `,
 				macroFilters: nil,
@@ -1085,9 +1082,8 @@ func TestLoadPolicy(t *testing.T) {
 		{
 			name: "no rules in yaml file",
 			args: args{
-				name:       "myLocal.policy",
-				source:     PolicyProviderTypeRC,
-				policyType: CustomPolicyType,
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
 				fileContent: `
 rules:
 `,
@@ -1097,7 +1093,6 @@ rules:
 			want: &Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
-				Type:   CustomPolicyType,
 				rules:  map[string][]*PolicyRule{},
 				macros: map[string][]*PolicyMacro{},
 			},
@@ -1106,9 +1101,8 @@ rules:
 		{
 			name: "broken yaml file",
 			args: args{
-				name:       "myLocal.policy",
-				source:     PolicyProviderTypeRC,
-				policyType: CustomPolicyType,
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
 				fileContent: `
 broken
 `,
@@ -1123,9 +1117,8 @@ broken
 		{
 			name: "disabled tag",
 			args: args{
-				name:       "myLocal.policy",
-				source:     PolicyProviderTypeRC,
-				policyType: CustomPolicyType,
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
 				fileContent: `rules:
  - id: rule_test
    disabled: true
@@ -1136,7 +1129,6 @@ broken
 			want: fixupRulesPolicy(&Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
-				Type:   CustomPolicyType,
 				rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
@@ -1156,9 +1148,8 @@ broken
 		{
 			name: "combine:override tag",
 			args: args{
-				name:       "myLocal.policy",
-				source:     PolicyProviderTypeRC,
-				policyType: CustomPolicyType,
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
 				fileContent: `rules:
  - id: rule_test
    expression: open.file.path == "/etc/gshadow"
@@ -1170,7 +1161,6 @@ broken
 			want: fixupRulesPolicy(&Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
-				Type:   CustomPolicyType,
 				rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
@@ -1192,7 +1182,7 @@ broken
 		t.Run(tt.name, func(t *testing.T) {
 			r := strings.NewReader(tt.args.fileContent)
 
-			got, err := LoadPolicy(tt.args.name, tt.args.source, tt.args.policyType, r, tt.args.macroFilters, tt.args.ruleFilters)
+			got, err := LoadPolicy(tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
 
 			if !tt.wantErr(t, err, fmt.Sprintf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)) {
 				return
