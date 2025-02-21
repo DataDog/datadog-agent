@@ -319,7 +319,7 @@ func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRoo
 	}
 
 	tc.TraceID = event.TraceID
-	tc.TraceIDUpper64Hex = parseHigh64Bits(event.TraceTags)
+	tc.TraceIDUpper64Hex = parseUpper64Bits(event.TraceTags)
 
 	return tc, nil
 }
@@ -359,12 +359,13 @@ func getPositiveUInt64(hashBytes []byte) uint64 {
 	return result
 }
 
+// getHexEncodedString converts uint64 value to its hexadecimal string representation
 func getHexEncodedString(toEncode uint64) string {
-	//return hex.EncodeToString(hashBytes[:8])
-	return fmt.Sprintf("%x", toEncode) //maybe?
+	return fmt.Sprintf("%x", toEncode)
 }
 
-func parseHigh64Bits(traceTags string) string {
+// parseUpper64Bits extracts the _dd.p.tid value from a comma-separated trace tag string
+func parseUpper64Bits(traceTags string) string {
 	for _, tag := range strings.Split(traceTags, ",") {
 		if strings.HasPrefix(tag, "_dd.p.tid=") {
 			parts := strings.SplitN(tag, "=", 2)

@@ -952,3 +952,39 @@ func Test_stringToDdTraceIds(t *testing.T) {
 		})
 	}
 }
+
+func TestParseUpper64Bits(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "valid_tid_at_start",
+			input:    "_dd.p.tid=66bcb5eb00000000,_dd.p.dm=-0",
+			expected: "66bcb5eb00000000",
+		},
+		{
+			name:     "valid_tid_at_end",
+			input:    "_dd.p.dm=-0,_dd.p.tid=abcdef1234567890",
+			expected: "abcdef1234567890",
+		},
+		{
+			name:     "no_tid_present",
+			input:    "_dd.p.dm=-0",
+			expected: "",
+		},
+		{
+			name:     "empty_input",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseUpper64Bits(tt.input)
+			assert.Equal(t, tt.expected, result, "For input '%s', expected '%s' but got '%s'", tt.input, tt.expected, result)
+		})
+	}
+}
