@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -111,7 +112,7 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			return pkgconfig
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {
-			zp := &zaplogger{log}
+			zp := &datadog.Zaplogger{Logger: log}
 			return zp, nil
 		}),
 		// casts the defaultforwarder.Component to a defaultforwarder.Forwarder
