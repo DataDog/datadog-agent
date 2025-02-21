@@ -17,6 +17,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	tufclient "github.com/DataDog/go-tuf/client"
 	"net/url"
 	"path"
 	"strconv"
@@ -155,6 +156,7 @@ type CoreAgentService struct {
 
 	products           map[rdata.Product]struct{}
 	newProducts        map[rdata.Product]struct{}
+	configStatus       state.ConfigStatus
 	clients            *clients
 	cacheBypassClients cacheBypassClients
 
@@ -450,6 +452,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		backoffPolicy:                  backoffPolicy,
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
+		configStatus:                   state.ConfigStatusOk,
 		hostname:                       hostname,
 		tagsGetter:                     tagsGetter,
 		clock:                          clock,
@@ -682,6 +685,10 @@ func (s *CoreAgentService) refresh() error {
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
+		var errDecodeFailed tufclient.ErrDecodeFailed
+		if errors.As(err, &errDecodeFailed) {
+			s.configStatus = state.ConfigStatusExpired
+		}
 		return err
 	}
 
@@ -705,6 +712,7 @@ func (s *CoreAgentService) refresh() error {
 	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
 
 	exportedLastUpdateErr.Set("")
+	s.configStatus = state.ConfigStatusOk
 
 	return nil
 }
@@ -847,6 +855,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		Targets:       canonicalTargets,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
+		ConfigStatus:  s.configStatus,
 	}, nil
 }
 
