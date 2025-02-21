@@ -37,7 +37,7 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token():
-    if "GITLAB_TOKEN" not in os.environ or "DD_GITLAB_TOKEN" not in os.environ:
+    if "GITLAB_TOKEN" not in os.environ and "DD_GITLAB_TOKEN" not in os.environ:
         print("GITLAB_TOKEN / DD_GITLAB_TOKEN not found in env. Trying keychain...")
         if platform.system() == "Darwin":
             try:
