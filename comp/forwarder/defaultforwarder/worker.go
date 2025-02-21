@@ -213,10 +213,15 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
 
 	// Block here if we are already sending too many requests
-	w.maxConcurrentRequests.Acquire(ctx, 1)
+	err := w.maxConcurrentRequests.Acquire(ctx, 1)
+	if err != nil {
+		cancel()
+		return err
+	}
 
 	done := make(chan interface{})
 	go func() {
+		defer cancel()
 		w.process(ctx, t)
 		w.maxConcurrentRequests.Release(1)
 		done <- nil
