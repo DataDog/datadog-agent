@@ -11,14 +11,15 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
-	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -125,7 +126,7 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 	return statusInfo
 }
 
-func getPrometheusURL(extensionResp ddflareextension.Response) (string, error) {
+func getPrometheusURL(extensionResp ddflareextensiontypes.Response) (string, error) {
 	var runtimeConfig prometheusRuntimeConfig
 	if err := yaml.Unmarshal([]byte(extensionResp.RuntimeConfig), &runtimeConfig); err != nil {
 		return "", err
@@ -198,7 +199,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 			"error": err.Error(),
 		}
 	}
-	var extensionResp ddflareextension.Response
+	var extensionResp ddflareextensiontypes.Response
 	if err = json.Unmarshal(resp, &extensionResp); err != nil {
 		return map[string]interface{}{
 			"url":   extensionURL,

@@ -43,6 +43,9 @@ const (
 	// defaultKernelHeadersDownloadDir is the default path for downloading kernel headers for runtime compilation
 	defaultKernelHeadersDownloadDir = "/var/tmp/datadog-agent/system-probe/kernel-headers"
 
+	// defaultBTFOutputDir is the default path for extracted BTF
+	defaultBTFOutputDir = "/var/tmp/datadog-agent/system-probe/btf"
+
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
 
@@ -157,6 +160,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tracepoints"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_co_re"), true, "DD_ENABLE_CO_RE")
 	cfg.BindEnvAndSetDefault(join(spNS, "btf_path"), "", "DD_SYSTEM_PROBE_BTF_PATH")
+	cfg.BindEnvAndSetDefault(join(spNS, "btf_output_dir"), defaultBTFOutputDir, "DD_SYSTEM_PROBE_BTF_OUTPUT_DIR")
 	cfg.BindEnv(join(spNS, "enable_runtime_compiler"), "DD_ENABLE_RUNTIME_COMPILER")
 	// deprecated in favor of allow_prebuilt_fallback below
 	cfg.BindEnv(join(spNS, "allow_precompiled_fallback"), "DD_ALLOW_PRECOMPILED_FALLBACK")
@@ -382,6 +386,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_classifier_handle"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_ring_buffer"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_kprobe_fallback"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.buffer_size"), 0)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)

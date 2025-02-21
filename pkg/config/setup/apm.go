@@ -131,6 +131,14 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
+	config.BindEnv("apm_config.instrumentation.targets", "DD_APM_INSTRUMENTATION_TARGETS")
+	config.ParseEnvAsSlice("apm_config.instrumentation.targets", func(in string) []interface{} {
+		var mappings []interface{}
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"apm_config.instrumentation.targets" can not be parsed: %v`, err)
+		}
+		return mappings
+	})
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")

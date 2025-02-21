@@ -75,8 +75,15 @@ func NetworkSelectors() []manager.ProbesSelector {
 }
 
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
-var SyscallMonitorSelectors = []manager.ProbesSelector{
-	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sys_enter"}},
+func SyscallMonitorSelectors() []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "sys_enter",
+			},
+		},
+	}
 }
 
 // SnapshotSelectors selectors required during the snapshot
@@ -92,15 +99,9 @@ func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
 	}
 }
 
-var selectorsPerEventTypeStore map[eval.EventType][]manager.ProbesSelector
-
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
 func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSelector {
-	if selectorsPerEventTypeStore != nil {
-		return selectorsPerEventTypeStore
-	}
-
-	selectorsPerEventTypeStore = map[eval.EventType][]manager.ProbesSelector{
+	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
 			// Exec probes
