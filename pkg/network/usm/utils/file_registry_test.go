@@ -412,9 +412,9 @@ func TestSameInodeRegression(t *testing.T) {
 
 	// Ensure that we only get the first path in the callback
 	r := newFileRegistry()
-	require.NoError(t, r.Register(fooPath1, uint32(pid), callback, callback))
+	require.NoError(t, r.Register(fooPath1, uint32(pid), callback, callback, IgnoreCB))
 	require.True(t, strings.HasSuffix(capturedPath, fooPath1))
-	require.ErrorIs(t, r.Register(fooPath2, uint32(pid), callback, callback), ErrPathIsAlreadyRegistered)
+	require.ErrorIs(t, r.Register(fooPath2, uint32(pid), callback, callback, IgnoreCB), ErrPathIsAlreadyRegistered)
 	require.True(t, strings.HasSuffix(capturedPath, fooPath1))
 
 	// Check that closing the file descriptor unregisters the path
@@ -438,8 +438,8 @@ func TestNoLeaks(t *testing.T) {
 	registry := newFileRegistry()
 
 	// Simulate a process that opens two files
-	require.NoError(t, registry.Register(fooPath1, pid1, registerCB, unregisterCB))
-	require.NoError(t, registry.Register(fooPath2, pid1, registerCB, unregisterCB))
+	require.NoError(t, registry.Register(fooPath1, pid1, registerCB, unregisterCB, IgnoreCB))
+	require.NoError(t, registry.Register(fooPath2, pid1, registerCB, unregisterCB, IgnoreCB))
 
 	// Checking register callback was executed once for each library
 	// and that we're tracking the two command PIDs
@@ -448,7 +448,7 @@ func TestNoLeaks(t *testing.T) {
 	require.Contains(t, registry.GetRegisteredProcesses(), pid1)
 
 	// Now open the first file from another process
-	require.ErrorIs(t, registry.Register(fooPath1, pid2, registerCB, unregisterCB), ErrPathIsAlreadyRegistered)
+	require.ErrorIs(t, registry.Register(fooPath1, pid2, registerCB, unregisterCB, IgnoreCB), ErrPathIsAlreadyRegistered)
 
 	// Check that no more callbacks were executed, but we're tracking two PIDs now
 	require.Equal(t, 1, registerRecorder.CallsForPathID(fooPathID1))
