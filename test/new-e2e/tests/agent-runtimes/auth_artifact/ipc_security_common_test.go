@@ -6,15 +6,10 @@
 package auth
 
 import (
-	"bufio"
-	"context"
 	"fmt"
-	"io"
 	"regexp"
 	"sync"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
@@ -36,19 +31,15 @@ const lockSuffix = ".lock"
 const authLoadedRegex = `successfully loaded the IPC auth primitives \(fingerprint: ([\d\w]{16})\)`
 const authCreatedRegex = "successfully created artifact"
 
-type pattern struct {
-	regex      *regexp.Regexp
-	isRequired bool
-}
-
 type authArtifactBase struct {
 	e2e.BaseSuite[environments.Host]
 	sync.Mutex
-	patterns      []pattern
-	svcManager    svcmanager.ServiceManager
-	logFolder     string
-	authTokenPath string
-	ipcCertPath   string
+	requiredPattern *regexp.Regexp
+	extraPatterns   []*regexp.Regexp
+	svcManager      svcmanager.ServiceManager
+	logFolder       string
+	authTokenPath   string
+	ipcCertPath     string
 	// Per os specific
 	readLogCmdTmpl     string
 	removeFilesCmdTmpl string
@@ -74,13 +65,11 @@ func (a *authArtifactBase) TestServersideIPCCertUsage() {
 	// Compile regexp pattern
 	signaturePattern, err := regexp.Compile(authLoadedRegex)
 	a.Require().NoError(err)
-	creattionPattern, err := regexp.Compile(authCreatedRegex)
+	creationPattern, err := regexp.Compile(authCreatedRegex)
 	a.Require().NoError(err)
 
-	a.patterns = []pattern{
-		{signaturePattern, true},
-		{creattionPattern, false},
-	}
+	a.requiredPattern = signaturePattern
+	a.extraPatterns = []*regexp.Regexp{creationPattern}
 
 	for i := 0; i < iteration; i++ {
 		a.checkAuthStack()
@@ -94,25 +83,19 @@ func (a *authArtifactBase) checkAuthStack() {
 	a.Require().NoError(err)
 
 	authSigns := make([]string, len(a.agentProcesses))
-	g := new(errgroup.Group)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	var wg sync.WaitGroup
 
 	for i, agentName := range a.agentProcesses {
-		g.Go(func() error {
-			result, err := a.checkAgentLogs(ctx, agentName)
-			if err != nil {
-				return fmt.Errorf("error while checking logs of %s: %v", agentName, err)
-			}
-
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result := a.checkAgentLogs(agentName)
 			authSigns[i] = result
-			return nil
-		})
+		}()
 	}
 
-	err = g.Wait()
-	a.Require().NoError(err)
+	wg.Wait()
 	a.T().Log("all process initialized their auth stack")
 
 	// checking that signatures are all equals
@@ -153,58 +136,26 @@ func (a *authArtifactBase) checkAuthStack() {
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf(a.removeFilesCmdTmpl, a.logFolder, a.authTokenPath, a.ipcCertPath))
 }
 
-func (a *authArtifactBase) checkAgentLogs(ctx context.Context, agentName string) (string, error) {
+func (a *authArtifactBase) checkAgentLogs(agentName string) string {
 	logLocation := a.pathJoinFunction(a.logFolder, agentName+".log")
 
-	// Trying to get the log file
-	var stdout io.Reader
-	var err error
+	var result string
+	a.EventuallyWithT(func(t *assert.CollectT) {
+		content, err := a.Env().RemoteHost.ReadFile(logLocation)
+		require.NoError(t, err)
 
-	isReady := a.Eventually(func() bool {
-		a.Lock()
-		_, _, stdout, err = a.Env().RemoteHost.Start(fmt.Sprintf(a.readLogCmdTmpl, logLocation))
-		a.Unlock()
-		return err == nil
-	}, 10*time.Second, 1*time.Second)
-
-	if !isReady {
-		return "", fmt.Errorf("unable to get log file %v: %v", logLocation, err)
-	}
-
-	a.T().Logf("starting reading from %v", agentName)
-
-	scanner := bufio.NewScanner(stdout)
-	linechan := make(chan string)
-	errchan := make(chan error)
-
-	go func() {
-		for scanner.Scan() {
-			linechan <- scanner.Text()
-		}
-		errchan <- scanner.Err()
-	}()
-
-Loop:
-	for {
-		select {
-		case line := <-linechan:
-			for _, pattern := range a.patterns {
-				if found := pattern.regex.FindString(line); found != "" {
-					a.T().Logf("found pattern: %s", line)
-					if pattern.isRequired {
-						return found, nil
-					}
-				}
+		for _, p := range a.extraPatterns {
+			if found := p.Find(content); len(found) > 0 {
+				a.T().Logf("found %s in %s", found, logLocation)
 			}
-
-		case err = <-errchan:
-			err = fmt.Errorf("unable to find pattern in %s: %v", agentName, err)
-			break Loop
-
-		case <-ctx.Done():
-			err = fmt.Errorf("timeout while reading log file %v", logLocation)
-			break Loop
 		}
-	}
-	return "", err
+
+		if found := a.requiredPattern.Find(content); len(found) > 0 {
+			a.T().Logf("found %s in %s", found, logLocation)
+			result = string(found)
+		}
+
+		require.NotEmpty(t, result, "no required pattern found in %s", logLocation)
+	}, timeout, 1*time.Second, "waiting for %s to be found in %s", authLoadedRegex, logLocation)
+	return result
 }
