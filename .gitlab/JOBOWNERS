@@ -55,6 +55,7 @@ agent_suse*                          @DataDog/agent-delivery
 windows-installer*                   @DataDog/windows-agent
 windows_*                            @DataDog/windows-agent
 powershell_script_signing            @DataDog/windows-agent
+otel-agent-*                         @DataDog/agent-delivery
 
 # Packaging
 agent_deb*                           @DataDog/agent-delivery
