@@ -27,6 +27,7 @@ import (
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -159,6 +160,7 @@ func TestGetPayload(t *testing.T) {
 			logsBundle.MockBundle(),
 			core.MockBundle(),
 			inventoryagentimpl.MockModule(),
+			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			fx.Provide(func() tagger.Component {
 				return fakeTagger

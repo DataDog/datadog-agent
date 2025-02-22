@@ -5,9 +5,11 @@ import re
 from typing import Any
 from urllib.parse import quote
 
+from tasks.libs.pipeline.notifications import HELP_SLACK_CHANNEL
+
 PROJECT_NAME = "DataDog/datadog-agent"
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count{extra_args}'
-NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-devx-help"
+NOTIFICATION_DISCLAIMER = f"If there is something wrong with the notification please contact {HELP_SLACK_CHANNEL}"
 CHANNEL_BROADCAST = '#agent-devx-ops'
 PIPELINES_CHANNEL = '#datadog-agent-pipelines'
 DEPLOY_PIPELINES_CHANNEL = '#datadog-agent-deploy-pipelines'
@@ -53,11 +55,7 @@ def should_notify(pipeline_id):
     from tasks.libs.ciproviders.gitlab_api import get_pipeline
 
     pipeline = get_pipeline(PROJECT_NAME, pipeline_id)
-    return (
-        pipeline.source != 'pipeline'
-        or pipeline.source == 'pipeline'
-        and all(var in os.environ for var in ['DDR', 'DDR_WORKFLOW_ID'])
-    )
+    return pipeline.source != 'pipeline' or pipeline.source == 'pipeline' and 'DDR_WORKFLOW_ID' in os.environ
 
 
 def get_pipeline_type(pipeline):

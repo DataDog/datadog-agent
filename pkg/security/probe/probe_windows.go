@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
@@ -392,11 +393,6 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		return err
 	}
 
-	return nil
-}
-
-// Setup the runtime security probe
-func (p *WindowsProbe) Setup() error {
 	return nil
 }
 
@@ -1074,6 +1070,11 @@ func (p *WindowsProbe) Snapshot() error {
 	return p.Resolvers.Snapshot()
 }
 
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *WindowsProbe) Walk(callback func(*model.ProcessCacheEntry)) {
+	p.Resolvers.ProcessResolver.Walk(callback)
+}
+
 // Close the probe
 func (p *WindowsProbe) Close() error {
 	if p.pm != nil {
@@ -1301,7 +1302,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,7 +17,7 @@ import (
 
 // ExtractPersistentVolumeClaim returns the protobuf model corresponding to a
 // Kubernetes PersistentVolumeClaim resource.
-func ExtractPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) *model.PersistentVolumeClaim {
+func ExtractPersistentVolumeClaim(ctx processors.ProcessorContext, pvc *corev1.PersistentVolumeClaim) *model.PersistentVolumeClaim {
 	message := &model.PersistentVolumeClaim{
 		Metadata: extractMetadata(&pvc.ObjectMeta),
 		Spec: &model.PersistentVolumeClaimSpec{
@@ -30,7 +31,10 @@ func ExtractPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) *model.Pers
 	}
 	extractSpec(pvc, message)
 	extractStatus(pvc, message)
+
+	pctx := ctx.(*processors.K8sProcessorContext)
 	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(pvc.ObjectMeta.Labels)...)
+	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(pvc.ObjectMeta.Labels, pvc.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return message
 }

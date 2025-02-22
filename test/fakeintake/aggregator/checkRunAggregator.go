@@ -45,18 +45,18 @@ func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 		return []*CheckRun{}, nil
 	}
 
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(enflated) > 0 && enflated[0] != '[' {
+	if len(inflated) > 0 && inflated[0] != '[' {
 		// check_run can submit non-array JSON object (diagnose command)
 		return []*CheckRun{}, nil
 	}
 
 	checks = []*CheckRun{}
-	err = json.Unmarshal(enflated, &checks)
+	err = json.Unmarshal(inflated, &checks)
 	if err != nil {
 		return nil, err
 	}

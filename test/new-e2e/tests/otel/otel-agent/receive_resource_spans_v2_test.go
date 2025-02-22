@@ -21,7 +21,6 @@ type otelAgentSpanReceiverV2TestSuite struct {
 }
 
 func TestOTelAgentSpanReceiverV2(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:
@@ -31,8 +30,6 @@ agents:
   containers:
     otelAgent:
       env:
-        - name: DD_APM_FEATURES
-          value: 'enable_receive_resource_spans_v2'
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'false'
 `

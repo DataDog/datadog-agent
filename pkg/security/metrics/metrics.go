@@ -68,6 +68,8 @@ var (
 	// MetricDentryERPC is the counter of eRPC dentry resolution errors by error type
 	// Tags: ret
 	MetricDentryERPC = newRuntimeMetric(".dentry_resolver.erpc")
+	// MetricDentryCacheSize is the size of the cache
+	MetricDentryCacheSize = newRuntimeMetric(".dentry_resolver.cache_size")
 
 	// filtering metrics
 

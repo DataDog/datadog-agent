@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -22,7 +23,7 @@ import (
 
 func TestFilterDevicesForContainer(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock)
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock, testutil.GetTelemetryMock(t))
 	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
 
@@ -46,8 +47,25 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		},
 	}
 
+	containerIDNoGpu := "abcdef2"
+	containerNoGpu := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerIDNoGpu,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerIDNoGpu,
+		},
+		AllocatedResources: nil,
+	}
+
 	wmetaMock.Set(container)
 	storeContainer, err := wmetaMock.GetContainer(containerID)
+	require.NoError(t, err, "container should be found in the store")
+	require.NotNil(t, storeContainer, "container should be found in the store")
+
+	wmetaMock.Set(containerNoGpu)
+	storeContainer, err = wmetaMock.GetContainer(containerIDNoGpu)
 	require.NoError(t, err, "container should be found in the store")
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
@@ -68,6 +86,19 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
 		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices[deviceIndex:deviceIndex+1])
+	})
+
+	t.Run("ContainerWithNoGPUs", func(t *testing.T) {
+		_, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerIDNoGpu)
+		require.Error(t, err, "expected an error when filtering a container with no GPUs")
+	})
+
+	t.Run("ContainerWithNoGPUsButOnlyOneDeviceInSystem", func(t *testing.T) {
+		sysDevices := sysCtx.gpuDevices[:1]
+		filtered, err := sysCtx.filterDevicesForContainer(sysDevices, containerIDNoGpu)
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		testutil.RequireDeviceListsEqual(t, filtered, sysDevices)
 	})
 }
 
@@ -92,7 +123,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	})
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock)
+	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock, testutil.GetTelemetryMock(t))
 	require.NotNil(t, sysCtx)
 	require.NoError(t, err)
 
@@ -173,4 +204,51 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildSymbolFileIdentifier(t *testing.T) {
+	// Create a file, then a symlink to it
+	// and check that the identifier is the same
+	// for both files.
+	dir := t.TempDir()
+	filePath := dir + "/file"
+	copyPath := dir + "/copy"
+	differentPath := dir + "/different"
+	symlinkPath := dir + "/symlink"
+
+	data := []byte("hello")
+	// create the original file
+	err := os.WriteFile(filePath, data, 0644)
+	require.NoError(t, err)
+
+	// create a symlink to the original file, which should have the same identifier
+	err = os.Symlink(filePath, symlinkPath)
+	require.NoError(t, err)
+
+	// a copy is a different inode, so it should have a different identifier
+	// even with the same size
+	err = os.WriteFile(copyPath, data, 0644)
+	require.NoError(t, err)
+
+	// a different file with different content should have a different identifier
+	// as it's different content and different inode
+	err = os.WriteFile(differentPath, []byte("different"), 0644)
+	require.NoError(t, err)
+
+	origIdentifier, err := buildSymbolFileIdentifier(filePath)
+	require.NoError(t, err)
+
+	symlinkIdentifier, err := buildSymbolFileIdentifier(symlinkPath)
+	require.NoError(t, err)
+
+	copyIdentifier, err := buildSymbolFileIdentifier(copyPath)
+	require.NoError(t, err)
+
+	differentIdentifier, err := buildSymbolFileIdentifier(differentPath)
+	require.NoError(t, err)
+
+	require.Equal(t, origIdentifier, symlinkIdentifier)
+	require.NotEqual(t, origIdentifier, copyIdentifier)
+	require.NotEqual(t, origIdentifier, differentIdentifier)
+	require.NotEqual(t, copyIdentifier, differentIdentifier)
 }

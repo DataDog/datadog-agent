@@ -45,6 +45,8 @@ import (
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
+	// mrfPrefix is the MRF site prefix.
+	mrfPrefix = "mrf."
 	// rcClientName is the default name for remote configuration clients in the trace agent
 	rcClientName = "trace-agent"
 )
@@ -127,6 +129,13 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.Ag
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.HTTPTransportFunc = func() *http.Transport {
+		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
+
+	cfg.IsMRFEnabled = func() bool {
+		return coreConfigObject.GetBool("multi_region_failover.enabled") && coreConfigObject.GetBool("multi_region_failover.failover_apm")
+	}
 	return cfg, nil
 }
 
@@ -173,6 +182,22 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	} else {
 		c.Endpoints[0].Host = utils.GetMainEndpoint(pkgconfigsetup.Datadog(), apiEndpointPrefix, "apm_config.apm_dd_url")
 	}
+
+	// Add MRF endpoint, if enabled
+	if core.GetBool("multi_region_failover.enabled") {
+		prefix := apiEndpointPrefix + mrfPrefix
+		mrfURL, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
+		if err != nil {
+			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+
+		c.Endpoints = append(c.Endpoints, &config.Endpoint{
+			Host:   mrfURL,
+			APIKey: utils.SanitizeAPIKey(core.GetString("multi_region_failover.api_key")),
+			IsMRF:  true,
+		})
+	}
+
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if core.IsSet("proxy.no_proxy") {
@@ -211,7 +236,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	prevEnv := c.DefaultEnv
-	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
+	c.DefaultEnv = traceutil.NormalizeTagValue(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
@@ -226,6 +251,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
+	}
+	if core.IsSet("apm_config.sql_obfuscation_mode") {
+		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
 	}
 
 	/**
@@ -427,15 +455,21 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if err = addReplaceRule(c, "error.stack", `(?s).*`, "?"); err != nil {
 			return err
 		}
+		if err = addReplaceRule(c, "exception.stacktrace", `(?s).*`, "?"); err != nil {
+			return err
+		}
 	}
 	c.Obfuscation.Memcached.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled")
 	c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
 	c.Obfuscation.Redis.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled")
 	c.Obfuscation.Redis.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args")
+	c.Obfuscation.Valkey.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled")
+	c.Obfuscation.Valkey.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args")
 	c.Obfuscation.CreditCards.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.enabled")
 	c.Obfuscation.CreditCards.Luhn = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn")
 	c.Obfuscation.CreditCards.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.credit_cards.keep_values")
 	c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
+	c.Obfuscation.Cache.MaxSize = pkgconfigsetup.Datadog().GetInt64("apm_config.obfuscation.cache.max_size")
 
 	if core.IsSet("apm_config.filter_tags.require") {
 		tags := core.GetStringSlice("apm_config.filter_tags.require")

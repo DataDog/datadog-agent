@@ -8,6 +8,8 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 
@@ -15,7 +17,7 @@ import (
 )
 
 // ExtractStorageClass returns the protobuf model corresponding to a Kubernetes StorageClass resource.
-func ExtractStorageClass(sc *storagev1.StorageClass) *model.StorageClass {
+func ExtractStorageClass(ctx processors.ProcessorContext, sc *storagev1.StorageClass) *model.StorageClass {
 	msg := &model.StorageClass{
 		AllowedTopologies: extractStorageClassTopologies(sc.AllowedTopologies),
 		Metadata:          extractMetadata(&sc.ObjectMeta),
@@ -38,6 +40,9 @@ func ExtractStorageClass(sc *storagev1.StorageClass) *model.StorageClass {
 	if sc.VolumeBindingMode != nil {
 		msg.VolumeBindingMode = string(*sc.VolumeBindingMode)
 	}
+
+	pctx := ctx.(*processors.K8sProcessorContext)
+	msg.Tags = append(msg.Tags, transformers.RetrieveMetadataTags(sc.ObjectMeta.Labels, sc.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return msg
 }

@@ -26,7 +26,7 @@ import (
 
 func TestInstall(t *testing.T) {
 	s := &testInstallSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallSuite struct {
@@ -39,12 +39,28 @@ func (s *testInstallSuite) TestInstall() {
 	// initialize test helper
 	t := s.newTester(vm)
 
-	// create a dummy auth-token with known value to be replaced
-	tokenValue := "F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0"
 	err := vm.MkdirAll(windowsAgent.DefaultConfigRoot)
-	s.Require().NoError(err)
-	_, err = vm.WriteFile(filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"), []byte(tokenValue))
-	s.Require().NoError(err)
+	s.Require().NoErrorf(err, "could not create default config root")
+
+	// create dummy files with known value to be replaced
+	filesThatNeedToBeReplaced := []struct {
+		path    string
+		content string
+	}{
+		{
+			path:    filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"),
+			content: "F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0",
+		},
+		{
+			path:    filepath.Join(windowsAgent.DefaultConfigRoot, "ipc_cert.pem"),
+			content: "0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F",
+		},
+	}
+
+	for _, f := range filesThatNeedToBeReplaced {
+		_, err = vm.WriteFile(f.path, []byte(f.content))
+		s.Require().NoErrorf(err, "could not write %s", f.path)
+	}
 
 	// install the agent
 	remoteMSIPath := s.installAgentPackage(vm, s.AgentPackage)
@@ -59,18 +75,12 @@ func (s *testInstallSuite) TestInstall() {
 		s.T().FailNow()
 	}
 	s.testCodeSignatures(t, remoteMSIPath)
-	s.testAuthTokenReplacement(tokenValue)
+	for _, f := range filesThatNeedToBeReplaced {
+		newFileContent, err := vm.ReadFile(f.path)
+		s.Require().NoErrorf(err, "could not read %s", f.path)
+		s.Assert().NotEqual(strings.TrimSpace(string(newFileContent)), strings.TrimSpace(f.content))
+	}
 	s.uninstallAgentAndRunUninstallTests(t)
-}
-
-// testAuthTokenReplacement confirms that a new auth token was created.
-func (s *testInstallSuite) testAuthTokenReplacement(oldAuth string) {
-	vm := s.Env().RemoteHost
-	newAuth, err := vm.ReadFile(filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"))
-	s.Require().NoError(err)
-	stringNewAuth := strings.TrimSpace(string(newAuth))
-	oldAuth = strings.TrimSpace(oldAuth)
-	s.Assert().NotEqual(stringNewAuth, oldAuth)
 }
 
 // testCodeSignatures checks the code signatures of the installed files.
@@ -85,15 +95,7 @@ func (s *testInstallSuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
 	}
 	ddSigned := []string{}
 	otherSigned := []string{}
-	for _, path := range paths {
-		if strings.Contains(path, "embedded3") {
-			// As of 7.5?, the embedded Python3 should be signed by Python, not Datadog
-			// We still build our own Python2, so we need to check that still
-			otherSigned = append(otherSigned, path)
-		} else {
-			ddSigned = append(ddSigned, path)
-		}
-	}
+	ddSigned = append(ddSigned, paths...)
 	// MSI is signed by Datadog
 	if remoteMSIPath != "" {
 		ddSigned = append(ddSigned, remoteMSIPath)
@@ -106,13 +108,15 @@ func (s *testInstallSuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
 		if !verify {
 			s.T().Skip("skipping code signature verification")
 		}
+		s.Assert().Empty(otherSigned, "no other signed files to check")
 		for _, path := range otherSigned {
 			subject := ""
-			if strings.Contains(path, "embedded3") {
-				subject = "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US"
-			} else {
-				s.Assert().Failf("unexpected signed executable", "unexpected signed executable %s", path)
-			}
+			// As of 7.63, the embedded Python3 is back to being signed by Datadog, so it's checked above
+			// If we need to check it or other files again, we can add it back here
+			// 	subject = "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US"
+			// } else {
+			// 	s.Assert().Failf("unexpected signed executable", "unexpected signed executable %s", path)
+			// }
 			sig, err := windowsCommon.GetAuthenticodeSignature(t.host, path)
 			if !s.Assert().NoError(err, "should get authenticode signature for %s", path) {
 				continue
@@ -127,7 +131,7 @@ func (s *testInstallSuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
 // checks that the files are not removed
 func TestInstallExistingAltDir(t *testing.T) {
 	s := &testInstallExistingAltDirSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallExistingAltDirSuite struct {
@@ -189,7 +193,7 @@ func (s *testInstallExistingAltDirSuite) TestInstallExistingAltDir() {
 
 func TestInstallAltDir(t *testing.T) {
 	s := &testInstallAltDirSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallAltDirSuite struct {
@@ -224,7 +228,7 @@ func (s *testInstallAltDirSuite) TestInstallAltDir() {
 
 func TestInstallAltDirAndCorruptForUninstall(t *testing.T) {
 	s := &testInstallAltDirAndCorruptForUninstallSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallAltDirAndCorruptForUninstallSuite struct {
@@ -261,7 +265,7 @@ func (s *testInstallAltDirAndCorruptForUninstallSuite) TestInstallAltDirAndCorru
 
 func TestRepair(t *testing.T) {
 	s := &testRepairSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testRepairSuite struct {
@@ -313,7 +317,7 @@ func (s *testRepairSuite) TestRepair() {
 
 func TestInstallOpts(t *testing.T) {
 	s := &testInstallOptsSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallOptsSuite struct {
@@ -420,7 +424,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 
 func TestInstallFail(t *testing.T) {
 	s := &testInstallFailSuite{}
-	run(t, s)
+	Run(t, s)
 }
 
 type testInstallFailSuite struct {
@@ -473,4 +477,28 @@ func (s *testInstallFailSuite) TestInstallFail() {
 	s.Run("rollback does not change system file permissions", func() {
 		AssertDoesNotChangePathPermissions(s.T(), vm, s.beforeInstallPerms)
 	})
+}
+
+// TestInstallWithLanmanServerDisabled tests that the Agent can be installed when the LanmanServer service is disabled.
+// This is the case in Windows Containers, but is not likely to be encountered in other environments.
+func TestInstallWithLanmanServerDisabled(t *testing.T) {
+	s := &testInstallWithLanmanServerDisabledSuite{}
+	Run(t, s)
+}
+
+type testInstallWithLanmanServerDisabledSuite struct {
+	baseAgentMSISuite
+}
+
+func (s *testInstallWithLanmanServerDisabledSuite) TestInstallWithLanmanServerDisabled() {
+	vm := s.Env().RemoteHost
+
+	// Disable LanmanServer service to prevent it from starting again, and then stop it
+	_, err := vm.Execute("sc.exe config lanmanserver start= disabled")
+	s.Require().NoError(err)
+	err = windowsCommon.StopService(vm, "lanmanserver")
+	s.Require().NoError(err)
+
+	_ = s.installAgentPackage(vm, s.AgentPackage)
+	RequireAgentRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm))
 }

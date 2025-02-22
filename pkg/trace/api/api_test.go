@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -149,6 +150,16 @@ func TestListenTCP(t *testing.T) {
 		_, ok := ln.(*rateLimitedListener)
 		assert.True(t, ok)
 	})
+}
+
+func TestNoDuplicatePatterns(t *testing.T) {
+	handlerPatternsMap := make(map[string]int)
+	for _, endpoint := range endpoints {
+		handlerPatternsMap[endpoint.Pattern]++
+		if handlerPatternsMap[endpoint.Pattern] > 1 {
+			assert.Fail(t, fmt.Sprintf("duplicate handler pattern %v", endpoint.Pattern))
+		}
+	}
 }
 
 func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
@@ -719,6 +730,8 @@ func TestClientComputedStatsHeader(t *testing.T) {
 			req.Header.Set(header.Lang, "lang1")
 			if on {
 				req.Header.Set(header.ComputedStats, "yes")
+			} else {
+				req.Header.Set(header.ComputedStats, "false")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -1075,6 +1088,39 @@ func TestExpvar(t *testing.T) {
 			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
 		}
 	})
+}
+
+func TestWithoutIPCCert(t *testing.T) {
+	c := newTestReceiverConfig()
+
+	// Getting an available port
+	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var l *net.TCPListener
+	l, err = net.ListenTCP("tcp", a)
+	require.NoError(t, err)
+
+	availablePort := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, l.Close())
+	require.NotZero(t, availablePort)
+
+	c.DebugServerPort = availablePort
+	info.InitInfo(c)
+
+	// Starting Debug Server
+	s := NewDebugServer(c)
+
+	// Starting the Debug server
+	s.Start()
+	defer s.Stop()
+
+	// Server should not be able to connect because it didn't start
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(c.DebugServerPort)), time.Second)
+	require.Error(t, err)
+	if conn != nil {
+		conn.Close()
+	}
 }
 
 func TestNormalizeHTTPHeader(t *testing.T) {

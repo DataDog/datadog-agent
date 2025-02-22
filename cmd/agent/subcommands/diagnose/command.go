@@ -12,6 +12,9 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -29,15 +32,14 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/compression/fx"
+	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -104,9 +106,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(option.None[collector.Component]()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				autodiscoveryimpl.Module(),
-				compressionfx.Module(),
 				diagnosesendermanagerimpl.Module(),
 				haagentfx.Module(),
+				logscompressorfx.Module(),
+				metricscompressorfx.Module(),
 			)
 		},
 	}
@@ -204,10 +207,24 @@ This command print the inventory-host metadata payload. This payload is used by 
 		Use:   "inventory-otel",
 		Short: "Print the Inventory otel metadata payload.",
 		Long: `
-This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
+This command print the inventory-otel metadata payload. This payload is used by the 'OTel Agent' product.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-otel")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
+	payloadInventoriesHaAgentCmd := &cobra.Command{
+		Use:   "ha-agent",
+		Short: "Print the HA Agent Metadata payload.",
+		Long: `
+This command print the ha-agent metadata payload. This payload is used by the 'HA Agent' feature.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("ha-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 			)
@@ -288,6 +305,7 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)

@@ -36,7 +36,6 @@ var minimalFullConfig string
 var sources string
 
 func TestOTelAgentMinimal(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:
@@ -92,4 +91,62 @@ func (s *minimalTestSuite) TestOTelFlareFiles() {
 
 func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
 	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
+}
+
+func (s *minimalTestSuite) TestCoreAgentStatus() {
+	utils.TestCoreAgentStatusCmd(s)
+}
+
+func (s *minimalTestSuite) TestOTelAgentStatus() {
+	utils.TestOTelAgentStatusCmd(s)
+}
+
+func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
+	const expectedCfg = `    service:
+      extensions:
+      - pprof/dd-autoconfigured
+      - zpages/dd-autoconfigured
+      - health_check/dd-autoconfigured
+      - ddflare/dd-autoconfigured
+      pipelines:
+        logs:
+          exporters:
+          - datadog
+          processors:
+          - batch
+          - infraattributes/dd-autoconfigured
+          receivers:
+          - otlp
+        metrics:
+          exporters:
+          - datadog
+          processors:
+          - batch
+          - infraattributes/dd-autoconfigured
+          receivers:
+          - otlp
+          - datadog/connector
+        metrics/dd-autoconfigured/datadog:
+          exporters:
+          - datadog
+          processors: []
+          receivers:
+          - prometheus/dd-autoconfigured
+        traces:
+          exporters:
+          - datadog/connector
+          processors:
+          - batch
+          - infraattributes/dd-autoconfigured
+          receivers:
+          - otlp
+        traces/send:
+          exporters:
+          - datadog
+          processors:
+          - batch
+          - infraattributes/dd-autoconfigured
+          receivers:
+          - otlp`
+	utils.TestCoreAgentConfigCmd(s, expectedCfg)
 }

@@ -348,7 +348,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_ebpf_program(
+        ninja_ebpf_co_re_program(
             nw, infile, outfile, {"flags": test_flags}
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
@@ -356,7 +356,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
     gpu_headers_dir = Path("pkg/gpu/ebpf/c")
     gpu_c_dir = gpu_headers_dir / "runtime"
-    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir}"
+    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir} -Ipkg/network/ebpf/c"
     gpu_programs = ["gpu"]
 
     for prog in gpu_programs:
@@ -382,6 +382,19 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
         )
 
 
+def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+    dir = Path("pkg/collector/corechecks/servicediscovery/c/ebpf/runtime")
+    flags = f"-I{dir} -Ipkg/network/ebpf/c"
+    programs = ["discovery-net"]
+
+    for prog in programs:
+        infile = os.path.join(dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+
+
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     bc_dir = os.path.join("pkg", "ebpf", "bytecode")
     build_dir = os.path.join(bc_dir, "build")
@@ -405,6 +418,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
+        "pkg/collector/corechecks/servicediscovery/module/network_ebpf.go": "discovery-net",
         "pkg/network/usm/compile.go": "usm",
         "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
@@ -510,6 +524,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
             ],
+            "pkg/collector/corechecks/servicediscovery/module/kern_types.go": [
+                "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
+            ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
@@ -535,7 +552,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             pool="cgo_pool",
             command="cd $in_dir && "
             + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
-            + "go run $script_path > $out_file",
+            + "go run $script_path $tests_file $package_name > $out_file",
         )
 
     script_path = os.path.join(os.getcwd(), "pkg", "ebpf", "cgo", "genpost.go")
@@ -544,9 +561,16 @@ def ninja_cgo_type_files(nw: NinjaWriter):
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
         rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
+        tests_file = ""
+        package_name = ""
+        outputs = [os.path.join(in_dir, out_file)]
+        if go_platform == "linux":
+            tests_file = f"{in_base}_{go_platform}_test"
+            package_name = os.path.basename(in_dir)
+            outputs.append(os.path.join(in_dir, f"{tests_file}.go"))
         nw.build(
             inputs=[f],
-            outputs=[os.path.join(in_dir, out_file)],
+            outputs=outputs,
             rule="godefs",
             implicit=headers + [script_path],
             variables={
@@ -555,6 +579,8 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "out_file": out_file,
                 "script_path": script_path,
                 "rel_import": rel_import,
+                "tests_file": tests_file,
+                "package_name": package_name,
             },
         )
 
@@ -604,12 +630,13 @@ def ninja_generate(
             )
             ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, build_dir)
+            ninja_test_ebpf_programs(nw, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
+            ninja_discovery_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -762,7 +789,7 @@ def build_sysprobe_binary(
         ldflags += ' -s -w'
 
     if static:
-        build_tags.extend(["osusergo", "netgo"])
+        build_tags.extend(["osusergo", "netgo", "static"])
         build_tags = list(set(build_tags).difference({"netcgo"}))
 
     if not is_windows and "pcap" in build_tags:
@@ -1459,6 +1486,7 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
+@task(aliases=["object-files"])
 def build_object_files(
     ctx,
     major_version='7',
@@ -1580,15 +1608,6 @@ def build_cws_object_files(
         copy_bundled_ebpf_files(ctx, arch=arch)
 
 
-@task
-def object_files(
-    ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH, ebpf_compiler: str = 'clang'
-):
-    build_object_files(
-        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch, ebpf_compiler=ebpf_compiler
-    )
-
-
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
     run_ninja(
         ctx,
@@ -1666,7 +1685,10 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
-        nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
+        nw.rule(
+            name="compress_minimized_btf",
+            command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
+        )
 
         for root, dirs, files in os.walk(source_dir):
             path_from_root = os.path.relpath(root, source_dir)
@@ -1779,7 +1801,8 @@ def process_btfhub_archive(ctx, branch="main"):
                                             dst_file = os.path.join(dst_dir, file)
                                             if os.path.exists(dst_file):
                                                 raise Exit(message=f"{dst_file} already exists")
-                                            shutil.move(src_file, os.path.join(dst_dir, file))
+
+                                            shutil.move(src_file, dst_file)
 
         # generate both tarballs
         for arch in ["x86_64", "arm64"]:
@@ -1789,7 +1812,8 @@ def process_btfhub_archive(ctx, branch="main"):
             if os.path.exists(btfs_dir):
                 with ctx.cd(temp_dir):
                     # include btfs-$ARCH as prefix for all paths
-                    ctx.run(f"tar -cf {output_path} btfs-{arch}")
+                    # set modification time to zero to ensure deterministic tarball
+                    ctx.run(f"tar --mtime=@0 -cf {output_path} btfs-{arch}")
 
 
 @task

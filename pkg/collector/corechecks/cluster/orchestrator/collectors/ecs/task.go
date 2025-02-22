@@ -60,6 +60,11 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		tasks = append(tasks, t.fetchContainers(rcfg, newTask))
 	}
 
+	return t.Process(rcfg, tasks)
+}
+
+// Process is used to process the resources.
+func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := &processors.ECSProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              rcfg.Config,
@@ -75,7 +80,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		Hostname:     rcfg.HostName,
 	}
 
-	processResult, processed := t.processor.Process(ctx, tasks)
+	processResult, processed := t.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, fmt.Errorf("unable to process resources: a panic occurred")
@@ -83,7 +88,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    len(t.processor.Handlers().ResourceList(ctx, list)),
 		ResourcesProcessed: processed,
 	}
 

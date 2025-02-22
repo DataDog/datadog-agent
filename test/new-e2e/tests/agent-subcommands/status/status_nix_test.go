@@ -41,13 +41,18 @@ func (v *linuxStatusSuite) TestStatusHostname() {
 }
 
 func (v *linuxStatusSuite) TestFIPSProxyStatus() {
+	// Skip this test if the e2e pipeline is running with the FIPS Agent flavor because the FIPS proxy is not supported with the FIPS Agent.
+	if v.Env().Agent.FIPSEnabled {
+		v.T().Skip()
+	}
+
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
 
 	expectedSections := []expectedSection{
 		{
 			name:            `Agent \(.*\)`,
 			shouldBePresent: true,
-			shouldContain:   []string{"FIPS proxy"},
+			shouldContain:   []string{"FIPS Mode: proxy", "FIPS proxy"},
 		},
 	}
 

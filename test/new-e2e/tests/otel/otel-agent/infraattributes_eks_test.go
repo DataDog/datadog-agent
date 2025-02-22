@@ -25,7 +25,6 @@ type iaEKSTestSuite struct {
 }
 
 func TestOTelAgentIAEKS(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:
@@ -72,7 +71,6 @@ type iaUSTEKSTestSuite struct {
 }
 
 func TestOTelAgentIAUSTEKS(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:

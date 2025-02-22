@@ -26,7 +26,6 @@ type completeTestSuite struct {
 var completeConfig string
 
 func TestOTelAgentComplete(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	values := `
 datadog:
   logs:
@@ -38,6 +37,8 @@ agents:
       env:
         - name: DD_OTELCOLLECTOR_CONVERTER_ENABLED
           value: 'false'
+        - name: DD_APM_FEATURES
+          value: 'disable_receive_resource_spans_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig)))))

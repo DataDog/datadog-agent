@@ -230,6 +230,7 @@ func TestInfoHandler(t *testing.T) {
 		},
 		RemoveStackTraces: false,
 		Redis:             obfuscate.RedisConfig{Enabled: true},
+		Valkey:            obfuscate.ValkeyConfig{Enabled: true},
 		Memcached:         obfuscate.MemcachedConfig{Enabled: false},
 	}
 	conf := &config.AgentConfig{
@@ -300,6 +301,7 @@ func TestInfoHandler(t *testing.T) {
 		"client_drop_p0s":           nil,
 		"span_meta_structs":         nil,
 		"long_running_spans":        nil,
+		"span_events":               nil,
 		"evp_proxy_allowed_headers": nil,
 		"peer_tags":                 nil,
 		"span_kinds_stats_computed": nil,
@@ -327,6 +329,7 @@ func TestInfoHandler(t *testing.T) {
 				},
 				"remove_stack_traces": nil,
 				"redis":               nil,
+				"valkey":              nil,
 				"memcached":           nil,
 			},
 		},

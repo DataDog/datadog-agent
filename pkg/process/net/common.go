@@ -80,7 +80,7 @@ func GetNetworkID(client *http.Client) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
+		return "", fmt.Errorf("network ID request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
 	}
 
 	body, err := sysprobeclient.ReadAllResponseBody(resp)

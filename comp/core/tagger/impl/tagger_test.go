@@ -90,28 +90,53 @@ func TestEnrichTags(t *testing.T) {
 			expectedTags: []string{},
 		},
 		{
-			name:         "with local data (containerID) and low cardinality",
-			originInfo:   taggertypes.OriginInfo{ContainerID: containerID, Cardinality: "low"},
+			name: "with local data (containerID) and low cardinality",
+			originInfo: taggertypes.OriginInfo{
+				LocalData: origindetection.LocalData{
+					ContainerID: containerID,
+				},
+				Cardinality: "low",
+			},
 			expectedTags: []string{"container-low"},
 		},
 		{
-			name:         "with local data (containerID) and high cardinality",
-			originInfo:   taggertypes.OriginInfo{ContainerID: containerID, Cardinality: "high"},
-			expectedTags: []string{"container-low", "container-orch", "container-high"},
+			name: "with local data (containerID) and high cardinality",
+			originInfo: taggertypes.OriginInfo{
+				LocalData: origindetection.LocalData{
+					ContainerID: containerID,
+				},
+				Cardinality: "high",
+			}, expectedTags: []string{"container-low", "container-orch", "container-high"},
 		},
 		{
-			name:         "with local data (podUID) and low cardinality",
-			originInfo:   taggertypes.OriginInfo{PodUID: podUID, Cardinality: "low"},
+			name: "with local data (podUID) and low cardinality",
+			originInfo: taggertypes.OriginInfo{
+				LocalData: origindetection.LocalData{
+					PodUID: podUID,
+				},
+				Cardinality: "low",
+			},
 			expectedTags: []string{"pod-low"},
 		},
 		{
-			name:         "with local data (podUID) and high cardinality",
-			originInfo:   taggertypes.OriginInfo{PodUID: podUID, Cardinality: "high"},
+			name: "with local data (podUID) and high cardinality",
+			originInfo: taggertypes.OriginInfo{
+				LocalData: origindetection.LocalData{
+					PodUID: podUID,
+				},
+				Cardinality: "high",
+			},
 			expectedTags: []string{"pod-low", "pod-orch", "pod-high"},
 		},
 		{
-			name:         "with local data (podUID, containerIDFromSocket) and high cardinality, APM origin",
-			originInfo:   taggertypes.OriginInfo{PodUID: podUID, Cardinality: "high", ContainerIDFromSocket: fmt.Sprintf("container_id://%s", containerID), ProductOrigin: origindetection.ProductOriginAPM},
+			name: "with local data (podUID, containerIDFromSocket) and high cardinality, APM origin",
+			originInfo: taggertypes.OriginInfo{
+				ContainerIDFromSocket: fmt.Sprintf("container_id://%s", containerID),
+				LocalData: origindetection.LocalData{
+					PodUID: podUID,
+				},
+				Cardinality:   "high",
+				ProductOrigin: origindetection.ProductOriginAPM},
 			expectedTags: []string{"container-low", "container-orch", "container-high", "pod-low", "pod-orch", "pod-high"},
 		},
 	} {
@@ -262,11 +287,26 @@ func TestEnrichTagsOptOut(t *testing.T) {
 
 	tb := tagset.NewHashingTagsAccumulator()
 	// Test with none cardinality
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", ContainerID: "container-id", Cardinality: "none", ProductOrigin: origindetection.ProductOriginDogStatsD})
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{
+		ContainerIDFromSocket: "container_id://bar",
+		LocalData: origindetection.LocalData{
+			ContainerID: "container-id",
+		},
+		Cardinality:   "none",
+		ProductOrigin: origindetection.ProductOriginDogStatsD,
+	})
 	assert.Equal(t, []string{}, tb.Get())
 
 	// Test without none cardinality
-	tagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "low", ProductOrigin: origindetection.ProductOriginDogStatsD})
+	tagger.EnrichTags(tb, taggertypes.OriginInfo{
+		ContainerIDFromSocket: "container_id://bar",
+		LocalData: origindetection.LocalData{
+			ContainerID: "container-id",
+			PodUID:      "pod-uid",
+		},
+		Cardinality:   "low",
+		ProductOrigin: origindetection.ProductOriginDogStatsD,
+	})
 	assert.Equal(t, []string{"container-low"}, tb.Get())
 }
 
@@ -332,6 +372,45 @@ func TestGenerateContainerIDFromExternalData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeTagger := TaggerWrapper{}
 			containerID, err := fakeTagger.generateContainerIDFromExternalData(tt.externalData, tt.cidProvider)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, containerID)
+		})
+	}
+}
+
+func TestGenerateContainerIDFromInode(t *testing.T) {
+	// Create mock metrics provider
+	mockProvider := collectormock.NewMetricsProvider()
+	mockProvider.RegisterMetaCollector(&collectormock.MetaCollector{
+		CIDFromInode: map[uint64]string{
+			uint64(1234): "abcdef",
+		},
+	})
+
+	for _, tt := range []struct {
+		name          string
+		localData     origindetection.LocalData
+		expected      string
+		inodeProvider *collectormock.MetricsProvider
+	}{
+		{
+			name:          "empty",
+			localData:     origindetection.LocalData{},
+			expected:      "",
+			inodeProvider: mockProvider,
+		},
+		{
+			name: "found container",
+			localData: origindetection.LocalData{
+				Inode: 1234,
+			},
+			expected:      "abcdef",
+			inodeProvider: mockProvider,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeTagger := TaggerWrapper{}
+			containerID, err := fakeTagger.generateContainerIDFromInode(tt.localData, mockProvider.GetMetaCollector())
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, containerID)
 		})

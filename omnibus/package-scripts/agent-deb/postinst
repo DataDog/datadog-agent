@@ -187,7 +187,7 @@ else
 fi
 
 if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
-    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/postinst.py" "${INSTALL_DIR}" || true
+    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/post.py" "${INSTALL_DIR}" || true
 fi
 
 exit 0

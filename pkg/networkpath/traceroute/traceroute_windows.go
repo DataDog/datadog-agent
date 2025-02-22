@@ -10,12 +10,9 @@ package traceroute
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,18 +36,9 @@ type WindowsTraceroute struct {
 func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
 
-	// UDP is not supported at the moment
-	if cfg.Protocol == payload.ProtocolUDP {
-		return nil, errors.New(udpNotSupportedWindowsMsg)
-	}
-
 	return &WindowsTraceroute{
-		cfg: cfg,
-		sysprobeClient: &http.Client{
-			Transport: &http.Transport{
-				DialContext: sysprobeclient.DialContextFunc(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-			},
-		},
+		cfg:            cfg,
+		sysprobeClient: getSysProbeClient(),
 	}, nil
 }
 

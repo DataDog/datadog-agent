@@ -27,6 +27,18 @@ func writeConfigs(config Config, configDir string) error {
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
 	}
+	if config.SecurityAgentYAML != nil {
+		err = writeConfig(filepath.Join(configDir, "security-agent.yaml"), config.SecurityAgentYAML, 0640, true)
+		if err != nil {
+			return fmt.Errorf("could not write security-agent.yaml: %w", err)
+		}
+	}
+	if config.SystemProbeYAML != nil {
+		err = writeConfig(filepath.Join(configDir, "system-probe.yaml"), config.SystemProbeYAML, 0640, true)
+		if err != nil {
+			return fmt.Errorf("could not write system-probe.yaml: %w", err)
+		}
+	}
 	err = writeConfig(filepath.Join(configDir, injectTracerConfigFile), config.InjectTracerYAML, 0644, false)
 	if err != nil {
 		return fmt.Errorf("could not write tracer.yaml: %w", err)
@@ -92,6 +104,10 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 type Config struct {
 	// DatadogYAML is the content of the datadog.yaml file
 	DatadogYAML DatadogConfig
+	// SecurityAgentYAML is the content of the security-agent.yaml file
+	SecurityAgentYAML *SecurityAgentConfig
+	// SystemProbeYAML is the content of the system-probe.yaml file
+	SystemProbeYAML *SystemProbeConfig
 	// InjectTracerYAML is the content of the inject/tracer.yaml file
 	InjectTracerYAML InjectTracerConfig
 	// IntegrationConfigs is the content of the integration configuration files under conf.d/
@@ -110,6 +126,10 @@ type DatadogConfig struct {
 	DJM                  DatadogConfigDJM           `yaml:"djm,omitempty"`
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
+	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
+	RemotePolicies       bool                       `yaml:"remote_policies,omitempty"`
+	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
+	DDURL                string                     `yaml:"dd_url,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy
@@ -129,9 +149,20 @@ type DatadogConfigProcessConfig struct {
 	ExpvarPort int `yaml:"expvar_port,omitempty"`
 }
 
+// DatadogConfigInstaller represents the configuration for the installer
+type DatadogConfigInstaller struct {
+	Registry DatadogConfigInstallerRegistry `yaml:"registry,omitempty"`
+}
+
+// DatadogConfigInstallerRegistry represents the configuration for the installer registry
+type DatadogConfigInstallerRegistry struct {
+	URL  string `yaml:"url,omitempty"`
+	Auth string `yaml:"auth,omitempty"`
+}
+
 // IntegrationConfig represents the configuration for an integration under conf.d/
 type IntegrationConfig struct {
-	InitConfig []any                   `yaml:"init_config"`
+	InitConfig any                     `yaml:"init_config"`
 	Instances  []any                   `yaml:"instances,omitempty"`
 	Logs       []IntegrationConfigLogs `yaml:"logs,omitempty"`
 }
@@ -142,6 +173,7 @@ type IntegrationConfigLogs struct {
 	Path    string `yaml:"path,omitempty"`
 	Service string `yaml:"service,omitempty"`
 	Source  string `yaml:"source,omitempty"`
+	Tags    string `yaml:"tags,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration
@@ -169,6 +201,27 @@ type InjectTracerConfig struct {
 type InjectTracerConfigEnvVar struct {
 	Key   string `yaml:"key"`
 	Value string `yaml:"value"`
+}
+
+// SystemProbeConfig represents the configuration to write in /etc/datadog-agent/system-probe.yaml
+type SystemProbeConfig struct {
+	RuntimeSecurityConfig RuntimeSecurityConfig `yaml:"runtime_security_config,omitempty"`
+}
+
+// RuntimeSecurityConfig represents the configuration for the runtime security
+type RuntimeSecurityConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// SecurityAgentConfig represents the configuration to write in /etc/datadog-agent/security-agent.yaml
+type SecurityAgentConfig struct {
+	ComplianceConfig      SecurityAgentComplianceConfig `yaml:"compliance_config,omitempty"`
+	RuntimeSecurityConfig RuntimeSecurityConfig         `yaml:"runtime_security_config,omitempty"`
+}
+
+// SecurityAgentComplianceConfig represents the configuration for the compliance
+type SecurityAgentComplianceConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
 }
 
 // mergeConfig merges the current config with the setup config.

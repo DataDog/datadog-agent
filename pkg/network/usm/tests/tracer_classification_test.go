@@ -49,9 +49,12 @@ func TestMain(m *testing.M) {
 }
 
 func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+	if ebpftest.GetBuildMode() == ebpftest.Ebpfless {
 		env.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		cfg.ProtocolClassificationEnabled = false
 	}
 

@@ -16,6 +16,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
+	"gopkg.in/yaml.v2"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -36,13 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"gopkg.in/yaml.v2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
-	"k8s.io/kube-state-metrics/v2/pkg/customresource"
-	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 const (
@@ -69,6 +72,8 @@ var extendedCollectors = map[string]string{
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
 // their new collector name would be. For backwards compatibility.
 var collectorNameReplacement = map[string]string{
+	"apiservices":               "apiregistration.k8s.io/v1, Resource=apiservices",
+	"customresourcedefinitions": "apiextensions.k8s.io/v1, Resource=customresourcedefinitions",
 	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
 	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
 	"verticalpodautoscalers": "autoscaling.k8s.io/v1beta2, Resource=verticalpodautoscalers",
@@ -115,6 +120,25 @@ type KSMConfig struct {
 	//   - nodes
 	//   - pods
 	Collectors []string `yaml:"collectors"`
+
+	// CustomResourceStateMetrics defines the custom resource states metrics
+	// https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/customresourcestate-metrics.md
+	// Example: Enable custom resource state metrics for CRD mycrd.
+	// custom_resource:
+	//    spec:
+	//      resources:
+	//      - groupVersionKind:
+	//          group: "datadoghq.com"
+	//          kind: "DatadogAgent"
+	//          version: "v2alpha1"
+	//        metrics:
+	//          - name: "custom_metric"
+	//            help: "custom_metric"
+	//            each:
+	//              type: Gauge
+	//              gauge:
+	//                path: [status, agent, available]
+	CustomResource customresourcestate.Metrics `yaml:"custom_resource"`
 
 	// LabelJoins allows adding the tags to join from other KSM metrics.
 	// Example: Joining for deployment metrics. Based on:
@@ -260,6 +284,10 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		return err
 	}
 
+	maps.Copy(k.metricNamesMapper, customresources.GetCustomMetricNamesMapper(k.instance.CustomResource.Spec.Resources))
+
+	metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
+
 	// Retrieve cluster name
 	k.getClusterName()
 
@@ -274,9 +302,12 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelJoins(defaultLabelJoins())
 
 	k.processLabelJoins()
+	k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags)
 	k.processLabelsAsTags()
 
-	k.mergeAnnotationsAsTags(defaultAnnotationsAsTags())
+	// We need to merge the user-defined annotations as tags with the default annotations first
+	mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), defaultAnnotationsAsTags())
+	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(mergedAnnotationsAsTags, k.instance.AnnotationsAsTags)
 	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
@@ -327,16 +358,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		builder.WithKubeClient(apiServerClient.InformerCl)
 	}
 
-	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
-	// Equivalent to configuring --metric-annotations-allowlist.
-	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
-		// Any annotation can be used for label joins.
-		allowedAnnotations[collector] = []string{"*"}
-	}
-
-	builder.WithAllowAnnotations(allowedAnnotations)
-
 	// Prepare watched namespaces
 	namespaces := k.instance.Namespaces
 
@@ -376,6 +397,16 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
+
+	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
+	// Equivalent to configuring --metric-annotations-allowlist.
+	allowedAnnotations := map[string][]string{}
+	for _, collector := range collectors {
+		// Any annotation can be used for label joins.
+		allowedAnnotations[collector] = []string{"*"}
+	}
+
+	builder.WithAllowAnnotations(allowedAnnotations)
 
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
@@ -481,6 +512,13 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		client, _ := f.CreateClient(nil)
 		clients[f.Name()] = client
 	}
+
+	customResourceFactories := customresources.GetCustomResourceFactories(k.instance.CustomResource, c)
+	customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(k.instance.CustomResource.Spec.Resources, c)
+
+	collectors = lo.Uniq(append(collectors, customResourceCollectors...))
+	maps.Copy(clients, customResourceClients)
+	factories = append(factories, customResourceFactories...)
 
 	return customResources{
 		collectors: collectors,
@@ -625,11 +663,15 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				}
 				continue
 			}
+			metricPrefix := ksmMetricPrefix
+			if strings.HasPrefix(metricFamily.Name, "kube_customresource_") {
+				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
+			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tagList)
+					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}
@@ -769,33 +811,6 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfigWithoutLabelsMap
 	for key, value := range extra {
 		if _, found := k.instance.LabelJoins[key]; !found {
 			k.instance.LabelJoins[key] = value
-		}
-	}
-}
-
-// mergeAnnotationsAsTags adds extra annotations as tags to the configured mapping.
-// User-defined annotations as tags are prioritized.
-func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
-	if k.instance.AnnotationsAsTags == nil {
-		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
-	}
-	// In the case of a misconfiguration issue, the value could be explicitly set to nil
-	for resource, mapping := range k.instance.AnnotationsAsTags {
-		if mapping == nil {
-			delete(k.instance.AnnotationsAsTags, resource)
-		}
-	}
-	for resource, mapping := range extra {
-		_, found := k.instance.AnnotationsAsTags[resource]
-		if !found {
-			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
-			k.instance.AnnotationsAsTags[resource] = mapping
-			continue
-		}
-		for key, value := range mapping {
-			if _, found := k.instance.AnnotationsAsTags[resource][key]; !found {
-				k.instance.AnnotationsAsTags[resource][key] = value
-			}
 		}
 	}
 }
@@ -995,6 +1010,37 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	}
 }
 
+// mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
+func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string) map[string]map[string]string {
+	if instanceMap == nil {
+		instanceMap = make(map[string]map[string]string)
+	}
+	// In the case of a misconfiguration issue, the value could be explicitly set to nil
+	for resource, mapping := range instanceMap {
+		if mapping == nil {
+			delete(instanceMap, resource)
+		}
+	}
+
+	for resource, mapping := range extra {
+		// modify the resource name to the singular form of the resource
+		resource = toSingularResourceName(resource)
+		_, found := instanceMap[resource]
+		if !found {
+			instanceMap[resource] = make(map[string]string)
+			instanceMap[resource] = mapping
+			continue
+		}
+		for key, value := range mapping {
+			if _, found := instanceMap[resource][key]; !found {
+				instanceMap[resource][key] = value
+			}
+		}
+	}
+
+	return instanceMap
+}
+
 // resourceNameFromMetric returns the resource name based on the metric name
 // It relies on the conventional KSM naming format kube_<resource>_suffix
 // returns an empty string otherwise
@@ -1121,4 +1167,10 @@ func labelsMapperOverride(metricName string) map[string]string {
 func toSnakeCase(s string) string {
 	snake := matchAllCap.ReplaceAllString(s, "${1}_${2}")
 	return strings.ToLower(snake)
+}
+
+func toSingularResourceName(s string) string {
+	// Expected input in the form of: resourceTypePlural.apiGroup
+	resourceType := strings.Split(s, ".")[0]
+	return strings.TrimSuffix(resourceType, "s")
 }

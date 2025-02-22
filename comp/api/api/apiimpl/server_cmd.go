@@ -13,7 +13,7 @@ import (
 
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -73,6 +73,7 @@ func (server *apiServer) startCMDServer(
 		pidMap:              server.pidMap,
 		remoteAgentRegistry: server.remoteAgentRegistry,
 		autodiscovery:       server.autoConfig,
+		configComp:          cfg,
 	})
 
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(credentials.NewTLS(server.authToken.GetTLSClientConfig()))}

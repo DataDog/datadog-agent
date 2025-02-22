@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
 
@@ -37,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 const (
@@ -295,6 +298,46 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	case ebpfless.SyscallTypeUmount:
 		event.Type = uint32(model.FileUmountEventType)
 		event.Umount.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeConnect:
+		event.Type = uint32(model.ConnectEventType)
+		event.Connect.Addr = model.IPPortContext{
+			IPNet: *eval.IPNetFromIP(syscallMsg.Connect.Addr),
+			Port:  syscallMsg.Connect.Port,
+		}
+		event.Connect.AddrFamily = syscallMsg.Connect.AddressFamily
+		event.Connect.Protocol = syscallMsg.Connect.Protocol
+		event.Connect.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeAccept:
+		event.Type = uint32(model.AcceptEventType)
+		event.Accept.Addr = model.IPPortContext{
+			IPNet: *eval.IPNetFromIP(syscallMsg.Accept.Addr),
+			Port:  syscallMsg.Accept.Port,
+		}
+		event.Accept.AddrFamily = syscallMsg.Accept.AddressFamily
+		event.Accept.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeBind:
+		event.Type = uint32(model.BindEventType)
+		if syscallMsg.Bind.AddressFamily == unix.AF_UNIX {
+			event.Bind.Addr = model.IPPortContext{
+				IPNet: net.IPNet{
+					IP:   net.IP(nil),
+					Mask: net.IPMask(nil),
+				},
+				Port: 0,
+			}
+		} else {
+			event.Bind.Addr = model.IPPortContext{
+				IPNet: *eval.IPNetFromIP(syscallMsg.Bind.Addr),
+				Port:  syscallMsg.Bind.Port,
+			}
+		}
+
+		event.Bind.AddrFamily = syscallMsg.Bind.AddressFamily
+		event.Bind.Protocol = syscallMsg.Bind.Protocol
+		event.Bind.Retval = syscallMsg.Retval
 	}
 
 	// container context
@@ -540,9 +583,9 @@ func (p *EBPFLessProbe) Snapshot() error {
 	return nil
 }
 
-// Setup the probe
-func (p *EBPFLessProbe) Setup() error {
-	return nil
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFLessProbe) Walk(callback func(*model.ProcessCacheEntry)) {
+	p.Resolvers.ProcessResolver.Walk(callback)
 }
 
 // OnNewDiscarder handles discarders
@@ -685,7 +728,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := utils.GetHostname()
+	hostname, err := hostnameutils.GetHostname()
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -79,6 +80,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
 		},
+		DefaultScheme: "env",
 	}
 
 	resolver, err := confmap.NewResolver(rs)
@@ -117,7 +119,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			return nil, err
 		}
 		var ok bool
-		activeLogLevel, ok = logLevelMap[pkgconfig.GetString("log_level")]
+		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
 		if !ok {
 			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
@@ -125,13 +127,14 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	// Set the right log level. The most verbose setting takes precedence.
 	telemetryLogLevel := sc.Telemetry.Logs.Level
-	telemetryLogMapping, ok := logLevelMap[telemetryLogLevel.String()]
+	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel.String())]
 	if !ok {
 		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
 	}
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
+	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	// Override config read (if any) with Default values
@@ -179,7 +182,10 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	if pkgconfig.Get("apm_config.features") == nil {
-		apmConfigFeatures := []string{"enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2"}
+		apmConfigFeatures := []string{}
+		if pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+			apmConfigFeatures = append(apmConfigFeatures, "enable_operation_and_resource_name_logic_v2")
+		}
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}

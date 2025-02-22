@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Begin collecting metrics from all internal Prometheus registries. Previously,
+    the default registry was ignored, resulting in the omission of the `point.sent`
+    and `point.dropped` metrics. This change ensures that all metrics are collected.

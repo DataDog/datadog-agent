@@ -60,7 +60,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Python and pip
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version-file: .python-version
           cache: "pip"
@@ -103,7 +103,7 @@ jobs:
             echo "MESSAGE=Update Go version to $INPUT_GO_VERSION" >> $GITHUB_OUTPUT
           fi
 
-      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
+      - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
         id: autocommit
         with:
           commit_message: ${{ steps.update_build_images.outputs.MESSAGE }}
@@ -141,7 +141,7 @@ jobs:
           TMP_PR_BODY_PATH: /tmp/pr_body
           GH_TOKEN: ${{ github.token }}
           PR_TITLE: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
-          PR_LABELS: "go-update,team/agent-shared-components"
+          PR_LABELS: "go-update,team/agent-runtimes"
           CURRENT_BUILDIMAGE_TAG: ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }}
           IMAGES_ID: ${{ inputs.images_id }}
           CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}

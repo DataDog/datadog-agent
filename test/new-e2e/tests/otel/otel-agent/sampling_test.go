@@ -26,7 +26,6 @@ type samplingTestSuite struct {
 var samplingConfig string
 
 func TestOTelAgentSampling(t *testing.T) {
-	t.Skip("Skipping broken test: incident-33599") // incident-33599
 	t.Parallel()
 	e2e.Run(t, &samplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(samplingConfig)))))
 }

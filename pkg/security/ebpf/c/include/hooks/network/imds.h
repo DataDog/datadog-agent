@@ -1,8 +1,8 @@
 #ifndef _HOOKS_NETWORK_IMDS_H_
 #define _HOOKS_NETWORK_IMDS_H_
 
-#include "helpers/imds.h"
-#include "helpers/network.h"
+#include "helpers/network/imds.h"
+#include "helpers/network/parser.h"
 #include "perf_ring.h"
 
 SEC("classifier/imds_request")

@@ -628,13 +628,13 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
-    verifier_files = glob("pkg/ebpf/verifier/**/*.go")
+    verifier_files = glob("pkg/ebpf/verifier/*")
     nw.build(
         rule="gobin",
         pool="gobuild",
-        inputs=["./pkg/ebpf/verifier/calculator/main.go"],
+        inputs=[os.path.abspath("./pkg/ebpf/verifier/calculator/main.go")],
         outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
-        implicit=verifier_files,
+        implicit=[os.path.abspath(f) for f in verifier_files],
         variables={
             "go": go_path,
             "chdir": "true",
@@ -874,11 +874,10 @@ def build_run_config(run: str | None, packages: list[str]):
     c: dict[str, Any] = {}
 
     if len(packages) == 0:
-        return {"filters": {"*": {"exclude": False}}}
+        packages = ["*"]
 
     for p in packages:
-        if p[:2] == "./":
-            p = p[2:]
+        p = p.removeprefix("./")
         if run is not None:
             c["filters"] = {p: {"run-only": [run]}}
         else:
@@ -1202,15 +1201,9 @@ def test(
             info(f"[+] Preparing {component} for {arch}")
             _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains)
 
-    if run is not None and packages is None:
-        raise Exit("Package must be provided when specifying test")
-
     pkgs = []
     if packages is not None:
         pkgs = [os.path.relpath(os.path.realpath(p)) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
-
-    if run is not None and len(pkgs) > 1:
-        raise Exit("Only a single package can be specified when running specific tests")
 
     paths = KMTPaths(stack, Arch.local())  # Arch is not relevant to the test result paths, which is what we want now
     shutil.rmtree(paths.test_results, ignore_errors=True)  # Reset test-results folder

@@ -7,11 +7,9 @@
 package streamlogsimpl
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
@@ -107,11 +105,8 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 	done := make(chan struct{})
 	logChan := messageReceiver.Filter(nil, done)
 
-	timer := time.NewTimer(streamLogParams.Duration)
 	droppedLogs := 0
-
 	time.AfterFunc(streamLogParams.Duration, func() {
-		timer.Stop()
 		close(done)
 	})
 
@@ -120,7 +115,7 @@ func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLog
 		if !ok {
 			break
 		}
-		if _, err := bufWriter.WriteString(log + "\n"); err != nil {
+		if _, err := bufWriter.WriteString(log); err != nil {
 			droppedLogs++
 			logger.Errorf("failed to write to file: %v", err)
 		}
@@ -183,12 +178,4 @@ func (sl *streamlogsimpl) getFlareTimeout(fb flaretypes.FlareBuilder) time.Durat
 
 	// Total timeout
 	return baseTimeout + overhead
-}
-
-// writeBatch writes a batch of logs to the buffer writer so that it can be flushed to the file.
-func writeBatch(bufWriter *bufio.Writer, batch []string, logger logger.Component) {
-	_, err := bufWriter.WriteString(strings.Join(batch, "\n") + "\n")
-	if err != nil {
-		logger.Errorf("failed to write to file: %v", err)
-	}
 }

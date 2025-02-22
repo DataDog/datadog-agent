@@ -14,8 +14,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/msi"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 const (
@@ -40,7 +40,16 @@ func SetupInstaller(_ context.Context) error {
 		return err
 	}
 
-	cmd, err := msi.Cmd(msi.Install(), msi.WithMsiFromPackagePath("stable", datadogInstaller), msi.WithLogFile(path.Join(tempDir, "setup_installer.log")))
+	msiOptions := []msi.MsiexecOption{
+		msi.Install(),
+		msi.WithMsiFromPackagePath("stable", datadogInstaller),
+		msi.WithLogFile(path.Join(tempDir, "setup_installer.log")),
+	}
+	ddAgentUsername := os.Getenv("DD_AGENT_USER_NAME")
+	if ddAgentUsername != "" {
+		msiOptions = append(msiOptions, msi.WithDdAgentUserName(ddAgentUsername))
+	}
+	cmd, err := msi.Cmd(msiOptions...)
 	if err != nil {
 		return fmt.Errorf("failed to setup installer: %w", err)
 	}

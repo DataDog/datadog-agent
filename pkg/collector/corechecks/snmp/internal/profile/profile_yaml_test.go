@@ -6,14 +6,12 @@
 package profile
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	assert "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -120,71 +118,54 @@ func Test_loadYamlProfiles_invalidDir(t *testing.T) {
 }
 
 func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
+	require.NoError(t, err)
 
-	w.Flush()
-	logs := b.String()
-	assert.Nil(t, err)
-
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\""), logs)
+	logs.AssertPresent(t, "failed to expand profile \"f5-big-ip\"")
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
 func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "does-not-exist.d"))
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
+	require.NoError(t, err)
 
-	w.Flush()
-	logs := b.String()
-	assert.Nil(t, err)
+	logs.AssertPresent(t,
+		"[WARN] getYamlUserProfiles: failed to load user profile definitions",
+		"[WARN] getYamlDefaultProfiles: failed to load default profile definitions",
+	)
 
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlUserProfiles: failed to load user profile definitions"), logs)
-	assert.Equal(t, 1, strings.Count(logs, "[WARN] getYamlDefaultProfiles: failed to load default profile definitions"), logs)
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 }
 
 func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 	// Valid profiles should be returned even if some profiles are invalid
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	logs := TrapLogs(t, log.DebugLvl)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid.d"))
 	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	SetGlobalProfileConfigMap(nil)
 
 	defaultProfiles, err := loadYamlProfiles()
+	require.NoError(t, err)
 
 	for _, profile := range defaultProfiles {
 		profiledefinition.NormalizeMetrics(profile.Definition.Metrics)
 	}
 
-	w.Flush()
-	logs := b.String()
-	assert.Nil(t, err)
+	logs.AssertPresent(t, "unmarshal errors")
 
-	assert.Equal(t, 1, strings.Count(logs, "unmarshal errors"), logs)
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
 }

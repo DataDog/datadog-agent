@@ -12,10 +12,11 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/defaultscript"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 type flavor struct {
@@ -24,6 +25,7 @@ type flavor struct {
 }
 
 var flavors = map[string]flavor{
+	"default":    {path: "defaultscript/default_script.go", run: defaultscript.SetupDefaultScript},
 	"databricks": {path: "djm/databricks.go", run: djm.SetupDatabricks},
 	"emr":        {path: "djm/emr.go", run: djm.SetupEmr},
 	"dataproc":   {path: "djm/dataproc.go", run: djm.SetupDataproc},
@@ -33,7 +35,7 @@ var flavors = map[string]flavor{
 func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	f, ok := flavors[flavor]
 	if !ok {
-		return fmt.Errorf("unknown flavor %s", flavor)
+		return fmt.Errorf("unknown flavor \"%s\"", flavor)
 	}
 	s, err := common.NewSetup(ctx, env, flavor, f.path, os.Stdout)
 	if err != nil {
@@ -54,7 +56,7 @@ func Agent7InstallScript(ctx context.Context, env *env.Env) error {
 		return fmt.Errorf("failed to get default packages: %w", err)
 	}
 	for _, url := range defaultPackages {
-		err = cmd.Install(ctx, url, nil)
+		err = cmd.ForceInstall(ctx, url, nil)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}

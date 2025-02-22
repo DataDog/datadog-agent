@@ -1048,7 +1048,6 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
         ("RUN_UNIT_TESTS", ["on"]),
-        ("TESTING_CLEANUP", ["true"]),
     ]
     release_contexts = [
         ("BUCKET_BRANCH", ["stable"]),
@@ -1060,7 +1059,6 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
         ("RUN_UNIT_TESTS", ["on"]),
-        ("TESTING_CLEANUP", ["true"]),
     ]
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
@@ -1071,7 +1069,6 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["off"]),
         ("RUN_UNIT_TESTS", ["off"]),
-        ("TESTING_CLEANUP", ["false"]),
     ]
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]

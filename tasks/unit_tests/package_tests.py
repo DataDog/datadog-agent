@@ -33,7 +33,7 @@ class TestCheckSize(unittest.TestCase):
         display_mock.assert_called_with(
             c,
             '12345',
-            '|datadog-dogstatsd-x86_64-rpm|131.00MB|❌|141.00MB|10.00MB|10.00MB|\n|datadog-dogstatsd-x86_64-suse|131.00MB|❌|141.00MB|10.00MB|10.00MB|\n|datadog-iot-agent-x86_64-rpm|131.00MB|❌|141.00MB|10.00MB|10.00MB|\n|datadog-iot-agent-x86_64-suse|131.00MB|❌|141.00MB|10.00MB|10.00MB|\n|datadog-iot-agent-aarch64-rpm|131.00MB|❌|141.00MB|10.00MB|10.00MB|\n|datadog-agent-x86_64-rpm|1.00MB|⚠️|141.00MB|140.00MB|140.00MB|\n|datadog-agent-x86_64-suse|1.00MB|⚠️|141.00MB|140.00MB|140.00MB|\n|datadog-agent-aarch64-rpm|1.00MB|⚠️|141.00MB|140.00MB|140.00MB|\n|datadog-dogstatsd-amd64-deb|-9.96MB|✅|0.04MB|10.00MB|10.00MB|\n|datadog-dogstatsd-arm64-deb|-9.96MB|✅|0.04MB|10.00MB|10.00MB|\n|datadog-iot-agent-amd64-deb|-9.96MB|✅|0.04MB|10.00MB|10.00MB|\n|datadog-iot-agent-arm64-deb|-9.96MB|✅|0.04MB|10.00MB|10.00MB|\n|datadog-heroku-agent-amd64-deb|-69.96MB|✅|0.04MB|70.00MB|70.00MB|\n|datadog-agent-amd64-deb|-139.96MB|✅|0.04MB|140.00MB|140.00MB|\n|datadog-agent-arm64-deb|-139.96MB|✅|0.04MB|140.00MB|140.00MB|\n',
+            '|datadog-dogstatsd-x86_64-rpm|131.00MB|❌|141.00MB|10.00MB|0.50MB|\n|datadog-dogstatsd-x86_64-suse|131.00MB|❌|141.00MB|10.00MB|0.50MB|\n|datadog-iot-agent-x86_64-rpm|131.00MB|❌|141.00MB|10.00MB|0.50MB|\n|datadog-iot-agent-x86_64-suse|131.00MB|❌|141.00MB|10.00MB|0.50MB|\n|datadog-iot-agent-aarch64-rpm|131.00MB|❌|141.00MB|10.00MB|0.50MB|\n|datadog-agent-x86_64-rpm|1.00MB|❌|141.00MB|140.00MB|0.50MB|\n|datadog-agent-x86_64-suse|1.00MB|❌|141.00MB|140.00MB|0.50MB|\n|datadog-agent-aarch64-rpm|1.00MB|❌|141.00MB|140.00MB|0.50MB|\n|datadog-dogstatsd-amd64-deb|-9.96MB|✅|0.04MB|10.00MB|0.50MB|\n|datadog-dogstatsd-arm64-deb|-9.96MB|✅|0.04MB|10.00MB|0.50MB|\n|datadog-iot-agent-amd64-deb|-9.96MB|✅|0.04MB|10.00MB|0.50MB|\n|datadog-iot-agent-arm64-deb|-9.96MB|✅|0.04MB|10.00MB|0.50MB|\n|datadog-heroku-agent-amd64-deb|-69.96MB|✅|0.04MB|70.00MB|0.50MB|\n|datadog-agent-amd64-deb|-139.96MB|✅|0.04MB|140.00MB|0.50MB|\n|datadog-agent-arm64-deb|-139.96MB|✅|0.04MB|140.00MB|0.50MB|\n',
             '❌ Failed',
         )
 
@@ -55,7 +55,7 @@ class TestCheckSize(unittest.TestCase):
             run={
                 'git merge-base HEAD origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
-                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(20000000),
+                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(10500000),
             }
         )
         check_size(c, filename='tasks/unit_tests/testdata/package_sizes_real.json', dry_run=True)
@@ -82,7 +82,7 @@ class TestCheckSize(unittest.TestCase):
             run={
                 'git merge-base HEAD origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
-                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(20000000),
+                f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(10500000),
             }
         )
         check_size(c, filename='tasks/unit_tests/testdata/package_sizes_real.json', dry_run=True)

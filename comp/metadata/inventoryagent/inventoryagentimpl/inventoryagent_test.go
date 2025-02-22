@@ -664,6 +664,14 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
 }
 
+func TestFetchFleet(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"config_id": "my-config",
+	}, nil)
+	ia.fetchFleetMetadata()
+	assert.Equal(t, "my-config", ia.data["config_id"].(string))
+}
+
 func TestGetProvidedConfigurationDisable(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"inventories_configuration_enabled": false,

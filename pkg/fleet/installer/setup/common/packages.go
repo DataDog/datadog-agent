@@ -40,6 +40,16 @@ var (
 		DatadogAPMLibraryDotNetPackage,
 		DatadogAPMLibraryPHPPackage,
 	}
+
+	// ApmLibraries is a list of all the apm libraries
+	ApmLibraries = []string{
+		DatadogAPMLibraryJavaPackage,
+		DatadogAPMLibraryPythonPackage,
+		DatadogAPMLibraryRubyPackage,
+		DatadogAPMLibraryJSPackage,
+		DatadogAPMLibraryDotNetPackage,
+		DatadogAPMLibraryPHPPackage,
+	}
 )
 
 func resolvePackages(packages Packages) []packageWithVersion {

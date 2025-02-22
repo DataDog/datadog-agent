@@ -59,6 +59,9 @@ const (
 	a7TagPython3   = "python3" // Already running on python3, linting is disabled
 )
 
+// PythonCheckLoaderName is the name of the Python check loader
+const PythonCheckLoaderName string = "python"
+
 func init() {
 	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
 		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
@@ -105,11 +108,9 @@ func getRtLoaderError() error {
 	return nil
 }
 
-// Load returns Python loader name
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (cl *PythonCheckLoader) Name() string {
-	return "python"
+// Name returns Python loader name
+func (*PythonCheckLoader) Name() string {
+	return PythonCheckLoaderName
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for

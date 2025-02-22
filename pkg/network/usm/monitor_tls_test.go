@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -56,11 +55,7 @@ type tlsSuite struct {
 }
 
 func TestTLSSuite(t *testing.T) {
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
 			t.Skip("TLS not supported for this setup")
 		}
@@ -601,7 +596,9 @@ func TestOldConnectionRegression(t *testing.T) {
 		}
 
 		// Ensure we have captured a request
-		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
+		statsObj, cleaners := usmMonitor.GetProtocolStats()
+		defer cleaners()
+		stats, ok := statsObj[protocols.HTTP]
 		require.True(t, ok)
 		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
 		require.True(t, ok)
@@ -654,7 +651,9 @@ func TestLimitListenerRegression(t *testing.T) {
 		}
 
 		// Ensure we have captured a request
-		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
+		statsObj, cleaners := usmMonitor.GetProtocolStats()
+		defer cleaners()
+		stats, ok := statsObj[protocols.HTTP]
 		require.True(t, ok)
 		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
 		require.True(t, ok)
@@ -917,7 +916,9 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config, reinit bool) *Monitor 
 
 // getHTTPLikeProtocolStats returns the stats for the protocols that store their stats in a map of http.Key and *http.RequestStats as values.
 func getHTTPLikeProtocolStats(monitor *Monitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
-	httpStats, ok := monitor.GetProtocolStats()[protocolType]
+	statsObj, cleaners := monitor.GetProtocolStats()
+	defer cleaners()
+	httpStats, ok := statsObj[protocolType]
 	if !ok {
 		return nil
 	}

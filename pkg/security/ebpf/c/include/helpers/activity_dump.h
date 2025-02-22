@@ -121,6 +121,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, struct c
     evt->container.cgroup_context = container->cgroup_context;
     evt->cookie = cookie;
     evt->config = config;
+    evt->pid = bpf_get_current_pid_tgid() >> 32;
     send_event_ptr(ctx, EVENT_CGROUP_TRACING, evt);
 
     return cookie;

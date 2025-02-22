@@ -193,7 +193,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 		}
 		first = false
 
-		ptr = it.Next()
+		ptr = it.Next(ctx)
 	}
 
 	return &ps

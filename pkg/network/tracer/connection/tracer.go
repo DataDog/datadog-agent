@@ -22,11 +22,16 @@ import (
 type TracerType int
 
 const (
-	TracerTypeKProbePrebuilt        TracerType = iota //nolint:revive // TODO
-	TracerTypeKProbeRuntimeCompiled                   //nolint:revive // TODO
-	TracerTypeKProbeCORE                              //nolint:revive // TODO
-	TracerTypeFentry                                  //nolint:revive // TODO
-	TracerTypeEbpfless                                //nolint:revive // TODO
+	// TracerTypeKProbePrebuilt is the TracerType for prebuilt kprobe tracer
+	TracerTypeKProbePrebuilt TracerType = iota
+	// TracerTypeKProbeRuntimeCompiled is the TracerType for the runtime compiled kprobe tracer
+	TracerTypeKProbeRuntimeCompiled
+	// TracerTypeKProbeCORE is the TracerType for the CORE kprobe tracer
+	TracerTypeKProbeCORE
+	// TracerTypeFentry is the TracerType for the fentry tracer
+	TracerTypeFentry
+	// TracerTypeEbpfless is the TracerType for the EBPF-less tracer
+	TracerTypeEbpfless
 )
 
 const (

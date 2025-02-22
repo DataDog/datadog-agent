@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/sys/unix"
 )
@@ -984,13 +985,8 @@ func initBPFMapNamesConstants() {
 }
 
 func initAUIDConstants() {
-	seclConstants["AUDIT_AUID_UNSET"] = &eval.IntEvaluator{Value: AuditUIDUnset}
+	seclConstants["AUDIT_AUID_UNSET"] = &eval.IntEvaluator{Value: sharedconsts.AuditUIDUnset}
 }
-
-const (
-	// AuditUIDUnset is used to specify that a login uid is not set
-	AuditUIDUnset = math.MaxUint32
-)
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	var strs []string

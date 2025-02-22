@@ -7,29 +7,35 @@ package secrethelper
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestReadSecrets(t *testing.T) {
-	newKubeClientFunc := func(_ time.Duration, _ float32, _ int) (kubernetes.Interface, error) {
-		return fake.NewSimpleClientset(&v1.Secret{
+	newKubeClientFunc := func(namespace, name string) (map[string][]byte, error) {
+		kubeClient := fake.NewSimpleClientset(&v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "some_name",
 				Namespace: "some_namespace",
 			},
 			Data: map[string][]byte{"some_key": []byte("some_value")},
-		}), nil
+		})
+
+		secret, err := kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return secret.Data, nil
 	}
 
 	tests := []struct {

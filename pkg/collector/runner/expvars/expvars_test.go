@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
@@ -171,7 +172,7 @@ func TestExpvarsReset(t *testing.T) {
 			testCheck := newTestCheck(checkID)
 
 			for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
-				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{})
+				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{}, haagentmock.NewMockHaAgent())
 			}
 		}
 	}
@@ -243,7 +244,7 @@ func TestExpvarsCheckStats(t *testing.T) {
 
 					<-start
 
-					AddCheckStats(testCheck, duration, err, warnings, expectedStats)
+					AddCheckStats(testCheck, duration, err, warnings, expectedStats, haagentmock.NewMockHaAgent())
 
 					actualStats, found := CheckStats(testCheck.ID())
 					require.True(t, found)
@@ -319,7 +320,7 @@ func TestExpvarsGetChecksStatsClone(t *testing.T) {
 			testCheck := newTestCheck(checkID)
 
 			for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
-				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{})
+				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{}, haagentmock.NewMockHaAgent())
 			}
 		}
 	}
@@ -424,7 +425,7 @@ func TestGetCheckStatsRace(t *testing.T) {
 
 					warnings := []error{errors.New("error1"), errors.New("error2"), errors.New("error3")}
 					for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
-						AddCheckStats(testCheck, 12345, nil, warnings, stats.SenderStats{})
+						AddCheckStats(testCheck, 12345, nil, warnings, stats.SenderStats{}, haagentmock.NewMockHaAgent())
 					}
 				}
 			}
