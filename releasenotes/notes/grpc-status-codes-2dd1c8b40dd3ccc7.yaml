@@ -1,4 +1,4 @@
 upgrade:
   - |
-    APM: Adds grpc status codes to trace metrics
+    Aggregate APM stats payloads by gRPC code
     

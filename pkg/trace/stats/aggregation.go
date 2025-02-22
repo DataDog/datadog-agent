@@ -154,7 +154,6 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 				return strconv.FormatUint(uint64(codes.Code(codeNum)), 10)
 			}
 
-			log.Debugf("Invalid status code %s. Using empty string", strC)
 			return ""
 		}
 	}
@@ -165,5 +164,5 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 		}
 	}
 
-	return "" // invalid gRPC code
+	return ""
 }

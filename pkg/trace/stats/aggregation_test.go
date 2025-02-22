@@ -89,6 +89,24 @@ func TestGetGRPCStatusCode(t *testing.T) {
 			},
 			"15",
 		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.grpc.status.code": "Canceled"},
+			},
+			"1",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.grpc.status.code": "CANCELLED"},
+			},
+			"1",
+		},
+		{
+			&pb.Span{
+				Meta: map[string]string{"rpc.grpc.status.code": 1},
+			},
+			"1",
+		},
 	} {
 		assert.Equal(t, tt.out, getGRPCStatusCode(tt.in.Meta, tt.in.Metrics))
 	}
