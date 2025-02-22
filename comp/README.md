@@ -310,6 +310,8 @@ send logs.
 
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
+*Datadog Team*: agent-log-pipelines
+
 Package streamlogs is metadata provider for streamlogs
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
