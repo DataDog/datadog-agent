@@ -7,12 +7,13 @@
 package processcheckimpl
 
 import (
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
+	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -38,6 +39,7 @@ type dependencies struct {
 	Sysconfig     sysprobeconfig.Component
 	WMmeta        workloadmeta.Component
 	GpuSubscriber gpusubscriber.Component
+	Statsd        statsd.ClientInterface
 }
 
 type result struct {
@@ -49,7 +51,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.GpuSubscriber),
+		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta, deps.GpuSubscriber, deps.Statsd),
 	}
 	return result{
 		Check: types.ProvidesCheck{

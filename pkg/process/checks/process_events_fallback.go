@@ -10,11 +10,13 @@ package checks
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
-func NewProcessEventsCheck(config pkgconfigmodel.Reader) *ProcessEventsCheck {
+func NewProcessEventsCheck(config pkgconfigmodel.Reader, _ statsd.ClientInterface) *ProcessEventsCheck {
 	return &ProcessEventsCheck{
 		config: config,
 	}
