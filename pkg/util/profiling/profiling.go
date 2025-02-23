@@ -9,7 +9,7 @@ package profiling
 import (
 	"sync"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+	"github.com/DataDog/dd-trace-go/v2/profiler"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -57,7 +57,6 @@ func Start(settings Settings) error {
 		profiler.CPUDuration(settings.CPUDuration),
 		profiler.WithDeltaProfiles(settings.WithDeltaProfiles),
 		profiler.WithTags(settings.Tags...),
-		profiler.WithAPIKey(""), // to silence the error log about `DD_API_KEY`
 	}
 
 	if settings.Socket != "" {
