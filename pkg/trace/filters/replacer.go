@@ -34,50 +34,44 @@ func (f Replacer) Replace(trace pb.Trace) {
 		key, str, re := rule.Name, rule.Repl, rule.Re
 		for _, s := range trace {
 			switch key {
+			case "resource.name":
+				s.Resource = re.ReplaceAllString(s.Resource, str)
 			case "*":
-				for k := range s.Meta {
-					if !strings.HasPrefix(k, hiddenTagPrefix) {
-						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
+				s.Resource = re.ReplaceAllString(s.Resource, str)
+				fallthrough
+			default:
+				for k, v := range s.Meta {
+					if isKeyMatch(k, key) {
+						s.Meta[k] = re.ReplaceAllString(v, str)
 					}
 				}
 				for k := range s.Metrics {
-					if !strings.HasPrefix(k, hiddenTagPrefix) {
+					if isKeyMatch(k, key) {
 						f.replaceNumericTag(re, s, k, str)
 					}
 				}
-				s.Resource = re.ReplaceAllString(s.Resource, str)
 				for _, spanEvent := range s.SpanEvents {
 					if spanEvent != nil {
 						for keyAttr, val := range spanEvent.Attributes {
-							if !strings.HasPrefix(keyAttr, hiddenTagPrefix) {
+							if isKeyMatch(keyAttr, key) {
 								spanEvent.Attributes[keyAttr] = f.replaceAttributeAnyValue(re, val, str)
 							}
-						}
-					}
-				}
-			case "resource.name":
-				s.Resource = re.ReplaceAllString(s.Resource, str)
-			default:
-				if s.Meta != nil {
-					if _, ok := s.Meta[key]; ok {
-						s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
-					}
-				}
-				if s.Metrics != nil {
-					if _, ok := s.Metrics[key]; ok {
-						f.replaceNumericTag(re, s, key, str)
-					}
-				}
-				for _, spanEvent := range s.SpanEvents {
-					if spanEvent != nil {
-						if val, ok := spanEvent.Attributes[key]; ok {
-							spanEvent.Attributes[key] = f.replaceAttributeAnyValue(re, val, str)
 						}
 					}
 				}
 			}
 		}
 	}
+}
+
+func isKeyMatch(key, pattern string) bool {
+	if key == pattern {
+		return true
+	}
+	if pattern == "*" {
+		return !strings.HasPrefix(key, hiddenTagPrefix)
+	}
+	return strings.HasPrefix(key, pattern+".")
 }
 
 // replaceNumericTag acts on the `metrics` portion of a span, if the resulting replacement is no longer a string the tag
