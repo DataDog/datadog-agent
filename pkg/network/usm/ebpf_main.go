@@ -126,6 +126,12 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 					UID:          probeUID,
 				},
 			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "tracepoint__sched__sched_process_exit",
+					UID:          probeUID,
+				},
+			},
 		},
 	}
 
