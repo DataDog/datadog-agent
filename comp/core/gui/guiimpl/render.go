@@ -12,7 +12,7 @@ import (
 	"html/template"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -29,7 +29,7 @@ type Data struct {
 	CheckStats []*stats.Stats
 }
 
-func renderRunningChecks() (string, error) {
+func renderRunningChecks(au autodiscovery.Component) (string, error) {
 	var b = new(bytes.Buffer)
 
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
@@ -38,7 +38,7 @@ func renderRunningChecks() (string, error) {
 		return "", err
 	}
 	loaderErrs := collector.GetLoaderErrors()
-	configErrs := autodiscoveryimpl.GetConfigErrors()
+	configErrs := au.GetConfigErrors()
 
 	data := Data{LoaderErrs: loaderErrs, ConfigErrs: configErrs, Stats: runnerStats}
 	e := fillTemplate(b, data, "runningChecks")
@@ -59,11 +59,11 @@ func renderCheck(name string, stats []*stats.Stats) (string, error) {
 	return b.String(), nil
 }
 
-func renderError(name string) (string, error) {
+func renderError(name string, ac autodiscovery.Component) (string, error) {
 	var b = new(bytes.Buffer)
 
 	loaderErrs := collector.GetLoaderErrors()
-	configErrs := autodiscoveryimpl.GetConfigErrors()
+	configErrs := ac.GetConfigErrors()
 
 	data := Data{Name: name, LoaderErrs: loaderErrs, ConfigErrs: configErrs}
 	e := fillTemplate(b, data, "loaderErr")
