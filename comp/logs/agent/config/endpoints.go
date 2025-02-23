@@ -71,6 +71,29 @@ type unmarshalEndpoint struct {
 	Endpoint `mapstructure:",squash"`
 }
 
+// EnableAPIKeyRefresh enables API key refresh for additional endpoints
+func EnableAPIKeyRefresh(logsConfig *LogsConfigKeys) {
+	logsConfig.config.OnUpdate(func(setting string, oldValue, newValue any) {
+		fmt.Println("TEST EnableAPIKeyRefresh setting is", setting)
+		fmt.Println("TEST EnableAPIKeyRefresh oldValue is", oldValue)
+		fmt.Println("TEST EnableAPIKeyRefresh newValue is ", newValue)
+		if setting != "logs_config.additional_endpoints" {
+			fmt.Println("Return ????", setting)
+			return
+		}
+
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			for _, ep := range logsConfig.getAdditionalEndpoints() {
+				if ep.GetAPIKey() == oldAPIKey {
+					ep.apiKeyGetter = func() string { return newAPIKey }
+				}
+			}
+		}
+	})
+}
+
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
 func NewEndpoint(apiKey string, host string, port int, useSSL bool) Endpoint {
 	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
@@ -119,6 +142,7 @@ func NewHTTPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 // key from the loaded data instead of 'api_key'/'logs_config.api_key'.
 
 func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys) []Endpoint {
+	EnableAPIKeyRefresh(l)
 	additionals := l.getAdditionalEndpoints()
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
@@ -151,8 +175,8 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys) []Endpoint {
 }
 
 func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) []Endpoint {
+	EnableAPIKeyRefresh(l)
 	additionals := l.getAdditionalEndpoints()
-
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for _, e := range additionals {
 		newE := NewEndpoint(e.APIKey, e.Host, e.Port, false)
