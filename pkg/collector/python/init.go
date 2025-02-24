@@ -353,7 +353,7 @@ func getPythonPackagesVersion(pythonBinPath string) map[string]string {
 
 		// Check if the package is already in the map
 		if _, ok := packageVersions[entry.Name()]; !ok {
-			packageVersion[entry.Name()] = "unknown"
+			packageVersions[entry.Name()] = "unknown"
 		}
 	}
 
