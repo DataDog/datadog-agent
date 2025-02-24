@@ -314,13 +314,17 @@ func getPythonPackagesVersion(pythonBinPath string) map[string]string {
 	}
 
 	packageVersions := make(map[string]string)
-	in := bufio.NewScanner(pipStdout)
-	for in.Scan() {
-		line := in.Text()
+	in := bufio.NewReader(pipStdout)
+	for {
+		line, _, err := in.ReadLine()
+		if err != nil {
+			// Can be io.EOF
+			break
+		}
 		// Can be `package==version`
 		// Or `package @ url`
-		pkgVersion := strings.SplitN(line, "==", 2)
-		pkgURL := strings.SplitN(line, "@", 2)
+		pkgVersion := strings.SplitN(string(line), "==", 2)
+		pkgURL := strings.SplitN(string(line), "@", 2)
 		if len(pkgVersion) == 2 {
 			packageVersions[pkgVersion[0]] = pkgVersion[1]
 		} else if len(pkgURL) == 2 {
