@@ -517,7 +517,12 @@ func (o *sslProgram) ConfigureOptions(m *manager.Manager, options *manager.Optio
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
-	o.watcher.Start(o.cleanupDeadPids)
+	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
+		o.watcher.Start(o.cleanupDeadPids)
+	} else {
+		o.watcher.Start(nil)
+	}
+
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
@@ -895,7 +900,7 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 		}
 	}
 	for _, k := range keysToDelete {
-		emap.Delete(&k)
+		_ = emap.Delete(&k)
 	}
 
 	return nil
