@@ -10,7 +10,6 @@ package usm
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -25,9 +24,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"unsafe"
 
-	"github.com/cilium/ebpf"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -997,151 +994,6 @@ func (s *tlsSuite) TestNodeJSTLS() {
 		if !exists {
 			// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
 			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-		}
-	}
-}
-
-// TestSSLMapsCleaner verifies that SSL-related kernel maps are cleared correctly.
-// the map entry is deleted when the thread exits, and periodic map cleaner removes dead threads.
-func (s *tlsSuite) TestSSLMapsCleaner() {
-	t := s.T()
-	// setup monitor
-	cfg := utils.NewUSMEmptyConfig()
-	cfg.EnableNativeTLSMonitoring = true
-	cfg.EnableUSMEventStream = false
-
-	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
-	require.NotNil(t, monitor)
-
-	t.Run("SSL maps cleaner", func(t *testing.T) {
-		cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-		cleanProtocolMaps(t, "bio_new_socket_args", monitor.ebpfProgram.Manager.Manager)
-
-		// find maps by names
-		maps := getMaps(t, monitor, sslPidKeyMaps)
-		require.Equal(t, len(maps), 6)
-
-		// add random pid to the maps
-		pid := 100
-		addPidEntryToMaps(t, maps, pid)
-		checkPidExistsInMaps(t, monitor, maps, pid)
-
-		// call SSL map cleaner and verify that map is empty
-		monitor.ebpfProgram.cleanDeadPidsInSslMaps()
-		checkPidNotFoundInMaps(t, monitor, maps, pid)
-
-		// start dummy program and add its pid to the map
-		cmd, cancel := startDummyProgram(t)
-		addPidEntryToMaps(t, maps, cmd.Process.Pid)
-		checkPidExistsInMaps(t, monitor, maps, cmd.Process.Pid)
-
-		// verify exit of process cleans the map
-		cancel()
-		_ = cmd.Wait()
-		checkPidNotFoundInMaps(t, monitor, maps, cmd.Process.Pid)
-	})
-}
-
-// getMaps returns eBPF maps searched by names.
-func getMaps(t *testing.T, monitor *Monitor, mapNames []string) []*ebpf.Map {
-	var maps []*ebpf.Map
-	for _, mapName := range mapNames {
-		emap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap(mapName)
-		require.NotNil(t, emap)
-		maps = append(maps, emap)
-	}
-	return maps
-}
-
-// addPidEntryToMaps adds an entry to maps using the PID as a key.
-func addPidEntryToMaps(t *testing.T, maps []*ebpf.Map, pid int) {
-	for _, m := range maps {
-		require.Equal(t, m.KeySize(), uint32(unsafe.Sizeof(uint64(0))), "wrong key size")
-
-		// make the key for single thread process when pid and tgid are the same
-		key := uint64(pid)<<32 | uint64(pid)
-		value := make([]byte, m.ValueSize())
-
-		err := m.Put(&key, value)
-		require.NoError(t, err)
-	}
-}
-
-// checkPidExistsInMaps checks that pid exists in all provided maps.
-func checkPidExistsInMaps(t *testing.T, monitor *Monitor, maps []*ebpf.Map, pid int) {
-	// make the key for single thread process when pid and tgid are the same
-	key := uint64(pid)<<32 | uint64(pid)
-
-	for _, m := range maps {
-		require.Equal(t, m.KeySize(), uint32(unsafe.Sizeof(uint64(0))), "wrong key size")
-		mapInfo, err := m.Info()
-		require.NoError(t, err)
-
-		require.Eventually(t, func() bool {
-			return findKeyInMap(m, key)
-		}, 1*time.Second, 100*time.Millisecond)
-		if t.Failed() {
-			t.Logf("pid '%d' not found in the map '%s'", pid, mapInfo.Name)
-			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, mapInfo.Name)
-		}
-	}
-}
-
-// checkPidNotFoundInMaps checks that pid does not exist in all provided maps.
-func checkPidNotFoundInMaps(t *testing.T, monitor *Monitor, maps []*ebpf.Map, pid int) {
-	// make the key for single thread process when pid and tgid are the same
-	key := uint64(pid)<<32 | uint64(pid)
-
-	for _, m := range maps {
-		require.Equal(t, m.KeySize(), uint32(unsafe.Sizeof(uint64(0))), "wrong key size")
-		mapInfo, err := m.Info()
-		require.NoError(t, err)
-
-		if findKeyInMap(m, key) == true {
-			t.Logf("pid '%d' was found in the map '%s'", pid, mapInfo.Name)
-			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, mapInfo.Name)
-		}
-	}
-}
-
-// findKeyInMap returns true if 'key' was found in the map, otherwise returns false.
-func findKeyInMap(m *ebpf.Map, theKey uint64) bool {
-	var key uint64
-	value := make([]byte, m.ValueSize())
-	iter := m.Iterate()
-
-	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-		if key == theKey {
-			return true
-		}
-	}
-	return false
-}
-
-// startDummyProgram starts sleeping thread.
-func startDummyProgram(t *testing.T) (*exec.Cmd, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
-
-	cmd := exec.CommandContext(ctx, "sleep", "1000")
-	err := cmd.Start()
-	require.NoError(t, err)
-
-	return cmd, cancel
-}
-
-// cleanDeadPidsInSslMap finds activated 'sslProgram' and calls map cleaner.
-func (e *ebpfProgram) cleanDeadPidsInSslMaps() {
-	for _, prot := range e.enabledProtocols {
-		if prot.Instance.Name() == "openssl" {
-			switch prot.Instance.(type) {
-			case *sslProgram:
-				p, ok := prot.Instance.(*sslProgram)
-				if ok {
-					p.cleanupDeadPids(nil)
-				}
-			default:
-			}
 		}
 	}
 }

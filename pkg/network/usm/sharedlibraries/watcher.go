@@ -17,9 +17,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -354,8 +351,7 @@ func (w *Watcher) sync() {
 		_ = w.registry.Unregister(pid)
 	}
 
-	if w.mapsCleaner != nil && features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		// call maps cleaner if raw tracepoints are not supported
+	if w.mapsCleaner != nil {
 		w.mapsCleaner(alivePIDs)
 	}
 }

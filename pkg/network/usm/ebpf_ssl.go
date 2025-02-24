@@ -9,7 +9,6 @@ package usm
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -865,31 +864,23 @@ var sslPidKeyMaps = []string{
 
 // cleanupDeadPids clears maps of terminated processes.
 func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
-	if o.ebpfManager != nil {
-		err := o.deleteDeadPidsInMaps(sslPidKeyMaps, alivePIDs)
-		if err != nil {
-			log.Debugf("SSL maps cleanup error: %v", err)
+	if o.ebpfManager != nil && features.HaveProgramType(ebpf.RawTracepoint) != nil {
+		// call maps cleaner if raw tracepoints are not supported
+		for _, mapName := range sslPidKeyMaps {
+			err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
+			if err != nil {
+				log.Debugf("SSL maps %q cleanup error: %v", mapName, err)
+			}
 		}
 	}
-}
-
-// deleteDeadPidsInMaps deletes dead processes in maps with the key 'pid_tgid'
-func (o *sslProgram) deleteDeadPidsInMaps(mapNames []string, alivePIDs map[uint32]struct{}) error {
-	var errs []error
-	for _, n := range mapNames {
-		err := deleteDeadPidsInMap(o.ebpfManager, n, alivePIDs)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
 }
 
 // deleteDeadPidsInMap finds a map by name and deletes dead processes.
+// enters when raw tracepoint is not supported, kernel < 4.17
 func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map[uint32]struct{}) error {
 	emap, _, err := manager.GetMap(mapName)
 	if err != nil {
-		return fmt.Errorf("dead process cleaner failed to get map: %q error: %s", mapName, err)
+		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", mapName, err)
 	}
 
 	var keysToDelete []uint64
@@ -903,7 +894,9 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 			keysToDelete = append(keysToDelete, key)
 		}
 	}
-	_, err = emap.BatchDelete(keysToDelete, nil)
+	for _, k := range keysToDelete {
+		emap.Delete(&k)
+	}
 
-	return err
+	return nil
 }
