@@ -412,7 +412,29 @@ namespace WixSetup.Datadog_Agent
                     new Files($@"{InstallerSource}\python-scripts\*")
                 )
             );
-
+            var datadogInstallerFolder = new Dir("Datadog Installer",
+                new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
+                    new ServiceInstaller
+                    {
+                        Name = "Datadog Installer",
+                        StartOn = SvcEvent.Install,
+                        StopOn = SvcEvent.InstallUninstall_Wait,
+                        RemoveOn = SvcEvent.Uninstall_Wait,
+                        Start = SvcStartType.auto,
+                        DelayedAutoStart = true,
+                        ServiceSid = ServiceSid.none,
+                        FirstFailureActionType = FailureActionType.restart,
+                        SecondFailureActionType = FailureActionType.restart,
+                        ThirdFailureActionType = FailureActionType.restart,
+                        Arguments = "run",
+                        RestartServiceDelayInSeconds = 30,
+                        ResetPeriodInDays = 1,
+                        PreShutdownDelay = 1000 * 60 * 3,
+                        Account = "LocalSystem",
+                        Vital = true
+                    }
+                )
+            );
             // Recursively delete/backup all files/folders in these paths, they will be restored
             // on rollback. By default WindowsInstller only removes the files it tracks, and these paths
             // may contain untracked files.
@@ -429,7 +451,7 @@ namespace WixSetup.Datadog_Agent
                 );
             }
 
-            return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder);
+            return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder, datadogInstallerFolder);
         }
 
         private static ServiceInstaller GenerateServiceInstaller(string name, string displayName, string description)
