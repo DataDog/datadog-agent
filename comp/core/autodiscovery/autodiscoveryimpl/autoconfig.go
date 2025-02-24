@@ -296,42 +296,42 @@ func (ac *AutoConfig) scrubConfig(config integration.Config) integration.Config 
 	scrubbedConfig := config
 	scrubbedInstances := make([]integration.Data, len(config.Instances))
 	for instanceIndex, inst := range config.Instances {
-		subbedData, err := scrubData(inst)
+		scrubbedData, err := scrubData(inst)
 		if err != nil {
 			ac.logs.Warnf("error scrubbing secrets from config: %s", err)
 			continue
 		}
-		scrubbedInstances[instanceIndex] = subbedData
+		scrubbedInstances[instanceIndex] = scrubbedData
 	}
 	scrubbedConfig.Instances = scrubbedInstances
 
 	if len(config.InitConfig) > 0 {
-		subbedData, err := scrubData(config.InitConfig)
+		scrubbedData, err := scrubData(config.InitConfig)
 		if err != nil {
 			ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
 			scrubbedConfig.InitConfig = []byte{}
 		} else {
-			scrubbedConfig.InitConfig = subbedData
+			scrubbedConfig.InitConfig = scrubbedData
 		}
 	}
 
 	if len(config.MetricConfig) > 0 {
-		subbedData, err := scrubData(config.MetricConfig)
+		scrubbedData, err := scrubData(config.MetricConfig)
 		if err != nil {
 			ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
 			scrubbedConfig.MetricConfig = []byte{}
 		} else {
-			scrubbedConfig.MetricConfig = subbedData
+			scrubbedConfig.MetricConfig = scrubbedData
 		}
 	}
 
 	if len(config.LogsConfig) > 0 {
-		subbedData, err := scrubData(config.LogsConfig)
+		scrubbedData, err := scrubData(config.LogsConfig)
 		if err != nil {
 			ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
 			scrubbedConfig.LogsConfig = []byte{}
 		} else {
-			scrubbedConfig.LogsConfig = subbedData
+			scrubbedConfig.LogsConfig = scrubbedData
 		}
 	}
 
