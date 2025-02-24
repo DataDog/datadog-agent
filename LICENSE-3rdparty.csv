@@ -245,8 +245,6 @@ core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4,BSD
 core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/results,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
 core,github.com/DisposaBoy/JsonConfigReader,MIT,* Andreas Jaekle `https://github.com/ekle` | * DisposaBoy `https://github.com/DisposaBoy` | * Steven Osborn `https://github.com/steve918` | Copyright (c) 2012 The JsonConfigReader Authors | This is the official list of JsonConfigReader authors for copyright purposes.
 core,github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp,Apache-2.0,Copyright 2020 Google LLC
-core,github.com/Intevation/gval,BSD-3-Clause,"Copyright (c) 2017, Paessler AG <support@paessler.com>"
-core,github.com/Intevation/jsonpath,BSD-3-Clause,"Copyright (c) 2017, Paessler AG <support@paessler.com>"
 core,github.com/Masterminds/goutils,Apache-2.0,Copyright 2014 Alexander Okoli
 core,github.com/Masterminds/semver,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/semver/v3,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
@@ -312,7 +310,6 @@ core,github.com/ProtonMail/go-crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2
 core,github.com/ProtonMail/go-crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
 core,github.com/StackExchange/wmi,MIT,Copyright (c) 2013 Stack Exchange
-core,github.com/VividCortex/ewma,MIT,"Copyright (c) 2013 VividCortex | Copyright (c) 2013 VividCortex, Inc. All rights reserved"
 core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
 core,github.com/agext/levenshtein,Apache-2.0,Copyright 2016 ALRUX Inc
 core,github.com/agnivade/levenshtein,MIT,Copyright (c) 2015 Agniva De Sarker
@@ -529,7 +526,6 @@ core,github.com/aquasecurity/trivy/pkg/report/github,Apache-2.0,Copyright 2019-2
 core,github.com/aquasecurity/trivy/pkg/report/predicate,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/report/spdx,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/report/table,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
-core,github.com/aquasecurity/trivy/pkg/result,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/rpc,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/rpc/client,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/sbom,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -549,8 +545,6 @@ core,github.com/aquasecurity/trivy/pkg/utils/fsutils,Apache-2.0,Copyright 2019-2
 core,github.com/aquasecurity/trivy/pkg/uuid,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/version/app,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/version/doc,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
-core,github.com/aquasecurity/trivy/pkg/vex,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
-core,github.com/aquasecurity/trivy/pkg/vex/repo,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/vulnerability,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/x/io,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/x/path,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -712,7 +706,6 @@ core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,Copyright (c) 2018 bhmj
 core,github.com/bitnami/go-version/pkg/version,Apache-2.0,Copyright (c) 2023-2024 Carlos Rodríguez Hernández
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Copyright (c) 2014-2020 by Tobias Rehbein <tobias.rehbein@web.de>
-core,github.com/blang/semver,MIT,Copyright (c) 2014 Benedikt Lang <github at benediktlang.de>
 core,github.com/blang/semver/v4,MIT,Copyright (c) 2014 Benedikt Lang <github at benediktlang.de>
 core,github.com/bmatcuk/doublestar/v4,MIT,Copyright (c) 2014 Bob Matcuk
 core,github.com/bmizerany/pat,MIT,"Copyright (C) 2012 by Keith Rarick, Blake Mizerany"
@@ -723,8 +716,6 @@ core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 R
 core,github.com/cenkalti/backoff,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
-core,github.com/cheggaaa/pb/v3,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
-core,github.com/cheggaaa/pb/v3/termutil,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
 core,github.com/chrusty/protoc-gen-jsonschema,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/cihub/seelog,BSD-3-Clause,"Copyright (c) 2012, Cloud Instruments Co., Ltd. <info@cin.io>"
 core,github.com/cilium/ebpf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -879,9 +870,6 @@ core,github.com/coreos/go-systemd/v22/dbus,Apache-2.0,"Copyright 2017 CoreOS, In
 core,github.com/coreos/go-systemd/v22/journal,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/pkg/dlopen,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/cri-o/ocicni/pkg/ocicni,Apache-2.0,"Copyright 2016 Red Hat, Inc"
-core,github.com/csaf-poc/csaf_distribution/v3/csaf,MIT,Copyright 2021-2023 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
-core,github.com/csaf-poc/csaf_distribution/v3/util,MIT,Copyright 2021-2023 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
-core,github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer,Apache-2.0,Copyright 2018 Anders Rundgren
 core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved | Copyright (C) 2017-2024 SUSE LLC. All rights reserved
 core,github.com/davecgh/go-spew/spew,ISC,Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
 core,github.com/dennwc/varint,MIT,Copyright (c) 2019 Denys Smirnov
@@ -889,8 +877,6 @@ core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gry
 core,github.com/dgryski/go-rendezvous,MIT,Copyright (c) 2017-2020 Damian Gryski <damian@gryski.com>
 core,github.com/digitalocean/godo,MIT,Copyright (c) 2013 The go-github AUTHORS. All rights reserved | Copyright (c) 2014-2016 The godo AUTHORS. All rights reserved
 core,github.com/digitalocean/godo/metrics,MIT,Copyright (c) 2013 The go-github AUTHORS. All rights reserved | Copyright (c) 2014-2016 The godo AUTHORS. All rights reserved
-core,github.com/digitorus/pkcs7,MIT,Copyright (c) 2015 Andrew Smith
-core,github.com/digitorus/timestamp,BSD-2-Clause,"Copyright (c) 2017, Digitorus B.V"
 core,github.com/distribution/reference,Apache-2.0,Copyright 2014 The CNCF Distribution Project Authors
 core,github.com/docker/cli/cli/config,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/cli/cli/config/configfile,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -989,8 +975,6 @@ core,github.com/fsnotify/fsnotify/internal,BSD-3-Clause,Copyright (c) 2012 The G
 core,github.com/fxamacker/cbor/v2,MIT,Copyright (c) 2019-present Faye Amacker | Copyright © 2019-2024 [Faye Amacker](https://github.com/fxamacker)
 core,github.com/ghodss/yaml,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2014 Sam Ghods
 core,github.com/glaslos/ssdeep,MIT,"Copyright (c) 2015, Arbo von Monkiewitsch All rights reserved | Copyright (c) 2017 Lukas Rist"
-core,github.com/go-chi/chi,MIT,"Copyright (c) 2015-present Peter Kieltyka (https://github.com/pkieltyka), Google Inc | Copyright (c) 2015-present [Peter Kieltyka](https://github.com/pkieltyka)"
-core,github.com/go-chi/chi/middleware,MIT,"Copyright (c) 2015-present Peter Kieltyka (https://github.com/pkieltyka), Google Inc | Copyright (c) 2015-present [Peter Kieltyka](https://github.com/pkieltyka)"
 core,github.com/go-delve/delve/pkg/dwarf,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/godwarf,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/leb128,MIT,Copyright (c) 2014 Derek Parker
@@ -1178,13 +1162,6 @@ core,github.com/google/cel-go/interpreter,Apache-2.0,Copyright (c) 2018 The Go A
 core,github.com/google/cel-go/interpreter/functions,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/parser,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/parser/gen,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
-core,github.com/google/certificate-transparency-go,Apache-2.0,"Adam Eijdenberg <eijdenberg@google.com> <adam.eijdenberg@gmail.com> | Al Cutter <al@google.com> | Alex Cohn <alex@alexcohn.com> | Ben Laurie <benl@google.com> <ben@links.org> | Chris Kennelly <ckennelly@google.com> <ckennelly@ckennelly.com> | Comodo CA Limited | David Drysdale <drysdale@google.com> | Deyan Bektchiev <deyan.bektchiev@venafi.com> <deyan@bektchiev.net> | Ed Maste <emaste@freebsd.org> | Emilia Kasper <ekasper@google.com> | Eran Messeri <eranm@google.com> <eran.mes@gmail.com> | Fiaz Hossain <fiaz.hossain@salesforce.com> | Gary Belvin <gbelvin@google.com> <gdbelvin@gmail.com> | Google LLC | Internet Security Research Group | Jeff Trawick <trawick@gmail.com> | Joe Tsai <joetsai@digital-static.net> | Kat Joyce <katjoyce@google.com> | Katriel Cohn-Gordon <katriel.cohn-gordon@cybersecurity.ox.ac.uk> | Kiril Nikolov <kiril.nikolov@venafi.com> | Konrad Kraszewski <kraszewski@google.com> <laiquendir@gmail.com> | Laël Cellier <lael.cellier@gmail.com> | Linus Nordberg <linus@nordu.net> | Mark Schloesser <ms@mwcollect.org> | NORDUnet A/S | Nicholas Galbreath <nickg@client9.com> | Oliver Weidner <Oliver.Weidner@gmail.com> | Pascal Leroy <phl@google.com> | Paul Hadfield <hadfieldp@google.com> <paul@phad.org.uk> | Paul Lietar <lietar@google.com> | Pavel Kalinnikov <pkalinnikov@google.com> <pavelkalinnikov@gmail.com> | Pierre Phaneuf <pphaneuf@google.com> | PrimeKey Solutions AB | Rob Percival <robpercival@google.com> | Rob Stradling <rob@comodo.com> | Roger Ng <rogerng@google.com> <roger2hk@gmail.com> | Roland Shoemaker <roland@letsencrypt.org> | Ruslan Kovalov <ruslan.kovalyov@gmail.com> | Samuel Lidén Borell <samuel@kodafritt.se> | Tatiana Merkulova <merkulova@google.com> | Venafi, Inc. | Vladimir Rutsky <vladimir@rutsky.org> | Ximin Luo <infinity0@gmx.com>"
-core,github.com/google/certificate-transparency-go/asn1,Apache-2.0,"Adam Eijdenberg <eijdenberg@google.com> <adam.eijdenberg@gmail.com> | Al Cutter <al@google.com> | Alex Cohn <alex@alexcohn.com> | Ben Laurie <benl@google.com> <ben@links.org> | Chris Kennelly <ckennelly@google.com> <ckennelly@ckennelly.com> | Comodo CA Limited | David Drysdale <drysdale@google.com> | Deyan Bektchiev <deyan.bektchiev@venafi.com> <deyan@bektchiev.net> | Ed Maste <emaste@freebsd.org> | Emilia Kasper <ekasper@google.com> | Eran Messeri <eranm@google.com> <eran.mes@gmail.com> | Fiaz Hossain <fiaz.hossain@salesforce.com> | Gary Belvin <gbelvin@google.com> <gdbelvin@gmail.com> | Google LLC | Internet Security Research Group | Jeff Trawick <trawick@gmail.com> | Joe Tsai <joetsai@digital-static.net> | Kat Joyce <katjoyce@google.com> | Katriel Cohn-Gordon <katriel.cohn-gordon@cybersecurity.ox.ac.uk> | Kiril Nikolov <kiril.nikolov@venafi.com> | Konrad Kraszewski <kraszewski@google.com> <laiquendir@gmail.com> | Laël Cellier <lael.cellier@gmail.com> | Linus Nordberg <linus@nordu.net> | Mark Schloesser <ms@mwcollect.org> | NORDUnet A/S | Nicholas Galbreath <nickg@client9.com> | Oliver Weidner <Oliver.Weidner@gmail.com> | Pascal Leroy <phl@google.com> | Paul Hadfield <hadfieldp@google.com> <paul@phad.org.uk> | Paul Lietar <lietar@google.com> | Pavel Kalinnikov <pkalinnikov@google.com> <pavelkalinnikov@gmail.com> | Pierre Phaneuf <pphaneuf@google.com> | PrimeKey Solutions AB | Rob Percival <robpercival@google.com> | Rob Stradling <rob@comodo.com> | Roger Ng <rogerng@google.com> <roger2hk@gmail.com> | Roland Shoemaker <roland@letsencrypt.org> | Ruslan Kovalov <ruslan.kovalyov@gmail.com> | Samuel Lidén Borell <samuel@kodafritt.se> | Tatiana Merkulova <merkulova@google.com> | Venafi, Inc. | Vladimir Rutsky <vladimir@rutsky.org> | Ximin Luo <infinity0@gmx.com>"
-core,github.com/google/certificate-transparency-go/gossip/minimal/x509ext,Apache-2.0,"Adam Eijdenberg <eijdenberg@google.com> <adam.eijdenberg@gmail.com> | Al Cutter <al@google.com> | Alex Cohn <alex@alexcohn.com> | Ben Laurie <benl@google.com> <ben@links.org> | Chris Kennelly <ckennelly@google.com> <ckennelly@ckennelly.com> | Comodo CA Limited | David Drysdale <drysdale@google.com> | Deyan Bektchiev <deyan.bektchiev@venafi.com> <deyan@bektchiev.net> | Ed Maste <emaste@freebsd.org> | Emilia Kasper <ekasper@google.com> | Eran Messeri <eranm@google.com> <eran.mes@gmail.com> | Fiaz Hossain <fiaz.hossain@salesforce.com> | Gary Belvin <gbelvin@google.com> <gdbelvin@gmail.com> | Google LLC | Internet Security Research Group | Jeff Trawick <trawick@gmail.com> | Joe Tsai <joetsai@digital-static.net> | Kat Joyce <katjoyce@google.com> | Katriel Cohn-Gordon <katriel.cohn-gordon@cybersecurity.ox.ac.uk> | Kiril Nikolov <kiril.nikolov@venafi.com> | Konrad Kraszewski <kraszewski@google.com> <laiquendir@gmail.com> | Laël Cellier <lael.cellier@gmail.com> | Linus Nordberg <linus@nordu.net> | Mark Schloesser <ms@mwcollect.org> | NORDUnet A/S | Nicholas Galbreath <nickg@client9.com> | Oliver Weidner <Oliver.Weidner@gmail.com> | Pascal Leroy <phl@google.com> | Paul Hadfield <hadfieldp@google.com> <paul@phad.org.uk> | Paul Lietar <lietar@google.com> | Pavel Kalinnikov <pkalinnikov@google.com> <pavelkalinnikov@gmail.com> | Pierre Phaneuf <pphaneuf@google.com> | PrimeKey Solutions AB | Rob Percival <robpercival@google.com> | Rob Stradling <rob@comodo.com> | Roger Ng <rogerng@google.com> <roger2hk@gmail.com> | Roland Shoemaker <roland@letsencrypt.org> | Ruslan Kovalov <ruslan.kovalyov@gmail.com> | Samuel Lidén Borell <samuel@kodafritt.se> | Tatiana Merkulova <merkulova@google.com> | Venafi, Inc. | Vladimir Rutsky <vladimir@rutsky.org> | Ximin Luo <infinity0@gmx.com>"
-core,github.com/google/certificate-transparency-go/tls,Apache-2.0,"Adam Eijdenberg <eijdenberg@google.com> <adam.eijdenberg@gmail.com> | Al Cutter <al@google.com> | Alex Cohn <alex@alexcohn.com> | Ben Laurie <benl@google.com> <ben@links.org> | Chris Kennelly <ckennelly@google.com> <ckennelly@ckennelly.com> | Comodo CA Limited | David Drysdale <drysdale@google.com> | Deyan Bektchiev <deyan.bektchiev@venafi.com> <deyan@bektchiev.net> | Ed Maste <emaste@freebsd.org> | Emilia Kasper <ekasper@google.com> | Eran Messeri <eranm@google.com> <eran.mes@gmail.com> | Fiaz Hossain <fiaz.hossain@salesforce.com> | Gary Belvin <gbelvin@google.com> <gdbelvin@gmail.com> | Google LLC | Internet Security Research Group | Jeff Trawick <trawick@gmail.com> | Joe Tsai <joetsai@digital-static.net> | Kat Joyce <katjoyce@google.com> | Katriel Cohn-Gordon <katriel.cohn-gordon@cybersecurity.ox.ac.uk> | Kiril Nikolov <kiril.nikolov@venafi.com> | Konrad Kraszewski <kraszewski@google.com> <laiquendir@gmail.com> | Laël Cellier <lael.cellier@gmail.com> | Linus Nordberg <linus@nordu.net> | Mark Schloesser <ms@mwcollect.org> | NORDUnet A/S | Nicholas Galbreath <nickg@client9.com> | Oliver Weidner <Oliver.Weidner@gmail.com> | Pascal Leroy <phl@google.com> | Paul Hadfield <hadfieldp@google.com> <paul@phad.org.uk> | Paul Lietar <lietar@google.com> | Pavel Kalinnikov <pkalinnikov@google.com> <pavelkalinnikov@gmail.com> | Pierre Phaneuf <pphaneuf@google.com> | PrimeKey Solutions AB | Rob Percival <robpercival@google.com> | Rob Stradling <rob@comodo.com> | Roger Ng <rogerng@google.com> <roger2hk@gmail.com> | Roland Shoemaker <roland@letsencrypt.org> | Ruslan Kovalov <ruslan.kovalyov@gmail.com> | Samuel Lidén Borell <samuel@kodafritt.se> | Tatiana Merkulova <merkulova@google.com> | Venafi, Inc. | Vladimir Rutsky <vladimir@rutsky.org> | Ximin Luo <infinity0@gmx.com>"
-core,github.com/google/certificate-transparency-go/x509,Apache-2.0,"Adam Eijdenberg <eijdenberg@google.com> <adam.eijdenberg@gmail.com> | Al Cutter <al@google.com> | Alex Cohn <alex@alexcohn.com> | Ben Laurie <benl@google.com> <ben@links.org> | Chris Kennelly <ckennelly@google.com> <ckennelly@ckennelly.com> | Comodo CA Limited | David Drysdale <drysdale@google.com> | Deyan Bektchiev <deyan.bektchiev@venafi.com> <deyan@bektchiev.net> | Ed Maste <emaste@freebsd.org> | Emilia Kasper <ekasper@google.com> | Eran Messeri <eranm@google.com> <eran.mes@gmail.com> | Fiaz Hossain <fiaz.hossain@salesforce.com> | Gary Belvin <gbelvin@google.com> <gdbelvin@gmail.com> | Google LLC | Internet Security Research Group | Jeff Trawick <trawick@gmail.com> | Joe Tsai <joetsai@digital-static.net> | Kat Joyce <katjoyce@google.com> | Katriel Cohn-Gordon <katriel.cohn-gordon@cybersecurity.ox.ac.uk> | Kiril Nikolov <kiril.nikolov@venafi.com> | Konrad Kraszewski <kraszewski@google.com> <laiquendir@gmail.com> | Laël Cellier <lael.cellier@gmail.com> | Linus Nordberg <linus@nordu.net> | Mark Schloesser <ms@mwcollect.org> | NORDUnet A/S | Nicholas Galbreath <nickg@client9.com> | Oliver Weidner <Oliver.Weidner@gmail.com> | Pascal Leroy <phl@google.com> | Paul Hadfield <hadfieldp@google.com> <paul@phad.org.uk> | Paul Lietar <lietar@google.com> | Pavel Kalinnikov <pkalinnikov@google.com> <pavelkalinnikov@gmail.com> | Pierre Phaneuf <pphaneuf@google.com> | PrimeKey Solutions AB | Rob Percival <robpercival@google.com> | Rob Stradling <rob@comodo.com> | Roger Ng <rogerng@google.com> <roger2hk@gmail.com> | Roland Shoemaker <roland@letsencrypt.org> | Ruslan Kovalov <ruslan.kovalyov@gmail.com> | Samuel Lidén Borell <samuel@kodafritt.se> | Tatiana Merkulova <merkulova@google.com> | Venafi, Inc. | Vladimir Rutsky <vladimir@rutsky.org> | Ximin Luo <infinity0@gmx.com>"
-core,github.com/google/certificate-transparency-go/x509/pkix,Apache-2.0,"Adam Eijdenberg <eijdenberg@google.com> <adam.eijdenberg@gmail.com> | Al Cutter <al@google.com> | Alex Cohn <alex@alexcohn.com> | Ben Laurie <benl@google.com> <ben@links.org> | Chris Kennelly <ckennelly@google.com> <ckennelly@ckennelly.com> | Comodo CA Limited | David Drysdale <drysdale@google.com> | Deyan Bektchiev <deyan.bektchiev@venafi.com> <deyan@bektchiev.net> | Ed Maste <emaste@freebsd.org> | Emilia Kasper <ekasper@google.com> | Eran Messeri <eranm@google.com> <eran.mes@gmail.com> | Fiaz Hossain <fiaz.hossain@salesforce.com> | Gary Belvin <gbelvin@google.com> <gdbelvin@gmail.com> | Google LLC | Internet Security Research Group | Jeff Trawick <trawick@gmail.com> | Joe Tsai <joetsai@digital-static.net> | Kat Joyce <katjoyce@google.com> | Katriel Cohn-Gordon <katriel.cohn-gordon@cybersecurity.ox.ac.uk> | Kiril Nikolov <kiril.nikolov@venafi.com> | Konrad Kraszewski <kraszewski@google.com> <laiquendir@gmail.com> | Laël Cellier <lael.cellier@gmail.com> | Linus Nordberg <linus@nordu.net> | Mark Schloesser <ms@mwcollect.org> | NORDUnet A/S | Nicholas Galbreath <nickg@client9.com> | Oliver Weidner <Oliver.Weidner@gmail.com> | Pascal Leroy <phl@google.com> | Paul Hadfield <hadfieldp@google.com> <paul@phad.org.uk> | Paul Lietar <lietar@google.com> | Pavel Kalinnikov <pkalinnikov@google.com> <pavelkalinnikov@gmail.com> | Pierre Phaneuf <pphaneuf@google.com> | PrimeKey Solutions AB | Rob Percival <robpercival@google.com> | Rob Stradling <rob@comodo.com> | Roger Ng <rogerng@google.com> <roger2hk@gmail.com> | Roland Shoemaker <roland@letsencrypt.org> | Ruslan Kovalov <ruslan.kovalyov@gmail.com> | Samuel Lidén Borell <samuel@kodafritt.se> | Tatiana Merkulova <merkulova@google.com> | Venafi, Inc. | Vladimir Rutsky <vladimir@rutsky.org> | Ximin Luo <infinity0@gmx.com>"
-core,github.com/google/certificate-transparency-go/x509util,Apache-2.0,"Adam Eijdenberg <eijdenberg@google.com> <adam.eijdenberg@gmail.com> | Al Cutter <al@google.com> | Alex Cohn <alex@alexcohn.com> | Ben Laurie <benl@google.com> <ben@links.org> | Chris Kennelly <ckennelly@google.com> <ckennelly@ckennelly.com> | Comodo CA Limited | David Drysdale <drysdale@google.com> | Deyan Bektchiev <deyan.bektchiev@venafi.com> <deyan@bektchiev.net> | Ed Maste <emaste@freebsd.org> | Emilia Kasper <ekasper@google.com> | Eran Messeri <eranm@google.com> <eran.mes@gmail.com> | Fiaz Hossain <fiaz.hossain@salesforce.com> | Gary Belvin <gbelvin@google.com> <gdbelvin@gmail.com> | Google LLC | Internet Security Research Group | Jeff Trawick <trawick@gmail.com> | Joe Tsai <joetsai@digital-static.net> | Kat Joyce <katjoyce@google.com> | Katriel Cohn-Gordon <katriel.cohn-gordon@cybersecurity.ox.ac.uk> | Kiril Nikolov <kiril.nikolov@venafi.com> | Konrad Kraszewski <kraszewski@google.com> <laiquendir@gmail.com> | Laël Cellier <lael.cellier@gmail.com> | Linus Nordberg <linus@nordu.net> | Mark Schloesser <ms@mwcollect.org> | NORDUnet A/S | Nicholas Galbreath <nickg@client9.com> | Oliver Weidner <Oliver.Weidner@gmail.com> | Pascal Leroy <phl@google.com> | Paul Hadfield <hadfieldp@google.com> <paul@phad.org.uk> | Paul Lietar <lietar@google.com> | Pavel Kalinnikov <pkalinnikov@google.com> <pavelkalinnikov@gmail.com> | Pierre Phaneuf <pphaneuf@google.com> | PrimeKey Solutions AB | Rob Percival <robpercival@google.com> | Rob Stradling <rob@comodo.com> | Roger Ng <rogerng@google.com> <roger2hk@gmail.com> | Roland Shoemaker <roland@letsencrypt.org> | Ruslan Kovalov <ruslan.kovalyov@gmail.com> | Samuel Lidén Borell <samuel@kodafritt.se> | Tatiana Merkulova <merkulova@google.com> | Venafi, Inc. | Vladimir Rutsky <vladimir@rutsky.org> | Ximin Luo <infinity0@gmx.com>"
 core,github.com/google/gnostic-models/compiler,Apache-2.0,"Copyright 2017-2022, Google LLC."
 core,github.com/google/gnostic-models/extensions,Apache-2.0,"Copyright 2017-2022, Google LLC"
 core,github.com/google/gnostic-models/jsonschema,Apache-2.0,"Copyright 2017-2022, Google LLC"
@@ -1204,13 +1181,9 @@ core,github.com/google/go-containerregistry/internal/redact,Apache-2.0,Copyright
 core,github.com/google/go-containerregistry/internal/retry,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/internal/retry/wait,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/internal/verify,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
-core,github.com/google/go-containerregistry/internal/windows,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/internal/zstd,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/authn,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/compression,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
-core,github.com/google/go-containerregistry/pkg/crane,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
-core,github.com/google/go-containerregistry/pkg/legacy,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
-core,github.com/google/go-containerregistry/pkg/legacy/tarball,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/logs,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/name,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
@@ -1222,7 +1195,6 @@ core,github.com/google/go-containerregistry/pkg/v1/mutate,Apache-2.0,Copyright 2
 core,github.com/google/go-containerregistry/pkg/v1/partial,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/remote,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/remote/transport,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
-core,github.com/google/go-containerregistry/pkg/v1/static,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/stream,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/tarball,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/types,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
@@ -1379,7 +1351,6 @@ core,github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp,Apache-2.0,
 core,github.com/jaegertracing/jaeger/model,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/pkg/metrics,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
-core,github.com/jedisct1/go-minisign,MIT,Copyright (c) 2018-2023 Frank Denis
 core,github.com/jellydator/ttlcache/v3,MIT,Copyright (c) 2022 Jellydator
 core,github.com/jinzhu/inflection,MIT,Copyright (c) 2015 - Jinzhu
 core,github.com/jlaffaye/ftp,ISC,"Copyright (c) 2011-2013, Julien Laffaye <jlaffaye@FreeBSD.org>"
@@ -1537,7 +1508,6 @@ core,github.com/netsampler/goflow2/pb,BSD-3-Clause,"Copyright (c) 2021, NetSampl
 core,github.com/netsampler/goflow2/producer,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
-core,github.com/nozzle/throttler,Apache-2.0,Copyright 2018 Derek Perkins
 core,github.com/oklog/ulid,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
 core,github.com/oliveagle/jsonpath,MIT,Copyright (c) 2015 oliver
@@ -1896,13 +1866,6 @@ core,github.com/openshift/client-go/quota/clientset/versioned/typed/quota/v1,Apa
 core,github.com/opentracing/opentracing-go,Apache-2.0,Copyright 2016 The OpenTracing Authors
 core,github.com/opentracing/opentracing-go/ext,Apache-2.0,Copyright 2016 The OpenTracing Authors
 core,github.com/opentracing/opentracing-go/log,Apache-2.0,Copyright 2016 The OpenTracing Authors
-core,github.com/openvex/discovery/pkg/discovery,Apache-2.0,Copyright 2023 The OpenVEX Authors
-core,github.com/openvex/discovery/pkg/discovery/options,Apache-2.0,Copyright 2023 The OpenVEX Authors
-core,github.com/openvex/discovery/pkg/oci,Apache-2.0,Copyright 2023 The OpenVEX Authors
-core,github.com/openvex/discovery/pkg/probers/oci,Apache-2.0,Copyright 2023 The OpenVEX Authors
-core,github.com/openvex/go-vex/pkg/attestation,Apache-2.0,Copyright 2023 The OpenVEX Authors
-core,github.com/openvex/go-vex/pkg/csaf,Apache-2.0,Copyright 2023 The OpenVEX Authors
-core,github.com/openvex/go-vex/pkg/vex,Apache-2.0,Copyright 2023 The OpenVEX Authors
 core,github.com/openzipkin/zipkin-go/model,Apache-2.0,Copyright 2017 The OpenZipkin Authors
 core,github.com/openzipkin/zipkin-go/proto/zipkin_proto3,Apache-2.0,Copyright 2017 The OpenZipkin Authors
 core,github.com/openzipkin/zipkin-go/reporter,Apache-2.0,Copyright 2017 The OpenZipkin Authors
@@ -2048,12 +2011,9 @@ core,github.com/samber/lo,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 20
 core,github.com/samber/lo/internal/constraints,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samber/lo/internal/rand,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
-core,github.com/santhosh-tekuri/jsonschema/v5,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/sassoftware/go-rpmutils,Apache-2.0,Copyright (c) SAS Institute Inc.
 core,github.com/sassoftware/go-rpmutils/cpio,Apache-2.0,Copyright (c) SAS Institute Inc.
 core,github.com/sassoftware/go-rpmutils/fileutil,Apache-2.0,Copyright (c) SAS Institute Inc.
-core,github.com/sassoftware/relic/lib/pkcs7,Apache-2.0,Copyright (c) SAS Institute Inc.
-core,github.com/sassoftware/relic/lib/x509tools,Apache-2.0,Copyright (c) SAS Institute Inc.
 core,github.com/scaleway/scaleway-sdk-go/api/baremetal/v1,Apache-2.0,Copyright 2019 Scaleway
 core,github.com/scaleway/scaleway-sdk-go/api/block/v1alpha1,Apache-2.0,Copyright 2019 Scaleway
 core,github.com/scaleway/scaleway-sdk-go/api/instance/v1,Apache-2.0,Copyright 2019 Scaleway
@@ -2087,24 +2047,6 @@ core,github.com/shirou/w32,BSD-3-Clause,Copyright (c) 2010-2012 The w32 Authors.
 core,github.com/shopspring/decimal,MIT,"Copyright (c) 2013 Oguz Bilgic | Copyright (c) 2015 Spring, Inc"
 core,github.com/signalfx/sapm-proto/client,Apache-2.0,"Copyright 2019 Splunk, Inc."
 core,github.com/signalfx/sapm-proto/gen,Apache-2.0,"Copyright 2019 Splunk, Inc."
-core,github.com/sigstore/cosign/v2/internal/pkg/cosign,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/internal/pkg/cosign/payload/size,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/internal/pkg/now,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/internal/pkg/oci/remote,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/internal/ui,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/blob,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/cosign,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/cosign/bundle,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/cosign/env,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/cosign/fulcioverifier/ctutil,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/oci,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/oci/empty,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/oci/internal/signature,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/oci/layout,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/oci/remote,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/oci/signed,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/oci/static,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/cosign/v2/pkg/types,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/client,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/generated/client,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/generated/client/entries,Apache-2.0,Copyright 2021 The Sigstore Authors
@@ -2112,33 +2054,11 @@ core,github.com/sigstore/rekor/pkg/generated/client/index,Apache-2.0,Copyright 2
 core,github.com/sigstore/rekor/pkg/generated/client/pubkey,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/generated/client/tlog,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/generated/models,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/log,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/pki,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/pki/identity,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/pki/minisign,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/pki/pgp,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/pki/pkcs7,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/pki/ssh,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/pki/tuf,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/pki/x509,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/dsse,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/dsse/v0.0.1,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/hashedrekord,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/hashedrekord/v0.0.1,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/intoto,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/intoto/v0.0.1,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/intoto/v0.0.2,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/rekord,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/rekor/pkg/types/rekord/v0.0.1,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/util,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/sigstore/pkg/cryptoutils,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/sigstore/pkg/signature,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/sigstore/pkg/signature/dsse,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/sigstore/pkg/signature/options,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/sigstore/pkg/signature/payload,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/sigstore/pkg/tuf,Apache-2.0,Copyright 2021 The Sigstore Authors
-core,github.com/sigstore/timestamp-authority/pkg/verification,Apache-2.0,Copyright 2022 The Sigstore Authors
 core,github.com/sijms/go-ora/v2,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/advanced_nego,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/advanced_nego/ntlmssp,MIT,Copyright (c) 2020 Samy Sultan
@@ -2256,19 +2176,6 @@ core,github.com/tetratelabs/wazero/internal/wasm/binary,Apache-2.0,Copyright 202
 core,github.com/tetratelabs/wazero/internal/wasmdebug,Apache-2.0,Copyright 2020-2023 wazero authors
 core,github.com/tetratelabs/wazero/internal/wasmruntime,Apache-2.0,Copyright 2020-2023 wazero authors
 core,github.com/tetratelabs/wazero/sys,Apache-2.0,Copyright 2020-2023 wazero authors
-core,github.com/theupdateframework/go-tuf,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/client/leveldbstore,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/data,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/internal/fsutil,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/internal/roles,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/internal/sets,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/internal/signer,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/pkg/keys,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/pkg/targets,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/sign,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/util,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/theupdateframework/go-tuf/verify,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/tidwall/gjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/match,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
@@ -2284,10 +2191,6 @@ core,github.com/tklauser/go-sysconf,BSD-3-Clause,"Copyright (c) 2018-2022, Tobia
 core,github.com/tklauser/numcpus,Apache-2.0,Copyright 2018 Tobias Klauser
 core,github.com/tmthrgd/go-hex,BSD-3-Clause,"Copyright (c) 2005-2016, Wojciech Muła | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2016, Tom Thorogood"
 core,github.com/tonistiigi/go-csvvalue,MIT,Copyright 2024 Tõnis Tiigi <tonistiigi@gmail.com>
-core,github.com/transparency-dev/merkle,Apache-2.0,Copyright 2017 Google LLC. All Rights Reserved.
-core,github.com/transparency-dev/merkle/compact,Apache-2.0,Copyright 2019 Google LLC. All Rights Reserved.
-core,github.com/transparency-dev/merkle/proof,Apache-2.0,Copyright 2017 Google LLC. All Rights Reserved. | Copyright 2022 Google LLC. All Rights Reserved.
-core,github.com/transparency-dev/merkle/rfc6962,Apache-2.0,Copyright 2016 Google LLC. All Rights Reserved.
 core,github.com/twitchtv/twirp,Apache-2.0,"Copyright 2018 Twitch Interactive, Inc.  All Rights Reserved"
 core,github.com/twitchtv/twirp/ctxsetters,Apache-2.0,"Copyright 2018 Twitch Interactive, Inc.  All Rights Reserved"
 core,github.com/twitchtv/twirp/internal/contextkeys,Apache-2.0,"Copyright 2018 Twitch Interactive, Inc.  All Rights Reserved"
@@ -2760,7 +2663,6 @@ core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/ssh/agent,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/crypto/ssh/terminal,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
