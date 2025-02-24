@@ -334,7 +334,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				// server.
 				collectors = []string{"pods"}
 			case defaultPodCollection, clusterUnassignedPodCollection:
-				// We can try to get the API Client directly because
+				// We can try to get the API Client directly because this code will be retried if it fails
 				apiServerClient, err = apiserver.GetAPIClient()
 				if err != nil {
 					return err
