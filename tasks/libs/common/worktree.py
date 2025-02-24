@@ -150,6 +150,15 @@ def agent_context(ctx, branch: str | None = None, skip_checkout=False, commit: s
         enter_env(ctx, branch, skip_checkout=skip_checkout, commit=commit)
 
         yield
+    except Exception as e:
+        location = get_current_branch(ctx)
+        message = f'{color_message("WARNING", Color.ORANGE)}: This error takes place in a worktree environment on branch {location}'
+
+        e.add_note(message)
+        # Also print the warning since it might be an invoke error which exits without displaying the message
+        print(message, file=sys.stderr)
+
+        raise e
     finally:
         # Exit
         exit_env()
