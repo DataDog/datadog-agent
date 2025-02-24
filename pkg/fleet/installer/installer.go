@@ -35,7 +35,6 @@ import (
 const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
-	packageAPMLibraries     = "datadog-apm-libraries"
 	packageDatadogInstaller = "datadog-installer"
 )
 
@@ -225,16 +224,6 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	err = i.configurePackage(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
-	}
-	if pkg.Name == packageDatadogInstaller {
-		// We must handle the configuration of some packages that are not
-		// don't have an OCI. To properly configure their configuration repositories,
-		// we call configurePackage when setting up the installer; which is the only
-		// package that is always installed.
-		err = i.configurePackage(ctx, packageAPMLibraries)
-		if err != nil {
-			return fmt.Errorf("could not configure package: %w", err)
-		}
 	}
 	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
@@ -679,6 +668,14 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 	if runtime.GOOS == "windows" {
 		return nil
 	}
+	state, err := i.configs.GetState(pkg)
+	if err != nil {
+		return fmt.Errorf("could not get config repository state: %w", err)
+	}
+	// If a config is already set, no need to initialize it
+	if state.Stable != "" {
+		return nil
+	}
 	tmpDir, err := i.configs.MkdirTemp()
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -693,11 +690,12 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 
 var (
 	allowedConfigFiles = []string{
-		"datadog.yaml",
-		"security-agent.yaml",
-		"system-probe.yaml",
-		"application_monitoring.yaml",
-		"conf.d/*.yaml",
+		"/datadog.yaml",
+		"/security-agent.yaml",
+		"/system-probe.yaml",
+		"/application_monitoring.yaml",
+		"/conf.d/*.yaml",
+		"/conf.d/*.d/*.yaml",
 	}
 )
 
@@ -714,21 +712,36 @@ func configNameAllowed(file string) bool {
 	return false
 }
 
+type configFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}
+
 func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
-	var configs map[string]interface{}
-	err := json.Unmarshal(rawConfig, &configs)
+	var files []configFile
+	err := json.Unmarshal(rawConfig, &files)
 	if err != nil {
-		return fmt.Errorf("could not unmarshal config: %w", err)
+		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
-	for file, config := range configs {
-		if !configNameAllowed(file) {
+	for _, file := range files {
+		file.Path = filepath.Clean(file.Path)
+		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
-		serializedConfig, err := yaml.Marshal(config)
+		var c interface{}
+		err = json.Unmarshal(file.Contents, &c)
 		if err != nil {
-			return fmt.Errorf("could not marshal config: %w", err)
+			return fmt.Errorf("could not unmarshal config file contents: %w", err)
 		}
-		err = os.WriteFile(filepath.Join(dir, file), serializedConfig, 0644)
+		serialized, err := yaml.Marshal(c)
+		if err != nil {
+			return fmt.Errorf("could not serialize config file contents: %w", err)
+		}
+		err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
+		if err != nil {
+			return fmt.Errorf("could not create config file directory: %w", err)
+		}
+		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
 		if err != nil {
 			return fmt.Errorf("could not write config file: %w", err)
 		}

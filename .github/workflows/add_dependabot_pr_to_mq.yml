@@ -11,10 +11,12 @@ jobs:
   add_to_merge_queue:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    environment:
+      name: dependabot
 
     steps:
       # Use a token as only the github App can push to the merge queue
-      - uses: actions/create-github-app-token@c1a285145b9d317df6ced56c09f525b5c2b6f755 # v1.11.1
+      - uses: actions/create-github-app-token@0d564482f06ca65fa9e77e2510873638c82206f2 # v1.11.5
         id: app-token
         with:
           app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
@@ -51,7 +53,7 @@ jobs:
             }
             // When a required reviewer approves, the team is removed from the requested_teams list.
             // As such, a mergeable PR has no more requested teams and no changes requested in its reviews.
-            return `${allAproved && pullRequest.requested_teams.length === 0}`;
+            return `${allApproved && pullRequest.requested_teams.length === 0}`;
           result-encoding: string
       - name: Add Merge Comment to Pull Request
         if: ${{ steps.check-mergeable.outputs.result == 'true' }}

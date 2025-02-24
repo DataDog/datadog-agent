@@ -44,6 +44,12 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
                 code=1,
             )
 
+    # If the state is not clean, clean it
+    if ctx.run(f"git -C '{WORKTREE_DIRECTORY}' status --porcelain", hide=True).stdout.strip():
+        print(f'{color_message("Info", Color.BLUE)}: Cleaning worktree directory', file=sys.stderr)
+        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' reset --hard", hide=True)
+        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' clean -f", hide=True)
+
     if branch:
         worktree_branch = ctx.run(
             f"git -C '{WORKTREE_DIRECTORY}' rev-parse --abbrev-ref HEAD", hide=True
@@ -125,8 +131,19 @@ def agent_context(ctx, branch: str | None = None, skip_checkout=False, commit: s
 
     # Do not stack two environments
     if is_worktree():
-        yield
-        return
+        if not skip_checkout and (
+            branch
+            and branch != get_current_branch(ctx)
+            or commit
+            and commit != ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+        ):
+            raise RuntimeError('Cannot stack two different worktree environments (two different branches requested)')
+        else:
+            # Some tasks need to stack two different worktree environments but
+            # on the same branch
+            # Simulate worktree environment
+            yield
+            return
 
     try:
         # Enter

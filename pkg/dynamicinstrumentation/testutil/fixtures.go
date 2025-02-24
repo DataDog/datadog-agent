@@ -243,6 +243,66 @@ var structCaptures = fixtures{
 	}}},
 }
 
+var pointerCaptures = fixtures{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_pointer": {"x": {Type: "*uint", Fields: fieldMap{
+		"arg_0": capturedValue("uint", "1"),
+	}}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_pointer": {"z": {Type: "*bool"}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_pointer": {"x": {Type: "*struct", Fields: fieldMap{
+		"arg_0": &ditypes.CapturedValue{
+			Type: "struct",
+			Fields: fieldMap{
+				"arg_0": capturedValue("bool", "true"),
+				"arg_1": capturedValue("int", "1"),
+				"arg_2": capturedValue("int16", "2"),
+			},
+		},
+	}}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_struct_pointer": {"x": {Type: "*struct"}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_pointer": {"z": {
+		Type: "*string",
+		Fields: fieldMap{
+			"arg_0": capturedValue("string", "abc"),
+		},
+	}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_string": {
+		"s": &ditypes.CapturedValue{
+			Type: "*struct",
+			Fields: fieldMap{
+				"arg_0": &ditypes.CapturedValue{
+					Type: "struct",
+					Fields: fieldMap{
+						"arg_0": capturedValue("int", "5"),
+						"arg_1": capturedValue("string", "abcdef"),
+					},
+				},
+			},
+		},
+	},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_slice": {
+		"s": &ditypes.CapturedValue{
+			Type: "*struct",
+			Fields: fieldMap{
+				"arg_0": &ditypes.CapturedValue{
+					Type: "struct",
+					Fields: fieldMap{
+						"arg_0": capturedValue("int", "5"),
+						"arg_1": &ditypes.CapturedValue{
+							Type: "[]uint8",
+							Fields: fieldMap{
+								"[0]uint8": capturedValue("uint8", "2"),
+								"[1]uint8": capturedValue("uint8", "3"),
+								"[2]uint8": capturedValue("uint8", "4"),
+							},
+						},
+						"arg_2": capturedValue("uint64", "5"),
+					},
+				},
+			},
+		},
+	},
+}
+
 // mergeMaps combines multiple fixture maps into a single map
 func mergeMaps(maps ...fixtures) fixtures {
 	result := make(fixtures)
@@ -260,6 +320,7 @@ var expectedCaptures = mergeMaps(
 	arrayCaptures,
 	structCaptures,
 	sliceCaptures,
+	pointerCaptures,
 	// mapCaptures,
 	// genericCaptures,
 	// multiParamCaptures,

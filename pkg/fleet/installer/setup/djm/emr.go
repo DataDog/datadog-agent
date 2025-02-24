@@ -75,7 +75,7 @@ func SetupEmr(s *common.Setup) error {
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
-	s.Out.WriteString("Applying specific Data Jobs Monitoring config")
+	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
 	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
 
 	hostname, err := os.Hostname()
@@ -93,16 +93,16 @@ func SetupEmr(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster {
-		s.Out.WriteString("Setting up Spark integration config on the Resource Manager")
+		s.Out.WriteString("Setting up Spark integration config on the Resource Manager\n")
 		setupResourceManager(s, clusterName)
 	}
 	// Add logs config to both Resource Manager and Workers
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
-		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true")
+		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true\n")
 		enableEmrLogs(s)
 
 	} else {
-		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true")
+		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true\n")
 	}
 	return nil
 }
@@ -147,10 +147,14 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 func setupResourceManager(s *common.Setup, clusterName string) {
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
-
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Infof("Failed to get hostname, defaulting to localhost: %v", err)
+		hostname = "localhost"
+	}
 	sparkIntegration.Instances = []any{
 		common.IntegrationConfigInstanceSpark{
-			SparkURL:         "http://127.0.0.1:8088",
+			SparkURL:         "http://" + hostname + ":8088",
 			SparkClusterMode: "spark_yarn_mode",
 			ClusterName:      clusterName,
 			StreamingMetrics: false,
@@ -158,7 +162,7 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 	}
 	yarnIntegration.Instances = []any{
 		common.IntegrationConfigInstanceYarn{
-			ResourceManagerURI: "http://127.0.0.1:8088",
+			ResourceManagerURI: "http://" + hostname + ":8088",
 			ClusterName:        clusterName,
 		},
 	}
@@ -191,6 +195,7 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 
 func enableEmrLogs(s *common.Setup) {
 	s.Config.DatadogYAML.LogsEnabled = true
+	s.Span.SetTag("host_tag_set.logs_enabled", "true")
 	// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
 	s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
 	// Load the existing integration config and add logs section to it

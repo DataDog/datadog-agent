@@ -9,6 +9,7 @@ package rules
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"slices"
 
 	"github.com/hashicorp/go-multierror"
@@ -63,27 +64,54 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 	// keep track of the combine
 	rd1.Def.Combine = rd2.Def.Combine
 
+	wasOverridden := false
 	// for backward compatibility, by default only the expression is copied if no options
-	if len(rd2.Def.OverrideOptions.Fields) == 0 {
-		rd1.Def.Expression = rd2.Def.Expression
-	} else if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) {
+	if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) && rd1.Policy.Type == DefaultPolicyType {
+		tmpExpression := rd1.Def.Expression
 		*rd1.Def = *rd2.Def
+		rd1.Def.Expression = tmpExpression
+		wasOverridden = true
 	} else {
-		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideExpressionField) {
-			rd1.Def.Expression = rd2.Def.Expression
-		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideActionFields) {
-			rd1.Def.Actions = rd2.Def.Actions
+			var toAdd []*ActionDefinition
+			for _, action := range rd2.Def.Actions {
+				duplicated := false
+				for _, a := range rd1.Def.Actions {
+					if reflect.DeepEqual(action, a) {
+						duplicated = true
+						break
+					}
+				}
+				if !duplicated {
+					toAdd = append(toAdd, action)
+				}
+			}
+
+			if len(toAdd) > 0 {
+				wasOverridden = true
+				rd1.Def.Actions = append(rd1.Def.Actions, toAdd...)
+			}
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideEveryField) {
 			rd1.Def.Every = rd2.Def.Every
+			wasOverridden = true
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideTagsField) {
-			rd1.Def.Tags = rd2.Def.Tags
+			for k, tag := range rd2.Def.Tags {
+				rd1.Def.Tags[k] = tag
+				wasOverridden = true
+			}
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideProductTagsField) {
 			rd1.Def.ProductTags = rd2.Def.ProductTags
 		}
+	}
+
+	if wasOverridden {
+		rd1.Policy.Name = rd2.Policy.Name
+		rd1.Policy.Source = rd2.Policy.Source
+		rd1.Policy.Type = rd2.Policy.Type
+
 	}
 }
 
@@ -91,22 +119,55 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 	switch r2.Def.Combine {
 	case OverridePolicy:
-		applyOverride(r, r2)
+		if !r2.Def.Disabled {
+			applyOverride(r, r2)
+		}
 	default:
 		if r.Def.Disabled == r2.Def.Disabled {
 			return &ErrRuleLoad{Rule: r2, Err: ErrDefinitionIDConflict}
 		}
 	}
-	r.Def.Disabled = r2.Def.Disabled
+
+	if r.Def.Disabled {
+		r.Def.Disabled = r2.Def.Disabled
+		r.Policy.Name = r2.Policy.Name
+		r.Policy.Source = r2.Policy.Source
+		r.Policy.Type = r2.Policy.Type
+
+	} else {
+		if r.Policy.Type == DefaultPolicyType && r2.Policy.Type == CustomPolicyType {
+			r.Def.Disabled = r2.Def.Disabled
+			r.Policy.Name = r2.Policy.Name
+			r.Policy.Source = r2.Policy.Source
+			r.Policy.Type = r2.Policy.Type
+		}
+	}
+
 	r.ModifiedBy = append(r.ModifiedBy, r2)
+
 	return nil
 }
+
+// PolicyType represents the type of a policy
+type PolicyType string
+
+const (
+	// DefaultPolicyType is the default policy type
+	DefaultPolicyType PolicyType = "default"
+	// CustomPolicyType is the custom policy type
+	CustomPolicyType PolicyType = "custom"
+	// InternalPolicyType is the policy for internal use (bundled_policy_provider)
+	InternalPolicyType PolicyType = "internal"
+	// SelftestPolicy is the policy for self tests
+	SelftestPolicy PolicyType = "selftest"
+)
 
 // Policy represents a policy which is composed of a list of rules, macros and on-demand hook points
 type Policy struct {
 	Def        *PolicyDef
 	Name       string
 	Source     string
+	Type       PolicyType
 	IsInternal bool
 	// multiple macros can have the same ID but different filters (e.g. agent version)
 	macros map[MacroID][]*PolicyMacro
@@ -240,11 +301,12 @@ RULES:
 }
 
 // LoadPolicyFromDefinition load a policy from a definition
-func LoadPolicyFromDefinition(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
+func LoadPolicyFromDefinition(name string, source string, policyType PolicyType, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	p := &Policy{
 		Def:    def,
 		Name:   name,
 		Source: source,
+		Type:   policyType,
 		macros: make(map[MacroID][]*PolicyMacro, len(def.Macros)),
 		rules:  make(map[RuleID][]*PolicyRule, len(def.Rules)),
 	}
@@ -253,12 +315,12 @@ func LoadPolicyFromDefinition(name string, source string, def *PolicyDef, macroF
 }
 
 // LoadPolicy load a policy
-func LoadPolicy(name string, source string, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
+func LoadPolicy(name string, source string, policyType PolicyType, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	def := PolicyDef{}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 
-	return LoadPolicyFromDefinition(name, source, &def, macroFilters, ruleFilters)
+	return LoadPolicyFromDefinition(name, source, policyType, &def, macroFilters, ruleFilters)
 }

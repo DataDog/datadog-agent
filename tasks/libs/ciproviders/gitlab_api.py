@@ -37,8 +37,8 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token():
-    if "GITLAB_TOKEN" not in os.environ:
-        print("GITLAB_TOKEN not found in env. Trying keychain...")
+    if "GITLAB_TOKEN" not in os.environ and "DD_GITLAB_TOKEN" not in os.environ:
+        print("GITLAB_TOKEN / DD_GITLAB_TOKEN not found in env. Trying keychain...")
         if platform.system() == "Darwin":
             try:
                 output = subprocess.check_output(
@@ -56,7 +56,8 @@ def get_gitlab_token():
             "or export it from your .bashrc or equivalent."
         )
         raise Exit(code=1)
-    return os.environ["GITLAB_TOKEN"]
+
+    return os.environ.get("GITLAB_TOKEN", os.environ.get("DD_GITLAB_TOKEN"))
 
 
 def get_gitlab_bot_token():

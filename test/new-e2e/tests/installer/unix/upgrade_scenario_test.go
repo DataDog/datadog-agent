@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type packageName string
@@ -400,9 +401,14 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulWithUmask() {
 	s.TestUpgradeSuccessful()
 }
 
+type installerConfigFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}
+
 type installerConfig struct {
-	ID      string          `json:"id"`
-	Configs json.RawMessage `json:"configs"`
+	ID    string                `json:"id"`
+	Files []installerConfigFile `json:"files"`
 }
 
 func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
@@ -423,13 +429,12 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	state := s.host.State()
 	// Assert setup successful
 	state.AssertDirExists("/etc/datadog-agent/managed", 0755, "root", "root")
-	state.AssertDirExists("/etc/datadog-agent/managed/datadog-apm-libraries", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/managed/datadog-agent", 0755, "root", "root")
 	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/empty", "root", "root")
 
 	config := installerConfig{
-		ID:      "config-1",
-		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "debug"}}`),
+		ID:    "config-1",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "debug"}`)}},
 	}
 	s.executeConfigGoldenPath(config)
 }
@@ -464,32 +469,20 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	// Enables security agent & sysprobe
 	config := installerConfig{
 		ID: "config-1",
-		Configs: json.RawMessage(`
-{
-  "datadog.yaml": {
-    "sbom": {
-      "container_image": {
-        "enabled": true
-      },
-      "host": {
-        "enabled": true
-      }
-    }
-  },
-  "security-agent.yaml": {
-    "runtime_security_config": {
-      "enabled": true
-    },
-    "compliance_config": {
-      "enabled": true
-    }
-  },
-  "system-probe.yaml": {
-    "runtime_security_config": {
-      "enabled": true
-    }
-  }
-}`),
+		Files: []installerConfigFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"sbom": {"container_image": {"enabled": true}, "host": {"enabled": true}}}`),
+			},
+			{
+				Path:     "/security-agent.yaml",
+				Contents: json.RawMessage(`{"runtime_security_config": {"enabled": true}, "compliance_config": {"enabled": true}}`),
+			},
+			{
+				Path:     "/system-probe.yaml",
+				Contents: json.RawMessage(`{"runtime_security_config": {"enabled": true}}`),
+			},
+		},
 	}
 	timestamp = s.host.LastJournaldTimestamp()
 	s.mustStartConfigExperiment(datadogAgent, config)
@@ -556,8 +549,8 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	config1 := installerConfig{
-		ID:      "config-1",
-		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "error"}}`),
+		ID:    "config-1",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "error"}`)}},
 	}
 
 	timestamp := s.host.LastJournaldTimestamp()
@@ -571,8 +564,8 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	s.assertSuccessfulConfigStopExperiment(timestamp)
 
 	config2 := installerConfig{
-		ID:      "config-2",
-		Configs: json.RawMessage(`{"datadog.yaml": {"log_level": "debug"}}`),
+		ID:    "config-2",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "debug"}`)}},
 	}
 	s.executeConfigGoldenPath(config2)
 }
@@ -594,8 +587,8 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 
 	// Non alphanumerical characters are not allowed, the agent should crash
 	config := installerConfig{
-		ID:      "config",
-		Configs: json.RawMessage(`{"datadog.yaml": {"secret_backend_command": "echo", "log_level": "ENC[hi]"}}`),
+		ID:    "config",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "ENC[hi]"}`)}},
 	}
 	timestamp := s.host.LastJournaldTimestamp()
 	_, err := s.startConfigExperiment(datadogAgent, config)
@@ -724,6 +717,13 @@ func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) 
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
+func (s *upgradeScenarioSuite) startInstallerExperiment(pkg packageName, version string) (string, error) {
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+	cmd := fmt.Sprintf("sudo datadog-installer daemon start-installer-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
+	s.T().Logf("Running start command: %s", cmd)
+	return s.Env().RemoteHost.Execute(cmd)
+}
+
 func (s *upgradeScenarioSuite) mustStartExperiment(pkg packageName, version string) string {
 	output, err := s.startExperiment(pkg, version)
 	require.NoError(s.T(), err, "Failed to start experiment: v%s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
@@ -848,7 +848,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 }
 
 func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config installerConfig) (string, error) {
-	rawConfig, err := json.Marshal(config.Configs)
+	rawConfig, err := json.Marshal(config.Files)
 	require.NoError(s.T(), err)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s '%s' > /tmp/start_config_experiment.log 2>&1", pkg, config.ID, rawConfig)
@@ -1057,7 +1057,7 @@ func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
 	timestamp := s.host.LastJournaldTimestamp()
 	// Can't check the error status of the command, because it gets terminated by design
 	// We check the unit history instead
-	s.startExperiment(datadogInstaller, previousInstallerImageVersion)
+	s.startInstallerExperiment(datadogInstaller, previousInstallerImageVersion)
 	s.assertSuccessfulInstallerStartExperiment(timestamp, previousInstallerImageVersion)
 
 	// Change the catalog of the experiment installer
