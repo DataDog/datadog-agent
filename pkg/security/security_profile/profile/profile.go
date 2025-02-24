@@ -174,24 +174,10 @@ func (p *Profile) GetSelectorStr() string {
 
 // getSelectorStr internal, thread-unsafe version of GetSelectorStr
 func (p *Profile) getSelectorStr() string {
-	tags := make([]string, 0, len(p.tags)+2)
-	if len(p.Metadata.ContainerID) > 0 {
-		tags = append(tags, fmt.Sprintf("container_id:%s", p.Metadata.ContainerID))
+	if p.selector.IsReady() {
+		return p.selector.String()
 	}
-	if len(p.Metadata.CGroupContext.CGroupID) > 0 {
-		tags = append(tags, fmt.Sprintf("cgroup_id:%s", p.Metadata.CGroupContext.CGroupID))
-	}
-	if len(p.tags) > 0 {
-		for _, tag := range p.tags {
-			if !strings.HasPrefix(tag, "container_id") && !strings.HasPrefix(tag, "cgroup_id") {
-				tags = append(tags, tag)
-			}
-		}
-	}
-	if len(tags) == 0 {
-		return "empty_selector"
-	}
-	return strings.Join(p.tags, ",")
+	return "empty_selector"
 }
 
 // Encode encodes an activity dump in the provided format
