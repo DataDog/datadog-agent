@@ -35,6 +35,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		HTTP                 obfuscate.HTTPConfig      `json:"http"`
 		RemoveStackTraces    bool                      `json:"remove_stack_traces"`
 		Redis                obfuscate.RedisConfig     `json:"redis"`
+		Valkey               obfuscate.ValkeyConfig    `json:"valkey"`
 		Memcached            obfuscate.MemcachedConfig `json:"memcached"`
 	}
 	type reducedConfig struct {
@@ -61,6 +62,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.HTTP = o.HTTP
 		oconf.RemoveStackTraces = o.RemoveStackTraces
 		oconf.Redis = o.Redis
+		oconf.Valkey = o.Valkey
 		oconf.Memcached = o.Memcached
 	}
 

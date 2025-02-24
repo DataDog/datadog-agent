@@ -102,7 +102,6 @@ func (c *collector) parseTaskContainers(
 			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: entityID,
-				Runtime:  workloadmeta.ContainerRuntimeDocker,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: container.DockerName,
 				},
@@ -110,6 +109,35 @@ func (c *collector) parseTaskContainers(
 					Status: workloadmeta.ContainerStatusUnknown,
 					Health: workloadmeta.ContainerHealthUnknown,
 				},
+				// Edge Case: Setting the runtime to "docker" causes issues,
+				// although it's correct.
+				//
+				// In ECS, the logs agent assigns the "source" and "service"
+				// tags based on the name of the container image. The ECS v1
+				// collector does not gather container image information; only
+				// the Docker collector does. As a result, the information
+				// becomes complete only after the Docker collector has
+				// processed the container.
+				//
+				// If the runtime is set here and the ECS collector runs before
+				// the Docker collector, and the logs check configuration is
+				// generated before the Docker collector stores the information,
+				// the image details will be missing. As a result, the logs
+				// configuration will have an incorrect "source" and "service"
+				// tags.
+				//
+				// Setting an empty runtime here is a workaround to ensure that
+				// the "source" and "service" tags are correct. The reason is
+				// that autodiscovery is not expecting an empty runtime because
+				// it uses it to generate the AD identifiers and things like the
+				// service ID. Also, the logs agent rejects config with an empty
+				// service ID. As a result, with an empty runtime, the logs
+				// config will not be created until the Docker collector has run
+				// and the image info is available.
+				//
+				// TODO: Remove this workaround when there's a better way of
+				// handling this in AD + logs agent.
+				Runtime: "",
 			},
 		})
 	}
@@ -138,7 +166,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 	for _, taskContainer := range entity.Containers {
 		container, err := c.store.GetContainer(taskContainer.ID)
 		if err != nil {
-			log.Tracef("cannot find container %q found in task %q: %s", taskContainer, entity.ID, err)
+			log.Tracef("cannot find container %q found in task %q: %s", taskContainer.String(false), entity.ID, err)
 			continue
 		}
 

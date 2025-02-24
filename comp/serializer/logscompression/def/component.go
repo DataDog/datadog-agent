@@ -6,7 +6,7 @@
 // Package logscompression provides the component for logs compression
 package logscompression
 
-// team: agent-logs
+// team: agent-log-pipelines
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"

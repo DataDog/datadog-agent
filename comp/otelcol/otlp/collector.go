@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -93,23 +92,18 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	return enrichedTags
 }
 
-func generateID(group, resource, namespace, name string) string {
-
-	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
-}
-
 func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (
 	otelcol.Factories,
 	error,
 ) {
 	var errs []error
 
-	extensions, err := extension.MakeFactoryMap()
+	extensions, err := otelcol.MakeFactoryMap[extension.Factory]()
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	receivers, err := receiver.MakeFactoryMap(
+	receivers, err := otelcol.MakeFactoryMap[receiver.Factory](
 		otlpreceiver.NewFactory(),
 	)
 	if err != nil {
@@ -118,7 +112,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil),
+		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, nil, nil),
 		debugexporter.NewFactory(),
 	}
 
@@ -126,16 +120,16 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel))
 	}
 
-	exporters, err := exporter.MakeFactoryMap(exporterFactories...)
+	exporters, err := otelcol.MakeFactoryMap[exporter.Factory](exporterFactories...)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
 	processorFactories := []processor.Factory{batchprocessor.NewFactory()}
 	if tagger != nil {
-		processorFactories = append(processorFactories, infraattributesprocessor.NewFactory(tagger, generateID))
+		processorFactories = append(processorFactories, infraattributesprocessor.NewFactoryForAgent(tagger))
 	}
-	processors, err := processor.MakeFactoryMap(processorFactories...)
+	processors, err := otelcol.MakeFactoryMap[processor.Factory](processorFactories...)
 	if err != nil {
 		errs = append(errs, err)
 	}

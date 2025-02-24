@@ -41,6 +41,8 @@ namespace WixSetup.Datadog_Agent
         Guid UpgradeCode { get; }
         string ProductDescription { get; }
         string PackageOutFileName { get; }
+        // https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+        string OpenSSLWinCtx { get; }
     }
 
     internal class FIPSAgent : IAgentFlavor
@@ -59,6 +61,7 @@ namespace WixSetup.Datadog_Agent
         public Guid UpgradeCode => new("de421174-9615-4fe9-b8a8-2b3f123bdc4f");
         public string ProductDescription => $"Datadog FIPS Agent {_agentVersion.PackageVersion}";
         public string PackageOutFileName => $"datadog-fips-agent-{_agentNameSuffix}{_agentVersion.PackageVersion}-1-x86_64";
+        public string OpenSSLWinCtx => "datadog-fips-agent";
     }
 
     internal class BaseAgent : IAgentFlavor
@@ -77,5 +80,6 @@ namespace WixSetup.Datadog_Agent
         public Guid UpgradeCode => new("0c50421b-aefb-4f15-a809-7af256d608a5");
         public string ProductDescription => $"Datadog Agent {_agentVersion.PackageVersion}";
         public string PackageOutFileName => $"datadog-agent-{_agentNameSuffix}{_agentVersion.PackageVersion}-1-x86_64";
+        public string OpenSSLWinCtx => "datadog-agent";
     }
 }

@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -260,8 +261,12 @@ func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 		return bininspect.Result{}, err
 	}
 
-	// Inspect the binary using `binspect`
-	result, err := bininspect.InspectWithDWARF(elfFile, functionsToFind, FieldsToFind)
+	dwarfData, ok := bininspect.HasDwarfInfo(elfFile)
+	if !ok {
+		return bininspect.Result{}, errors.New("expected dwarf data")
+	}
+
+	result, err := bininspect.InspectWithDWARF(elfFile, dwarfData, functionsToFind, FieldsToFind)
 	if err != nil {
 		return bininspect.Result{}, err
 	}

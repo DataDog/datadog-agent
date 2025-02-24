@@ -1115,6 +1115,7 @@ func TestEnrichTags(t *testing.T) {
 		originFromMsg []byte
 		localData     origindetection.LocalData
 		externalData  origindetection.ExternalData
+		cardinality   string
 		conf          enrichConfig
 	}
 	tests := []struct {
@@ -1463,12 +1464,46 @@ func TestEnrichTags(t *testing.T) {
 			},
 			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
+		{
+			name: "cardinality field as none",
+			args: args{
+				cardinality: types.NoneCardinalityString,
+			},
+			wantedTags: nil,
+			wantedOrigin: taggertypes.OriginInfo{
+				Cardinality: "none",
+			},
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+		},
+		{
+			name: "cardinality field as high",
+			args: args{
+				cardinality: types.HighCardinalityString,
+			},
+			wantedTags: nil,
+			wantedOrigin: taggertypes.OriginInfo{
+				Cardinality: "high",
+			},
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+		},
+		{
+			name: "cardinality field with dd.internal.card",
+			args: args{
+				tags:        []string{"env:prod", "dd.internal.card:high"},
+				cardinality: types.NoneCardinalityString,
+			},
+			wantedTags: []string{"env:prod", "dd.internal.card:high"},
+			wantedOrigin: taggertypes.OriginInfo{
+				Cardinality: "none",
+			},
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+		},
 	}
 	for _, tt := range tests {
 		tt.wantedOrigin.ProductOrigin = origindetection.ProductOriginDogStatsD
 
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, 0, tt.args.localData, tt.args.externalData, tt.args.conf)
+			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, 0, tt.args.localData, tt.args.externalData, tt.args.cardinality, tt.args.conf)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
@@ -1516,7 +1551,7 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, _, _, metricSource := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, enrichConfig{})
+			tags, _, _, metricSource := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedMetricSource, metricSource)
 			assert.NotContains(t, tags, tt.jmxCheckName)

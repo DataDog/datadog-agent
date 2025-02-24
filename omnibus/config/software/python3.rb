@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.12.8"
+default_version "3.12.9"
 
 unless windows?
   dependency "libxcrypt"
@@ -15,7 +15,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "5978435c479a376648cb02854df3b892ace9ed7d32b1fead652712bee9d03a45"
+       :sha256 => "45313e4c5f0e8acdec9580161d565cf5fea578e3eabf25df7cc6355bf4afa1ee"
 
 relative_path "Python-#{version}"
 

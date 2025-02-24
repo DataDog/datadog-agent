@@ -26,13 +26,14 @@ ALL_TAGS = {
     "no_dynamic_plugins",
     "cri",
     "crio",
-    "docker",
     "datadog.no_waf",
+    "docker",
     "ec2",
     "etcd",
     "fargateprocess",
-    "jmx",
+    "goexperiment.systemcrypto",  # used for FIPS mode
     "jetson",
+    "jmx",
     "kubeapiserver",
     "kubelet",
     "linux_bpf",
@@ -41,21 +42,21 @@ ALL_TAGS = {
     "npm",
     "oracle",
     "orchestrator",
-    'osusergo',
+    "osusergo",
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
     "podman",
     "python",
+    "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "sds",
     "serverless",
     "systemd",
+    "test",  # used for unit-tests
     "trivy",
     "wmi",
     "zk",
     "zlib",
     "zstd",
-    "test",  # used for unit-tests
-    "goexperiment.systemcrypto",  # used for FIPS mode
 }
 
 ### Tag inclusion lists
@@ -108,7 +109,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     }
 )
 
-FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto"})
+FIPS_AGENT_TAGS = AGENT_TAGS.union({"goexperiment.systemcrypto", "requirefips"})
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2"}
@@ -126,25 +127,30 @@ IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
+PROCESS_AGENT_TAGS = {
+    "containerd",
+    "no_dynamic_plugins",
+    "cri",
+    "crio",
+    "datadog.no_waf",
+    "ec2",
+    "docker",
+    "fargateprocess",
+    "kubelet",
+    "netcgo",
+    "podman",
+    "zlib",
+    "zstd",
+}
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
-PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
-    {
-        "containerd",
-        "no_dynamic_plugins",
-        "cri",
-        "crio",
-        "docker",
-        "ec2",
-        "jetson",
-        "kubeapiserver",
-        "kubelet",
-        "orchestrator",
-        "podman",
-        "systemd",
-    }
-)
+PROCESS_AGENT_HEROKU_TAGS = {
+    "datadog.no_waf",
+    "fargateprocess",
+    "netcgo",
+    "zlib",
+    "zstd",
+}
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = {
@@ -211,7 +217,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "pcap", "podman", "trivy"}
 
 # List of tags to always remove when building on Windows
-WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
+WINDOWS_EXCLUDE_TAGS = {"linux_bpf", "requirefips"}
 
 # List of tags to always remove when building on Darwin/macOS
 DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "no_dynamic_plugins", "cri", "crio"}
@@ -450,6 +456,9 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
 
 
 def add_fips_tags(tags: list[str], fips_mode: bool) -> list[str]:
+    is_windows_build = sys.platform == 'win32' or os.getenv("GOOS") == "windows"
     if fips_mode:
         tags.append("goexperiment.systemcrypto")
+    if fips_mode and not is_windows_build:
+        tags.append("requirefips")
     return tags

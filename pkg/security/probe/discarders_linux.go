@@ -400,7 +400,7 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleS
 
 	for i := 0; i < discarderDepth; i++ {
 		key, err := id.dentryResolver.GetParent(parentKey)
-		if err != nil || dentry.IsFakeInode(pathKey.Inode) {
+		if err != nil || model.IsFakeInode(pathKey.Inode) {
 			if i == 0 {
 				return false, 0, 0, err
 			}
@@ -451,7 +451,7 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, fileEvent.PathKey, event.TimestampRaw)
 			if !isDiscarded && !isDeleted && err == nil {
-				if !dentry.IsFakeInode(fileEvent.PathKey.Inode) {
+				if !model.IsFakeInode(fileEvent.PathKey.Inode) {
 					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, fileEvent.PathKey.Inode, filename)
 
 					// not able to discard the parent then only discard the filename

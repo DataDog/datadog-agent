@@ -12,6 +12,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -50,11 +51,18 @@ var (
 	tlmHistogramBuckets = telemetry.NewCounter("checks", "histogram_buckets",
 		[]string{"check_name"}, "Histogram buckets count")
 	tlmExecutionTime = telemetry.NewGauge("checks", "execution_time",
-		[]string{"check_name"}, "Check execution time")
+		[]string{"check_name", "check_loader"}, "Check execution time")
 	tlmCheckDelay = telemetry.NewGauge("checks",
 		"delay",
 		[]string{"check_name"},
 		"Check start time delay relative to the previous check run")
+	tlmHaAgentIntegrationRuns = telemetry.NewCounterWithOpts(
+		"ha_agent",
+		"integration_runs",
+		[]string{"integration", "config_id"},
+		"Tracks number of HA integrations runs.",
+		telemetry.Options{DefaultMetric: true},
+	)
 )
 
 // SenderStats contains statistics showing the count of various types of telemetry sent by a check sender
@@ -92,6 +100,7 @@ type Stats struct {
 	CheckName         string
 	CheckVersion      string
 	CheckConfigSource string
+	CheckLoader       string
 	CheckID           checkid.ID
 	Interval          time.Duration
 	// LongRunning is true if the check is a long running check
@@ -135,6 +144,8 @@ type StatsCheck interface {
 	Interval() time.Duration
 	// ConfigSource returns the configuration source of the check
 	ConfigSource() string
+	// Loader returns the name of the check loader
+	Loader() string
 }
 
 // NewStats returns a new check stats instance
@@ -142,6 +153,7 @@ func NewStats(c StatsCheck) *Stats {
 	stats := Stats{
 		CheckID:                  c.ID(),
 		CheckName:                c.String(),
+		CheckLoader:              c.Loader(),
 		CheckVersion:             c.Version(),
 		CheckConfigSource:        c.ConfigSource(),
 		Interval:                 c.Interval(),
@@ -161,7 +173,7 @@ func NewStats(c StatsCheck) *Stats {
 }
 
 // Add tracks a new execution time
-func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats SenderStats) {
+func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats SenderStats, haagent haagent.Component) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
@@ -177,7 +189,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
 	if cs.Telemetry {
-		tlmExecutionTime.Set(float64(tms), cs.CheckName)
+		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
 	}
 	var totalExecutionTime int64
 	ringSize := cs.TotalRuns
@@ -248,6 +260,9 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		}
 		cs.TotalEventPlatformEvents[k] = cs.TotalEventPlatformEvents[k] + v
 		cs.EventPlatformEvents[k] = v
+	}
+	if haagent != nil && haagent.Enabled() && haagent.IsHaIntegration(cs.CheckName) {
+		tlmHaAgentIntegrationRuns.Inc(cs.CheckName, pkgconfigsetup.Datadog().GetString("config_id"))
 	}
 }
 

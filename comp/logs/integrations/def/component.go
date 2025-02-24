@@ -15,7 +15,7 @@ package integrations
 
 import "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 
-// team: agent-logs
+// team: agent-log-pipelines
 
 // Component is the component type.
 type Component interface {

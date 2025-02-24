@@ -523,12 +523,6 @@ func (t *TaggerWrapper) ChecksCardinality() types.TagCardinality {
 	return t.checksCardinality
 }
 
-// DogstatsdCardinality defines the cardinality of tags we should send for metrics from
-// dogstatsd.
-func (t *TaggerWrapper) DogstatsdCardinality() types.TagCardinality {
-	return t.dogstatsdCardinality
-}
-
 // taggerCardinality converts tagger cardinality string to types.TagCardinality
 // It should be defaulted to DogstatsdCardinality if the string is empty or unknown
 func taggerCardinality(cardinality string,

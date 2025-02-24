@@ -25,4 +25,7 @@ type Component interface {
 
 	// ShouldRunIntegration returns true if the integration should be run
 	ShouldRunIntegration(integrationName string) bool
+
+	// IsHaIntegration return true if it's an HA integration.
+	IsHaIntegration(integrationName string) bool
 }

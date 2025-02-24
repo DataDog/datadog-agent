@@ -473,7 +473,7 @@ def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     # codeowners is parsed in a last-match-wins fashion, so put more-specific values (components) after
     # less-specific (bundles).  We include only components with a team different from their bundle, to
     # keep the file short.
-    yield '/comp @DataDog/agent-shared-components'
+    yield '/comp @DataDog/agent-runtimes'
     different_components = []
     for b in bundles:
         if b.team:

@@ -64,7 +64,7 @@ updates:
     labels:
       - dependencies
       - dependencies-go
-      - team/agent-shared-components
+      - team/agent-configuration
       - changelog/no-changelog
     ignore:
       # Ignore internal modules
@@ -214,7 +214,7 @@ updates:
     directory: Dockerfiles/agent/bouncycastle-fips
     labels:
       - dependencies
-      - team/agent-metrics-logs
+      - team/agent-metric-pipelines
       - changelog/no-changelog
     schedule:
       interval: weekly

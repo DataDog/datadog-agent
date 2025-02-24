@@ -38,8 +38,9 @@ type EBPFCheckConfig struct {
 
 // EBPFCheck grabs eBPF map/program/perf buffer metrics
 type EBPFCheck struct {
-	config         *EBPFCheckConfig
-	sysProbeClient *http.Client
+	config             *EBPFCheckConfig
+	sysProbeClient     *http.Client
+	previousMapEntries map[string]int64
 	core.CheckBase
 }
 
@@ -50,8 +51,9 @@ func Factory() option.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &EBPFCheck{
-		CheckBase: core.NewCheckBase(CheckName),
-		config:    &EBPFCheckConfig{},
+		CheckBase:          core.NewCheckBase(CheckName),
+		config:             &EBPFCheckConfig{},
+		previousMapEntries: make(map[string]int64),
 	}
 }
 
@@ -99,12 +101,18 @@ func (m *EBPFCheck) Run() error {
 			"module:" + mapStats.Module,
 		}
 		sender.Gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), "", tags)
-		sender.Gauge("ebpf.maps.max_entries", float64(mapStats.MaxEntries), "", tags)
 		if mapStats.RSS > 0 {
 			sender.Gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), "", tags)
 		}
+
+		maxEntries := float64(mapStats.MaxEntries)
+		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", tags)
 		if mapStats.Entries >= 0 {
-			sender.Gauge("ebpf.maps.entry_count", float64(mapStats.Entries), "", tags)
+			entries := float64(mapStats.Entries)
+			sender.Gauge("ebpf.maps.entry_count", entries, "", tags)
+			sender.Gauge("ebpf.maps.occupation", entries/maxEntries, "", tags)
+			sender.Gauge("ebpf.maps.occupation_increase", float64(mapStats.Entries-m.previousMapEntries[mapStats.Name])/maxEntries, "", tags)
+			m.previousMapEntries[mapStats.Name] = mapStats.Entries
 		}
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS

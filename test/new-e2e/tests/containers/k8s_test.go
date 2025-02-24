@@ -500,6 +500,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_cluster_name:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
+				`^org:agent-org$`,
+				`^team:contp$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^sub-team:contint$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -791,14 +795,41 @@ func (suite *k8sSuite) TestCPU() {
 }
 
 func (suite *k8sSuite) TestKSM() {
+	// Test VPA metrics for nginx
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.vpa.count",
+			Tags: []string{
+				"^kube_namespace:workload-nginx$",
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^kube_namespace:workload-(?:nginx|redis)$`,
+				`^kube_namespace:workload-nginx$`,
+				`^org:agent-org$`,
+				`^team:contp$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 1,
+				Min: 1,
+			},
+		},
+	})
+
+	// Test VPA metrics for redis
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state.vpa.count",
+			Tags: []string{
+				"^kube_namespace:workload-redis$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_namespace:workload-redis$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,

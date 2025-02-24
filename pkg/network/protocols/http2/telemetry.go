@@ -27,13 +27,15 @@ type kernelTelemetry struct {
 	// endOfStreamRST Count of RST flags seen
 	endOfStreamRST *libtelemetry.TLSAwareCounter
 	// pathSizeBucket Count of path sizes divided into buckets.
-	pathSizeBucket [http2PathBuckets + 1]*libtelemetry.TLSAwareCounter
+	pathSizeBucket [PathBucketsCount + 1]*libtelemetry.TLSAwareCounter
 	// literalValueExceedsFrame Count of times we couldn't retrieve the literal value due to reaching the end of the frame.
 	literalValueExceedsFrame *libtelemetry.TLSAwareCounter
 	// exceedingMaxInterestingFrames Count of times we reached the max number of frames per iteration.
 	exceedingMaxInterestingFrames *libtelemetry.TLSAwareCounter
 	// exceedingMaxFramesToFilter Count of times we have left with more frames to filter than the max number of frames to filter.
 	exceedingMaxFramesToFilter *libtelemetry.TLSAwareCounter
+	// continuationFramesCount Count of occurrences where a frame of type CONTINUATION was found.
+	continuationFramesCount *libtelemetry.TLSAwareCounter
 	// fragmentedFrameCountRST Count of times we have seen a fragmented RST frame.
 	fragmentedFrameCountRST *libtelemetry.TLSAwareCounter
 	// fragmentedHeadersFrameEOSCount Count of times we have seen a fragmented headers frame with EOS.
@@ -58,6 +60,7 @@ func newHTTP2KernelTelemetry() *kernelTelemetry {
 		literalValueExceedsFrame:       libtelemetry.NewTLSAwareCounter(metricGroup, "literal_value_exceeds_frame"),
 		exceedingMaxInterestingFrames:  libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_max_interesting_frames"),
 		exceedingMaxFramesToFilter:     libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_max_frames_to_filter"),
+		continuationFramesCount:        libtelemetry.NewTLSAwareCounter(metricGroup, "continuation_frames"),
 		fragmentedDataFrameEOSCount:    libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_data_end_data_eos"),
 		fragmentedHeadersFrameCount:    libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_data_end_headers"),
 		fragmentedHeadersFrameEOSCount: libtelemetry.NewTLSAwareCounter(metricGroup, "exceeding_data_end_headers_eos"),
@@ -81,6 +84,7 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 	t.literalValueExceedsFrame.Add(int64(telemetryDelta.Literal_value_exceeds_frame), isTLS)
 	t.exceedingMaxInterestingFrames.Add(int64(telemetryDelta.Exceeding_max_interesting_frames), isTLS)
 	t.exceedingMaxFramesToFilter.Add(int64(telemetryDelta.Exceeding_max_frames_to_filter), isTLS)
+	t.continuationFramesCount.Add(int64(telemetryDelta.Continuation_frames), isTLS)
 	for bucketIndex := range t.pathSizeBucket {
 		t.pathSizeBucket[bucketIndex].Add(int64(telemetryDelta.Path_size_bucket[bucketIndex]), isTLS)
 	}
@@ -104,14 +108,15 @@ func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 		Literal_value_exceeds_frame:      t.Literal_value_exceeds_frame - other.Literal_value_exceeds_frame,
 		Exceeding_max_interesting_frames: t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
 		Exceeding_max_frames_to_filter:   t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
+		Continuation_frames:              t.Continuation_frames - other.Continuation_frames,
 		Path_size_bucket:                 computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
 	}
 }
 
-func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [http2PathBuckets + 1]uint64) [http2PathBuckets + 1]uint64 {
-	var result [http2PathBuckets + 1]uint64
+func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [PathBucketsCount + 1]uint64) [PathBucketsCount + 1]uint64 {
+	var result [PathBucketsCount + 1]uint64
 
-	for i := 0; i < http2PathBuckets+1; i++ {
+	for i := 0; i < PathBucketsCount+1; i++ {
 		result[i] = pathSizeBucket[i] - otherPathSizeBucket[i]
 	}
 

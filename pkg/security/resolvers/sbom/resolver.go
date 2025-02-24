@@ -15,7 +15,6 @@ import (
 	"os"
 	"slices"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -159,13 +158,9 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	}
 
 	hostProcRootPath := utils.ProcRootPath(1)
-	fi, err := os.Stat(hostProcRootPath)
+	stat, err := utils.UnixStat(hostProcRootPath)
 	if err != nil {
 		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path: %w", hostProcRootPath, err)
-	}
-	stat, ok := fi.Sys().(*syscall.Stat_t)
-	if !ok {
-		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path", hostProcRootPath)
 	}
 
 	resolver := &Resolver{
@@ -332,13 +327,9 @@ func (r *Resolver) doScan(sbom *SBOM) (*trivy.Report, error) {
 
 		containerProcRootPath := utils.ProcRootPath(rootCandidatePID)
 		if sbom.ContainerID != "" {
-			fi, err := os.Stat(containerProcRootPath)
+			stat, err := utils.UnixStat(containerProcRootPath)
 			if err != nil {
 				return nil, fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path: %w", containerProcRootPath, err)
-			}
-			stat, ok := fi.Sys().(*syscall.Stat_t)
-			if !ok {
-				return nil, fmt.Errorf("stat failed for `%s`: couldn't stat container proc root path", containerProcRootPath)
 			}
 			if stat.Dev == r.hostRootDevice {
 				return nil, fmt.Errorf("couldn't generate sbom: filesystem of container '%s' matches the host root filesystem", sbom.ContainerID)

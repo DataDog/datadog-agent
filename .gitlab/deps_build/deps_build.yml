@@ -83,8 +83,8 @@ build_clang_arm64:
 
 build_processed_btfhub_archive:
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.on_scheduled_main_or_manual]
+    - !reference [.on_scheduled_main]
+    - !reference [.manual]
   stage: deps_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["arch:amd64"]

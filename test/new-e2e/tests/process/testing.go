@@ -106,8 +106,57 @@ func assertProcessCollected(
 	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
+// assertProcessCollectedNew asserts that the given process is collected by the process check
+// and that it has the expected data populated
+// This is a new function to replace assertProcessCollected, but we need to verify it actually reduces the flakiness
+// of test runs before we fully switch over.
+func assertProcessCollectedNew(
+	t require.TestingT, payloads []*aggregator.ProcessPayload, withIOStats bool, process string,
+) {
+	// Find Processes
+	var procs []*agentmodel.Process
+	for _, payload := range payloads {
+		procs = append(procs, filterProcesses(process, payload.Processes)...)
+	}
+	require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", process, payloads)
+
+	// verify process data is populated
+	var hasData bool
+	for _, proc := range procs {
+		if hasData = processHasData(proc); hasData {
+			break
+		}
+	}
+	assert.True(t, hasData, "'%s' process does not have all data populated in: %+v", process, procs)
+
+	// verify IO stats are populated
+	if withIOStats {
+		var hasIOStats bool
+		for _, proc := range procs {
+			if hasIOStats = processHasIOStats(proc); hasIOStats {
+				break
+			}
+		}
+		assert.True(t, hasIOStats, "'%s' process does not have IO stats populated in %+v", process, procs)
+	}
+}
+
+// assertContainersCollectedNew asserts that the given containers are collected
+func assertContainersCollectedNew(t assert.TestingT, payloads []*aggregator.ProcessPayload, expectedContainers []string) {
+	for _, container := range expectedContainers {
+		var found bool
+		for _, payload := range payloads {
+			if findContainer(container, payload.Containers) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "%s container not found in payloads: %+v", container, payloads)
+	}
+}
+
 // requireProcessNotCollected asserts that the given process is NOT collected by the process check
-func requireProcessNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, process string) {
+func requireProcessNotCollected(t require.TestingT, payloads []*aggregator.ProcessPayload, process string) {
 	for _, payload := range payloads {
 		require.Empty(t, filterProcess(process, payload.Processes))
 	}
@@ -134,6 +183,17 @@ func findProcess(
 	}
 
 	return found, populated
+}
+
+// filterProcesses returns processes which match the given process name
+func filterProcesses(name string, processes []*agentmodel.Process) []*agentmodel.Process {
+	var matched []*agentmodel.Process
+	for _, process := range processes {
+		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
+			matched = append(matched, process)
+		}
+	}
+	return matched
 }
 
 // filterProcess returns process with the given name exists in the given list of processes

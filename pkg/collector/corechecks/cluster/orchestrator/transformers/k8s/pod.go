@@ -9,12 +9,13 @@ package k8s
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	"hash/fnv"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -158,7 +159,11 @@ func extractPodResourceRequirements(containers []corev1.Container, initContainer
 	}
 
 	for _, c := range initContainers {
-		if modelReq := convertResourceRequirements(c.Resources, c.Name, model.ResourceRequirementsType_initContainer); modelReq != nil {
+		resourceRequirementType := model.ResourceRequirementsType_initContainer
+		if c.RestartPolicy != nil && *c.RestartPolicy == corev1.ContainerRestartPolicyAlways {
+			resourceRequirementType = model.ResourceRequirementsType_nativeSidecar
+		}
+		if modelReq := convertResourceRequirements(c.Resources, c.Name, resourceRequirementType); modelReq != nil {
 			resReq = append(resReq, modelReq)
 		}
 	}

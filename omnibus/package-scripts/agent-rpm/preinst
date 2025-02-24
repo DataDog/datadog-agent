@@ -29,41 +29,21 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     fi
 fi
 
-# For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
-# They were not being cleaned by these versions, so let's do that now on install/upgrade
-TUF_REPO_DIR=$INSTALL_DIR/repositories
-if [ -d $TUF_REPO_DIR ]; then
-    rm -rf $TUF_REPO_DIR
-fi
-
 # RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
 # So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
 if [ -f "/etc/init.d/datadog-agent" ]; then
     /etc/init.d/datadog-agent stop || true
 fi
 
-# Set up `dd-agent` user and group
-if ! getent group dd-agent >/dev/null; then
-    groupadd -r dd-agent
-fi
-if ! getent passwd dd-agent >/dev/null; then
-    useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin -c "Datadog Agent" dd-agent
-    if ! usermod -L dd-agent; then
-        echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"
-    fi
-fi
-
-
-
+# RPM unpacks the new files before running prerm of the old package
+# triggering manually the prerm python script of the old package
 if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
     if [ -f "${INSTALL_DIR}/python-scripts/pre.py" ]; then
         PRE_PYTHON_FILE="${INSTALL_DIR}/python-scripts/pre.py"
-    else
-        # Search for previous version of the python file
-        if [ -f "${INSTALL_DIR}/python-scripts/prerm.py" ]; then
-            PRE_PYTHON_FILE="${INSTALL_DIR}/python-scripts/prerm.py"
-        fi
+    elif [ -f "${INSTALL_DIR}/python-scripts/prerm.py" ]; then
+        PRE_PYTHON_FILE="${INSTALL_DIR}/python-scripts/prerm.py"
     fi
+
     if [ -n "$PRE_PYTHON_FILE" ]; then
         ${INSTALL_DIR}/embedded/bin/python "${PRE_PYTHON_FILE}" "${INSTALL_DIR}" || true
     else
@@ -110,10 +90,5 @@ if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
     # (commented lines are filtered out)
     cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
 fi
-
-# Remove any unpacked BTF files
-find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
-# And remove empty directories
-find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re" -type d -empty -delete || true
 
 exit 0

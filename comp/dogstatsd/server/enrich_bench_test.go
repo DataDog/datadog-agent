@@ -35,7 +35,7 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _ = extractTagsMetadata(baseTags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, conf)
+				tags, _, _, _ = extractTagsMetadata(baseTags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", conf)
 			}
 		})
 	}

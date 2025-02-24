@@ -461,9 +461,9 @@ func TestNormalizeEnv(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpan()
-	s.Meta["env"] = "DEVELOPMENT"
+	s.Meta["env"] = "123DEVELOPMENT"
 	assert.NoError(t, a.normalize(ts, s))
-	assert.Equal(t, "development", s.Meta["env"])
+	assert.Equal(t, "123development", s.Meta["env"])
 	assert.Equal(t, newTagStats(), ts)
 }
 
