@@ -1788,7 +1788,10 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	for _, ti := range tests {
 		t.Run(ti.name, func(t *testing.T) {
 			if ti.newProfile || secprof == nil {
-				secprof = profile.New(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, nil, false, 0, []model.EventType{model.ExecEventType, model.DNSEventType})
+				secprof = profile.New(
+					profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}),
+					profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
+				)
 				secprof.ActivityTree = activity_tree.NewActivityTree(secprof, nil, "security_profile")
 				secprof.Instances = append(secprof.Instances, &tags.Workload{
 					CacheEntry: &cgroupModel.CacheEntry{ContainerContext: model.ContainerContext{

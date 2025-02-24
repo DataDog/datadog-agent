@@ -56,11 +56,18 @@ type EventTypeState struct {
 	State           model.EventFilteringProfileState
 }
 
+type activityTreeOpts struct {
+	pathsReducer      *activity_tree.PathsReducer
+	differentiateArgs bool
+	dnsMatchMaxDepth  int
+}
+
 // Profile represents a security profile
 type Profile struct {
 	// common to ActivityDump and SecurityProfile
 	m            sync.Mutex
 	ActivityTree *activity_tree.ActivityTree
+	treeOpts     activityTreeOpts
 
 	Header   ActivityDumpHeader
 	Metadata mtdt.Metadata
@@ -82,30 +89,68 @@ type Profile struct {
 	Instances     []*tags.Workload
 }
 
+// Opts defines the options to create a new profile
+type Opts func(*Profile)
+
+// WithWorkloadSelector sets the workload selector of a new profile
+func WithWorkloadSelector(selector cgroupModel.WorkloadSelector) Opts {
+	return func(p *Profile) {
+		p.selector = selector
+	}
+}
+
+// WithEventTypes sets the event types of a new profile
+func WithEventTypes(eventTypes []model.EventType) Opts {
+	return func(p *Profile) {
+		p.eventTypes = eventTypes
+	}
+}
+
+// WithPathsReducer sets the path reducer of a new profile
+func WithPathsReducer(pathsReducer *activity_tree.PathsReducer) Opts {
+	return func(p *Profile) {
+		p.treeOpts.pathsReducer = pathsReducer
+	}
+}
+
+// WithDifferentiateArgs sets whether arguments should be used to differentiate processes in the new profile
+func WithDifferentiateArgs(differentiateArgs bool) Opts {
+	return func(p *Profile) {
+		p.treeOpts.differentiateArgs = differentiateArgs
+	}
+}
+
+// WithDNSMatchMaxDepth sets the maximum depth used to compare domain names in the new profile
+func WithDNSMatchMaxDepth(dnsMatchMaxDepth int) Opts {
+	return func(p *Profile) {
+		p.treeOpts.dnsMatchMaxDepth = dnsMatchMaxDepth
+	}
+}
+
 // New returns a new profile
-func New(selector cgroupModel.WorkloadSelector, pathsReducer *activity_tree.PathsReducer, differentiateArgs bool, dnsMatchMaxDepth int, eventTypes []model.EventType) *Profile {
+func New(opts ...Opts) *Profile {
 	p := &Profile{
 		Header: ActivityDumpHeader{
 			DNSNames: utils.NewStringKeys(nil),
 		},
-		ActivityTree:   activity_tree.NewActivityTreeNoOwner(pathsReducer),
-		selector:       selector,
-		LoadedInKernel: atomic.NewBool(false),
-		LoadedNano:     atomic.NewUint64(0),
-		eventTypes:     eventTypes,
-		// storageRequests: make(map[config.StorageFormat][]config.StorageRequest),
+		LoadedInKernel:  atomic.NewBool(false),
+		LoadedNano:      atomic.NewUint64(0),
 		versionContexts: make(map[string]*VersionContext),
 		profileCookie:   utils.NewCookie(),
 	}
 
-	p.ActivityTree.SetType("security_profile", p)
-	p.ActivityTree.DNSMatchMaxDepth = dnsMatchMaxDepth
-	if differentiateArgs {
+	for _, opt := range opts {
+		opt(p)
+	}
+
+	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
+	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
+	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
 	}
 
-	if selector.Tag != "" && selector.Tag != "*" {
-		p.versionContexts[selector.Tag] = &VersionContext{
+	if p.selector.Tag != "" && p.selector.Tag != "*" {
+		p.versionContexts[p.selector.Tag] = &VersionContext{
 			EventTypeState: make(map[model.EventType]*EventTypeState),
 		}
 	}

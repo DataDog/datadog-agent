@@ -690,7 +690,10 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 								dump.Profile.Metadata.ContainerID = containerutils.ContainerID(contID)
 								at = dump.Profile.ActivityTree
 							} else /* profileTree */ {
-								profile := profile.New(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, nil, false, 0, []model.EventType{model.ExecEventType, model.DNSEventType})
+								profile := profile.New(
+									profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}),
+									profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
+								)
 								at = activity_tree.NewActivityTree(profile, nil, "profile")
 								profile.ActivityTree = at
 								profile.Instances = append(profile.Instances, &tags.Workload{

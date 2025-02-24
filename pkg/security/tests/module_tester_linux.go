@@ -1235,15 +1235,8 @@ func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error
 // DecodeSecurityProfile decode a security profile
 func DecodeSecurityProfile(path string) (*profile.Profile, error) {
 	newProfile := profile.New(
-		cgroupModel.WorkloadSelector{},
-		nil,
-		false,
-		0,
-		[]model.EventType{model.ExecEventType, model.DNSEventType},
+		profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
 	)
-	if newProfile == nil {
-		return nil, errors.New("Profile creation")
-	}
 
 	if err := newProfile.Decode(path); err != nil {
 		return nil, err
