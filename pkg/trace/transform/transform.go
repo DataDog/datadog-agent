@@ -90,7 +90,7 @@ func OtelSpanToDDSpanMinimal(
 
 		if ddspan.Type == "" {
 			// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
-			if conf.HasFeature("enable_receive_resource_spans_v2") {
+			if !conf.HasFeature("disable_receive_resource_spans_v2") {
 				ddspan.Type = traceutil.GetOTelSpanType(otelspan, otelres)
 			} else {
 				ddspan.Type = traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
