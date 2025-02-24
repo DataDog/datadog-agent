@@ -100,7 +100,6 @@ type provides struct {
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
 	Endpoint       api.AgentEndpointProvider
-	EndpointRaw    api.AgentEndpointProvider
 	FlareProvider  flaretypes.Provider
 }
 
