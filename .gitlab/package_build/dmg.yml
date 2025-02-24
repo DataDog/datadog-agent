@@ -132,7 +132,7 @@ agent_dmg-x64-a7:
     brew link --overwrite gimme@$GIMME_VERSION
   - |
     echo Resetting path
-    PATH="$PWD/bin:$OLDPATH"
+    export PATH="$PWD/bin:$OLDPATH"
     which python3
   # TODO A: This is done three times
   - |
