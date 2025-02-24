@@ -21,7 +21,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -47,6 +47,7 @@ var (
 	infoPodQueueBytes         atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
+	infoEndpoints             interface{}
 
 	// WorkloadMetaExtractor stats
 	infoWlmExtractorCacheSize    atomic.Int64
@@ -230,6 +231,27 @@ func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
 	return endpointsInfo
 }
 
+/*
+func initEndpointsMap(eps []apicfg.Endpoint) {
+	infoEndpoints = make(map[string][]string)
+
+	for _, endpoint := range eps {
+		apiKey := endpoint.APIKey
+		if len(apiKey) > 5 {
+			apiKey = apiKey[len(apiKey)-5:]
+		}
+
+		infoEndpoints.(map[string][]string)[endpoint.Endpoint.String()] = append(infoEndpoints.(map[string][]string)[endpoint.Endpoint.String()], apiKey)
+	}
+}
+
+func publishEndpointsMap() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoEndpoints
+}
+*/
+
 //nolint:revive // TODO(PROC) Fix revive linter
 func UpdateDropCheckPayloads(drops []string) {
 	infoMutex.RLock()
@@ -247,7 +269,24 @@ func publishDropCheckPayloads() interface{} {
 }
 
 // InitExpvars initializes expvars
-func InitExpvars(_ pkgconfigmodel.Reader, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(config config.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
+	config.OnUpdate(func(setting string, oldValue, newValue any) {
+		if setting != "api_key" {
+			return
+		}
+		infoMutex.Lock()
+		defer infoMutex.Unlock()
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			for _, ep := range eps {
+				if ep.APIKey == oldAPIKey {
+					ep.APIKey = newAPIKey
+				}
+			}
+		}
+	})
+
 	infoOnce.Do(func() {
 		processExpvars := expvar.NewMap("process_agent")
 		hostString := expvar.NewString("host")

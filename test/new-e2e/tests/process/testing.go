@@ -39,13 +39,17 @@ var systemProbeNPMConfigStr string
 //go:embed compose/fake-process-compose.yaml
 var fakeProcessCompose string
 
+//go:embed config/process_agent_refresh.yaml
+var processAgentRefreshStr string
+
 // AgentStatus is a subset of the agent's status response for asserting the process-agent runtime
 type AgentStatus struct {
 	ProcessAgentStatus struct {
 		Expvars struct {
 			Map struct {
-				EnabledChecks                []string `json:"enabled_checks"`
-				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+				EnabledChecks                []string            `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
+				Endpoints                    map[string][]string `json:"endpoints"`
 			} `json:"process_agent"`
 		} `json:"expvars"`
 		Error string `json:"error"`
@@ -53,8 +57,9 @@ type AgentStatus struct {
 	ProcessComponentStatus struct {
 		Expvars struct {
 			Map struct {
-				EnabledChecks                []string `json:"enabled_checks"`
-				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+				EnabledChecks                []string            `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
+				Endpoints                    map[string][]string `json:"endpoints"`
 			} `json:"process_agent"`
 		} `json:"expvars"`
 	} `json:"processComponentStatus"`
