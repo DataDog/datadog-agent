@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,6 +35,28 @@ func (r *Runner) runUDP(cfg config.Config, hname string, target net.IP, maxTTL u
 		return payload.NetworkPath{}, err
 	}
 	log.Tracef("UDP Results: %+v", pathResult)
+
+	return pathResult, nil
+}
+
+func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
+	destPort := cfg.DestPort
+	if destPort == 0 {
+		destPort = 80 // TODO: is this the default we want?
+	}
+
+	tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
+
+	results, err := tr.TracerouteSequentialPCAP()
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+
+	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname)
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+	log.Tracef("TCP Results: %+v", pathResult)
 
 	return pathResult, nil
 }
