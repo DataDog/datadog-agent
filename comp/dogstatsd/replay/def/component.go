@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
 
-// team: agent-metrics-logs
+// team: agent-metric-pipelines
 
 // Component is the component type.
 type Component interface {

@@ -34,4 +34,11 @@ docker_integration_tests:
   allow_failure: true
   script:
     - inv -e docker.test
-    - inv -e docker.integration-tests
+
+trace_agent_integration_tests:
+  extends: .integration_tests_deb
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  timeout: 50m
+  retry: 2
+  script:
+    - inv -e integration-tests --race --only="Trace Agent"

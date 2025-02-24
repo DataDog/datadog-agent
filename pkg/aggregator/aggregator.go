@@ -10,6 +10,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -253,6 +254,7 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
+	configID               string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -307,6 +309,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	// configID can only change on agent restart, and will only change if the configuration applied by Fleet Automation changes
+	configID := pkgconfigsetup.Datadog().GetString("config_id")
+
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -328,6 +333,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
+		configID:                    configID,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -603,15 +609,20 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
+		Tags:           tagset.CompositeTagsFromSlice(slices.Concat(agg.tags(true), agg.configIDTags())),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
 
 	if agg.haAgent.Enabled() {
-		haAgentTags := append(agg.tags(false), "agent_state:"+string(agg.haAgent.GetState()))
-		// Send along a metric to show if HA Agent is running with agent_state tag.
+		haAgentTags := slices.Concat(agg.tags(false),
+			agg.configIDTags(),
+			[]string{"ha_agent_state:" + string(agg.haAgent.GetState())},
+		)
+		// Send along a metric to show if HA Agent is running with ha_agent_state tag.
+		// datadog.agent.ha_agent.running is currently used in dashboard to monitor HA Agent state (active/standby)
+		// This metric is not intended to be used as replacement for datadog.agent.running
 		series.Append(&metrics.Serie{
 			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
@@ -882,6 +893,16 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		tags = []string{}
 	}
 	return tags
+}
+
+// configIDTags returns the config_id tag for agent telemetry metrics.
+// the result is returned as list of string to ease processing.
+func (agg *BufferedAggregator) configIDTags() []string {
+	var tag []string
+	if agg.configID != "" {
+		tag = append(tag, "config_id:"+agg.configID)
+	}
+	return tag
 }
 
 func (agg *BufferedAggregator) updateChecksTelemetry() {

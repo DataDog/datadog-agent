@@ -9,7 +9,9 @@ package networkpathintegration
 import (
 	_ "embed"
 	"fmt"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -53,4 +55,64 @@ func assertMetrics(fakeIntake *components.FakeIntake, c *assert.CollectT, metric
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, fmt.Sprintf("metric with tags `%v` not found", tags))
 	}
+}
+
+func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregator.Netpath) bool) (*aggregator.Netpath, error) {
+	nps, err := s.Env().FakeIntake.Client().GetNetpathEvents()
+	if err != nil {
+		return nil, err
+	}
+	if nps == nil {
+		return nil, fmt.Errorf("GetNetpathEvents() returned nil netpaths")
+	}
+
+	var match *aggregator.Netpath
+	for _, np := range nps {
+		if isMatch(np) {
+			match = np
+		}
+	}
+	return match, nil
+}
+func (s *baseNetworkPathIntegrationTestSuite) expectNetpath(c *assert.CollectT, isMatch func(*aggregator.Netpath) bool) *aggregator.Netpath {
+	np, err := s.findNetpath(isMatch)
+	require.NoError(c, err)
+
+	require.NotNil(c, np, "could not find matching netpath")
+	return np
+}
+
+func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname string) {
+	assert.Equal(c, payload.PathOrigin("network_path_integration"), np.Origin)
+	assert.NotEmpty(c, np.PathtraceID)
+	assert.Equal(c, "default", np.Namespace)
+
+	// check that the timestamp is reasonably close to the current time
+	tolerance := time.Hour
+	assert.Greater(c, np.Timestamp, time.Now().Add(-tolerance).UnixMilli())
+	assert.Less(c, np.Timestamp, time.Now().Add(tolerance).UnixMilli())
+
+	assert.Equal(c, hostname, np.Source.Hostname)
+}
+
+func (s *baseNetworkPathIntegrationTestSuite) checkDatadogEUTCP(c *assert.CollectT, agentHostname string) {
+	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+		return np.Destination.Hostname == "api.datadoghq.eu" && np.Protocol == "TCP"
+	})
+	assert.Equal(c, uint16(443), np.Destination.Port)
+
+	assertPayloadBase(c, np, agentHostname)
+
+	assert.NotEmpty(c, np.Hops)
+}
+
+func (s *baseNetworkPathIntegrationTestSuite) checkGoogleDNSUDP(c *assert.CollectT, agentHostname string) {
+	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "UDP"
+	})
+	assert.NotZero(c, np.Destination.Port)
+
+	assertPayloadBase(c, np, agentHostname)
+
+	assert.NotEmpty(c, np.Hops)
 }

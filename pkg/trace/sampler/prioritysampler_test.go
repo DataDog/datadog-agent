@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/atomic"
 )
 
 func randomTraceID() uint64 {
@@ -89,7 +90,7 @@ func TestPrioritySample(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.priority.tag(), func(t *testing.T) {
+		t.Run(tt.priority.tagValue(), func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			statsdClient := mockStatsd.NewMockClientInterface(ctrl)
@@ -107,7 +108,7 @@ func TestPrioritySample(t *testing.T) {
 			if tt.priority == PriorityNone {
 				expectedTagsA = append(expectedTagsA, "sampling_priority:auto_drop")
 			} else {
-				expectedTagsA = append(expectedTagsA, tt.priority.tag())
+				expectedTagsA = append(expectedTagsA, "sampling_priority:"+tt.priority.tagValue())
 			}
 			chunkA, rootA := getTestTraceWithService("service-a", s)
 			chunkA.Priority = int32(tt.priority)
@@ -121,7 +122,7 @@ func TestPrioritySample(t *testing.T) {
 			if tt.priority == PriorityNone {
 				expectedTagsB = append(expectedTagsB, "sampling_priority:auto_drop")
 			} else {
-				expectedTagsB = append(expectedTagsB, tt.priority.tag())
+				expectedTagsB = append(expectedTagsB, "sampling_priority:"+tt.priority.tagValue())
 			}
 			chunkB, rootB := getTestTraceWithService("service-b", s)
 			chunkB.Priority = int32(tt.priority)

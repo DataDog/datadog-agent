@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
@@ -38,7 +38,7 @@ type OTelMetadata struct {
 	Description      string `json:"description"`
 	Enabled          bool   `json:"enabled"`
 	ExtensionVersion string `json:"extension_version"`
-	extension.ConfigResponse
+	extensiontypes.ConfigResponse
 }
 
 // TestOTelAgentInstalled checks that the OTel Agent is installed in the test suite
@@ -87,7 +87,7 @@ func TestOTelFlareExtensionResponse(s OTelTestSuite, providedCfg string, fullCfg
 	otelflares := fetchFromFlare(s.T(), flare)
 
 	require.Contains(s.T(), otelflares, "otel/otel-response.json")
-	var resp extension.Response
+	var resp extensiontypes.Response
 	require.NoError(s.T(), json.Unmarshal([]byte(otelflares["otel/otel-response.json"]), &resp))
 
 	assert.Equal(s.T(), "otel-agent", resp.AgentCommand)
@@ -226,4 +226,59 @@ func validateConfigs(t *testing.T, expectedCfg string, actualCfg string) {
 	actualCfg = string(actualCfgBytes)
 
 	assert.YAMLEq(t, expectedCfg, actualCfg)
+}
+
+// TestCoreAgentStatusCmd tests the core agent status command contains the OTel Agent status as expected
+func TestCoreAgentStatusCmd(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Calling status command in core agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "status", "otel agent"})
+	require.NoError(s.T(), err, "Failed to execute config")
+	require.Empty(s.T(), stderr)
+	validateStatus(s.T(), stdout)
+}
+
+// TestOTelAgentStatusCmd tests the OTel Agent status subcommand returns as expected
+func TestOTelAgentStatusCmd(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Calling status command in otel agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "otel-agent", []string{"otel-agent", "status"})
+	require.NoError(s.T(), err, "Failed to execute config")
+	require.Empty(s.T(), stderr)
+	validateStatus(s.T(), stdout)
+}
+
+func validateStatus(t *testing.T, status string) {
+	require.NotNil(t, status)
+	require.Contains(t, status, "OTel Agent")
+	require.Contains(t, status, "Status: Running")
+	require.Contains(t, status, "Agent Version:")
+	require.Contains(t, status, "Collector Version:")
+	require.Contains(t, status, "Spans Accepted:")
+	require.Contains(t, status, "Metric Points Accepted:")
+	require.Contains(t, status, "Log Records Accepted:")
+	require.Contains(t, status, "Spans Sent:")
+	require.Contains(t, status, "Metric Points Sent:")
+	require.Contains(t, status, "Log Records Sent:")
+}
+
+// TestCoreAgentConfigCmd tests the output of core agent's config command contains the embedded collector's config
+func TestCoreAgentConfigCmd(s OTelTestSuite, expectedCfg string) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+	agent := getAgentPod(s)
+
+	s.T().Log("Calling config command in core agent")
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "config"})
+	require.NoError(s.T(), err, "Failed to execute config")
+	require.Empty(s.T(), stderr)
+	require.NotNil(s.T(), stdout)
+	s.T().Log("Full output of config command in core agent\n", stdout)
+	assert.Contains(s.T(), stdout, expectedCfg)
 }

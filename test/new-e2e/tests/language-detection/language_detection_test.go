@@ -56,6 +56,7 @@ func (s *languageDetectionSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
 	s.installPython()
+	s.installPHP()
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string, source string) {

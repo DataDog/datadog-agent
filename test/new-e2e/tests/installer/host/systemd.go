@@ -123,8 +123,7 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		}
 
 		for unit := range units {
-			h.t.Logf("--- Logs for unit %s:", unit)
-			h.remote.MustExecute(fmt.Sprintf("sudo journalctl -xeu %s", unit))
+			h.t.Logf("--- Logs for unit %s:\n%s", unit, h.remote.MustExecute(fmt.Sprintf("sudo journalctl -xeu %s", unit)))
 		}
 	}
 }

@@ -89,7 +89,10 @@ Namespace:
 Annotations:
 Labels:
 ----------- Containers -----------
-Name: container-1 ID: container-1-id
+Name: container-1
+ID: container-1-id
+Image: datadog/agent
+----------- Resources -----------
 ----------- Task Info -----------
 Tags:
 Container Instance Tags:

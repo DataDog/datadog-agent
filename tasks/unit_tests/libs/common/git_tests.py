@@ -116,24 +116,26 @@ class TestGetLastTag(unittest.TestCase):
     def test_ordered(self):
         c = MockContext(
             run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
-                    """e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1
-                       7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.2
-                       2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"""
-                )
+                'git rev-parse --abbrev-ref HEAD': Result("6.53.x"),
+                'git ls-remote -t https://github.com/DataDog/woof "6.56.*"': Result(
+                    """e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/6.56.0-rc.1
+                       7c6777bb7add533a789c69293b59e3261711d330	refs/tags/6.56.0-rc.2
+                       2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/6.56.0-rc.3"""
+                ),
             }
         )
-        _, name = get_last_release_tag(c, "woof", "7.56.*")
-        self.assertEqual(name, "7.56.0-rc.3")
+        _, name = get_last_release_tag(c, "woof", "6.56.*")
+        self.assertEqual(name, "6.56.0-rc.3")
 
     def test_non_ordered(self):
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
                     """e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1
                        7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.11
                        2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"""
-                )
+                ),
             }
         )
         _, name = get_last_release_tag(c, "woof", "7.56.*")
@@ -142,11 +144,12 @@ class TestGetLastTag(unittest.TestCase):
     def test_suffix_lower(self):
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
                     """e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1
                        7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.2^{}
                        2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"""
-                )
+                ),
             }
         )
         _, name = get_last_release_tag(c, "woof", "7.56.*")
@@ -155,11 +158,12 @@ class TestGetLastTag(unittest.TestCase):
     def test_suffix_equal(self):
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
                     """e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1
                        7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.3^{}
                        2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"""
-                )
+                ),
             }
         )
         commit, _ = get_last_release_tag(c, "woof", "7.56.*")
@@ -168,11 +172,12 @@ class TestGetLastTag(unittest.TestCase):
     def test_suffix_greater(self):
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
                     """e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1
                        7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.4^{}
                        2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"""
-                )
+                ),
             }
         )
         _, name = get_last_release_tag(c, "woof", "7.56.*")
@@ -181,6 +186,7 @@ class TestGetLastTag(unittest.TestCase):
     def test_only_release_tags(self):
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -t https://github.com/DataDog/woof "7.57.*"': Result(
                     """"43638bd55a74fd6ec51264cc7b3b1003d0b1c7ac    refs/tags/7.57.0-dbm-mongo-1.5
                         e01bcf3d12e6d6742b1fa8296882938c6dba9922    refs/tags/7.57.0-devel
@@ -206,7 +212,7 @@ class TestGetLastTag(unittest.TestCase):
                         91c7c85d7c8fbb94421a90b273aea75630617eef    refs/tags/7.57.1-beta-ndm-rdns-enrichment^{}
                         3ad359da2894fa3de6e265c56dea8fabdb128454    refs/tags/7.57.1-beta-ndm-rdns-enrichment2
                         86683ad80578912014cc947dcf247ba020532403    refs/tags/7.57.1-beta-ndm-rdns-enrichment2^{}"""
-                )
+                ),
             }
         )
         _, name = get_last_release_tag(c, "woof", "7.57.*")
@@ -215,6 +221,7 @@ class TestGetLastTag(unittest.TestCase):
     def test_final_and_rc_tag_on_same_commit(self):
         c = MockContext(
             run={
+                'git rev-parse --abbrev-ref HEAD': Result("main"),
                 'git ls-remote -t https://github.com/DataDog/baubau "7.61.*"': Result(
                     """8dd145cf716b5c047e81bb287dc58e150b8c2b94	refs/tags/7.61.0
                        45f19a6a26c01dae9fdfce944d3fceae7f4e6498	refs/tags/7.61.0^{}
@@ -224,7 +231,7 @@ class TestGetLastTag(unittest.TestCase):
                        3944948c0c26ddcbc4026b98c2709c188d95b702	refs/tags/7.61.0-rc.4^{}
                        c54e5d5694879c51ae5ff8675dacc92976630587	refs/tags/7.61.0-rc.5
                        45f19a6a26c01dae9fdfce944d3fceae7f4e6498	refs/tags/7.61.0-rc.5^{}"""
-                )
+                ),
             }
         )
 

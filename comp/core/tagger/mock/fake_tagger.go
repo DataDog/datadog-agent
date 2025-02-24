@@ -7,7 +7,6 @@ package mock
 
 import (
 	"context"
-	"strconv"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -31,8 +30,7 @@ type Mock interface {
 
 // FakeTagger is a fake implementation of the tagger interface
 type FakeTagger struct {
-	errors map[string]error
-	store  *tagstore.TagStore
+	store *tagstore.TagStore
 }
 
 // Provides is a struct containing the mock and the endpoint
@@ -44,8 +42,7 @@ type Provides struct {
 func New() Provides {
 	return Provides{
 		Comp: &FakeTagger{
-			errors: make(map[string]error),
-			store:  tagstore.NewTagStore(nil),
+			store: tagstore.NewTagStore(nil),
 		},
 	}
 }
@@ -96,12 +93,6 @@ func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
 // Tag fake implementation
 func (f *FakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
 	tags := f.store.Lookup(entityID, cardinality)
-
-	key := f.getKey(entityID, cardinality)
-	if err := f.errors[key]; err != nil {
-		return nil, err
-	}
-
 	return tags, nil
 }
 
@@ -160,11 +151,6 @@ func (f *FakeTagger) Subscribe(subscriptionID string, filter *types.Filter) (typ
 	return f.store.Subscribe(subscriptionID, filter)
 }
 
-// Fake internals
-func (f *FakeTagger) getKey(entity types.EntityID, cardinality types.TagCardinality) string {
-	return entity.String() + strconv.FormatInt(int64(cardinality), 10)
-}
-
 // GetEntityHash noop
 func (f *FakeTagger) GetEntityHash(types.EntityID, types.TagCardinality) string {
 	return ""
@@ -186,10 +172,5 @@ func (f *FakeTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) 
 
 // ChecksCardinality noop
 func (f *FakeTagger) ChecksCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
-
-// DogstatsdCardinality noop
-func (f *FakeTagger) DogstatsdCardinality() types.TagCardinality {
 	return types.LowCardinality
 }

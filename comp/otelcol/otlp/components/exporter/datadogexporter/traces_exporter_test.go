@@ -39,11 +39,18 @@ func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 }
 
 func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
 }
 
 func (c testComponent) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
+}
+
+func (c testComponent) GetHTTPHandler(endpoint string) http.Handler {
+	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
+		return v
+	}
+	return nil
 }
 
 var _ traceagent.Component = (*testComponent)(nil)

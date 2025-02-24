@@ -52,6 +52,27 @@ foreach ($s in $services.Keys) {
     Install-Service -SvcName $s -BinPath $services[$s][0] $services[$s][1]
 }
 
+# Since OpenSSL 3.4, the install paths can be retrieved from the registry instead of being hardcoded at build time.
+# https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+# TODO: How best to configure the OpenSSL version?
+$opensslVersion = "3.4"
+if ($env:WITH_FIPS -eq "true") {
+  $opensslctx = "datadog-fips-agent"
+} else {
+  $opensslctx = "datadog-agent"
+}
+$keyPath = "HKLM:\SOFTWARE\Wow6432Node\OpenSSL-$opensslVersion-$opensslctx"
+
+# Create the registry key
+if (-not (Test-Path $keyPath)) {
+  New-Item -Path $keyPath -Force
+}
+
+# Set the registry values
+$embeddedPath = "C:\Program Files\Datadog\Datadog Agent\embedded3"
+Set-ItemProperty -Path $keyPath -Name "OPENSSLDIR" -Value "$embeddedPath\ssl"
+Set-ItemProperty -Path $keyPath -Name "ENGINESDIR" -Value "$embeddedPath\lib\engines-3"
+Set-ItemProperty -Path $keyPath -Name "MODULESDIR" -Value "$embeddedPath\lib\ossl-modules"
 
 # Allow to run agent binaries as `agent`
 setx /m PATH "$Env:Path;C:/Program Files/Datadog/Datadog Agent/bin;C:/Program Files/Datadog/Datadog Agent/bin/agent"

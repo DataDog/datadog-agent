@@ -109,19 +109,13 @@ func TestECSEC2CoreAgentSuite(t *testing.T) {
 
 func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
-	flake.Mark(t)
 
-	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		requireProcessNotCollected(c, payloads, "process-agent")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	requireProcessNotCollected(t, payloads, "process-agent")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }

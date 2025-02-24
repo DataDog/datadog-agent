@@ -56,20 +56,20 @@ func (s *MacroStore) Contains(id string) bool {
 
 // VariableStore represents a store of SECL variables
 type VariableStore struct {
-	Variables map[string]VariableValue
+	Variables map[string]SECLVariable
 }
 
 // Add adds a variable
-func (s *VariableStore) Add(name string, variable VariableValue) *VariableStore {
+func (s *VariableStore) Add(name string, variable SECLVariable) *VariableStore {
 	if s.Variables == nil {
-		s.Variables = make(map[string]VariableValue)
+		s.Variables = make(map[string]SECLVariable)
 	}
 	s.Variables[name] = variable
 	return s
 }
 
 // Get returns the variable
-func (s *VariableStore) Get(name string) VariableValue {
+func (s *VariableStore) Get(name string) SECLVariable {
 	if s == nil || s.Variables == nil {
 		return nil
 	}
@@ -91,7 +91,7 @@ func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
 }
 
 // WithVariables set variables
-func (o *Opts) WithVariables(variables map[string]VariableValue) *Opts {
+func (o *Opts) WithVariables(variables map[string]SECLVariable) *Opts {
 	if o.VariableStore == nil {
 		o.VariableStore = &VariableStore{}
 	}
@@ -130,7 +130,7 @@ func (o *Opts) AddMacro(macro *Macro) *Opts {
 }
 
 // AddVariable add a variable
-func (o *Opts) AddVariable(name string, variable VariableValue) *Opts {
+func (o *Opts) AddVariable(name string, variable SECLVariable) *Opts {
 	if o.VariableStore == nil {
 		o.VariableStore = &VariableStore{}
 	}

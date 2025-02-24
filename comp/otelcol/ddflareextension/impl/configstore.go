@@ -8,67 +8,44 @@ package ddflareextensionimpl
 
 import (
 	"sync"
-
-	"go.opentelemetry.io/collector/confmap"
-	"gopkg.in/yaml.v2"
 )
 
 type configStore struct {
-	provided *confmap.Conf
-	enhanced *confmap.Conf
-	mu       sync.RWMutex
+	providedConf string
+	envConf      string
+	enhancedConf string
+	mu           sync.RWMutex
 }
 
-// setProvidedConf stores the config into configStoreImpl.
-func (c *configStore) setProvidedConf(config *confmap.Conf) {
+func (c *configStore) setProvided(conf string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.provided = config
+	c.providedConf = conf
 }
 
-// setEnhancedConf stores the config into configStoreImpl.
-func (c *configStore) setEnhancedConf(config *confmap.Conf) {
+func (c *configStore) set(envConf string, enhancedConf string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.enhanced = config
+	c.enhancedConf = enhancedConf
+	c.envConf = envConf
 }
 
-// getProvidedConf returns a string representing the enhanced collector configuration.
-func (c *configStore) getProvidedConf() (*confmap.Conf, error) {
+func (c *configStore) getProvidedConf() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.providedConf
+}
+
+func (c *configStore) getEnhancedConf() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.provided, nil
+	return c.enhancedConf
 }
 
-// getEnhancedConf returns a string representing the enhanced collector configuration.
-func (c *configStore) getEnhancedConf() (*confmap.Conf, error) {
+func (c *configStore) getEnvConf() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.enhanced, nil
-}
-
-// getProvidedConfAsString returns a string representing the enhanced collector configuration string.
-func (c *configStore) getProvidedConfAsString() (string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	bytesConf, err := yaml.Marshal(c.provided.ToStringMap())
-	if err != nil {
-		return "", err
-	}
-	return string(bytesConf), nil
-}
-
-// getEnhancedConfAsString returns a string representing the enhanced collector configuration string.
-func (c *configStore) getEnhancedConfAsString() (string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	bytesConf, err := yaml.Marshal(c.enhanced.ToStringMap())
-	if err != nil {
-		return "", err
-	}
-	return string(bytesConf), nil
+	return c.envConf
 }

@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -294,7 +295,7 @@ func (suite *clusterAgentSuite) SetupTest() {
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmpty() {
 	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
 
-	_, err := security.CreateOrGetClusterAgentAuthToken(suite.config)
+	_, err := security.CreateOrGetClusterAgentAuthToken(context.Background(), suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 

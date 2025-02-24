@@ -10,14 +10,13 @@ package tracer
 import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/conntrack.c pkg/ebpf/bytecode/build/runtime/conntrack.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/conntrack.c pkg/ebpf/bytecode/runtime/conntrack.go runtime
 
 func getRuntimeCompiledConntracker(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Conntrack.Compile(&config.Config, getCFlags(config), statsd.Client)
+	return runtime.Conntrack.Compile(&config.Config, getCFlags(config))
 }
 
 func getCFlags(config *config.Config) []string {
