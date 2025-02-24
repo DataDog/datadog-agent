@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"github.com/stretchr/testify/assert"
+
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -57,7 +58,7 @@ func TestProcessScaleUp(t *testing.T) {
 	pai, found := store.Get("default/autoscaler1")
 	assert.True(t, found)
 	assert.Nil(t, pai.FallbackScalingValues().HorizontalError)
-	assert.Equal(t, datadoghq.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
+	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
 	assert.Equal(t, int32(2), pai.FallbackScalingValues().Horizontal.Replicas) // currently 1 replica, recommending scale up to 2
 	assert.Equal(t, (testTime - 30), pai.FallbackScalingValues().Horizontal.Timestamp.Unix())
 
@@ -115,7 +116,7 @@ func TestProcessScaleDown(t *testing.T) {
 	pai, found := store.Get("default/autoscaler1")
 	assert.True(t, found)
 	assert.Nil(t, pai.FallbackScalingValues().HorizontalError)
-	assert.Equal(t, datadoghq.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
+	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, pai.FallbackScalingValues().Horizontal.Source)
 	assert.Equal(t, int32(2), pai.FallbackScalingValues().Horizontal.Replicas) // currently 3 replicas, recommending scale down to 2
 	assert.Equal(t, (testTime - 30), pai.FallbackScalingValues().Horizontal.Timestamp.Unix())
 

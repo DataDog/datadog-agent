@@ -231,13 +231,25 @@ build do
 
   # Removing tests that don't need to be shipped in the embedded folder
   test_folders = [
+    '../idlelib/idle_test',
+    'bs4/tests',
     'Cryptodome/SelfTest',
+    'gssapi/tests',
+    'keystoneauth1/tests',
     'openstack/tests',
+    'os_service_types/tests',
+    'pbr/tests',
+    'pkg_resources/tests',
     'psutil/tests',
-    'test', # cm-client
     'securesystemslib/_vendor/ed25519/test_data',
+    'setuptools/_distutils/tests',
     'setuptools/tests',
+    'simplejson/tests',
+    'stevedore/tests',
     'supervisor/tests',
+    'test', # cm-client
+    'vertica_python/tests',
+    'websocket/tests',
   ]
   test_folders.each do |test_folder|
     if windows_target?

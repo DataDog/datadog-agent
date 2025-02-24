@@ -228,6 +228,10 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
+	return d.getPackage(pkg, version)
+}
+
+func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 	catalog := d.catalog
 	if len(d.catalogOverride.Packages) > 0 {
 		catalog = d.catalogOverride
@@ -371,11 +375,7 @@ func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting installer experiment for package from %s", url)
-	if runtime.GOOS == "windows" {
-		err = d.installer(d.env).InstallExperiment(ctx, url)
-	} else {
-		err = bootstrap.InstallExperiment(ctx, d.env, url)
-	}
+	err = bootstrap.InstallExperiment(ctx, d.env, url)
 	if err != nil {
 		return fmt.Errorf("could not install installer experiment: %w", err)
 	}
@@ -560,7 +560,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			newEnv.InstallScript.APMInstrumentationEnabled = params.ApmInstrumentation
 		}
 
-		pkg, err := d.GetPackage(request.Package, params.Version)
+		pkg, err := d.getPackage(request.Package, params.Version)
 		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrPackageNotFound,

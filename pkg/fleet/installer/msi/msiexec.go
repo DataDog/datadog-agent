@@ -288,7 +288,7 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 
 	cmd := &Msiexec{}
 	if len(a.logFile) == 0 {
-		tempDir, err := os.MkdirTemp("", "datadog-installer")
+		tempDir, err := os.MkdirTemp("", "datadog-installer-tmp")
 		if err != nil {
 			return nil, err
 		}
