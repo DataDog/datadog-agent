@@ -97,12 +97,12 @@ type AutoConfig struct {
 }
 
 const (
-	// MaxWmetaWaitTime is the maximum time to wait for wmeta being ready
-	MaxWmetaWaitTime = 10 * time.Second
-	// WmetaCheckMinInterval is the initial interval to check if wmeta is ready
-	WmetaCheckMinInterval = 200 * time.Microsecond
-	// WmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
-	WmetaCheckMaxInterval = 1 * time.Second
+	// maxWmetaWaitTime is the maximum time to wait for wmeta being ready
+	maxWmetaWaitTime = 10 * time.Second
+	// WmetawmetaCheckMinIntervalCheckMinInterval is the initial interval to check if wmeta is ready
+	wmetaCheckMinInterval = 20 * time.Millisecond
+	// wmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
+	wmetaCheckMaxInterval = 1 * time.Second
 )
 
 type provides struct {
@@ -151,9 +151,9 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 	go func() {
 		retries := 0
 		expBackoff := backoff.NewExponentialBackOff()
-		expBackoff.InitialInterval = WmetaCheckMinInterval
-		expBackoff.MaxInterval = WmetaCheckMaxInterval
-		expBackoff.MaxElapsedTime = MaxWmetaWaitTime
+		expBackoff.InitialInterval = wmetaCheckMinInterval
+		expBackoff.MaxInterval = wmetaCheckMaxInterval
+		expBackoff.MaxElapsedTime = maxWmetaWaitTime
 		err := backoff.Retry(func() error {
 			instance, found := deps.WMeta.Get()
 			if found {
@@ -163,7 +163,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 					return nil
 				}
 				retries++
-				deps.Log.Warnf("Workloadmeta collectors are not ready, will possibly retry")
+				deps.Log.Debugf("Workloadmeta collectors are not ready, will possibly retry")
 				return errors.New("workloadmeta not initialized")
 			}
 			schController.Start()
