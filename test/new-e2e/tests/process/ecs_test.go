@@ -122,6 +122,9 @@ func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 		requireProcessNotCollected(c, payloads, "process-agent")
 	}, 2*time.Minute, 10*time.Second)
 
+	// Flush the server to ensure payloads are received from the process checks that are running on the core agent
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
