@@ -408,8 +408,8 @@ func changedCheckIDs(originalConfig integration.Config, newConfig integration.Co
 	}
 
 	for i := 0; i < len(newConfig.Instances); i++ {
-		newID := checkid.BuildID(newConfig.Name, newConfig.FastDigest(), newConfig.Instances[i].GetNameForInstance(), newConfig.Instances[i], newConfig.InitConfig)
-		originalID := checkid.BuildID(originalConfig.Name, originalConfig.FastDigest(), originalConfig.Instances[i].GetNameForInstance(), originalConfig.Instances[i], originalConfig.InitConfig)
+		newID := checkid.BuildID(newConfig.Name, newConfig.FastDigest(), newConfig.Instances[i], newConfig.InitConfig)
+		originalID := checkid.BuildID(originalConfig.Name, originalConfig.FastDigest(), originalConfig.Instances[i], originalConfig.InitConfig)
 		if newID != originalID {
 			res[newID] = originalID
 		}

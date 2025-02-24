@@ -232,7 +232,7 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	for i, config := range configSlice {
 		instanceIDs := make([]string, len(config.Instances))
 		for j, instance := range config.Instances {
-			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance.GetNameForInstance(), instance, config.InitConfig))
+			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
 		}
 		configResponses[i] = integration.ConfigResponse{
 			Config:      ac.scrubConfig(config),
@@ -276,7 +276,7 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 	for i, config := range configSlice {
 		instanceIDs := make([]string, len(config.Instances))
 		for j, instance := range config.Instances {
-			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance.GetNameForInstance(), instance, config.InitConfig))
+			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
 		}
 		configResponses[i] = integration.ConfigResponse{
 			Config:      config,
@@ -724,7 +724,7 @@ func (ac *AutoConfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.
 	var checkIDsToDelete []checkid.ID
 	for _, configToDelete := range configs {
 		for _, instance := range configToDelete.Instances {
-			checkID := checkid.BuildID(configToDelete.Name, configToDelete.FastDigest(), instance.GetNameForInstance(), instance, configToDelete.InitConfig)
+			checkID := checkid.BuildID(configToDelete.Name, configToDelete.FastDigest(), instance, configToDelete.InitConfig)
 			checkIDsToDelete = append(checkIDsToDelete, checkID)
 		}
 	}

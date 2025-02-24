@@ -11,13 +11,15 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
 // ID is the representation of the unique ID of a Check instance
 type ID string
 
 // BuildID returns an unique ID for a check name and its configuration
-func BuildID(checkName string, integrationConfigDigest uint64, instanceName string, instance, initConfig []byte) ID {
+func BuildID(checkName string, integrationConfigDigest uint64, instance, initConfig integration.Data) ID {
 	// Hash is returned in BigEndian
 	digestBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(digestBytes, integrationConfigDigest)
@@ -26,9 +28,10 @@ func BuildID(checkName string, integrationConfigDigest uint64, instanceName stri
 	_, _ = h.Write(digestBytes)
 	_, _ = h.Write([]byte(instance))
 	_, _ = h.Write([]byte(initConfig))
+	name := instance.GetNameForInstance()
 
-	if instanceName != "" {
-		return ID(fmt.Sprintf("%s:%s:%x", checkName, instanceName, h.Sum64()))
+	if name != "" {
+		return ID(fmt.Sprintf("%s:%s:%x", checkName, name, h.Sum64()))
 	}
 
 	return ID(fmt.Sprintf("%s:%x", checkName, h.Sum64()))

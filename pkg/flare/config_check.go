@@ -132,7 +132,7 @@ func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.RedString("Unknown configuration source"))
 	}
 	for _, inst := range c.Instances {
-		ID := string(checkid.BuildID(c.Name, configDigest, inst.GetNameForInstance(), inst, c.InitConfig))
+		ID := string(checkid.BuildID(c.Name, configDigest, inst, c.InitConfig))
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
 		fmt.Fprintln(w, string(inst))
 		fmt.Fprintln(w, "~")
