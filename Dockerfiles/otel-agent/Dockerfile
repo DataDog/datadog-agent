@@ -24,11 +24,10 @@ RUN apt-get update && \
 
 # TODO: For now we have to clone the whole repository and checkout to a specific commit / ref / branch then recompile the otel-agent
 # Cloning the whole repo is necessary because `get_version` in the build script runs git describe --tags --candidates=50...
-# We should eventually just fetch the binary from s3 or directly the package but alpine doesn't have a service manager
+# We should eventually just fetch the binary from s3 or directly the package but distroless doesn't have a service manager
 RUN git clone --filter=blob:none https://github.com/DataDog/datadog-agent.git datadog-agent && \
     cd datadog-agent && \
     git checkout $DD_GIT_COMMIT_SHA
-
 
 RUN ls /workspace/
 
@@ -75,18 +74,25 @@ RUN . venv/bin/activate && invoke collector.generate
 # Build the OTel agent
 RUN . venv/bin/activate && invoke otel-agent.build
 
-# The base image could evolve in the future. Notably, using alpine could work as well but would
-# mean that we have no utilities in the image. It is not convenient for debugging purposes.
-FROM alpine:3.21.3
-
-# Install gcompat to get glibc compatibility
-RUN apk add gcompat=1.1.0-r4 zlib=1.3.1-r2
-
+FROM gcr.io/distroless/base-nossl-debian12:debug-nonroot AS debug
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 # TODO: confirm if this should be copied to otel-config.yaml.example
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
-
 ENV PATH="/opt/datadog-agent/embedded/bin:${PATH}"
+ENTRYPOINT ["/busybox/sh", "-c"]
+CMD ["/opt/datadog-agent/embedded/bin/otel-agent run"]
+
+FROM gcr.io/distroless/base-nossl-debian12:nonroot AS production
+# Need a shell to run otel-agent command
+COPY --from=debug /busybox/sh /busybox/sh
+# Copy the built OTel agent from the builder stage
+COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
+# TODO: confirm if this should be copied to otel-config.yaml.example
+COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
+ENV PATH="/opt/datadog-agent/embedded/bin:${PATH}"
+# Run the otel-agent
+ENTRYPOINT ["/busybox/sh", "-c"]
+CMD ["/opt/datadog-agent/embedded/bin/otel-agent run"]
 
 # TODO: Check the content of the image (world writtable files, etc...)
