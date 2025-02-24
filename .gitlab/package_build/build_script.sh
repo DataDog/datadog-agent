@@ -42,6 +42,7 @@ echo Ignoring omnibus build cache
 # cp ./{release.json,omnibus/Gemfile} _omnibus_cache_key_files
 # TODO: Cache go?
 mkdir -p $HOME/go
+export GOPATH=$HOME/go
 echo 'export GOPATH=$HOME/go' >> ~/.build_setup
 echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
 export GO_VERSION="$(cat .go-version)"

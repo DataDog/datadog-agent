@@ -52,7 +52,8 @@ agent_dmg-x64-a7:
     export GPG_VERSION=1.4.23
     export CODECOV_VERSION=v0.6.1
     export OPENSSL_VERSION=1.1
-  # TODO A: Would it work by restoring the path and adding custom homebrew path after this setup? / By block listing gettext / git... ?
+  # TODO A: Try block listing?
+  # TODO A: Find a better way
   - |
     echo Setup env
     mkdir bin
@@ -61,28 +62,18 @@ agent_dmg-x64-a7:
       echo Using $binary
       ln -s "$(which $binary)" bin/$binary
     done
-    # TODO: Find a better way
   - |
     echo Setup homebrew
     mkdir homebrew
     curl -L https://github.com/Homebrew/brew/tarball/$HOMEBREW_VERSION | tar xz --strip-components 1 -C homebrew
     # Enable custom env
+    export OLDPATH="$PATH"
     export PATH="$PWD/bin"
     eval "$(homebrew/bin/brew shellenv)"
     brew update --force
     # TODO A: Necessary?
     chmod -R go-w "$(brew --prefix)/share/zsh"
     brew tap DataDog/datadog-agent-macos-build
-  # TODO: Bellow
-  - |
-    echo Install gimme
-    brew install DataDog/datadog-agent-macos-build/gimme@$GIMME_VERSION -f
-    brew link --overwrite gimme@$GIMME_VERSION
-  # TODO A: This is done three times
-  - |
-      eval $(gimme $(cat .go-version))
-      export GOPATH=$GOROOT
-      which go
   - |
     echo Install cmake
     brew install DataDog/datadog-agent-macos-build/cmake@$CMAKE_VERSION -f
@@ -97,12 +88,13 @@ agent_dmg-x64-a7:
     brew link --overwrite gnupg@$GPG_VERSION
     # TODO
     echo GPG debug
+    # TODO: clean
+    # Adding gpgbin to the PATH to be able to call gpg and gpgv
     export PATH="$PWD/homebrew/Cellar/gnupg@$GPG_VERSION/libexec/gpgbin:$PATH"
-    ls -l "$PWD/homebrew/Cellar/gnupg@$GPG_VERSION/libexec/gpgbin" || true
-    # # Adding gpgbin to the PATH to be able to call gpg and gpgv
-    # echo 'export PATH="/usr/local/opt/gnupg@1.4.23/libexec/gpgbin:$PATH"' >>~/.zshrc
-    echo "$PWD/homebrew/Cellar/gnupg@$GPG_VERSION/libexec/gpgbin" || true
-    ls "$PWD/homebrew/Cellar/gnupg@$GPG_VERSION" || true
+    export OLDPATH="$PWD/homebrew/Cellar/gnupg@$GPG_VERSION/libexec/gpgbin:$OLDPATH"
+    # ls -l "$PWD/homebrew/Cellar/gnupg@$GPG_VERSION/libexec/gpgbin" || true
+    # echo "$PWD/homebrew/Cellar/gnupg@$GPG_VERSION/libexec/gpgbin" || true
+    # ls "$PWD/homebrew/Cellar/gnupg@$GPG_VERSION" || true
     which gpg || true
     which gpgv || true
   - |
@@ -118,8 +110,6 @@ agent_dmg-x64-a7:
     echo Install python
     brew install --build-from-source DataDog/datadog-agent-macos-build/python@$PYTHON_VERSION -f
     brew link --overwrite python@$PYTHON_VERSION
-    # TODO:
-    # echo 'export PATH="/usr/local/opt/python@'"$PYTHON_VERSION"'/libexec/bin:$PATH"' >>~/.zshrc
   # TODO A: Install in homebrew env
   - |
     echo Install rust on arm64
@@ -133,9 +123,23 @@ agent_dmg-x64-a7:
     chmod +x ./rustup-init
     ./rustup-init -y --profile minimal --default-toolchain $RUST_VERSION
     rm ./rustup-init
+    # TODO: Cleanup
     export PATH="$CARGO_HOME/bin:$RUSTUP_HOME/bin:$PATH"
-    # which cargo
-    # which rustc
+    export OLDPATH="$CARGO_HOME/bin:$RUSTUP_HOME/bin:$OLDPATH"
+  - |
+    echo Install gimme
+    brew install DataDog/datadog-agent-macos-build/gimme@$GIMME_VERSION -f
+    brew link --overwrite gimme@$GIMME_VERSION
+  - |
+    echo Resetting path
+    PATH="$PWD/bin:$OLDPATH"
+    which python3
+  # TODO A: This is done three times
+  - |
+    eval $(gimme $(cat .go-version))
+    export GOPATH=$GOROOT
+    which go
+    go version
 
 new-agent_dmg-x64-a7:
   stage: package_build
