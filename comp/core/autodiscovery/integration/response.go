@@ -5,6 +5,8 @@
 
 package integration
 
+// ConfigResponse holds information about the config
+// the instance IDs are precompouted to avoid discrepancies between the server and the client
 type ConfigResponse struct {
 	InstanceIDs []string `json:"instance_ids"`
 	Config      Config   `json:"config"`
