@@ -456,10 +456,6 @@ func (t *remoteTagger) ChecksCardinality() types.TagCardinality {
 	return t.checksCardinality
 }
 
-func (t *remoteTagger) DogstatsdCardinality() types.TagCardinality {
-	return t.dogstatsdCardinality
-}
-
 // Subscribe currently returns a non-nil error indicating that the method is not supported
 // for remote tagger. Currently, there are no use cases for client subscribing to remote tagger events
 func (t *remoteTagger) Subscribe(string, *types.Filter) (types.Subscription, error) {
