@@ -1,27 +1,27 @@
 # Package gates
 static_quality_gate_agent_deb_amd64:
-  max_on_wire_size: "212.33 MiB"
-  max_on_disk_size: "847.49 MiB"
+  max_on_wire_size: "210.72 MiB"
+  max_on_disk_size: "841.59 MiB"
 
 static_quality_gate_agent_deb_arm64:
-  max_on_wire_size: "192.5 MiB"
-  max_on_disk_size: "836.66 MiB"
+  max_on_wire_size: "192.1 MiB"
+  max_on_disk_size: "830.66 MiB"
 
 static_quality_gate_agent_rpm_amd64:
-  max_on_wire_size: "215.76 MiB"
-  max_on_disk_size: "847.82 MiB"
+  max_on_wire_size: "214.52 MiB"
+  max_on_disk_size: "841.52 MiB"
 
 static_quality_gate_agent_rpm_arm64:
-  max_on_wire_size: "194.24 MiB"
-  max_on_disk_size: "836.66 MiB"
+  max_on_wire_size: "193.64 MiB"
+  max_on_disk_size: "830.66 MiB"
 
 static_quality_gate_agent_suse_amd64:
-  max_on_wire_size: "215.76 MiB"
-  max_on_disk_size: "847.82 MiB"
+  max_on_wire_size: "214.52 MiB"
+  max_on_disk_size: "841.52 MiB"
 
 static_quality_gate_agent_suse_arm64:
-  max_on_wire_size: "194.24 MiB"
-  max_on_disk_size: "836.66 MiB"
+  max_on_wire_size: "194.03 MiB"
+  max_on_disk_size: "830.66 MiB"
 
 static_quality_gate_dogstatsd_deb_amd64:
   max_on_wire_size: "20.6 MiB"
@@ -61,20 +61,20 @@ static_quality_gate_iot_agent_suse_amd64:
 
 # Docker images gate
 static_quality_gate_docker_agent_amd64:
-  max_on_wire_size: "318.67 MiB"
-  max_on_disk_size: "931.70 MiB"
+  max_on_wire_size: "317.43 MiB"
+  max_on_disk_size: "926.00 MiB"
 
 static_quality_gate_docker_agent_arm64:
-  max_on_wire_size: "303.00 MiB"
-  max_on_disk_size: "944.08 MiB"
+  max_on_wire_size: "302.43 MiB"
+  max_on_disk_size: "939.07 MiB"
 
 static_quality_gate_docker_agent_jmx_amd64:
-  max_on_wire_size: "393.75 MiB"
-  max_on_disk_size: "1130.17 MiB"
+  max_on_wire_size: "392.54 MiB"
+  max_on_disk_size: "1124.07 MiB"
 
 static_quality_gate_docker_agent_jmx_arm64:
-  max_on_wire_size: "373.71 MiB"
-  max_on_disk_size: "1131.13 MiB"
+  max_on_wire_size: "373.21 MiB"
+  max_on_disk_size: "1125.63 MiB"
 
 static_quality_gate_docker_dogstatsd_amd64:
   max_on_wire_size: "28.29 MiB"
