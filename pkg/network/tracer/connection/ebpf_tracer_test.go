@@ -21,6 +21,7 @@ import (
 func TestFailedConnectionTelemetryMapLoads(t *testing.T) {
 	tr, err := newEbpfTracer(config.New(), nil)
 	require.NoError(t, err, "could not load tracer")
+	t.Cleanup(tr.Stop)
 
 	_, err = maps.GetMap[int32, uint64](tr.(*ebpfTracer).m.Manager, probes.TCPFailureTelemetry)
 	require.NoError(t, err, "error loading tcp failure telemetry map")
