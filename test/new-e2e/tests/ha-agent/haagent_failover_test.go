@@ -105,68 +105,56 @@ func TestMultiVMSuite(t *testing.T) {
 }
 
 func (v *multiVMSuite) TestHAFailover() {
-	initialActiveAgent := ""
+	v.Env().Host2.Execute("sudo systemctl stop datadog-agent")
+
+	// Wait for the agent1 to be active
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.T().Log("try assert agent state switched from unknown to active in agent.log")
+		v.T().Log("try assert agent1 state is active")
 
-		output1, err := v.Env().Host1.Execute("cat /var/log/datadog/agent.log")
+		output, err := v.Env().Host1.Execute("sudo datadog-agent diagnose show-metadata ha-agent")
 		require.NoError(c, err)
-		assert.Contains(c, output1, "Add HA Agent RCListener")
-
-		output2, err := v.Env().Host2.Execute("cat /var/log/datadog/agent.log")
-		require.NoError(c, err)
-		assert.Contains(c, output2, "Add HA Agent RCListener")
-
-		require.True(c, strings.Contains(output1, "agent state switched from unknown to active") || strings.Contains(output2, "agent state switched from unknown to active"), "Expected one of the agents to switch from unknown to active")
-
-		if strings.Contains(output1, "agent state switched from unknown to active") {
-			initialActiveAgent = "agent1"
-		} else {
-			initialActiveAgent = "agent2"
-		}
+		require.True(c, strings.Contains(output, "active"), "Expected agent1 to be active")
 	}, 5*time.Minute, 30*time.Second)
 
-	if initialActiveAgent == "" {
-		v.T().Fatal("No agent switched to active")
-	}
+	v.Env().Host2.Execute("sudo systemctl start datadog-agent")
 
-	if initialActiveAgent == "agent1" {
-		v.Env().Host1.Execute("sudo systemctl stop datadog-agent")
-	} else {
-		v.Env().Host2.Execute("sudo systemctl stop datadog-agent")
-	}
-
+	// Wait for the agent2 to be standby
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.T().Log("try assert active agent election has been made")
+		v.T().Log("try assert agent2 state is standby")
 
-		if initialActiveAgent == "agent1" {
-			output2, err := v.Env().Host2.Execute("cat /var/log/datadog/agent.log")
-			require.NoError(c, err)
-			assert.Contains(c, output2, "agent state switched from standby to active")
-		} else {
-			output1, err := v.Env().Host1.Execute("cat /var/log/datadog/agent.log")
-			require.NoError(c, err)
-			assert.Contains(c, output1, "agent state switched from standby to active")
-		}
+		output, err := v.Env().Host2.Execute("sudo datadog-agent diagnose show-metadata ha-agent")
+		require.NoError(c, err)
+		require.True(c, strings.Contains(output, "standby"), "Expected agent2 to be standby")
 	}, 5*time.Minute, 30*time.Second)
 
-	if initialActiveAgent == "agent1" {
-		v.Env().Host1.Execute("sudo systemctl start datadog-agent")
-	} else {
-		v.Env().Host2.Execute("sudo systemctl start datadog-agent")
-	}
+	v.Env().Host1.Execute("sudo systemctl stop datadog-agent")
 
+	// Wait for the agent2 to be active
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.T().Log("try assert active agent stays the same after failover")
+		v.T().Log("try assert agent2 state is active")
 
-		if initialActiveAgent == "agent1" {
-			output1, err := v.Env().Host1.Execute("cat /var/log/datadog/agent.log")
-			require.NoError(c, err)
-			assert.Contains(c, output1, "agent state switched from unknown to active")
-		} else {
-			output2, err := v.Env().Host2.Execute("cat /var/log/datadog/agent.log")
-			require.NoError(c, err)
-			assert.Contains(c, output2, "agent state switched from unknown to active")
-		}
+		output, err := v.Env().Host2.Execute("sudo datadog-agent diagnose show-metadata ha-agent")
+		require.NoError(c, err)
+		require.True(c, strings.Contains(output, "active"), "Expected agent2 to be active")
+	}, 5*time.Minute, 30*time.Second)
+
+	v.Env().Host1.Execute("sudo systemctl start datadog-agent")
+
+	// Wait for the agent1 to be standby
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		v.T().Log("try assert agent1 state is standby")
+
+		output, err := v.Env().Host1.Execute("sudo datadog-agent diagnose show-metadata ha-agent")
+		require.NoError(c, err)
+		require.True(c, strings.Contains(output, "standby"), "Expected agent1 to be standby")
+	}, 5*time.Minute, 30*time.Second)
+
+	// Wait for the agent2 to be active
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		v.T().Log("try assert agent2 state is active")
+
+		output, err := v.Env().Host2.Execute("sudo datadog-agent diagnose show-metadata ha-agent")
+		require.NoError(c, err)
+		require.True(c, strings.Contains(output, "active"), "Expected agent2 to be active")
 	}, 5*time.Minute, 30*time.Second)
 }
