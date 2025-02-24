@@ -496,6 +496,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -572,6 +578,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv6_udp_sendto_127.0.0.1:3123", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -818,6 +830,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -897,6 +915,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv6_udp_bind_[::]:9004_sendto_[::1]:7123", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -1565,6 +1589,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -1710,6 +1740,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -1853,6 +1889,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:7234_server_sock_ipv6_tcp_listen_[::1]:7234_client_reset", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -2003,6 +2045,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:8234_server_sock_ipv6_tcp_listen_[::1]:8234_server_reset", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -2772,6 +2820,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -2942,6 +2996,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -3110,6 +3170,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:6334_server_sock_ipv6_tcp_listen_[::]:6334_client_reset", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -3286,6 +3352,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv6_tcp_connect_[::1]:7334_server_sock_ipv6_tcp_listen_[::]:7334_server_reset", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -3755,6 +3827,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -3899,6 +3977,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv6_tcp_bind_[::]:9008_connect_[::1]:2434_server_sock_ipv6_tcp_listen_[::1]:2434_client_fin", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -4065,6 +4149,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv4_tcp_connect_127.0.0.1:3434_server_sock_ipv6_tcp_listen_[::]:3434_client_fin", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -4267,6 +4357,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -4467,6 +4563,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		clientBoundPort := make(chan int)
 		closeClientSocket := make(chan struct{})
 		clientSocketClosed := make(chan struct{})
@@ -4665,6 +4767,12 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	t.Run("client_sock_ipv6_tcp_connect_[::ffff:127.0.0.1]:6434_server_sock_ipv4_tcp_listen_127.0.0.1:6434_client_fin", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		clientBoundPort := make(chan int)
@@ -4977,6 +5085,12 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
+		}
+
 		fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, 0)
 		if err != nil {
 			t.Errorf("socket error: %v", err)
@@ -5061,6 +5175,12 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 	t.Run("client_sock_ipv6_tcp_connect_127.0.0.1:1115_connect_[::1]:1116_server_sock_ipv6_tcp_listen_[::]:1116", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
 			t.Skip("IPv6 is not supported")
+		}
+
+		if listener, err := nettest.NewLocalPacketListener("udp6"); err != nil {
+			t.Skipf("couldn't create local packet listener: %v", err)
+		} else {
+			_ = listener.Close()
 		}
 
 		closeServerSocket := make(chan struct{})

@@ -63,19 +63,25 @@ __attribute__((always_inline)) void delete_sock_meta(struct sock *sk) {
 }
 
 __attribute__((always_inline)) void print_meta(struct sock_meta_t *meta) {
+#if defined(DEBUG_NETWORK_FLOW)
     bpf_printk("|    sock_meta:");
     bpf_printk("|        route: p:%d a:%lu a:%lu", meta->existing_route.port, meta->existing_route.addr[0], meta->existing_route.addr[1]);
+#endif
 }
 
 __attribute__((always_inline)) void print_route_entry(struct pid_route_entry_t *route_entry) {
+#if defined(DEBUG_NETWORK_FLOW)
     bpf_printk("|    route_entry:");
     bpf_printk("|        pid:%d type:%d owner_sk:0x%p", route_entry->pid, route_entry->type, route_entry->owner_sk);
+#endif
 }
 
 __attribute__((always_inline)) void print_route(struct pid_route_t *route) {
+#if defined(DEBUG_NETWORK_FLOW)
     bpf_printk("|    route:");
     bpf_printk("|        p:%d a:%lu a:%lu", route->port, route->addr[0], route->addr[1]);
     bpf_printk("|        netns:%lu", route->netns);
+#endif
 }
 
 __attribute__((always_inline)) u8 can_delete_route(struct pid_route_t *route, struct sock *sk) {
