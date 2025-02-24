@@ -6,171 +6,141 @@
 package sender
 
 import (
-	"strconv"
 	"sync"
-	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	tlmPayloadsDropped = telemetry.NewCounterWithOpts("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped", telemetry.Options{DefaultMetric: true})
-	tlmMessagesDropped = telemetry.NewCounterWithOpts("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped", telemetry.Options{DefaultMetric: true})
-	tlmSendWaitTime    = telemetry.NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
+const (
+	// DefaultWorkerCount By default most pipelines will only require a single sender worker, as the single worker itself can
+	// concurrently transmit multiple http requests simultaneously. See the min/max worker concurrency settings.
+	DefaultWorkerCount = 1
 )
 
-// Sender sends logs to different destinations. Destinations can be either
-// reliable or unreliable. The sender ensures that logs are sent to at least
-// one reliable destination and will block the pipeline if they are in an
-// error state. Unreliable destinations will only send logs when at least
-// one reliable destination is also sending logs. However they do not update
-// the auditor or block the pipeline if they fail. There will always be at
-// least 1 reliable destination (the main destination).
+// PipelineComponent abstracts a pipeline component
+type PipelineComponent interface {
+	In() chan *message.Payload
+	PipelineMonitor() metrics.PipelineMonitor
+	Start()
+	Stop()
+}
+
+// Sender distribute payloads on multiple
+// underlying senders.
+// Do not re-use a Sender, reinstantiate one instead.
 type Sender struct {
-	config         pkgconfigmodel.Reader
-	inputChan      chan *message.Payload
-	outputChan     chan *message.Payload
-	destinations   *client.Destinations
-	done           chan struct{}
-	bufferSize     int
-	senderDoneChan chan *sync.WaitGroup
-	flushWg        *sync.WaitGroup
+	workers []*worker
+	queues  []chan *message.Payload
 
 	pipelineMonitor metrics.PipelineMonitor
-	utilization     metrics.UtilizationMonitor
+	flushWg         *sync.WaitGroup
+
+	idx int
 }
 
 // NewSender returns a new sender.
-func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup, pipelineMonitor metrics.PipelineMonitor) *Sender {
+func NewSender(
+	config pkgconfigmodel.Reader,
+	auditor auditor.Auditor,
+	bufferSize int,
+	senderDoneChan chan *sync.WaitGroup,
+	flushWg *sync.WaitGroup,
+	endpoints *config.Endpoints,
+	destinationsCtx *client.DestinationsContext,
+	status statusinterface.Status,
+	serverless bool,
+	componentName string,
+	contentType string,
+	workerCount int,
+	minWorkerConcurrency int,
+	maxWorkerConcurrency int,
+) *Sender {
+	log.Infof("TEST: %s sender being constructed with min concurrency %d and max concurrency %d", componentName, minWorkerConcurrency, maxWorkerConcurrency)
+	pipelineMonitor := metrics.NewTelemetryPipelineMonitor("sender_mux")
+
+	var workers []*worker
+
+	// It simplifies our workflows to keep the queues count value at one. Retaining the minimalistic logic required to support values larger than one
+	// to allow us to easily explore alternate configurations moving forward.
+	queuesCount := 1
+
+	workersPerQueue := workerCount
+	if workersPerQueue <= 0 {
+		workersPerQueue = DefaultWorkerCount
+	}
+
+	queues := make([]chan *message.Payload, queuesCount)
+	log.Infof("TEST: %s sender creating %d queues", componentName, len(queues))
+
+	for i := range queuesCount {
+		// create a queue
+		queues[i] = make(chan *message.Payload, workersPerQueue+1)
+		log.Infof("TEST: %s input created for pipeline %d", componentName, i)
+		// output of this queue, create workers
+		for range workersPerQueue {
+			worker := newSenderWorker(
+				config,
+				auditor,
+				bufferSize,
+				senderDoneChan,
+				flushWg,
+				endpoints,
+				destinationsCtx,
+				status,
+				serverless,
+				componentName,
+				contentType,
+				minWorkerConcurrency,
+				maxWorkerConcurrency,
+				queues[i],
+				pipelineMonitor,
+			)
+			workers = append(workers, worker)
+		}
+		log.Infof("TEST: %s created %d senders for queue %d", componentName, workersPerQueue, i)
+	}
+
 	return &Sender{
-		config:         config,
-		inputChan:      inputChan,
-		outputChan:     outputChan,
-		destinations:   destinations,
-		done:           make(chan struct{}),
-		bufferSize:     bufferSize,
-		senderDoneChan: senderDoneChan,
-		flushWg:        flushWg,
-
-		// Telemetry
+		workers:         workers,
 		pipelineMonitor: pipelineMonitor,
-		utilization:     pipelineMonitor.MakeUtilizationMonitor("sender"),
+		queues:          queues,
+		flushWg:         flushWg,
 	}
 }
 
-// Start starts the sender.
+// In is the input channel of one or more sender workers
+func (s *Sender) In() chan *message.Payload {
+	s.idx = (s.idx + 1) % len(s.queues)
+	log.Infof("redistributed to input %d", s.idx)
+	return s.queues[s.idx]
+}
+
+// PipelineMonitor returns the pipeline monitor of the sender workers.
+func (s *Sender) PipelineMonitor() metrics.PipelineMonitor {
+	return s.pipelineMonitor
+}
+
+// Start starts all sender workers.
 func (s *Sender) Start() {
-	go s.run()
+	for _, worker := range s.workers {
+		worker.start()
+	}
 }
 
-// Stop stops the sender,
-// this call blocks until inputChan is flushed
+// Stop stops all sender workers
 func (s *Sender) Stop() {
-	close(s.inputChan)
-	<-s.done
-}
-
-func (s *Sender) run() {
-	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, s.outputChan, s.bufferSize)
-
-	sink := additionalDestinationsSink(s.bufferSize)
-	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
-
-	for payload := range s.inputChan {
-		s.utilization.Start()
-		var startInUse = time.Now()
-		senderDoneWg := &sync.WaitGroup{}
-
-		sent := false
-		for !sent {
-			for _, destSender := range reliableDestinations {
-				if destSender.Send(payload) {
-					if destSender.destination.Metadata().ReportingEnabled {
-						s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())
-					}
-					sent = true
-					if s.senderDoneChan != nil {
-						senderDoneWg.Add(1)
-						s.senderDoneChan <- senderDoneWg
-					}
-				}
-			}
-
-			if !sent {
-				// Throttle the poll loop while waiting for a send to succeed
-				// This will only happen when all reliable destinations
-				// are blocked so logs have no where to go.
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
-
-		for i, destSender := range reliableDestinations {
-			// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
-			// loss on intermittent failures.
-			if !destSender.lastSendSucceeded {
-				if !destSender.NonBlockingSend(payload) {
-					tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-					tlmMessagesDropped.Add(float64(len(payload.Messages)), "true", strconv.Itoa(i))
-				}
-			}
-		}
-
-		// Attempt to send to unreliable destinations
-		for i, destSender := range unreliableDestinations {
-			if !destSender.NonBlockingSend(payload) {
-				tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
-				tlmMessagesDropped.Add(float64(len(payload.Messages)), "false", strconv.Itoa(i))
-				if s.senderDoneChan != nil {
-					senderDoneWg.Add(1)
-					s.senderDoneChan <- senderDoneWg
-				}
-			}
-		}
-
-		inUse := float64(time.Since(startInUse) / time.Millisecond)
-		tlmSendWaitTime.Add(inUse)
-		s.utilization.Stop()
-
-		if s.senderDoneChan != nil && s.flushWg != nil {
-			// Wait for all destinations to finish sending the payload
-			senderDoneWg.Wait()
-			// Decrement the wait group when this payload has been sent
-			s.flushWg.Done()
-		}
-		s.pipelineMonitor.ReportComponentEgress(payload, "sender")
+	log.Info("shared sender stopping")
+	for _, s := range s.workers {
+		s.stop()
 	}
-
-	// Cleanup the destinations
-	for _, destSender := range reliableDestinations {
-		destSender.Stop()
+	for i := range s.queues {
+		close(s.queues[i])
 	}
-	for _, destSender := range unreliableDestinations {
-		destSender.Stop()
-	}
-	close(sink)
-	s.done <- struct{}{}
-}
-
-// Drains the output channel from destinations that don't update the auditor.
-func additionalDestinationsSink(bufferSize int) chan *message.Payload {
-	sink := make(chan *message.Payload, bufferSize)
-	go func() {
-		// drain channel, stop when channel is closed
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range sink {
-		}
-	}()
-	return sink
-}
-
-func buildDestinationSenders(config pkgconfigmodel.Reader, destinations []client.Destination, output chan *message.Payload, bufferSize int) []*DestinationSender {
-	destinationSenders := []*DestinationSender{}
-	for _, destination := range destinations {
-		destinationSenders = append(destinationSenders, NewDestinationSender(config, destination, output, bufferSize))
-	}
-	return destinationSenders
 }
