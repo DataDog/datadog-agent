@@ -248,7 +248,6 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.0.0-20250102215417-1af8863cd8cd // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.38.1 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
