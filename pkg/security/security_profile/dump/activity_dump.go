@@ -16,7 +16,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
@@ -66,7 +65,12 @@ func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer, differentiat
 		onNeedNewTracedPid: onNeedNewTracedPid,
 	}
 
-	ad.Profile = profile.New(cgroupModel.WorkloadSelector{}, pathsReducer, differentiateArgs, dnsMatchMaxDepth, eventTypes)
+	ad.Profile = profile.New(
+		profile.WithPathsReducer(pathsReducer),
+		profile.WithDifferentiateArgs(differentiateArgs),
+		profile.WithDNSMatchMaxDepth(dnsMatchMaxDepth),
+		profile.WithEventTypes(eventTypes),
+	)
 	ad.Profile.SetTreeType(ad, "activity_dump")
 
 	return ad

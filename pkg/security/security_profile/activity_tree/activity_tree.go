@@ -190,20 +190,6 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	}
 }
 
-// NewActivityTreeNoOwner returns a new ActivityTree instance with no owner
-func NewActivityTreeNoOwner(pathsReducer *PathsReducer) *ActivityTree {
-	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
-	return &ActivityTree{
-		treeType:            "unknown",
-		validator:           nil,
-		pathsReducer:        pathsReducer,
-		Stats:               NewActivityTreeNodeStats(),
-		CookieToProcessNode: cache,
-		SyscallsMask:        make(map[int]int),
-		DNSNames:            utils.NewStringKeys(nil),
-	}
-}
-
 // SetType changes the type and owner of the ActivityTree
 func (at *ActivityTree) SetType(treeType string, validator Owner) {
 	at.treeType = treeType
