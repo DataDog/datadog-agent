@@ -211,11 +211,23 @@ docker_build_ot_agent_standalone_distroless:
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
     BUILD_CONTEXT: Dockerfiles/otel-agent
-    TAG_SUFFIX: -distroless
-    # TODO: test the content of the image
-    # BUILD_ARG: --target test
     FLATTEN_IMAGE: false
-
+    BUILD_ARG: --target production
+    TAG_SUFFIX: -distroless
+    
+docker_build_ot_agent_standalone_distroless_debug:
+  extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    - job: datadog-ot-agent-7-x64
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
+    BUILD_CONTEXT: Dockerfiles/otel-agent
+    FLATTEN_IMAGE: false
+    BUILD_ARG: --target debug
+    TAG_SUFFIX: -distroless-debug
 
 docker_build_ot_agent_standalone_distroless_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -231,6 +243,20 @@ docker_build_ot_agent_standalone_distroless_arm64:
     # TODO: test the content of the image
     # BUILD_ARG: --target test
     FLATTEN_IMAGE: false
+
+docker_build_ot_agent_standalone_distroless_debug_arm64:
+  extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    - job: datadog-ot-agent-7-arm64
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
+    BUILD_CONTEXT: Dockerfiles/otel-agent
+    FLATTEN_IMAGE: false
+    BUILD_ARG: --target debug
+    TAG_SUFFIX: -distroless-debug
 
 # build agent7 jmx image
 docker_build_ot_agent7_jmx:

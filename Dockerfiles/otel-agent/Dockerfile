@@ -90,7 +90,7 @@ COPY --from=debug /busybox/sh /busybox/sh
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 # TODO: confirm if this should be copied to otel-config.yaml.example
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
-ENV PATH="/opt/datadog-agent/embedded/bin:${PATH}"
+ENV PATH="/opt/datadog-agent/embedded/bin:/busybox:${PATH}"
 # Run the otel-agent
 ENTRYPOINT ["/busybox/sh", "-c"]
 CMD ["/opt/datadog-agent/embedded/bin/otel-agent run"]
