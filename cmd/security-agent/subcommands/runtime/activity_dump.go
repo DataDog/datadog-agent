@@ -26,7 +26,6 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
@@ -410,7 +409,7 @@ NEXT2:
 }
 
 func computeActivityDumpDiff(p1, p2 *profile.Profile, states map[string]bool) *profile.Profile {
-	p := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+	p := profile.New()
 	p.ActivityTree = &activity_tree.ActivityTree{
 		ProcessNodes: diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
 	}
@@ -418,12 +417,12 @@ func computeActivityDumpDiff(p1, p2 *profile.Profile, states map[string]bool) *p
 }
 
 func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpCliParams) error {
-	p := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+	p := profile.New()
 	if err := p.Decode(args.file); err != nil {
 		return err
 	}
 
-	p2 := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+	p2 := profile.New()
 	if err := p2.Decode(args.file2); err != nil {
 		return err
 	}
@@ -531,7 +530,7 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 
 	} else {
 		// encoding request will be handled locally
-		p := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+		p := profile.New()
 
 		// open and parse input file
 		if err := p.Decode(activityDumpArgs.file); err != nil {

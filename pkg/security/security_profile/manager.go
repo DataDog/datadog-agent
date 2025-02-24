@@ -1743,11 +1743,11 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 			m.cacheMiss.Inc()
 
 			p = profile.New(
-				selector,
-				m.pathsReducer,
-				m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
-				m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth,
-				m.secProfEventTypes,
+				profile.WithWorkloadSelector(selector),
+				profile.WithPathsReducer(m.pathsReducer),
+				profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
+				profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
+				profile.WithEventTypes(m.secProfEventTypes),
 			)
 
 			// insert the profile in the list of active profiles
@@ -1892,12 +1892,13 @@ func (m *Manager) onNewProfile(newProfile *profile.Profile) {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
 		// insert in cache and leave
 		p = profile.New(
-			selector,
-			m.pathsReducer,
-			m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
-			m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth,
-			m.secProfEventTypes,
+			profile.WithWorkloadSelector(selector),
+			profile.WithPathsReducer(m.pathsReducer),
+			profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
+			profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
+			profile.WithEventTypes(m.secProfEventTypes),
 		)
+
 		p.LoadFromNewProfile(newProfile)
 
 		m.pendingCacheLock.Lock()

@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -89,7 +88,7 @@ func NewProfileFromActivityDumpMessage(msg *api.ActivityDumpMessage) (*Profile, 
 		return nil, nil, fmt.Errorf("couldn't parse timeout [%s]: %w", metadata.GetTimeout(), err)
 	}
 
-	p := New(cgroupModel.WorkloadSelector{}, nil, metadata.GetDifferentiateArgs(), 0, nil)
+	p := New(WithDifferentiateArgs(metadata.GetDifferentiateArgs()))
 	p.Header.Host = msg.GetHost()
 	p.Header.Service = msg.GetService()
 	p.Header.Source = msg.GetSource()

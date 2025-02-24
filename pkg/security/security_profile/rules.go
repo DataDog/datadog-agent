@@ -17,7 +17,6 @@ import (
 
 	"github.com/google/uuid"
 
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
@@ -217,7 +216,7 @@ func LoadActivityDumpsFromFiles(path string) ([]*profile.Profile, error) {
 
 		profiles := []*profile.Profile{}
 		for _, file := range files {
-			p := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+			p := profile.New()
 			err := p.Decode(filepath.Join(path, file.Name()))
 			if err != nil {
 				return nil, fmt.Errorf("couldn't decode secdump: %w", err)
@@ -228,7 +227,7 @@ func LoadActivityDumpsFromFiles(path string) ([]*profile.Profile, error) {
 
 	}
 	// It's a file otherwise
-	p := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+	p := profile.New()
 	err = p.Decode(path)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't decode secdump: %w", err)

@@ -30,7 +30,7 @@ func newProfileWithSelector(name string, imageName string, imageTag string) *pro
 	pws := &profileWithSelector{}
 	pws.selector.Image = imageName
 	pws.selector.Tag = imageTag
-	pws.profile = profile.New(pws.selector, nil, false, 0, nil)
+	pws.profile = profile.New(profile.WithWorkloadSelector(pws.selector))
 	pws.profile.Metadata.Name = name
 	return pws
 }
@@ -83,7 +83,7 @@ func TestDirectory(t *testing.T) {
 			}
 
 			// Check that profile2 and profile3 can be loaded
-			loaded := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+			loaded := profile.New()
 			ok, err := d.Load(&p.selector, loaded)
 			require.NoErrorf(t, err, "failed to load profile %s", p.profile.Metadata.Name)
 			require.True(t, ok, "failed to load profile %s", p.profile.Metadata.Name)
@@ -97,7 +97,7 @@ func TestDirectory(t *testing.T) {
 	t.Run("eviction", func(t *testing.T) {
 		for _, p := range []*profileWithSelector{profile1} {
 			// Check that profile1 cannot be loaded
-			loaded := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+			loaded := profile.New()
 			ok, err := d.Load(&p.selector, loaded)
 			require.NoErrorf(t, err, "no profile should not return any error %s", p.profile.Metadata.Name)
 			assert.Falsef(t, ok, "profile should not be loaded %s", p.profile.Metadata.Name)
@@ -114,7 +114,7 @@ func TestDirectory(t *testing.T) {
 	t.Run("wildcard", func(t *testing.T) {
 		// Check that profile2 and profile3 can be loaded through a wildcard selector
 		for _, p := range []*profileWithSelector{profile2, profile3} {
-			loaded := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+			loaded := profile.New()
 			wildCardSelector := cgroupModel.WorkloadSelector{Image: p.selector.Image, Tag: "*"}
 			ok, err := d.Load(&wildCardSelector, loaded)
 			require.NoErrorf(t, err, "failed to load profile %s", p.profile.Metadata.Name)
@@ -132,7 +132,7 @@ func TestDirectory(t *testing.T) {
 		require.NoError(t, err)
 		for _, p := range []*profileWithSelector{profile2, profile3} {
 			// Check that profile2 and profile3 can be loaded
-			loaded := profile.New(cgroupModel.WorkloadSelector{}, nil, false, 0, nil)
+			loaded := profile.New()
 			ok, err := d1.Load(&p.selector, loaded)
 			require.NoErrorf(t, err, "failed to load profile %s", p.profile.Metadata.Name)
 			require.True(t, ok, "failed to load profile %s", p.profile.Metadata.Name)
