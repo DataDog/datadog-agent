@@ -507,7 +507,7 @@ func (w *workloadmeta) Reset(newEntities []wmdef.Entity, source wmdef.Source) {
 func (w *workloadmeta) IsInitialized() bool {
 	w.collectorMut.RLock()
 	defer w.collectorMut.RUnlock()
-	return w.collectorsInited == wmdef.CollectorsInitialized
+	return w.collectorsInitialized == wmdef.CollectorsInitialized
 }
 
 func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
@@ -592,8 +592,8 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 		// next tick
 		delete(w.candidates, id)
 	}
-	if w.collectorsInited == wmdef.CollectorsNotStarted {
-		w.collectorsInited = wmdef.CollectorsStarting
+	if w.collectorsInitialized == wmdef.CollectorsNotStarted {
+		w.collectorsInitialized = wmdef.CollectorsStarting
 	}
 	return len(w.candidates) == 0
 }
@@ -601,12 +601,12 @@ func (w *workloadmeta) startCandidates(ctx context.Context) bool {
 func (w *workloadmeta) updateCollectorStatus(status wmdef.CollectorStatus) {
 	w.collectorMut.Lock()
 	defer w.collectorMut.Unlock()
-	if w.collectorsInited == wmdef.CollectorsInitialized {
+	if w.collectorsInitialized == wmdef.CollectorsInitialized {
 		return // already initialized
-	} else if status == wmdef.CollectorsInitialized && w.collectorsInited == wmdef.CollectorsNotStarted {
+	} else if status == wmdef.CollectorsInitialized && w.collectorsInitialized == wmdef.CollectorsNotStarted {
 		return // no collectors to initialize yet
 	}
-	w.collectorsInited = status
+	w.collectorsInitialized = status
 }
 
 func (w *workloadmeta) pull(ctx context.Context) {

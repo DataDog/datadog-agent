@@ -132,6 +132,6 @@ type Component interface {
 	// Only EventTypeSet and EventTypeUnset event types are allowed.
 	Push(source Source, events ...Event) error
 
-	// IsInitialized: If startCandidates is run at least once, return true.
+	// IsInitialized If startCandidates is run at least once, return true.
 	IsInitialized() bool
 }

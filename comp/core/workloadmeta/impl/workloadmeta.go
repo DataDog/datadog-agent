@@ -37,10 +37,10 @@ type workloadmeta struct {
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
 
-	collectorMut     sync.RWMutex
-	candidates       map[string]wmdef.Collector
-	collectors       map[string]wmdef.Collector
-	collectorsInited wmdef.CollectorStatus
+	collectorMut          sync.RWMutex
+	candidates            map[string]wmdef.Collector
+	collectors            map[string]wmdef.Collector
+	collectorsInitialized wmdef.CollectorStatus
 
 	eventCh chan []wmdef.CollectorEvent
 
@@ -79,12 +79,12 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		log:    deps.Log,
 		config: deps.Config,
 
-		store:            make(map[wmdef.Kind]map[string]*cachedEntity),
-		candidates:       candidates,
-		collectors:       make(map[string]wmdef.Collector),
-		eventCh:          make(chan []wmdef.CollectorEvent, eventChBufferSize),
-		ongoingPulls:     make(map[string]time.Time),
-		collectorsInited: wmdef.CollectorsNotStarted,
+		store:                 make(map[wmdef.Kind]map[string]*cachedEntity),
+		candidates:            candidates,
+		collectors:            make(map[string]wmdef.Collector),
+		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),
+		ongoingPulls:          make(map[string]time.Time),
+		collectorsInitialized: wmdef.CollectorsNotStarted,
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
