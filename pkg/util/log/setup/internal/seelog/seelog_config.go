@@ -7,10 +7,11 @@
 package seelog
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
 	"strings"
 	"sync"
-	"text/template"
 )
 
 // Config abstracts seelog XML configuration definition
@@ -66,9 +67,9 @@ func (c *Config) Render() (string, error) {
 		syslogURI = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" data-uri="%s" data-tls="%t" />`, c.format, c.syslogURI, c.syslogUseTLS)
 	}
 
-	jsonSyslogFormat := template.HTMLEscapeString(`{"agent":"` + strings.ToLower(c.loggerName) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n`)
+	jsonSyslogFormat := xmlEscape(`{"agent":"` + strings.ToLower(c.loggerName) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n`)
 
-	return fmt.Sprintf(seelogConfigurationTemplate, c.logLevel, c.format, consoleLoggingEnabled, logfile, syslogURI, c.jsonFormat, c.commonFormat, c.syslogRFC, jsonSyslogFormat, template.HTMLEscapeString(c.loggerName)), nil
+	return fmt.Sprintf(seelogConfigurationTemplate, c.logLevel, c.format, consoleLoggingEnabled, logfile, syslogURI, c.jsonFormat, c.commonFormat, c.syslogRFC, jsonSyslogFormat, xmlEscape(c.loggerName)), nil
 }
 
 // EnableConsoleLog sets enable or disable console logging depending on the parameter value
@@ -89,7 +90,7 @@ func (c *Config) SetLogLevel(l string) {
 func (c *Config) EnableFileLogging(f string, maxsize, maxrolls uint) {
 	c.Lock()
 	defer c.Unlock()
-	c.logfile = template.HTMLEscapeString(f)
+	c.logfile = xmlEscape(f)
 	c.maxsize = maxsize
 	c.maxrolls = maxrolls
 }
@@ -98,7 +99,7 @@ func (c *Config) EnableFileLogging(f string, maxsize, maxrolls uint) {
 func (c *Config) ConfigureSyslog(syslogURI string, usetTLS bool) {
 	c.Lock()
 	defer c.Unlock()
-	c.syslogURI = template.HTMLEscapeString(syslogURI)
+	c.syslogURI = xmlEscape(syslogURI)
 	c.syslogUseTLS = usetTLS
 
 }
@@ -107,10 +108,17 @@ func (c *Config) ConfigureSyslog(syslogURI string, usetTLS bool) {
 func NewSeelogConfig(name, level, format, jsonFormat, commonFormat string, syslogRFC bool) *Config {
 	c := &Config{}
 	c.loggerName = name
-	c.format = template.HTMLEscapeString(format)
+	c.format = xmlEscape(format)
 	c.syslogRFC = syslogRFC
-	c.jsonFormat = template.HTMLEscapeString(jsonFormat)
-	c.commonFormat = template.HTMLEscapeString(commonFormat)
-	c.logLevel = template.HTMLEscapeString(level)
+	c.jsonFormat = xmlEscape(jsonFormat)
+	c.commonFormat = xmlEscape(commonFormat)
+	c.logLevel = xmlEscape(level)
 	return c
+}
+
+func xmlEscape(in string) string {
+	var buffer bytes.Buffer
+	// EscapeText can only fail if writing to the buffer fails, and writing to a bytes.Buffer cannot fail
+	_ = xml.EscapeText(&buffer, []byte(in))
+	return buffer.String()
 }
