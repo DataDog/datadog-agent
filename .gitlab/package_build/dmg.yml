@@ -135,9 +135,9 @@ new-agent_dmg-x64-a7:
     # - aws configure list
     # - aws configure get region
     # - exit
-    - echo Verifying libintl
-    - sudo find /usr -name "libintl*" || true
-    - sudo find /opt -name "libintl*" || true
+    # - echo Verifying libintl
+    # - sudo find /usr -name "libintl*" || true
+    # - sudo find /opt -name "libintl*" || true
 
     # - export PYTHON_VERSION=3.12.6
     # - which python
@@ -244,6 +244,11 @@ new-agent_dmg-x64-a7:
     # # TODO
     # - bash .gitlab/package_build/builder_setup.sh
     # Setup
+    - |
+      echo "$PWD/homebrew/bin" || true
+      ls "$PWD/homebrew/bin" || true
+      echo "Using custom homebrew"
+      export PATH="$PWD/homebrew/bin:$PATH"
     - |
       # TODO A: Omnibus cache
       unset INTEGRATION_WHEELS_CACHE_BUCKET || true
