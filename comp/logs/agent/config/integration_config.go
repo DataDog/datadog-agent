@@ -81,41 +81,17 @@ type LogsConfig struct {
 	// ChannelTagsMutex guards ChannelTags.
 	ChannelTagsMutex sync.Mutex
 
-	Service        string
-	Source         string
-	SourceCategory string
-
-	Tags            TagsField
-	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
+	Service         string
+	Source          string
+	SourceCategory  string
+	Tags            []string
+	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
-}
-
-// TagsField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
-type TagsField []string
-
-// UnmarshalYAML is a custom unmarshalling function is needed for string array fields to split comma-separated values.
-func (t *TagsField) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err == nil {
-		// note that we are intentionally avoiding the trimming of any spaces whilst splitting the string
-		*t = strings.Split(str, ",")
-		return nil
-	}
-
-	var raw []interface{}
-	if err := unmarshal(&raw); err == nil {
-		for _, item := range raw {
-			if str, ok := item.(string); ok {
-				*t = append(*t, str)
-			}
-		}
-	}
-	return fmt.Errorf("invalid tags format")
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
