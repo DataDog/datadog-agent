@@ -52,10 +52,11 @@ agent_dmg-x64-a7:
     export GPG_VERSION=1.4.23
     export CODECOV_VERSION=v0.6.1
     export OPENSSL_VERSION=1.1
+  # TODO A: Would it work by restoring the path and adding custom homebrew path after this setup? / By block listing gettext / git... ?
   - |
     echo Setup env
     mkdir bin
-    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true which vault du security touch cat basename go tr uname"
+    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true which vault du security touch cat basename go tr uname find"
     for binary in $binaries; do
       echo Using $binary
       ln -s "$(which $binary)" bin/$binary
