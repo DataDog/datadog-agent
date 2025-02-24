@@ -5,6 +5,14 @@
 
 package redis
 
+type CommandType uint8
+
+var (
+	UnknownCommand = CommandType(0x0)
+	GetCommand     = CommandType(0x1)
+	SetCommand     = CommandType(0x2)
+)
+
 // String returns a string representation of Command
 func (c CommandType) String() string {
 	switch c {
