@@ -317,11 +317,17 @@ func getPythonPackagesVersion(pythonBinPath string) map[string]string {
 	in := bufio.NewScanner(pipStdout)
 	for in.Scan() {
 		line := in.Text()
+		// Can be `package==version`
+		// Or `package @ url`
 		pkgVersion := strings.SplitN(line, "==", 2)
-		if len(pkgVersion) != 2 {
-			continue
+		pkgUrl := strings.SplitN(line, "@", 2)
+		if len(pkgVersion) == 2 {
+			packageVersions[pkgVersion[0]] = pkgVersion[1]
+		} else if len(pkgUrl) == 2 {
+			packageVersions[pkgUrl[0]] = pkgUrl[1]
+		} else {
+			log.Infof("Unable to parse python package version, it won't appear in the metadata payload: %s", line)
 		}
-		packageVersions[pkgVersion[0]] = pkgVersion[1]
 	}
 
 	return packageVersions

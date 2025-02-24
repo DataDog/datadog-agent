@@ -32,3 +32,24 @@ func TestGetPythonVersion(t *testing.T) {
 func TestGetPythonVersionNotSet(t *testing.T) {
 	require.Equal(t, "n/a", GetPythonVersion())
 }
+
+func TestGetPackagesVersion(t *testing.T) {
+	expected := map[string]string{
+		"datadog-nginx":  "1.0.0",
+		"datadog-apache": "2.0.0",
+	}
+
+	cache.Cache.Set(pythonPackagesCacheKey, expected, cache.NoExpiration)
+	defer cache.Cache.Delete(pythonPackagesCacheKey)
+	require.Equal(t, expected, GetPackagesVersion())
+}
+
+func TestGetPackagesVersionNotSet(t *testing.T) {
+	require.Equal(t, map[string]string{}, GetPackagesVersion())
+}
+
+func TestGetPackagesVersionEmpty(t *testing.T) {
+	cache.Cache.Set(pythonPackagesCacheKey, map[string]string{}, cache.NoExpiration)
+	defer cache.Cache.Delete(pythonPackagesCacheKey)
+	require.Equal(t, map[string]string{}, GetPackagesVersion())
+}

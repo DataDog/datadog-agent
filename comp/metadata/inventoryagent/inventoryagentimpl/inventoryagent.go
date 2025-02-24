@@ -335,11 +335,10 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 func (ia *inventoryagent) fetchPythonMetadata() {
 	pythonData := make(map[string]interface{})
 	pythonData["python_version"] = python.GetPythonVersion()
+	pythonPackages := python.GetPackagesVersion()
+	pythonData["python_packages"] = pythonPackages
 
 	ia.data["python"] = pythonData
-
-	pythonPackages := python.GetPackagesVersion()
-	ia.data["python_packages"] = pythonPackages
 }
 
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
