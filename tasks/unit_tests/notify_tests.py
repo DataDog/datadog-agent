@@ -404,7 +404,8 @@ class TestFailureSummarySendNotifications(unittest.TestCase):
     def test_ignore_non_scheduled_conductor(self, print_mock):
         notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
         print_mock.assert_called_with(
-            "Failure summary notifications are only sent if the pipeline started at 6:00 UTC, skipping", file=sys.stderr
+            "Failure summary notifications are only sent during the conductor scheduled pipeline, skipping",
+            file=sys.stderr,
         )
 
     @patch.dict('os.environ', {'CI_PIPELINE_CREATED_AT': '2025-02-07T06:11:11.111Z'})

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import yaml
 from invoke import Context, task
@@ -17,7 +17,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import send_metrics
-from tasks.libs.common.utils import gitlab_section
+from tasks.libs.common.utils import gitlab_section, is_conductor_scheduled_pipeline
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
 from tasks.libs.notify.jira_failing_tests import close_issue, get_failing_tests_names, get_jira
 from tasks.libs.notify.utils import PROJECT_NAME, should_notify
@@ -128,10 +128,9 @@ def failure_summary_send_notifications(
         daily_summary or weekly_summary and not (daily_summary and weekly_summary)
     ), "Exactly one of daily or weekly summary must be set"
 
-    pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
-    if not (pipeline_start.hour == 6 and pipeline_start.minute < 30):
+    if not (is_conductor_scheduled_pipeline()):
         print(
-            "Failure summary notifications are only sent if the pipeline started at 6:00 UTC, skipping",
+            "Failure summary notifications are only sent during the conductor scheduled pipeline, skipping",
             file=sys.stderr,
         )
         return
