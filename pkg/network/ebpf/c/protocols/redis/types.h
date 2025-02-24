@@ -12,7 +12,7 @@
 typedef enum {
     REDIS_GET = 0,
     REDIS_SET = 1,
-} redis_command_t;
+} __attribute__ ((packed)) redis_command_t;
 
 // Redis in-flight transaction info
 typedef struct {
