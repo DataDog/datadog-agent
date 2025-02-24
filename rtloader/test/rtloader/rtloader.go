@@ -345,3 +345,35 @@ func setModuleAttrString(module string, attr string, value string) {
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()
 }
+
+func getFakeModuleWithBool() (bool, error) {
+	var module *C.rtloader_pyobject_t
+	var class *C.rtloader_pyobject_t
+	var value C.bool
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	state := C.ensure_gil(rtloader)
+	defer C.release_gil(rtloader, state)
+
+	// class
+	moduleStr := (*C.char)(helpers.TrackedCString("fake_check"))
+	defer C._free(unsafe.Pointer(moduleStr))
+
+	// attribute
+	attributeStr := (*C.char)(helpers.TrackedCString("foo"))
+	defer C._free(unsafe.Pointer(attributeStr))
+
+	ret := C.get_class(rtloader, moduleStr, &module, &class)
+	if ret != 1 || module == nil || class == nil {
+		return false, fmt.Errorf(C.GoString(C.get_error(rtloader)))
+	}
+
+	ret = C.get_attr_bool(rtloader, module, attributeStr, &value)
+	if ret != 1 {
+		return false, fmt.Errorf(C.GoString(C.get_error(rtloader)))
+	}
+
+	return value == C.bool(true), nil
+}

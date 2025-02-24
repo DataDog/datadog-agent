@@ -98,9 +98,6 @@ jobs:
       - run:
           name: run docker image tests
           command: inv -e docker.test
-      - run:
-          name: run docker image integration tests
-          command: inv -e docker.integration-tests
 
 workflows:
   version: 2

@@ -6,7 +6,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.6.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3
-	github.com/DataDog/gopsutil v1.2.2
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/uuid v1.6.0
@@ -24,7 +23,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
-	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -41,7 +39,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect

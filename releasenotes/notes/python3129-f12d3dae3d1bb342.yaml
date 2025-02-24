@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+upgrade:
   - |
-    Bump go-sqllexer to v0.1.0 for cpu and memory allocations improvements.
+    Bump the Python version to 3.12.9

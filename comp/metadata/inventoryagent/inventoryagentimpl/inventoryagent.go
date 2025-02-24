@@ -203,7 +203,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
-			ia.log.Error("Could not parse '%s' configuration: %s", name, err)
+			ia.log.Errorf("Could not parse '%s' configuration: %s", name, err)
 		} else {
 			return cfg
 		}
