@@ -24,22 +24,22 @@ import (
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "foo", 0, true))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, true))
 	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "foo", 0, false))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, false))
 	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
-	url := buildURL(config.NewEndpoint("bar", "foo", 1234, false))
+	url := buildURL(config.NewEndpoint("bar", "", "foo", 1234, false))
 	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
-	e := config.NewEndpoint("bar", "foo", 0, false)
+	e := config.NewEndpoint("bar", "", "foo", 0, false)
 	e.Version = config.EPIntakeVersion2
 	e.TrackType = "test-track"
 	url := buildURL(e)
