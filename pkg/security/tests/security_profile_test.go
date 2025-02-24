@@ -2237,10 +2237,9 @@ func TestSecurityProfilePersistence(t *testing.T) {
 }
 
 func generateSyscallTestProfile(timeResolver *ktime.Resolver, add ...model.Syscall) *profile.Profile {
-	syscallProfile := profile.New(cgroupModel.WorkloadSelector{
-		Image: "fake_ubuntu",
-		Tag:   "latest",
-	}, nil, false, 0, nil)
+	syscallProfile := profile.New(
+		profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "fake_ubuntu", Tag: "latest"}),
+	)
 
 	baseSyscalls := []uint32{
 		5,   // SysFstat
