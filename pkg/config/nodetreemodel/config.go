@@ -337,10 +337,16 @@ func (c *ntmConfig) SetKnown(key string) {
 	c.addToSchema(key, model.SourceSchema)
 }
 
-// IsKnown returns whether a key is known
+// IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
+	return c.isKnownKey(key)
+}
+
+// isKnownKey returns whether the key is known.
+// Must be called with the lock read-locked.
+func (c *ntmConfig) isKnownKey(key string) bool {
 	key = strings.ToLower(key)
 	_, found := c.knownKeys[key]
 	return found
@@ -350,9 +356,8 @@ func (c *ntmConfig) IsKnown(key string) bool {
 // Only a single warning will be logged per unknown key.
 //
 // Must be called with the lock read-locked.
-// The lock can be released and re-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	if c.IsKnown(key) {
+	if c.isKnownKey(key) {
 		return
 	}
 
