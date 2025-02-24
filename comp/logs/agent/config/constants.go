@@ -5,6 +5,12 @@
 
 package config
 
+// Pipeline constraints
+const (
+	NumberOfPipelines          = 4
+	MaxLatencyThrottledSenders = 10
+)
+
 const (
 	// DateFormat is the default date format.
 	DateFormat = "2006-01-02T15:04:05.000000000Z"

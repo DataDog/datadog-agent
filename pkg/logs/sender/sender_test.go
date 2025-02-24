@@ -22,6 +22,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
+type testAuditor struct {
+	output chan *message.Payload
+}
+
+func (a *testAuditor) Channel() chan *message.Payload {
+	return a.output
+}
+func (a *testAuditor) Start() {
+}
+func (a *testAuditor) Stop() {
+}
+func (a *testAuditor) GetOffset(_ string) string      { return "" }
+func (a *testAuditor) GetTailingMode(_ string) string { return "" }
+
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Payload {
 	return &message.Payload{
 		Messages: []*message.Message{message.NewMessageWithSource(content, status, source, 0)},
@@ -37,7 +51,9 @@ func TestSender(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
 
 	input := make(chan *message.Payload, 1)
-	output := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
 
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
@@ -46,14 +62,14 @@ func TestSender(t *testing.T) {
 	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
 	cfg := configmock.New(t)
-	sender := NewSender(cfg, input, output, destinations, 0, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 0, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
 
 	// Write to the output should relay the message to the output (after sending it on the wire)
 	input <- expectedMessage
-	message, ok := <-output
+	message, ok := <-auditor.output
 
 	assert.True(t, ok)
 	assert.Equal(t, message, expectedMessage)
@@ -66,25 +82,27 @@ func TestSender(t *testing.T) {
 func TestSenderSingleDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
-	output := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
 
 	respondChan := make(chan int)
 
-	server := http.NewTestServerWithOptions(200, 0, true, respondChan, cfg)
+	server := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, respondChan, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
 	input <- &message.Payload{}
 
 	<-respondChan
-	<-output
+	<-auditor.output
 
 	<-respondChan
-	<-output
+	<-auditor.output
 
 	server.Stop()
 	sender.Stop()
@@ -94,17 +112,19 @@ func TestSenderSingleDestination(t *testing.T) {
 func TestSenderDualReliableDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
-	output := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
 
 	respondChan1 := make(chan int)
-	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
+	server1 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, respondChan1, cfg)
 
 	respondChan2 := make(chan int)
-	server2 := http.NewTestServerWithOptions(200, 0, true, respondChan2, cfg)
+	server2 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, respondChan2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -112,13 +132,13 @@ func TestSenderDualReliableDestination(t *testing.T) {
 
 	<-respondChan1
 	<-respondChan2
-	<-output
-	<-output
+	<-auditor.output
+	<-auditor.output
 
 	<-respondChan1
 	<-respondChan2
-	<-output
-	<-output
+	<-auditor.output
+	<-auditor.output
 
 	server1.Stop()
 	server2.Stop()
@@ -129,17 +149,19 @@ func TestSenderDualReliableDestination(t *testing.T) {
 func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
-	output := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
 
 	respondChan1 := make(chan int)
-	server1 := http.NewTestServerWithOptions(200, 0, true, respondChan1, cfg)
+	server1 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, respondChan1, cfg)
 
 	respondChan2 := make(chan int)
-	server2 := http.NewTestServerWithOptions(200, 0, false, respondChan2, cfg)
+	server2 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), false, respondChan2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -147,11 +169,11 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 
 	<-respondChan1
 	<-respondChan2
-	<-output
+	<-auditor.output
 
 	<-respondChan1
 	<-respondChan2
-	<-output
+	<-auditor.output
 
 	server1.Stop()
 	server2.Stop()
@@ -161,24 +183,26 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
-	output := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
 
 	reliableRespond := make(chan int)
-	reliableServer := http.NewTestServerWithOptions(200, 0, true, reliableRespond, cfg)
+	reliableServer := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, reliableRespond, cfg)
 
 	unreliableRespond := make(chan int)
-	unreliableServer := http.NewTestServerWithOptions(200, 0, false, unreliableRespond, cfg)
+	unreliableServer := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), false, unreliableRespond, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
 
 	<-reliableRespond
 	<-unreliableRespond
-	<-output
+	<-auditor.output
 
 	reliableServer.ChangeStatus(500)
 
@@ -210,25 +234,27 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
-	output := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
 
 	reliableRespond1 := make(chan int)
-	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
+	reliableServer1 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, reliableRespond1, cfg)
 
 	reliableRespond2 := make(chan int)
-	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2, cfg)
+	reliableServer2 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), false, reliableRespond2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
 
 	<-reliableRespond1
 	<-reliableRespond2
-	<-output
-	<-output
+	<-auditor.output
+	<-auditor.output
 
 	reliableServer1.ChangeStatus(500)
 
@@ -236,7 +262,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 	<-reliableRespond1 // let it respond 500 once
 	<-reliableRespond2 // Second endpoint gets the log line
-	<-output
+	<-auditor.output
 	<-reliableRespond1 // its in a loop now, once we respond 500 a second time we know the sender has marked the endpoint as retrying
 
 	// send another log
@@ -245,7 +271,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	// reliable still stuck in retry loop - responding 500 over and over again.
 	<-reliableRespond1
 	<-reliableRespond2 // Second output gets the line again
-	<-output
+	<-auditor.output
 
 	reliableServer1.Stop()
 	reliableServer2.Stop()
@@ -256,25 +282,27 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
-	output := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
 
 	reliableRespond1 := make(chan int)
-	reliableServer1 := http.NewTestServerWithOptions(200, 0, true, reliableRespond1, cfg)
+	reliableServer1 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), true, reliableRespond1, cfg)
 
 	reliableRespond2 := make(chan int)
-	reliableServer2 := http.NewTestServerWithOptions(200, 0, false, reliableRespond2, cfg)
+	reliableServer2 := http.NewTestServerWithOptions(200, http.NewLimitedMaxSenderPool(0), false, reliableRespond2, cfg)
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
+	sender := NewSender(cfg, input, auditor, destinations, 10, nil, nil, metrics.NewNoopPipelineMonitor(""))
 	sender.Start()
 
 	input <- &message.Payload{}
 
 	<-reliableRespond1
 	<-reliableRespond2
-	<-output
-	<-output
+	<-auditor.output
+	<-auditor.output
 
 	reliableServer1.ChangeStatus(500)
 
@@ -282,7 +310,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 
 	<-reliableRespond1 // let it respond 500 once
 	<-reliableRespond2 // Second endpoint gets the log line
-	<-output
+	<-auditor.output
 	<-reliableRespond1 // its in a loop now, once we respond 500 a second time we know the sender has marked the endpoint as retrying
 
 	// send another log
@@ -291,7 +319,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	// reliable still stuck in retry loop - responding 500 over and over again.
 	<-reliableRespond1
 	<-reliableRespond2 // Second output gets the line again
-	<-output
+	<-auditor.output
 
 	// Recover the first server
 	reliableServer1.ChangeStatus(200)
@@ -303,15 +331,15 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 		}
 	}
 
-	<-output // get the buffered log line that was stuck
+	<-auditor.output // get the buffered log line that was stuck
 
 	// Make sure everything is unblocked
 	input <- &message.Payload{}
 
 	<-reliableRespond1
 	<-reliableRespond2
-	<-output
-	<-output
+	<-auditor.output
+	<-auditor.output
 
 	reliableServer1.Stop()
 	reliableServer2.Stop()

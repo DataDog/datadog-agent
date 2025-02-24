@@ -62,7 +62,16 @@ const (
 	DefaultBatchWait = 5
 
 	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
+	DefaultBatchMaxConcurrentSend = 1
+
+	// DefaultSendersCountPerQueue is how many concurrent senders the shared sender will use
+	DefaultSendersCountPerQueue = 1
+
+	// DefaultQueuesCount is how many queues are used to transfer message between the processor and senders
+	DefaultQueuesCount = 4
+
+	// DefaultTargetLatency is the default target latency for log payload submission
+	DefaultTargetLatency = 200 * time.Millisecond
 
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
 	DefaultBatchMaxSize = 1000
@@ -2462,7 +2471,10 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
 	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault(prefix+"target_latency", 200*time.Millisecond)
 	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
+	config.BindEnvAndSetDefault(prefix+"senders_per_queue", DefaultSendersCountPerQueue)
+	config.BindEnvAndSetDefault(prefix+"queues_count", DefaultQueuesCount)
 	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
 	config.BindEnvAndSetDefault(prefix+"input_chan_size", DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs
 	config.BindEnvAndSetDefault(prefix+"sender_backoff_factor", DefaultLogsSenderBackoffFactor)

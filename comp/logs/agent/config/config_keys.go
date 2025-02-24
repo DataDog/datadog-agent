@@ -207,6 +207,15 @@ func (l *LogsConfigKeys) batchMaxConcurrentSend() int {
 	return batchMaxConcurrentSend
 }
 
+func (l *LogsConfigKeys) targetLatency() time.Duration {
+	oldKey := l.getConfigKey("batch_max_concurrent_send")
+	if l.getConfig().GetInt(oldKey) > 0 {
+		return 0
+	}
+	key := l.getConfigKey("target_latency")
+	return l.getConfig().GetDuration(key)
+}
+
 func (l *LogsConfigKeys) batchMaxSize() int {
 	key := l.getConfigKey("batch_max_size")
 	batchMaxSize := l.getConfig().GetInt(key)

@@ -251,6 +251,7 @@ type Endpoints struct {
 	UseHTTP                bool
 	BatchWait              time.Duration
 	BatchMaxConcurrentSend int
+	TargetLatency          time.Duration
 	BatchMaxSize           int
 	BatchMaxContentSize    int
 	InputChanSize          int
@@ -277,6 +278,7 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		useHTTP,
 		pkgconfigsetup.DefaultBatchWait,
 		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		pkgconfigsetup.DefaultTargetLatency,
 		pkgconfigsetup.DefaultBatchMaxSize,
 		pkgconfigsetup.DefaultBatchMaxContentSize,
 		pkgconfigsetup.DefaultInputChanSize,
@@ -284,7 +286,7 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, targetLatency time.Duration, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
 		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
@@ -292,6 +294,7 @@ func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint
 		UseHTTP:                useHTTP,
 		BatchWait:              batchWait,
 		BatchMaxConcurrentSend: batchMaxConcurrentSend,
+		TargetLatency:          targetLatency,
 		BatchMaxSize:           batchMaxSize,
 		BatchMaxContentSize:    batchMaxContentSize,
 		InputChanSize:          inputChanSize,
