@@ -16,7 +16,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log
-	github.com/DataDog/datadog-agent/pkg/util/option => ../optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../system
