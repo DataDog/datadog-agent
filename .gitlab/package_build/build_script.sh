@@ -45,7 +45,8 @@ mkdir -p $HOME/go
 echo 'export GOPATH=$HOME/go' >> ~/.build_setup
 echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
 export GO_VERSION="$(cat .go-version)"
-eval "$(gimme $GO_VERSION)"
+eval $(gimme $GO_VERSION)
+which go
 . ~/.build_setup
 # TODO: xcode 14.2?
 # - xcode-select -s /Applications/Xcode_14.3.1.app

@@ -72,6 +72,16 @@ agent_dmg-x64-a7:
     # TODO A: Necessary?
     chmod -R go-w "$(brew --prefix)/share/zsh"
     brew tap DataDog/datadog-agent-macos-build
+  # TODO: Bellow
+  - |
+    echo Install gimme
+    brew install DataDog/datadog-agent-macos-build/gimme@$GIMME_VERSION -f
+    brew link --overwrite gimme@$GIMME_VERSION
+  # TODO A: This is done three times
+  - |
+      eval $(gimme $(cat .go-version))
+      export GOPATH=$GOROOT
+      which go
   - |
     echo Install cmake
     brew install DataDog/datadog-agent-macos-build/cmake@$CMAKE_VERSION -f
@@ -125,14 +135,6 @@ agent_dmg-x64-a7:
     export PATH="$CARGO_HOME/bin:$RUSTUP_HOME/bin:$PATH"
     # which cargo
     # which rustc
-  - |
-    echo Install gimme
-    brew install DataDog/datadog-agent-macos-build/gimme@$GIMME_VERSION -f
-    brew link --overwrite gimme@$GIMME_VERSION
-  # TODO A: This is done three times
-  - |
-      eval $(gimme $(cat .go-version))
-      export GOPATH=$GOROOT
 
 new-agent_dmg-x64-a7:
   stage: package_build

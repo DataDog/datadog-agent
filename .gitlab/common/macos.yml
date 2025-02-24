@@ -44,8 +44,6 @@
     - |
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
-      # TODO
-      which go
     # Selecting the current Python version
     # - !reference [.select_python_env_commands]
     # List Python and Go existing environments and their disk space
