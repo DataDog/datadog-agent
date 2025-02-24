@@ -34,6 +34,7 @@ var nonLocalMetadataFlareFiles = []string{
 }
 
 var nonLocalFlareFiles = []string{
+	"process-agent_tagger-list.json",
 	"tagger-list.json",
 	"workload-list.log",
 	"agent_open_files.txt",
@@ -93,19 +94,16 @@ var profilingFiles = []string{
 	"profiles/core-block.pprof",
 	"profiles/core-cpu.pprof",
 	"profiles/core-mutex.pprof",
-	"profiles/trace-1st-heap.pprof",
-	"profiles/trace-2nd-heap.pprof",
-	"profiles/trace-block.pprof",
-	"profiles/trace-cpu.pprof",
-	"profiles/trace-mutex.pprof",
-}
-
-var profilingNonLinuxFiles = []string{
 	"profiles/process-1st-heap.pprof",
 	"profiles/process-2nd-heap.pprof",
 	"profiles/process-block.pprof",
 	"profiles/process-cpu.pprof",
 	"profiles/process-mutex.pprof",
+	"profiles/trace-1st-heap.pprof",
+	"profiles/trace-2nd-heap.pprof",
+	"profiles/trace-block.pprof",
+	"profiles/trace-cpu.pprof",
+	"profiles/trace-mutex.pprof",
 }
 
 // untestedFiles contains some untested files that needs specific scenario which should be added later.
