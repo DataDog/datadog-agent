@@ -55,9 +55,31 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 	var staticTags uint64
 	e.redisAggregationsBuilder.Reset(w)
 
-	for range connectionData.Data {
+	for _, kv := range connectionData.Data {
+		key := kv.Key
+		stats := kv.Value
+		staticTags |= stats.StaticTags
 		e.redisAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
-			builder.SetRedis(func(*model.RedisStatsBuilder) {})
+			builder.SetRedis(func(statsBuilder *model.RedisStatsBuilder) {
+				switch key.Command {
+				case redis.GetCommand:
+					statsBuilder.SetCommand(uint64(model.RedisCommand_RedisGetCommand))
+				case redis.SetCommand:
+					statsBuilder.SetCommand(uint64(model.RedisCommand_RedisSetCommand))
+				default:
+					statsBuilder.SetCommand(uint64(model.RedisCommand_RedisUnknownCommand))
+				}
+				statsBuilder.SetKeyName(key.KeyName)
+				statsBuilder.SetTruncated(key.Truncated)
+				statsBuilder.SetCount(uint32(stats.Count))
+				if latencies := stats.Latencies; latencies != nil {
+					statsBuilder.SetLatencies(func(b *bytes.Buffer) {
+						latencies.EncodeProto(b)
+					})
+				} else {
+					statsBuilder.SetFirstLatencySample(stats.FirstLatencySample)
+				}
+			})
 		})
 	}
 
