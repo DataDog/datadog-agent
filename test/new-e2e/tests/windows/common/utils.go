@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
+	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -119,4 +120,64 @@ func CleanDirectory(host *components.RemoteHost, dir string) error {
 	}
 
 	return nil
+}
+
+// DefaultRebootBackoff returns a default backoff that is intended to cover normal reboot cases.
+// Cases with extended reboot times such as sysprep may require a longer backoff.
+//
+// Current backoffs: 5s, 7s, 11s, 17s, 25s, 38s, 60s, 60s...for up to 5 minutes
+func DefaultRebootBackoff() backoff.BackOff {
+	return backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(5*time.Second),
+		backoff.WithMaxInterval(60*time.Second),
+		backoff.WithMaxElapsedTime(5*time.Minute),
+	)
+}
+
+// RebootAndWaitWithBackoff reboots the host and waits for the reboot to complete.
+func RebootAndWaitWithBackoff(host *components.RemoteHost, b backoff.BackOff) error {
+	return WaitForRebootFunc(host, b, func() error {
+		// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/restart-computer
+		_, _ = host.Execute("Restart-Computer -Force")
+		// Is ignoring the error the right thing to do? Does it ever fail, or could it transient failure
+		// if reboot happens before the command returns?
+		return nil
+	})
+}
+
+// WaitForRebootFunc waits for the host to reboot by checking the last boot time, rebootFunc is called
+// only once and must trigger the reboot when called.
+func WaitForRebootFunc(host *components.RemoteHost, b backoff.BackOff, rebootFunc func() error) error {
+	// get last boot time
+	out, err := host.Execute("(Get-CimInstance Win32_OperatingSystem).LastBootUpTime")
+	if err != nil {
+		return fmt.Errorf("failed to get last boot time: %w", err)
+	}
+	lastBootTime := strings.TrimSpace(out)
+	fmt.Println("last boot time:", lastBootTime)
+
+	// trigger reboot
+	err = rebootFunc()
+	if err != nil {
+		return fmt.Errorf("failed to trigger reboot: %w", err)
+	}
+
+	// wait for last boot time to change, this indicates the reboot has completed
+	return backoff.Retry(func() error {
+		// need to re-establish connection after reboot
+		err := host.Reconnect()
+		if err != nil {
+			return err
+		}
+		out, err = host.Execute("(Get-CimInstance Win32_OperatingSystem).LastBootUpTime")
+		if err != nil {
+			return err
+		}
+		bootTime := strings.TrimSpace(out)
+		fmt.Println("current boot time:", bootTime)
+		if bootTime == lastBootTime {
+			return fmt.Errorf("boot time has not changed")
+		}
+		return nil
+	}, b)
 }
