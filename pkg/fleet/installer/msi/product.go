@@ -9,8 +9,20 @@ package msi
 
 import (
 	"fmt"
+	"syscall"
+	"unsafe"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+)
+
+const (
+	INSTALLPROPERTY_LOCALPACKAGE = "LocalPackage"
+)
+
+var (
+	msiDLL                 = syscall.NewLazyDLL("msi.dll")
+	procMsiGetProductInfoW = msiDLL.NewProc("MsiGetProductInfoW")
 )
 
 // Product represents a software from the Windows Registry
@@ -85,4 +97,43 @@ func processKey(rootPath, key, name string) (*Product, error) {
 	}
 
 	return nil, nil
+}
+
+// FindProductMSI returns the path to the MSI file for the given product code
+func FindProductMSI(productCode string) (string, error) {
+	msiLocation, err := msiGetProductInfo(productCode, INSTALLPROPERTY_LOCALPACKAGE)
+	if err != nil {
+		return "", err
+	}
+	return msiLocation, nil
+}
+
+// MsiGetProductInfo retrieves the requested information about a product in the Windows Installer database
+// https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msigetproductinfoa
+func msiGetProductInfo(productCode, property string) (string, error) {
+	var value [syscall.MAX_PATH]uint16
+	var size uint32 = syscall.MAX_PATH
+
+	productCodePtr, err := syscall.UTF16PtrFromString(productCode)
+	if err != nil {
+		return "", err
+	}
+
+	propertyPtr, err := syscall.UTF16PtrFromString(property)
+	if err != nil {
+		return "", err
+	}
+
+	r, _, err := procMsiGetProductInfoW.Call(
+		uintptr(unsafe.Pointer(productCodePtr)),
+		uintptr(unsafe.Pointer(propertyPtr)),
+		uintptr(unsafe.Pointer(&value[0])),
+		uintptr(unsafe.Pointer(&size)),
+	)
+	var windowsErr = windows.Errno(r)
+	if windowsErr != windows.ERROR_SUCCESS {
+		return "", fmt.Errorf("MsiGetProductInfo failed: %v", err)
+	}
+
+	return syscall.UTF16ToString(value[:]), nil
 }
