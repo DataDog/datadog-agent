@@ -32,7 +32,7 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
-if windows_target?
+if windows_target? || oxs_target?
     raise UnknownPlatform
 end
 
@@ -76,10 +76,8 @@ end
 exclude '\.git*'
 exclude 'bundler\/git'
 
-if linux_target? or windows_target?
-    # the stripper will drop the symbols in a `.debug` folder in the installdir
-    # we want to make sure that directory is not in the main build, while present
-    # in the debug package.
-    strip_build true
-    debug_path ".debug"  # the strip symbols will be in here
-end
+# the stripper will drop the symbols in a `.debug` folder in the installdir
+# we want to make sure that directory is not in the main build, while present
+# in the debug package.
+strip_build true
+debug_path ".debug"  # the strip symbols will be in here
