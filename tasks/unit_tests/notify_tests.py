@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -395,3 +396,21 @@ class TestJobOwners(unittest.TestCase):
                 ('@DataDog/team-everything', {'this_is_a_test', 'hello_world'}),
             ],
         )
+
+
+class TestFailureSummarySendNotifications(unittest.TestCase):
+    @patch.dict('os.environ', {'CI_PIPELINE_CREATED_AT': '2025-02-07T11:11:11.111Z'})
+    @patch('builtins.print')
+    def test_ignore_non_scheduled_conductor(self, print_mock):
+        notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
+        print_mock.assert_called_with(
+            "Failure summary notifications are only sent during the conductor scheduled pipeline, skipping",
+            file=sys.stderr,
+        )
+
+    @patch.dict('os.environ', {'CI_PIPELINE_CREATED_AT': '2025-02-07T06:11:11.111Z'})
+    @patch('tasks.notify.failure_summary', new=MagicMock())
+    @patch('builtins.print')
+    def test_sheduled_conductor(self, print_mock):
+        notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
+        print_mock.assert_not_called()
