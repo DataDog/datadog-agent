@@ -335,6 +335,7 @@
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
+/comp/trace/ssi @DataDog//* @DataDog/TODO
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
 /comp/haagent @DataDog/ndm-core
