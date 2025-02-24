@@ -95,7 +95,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 		if len(t.TracerVersions) == 0 {
 			libVersions = getAllLatestDefaultLibraries(config.containerRegistry)
 		} else {
-			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry)
+			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false).libs
 		}
 
 		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid

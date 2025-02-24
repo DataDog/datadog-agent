@@ -346,10 +346,30 @@ func getOptionalStringValue(datadogConfig config.Component, key string) *string 
 	return value
 }
 
+type pinnedLibraries struct {
+	// libs are the pinned libraries themselves.
+	libs []libInfo
+	// areSetToDefaults is true when the libs coming from the configuration
+	// are equivalent to what would be set if there was no configuration at all.
+	areSetToDefaults bool
+}
+
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
 // given a registry.
-func getPinnedLibraries(libVersions map[string]string, registry string) []libInfo {
-	var res []libInfo
+func getPinnedLibraries(libVersions map[string]string, registry string, checkDefaults bool) pinnedLibraries {
+	var (
+		res                       pinnedLibraries
+		remainingDefaultLanguages map[language]bool
+	)
+
+	if checkDefaults {
+		// we assume that this is true and then we prove that it is false
+		// by walking through the configuration given and seeing if it
+		// is equivalent to what is pinned in the agent.
+		res.areSetToDefaults = true
+		remainingDefaultLanguages = defaultSupportedLanguagesMap()
+	}
+
 	for lang, version := range libVersions {
 		l := language(lang)
 		if !l.isSupported() {
@@ -357,16 +377,30 @@ func getPinnedLibraries(libVersions map[string]string, registry string) []libInf
 			continue
 		}
 
-		log.Infof("Library version %s is specified for language %s", version, lang)
-		res = append(res, l.libInfo("", l.libImageName(registry, version)))
+		info := l.libInfo("", l.libImageName(registry, version))
+		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
+		res.libs = append(res.libs, info)
+
+		if res.areSetToDefaults {
+			delete(remainingDefaultLanguages, l)
+			defaultImage := l.libImageName(registry, l.defaultLibVersion())
+			if info.image != defaultImage {
+				res.areSetToDefaults = false
+			}
+		}
+	}
+
+	if checkDefaults {
+		if len(remainingDefaultLanguages) > 0 {
+			res.areSetToDefaults = false
+		}
 	}
 
 	return res
 }
 
 func initDefaultResources(datadogConfig config.Component) (initResourceRequirementConfiguration, error) {
-
-	var conf = initResourceRequirementConfiguration{}
+	conf := initResourceRequirementConfiguration{}
 
 	if datadogConfig.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(datadogConfig.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
