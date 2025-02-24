@@ -104,7 +104,7 @@ func OtelSpanToDDSpanMinimal(
 			ddspan.Meta["span.kind"] = traceutil.OTelSpanKindName(spanKind)
 		}
 		var code uint32
-		if incomingCode, ok := otelspan.Attributes().Get("datadog.status_code"); ok {
+		if incomingCode, ok := otelspan.Attributes().Get("datadog.http_status_code"); ok {
 			code = uint32(incomingCode.Int())
 		} else {
 			code = traceutil.GetOTelStatusCode(otelspan)
@@ -180,18 +180,18 @@ func setMetricOTLPWithSemConvMappings(k string, value float64, ddspan *pb.Span, 
 }
 
 var ddSemanticsKeysToMetaKeys = map[string]string{
-	"datadog.env":         "env",
-	"datadog.version":     "version",
-	"datadog.status_code": "http.status_code",
-	"datadog.error.msg":   "error.msg",
-	"datadog.error.type":  "error.type",
-	"datadog.error.stack": "error.stack",
+	"datadog.env":              "env",
+	"datadog.version":          "version",
+	"datadog.http_status_code": "http.status_code",
+	"datadog.error.msg":        "error.msg",
+	"datadog.error.type":       "error.type",
+	"datadog.error.stack":      "error.stack",
 }
 
 var metaKeysToDDSemanticsKeys = map[string]string{
 	"env":              "datadog.env",
 	"version":          "datadog.version",
-	"http.status_code": "datadog.status_code",
+	"http.status_code": "datadog.http_status_code",
 	"error.msg":        "datadog.error.msg",
 	"error.type":       "datadog.error.type",
 	"error.stack":      "datadog.error.stack",
