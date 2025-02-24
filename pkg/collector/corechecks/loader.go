@@ -90,5 +90,5 @@ func init() {
 		return NewGoCheckLoader()
 	}
 
-	loaders.RegisterLoader(20, factory)
+	loaders.RegisterLoader(30, factory)
 }
