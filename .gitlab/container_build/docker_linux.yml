@@ -177,7 +177,7 @@ docker_build_ot_agent7:
     - when: on_success
   needs:
     - job: datadog-agent-7-x64
-    - job: otel-agent-x64
+    - job: datadog-otel-agent-x64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -191,7 +191,7 @@ docker_build_ot_agent7_arm64:
     - when: on_success
   needs:
     - job: datadog-agent-7-arm64
-    - job: otel-agent-arm64
+    - job: datadog-otel-agent-arm64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -205,7 +205,7 @@ docker_build_ot_agent7_jmx:
     - when: on_success
   needs:
     - job: datadog-agent-7-x64
-    - job: otel-agent-x64
+    - job: datadog-otel-agent-x64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -219,7 +219,7 @@ docker_build_ot_agent7_jmx_arm64:
     - when: on_success
   needs:
     - job: datadog-agent-7-arm64
-    - job: otel-agent-arm64
+    - job: datadog-otel-agent-arm64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent

@@ -193,7 +193,7 @@ dogstatsd-arm64:
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
-otel-agent-x64:
+datadog-otel-agent-x64:
   extends: .otel_build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -201,7 +201,7 @@ otel-agent-x64:
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
-otel-agent-arm64:
+datadog-otel-agent-arm64:
   extends: .otel_build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
