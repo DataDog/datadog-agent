@@ -429,7 +429,6 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	state := s.host.State()
 	// Assert setup successful
 	state.AssertDirExists("/etc/datadog-agent/managed", 0755, "root", "root")
-	state.AssertDirExists("/etc/datadog-agent/managed/datadog-apm-libraries", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/managed/datadog-agent", 0755, "root", "root")
 	state.AssertSymlinkExists("/etc/datadog-agent/managed/datadog-agent/stable", "/etc/datadog-agent/managed/datadog-agent/empty", "root", "root")
 

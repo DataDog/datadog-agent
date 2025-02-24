@@ -35,7 +35,6 @@ import (
 const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
-	packageAPMLibraries     = "datadog-apm-libraries"
 	packageDatadogInstaller = "datadog-installer"
 )
 
@@ -225,16 +224,6 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	err = i.configurePackage(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
-	}
-	if pkg.Name == packageDatadogInstaller {
-		// We must handle the configuration of some packages that are not
-		// don't have an OCI. To properly configure their configuration repositories,
-		// we call configurePackage when setting up the installer; which is the only
-		// package that is always installed.
-		err = i.configurePackage(ctx, packageAPMLibraries)
-		if err != nil {
-			return fmt.Errorf("could not configure package: %w", err)
-		}
 	}
 	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
