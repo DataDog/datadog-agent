@@ -55,7 +55,7 @@ agent_dmg-x64-a7:
   - |
     echo Setup env
     mkdir bin
-    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true which vault du security touch cat basename"
+    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true which vault du security touch cat basename go"
     for binary in $binaries; do
       echo Using $binary
       ln -s "$(which $binary)" bin/$binary
@@ -129,6 +129,10 @@ agent_dmg-x64-a7:
     echo Install gimme
     brew install DataDog/datadog-agent-macos-build/gimme@$GIMME_VERSION -f
     brew link --overwrite gimme@$GIMME_VERSION
+  # TODO A: This is done three times
+  - |
+      eval $(gimme $(cat .go-version))
+      export GOPATH=$GOROOT
 
 new-agent_dmg-x64-a7:
   stage: package_build
