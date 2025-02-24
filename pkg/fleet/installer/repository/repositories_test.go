@@ -15,8 +15,7 @@ import (
 
 func newTestRepositories(t *testing.T) *Repositories {
 	rootPath := t.TempDir()
-	locksRootPath := t.TempDir()
-	repositories := NewRepositories(rootPath, locksRootPath)
+	repositories := NewRepositories(rootPath, nil)
 	return repositories
 }
 
@@ -53,7 +52,7 @@ func TestRepositoriesReopen(t *testing.T) {
 	err = repositories.Create("repo2", "v1", t.TempDir())
 	assert.NoError(t, err)
 
-	repositories = NewRepositories(repositories.rootPath, repositories.locksPath)
+	repositories = NewRepositories(repositories.rootPath, nil)
 
 	state, err := repositories.GetStates()
 	assert.NoError(t, err)
@@ -64,14 +63,13 @@ func TestRepositoriesReopen(t *testing.T) {
 
 func TestLoadRepositories(t *testing.T) {
 	rootDir := t.TempDir()
-	runDir := t.TempDir()
 
 	os.Mkdir(path.Join(rootDir, "datadog-agent"), 0755)
 	os.Mkdir(path.Join(rootDir, tempDirPrefix+"2394812349"), 0755)
 	os.Mkdir(path.Join(rootDir, "run"), 0755)
 	os.Mkdir(path.Join(rootDir, "tmp"), 0755)
 
-	repositories, err := NewRepositories(rootDir, runDir).loadRepositories()
+	repositories, err := NewRepositories(rootDir, nil).loadRepositories()
 	assert.NoError(t, err)
 	assert.Len(t, repositories, 1)
 	assert.Contains(t, repositories, "datadog-agent")

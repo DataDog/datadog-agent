@@ -6,7 +6,11 @@
 package containers
 
 import (
+	"fmt"
+	"math/rand"
+	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -84,7 +88,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 			Tags: &[]string{},
 			Value: &testMetricExpectValueArgs{
 				Min: 4,
-				Max: 4,
+				Max: 5,
 			},
 		},
 	})
@@ -135,6 +139,38 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 	})
 
+	const ctrNameSize = 12
+	const ctrNameCharset = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+	rand.Seed(time.Now().UnixNano())
+
+	ctrNameData := make([]byte, ctrNameSize)
+	for i := range ctrNameSize {
+		ctrNameData[i] = ctrNameCharset[rand.Intn(len(ctrNameCharset))]
+	}
+	ctrName := "exit_42_" + string(ctrNameData)
+
+	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "docker.containers.stopped",
+			Tags: []string{`^short_image:busybox$`},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^docker_image:public.ecr.aws/docker/library/busybox:latest$`,
+				`^image_name:public.ecr.aws/docker/library/busybox$`,
+				`^image_tag:latest$`,
+				`^short_image:busybox$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Min: 1,
+				Max: 10,
+			},
+		},
+	})
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "docker.containers.stopped.total",
@@ -142,9 +178,47 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{},
 			Value: &testMetricExpectValueArgs{
-				Min: 0,
-				Max: 0,
+				Min: 1,
+				Max: 10,
 			},
+		},
+	})
+}
+
+func (suite *DockerSuite) TestDockerEvents() {
+	const ctrNameSize = 12
+	const ctrNameCharset = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+	rand.Seed(time.Now().UnixNano())
+
+	ctrNameData := make([]byte, ctrNameSize)
+	for i := range ctrNameSize {
+		ctrNameData[i] = ctrNameCharset[rand.Intn(len(ctrNameCharset))]
+	}
+	ctrName := "exit_42_" + string(ctrNameData)
+
+	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
+
+	suite.testEvent(&testEventArgs{
+		Filter: testEventFilterArgs{
+			Source: "docker",
+			Tags: []string{
+				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
+			},
+		},
+		Expect: testEventExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:` + regexp.QuoteMeta(ctrName) + `$`,
+				`^docker_image:public.ecr.aws/docker/library/busybox$`,
+				`^image_id:sha256:`,
+				`^image_name:public.ecr.aws/docker/library/busybox$`,
+				`^short_image:busybox$`,
+			},
+			Title:     `busybox .*1 die`,
+			Text:      "DIE\t" + regexp.QuoteMeta(ctrName),
+			Priority:  "normal",
+			AlertType: "info",
 		},
 	})
 }

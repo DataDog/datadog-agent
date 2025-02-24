@@ -13,8 +13,6 @@ const (
 	PackagesPath = "/opt/datadog-packages"
 	// ConfigsPath is the path to the Fleet-managed configuration directory.
 	ConfigsPath = "/etc/datadog-agent/managed"
-	// LocksPath is the path to the packages locks directory.
-	LocksPath = "/opt/datadog-packages/run/locks"
 	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
 	RootTmpDir = "/opt/datadog-packages/tmp"
 	// DefaultUserConfigsDir is the default Agent configuration directory.

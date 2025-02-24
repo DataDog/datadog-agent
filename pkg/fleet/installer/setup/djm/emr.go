@@ -147,10 +147,14 @@ func setupCommonEmrHostTags(s *common.Setup) (bool, string, error) {
 func setupResourceManager(s *common.Setup, clusterName string) {
 	var sparkIntegration common.IntegrationConfig
 	var yarnIntegration common.IntegrationConfig
-
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Infof("Failed to get hostname, defaulting to localhost: %v", err)
+		hostname = "localhost"
+	}
 	sparkIntegration.Instances = []any{
 		common.IntegrationConfigInstanceSpark{
-			SparkURL:         "http://127.0.0.1:8088",
+			SparkURL:         "http://" + hostname + ":8088",
 			SparkClusterMode: "spark_yarn_mode",
 			ClusterName:      clusterName,
 			StreamingMetrics: false,
@@ -158,7 +162,7 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 	}
 	yarnIntegration.Instances = []any{
 		common.IntegrationConfigInstanceYarn{
-			ResourceManagerURI: "http://127.0.0.1:8088",
+			ResourceManagerURI: "http://" + hostname + ":8088",
 			ClusterName:        clusterName,
 		},
 	}

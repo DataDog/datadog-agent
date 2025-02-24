@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
+package packages
 
-package dogstatsd
+import (
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+)
 
-import "testing"
-
-// noop version for unsupported platforms
-func testUDSOriginDetection(t *testing.T, _ string) {
-	t.Log("Unsupported platform, skip...")
-}
+// PreRemoveHooks contains the mapping between packages and their pre-remove hooks
+var PreRemoveHooks = map[string]repository.PreRemoveHook{}
