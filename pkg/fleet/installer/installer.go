@@ -679,6 +679,14 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 	if runtime.GOOS == "windows" {
 		return nil
 	}
+	state, err := i.configs.GetState(pkg)
+	if err != nil {
+		return fmt.Errorf("could not get config repository state: %w", err)
+	}
+	// If a config is already set, no need to initialize it
+	if state.Stable != "" {
+		return nil
+	}
 	tmpDir, err := i.configs.MkdirTemp()
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
