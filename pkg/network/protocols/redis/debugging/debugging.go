@@ -7,6 +7,7 @@
 package debugging
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -26,11 +27,17 @@ type key struct {
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 type RequestSummary struct {
 	key
+	Command            string
+	KeyName            string
+	Truncated          bool
+	Count              int
+	FirstLatencySample float64
+	LatencyP50         float64
 }
 
 // Redis returns a debug-friendly representation of map[postgres.Key]postgres.RequestStats
 func Redis(stats map[redis.Key]*redis.RequestStat) []RequestSummary {
-	all := make([]RequestSummary, 0)
+	all := make([]RequestSummary, 0, len(stats))
 	for k := range stats {
 		clientAddr := formatIP(k.SrcIPLow, k.SrcIPHigh)
 		serverAddr := formatIP(k.DstIPLow, k.DstIPHigh)
@@ -46,6 +53,12 @@ func Redis(stats map[redis.Key]*redis.RequestStat) []RequestSummary {
 					Port: k.DstPort,
 				},
 			},
+			Command:            k.Command.String(),
+			KeyName:            k.KeyName,
+			Truncated:          k.Truncated,
+			Count:              stats[k].Count,
+			FirstLatencySample: stats[k].FirstLatencySample,
+			LatencyP50:         protocols.GetSketchQuantile(stats[k].Latencies, 0.5),
 		})
 	}
 

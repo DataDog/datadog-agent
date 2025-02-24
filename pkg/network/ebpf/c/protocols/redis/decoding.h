@@ -3,16 +3,6 @@
 
 #include "protocols/redis/decoding-maps.h"
 
-#define REDIS_CMD_GET "GET"
-#define REDIS_CMD_SET "SET"
-#define MAX_KEY_LEN 128
-#define RESP_ARRAY_PREFIX '*'
-#define RESP_BULK_PREFIX '$'
-#define RESP_TERMINATOR_1 '\r'
-#define RESP_TERMINATOR_2 '\n'
-#define METHOD_LEN 3
-#define RESP_FIELD_TERMINATOR_LEN 2
-
 // Read a CRLF terminator from the packet buffer. The terminator is expected to be in the format: \r\n.
 // The function returns true if the terminator was successfully read, or false if the terminator could not be read.
 static __always_inline bool read_crlf(pktbuf_t pkt) {
@@ -62,7 +52,7 @@ static __always_inline u32 read_array_message(pktbuf_t pkt) {
 // The key is stored in the provided buffer, and the function returns true if the key was successfully read.
 // The function returns false if the key could not be read, or if the key length is invalid.
 // The function also returns false if the key length is greater than the provided buffer length.
-static __always_inline bool read_bulk_string(pktbuf_t pkt, char *buf, u32 buf_len) {
+static __always_inline bool read_bulk_string(pktbuf_t pkt, char *buf, u32 buf_len, u16 *out_key_len, bool *truncated) {
     char bulk_prefix;
     if (pktbuf_load_bytes_from_current_offset(pkt, &bulk_prefix, sizeof(bulk_prefix)) < 0 || bulk_prefix != RESP_BULK_PREFIX) {
         return false;
@@ -91,6 +81,7 @@ static __always_inline bool read_bulk_string(pktbuf_t pkt, char *buf, u32 buf_le
         return false;
     }
 
+    const s32 original_key_size = key_size;
     if (key_size > MAX_KEY_LEN - 1) {
         key_size = MAX_KEY_LEN - 1;
     }
@@ -104,7 +95,9 @@ static __always_inline bool read_bulk_string(pktbuf_t pkt, char *buf, u32 buf_le
         if (ret < 0) {
             return false;
         }
-        pktbuf_advance(pkt, key_size);
+        pktbuf_advance(pkt, original_key_size);
+        *out_key_len = key_size;
+        *truncated = key_size < original_key_size;
     } else {
         return false;
     }
@@ -113,7 +106,7 @@ static __always_inline bool read_bulk_string(pktbuf_t pkt, char *buf, u32 buf_le
 
 // Process a Redis request from the packet buffer. The function reads the request from the packet buffer,
 // and returns the method (GET or SET) and the key(up to MAX_KEY_LEN bytes).
-static __always_inline void process_redis_request(pktbuf_t pkt) {
+static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *conn_tuple) {
     u32 param_count = read_array_message(pkt);
     if (param_count == 0) {
         return;
@@ -124,45 +117,135 @@ static __always_inline void process_redis_request(pktbuf_t pkt) {
     }
 
     char method[METHOD_LEN + 1] = {};
-    if (!read_bulk_string(pkt, method, METHOD_LEN)) {
+    __u16 key_len = 0;
+    bool truncated = false;
+    if (!read_bulk_string(pkt, method, METHOD_LEN, &key_len, &truncated)) {
         return;
     }
 
-    if (bpf_memcmp(method, REDIS_CMD_GET, METHOD_LEN) != 0 &&
-        bpf_memcmp(method, REDIS_CMD_SET, METHOD_LEN) != 0) {
+    redis_transaction_t transaction = {};
+    transaction.request_started = bpf_ktime_get_ns();
+    if (bpf_memcmp(method, REDIS_CMD_SET, METHOD_LEN) == 0) {
+        transaction.command = REDIS_SET;
+    } else if (bpf_memcmp(method, REDIS_CMD_GET, METHOD_LEN) == 0) {
+        transaction.command = REDIS_GET;
+    } else {
         return;
     }
 
-    char key[MAX_KEY_LEN] = {};
-    if (!read_bulk_string(pkt, key, MAX_KEY_LEN)) {
+    if (!read_bulk_string(pkt, transaction.buf, sizeof(transaction.buf), &transaction.buf_len, &transaction.truncated)) {
         return;
     }
 
-    log_debug("Redis command: %s, Key: %s", method, key);
+    bpf_map_update_elem(&redis_in_flight, conn_tuple, &transaction, BPF_ANY);
+}
+
+// Handles a TCP termination event by deleting the connection tuple from the in-flight map.
+static void __always_inline redis_tcp_termination(conn_tuple_t *tup) {
+    bpf_map_delete_elem(&redis_in_flight, tup);
+    flip_tuple(tup);
+    bpf_map_delete_elem(&redis_in_flight, tup);
+}
+
+// Enqueues a batch of events to the user-space. To spare stack size, we take a scratch buffer from the map, copy
+// the connection tuple and the transaction to it, and then enqueue the event.
+static __always_inline void redis_batch_enqueue_wrapper(conn_tuple_t *tuple, redis_transaction_t *tx) {
+    u32 zero = 0;
+    redis_event_t *event = bpf_map_lookup_elem(&redis_scratch_buffer, &zero);
+    if (!event) {
+        return;
+    }
+
+    bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
+    bpf_memcpy(&event->tx, tx, sizeof(redis_transaction_t));
+    redis_batch_enqueue(event);
+}
+
+static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *tup, redis_transaction_t *transaction) {
+    char first_byte;
+    if (pktbuf_load_bytes_from_current_offset(pkt, &first_byte, sizeof(first_byte)) < 0) {
+        return;
+    }
+    if (transaction->command == REDIS_GET) {
+        if (first_byte != RESP_BULK_PREFIX) {
+            goto cleanup;
+        }
+        transaction->response_last_seen = bpf_ktime_get_ns();
+        goto enqueue;
+    } else{
+        if (first_byte != RESP_SIMPLE_STRING_PREFIX) {
+            goto cleanup;
+        }
+        transaction->response_last_seen = bpf_ktime_get_ns();
+        goto enqueue;
+    }
+
+enqueue:
+    redis_batch_enqueue_wrapper(tup, transaction);
+cleanup:
+    bpf_map_delete_elem(&redis_in_flight, tup);
 }
 
 SEC("socket/redis_process")
 int socket__redis_process(struct __sk_buff *skb) {
-    dispatcher_arguments_t dispatcher_args_copy;
-    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
-    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
-        log_debug("redis_process failed to fetch arguments for tail call");
+    skb_info_t skb_info = {};
+    conn_tuple_t conn_tuple = {};
+    if (!fetch_dispatching_arguments(&conn_tuple, &skb_info)) {
         return 0;
     }
 
-    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
-    process_redis_request(pkt);
+    if (is_tcp_termination(&skb_info)) {
+        redis_tcp_termination(&conn_tuple);
+        return 0;
+    }
+    normalize_tuple(&conn_tuple);
+    pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
+
+    redis_transaction_t *transaction = bpf_map_lookup_elem(&redis_in_flight, &conn_tuple);
+    if (transaction == NULL) {
+        process_redis_request(pkt, &conn_tuple);
+    } else {
+        process_redis_response(pkt, &conn_tuple, transaction);
+    }
 
     return 0;
 }
 
 SEC("uprobe/redis_tls_process")
 int uprobe__redis_tls_process(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
+    conn_tuple_t tup = args->tup;
+
+    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
+    redis_transaction_t *transaction = bpf_map_lookup_elem(&redis_in_flight, &tup);
+    if (transaction == NULL) {
+        process_redis_request(pkt, &tup);
+    } else {
+        process_redis_response(pkt, &tup, transaction);
+    }
     return 0;
 }
 
 SEC("uprobe/redis_tls_termination")
 int uprobe__redis_tls_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
+    conn_tuple_t tup = args->tup;
+    redis_tcp_termination(&tup);
+
     return 0;
 }
 

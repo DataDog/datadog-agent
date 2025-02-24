@@ -6,25 +6,61 @@
 package redis
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+
+	"github.com/DataDog/sketches-go/ddsketch"
+
+	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Key is an identifier for a group of Redis transactions
 type Key struct {
 	types.ConnectionKey
+	Command   CommandType
+	KeyName   string
+	Truncated bool
 }
 
 // NewKey creates a new redis key
-func NewKey(saddr, daddr util.Address, sport, dport uint16) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, command CommandType, keyName string, truncated bool) Key {
 	return Key{
 		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
+		Command:       command,
+		KeyName:       keyName,
+		Truncated:     truncated,
 	}
 }
 
-// RequestStat represents a group of Redis transactions.
-type RequestStat struct{}
+// RequestStat represents a group of Redis transactions that has a shared key.
+type RequestStat struct {
+	// this field order is intentional to help the GC pointer tracking
+	Latencies          *ddsketch.DDSketch
+	FirstLatencySample float64
+	Count              int
+	StaticTags         uint64
+}
 
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
-func (r *RequestStat) CombineWith(*RequestStat) {}
+func (r *RequestStat) CombineWith(newStats *RequestStat) {
+	r.Count += newStats.Count
+	r.StaticTags |= newStats.StaticTags
+	// If the receiver has no latency sample, use the newStats sample
+	if r.FirstLatencySample == 0 {
+		r.FirstLatencySample = newStats.FirstLatencySample
+	}
+	// If newStats has no ddsketch latency, we have nothing to merge
+	if newStats.Latencies == nil {
+		return
+	}
+	// If the receiver has no ddsketch latency, use the newStats latency
+	if r.Latencies == nil {
+		r.Latencies = newStats.Latencies.Copy()
+	} else if newStats.Latencies != nil {
+		// Merge the ddsketch latencies
+		if err := r.Latencies.MergeWith(newStats.Latencies); err != nil {
+			log.Debugf("could not add request latency to ddsketch: %v", err)
+		}
+	}
+}

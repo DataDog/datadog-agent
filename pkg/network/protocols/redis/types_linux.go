@@ -15,13 +15,24 @@ type ConnTuple = struct {
 	Metadata uint32
 }
 
+type CommandType uint32
+
+var (
+	GetCommand = CommandType(0x0)
+	SetCommand = CommandType(0x1)
+)
+
 type EbpfEvent struct {
 	Tuple ConnTuple
 	Tx    EbpfTx
 }
 type EbpfTx struct {
+	Buf                [128]byte
 	Request_started    uint64
 	Response_last_seen uint64
+	Buf_len            uint16
+	Command            uint32
 	Tags               uint8
-	Pad_cgo_0          [7]byte
+	Truncated          bool
+	Pad_cgo_0          [6]byte
 }

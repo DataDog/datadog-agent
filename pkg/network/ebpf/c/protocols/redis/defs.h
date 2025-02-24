@@ -3,4 +3,14 @@
 
 #define REDIS_MIN_FRAME_LENGTH 3
 
+#define REDIS_CMD_GET "GET"
+#define REDIS_CMD_SET "SET"
+#define MAX_KEY_LEN 128
+#define RESP_ARRAY_PREFIX '*'
+#define RESP_BULK_PREFIX '$'
+#define RESP_TERMINATOR_1 '\r'
+#define RESP_TERMINATOR_2 '\n'
+#define METHOD_LEN 3
+#define RESP_FIELD_TERMINATOR_LEN 2
+#define RESP_SIMPLE_STRING_PREFIX '+'
 #endif

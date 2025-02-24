@@ -149,10 +149,15 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 
+	stats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Redis,
-		Stats: p.statskeeper.GetAndResetAllStats(),
-	}, nil
+			Type:  protocols.Redis,
+			Stats: stats,
+		}, func() {
+			for _, stat := range stats {
+				stat.close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as Redis module is supported by all modes.
@@ -163,7 +168,8 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processRedis(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(tx)
+		eventWrapper := NewEventWrapper(tx)
+		p.statskeeper.Process(eventWrapper)
 	}
 }
 
