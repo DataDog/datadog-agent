@@ -55,7 +55,7 @@ agent_dmg-x64-a7:
   - |
     echo Setup env
     mkdir bin
-    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true which vault du security touch cat basename go"
+    binaries="curl chmod cp date mkdir readlink dirname tar rm mv ls bash make xz true which vault du security touch cat basename go tr uname"
     for binary in $binaries; do
       echo Using $binary
       ln -s "$(which $binary)" bin/$binary
@@ -138,7 +138,7 @@ agent_dmg-x64-a7:
 
 new-agent_dmg-x64-a7:
   stage: package_build
-  extends: .macos_gitlab
+  # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
@@ -152,6 +152,15 @@ new-agent_dmg-x64-a7:
     - !reference [.runner_setup_custom_homebrew]
     - !reference [.cc_debug]
     # TODO A: - !reference [.vault_login]
+    # TODO A: Was made in .macos_gitlab
+    - |
+      python3 -m venv .venv
+      source .venv/bin/activate
+      python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
+      # TODO A: Necessary?
+      inv -e rtloader.make
+      inv -e rtloader.install
+      inv -e install-tools
     - |
       echo Starting build script
       bash .gitlab/package_build/build_script.sh

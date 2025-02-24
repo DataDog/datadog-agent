@@ -98,11 +98,12 @@ source ~/.build_setup
 
 # Install python deps (invoke, etc.)
 
-if [ -d .venv ]; then
-    python3 -m venv .venv
-fi
-source .venv/bin/activate
-python3 -m pip install -r requirements.txt
+# TODO A
+# if [ -d .venv ]; then
+#     python3 -m venv .venv
+# fi
+# source .venv/bin/activate
+# python3 -m pip install -r requirements.txt
 
 # Clean up previous builds
 # TODO: rm?
