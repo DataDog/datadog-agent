@@ -2085,3 +2085,21 @@ def build_usm_debugger(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+
+@task
+def build_gpu_event_viewer(ctx):
+    build_dir = Path("pkg/gpu/testutil/event-viewer")
+
+    tags = get_default_build_tags("system-probe")
+    if "test" not in tags:
+        tags.append("test")
+
+    binary = build_dir / "event-viewer"
+    main_file = build_dir / "main.go"
+
+    cmd = f"go build -tags \"{','.join(tags)}\" -o {binary} {main_file}"
+
+    ctx.run(cmd)
+
+    print(f"Built {binary}")
