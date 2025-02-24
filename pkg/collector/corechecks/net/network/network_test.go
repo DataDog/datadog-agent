@@ -139,6 +139,10 @@ func (m *MockSS) NetstatCommand() error {
 	return errors.New("forced to use netstat")
 }
 
+func (m *MockSS) LookPathCommand(_ string) (string, error) {
+	return "/usr/bin/ss", nil // Fake path
+}
+
 func TestDefaultConfiguration(t *testing.T) {
 	check := NetworkCheck{}
 	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
@@ -1149,6 +1153,7 @@ func TestFetchQueueStatsSS(t *testing.T) {
 	ssAvailableFunction = mockSS.SSCommand
 	mockCommandRunner := new(MockCommandRunner)
 	runCommandFunction = mockCommandRunner.FakeRunCommand
+	lookPath = mockSS.LookPathCommand
 
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
@@ -1197,6 +1202,7 @@ func TestFetchQueueStatsNetstat(t *testing.T) {
 	ssAvailableFunction = mockSS.NetstatCommand
 	mockCommandRunner := new(MockCommandRunner)
 	runCommandFunction = mockCommandRunner.FakeRunCommand
+	lookPath = mockSS.LookPathCommand
 
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 

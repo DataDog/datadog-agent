@@ -80,6 +80,7 @@ var (
 
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
+	lookPath            = exec.LookPath
 )
 
 // NetworkCheck represent a network check
@@ -428,7 +429,7 @@ func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCounters
 }
 
 func checkSSExecutable() error {
-	_, err := exec.LookPath("ss")
+	_, err := lookPath("ss")
 	if err != nil {
 		return errors.New("`ss` executable not found in system PATH")
 	}
