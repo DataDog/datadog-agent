@@ -249,6 +249,10 @@ new-agent_dmg-x64-a7:
       ls "$PWD/homebrew/bin" || true
       echo "Using custom homebrew"
       export PATH="$PWD/homebrew/bin:$PATH"
+      which python3
+      python3 -m venv .venv
+      . .venv/bin/activate
+      python3 -m pip install -r requirements.txt -r tasks/requirements.txt
     - |
       # TODO A: Omnibus cache
       unset INTEGRATION_WHEELS_CACHE_BUCKET || true
