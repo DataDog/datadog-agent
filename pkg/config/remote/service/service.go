@@ -17,7 +17,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	tufclient "github.com/DataDog/go-tuf/client"
+	"github.com/DataDog/go-tuf/verify"
 	"net/url"
 	"path"
 	"strconv"
@@ -156,7 +156,6 @@ type CoreAgentService struct {
 
 	products           map[rdata.Product]struct{}
 	newProducts        map[rdata.Product]struct{}
-	configStatus       state.ConfigStatus
 	clients            *clients
 	cacheBypassClients cacheBypassClients
 
@@ -452,7 +451,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		backoffPolicy:                  backoffPolicy,
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
-		configStatus:                   state.ConfigStatusOk,
 		hostname:                       hostname,
 		tagsGetter:                     tagsGetter,
 		clock:                          clock,
@@ -685,10 +683,6 @@ func (s *CoreAgentService) refresh() error {
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
-		var errDecodeFailed tufclient.ErrDecodeFailed
-		if errors.As(err, &errDecodeFailed) {
-			s.configStatus = state.ConfigStatusExpired
-		}
 		return err
 	}
 
@@ -712,7 +706,6 @@ func (s *CoreAgentService) refresh() error {
 	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
 
 	exportedLastUpdateErr.Set("")
-	s.configStatus = state.ConfigStatusOk
 
 	return nil
 }
@@ -819,6 +812,16 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	}
 	roots, err := s.getNewDirectorRoots(s.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
+		var errExpired verify.ErrExpired
+		if errors.As(err, &errExpired) {
+			return &pbgo.ClientGetConfigsResponse{
+				Roots:         nil,
+				Targets:       nil,
+				TargetFiles:   nil,
+				ClientConfigs: nil,
+				ConfigStatus:  state.ConfigStatusExpired,
+			}, nil
+		}
 		return nil, err
 	}
 
@@ -855,7 +858,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		Targets:       canonicalTargets,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
-		ConfigStatus:  s.configStatus,
+		ConfigStatus:  state.ConfigStatusOk,
 	}, nil
 }
 
