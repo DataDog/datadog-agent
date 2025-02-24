@@ -320,13 +320,40 @@ func getPythonPackagesVersion(pythonBinPath string) map[string]string {
 		// Can be `package==version`
 		// Or `package @ url`
 		pkgVersion := strings.SplitN(line, "==", 2)
-		pkgUrl := strings.SplitN(line, "@", 2)
+		pkgURL := strings.SplitN(line, "@", 2)
 		if len(pkgVersion) == 2 {
 			packageVersions[pkgVersion[0]] = pkgVersion[1]
-		} else if len(pkgUrl) == 2 {
-			packageVersions[pkgUrl[0]] = pkgUrl[1]
+		} else if len(pkgURL) == 2 {
+			packageVersions[pkgURL[0]] = pkgURL[1]
 		} else {
 			log.Infof("Unable to parse python package version, it won't appear in the metadata payload: %s", line)
+		}
+	}
+
+	// Packages might not be installed by pip, so we need to check the site-packages directory
+	// for the version of the packages that are installed.
+	// This includes the packages installed with `-e` flag.
+	sitePackagesPath := filepath.Join(filepath.Dir(PythonHome), "lib", "site-packages")
+	if runtime.GOOS == "windows" {
+		sitePackagesPath = filepath.Join(filepath.Dir(PythonHome), "Lib", "site-packages")
+	}
+
+	// Get the list of packages in the site-packages directory
+	entries, err := os.ReadDir(sitePackagesPath)
+	if err != nil {
+		log.Warnf("Unable to read site-packages directory: %v", err)
+		return packageVersions
+	}
+
+	for _, entry := range entries {
+		// Only check directories that are not .dist-info directories (pip metadata)
+		if !entry.IsDir() || strings.HasSuffix(entry.Name(), ".dist-info") || strings.HasPrefix(entry.Name(), "_") {
+			continue
+		}
+
+		// Check if the package is already in the map
+		if _, ok := packageVersions[entry.Name()]; !ok {
+			packageVersion[entry.Name()] = "unknown"
 		}
 	}
 
