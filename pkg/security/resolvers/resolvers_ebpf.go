@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // EBPFResolvers holds the list of the event attribute resolvers
@@ -62,7 +62,7 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, wmeta option.Option[workloadmeta.Component]) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err

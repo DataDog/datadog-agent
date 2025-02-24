@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -436,7 +436,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -538,7 +538,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1356,7 +1356,7 @@ use_proxy_for_cloud_metadata: true
 		}, nil
 	})
 
-	_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+	_, err := LoadCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 	assert.NoError(t, err)
 
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())

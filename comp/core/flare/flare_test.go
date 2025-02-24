@@ -8,6 +8,9 @@ package flare
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -18,9 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestFlareCreation(t *testing.T) {

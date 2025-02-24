@@ -8,10 +8,11 @@ package provider
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestRuntimeMetadataString(t *testing.T) {

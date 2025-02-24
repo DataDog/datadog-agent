@@ -19,7 +19,7 @@ import (
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.

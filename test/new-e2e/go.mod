@@ -10,7 +10,7 @@ toolchain go1.22.8
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
@@ -239,7 +239,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.2
+	github.com/DataDog/datadog-agent/pkg/util/option v0.55.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.2
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0

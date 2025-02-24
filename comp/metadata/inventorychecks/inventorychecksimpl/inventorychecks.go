@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -82,8 +82,8 @@ type inventorychecksImpl struct {
 
 	log      log.Component
 	conf     config.Component
-	coll     optional.Option[collector.Component]
-	sources  optional.Option[*sources.LogSources]
+	coll     option.Option[collector.Component]
+	sources  option.Option[*sources.LogSources]
 	hostname string
 }
 
@@ -93,8 +93,8 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	Coll       optional.Option[collector.Component]
-	LogAgent   optional.Option[logagent.Component]
+	Coll       option.Option[collector.Component]
+	LogAgent   option.Option[logagent.Component]
 }
 
 type provides struct {

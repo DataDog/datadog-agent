@@ -6,13 +6,15 @@
 package utils
 
 import (
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 )
 
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config

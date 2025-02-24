@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/stretchr/testify/require"
@@ -264,7 +264,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 
 	workloadmetaStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
 
-	cache, err := NewCustomBoltCache(optional.NewOption[workloadmeta.Component](workloadmetaStore), t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(option.New[workloadmeta.Component](workloadmetaStore), t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -389,7 +389,7 @@ func newTestBlobInfo() types.BlobInfo {
 
 type cacheDeps struct {
 	fx.In
-	WMeta optional.Option[workloadmeta.Component]
+	WMeta option.Option[workloadmeta.Component]
 }
 
 func createCacheDeps(t *testing.T) cacheDeps {

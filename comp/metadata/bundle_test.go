@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestBundleDependencies(t *testing.T) {
@@ -25,7 +25,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(optional.NewNoneOption[runnerimpl.MetadataProvider]()),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		collectorimpl.MockModule(),
-		fx.Provide(func() optional.Option[agent.Component] {
+		fx.Provide(func() option.Option[agent.Component] {
 			return optional.NewNoneOption[agent.Component]()
 		}),
 		authtokenimpl.Module(),
