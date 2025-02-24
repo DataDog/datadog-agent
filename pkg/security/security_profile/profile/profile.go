@@ -292,24 +292,14 @@ func (p *Profile) AddTags(tags []string) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	var tagName string
-	var found bool
-
 	existingTagNames := make([]string, 0, len(p.tags))
 	for _, tag := range p.tags {
 		existingTagNames = append(existingTagNames, utils.GetTagName(tag))
 	}
 
 	for _, tag := range tags {
-		tagName = utils.GetTagName(tag)
-		found = false
-		for _, existingTagName := range existingTagNames {
-			if existingTagName == tagName {
-				found = true
-				break
-			}
-		}
-		if !found {
+		tagName := utils.GetTagName(tag)
+		if !slices.Contains(existingTagNames, tagName) {
 			p.tags = append(p.tags, tag)
 		}
 	}
