@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package packages
+package apminject
 
 import (
 	"bytes"
@@ -73,7 +73,7 @@ func getSocketsPath() (string, string, error) {
 }
 
 // configureSocketsEnv configures the sockets for the agent & injector
-func (a *apmInjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr error) {
+func (a *InjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr error) {
 	envFile := newFileMutator(envFilePath, setSocketEnvs, nil, nil)
 	a.cleanups = append(a.cleanups, envFile.cleanup)
 	rollback, err := envFile.mutate(ctx)
@@ -98,16 +98,16 @@ func (a *apmInjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr 
 		return fmt.Errorf("failed to check if systemd is running: %w", err)
 	}
 	if systemdRunning {
-		if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
+		if err := addSystemDEnvOverrides(ctx, "datadog-agent.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
+		if err := addSystemDEnvOverrides(ctx, "datadog-agent-exp.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
+		if err := addSystemDEnvOverrides(ctx, "datadog-agent-trace.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
+		if err := addSystemDEnvOverrides(ctx, "datadog-agent-trace-exp.service"); err != nil {
 			return err
 		}
 		if err := systemd.Reload(ctx); err != nil {

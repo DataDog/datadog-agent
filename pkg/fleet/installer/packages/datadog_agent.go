@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -85,7 +86,7 @@ func PrepareAgent(ctx context.Context) (err error) {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
 	}
-	return removeDebRPMPackage(ctx, agentPackage)
+	return packagemanager.RemovePackage(ctx, agentPackage)
 }
 
 // SetupAgent installs and starts the agent
