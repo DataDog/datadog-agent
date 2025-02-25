@@ -68,7 +68,6 @@ use (
 	internal/tools/worksynchronizer
 	pkg/aggregator/ckey
 	pkg/api
-	pkg/api/security/cert
 	pkg/collector/check/defaults
 	pkg/config/env
 	pkg/config/mock
