@@ -141,7 +141,7 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		}
 	}
 
-	profileFiles := make(map[string]*profileFile)
+	var fileSlice []*profileFile
 	for _, file := range files {
 		if !fileHasProfileExtension(file.Name()) {
 			continue
@@ -157,20 +157,12 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 			continue
 		}
 
-		path := filepath.Join(directoryPath, file.Name())
-		_, ok := profileFiles[path]
-		if !ok {
-			profileFiles[path] = &profileFile{
-				path:  path,
-				mTime: fileInfo.ModTime(),
-			}
-		}
+		fileSlice = append(fileSlice, &profileFile{
+			path:  filepath.Join(directoryPath, file.Name()),
+			mTime: fileInfo.ModTime(),
+		})
 	}
 
-	fileSlice := make([]*profileFile, 0, len(profileFiles))
-	for _, file := range profileFiles {
-		fileSlice = append(fileSlice, file)
-	}
 	// sort from oldest to newest
 	slices.SortFunc(fileSlice, func(a, b *profileFile) int {
 		if a.mTime.Equal(b.mTime) {
