@@ -38,15 +38,15 @@ type Controller struct {
 	stopChannel chan struct{}
 }
 
-// NewController inits a scheduler controller without waiting, for unit test only
-func NewController() *Controller {
-	schedulerController := CreateNewController()
+// NewControllerAndStart inits a scheduler controller without waiting
+func NewControllerAndStart() *Controller {
+	schedulerController := NewController()
 	schedulerController.Start()
 	return schedulerController
 }
 
-// CreateNewController creates a new controller without starting it
-func CreateNewController() *Controller {
+// NewController creates a new controller without starting it
+func NewController() *Controller {
 	return &Controller{
 		scheduledConfigs: make(map[Digest]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
