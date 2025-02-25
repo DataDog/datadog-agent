@@ -110,7 +110,7 @@ new-agent_dmg-x64-a7:
   script:
     # TODO A: Add it in the runner
     - |
-      binaries="tmutil sed grep"
+      binaries="tmutil sed grep git"
       for binary in $binaries; do
         echo Using $binary
         ln -s "$(which $binary)" "$HOME"/bin/$binary || true
@@ -285,7 +285,8 @@ new-agent_dmg-x64-a7:
       echo 'export GOPATH=$HOME/go' >> ~/.build_setup
       echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
       export GO_VERSION="$(cat .go-version)"
-      eval "$(gimme $GO_VERSION)"
+      # TODO
+      # eval "$(gimme $GO_VERSION)"
     - . ~/.build_setup
     # TODO: xcode 14.2?
     # - xcode-select -s /Applications/Xcode_14.3.1.app
@@ -314,8 +315,10 @@ new-agent_dmg-x64-a7:
       python3 -m pip install -r requirements.txt -r tasks/requirements.txt
 
     # TODO: Done multiple times
-    - eval "$(gimme $GO_VERSION)"
-    - go version || true
+    - |
+      eval "$(gimme $GO_VERSION)"
+      export PATH="$GOPATH/bin:$PATH"
+      go version || true
 
     # Build
     - bash .gitlab/package_build/build_script.sh
