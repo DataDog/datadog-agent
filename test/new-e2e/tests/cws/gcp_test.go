@@ -14,26 +14,27 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	gcphost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/gcp/host/linux"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
-
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 const (
-	// ec2HostnamePrefix is the prefix of the hostname of the agent
-	ec2HostnamePrefix = "cws-e2e-ec2-host"
+	// gcpHostnamePrefix is the prefix of the hostname of the agent
+	gcpHostnamePrefix = "cws-e2e-gcp-host"
 )
 
-func TestAgentSuiteEC2(t *testing.T) {
+func TestAgentSuiteGCP(t *testing.T) {
 	testID := uuid.NewString()[:4]
-	ddHostname := fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID)
+	ddHostname := fmt.Sprintf("%s-%s", gcpHostnamePrefix, testID)
 	agentConfig := config.GenDatadogAgentConfig(ddHostname, "tag1", "tag2")
+	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
 	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
-		e2e.WithStackName("cws-agentSuite-ec2"),
+		e2e.WithStackName("cws-agentSuite-gcp"),
 		e2e.WithProvisioner(
-			awshost.ProvisionerNoFakeIntake(
-				awshost.WithAgentOptions(
+			gcphost.ProvisionerNoFakeIntake(
+				gcphost.WithAgentOptions(
+
 					agentparams.WithAgentConfig(agentConfig),
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
@@ -41,5 +42,4 @@ func TestAgentSuiteEC2(t *testing.T) {
 			),
 		),
 	)
-	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
 }
