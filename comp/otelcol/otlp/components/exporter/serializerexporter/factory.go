@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
@@ -45,6 +46,7 @@ type factory struct {
 
 	onceReporter sync.Once
 	reporter     *inframetadata.Reporter
+	gatewayUsage gatewayusage.Component
 }
 
 type tagenricher interface {
@@ -68,7 +70,7 @@ func (d *defaultTagEnricher) Enrich(_ context.Context, extraTags []string, dimen
 type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
 
 // NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion and embedded collector.
-func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
+func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, gatewayUsage gatewayusage.Component) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithOTelPrefix())
@@ -83,7 +85,8 @@ func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hos
 		createConsumer: func(enricher tagenricher, extraTags []string, apmReceiverAddr string, _ component.BuildInfo) SerializerConsumer {
 			return &serializerConsumer{enricher: enricher, extraTags: extraTags, apmReceiverAddr: apmReceiverAddr}
 		},
-		options: options,
+		options:      options,
+		gatewayUsage: gatewayUsage,
 	}
 	cfgType := component.MustNewType(TypeStr)
 
@@ -189,7 +192,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 			return nil, err
 		}
 	}
-	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr, params, reporter)
+	newExp, err := NewExporter(f.s, cfg, f.enricher, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage)
 	if err != nil {
 		return nil, err
 	}

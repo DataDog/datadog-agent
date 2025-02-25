@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"testing"
 
+	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/exporter/exportertest"
@@ -296,7 +296,7 @@ func TestLogsExporter(t *testing.T) {
 			testChannel := make(chan *message.Message, 10)
 
 			params := exportertest.NewNopSettings()
-			f := NewFactory(testChannel)
+			f := NewFactory(testChannel, gatewayusagemock.NewMock())
 			cfg := &Config{
 				OtelSource:    tt.args.otelSource,
 				LogSourceName: tt.args.logSourceName,
