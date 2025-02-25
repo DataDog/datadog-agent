@@ -29,7 +29,7 @@ func TestHaAgentMetadataSuite(t *testing.T) {
 	agentConfig := `
 ha_agent:
     enabled: true
-config_id: test-e2e-metadata-config-id
+config_id: ci-e2e-ha-metadata
 log_level: debug
 `
 

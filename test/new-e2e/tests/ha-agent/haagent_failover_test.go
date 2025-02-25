@@ -46,7 +46,7 @@ func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 hostname: test-e2e-agent1
 ha_agent:
     enabled: true
-config_id: test-e2e-config-id
+config_id: ci-e2e-ha-failover
 log_level: debug
 `
 
@@ -54,7 +54,7 @@ log_level: debug
 hostname: test-e2e-agent2
 ha_agent:
     enabled: true
-config_id: test-e2e-config-id
+config_id: ci-e2e-ha-failover
 log_level: debug
 `
 
