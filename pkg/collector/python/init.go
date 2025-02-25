@@ -9,6 +9,7 @@ package python
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"expvar"
 	"fmt"
@@ -300,64 +301,36 @@ func getPythonPackagesVersion(pythonBinPath string) map[string]string {
 	}
 	pipCmd := exec.Command(pythonBinPath, args...)
 
-	// forward the standard output to stdout
-	pipStdout, err := pipCmd.StdoutPipe()
-	if err != nil {
-		return map[string]string{}
-	}
-	defer pipStdout.Close()
-
 	// Execute pip freeze to get the list of installed packages
-	err = pipCmd.Run()
+	// Get the output of pip freeze
+	output, err := pipCmd.Output()
 	if err != nil {
 		return map[string]string{}
 	}
 
 	packageVersions := make(map[string]string)
-	in := bufio.NewReader(pipStdout)
+	reader := bufio.NewReader(bytes.NewReader(output))
+	// Read line by line
 	for {
-		line, _, err := in.ReadLine()
+		line, _, err := reader.ReadLine()
 		if err != nil {
 			// Can be io.EOF
 			break
 		}
 		// Can be `package==version`
 		// Or `package @ url`
+		// Or `-e package`
 		pkgVersion := strings.SplitN(string(line), "==", 2)
 		pkgURL := strings.SplitN(string(line), "@", 2)
 		if len(pkgVersion) == 2 {
 			packageVersions[pkgVersion[0]] = pkgVersion[1]
 		} else if len(pkgURL) == 2 {
 			packageVersions[pkgURL[0]] = pkgURL[1]
+		} else if strings.HasPrefix(string(line), "-e ") {
+			// This is a local package, we don't care about the version
+			packageVersions[strings.TrimPrefix(string(line), "-e ")] = "local"
 		} else {
 			log.Infof("Unable to parse python package version, it won't appear in the metadata payload: %s", line)
-		}
-	}
-
-	// Packages might not be installed by pip, so we need to check the site-packages directory
-	// for the version of the packages that are installed.
-	// This includes the packages installed with `-e` flag.
-	sitePackagesPath := filepath.Join(filepath.Dir(PythonHome), "lib", "site-packages")
-	if runtime.GOOS == "windows" {
-		sitePackagesPath = filepath.Join(filepath.Dir(PythonHome), "Lib", "site-packages")
-	}
-
-	// Get the list of packages in the site-packages directory
-	entries, err := os.ReadDir(sitePackagesPath)
-	if err != nil {
-		log.Warnf("Unable to read site-packages directory: %v", err)
-		return packageVersions
-	}
-
-	for _, entry := range entries {
-		// Only check directories that are not .dist-info directories (pip metadata)
-		if !entry.IsDir() || strings.HasSuffix(entry.Name(), ".dist-info") || strings.HasPrefix(entry.Name(), "_") {
-			continue
-		}
-
-		// Check if the package is already in the map
-		if _, ok := packageVersions[entry.Name()]; !ok {
-			packageVersions[entry.Name()] = "unknown"
 		}
 	}
 
