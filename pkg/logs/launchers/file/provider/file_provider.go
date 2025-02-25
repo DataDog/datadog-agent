@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -31,7 +31,7 @@ const openFilesLimitWarningType = "open_files_limit_warning"
 // that the file currently scanned for a source is attached to the proper container.
 // If the container ID we parse from the filename isn't matching this regexp, we *will*
 // tail the file because we prefer a false-negative than a false-positive (best-effort).
-var rxContainerID = regexp.MustCompile("^[a-fA-F0-9]{64}$")
+var rxContainerID = lazyregexp.New("^[a-fA-F0-9]{64}$")
 
 // ContainersLogsDir is the directory in which we should find containers logsfile
 // with the container ID in their filename.

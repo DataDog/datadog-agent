@@ -10,7 +10,8 @@ package kernel
 import (
 	"os"
 	"path/filepath"
-	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 // LockdownMode defines a lockdown type
@@ -27,7 +28,7 @@ const (
 	Unknown LockdownMode = "unknown"
 )
 
-var re = regexp.MustCompile(`\[(.*)\]`)
+var re = lazyregexp.New(`\[(.*)\]`)
 
 func getLockdownMode(data string) LockdownMode {
 	mode := re.FindString(data)

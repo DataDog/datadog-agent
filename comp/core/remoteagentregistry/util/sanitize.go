@@ -7,12 +7,13 @@
 package util
 
 import (
-	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
-var agentIDSanitizeRegex = regexp.MustCompile(`[^a-zA-Z0-9-_]`)
-var fileNameSanitizeRegex = regexp.MustCompile(`[^a-zA-Z0-9-_\.]`)
+var agentIDSanitizeRegex = lazyregexp.New(`[^a-zA-Z0-9-_]`)
+var fileNameSanitizeRegex = lazyregexp.New(`[^a-zA-Z0-9-_\.]`)
 
 // SanitizeAgentID sanitizes a string to be used as an agent ID.
 //

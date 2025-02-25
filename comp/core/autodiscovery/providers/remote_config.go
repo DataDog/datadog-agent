@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,7 +35,7 @@ type rcAgentIntegration struct {
 	LogsConfig json.RawMessage   `json:"logs"`
 }
 
-var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_INTEGRATIONS/([^/]+)/([^/]+)$`)
+var datadogConfigIDRegexp = lazyregexp.New(`^datadog/\d+/AGENT_INTEGRATIONS/([^/]+)/([^/]+)$`)
 
 // NewRemoteConfigProvider creates a new RemoteConfigProvider.
 func NewRemoteConfigProvider() *RemoteConfigProvider {

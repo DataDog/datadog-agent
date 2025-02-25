@@ -8,11 +8,12 @@ package tmplvar
 
 import (
 	"bytes"
-	"regexp"
 	"unicode"
+
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
-var tmplVarRegex = regexp.MustCompile(`%%.+?%%`)
+var tmplVarRegex = lazyregexp.New(`%%.+?%%`)
 
 // TemplateVar is the info for a parsed template variable.
 type TemplateVar struct {

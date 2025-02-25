@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -206,7 +207,7 @@ func nodeDetector(ctx usm.DetectionContext) Instrumentation {
 	return None
 }
 
-var javaAgentRegex = regexp.MustCompile(`-javaagent:.*(?:datadog|dd-java-agent|dd-trace-agent)\S*\.jar`)
+var javaAgentRegex = lazyregexp.New(`-javaagent:.*(?:datadog|dd-java-agent|dd-trace-agent)\S*\.jar`)
 
 func javaDetector(ctx usm.DetectionContext) Instrumentation {
 	ignoreArgs := map[string]bool{

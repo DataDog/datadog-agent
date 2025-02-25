@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -47,7 +47,7 @@ const (
 	imageWildcardEvent     = "/images/*"
 )
 
-var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
+var matchAllCap = lazyregexp.New("([a-z0-9])([A-Z])")
 
 // ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {

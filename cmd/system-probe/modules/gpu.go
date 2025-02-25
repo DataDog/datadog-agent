@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -201,7 +201,7 @@ func hostRoot() string {
 	return "/"
 }
 
-var agentProcessRegexp = regexp.MustCompile("datadog-agent/.*/agent")
+var agentProcessRegexp = lazyregexp.New("datadog-agent/.*/agent")
 
 func getAgentPID(procRoot string) (uint32, error) {
 	pids, err := kernel.AllPidsProcs(procRoot)

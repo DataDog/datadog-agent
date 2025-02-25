@@ -8,12 +8,11 @@
 package apiserver
 
 import (
-	"regexp"
-
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var supressedWarning = regexp.MustCompile(`.*is deprecated in v.*`)
+var supressedWarning = lazyregexp.New(`.*is deprecated in v.*`)
 
 // CustomWarningLogger is a custom logger to wrap warning logs
 type CustomWarningLogger struct{}

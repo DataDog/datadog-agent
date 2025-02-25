@@ -19,6 +19,7 @@ import (
 	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/common"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 const (
@@ -300,7 +301,7 @@ func parseArchFromFilepath(filepath string) (string, error) {
 	}
 }
 
-var nonLinkCharactersRegex = regexp.MustCompile(`(?:^[^a-z0-9]+)|(?:[^a-z0-9-]+)|(?:[^a-z0-9]+$)`)
+var nonLinkCharactersRegex = lazyregexp.New(`(?:^[^a-z0-9]+)|(?:[^a-z0-9-]+)|(?:[^a-z0-9]+$)`)
 
 func constsLinkFromName(constName string) string {
 	return nonLinkCharactersRegex.ReplaceAllString(strings.ReplaceAll(strings.ToLower(strings.TrimSpace(constName)), " ", "-"), "")

@@ -9,13 +9,14 @@ import (
 	"bufio"
 	"errors"
 	"io/fs"
-	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 const manifestFile = "META-INF/MANIFEST.MF"
 
-var startClassRegexp = regexp.MustCompile(`^Start-Class: ([^ ]+)$`)
+var startClassRegexp = lazyregexp.New(`^Start-Class: ([^ ]+)$`)
 
 // getStartClassName parses JAR manifest files to get the Start-Class parameter.
 func getStartClassName(fs fs.FS, filename string) (string, error) {

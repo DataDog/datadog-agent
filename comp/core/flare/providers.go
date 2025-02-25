@@ -7,14 +7,14 @@ package flare
 
 import (
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 // Match .yaml and .yml to ship configuration files in the flare.
-var cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
+var cnfFileExtRx = lazyregexp.New(`(?i)\.ya?ml`)
 
 func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))

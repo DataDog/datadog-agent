@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"sync"
 
@@ -25,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,7 +42,7 @@ const debKernelModulesPath = "/lib/modules/%s/source"
 const cosKernelModulesPath = "/usr/src/linux-headers-%s"
 const centosKernelModulesPath = "/usr/src/kernels/%s"
 
-var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
+var versionCodeRegexp = lazyregexp.New(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
 var errReposDirInaccessible = errors.New("unable to access repos directory")
 

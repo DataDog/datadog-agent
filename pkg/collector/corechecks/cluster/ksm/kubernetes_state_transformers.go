@@ -9,7 +9,6 @@ package ksm
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -397,7 +397,7 @@ func jobFailedTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, h
 // jobTimestampPattern extracts the timestamp in the job name label
 // Used by trimJobTag to remove the timestamp from the job tag
 // Expected job tag format: <job>-<timestamp>
-var jobTimestampPattern = regexp.MustCompile(`(-\d{4,10}$)`)
+var jobTimestampPattern = lazyregexp.New(`(-\d{4,10}$)`)
 
 // trimJobTag removes the timestamp from the job name tag
 // Expected job tag format: <job>-<timestamp>
