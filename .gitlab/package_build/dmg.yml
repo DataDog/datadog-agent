@@ -115,7 +115,6 @@ new-agent_dmg-x64-a7:
     - python3 --version
     - ls
     - touch /tmp/hello
-    - which which
     - which rustup
     - which cargo
 
