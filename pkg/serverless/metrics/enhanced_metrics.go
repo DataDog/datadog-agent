@@ -65,6 +65,7 @@ const (
 	fdUseMetric                  = "aws.lambda.enhanced.fd_use"
 	threadsMaxMetric             = "aws.lambda.enhanced.threads_max"
 	threadsUseMetric             = "aws.lambda.enhanced.threads_use"
+	coolMetric                   = "aws.lambda.enhanced.cool_metric"
 	enhancedMetricsEnvVar        = "DD_ENHANCED_METRICS"
 
 	// Bottlecap
@@ -563,6 +564,60 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 				return
 			}
 			tmpUsed = math.Max(tmpUsed, bsize*(blocks-bavail))
+		}
+	}
+
+}
+
+type generateCoolEnhancedMetricsArgs struct {
+	Value float64
+	Tags  []string
+	Demux aggregator.Demultiplexer
+	Time  float64
+}
+
+// generateCoolEnhancedMetrics generates enhanced metrics for space used and available in the /tmp directory
+func generateCoolEnhancedMetrics(args generateCoolEnhancedMetricsArgs) {
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       coolMetric,
+		Value:      args.Value,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       coolMetric,
+		Value:      args.Value * 2,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+func SendCoolEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+	if enhancedMetricsDisabled {
+		return
+	}
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case _, open := <-sendMetrics:
+			if !open {
+				generateCoolEnhancedMetrics(generateCoolEnhancedMetricsArgs{
+					Value: 10,
+					Tags:  tags,
+					Demux: metricAgent.Demux,
+					Time:  float64(time.Now().UnixNano()) / float64(time.Second),
+				})
+				return
+			}
+		case <-ticker.C:
+			// :)
+			continue
 		}
 	}
 
