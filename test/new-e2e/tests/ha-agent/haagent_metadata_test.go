@@ -29,9 +29,10 @@ func TestHaAgentMetadataSuite(t *testing.T) {
 	agentConfig := `
 ha_agent:
     enabled: true
-config_id: test-config01
+config_id: test-e2e-metadata-config-id
 log_level: debug
 `
+
 	e2e.Run(t, &haAgentMetadataTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 	))

@@ -629,6 +629,21 @@ new-e2e-ha-agent:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
     ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestHaAgentSuite
+      - EXTRA_PARAMS: --run TestHaAgentMetadataSuite
+
+new-e2e-ha-agent-failover:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_ha_agent_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ha-agent
+    TEAM: ndm-core
+    EXTRA_PARAMS: --run TestHAAgentFailoverSuite
+  allow_failure: true
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_windows_x64
