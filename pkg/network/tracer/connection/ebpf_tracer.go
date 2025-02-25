@@ -553,16 +553,16 @@ func (t *ebpfTracer) getEBPFTelemetry() *netebpf.Telemetry {
 	return tm
 }
 
-func (t *ebpfTracer) getTCPFailureTelemetry() map[int32]uint64 {
-	mp, err := maps.GetMap[int32, uint64](t.m.Manager, probes.TCPFailureTelemetry)
+func (t *ebpfTracer) getTCPFailureTelemetry() map[int]uint64 {
+	mp, err := maps.GetMap[int, uint64](t.m.Manager, probes.TCPFailureTelemetry)
 	if err != nil {
 		log.Warnf("error retrieving tcp failure telemetry map: %s", err)
 		return nil
 	}
 	it := mp.IterateWithBatchSize(100)
-	var key int32
+	var key int
 	var val uint64
-	result := make(map[int32]uint64)
+	result := make(map[int]uint64)
 
 	for it.Next(&key, &val) {
 		if err := it.Err(); err != nil {

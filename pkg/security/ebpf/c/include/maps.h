@@ -79,12 +79,13 @@ BPF_LRU_MAP(kill_list, u32, u32, 32)
 BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 1024)
 BPF_LRU_MAP(dentry_resolver_inputs, u64, struct dentry_resolver_input_t, 256)
 BPF_LRU_MAP(ns_flow_to_network_stats, struct namespaced_flow_t, struct network_stats_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
+BPF_LRU_MAP(sock_meta, void *, struct sock_meta_t, 4096);
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // edited
 
-BPF_SK_MAP(sock_active_pid_route, struct pid_route_t);
+BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)

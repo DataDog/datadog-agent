@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package packages
+package apminject
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 )
 
 func TestSetLDPreloadConfig(t *testing.T) {
-	a := &apmInjectorInstaller{
+	a := &InjectorInstaller{
 		installPath: "/tmp/stable",
 	}
 	testCases := []struct {
@@ -64,7 +64,7 @@ func TestSetLDPreloadConfig(t *testing.T) {
 }
 
 func TestRemoveLDPreloadConfig(t *testing.T) {
-	a := &apmInjectorInstaller{
+	a := &InjectorInstaller{
 		installPath: "/tmp/stable",
 	}
 

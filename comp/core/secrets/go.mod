@@ -13,7 +13,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.23.0
-	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
+	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
 	golang.org/x/sys v0.30.0
 	gopkg.in/yaml.v2 v2.4.0
 )
