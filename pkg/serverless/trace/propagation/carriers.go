@@ -300,9 +300,7 @@ func extractTraceContextFromNestedStepFunctionContext(event events.NestedStepFun
 		return nil, err
 	}
 
-	lowerTraceID, upperTraceID := stringToDdTraceIDs(event.RootExecutionID)
-	tc.TraceID = lowerTraceID
-	tc.TraceIDUpper64Hex = upperTraceID
+	tc.TraceID, tc.TraceIDUpper64Hex = stringToDdTraceIDs(event.RootExecutionID)
 
 	return tc, nil
 }
