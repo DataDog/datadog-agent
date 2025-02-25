@@ -7,8 +7,10 @@
 package seelog
 
 import (
+	"bytes"
 	"flag"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -142,6 +144,10 @@ func testSeelogConfig(t *testing.T, config *Config, testName string) {
 
 	expected, err := os.ReadFile(expectedFileName)
 	require.NoError(t, err)
+
+	if runtime.GOOS == "windows" {
+		expected = bytes.ReplaceAll(expected, []byte("\n"), []byte("\r\n"))
+	}
 
 	require.Equal(t, string(expected), cfg)
 }
