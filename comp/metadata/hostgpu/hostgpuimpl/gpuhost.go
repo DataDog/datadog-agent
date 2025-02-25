@@ -44,15 +44,15 @@ type gpuDeviceMetadata struct {
 	Index         int    `json:"gpu_index"`
 	Vendor        string `json:"gpu_vendor"`
 	Name          string `json:"gpu_device"`
-	DriverVersion string `json:"driver_version"`
+	DriverVersion string `json:"gpu_driver_version"`
 	UUID          string `json:"gpu_uuid"`
 	Architecture  string `json:"gpu_architecture"`
 
-	ComputeVersion string `json:"gpu_compute_version"` //e.g: in nvidia this refers to Compute Capability
-	ProcessorUnits int    `json:"gpu_processor_units"` // e.g: in nvidia it is SMCount (Streaming MultiProcessor Count)
+	ComputeVersion string `json:"gpu_compute_version"`       //e.g: in nvidia this refers to Compute Capability
+	ProcessorUnits int    `json:"gpu_processor_units_count"` // e.g: in nvidia it is SMCount (Streaming MultiProcessor Count)
 
 	//Total device memory in bytes
-	TotalMemory        uint64 `json:"device_total memory"`
+	TotalMemory        uint64 `json:"device_total_memory"`
 	MaxSMClockRate     uint32 `json:"device_max_sm_clock_rate"`
 	MaxMemoryClockRate uint32 `json:"device_max_memory_clock_rate"`
 	MemoryBusWidth     uint32 `json:"device_memory_bus_width"`
