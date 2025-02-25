@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/components/remote"
@@ -224,6 +225,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 	if params.agentOptions != nil {
 		params.agentOptions = append(params.agentOptions, dockeragentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		if params.testingWorkload {
+			params.agentOptions = append(params.agentOptions, dockeragentparams.WithExtraComposeManifest(redis.DockerComposeManifest.Name, redis.DockerComposeManifest.Content))
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithExtraComposeManifest(dogstatsd.DockerComposeManifest.Name, dogstatsd.DockerComposeManifest.Content))
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{"HOST_IP": host.Address}))
 		}

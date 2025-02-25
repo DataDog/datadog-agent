@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
@@ -137,16 +136,6 @@ func (spm *SecurityProfileManagers) GenerateTranscoding(params *api.TranscodingR
 		}, ErrActivityDumpManagerDisabled
 	}
 	return spm.activityDumpManager.TranscodingRequest(params)
-}
-
-// GetActivityDumpTracedEventTypes returns traced event types
-func (spm *SecurityProfileManagers) GetActivityDumpTracedEventTypes() []model.EventType {
-	return spm.config.RuntimeSecurity.ActivityDumpTracedEventTypes
-}
-
-// GetAnomalyDetectionEventTypes returns the event types that may generate anomaly detections
-func (spm *SecurityProfileManagers) GetAnomalyDetectionEventTypes() []model.EventType {
-	return spm.config.RuntimeSecurity.AnomalyDetectionEventTypes
 }
 
 // SnapshotTracedCgroups snapshots traced cgroups

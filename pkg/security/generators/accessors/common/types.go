@@ -43,6 +43,7 @@ type Module struct {
 	Iterators  map[string]*StructField
 	EventTypes map[string]*EventTypeMetadata
 	Mock       bool
+	Getters    []string
 }
 
 // StructField represents a structure field for which an accessor will be generated
@@ -65,6 +66,7 @@ type StructField struct {
 	CommentText      string
 	OpOverrides      string
 	Check            string
+	SetHandler       string
 	Alias            string
 	AliasPrefix      string
 	GettersOnly      bool
@@ -72,6 +74,7 @@ type StructField struct {
 	Ref              string
 	RestrictedTo     []string
 	IsIterator       bool
+	ReadOnly         bool
 }
 
 // GetEvaluatorType returns the evaluator type name

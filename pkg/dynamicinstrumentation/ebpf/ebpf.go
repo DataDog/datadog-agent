@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"text/template"
-	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -126,8 +125,8 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	return nil
 }
 
-// CompileBPFProgram compiles the code for a single probe associated with the process given by procInfo
-func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error { //nolint:revive // TODO
+// CompileBPFProgram compiles the code for a single probe
+func CompileBPFProgram(probe *ditypes.Probe) error {
 	f := func(in io.Reader, out io.Writer) error {
 		fileContents, err := io.ReadAll(in)
 		if err != nil {
@@ -169,7 +168,3 @@ func getCFlags(config *ddebpf.Config) []string {
 	}
 	return cflags
 }
-
-const (
-	compilationStepTimeout = 60 * time.Second //nolint:unused // TODO
-)

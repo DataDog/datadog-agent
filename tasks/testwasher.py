@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 from collections import defaultdict
 
 import yaml
@@ -23,14 +24,24 @@ class TestWasher:
         self,
         test_output_json_file="module_test_output.json",
         flaky_test_indicator=FLAKY_TEST_INDICATOR,
-        flakes_file_path="flakes.yaml",
+        flakes_file_paths: list[str] | None = None,
     ):
+        """Used to deduce which tests are flaky using the resulting test output and the flaky configurations.
+
+        Args:
+            - flakes_file_paths: Paths to flake configuration files that will be merged. ["flakes.yaml"] by default
+        """
+
         self.test_output_json_file = test_output_json_file
         self.flaky_test_indicator = flaky_test_indicator
-        self.flakes_file_path = flakes_file_path
+        self.flakes_file_paths = flakes_file_paths or ["flakes.yaml"]
         self.known_flaky_tests = defaultdict(set)
+        # flaky_log_patterns[package][test] = [pattern1, pattern2...]
+        self.flaky_log_patterns = defaultdict(lambda: defaultdict(list))
+        # Top level `on-log` used to have a pattern for every test
+        self.flaky_log_main_patterns = []
 
-        self.parse_flaky_file()
+        self.parse_flaky_files()
 
     def get_non_flaky_failing_tests(self, failing_tests: dict, flaky_marked_tests: dict):
         """
@@ -64,16 +75,39 @@ class TestWasher:
                 known_flakes[package] = tests
         return known_flakes
 
-    def parse_flaky_file(self):
+    def parse_flaky_files(self):
         """
-        Parse the flakes.yaml file and add the tests listed there to the kown flaky tests list
+        Parse the flakes.yaml like files and add the tests listed there to the known flaky tests list / the flaky log patterns to the flaky log patterns list
         """
-        with open(self.flakes_file_path) as f:
-            flakes = yaml.safe_load(f)
+        reserved_keywords = ("on-log",)
+
+        for path in self.flakes_file_paths:
+            with open(path) as f:
+                flakes = yaml.safe_load(f)
+
             if not flakes:
-                return
+                continue
+
+            # Add the tests to the known flaky tests list
             for package, tests in flakes.items():
-                self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].update(set(tests))
+                if package in reserved_keywords:
+                    continue
+
+                for test in tests:
+                    if 'on-log' in test:
+                        patterns = test['on-log']
+                        if isinstance(patterns, str):
+                            patterns = [patterns]
+                        self.flaky_log_patterns[f"github.com/DataDog/datadog-agent/{package}"][test['test']] += patterns
+                    else:
+                        # If there is no `on-log`, we consider it as a known flaky test right away
+                        self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].add(test['test'])
+
+            # on-log patterns at the top level
+            main_patterns = flakes.get('on-log', [])
+            if isinstance(main_patterns, str):
+                main_patterns = [main_patterns]
+            self.flaky_log_main_patterns += main_patterns
 
     def parse_test_results(self, module_path: str) -> tuple[dict, dict]:
         failing_tests = defaultdict(set)
@@ -93,9 +127,29 @@ class TestWasher:
                 if "Output" in test_result and "panic:" in test_result["Output"]:
                     failing_tests[test_result["Package"]].add(test_result["Test"])
 
-                if "Output" in test_result and self.flaky_test_indicator in test_result["Output"]:
+                if "Output" in test_result and self.is_flaky_from_log(
+                    test_result["Package"], test_result["Test"], test_result["Output"]
+                ):
                     flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
         return failing_tests, flaky_marked_tests
+
+    def is_flaky_from_log(self, package: str, test: str, log: str) -> bool:
+        """Returns whether the test is flaky based on the log output."""
+
+        if self.flaky_test_indicator in log:
+            return True
+
+        # Check if the log contains any of the flaky patterns
+        patterns = self.flaky_log_main_patterns
+
+        if test in self.flaky_log_patterns[package]:
+            patterns += self.flaky_log_patterns[package][test]
+
+        for pattern in patterns:
+            if re.search(pattern, log, re.IGNORECASE):
+                return True
+
+        return False
 
     def process_module_results(self, module_results: list[ModuleTestResult]):
         """
@@ -208,7 +262,7 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
                     del new_job['variables']['E2E_PRE_INITIALIZED']
             new_job["rules"] = [{"when": "always"}]
             if i > 0:
-                new_job["needs"].append(f"{job}-{i - 1}")
+                new_job["needs"].append({"job": f"{job}-{i - 1}", "artifacts": False})
             new_jobs[f"{job}-{i}"] = new_job
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:

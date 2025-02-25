@@ -29,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -38,6 +36,9 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -98,9 +99,9 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		ignoreResNames[resName] = struct{}{}
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
-	enableReceiveResourceSpansV2Val := 0.0
-	if cfg.HasFeature("enable_receive_resource_spans_v2") {
-		enableReceiveResourceSpansV2Val = 1.0
+	enableReceiveResourceSpansV2Val := 1.0
+	if cfg.HasFeature("disable_receive_resource_spans_v2") {
+		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
 	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
@@ -182,7 +183,7 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(ctx, rspans, header)
+		o.ReceiveResourceSpans(ctx, rspans, header, nil)
 	}
 }
 
@@ -225,14 +226,14 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	if o.conf.HasFeature("enable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV2(ctx, rspans, httpHeader.Get(header.ComputedStats) != "")
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
+		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler)
 	}
-	return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
+	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler)
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool) source.Source {
+func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
 
@@ -287,7 +288,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 	// Get the hostname or set to empty if source is empty
 	var hostname string
-	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet, hostFromAttributesHandler)
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
@@ -336,10 +337,10 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	return src
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
+func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
-	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet, hostFromAttributesHandler)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -418,8 +419,8 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedStats:    rattr[keyStatsComputed] != "" || isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)),
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || isHeaderTrue(header.ComputedTopLevel, httpHeader.Get(header.ComputedTopLevel)),
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -443,7 +444,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
 		Chunks:          o.createChunks(tracesByID, priorityByID),
-		Env:             traceutil.NormalizeTag(env),
+		Env:             traceutil.NormalizeTagValue(env),
 		ContainerID:     containerID,
 		LanguageName:    tagstats.Lang,
 		LanguageVersion: tagstats.LangVersion,
@@ -504,15 +505,31 @@ func (o *OTLPReceiver) createChunks(tracesByID map[uint64]pb.Trace, prioritiesBy
 			Tags:  map[string]string{"_dd.otlp_sr": rate},
 			Spans: spans,
 		}
+		if o.conf.ProbabilisticSamplerEnabled {
+			// SamplingPriority is not related to the decision of ProbabilisticSampler and ErrorsSampler.
+			chunk.Priority = int32(sampler.PriorityNone)
+			// Skip making a sampling decision at this point.
+			// Either ProbabilisticSampler enabled by this config or ErrorsSampler will decide.
+			traceChunks = append(traceChunks, chunk)
+			continue
+		}
+		var samplingPriorty sampler.SamplingPriority
+		var decisionMaker string
 		if p, ok := prioritiesByID[k]; ok {
 			// a manual decision has been made by the user
-			chunk.Priority = int32(p)
-			traceutil.SetMeta(spans[0], "_dd.p.dm", "-4")
+			samplingPriorty = p
+			decisionMaker = "-4"
 		} else {
 			// we use the probabilistic sampler to decide
-			chunk.Priority = int32(o.sample(k))
-			traceutil.SetMeta(spans[0], "_dd.p.dm", "-9")
+			samplingPriorty = o.sample(k)
+			decisionMaker = "-9"
 		}
+		// `_dd.p.dm` must not be set even if a drop decision is applied to the trace here.
+		// Traces with a drop decision by the OTLPReceiver’s probabilistic sampler are re-evaluated by ErrorsSampler later.
+		if samplingPriorty.IsKeep() {
+			traceutil.SetMeta(spans[0], "_dd.p.dm", decisionMaker)
+		}
+		chunk.Priority = int32(samplingPriorty)
 		traceChunks = append(traceChunks, chunk)
 	}
 	return traceChunks

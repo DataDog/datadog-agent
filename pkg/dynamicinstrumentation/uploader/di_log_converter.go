@@ -107,6 +107,9 @@ func reportCaptureError(defs []*ditypes.Parameter) ditypes.Captures {
 func convertArgs(defs []*ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
+		if capture == nil {
+			continue
+		}
 		var (
 			argName   string
 			defPieces []*ditypes.Parameter
@@ -162,6 +165,7 @@ func convertSlice(capture *ditypes.Param) *ditypes.CapturedValue {
 		})
 	}
 	sliceValue := &ditypes.CapturedValue{
+		Type:   capture.Type,
 		Fields: convertArgs(defs, capture.Fields),
 	}
 	return sliceValue

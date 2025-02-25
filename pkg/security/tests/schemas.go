@@ -9,18 +9,22 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
 	"os"
+	"syscall"
 	"testing"
+	"time"
+
+	"github.com/avast/retry-go/v4"
+	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
-	"github.com/xeipuuv/gojsonschema"
 )
 
 func getUpstreamEventSchema() string {
@@ -229,18 +233,30 @@ func (tm *testModule) validateIMDSSchema(t *testing.T, event *model.Event) bool 
 
 //nolint:deadcode,unused
 func (tm *testModule) validateAcceptSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///accept.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateBindSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///bind.schema.json")
 }
 
 //nolint:deadcode,unused
 func (tm *testModule) validateConnectSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///connect.schema.json")
 }
@@ -305,14 +321,13 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	default:
 		return false
 	}
-	return !dentry.IsFakeInode(inode)
+	return !model.IsFakeInode(inode)
 }
 
-func validateSchema(t *testing.T, schemaLoader gojsonschema.JSONLoader, documentLoader gojsonschema.JSONLoader) bool {
+func validateSchema(t *testing.T, schemaLoader gojsonschema.JSONLoader, documentLoader gojsonschema.JSONLoader) (bool, error) {
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
 	if err != nil {
-		t.Error(err)
-		return false
+		return false, err
 	}
 
 	success := true
@@ -328,7 +343,7 @@ func validateSchema(t *testing.T, schemaLoader gojsonschema.JSONLoader, document
 			success = false
 		}
 	}
-	return success
+	return success, nil
 }
 
 //nolint:deadcode,unused
@@ -341,7 +356,13 @@ func validateStringSchema(t *testing.T, json string, path string) bool {
 	documentLoader := gojsonschema.NewStringLoader(json)
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem(path, fs)
 
-	if !validateSchema(t, schemaLoader, documentLoader) {
+	valid, err := validateSchema(t, schemaLoader, documentLoader)
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+
+	if !valid {
 		t.Error(json)
 		return false
 	}
@@ -356,7 +377,17 @@ func validateURLSchema(t *testing.T, json string, url string) bool {
 	documentLoader := gojsonschema.NewStringLoader(json)
 	schemaLoader := gojsonschema.NewReferenceLoader(url)
 
-	if !validateSchema(t, schemaLoader, documentLoader) {
+	valid, err := retry.DoWithData[bool](func() (bool, error) {
+		return validateSchema(t, schemaLoader, documentLoader)
+	}, retry.RetryIf(func(err error) bool {
+		return errors.Is(err, syscall.ECONNRESET)
+	}), retry.MaxDelay(1*time.Minute), retry.DelayType(retry.BackOffDelay), retry.Delay(1*time.Second), retry.LastErrorOnly(true))
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+
+	if !valid {
 		t.Error(json)
 		return false
 	}

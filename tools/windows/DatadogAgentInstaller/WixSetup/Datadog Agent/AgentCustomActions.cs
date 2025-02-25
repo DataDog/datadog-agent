@@ -18,6 +18,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction PatchInstaller { get; set; }
 
+        public ManagedAction EnsureGeneratedFilesRemoved { get; }
+
         public ManagedAction WriteConfig { get; }
 
         public ManagedAction ReadInstallState { get; }
@@ -178,6 +180,21 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             };
 
+            EnsureGeneratedFilesRemoved = new CustomAction<CustomActions>(
+                new Id(nameof(EnsureGeneratedFilesRemoved)),
+                CustomActions.CleanupFiles,
+                Return.check,
+                When.Before,
+                Step.InstallFiles,
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
             WriteConfig = new CustomAction<CustomActions>(
                     new Id(nameof(WriteConfig)),
                     CustomActions.WriteConfig,
@@ -248,7 +265,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties(
-                    "PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
+                    "PROJECTLOCATION=[PROJECTLOCATION], " +
+                    "embedded3_SIZE=[embedded3_SIZE], " +
+                    "AgentFlavor=[AgentFlavor]");
 
             PrepareDecompressPythonDistributions = new CustomAction<CustomActions>(
                 new Id(nameof(PrepareDecompressPythonDistributions)),

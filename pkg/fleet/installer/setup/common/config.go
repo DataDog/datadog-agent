@@ -127,7 +127,6 @@ type DatadogConfig struct {
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
 	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
-	RemotePolicies       bool                       `yaml:"remote_policies,omitempty"`
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 }
@@ -162,7 +161,7 @@ type DatadogConfigInstallerRegistry struct {
 
 // IntegrationConfig represents the configuration for an integration under conf.d/
 type IntegrationConfig struct {
-	InitConfig []any                   `yaml:"init_config"`
+	InitConfig any                     `yaml:"init_config"`
 	Instances  []any                   `yaml:"instances,omitempty"`
 	Logs       []IntegrationConfigLogs `yaml:"logs,omitempty"`
 }
@@ -173,6 +172,7 @@ type IntegrationConfigLogs struct {
 	Path    string `yaml:"path,omitempty"`
 	Service string `yaml:"service,omitempty"`
 	Source  string `yaml:"source,omitempty"`
+	Tags    string `yaml:"tags,omitempty"`
 }
 
 // IntegrationConfigInstanceSpark represents the configuration for the Spark integration

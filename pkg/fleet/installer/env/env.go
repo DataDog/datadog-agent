@@ -7,6 +7,7 @@
 package env
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/http"
@@ -23,7 +24,6 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
-	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -99,10 +99,9 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey         string
-	Site           string
-	RemoteUpdates  bool
-	RemotePolicies bool
+	APIKey        string
+	Site          string
+	RemoteUpdates bool
 
 	Mirror                      string
 	RegistryOverride            string
@@ -131,6 +130,8 @@ type Env struct {
 	HTTPProxy  string
 	HTTPSProxy string
 	NoProxy    string
+
+	IsCentos6 bool
 }
 
 // HTTPClient returns an HTTP client with the proxy settings from the environment.
@@ -166,10 +167,9 @@ func FromEnv() *Env {
 	}
 
 	return &Env{
-		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
-		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
+		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates: strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -203,6 +203,8 @@ func FromEnv() *Env {
 		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
 		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
 		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
+
+		IsCentos6: DetectCentos6(),
 	}
 }
 
@@ -218,9 +220,6 @@ func (e *Env) ToEnv() []string {
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
 	}
-	if e.RemotePolicies {
-		env = append(env, envRemotePolicies+"=true")
-	}
 	if e.Mirror != "" {
 		env = append(env, envMirror+"="+e.Mirror)
 	}
@@ -235,6 +234,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RegistryPassword != "" {
 		env = append(env, envRegistryPassword+"="+e.RegistryPassword)
+	}
+	if e.InstallScript.APMInstrumentationEnabled != "" {
+		env = append(env, envApmInstrumentationEnabled+"="+e.InstallScript.APMInstrumentationEnabled)
 	}
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}
@@ -288,6 +290,23 @@ func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
 	}
 	return apmLibrariesVersion
+}
+
+// DetectCentos6 checks if the machine the installer is currently on is running centos 6
+func DetectCentos6() bool {
+	sources := []string{
+		"/etc/system-release",
+		"/etc/centos-release",
+		"/etc/redhat-release",
+	}
+	for _, s := range sources {
+		b, _ := os.ReadFile(s)
+		if (bytes.Contains(b, []byte("CentOS")) || bytes.Contains(b, []byte("Red Hat"))) &&
+			bytes.Contains(b, []byte("release 6")) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseAPMLanguagesEnv() map[ApmLibLanguage]ApmLibVersion {
@@ -345,4 +364,12 @@ func getProxySetting(ddEnv string, env string) string {
 			os.Getenv(strings.ToLower(env)),
 		),
 	)
+}
+
+// ValidateAPMInstrumentationEnabled validates the value of the DD_APM_INSTRUMENTATION_ENABLED environment variable.
+func ValidateAPMInstrumentationEnabled(value string) error {
+	if value != APMInstrumentationEnabledAll && value != APMInstrumentationEnabledDocker && value != APMInstrumentationEnabledHost && value != APMInstrumentationNotSet {
+		return fmt.Errorf("invalid value for %s: %s", envApmInstrumentationEnabled, value)
+	}
+	return nil
 }

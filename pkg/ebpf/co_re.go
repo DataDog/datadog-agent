@@ -76,7 +76,6 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 	defer buf.Close()
 
 	opts := manager.Options{
-		KernelModuleBTFLoadFunc: ret.moduleLoadFunc,
 		VerifierOptions: bpflib.CollectionOptions{
 			Programs: bpflib.ProgramOptions{
 				KernelTypes: ret.vmlinux,

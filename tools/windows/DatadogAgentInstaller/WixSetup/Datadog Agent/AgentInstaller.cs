@@ -106,6 +106,9 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                // Set the flavor so CustomActions can adjust their behavior.
+                // For example, we only run openssl fipsinstall in the FIPS flavor.
+                new Property("AgentFlavor", _agentFlavor.FlavorName),
                 // set this property to anything to indicate to the merge module that on install rollback, it should
                 // execute the install custom action rollback; otherwise it won't.
                 new Property("DDDRIVERROLLBACK_NPM", "1"),
@@ -142,6 +145,34 @@ namespace WixSetup.Datadog_Agent
                     Win64 = true
                 }
             );
+            var agentOpenSSLVersion = Environment.GetEnvironmentVariable("AGENT_OPENSSL_VERSION");
+            if (!string.IsNullOrEmpty(agentOpenSSLVersion))
+            {
+                // Since OpenSSL 3.4, the install paths can be retrieved from the registry instead of being hardcoded at build time.
+                // This is important because the Agent install path isn't known at build time.
+                // At time of writing, this is only relevant for FIPS Agent, we don't configure OpenSSL in regular Agent builds.
+                // https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+                if (agentOpenSSLVersion.Split('.').Length != 2)
+                {
+                    throw new InvalidDataException("AGENT_OPENSSL_VERSION must be in the format MAJOR.MINOR");
+                }
+                var winctx = $"OpenSSL-{agentOpenSSLVersion}-{_agentFlavor.OpenSSLWinCtx}";
+                // Store key name as property for easy reference, and to use in InstallState action to write the relevant keys
+                // at install time, once the install path is known.
+                project.AddProperty(new Property("AgentOpenSSLWinCtx", winctx));
+                // Store the root key in WiX so that we can depend on deleting/restoring the keys/values during rollback
+                project.AddRegKey(new RegKey(_agentFeatures.MainApplication,
+                    RegistryHive.LocalMachine, $@"Software\WOW6432Node\{winctx}",
+                    // Must set KeyPath=yes to ensure WiX# doesn't automatically try to use the parent Directory as the KeyPath,
+                    // which can cause the directory to be added to the CreateFolder table.
+                    // We are able to assume PROJECTLOCATION includes a trailing backslash b/c the built-in WriteRegistryValues
+                    // action runs after file costing.
+                    new RegValue("OPENSSLDIR", "[PROJECTLOCATION]embedded3\\ssl") { Win64 = true, AttributesDefinition = "KeyPath=yes" },
+                    new RegValue("ENGINESDIR", "[PROJECTLOCATION]embedded3\\lib\\engines-3") { Win64 = true, AttributesDefinition = "KeyPath=yes" },
+                    new RegValue("MODULESDIR", "[PROJECTLOCATION]embedded3\\lib\\ossl-modules") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
+                    )
+                );
+            }
 
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version

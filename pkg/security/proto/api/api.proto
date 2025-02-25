@@ -106,10 +106,16 @@ message PolicyStatus {
     repeated RuleStatus Status = 3;
 }
 
+message SECLVariableState {
+    string Name = 1;
+    string Value = 2;
+}
+
 message Status {
     EnvironmentStatus Environment = 1;
     SelfTestsStatus SelfTests = 2;
     repeated PolicyStatus PoliciesStatus = 3;
+    repeated SECLVariableState SECLVariables = 4;
 }
 
 message ConstantFetcherStatus {
@@ -123,6 +129,7 @@ message EnvironmentStatus {
     string KernelLockdown = 3;
     bool UseMmapableMaps = 4;
     bool UseRingBuffer = 5;
+    bool UseFentry = 6;
 }
 
 /*Discarders*/
@@ -167,6 +174,7 @@ message MetadataMessage {
     uint64 Size = 13;
     string Serialization = 14;
     string CGroupID = 15;
+    string CGroupManager = 16;
 }
 
 message StorageRequestMessage {

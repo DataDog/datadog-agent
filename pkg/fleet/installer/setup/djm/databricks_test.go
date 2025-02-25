@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 func TestSetupCommonHostTags(t *testing.T) {
@@ -36,6 +36,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"DATABRICKS_WORKSPACE": "example_workspace",
 			},
 			wantTags: []string{
+				"data_workload_monitoring_trial:true",
 				"spark_host_ip:192.168.1.100",
 				"databricks_instance_type:m4.xlarge",
 				"databricks_is_job_cluster:true",
@@ -53,6 +54,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"DB_CLUSTER_NAME": "job-123-run-456",
 			},
 			wantTags: []string{
+				"data_workload_monitoring_trial:true",
 				"databricks_cluster_name:job-123-run-456",
 				"cluster_name:job-123-run-456",
 				"jobid:123",
@@ -60,9 +62,11 @@ func TestSetupCommonHostTags(t *testing.T) {
 			},
 		},
 		{
-			name:     "Missing env vars results in no tags",
-			env:      map[string]string{},
-			wantTags: []string{},
+			name: "Missing env vars results in no tags",
+			env:  map[string]string{},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+			},
 		},
 	}
 

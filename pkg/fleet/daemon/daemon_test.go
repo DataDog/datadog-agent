@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the installer is not supported on windows
-//go:build !windows
-
 package daemon
 
 import (
@@ -20,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -62,6 +60,11 @@ func (m *testPackageManager) ConfigStates() (map[string]repository.State, error)
 }
 
 func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
+	args := m.Called(ctx, url, installArgs)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) ForceInstall(ctx context.Context, url string, installArgs []string) error {
 	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
@@ -212,8 +215,11 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
-	env := &env.Env{RemoteUpdates: true}
-	daemon := newDaemon(rc, pm, env)
+	daemon := newDaemon(
+		rc,
+		func(_ *env.Env) installer.Installer { return pm },
+		&env.Env{RemoteUpdates: true},
+	)
 	i := &testInstaller{
 		daemonImpl: daemon,
 		rcc:        rcc,
@@ -328,7 +334,7 @@ func TestRemoteRequest(t *testing.T) {
 	c := catalog{
 		Packages: []Package{testExperimentPackage},
 	}
-	versionParams := taskWithVersionParams{
+	versionParams := experimentTaskParams{
 		Version: testExperimentPackage.Version,
 	}
 	versionParamsJSON, _ := json.Marshal(versionParams)

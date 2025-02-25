@@ -199,7 +199,7 @@ build do
   # CWS Instrumentation
   cws_inst_support = !heroku_target? && linux_target?
   if cws_inst_support
-    command "invoke -e cws-instrumentation.build", :env => env
+    command "invoke -e cws-instrumentation.build #{fips_args}", :env => env
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
@@ -282,7 +282,13 @@ build do
     end
   end
 
-  python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
-  mkdir "#{install_dir}/python-scripts"
-  copy "#{python_scripts_dir}/*", "#{install_dir}/python-scripts"
+  block do
+    python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
+    mkdir "#{install_dir}/python-scripts"
+    Dir.glob("#{python_scripts_dir}/*").each do |file|
+      unless File.basename(file).end_with?('_tests.py')
+        copy file, "#{install_dir}/python-scripts"
+      end
+    end
+  end
 end

@@ -120,9 +120,11 @@ func TestPathValidation(t *testing.T) {
 func TestSetFieldValue(t *testing.T) {
 	var readOnlyError *eval.ErrFieldReadOnly
 	var fieldNotSupportedError *eval.ErrNotSupported
-
 	event := NewFakeEvent()
 	for _, field := range event.GetFields() {
+		// use a fresh event to not get polluted by previous SetFieldValue
+		event = NewFakeEvent()
+
 		_, kind, err := event.GetFieldMetadata(field)
 		if err != nil {
 			t.Fatal(err)

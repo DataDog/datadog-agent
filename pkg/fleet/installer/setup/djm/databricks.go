@@ -18,8 +18,8 @@ import (
 
 const (
 	databricksInjectorVersion   = "0.26.0-1"
-	databricksJavaTracerVersion = "1.42.2-1"
-	databricksAgentVersion      = "7.58.2-1"
+	databricksJavaTracerVersion = "1.45.2-1"
+	databricksAgentVersion      = "7.62.2-1"
 )
 
 var (
@@ -83,6 +83,7 @@ func SetupDatabricks(s *common.Setup) error {
 	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, databricksJavaTracerVersion)
 
+	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
 	hostname, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("failed to get hostname: %w", err)
@@ -134,6 +135,7 @@ func setupCommonHostTags(s *common.Setup) {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
 	}
+	setHostTag(s, "data_workload_monitoring_trial", "true")
 }
 
 func getJobAndRunIDs() (jobID, runID string, ok bool) {
@@ -171,6 +173,7 @@ func setHostTag(s *common.Setup, tagKey, value string) {
 }
 
 func setupDatabricksDriver(s *common.Setup) {
+	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	s.Span.SetTag("spark_node", "driver")
 
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "node_type:driver")

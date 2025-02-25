@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
@@ -52,13 +53,13 @@ func OtelSpanToDDSpanMinimal(
 
 	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
 	var spanType string
-	if conf.HasFeature("enable_receive_resource_spans_v2") {
-		spanType = traceutil.GetOTelSpanType(otelspan, otelres)
-	} else {
+	if conf.HasFeature("disable_receive_resource_spans_v2") {
 		spanType = traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
 		if spanType == "" {
 			spanType = traceutil.SpanKind2Type(otelspan, otelres)
 		}
+	} else {
+		spanType = traceutil.GetOTelSpanType(otelspan, otelres)
 	}
 
 	ddspan := &pb.Span{
@@ -100,6 +101,27 @@ func OtelSpanToDDSpanMinimal(
 	return ddspan
 }
 
+func isDatadogAPMConventionKey(k string) bool {
+	return k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" || k == "http.method" || k == "http.status_code"
+}
+
+func setMetaOTLPWithHTTPMappings(k string, value string, ddspan *pb.Span) {
+	datadogKey, found := attributes.HTTPMappings[k]
+	switch {
+	case found && value != "":
+		ddspan.Meta[datadogKey] = value
+	case strings.HasPrefix(k, "http.request.header."):
+		key := fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
+		ddspan.Meta[key] = value
+		// Exclude Datadog APM conventions.
+		// These are handled above explicitly.
+	case !isDatadogAPMConventionKey(k):
+		SetMetaOTLP(ddspan, k, value)
+	default:
+		return
+	}
+}
+
 // OtelSpanToDDSpan converts an OTel span to a DD span.
 func OtelSpanToDDSpan(
 	otelspan ptrace.Span,
@@ -117,9 +139,8 @@ func OtelSpanToDDSpan(
 	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
-		if k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
-			SetMetaOTLP(ddspan, k, v.AsString())
-		}
+		value := v.AsString()
+		setMetaOTLPWithHTTPMappings(k, value, ddspan)
 		return true
 	})
 
@@ -156,11 +177,7 @@ func OtelSpanToDDSpan(
 		case pcommon.ValueTypeInt:
 			SetMetricOTLP(ddspan, k, float64(v.Int()))
 		default:
-			// Exclude Datadog APM conventions.
-			// These are handled below explicitly.
-			if k != "http.method" && k != "http.status_code" && k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
-				SetMetaOTLP(ddspan, k, value)
-			}
+			setMetaOTLPWithHTTPMappings(k, value, ddspan)
 		}
 
 		// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
@@ -170,7 +187,6 @@ func OtelSpanToDDSpan(
 		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
 		if k == "http.request.method" {
 			gotMethodFromNewConv = true
-			ddspan.Meta["http.method"] = value
 		} else if k == "http.method" && !gotMethodFromNewConv {
 			ddspan.Meta["http.method"] = value
 		}
@@ -182,7 +198,6 @@ func OtelSpanToDDSpan(
 		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
 		if k == "http.response.status_code" {
 			gotStatusCodeFromNewConv = true
-			ddspan.Meta["http.status_code"] = value
 		} else if k == "http.status_code" && !gotStatusCodeFromNewConv {
 			ddspan.Meta["http.status_code"] = value
 		}

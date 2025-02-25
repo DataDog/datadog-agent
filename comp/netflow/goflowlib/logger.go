@@ -6,38 +6,41 @@
 package goflowlib
 
 import (
-	"github.com/sirupsen/logrus"
-
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
-var ddLogToLogrusLevel = map[ddlog.LogLevel]logrus.Level{
-	ddlog.TraceLvl:    logrus.TraceLevel,
-	ddlog.DebugLvl:    logrus.DebugLevel,
-	ddlog.InfoLvl:     logrus.InfoLevel,
-	ddlog.WarnLvl:     logrus.WarnLevel,
-	ddlog.ErrorLvl:    logrus.ErrorLevel,
-	ddlog.CriticalLvl: logrus.FatalLevel,
+// GoflowLoggerAdapter is used to implement goflow's logging interface from our logger
+// https://github.com/netsampler/goflow2/blob/v1/utils/utils.go#L41-L51
+type GoflowLoggerAdapter struct {
+	log.Component
 }
 
-// GetLogrusLevel returns logrus log level from log.GetLogLevel()
-func GetLogrusLevel(logger log.Component) *logrus.Logger {
-	// TODO: ideally this would be exposed by the log component but there were
-	// some issues getting #19033 merged. Right now this will always be the
-	// datadog log level, even if you pass in a different logger. This problem
-	// will also go away when we upgrade to the latest goflow2, as we will no
-	// longer need to interact with logrus.
-	logLevel, err := ddlog.GetLogLevel()
-	if err != nil {
-		logger.Warnf("error getting log level")
-	}
-	logrusLevel, ok := ddLogToLogrusLevel[logLevel]
-	if !ok {
-		logger.Warnf("no matching logrus level for seelog level: %s", logLevel.String())
-		logrusLevel = logrus.InfoLevel
-	}
-	logrusLogger := logrus.StandardLogger()
-	logrusLogger.SetLevel(logrusLevel)
-	return logrusLogger
+// Printf logs the given formatted arguments at the info level
+func (g *GoflowLoggerAdapter) Printf(format string, params ...interface{}) {
+	g.Infof(format, params...)
+}
+
+// Errorf logs the given formatted arguments at the error level
+func (g *GoflowLoggerAdapter) Errorf(format string, params ...interface{}) {
+	g.Component.Errorf(format, params...)
+}
+
+// Error logs the given arguments, separated by spaces, at the error level
+func (g *GoflowLoggerAdapter) Error(params ...interface{}) {
+	g.Component.Error(params...)
+}
+
+// Warnf logs the given formatted arguments at the warn level
+func (g *GoflowLoggerAdapter) Warnf(format string, params ...interface{}) {
+	g.Component.Warnf(format, params...)
+}
+
+// Warn logs the given arguments, separated by spaces, at the warn level
+func (g *GoflowLoggerAdapter) Warn(params ...interface{}) {
+	g.Component.Warn(params...)
+}
+
+// Fatalf logs the given formatted arguments at the critical level
+func (g *GoflowLoggerAdapter) Fatalf(format string, params ...interface{}) {
+	g.Criticalf(format, params...)
 }

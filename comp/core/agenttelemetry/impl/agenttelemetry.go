@@ -500,7 +500,7 @@ func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	a.logComp.Info("Showing agent telemetry payload")
-	payload, err := a.GetAsJSON()
+	payload, err := a.getAsJSON()
 	if err != nil {
 		httputils.SetJSONError(w, a.logComp.Error(err.Error()), 500)
 		return
@@ -509,7 +509,7 @@ func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 	w.Write(payload)
 }
 
-func (a *atel) GetAsJSON() ([]byte, error) {
+func (a *atel) getAsJSON() ([]byte, error) {
 	session, err := a.loadPayloads(a.atelCfg.Profiles)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load agent telemetry payload: %w", err)
@@ -533,6 +533,39 @@ func (a *atel) GetAsJSON() ([]byte, error) {
 	}
 
 	return prettyPayload.Bytes(), nil
+}
+
+func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
+	// Check if the telemetry is enabled
+	if !a.enabled {
+		return errors.New("agent telemetry is not enabled")
+	}
+
+	// Check if the payload type is registered
+	eventInfo, ok := a.atelCfg.events[eventType]
+	if !ok {
+		a.logComp.Errorf("Payload type `%s` has to be registered to be sent", eventType)
+		return fmt.Errorf("Payload type `%s` is not registered", eventType)
+	}
+
+	// Convert payload to JSON
+	var eventPayloadJSON map[string]interface{}
+	err := json.Unmarshal(eventPayload, &eventPayloadJSON)
+	if err != nil {
+		a.logComp.Errorf("Failed to unmarshal payload: %s", err)
+		return fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+
+	// Send the payload
+	ss := a.sender.startSession(a.cancelCtx)
+	a.sender.sendEventPayload(ss, eventInfo, eventPayloadJSON)
+	err = a.sender.flushSession(ss)
+	if err != nil {
+		a.logComp.Errorf("failed to flush sent payload: %w", err)
+		return err
+	}
+
+	return nil
 }
 
 // start is called by FX when the application starts.

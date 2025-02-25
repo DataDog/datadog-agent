@@ -30,7 +30,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.117.0"
+OCB_VERSION = "0.120.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -97,7 +97,11 @@ def find_matching_components(manifest, components_to_match: dict, present: bool)
     return res
 
 
-def versions_equal(version1, version2):
+def versions_equal(version1, version2, fuzzy=False):
+    idx = version1.find("/")
+    if idx != -1:
+        # version may be in the format of "v1.xx.0/v0.yyy.0"
+        version1 = version1[idx + 1 :]
     # strip leading 'v' if present
     if version1.startswith("v"):
         version1 = version1[1:]
@@ -106,8 +110,16 @@ def versions_equal(version1, version2):
     # Split the version strings by '.'
     parts1 = version1.split(".")
     parts2 = version2.split(".")
+
     # Compare the first two parts (major and minor versions)
-    return parts1[0] == parts2[0] and parts1[1] == parts2[1]
+    major_minor_match = parts1[0] == parts2[0] and parts1[1] == parts2[1]
+
+    if fuzzy:
+        # If fuzzy matching is enabled, check if major and minor match
+        return major_minor_match
+    else:
+        # Otherwise, check all parts for exact match
+        return major_minor_match and parts1 == parts2
 
 
 def validate_manifest(manifest) -> list:
@@ -116,7 +128,7 @@ def validate_manifest(manifest) -> list:
 
     # validate collector version matches ocb version
     manifest_version = manifest.get("dist", {}).get("otelcol_version")
-    if manifest_version and not versions_equal(manifest_version, OCB_VERSION):
+    if manifest_version and not versions_equal(manifest_version, OCB_VERSION, True):
         raise YAMLValidationError(
             f"Collector version ({manifest_version}) in manifest does not match required OCB version ({OCB_VERSION})"
         )
@@ -128,10 +140,13 @@ def validate_manifest(manifest) -> list:
         if components:
             for component in components:
                 for module in component.values():
-                    if module.find(OCB_VERSION) == -1:
-                        raise YAMLValidationError(
-                            f"Component {module}) in manifest does not match required OCB version ({OCB_VERSION})"
-                        )
+                    module_info = module.split(" ")
+                    if len(module_info) == 2:
+                        _, module_version = module_info
+                        if not versions_equal(module_version, OCB_VERSION, True):
+                            raise YAMLValidationError(
+                                f"Component {module}) in manifest does not match required OCB version ({OCB_VERSION})"
+                            )
 
     # validate mandatory components are present
     missing_components = find_matching_components(manifest, MANDATORY_COMPONENTS, False)
@@ -425,7 +440,7 @@ class CollectorRepo:
 
     def fetch_latest_release(self):
         gh = GithubAPI(self.repo)
-        self.version = gh.latest_release()
+        self.version = gh.latest_release_tag()
         return self.version
 
     def fetch_module_versions(self):
@@ -505,7 +520,7 @@ class CollectorVersionUpdater:
 
 
 @task(post=[tidy])
-def update(ctx):
+def update(_):
     updater = CollectorVersionUpdater()
     updater.update()
     print("Update complete.")
@@ -514,12 +529,12 @@ def update(ctx):
 @task()
 def pull_request(ctx):
     # Save current Git configuration
-    original_config = {'user.name': get_git_config('user.name'), 'user.email': get_git_config('user.email')}
+    original_config = {'user.name': get_git_config(ctx, 'user.name'), 'user.email': get_git_config(ctx, 'user.email')}
 
     try:
         # Set new Git configuration
-        set_git_config('user.name', 'github-actions[bot]')
-        set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
+        set_git_config(ctx, 'user.name', 'github-actions[bot]')
+        set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
 
         # Perform Git operations
         ctx.run('git add .')
@@ -531,10 +546,13 @@ def pull_request(ctx):
                 f'git commit -m "Update OTel Collector dependencies to {OCB_VERSION} and generate OTel Agent" --no-verify'
             )
             try:
+                # don't check if local branch exists; we just created it
                 check_clean_branch_state(ctx, gh, branch_name)
             except Exit as e:
-                print(e)
-                return
+                # local branch already exists, so skip error if this is thrown
+                if "already exists locally" not in str(e):
+                    print(e)
+                    return
             ctx.run(f'git push -u origin {branch_name} --no-verify')  # skip pre-commit hook if installed locally
             gh.create_pr(
                 pr_title=f"Update OTel Collector dependencies to v{OCB_VERSION}",
@@ -547,4 +565,4 @@ def pull_request(ctx):
             print("No changes detected, skipping PR creation.")
     finally:
         # Revert to original Git configuration
-        revert_git_config(original_config)
+        revert_git_config(ctx, original_config)

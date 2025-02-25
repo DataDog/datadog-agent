@@ -272,7 +272,7 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 		return ErrAllComponentsDisabled
 	}
 
-	if !config.IsSet("api_key") {
+	if !config.IsConfigured("api_key") {
 		log.Critical("No API key configured, exiting")
 
 		// A sleep is necessary so that sysV doesn't think the agent has failed

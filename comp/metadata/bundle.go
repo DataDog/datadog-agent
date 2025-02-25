@@ -8,6 +8,7 @@
 package metadata
 
 import (
+	haagentmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
@@ -21,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
@@ -36,6 +37,7 @@ func Bundle() fxutil.BundleOptions {
 		packagesigningimpl.Module(),
 		systemprobe.Module(),
 		securityagent.Module(),
+		haagentmetadatafx.Module(),
 	)
 }
 

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
@@ -284,6 +284,7 @@ func setupCommand() *cobra.Command {
 
 func installCommand() *cobra.Command {
 	var installArgs []string
+	var forceInstall bool
 	cmd := &cobra.Command{
 		Use:     "install <url>",
 		Short:   "Install a package",
@@ -296,10 +297,14 @@ func installCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.url", args[0])
+			if forceInstall {
+				return i.ForceInstall(i.ctx, args[0], installArgs)
+			}
 			return i.Install(i.ctx, args[0], installArgs)
 		},
 	}
 	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
+	cmd.Flags().BoolVar(&forceInstall, "force", false, "Install packages, even if they are already up-to-date.")
 	return cmd
 }
 

@@ -75,8 +75,9 @@ func (t *ConnectionTracker) HandleConnections() {
 				t.activeConnections.Inc()
 			}
 		case conn := <-t.connToClose:
-			err := conn.Close()
-			log.Infof("dogstatsd-%s: failed to close connection: %v", t.name, err)
+			if err := conn.Close(); err != nil {
+				log.Warnf("dogstatsd-%s: failed to close connection: %v", t.name, err)
+			}
 
 			if _, ok := t.connections[conn]; !ok {
 				log.Warnf("dogstatsd-%s: connection wasn't tracked", t.name)
@@ -98,14 +99,17 @@ func (t *ConnectionTracker) HandleConnections() {
 				case *net.UnixConn:
 					err = c.CloseWrite()
 				}
-				log.Debugf("dogstatsd-%s: failed to shutdown connection: %v", t.name, err)
+
+				if err != nil {
+					log.Warnf("dogstatsd-%s: failed to shutdown connection (write): %v", t.name, err)
+					err = nil
+				}
 			}
 
 			time.Sleep(t.closeDelay)
 
 			for c := range t.connections {
-				// First, when possible, we close the write end of the connection to notify
-				// the client that we are shutting down.
+				// Then, we finish closing the connection.
 				switch c := c.(type) {
 				case *net.TCPConn:
 					err = c.CloseRead()
@@ -115,7 +119,11 @@ func (t *ConnectionTracker) HandleConnections() {
 					// We don't have a choice, setting a 0 timeout would likely be a retryable error.
 					err = c.Close()
 				}
-				log.Debugf("dogstatsd-%s: failed to shutdown connection: %v", t.name, err)
+
+				if err != nil {
+					log.Warnf("dogstatsd-%s: failed to shutdown connection (read): %v", t.name, err)
+					err = nil
+				}
 			}
 		case <-time.After(1 * time.Second):
 			// We don't want to block forever on the select, so we add a timeout.

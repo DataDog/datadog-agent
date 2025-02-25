@@ -310,20 +310,27 @@ func (o *Obfuscator) ObfuscateSQLStringForDBMS(in string, dbms string) (*Obfusca
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
 // and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
+	cacheKey := fmt.Sprintf("%v:%s", opts, in)
+	if v, ok := o.queryCache.Get(cacheKey); ok {
+		return v.(*ObfuscatedQuery), nil
+	}
+
+	var oq *ObfuscatedQuery
+	var err error
+
 	if opts.ObfuscationMode != "" {
 		// If obfuscation mode is specified, we will use go-sqllexer pkg
 		// to obfuscate (and normalize) the query.
-		return o.ObfuscateWithSQLLexer(in, opts)
+		oq, err = o.ObfuscateWithSQLLexer(in, opts)
+	} else {
+		oq, err = o.obfuscateSQLString(in, opts)
 	}
 
-	if v, ok := o.queryCache.Get(in); ok {
-		return v.(*ObfuscatedQuery), nil
-	}
-	oq, err := o.obfuscateSQLString(in, opts)
 	if err != nil {
 		return oq, err
 	}
-	o.queryCache.Set(in, oq, oq.Cost())
+
+	o.queryCache.Set(cacheKey, oq, oq.Cost())
 	return oq, nil
 }
 
@@ -354,7 +361,16 @@ type ObfuscatedQuery struct {
 // Cost returns the number of bytes needed to store all the fields
 // of this ObfuscatedQuery.
 func (oq *ObfuscatedQuery) Cost() int64 {
-	return int64(len(oq.Query)) + oq.Metadata.Size
+	// The cost of the ObfuscatedQuery struct is the sum of the length of the query string,
+	// the size of the metadata content, and the size of the struct itself and its fields headers.
+	// 320 bytes come from
+	// - 112 bytes for the ObfuscatedQuery struct itself, measured by unsafe.Sizeof(ObfuscatedQuery{})
+	// - 96 bytes for the Metadata struct itself, measured by unsafe.Sizeof(SQLMetadata{})
+	// - 16 bytes for the Query string header
+	// - 16 bytes for the TablesCSV string header
+	// - 24 * 3 bytes for the Comments, Commands, and Procedures slices headers
+	// - 8 bytes for the Size int64 field
+	return int64(len(oq.Query)) + oq.Metadata.Size + 320
 }
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
@@ -463,11 +479,6 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		}, nil
 	}
 
-	// we only want to cache normalized queries
-	if v, ok := o.queryCache.Get(in); ok {
-		return v.(*ObfuscatedQuery), nil
-	}
-
 	// Obfuscate the query and normalize it.
 	normalizer := sqllexer.NewNormalizer(
 		sqllexer.WithCollectComments(opts.CollectComments),
@@ -508,8 +519,6 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 			Procedures: statementMetadata.Procedures,
 		},
 	}
-
-	o.queryCache.Set(in, oq, oq.Cost())
 
 	return oq, nil
 }

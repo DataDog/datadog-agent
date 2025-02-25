@@ -23,10 +23,10 @@ type Context struct {
 	Event Event
 
 	// cache available across all the evaluations
-	StringCache map[string][]string
-	IPNetCache  map[string][]net.IPNet
-	IntCache    map[string][]int
-	BoolCache   map[string][]bool
+	StringCache map[Field][]string
+	IPNetCache  map[Field][]net.IPNet
+	IntCache    map[Field][]int
+	BoolCache   map[Field][]bool
 
 	// iterator register cache. used to cache entry within a single rule evaluation
 	RegisterCache map[RegisterID]*RegisterCacheEntry
@@ -34,13 +34,11 @@ type Context struct {
 	// rule register
 	Registers map[RegisterID]int
 
-	now time.Time
+	IteratorCountCache map[string]int
 
-	AncestorsCounters map[string]int
-
+	// internal
+	now            time.Time
 	resolvedFields []string
-
-	Error error
 }
 
 // Now return and cache the `now` timestamp
@@ -60,7 +58,6 @@ func (c *Context) SetEvent(evt Event) {
 func (c *Context) Reset() {
 	c.Event = nil
 	c.now = time.Time{}
-	c.Error = nil
 
 	clear(c.StringCache)
 	clear(c.IPNetCache)
@@ -68,8 +65,8 @@ func (c *Context) Reset() {
 	clear(c.BoolCache)
 	clear(c.Registers)
 	clear(c.RegisterCache)
-	clear(c.AncestorsCounters)
-	clear(c.resolvedFields)
+	clear(c.IteratorCountCache)
+	c.resolvedFields = nil
 }
 
 // GetResolvedFields returns the resolved fields, always empty outside of functional tests
@@ -80,14 +77,14 @@ func (c *Context) GetResolvedFields() []string {
 // NewContext return a new Context
 func NewContext(evt Event) *Context {
 	return &Context{
-		Event:             evt,
-		StringCache:       make(map[string][]string),
-		IPNetCache:        make(map[string][]net.IPNet),
-		IntCache:          make(map[string][]int),
-		BoolCache:         make(map[string][]bool),
-		Registers:         make(map[RegisterID]int),
-		RegisterCache:     make(map[RegisterID]*RegisterCacheEntry),
-		AncestorsCounters: make(map[string]int),
+		Event:              evt,
+		StringCache:        make(map[Field][]string),
+		IPNetCache:         make(map[Field][]net.IPNet),
+		IntCache:           make(map[Field][]int),
+		BoolCache:          make(map[Field][]bool),
+		Registers:          make(map[RegisterID]int),
+		RegisterCache:      make(map[RegisterID]*RegisterCacheEntry),
+		IteratorCountCache: make(map[string]int),
 	}
 }
 

@@ -76,6 +76,7 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 	default:
 		rc = r.Body
 	}
+	defer rc.Close()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return

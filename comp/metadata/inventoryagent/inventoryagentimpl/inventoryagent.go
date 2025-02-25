@@ -203,7 +203,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
-			ia.log.Error("Could not parse '%s' configuration: %s", name, err)
+			ia.log.Errorf("Could not parse '%s' configuration: %s", name, err)
 		} else {
 			return cfg
 		}
@@ -357,6 +357,10 @@ func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
 	ia.data["ecs_fargate_cluster_name"] = taskMeta.ClusterName
 }
 
+func (ia *inventoryagent) fetchFleetMetadata() {
+	ia.data["config_id"] = ia.conf.GetString("config_id")
+}
+
 func (ia *inventoryagent) refreshMetadata() {
 	// Core Agent / agent
 	ia.fetchCoreAgentMetadata()
@@ -368,6 +372,8 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchTraceAgentMetadata()
 	// system-probe ecosystem
 	ia.fetchSystemProbeMetadata()
+	// Fleet
+	ia.fetchFleetMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
