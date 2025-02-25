@@ -17,6 +17,7 @@ import (
 	"os/user"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,10 +44,10 @@ func addDDAgentGroup(ctx context.Context) error {
 
 // PrepareInstaller prepares the installer
 func PrepareInstaller(ctx context.Context) error {
-	if err := stopUnit(ctx, installerUnit); err != nil {
+	if err := systemd.StopUnit(ctx, installerUnit); err != nil {
 		log.Warnf("Failed to stop unit %s: %s", installerUnit, err)
 	}
-	if err := disableUnit(ctx, installerUnit); err != nil {
+	if err := systemd.DisableUnit(ctx, installerUnit); err != nil {
 		log.Warnf("Failed to disable %s: %s", installerUnit, err)
 	}
 	return nil
@@ -128,7 +129,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}
 
 	// Check if systemd is running, if not return early
-	systemdRunning, err := isSystemdRunning()
+	systemdRunning, err := systemd.IsRunning()
 	if err != nil {
 		return fmt.Errorf("error checking if systemd is running: %w", err)
 	}
@@ -137,22 +138,17 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return nil
 	}
 
-	err = os.MkdirAll(systemdPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating %s: %w", systemdPath, err)
-	}
-
 	for _, unit := range installerUnits {
-		if err = loadUnit(ctx, unit); err != nil {
+		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return err
 		}
 	}
 
-	if err = systemdReload(ctx); err != nil {
+	if err = systemd.Reload(ctx); err != nil {
 		return err
 	}
 
-	if err = enableUnit(ctx, installerUnit); err != nil {
+	if err = systemd.EnableUnit(ctx, installerUnit); err != nil {
 		return err
 	}
 
@@ -191,13 +187,13 @@ func startInstallerStable(ctx context.Context) (err error) {
 	if os.IsNotExist(err) {
 		return nil
 	}
-	return startUnit(ctx, installerUnit)
+	return systemd.StartUnit(ctx, installerUnit)
 }
 
 // RemoveInstaller removes the installer systemd units
 func RemoveInstaller(ctx context.Context) error {
 	for _, unit := range installerUnits {
-		if err := stopUnit(ctx, unit); err != nil {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
 			exitErr, ok := err.(*exec.ExitError)
 			// unit is not installed, avoid noisy warn logs
 			// https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Process%20Exit%20Codes
@@ -206,10 +202,10 @@ func RemoveInstaller(ctx context.Context) error {
 			}
 			log.Warnf("Failed stop unit %s: %s", unit, err)
 		}
-		if err := disableUnit(ctx, unit); err != nil {
+		if err := systemd.DisableUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
-		if err := removeUnit(ctx, unit); err != nil {
+		if err := systemd.RemoveUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
@@ -225,12 +221,12 @@ func RemoveInstaller(ctx context.Context) error {
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
-	return startUnit(ctx, installerUnitExp, "--no-block")
+	return systemd.StartUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // StopInstallerExperiment starts the stable systemd units for the installer
 func StopInstallerExperiment(ctx context.Context) error {
-	return startUnit(ctx, installerUnit)
+	return systemd.StartUnit(ctx, installerUnit)
 }
 
 // PromoteInstallerExperiment promotes the installer experiment

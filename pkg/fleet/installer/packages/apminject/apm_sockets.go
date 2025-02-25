@@ -5,16 +5,16 @@
 
 //go:build !windows
 
-package packages
+package apminject
 
 import (
 	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
@@ -73,7 +73,7 @@ func getSocketsPath() (string, string, error) {
 }
 
 // configureSocketsEnv configures the sockets for the agent & injector
-func (a *apmInjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr error) {
+func (a *InjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr error) {
 	envFile := newFileMutator(envFilePath, setSocketEnvs, nil, nil)
 	a.cleanups = append(a.cleanups, envFile.cleanup)
 	rollback, err := envFile.mutate(ctx)
@@ -93,24 +93,24 @@ func (a *apmInjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr 
 	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent: %w", envFilePath, err)
 	}
-	systemdRunning, err := isSystemdRunning()
+	systemdRunning, err := systemd.IsRunning()
 	if err != nil {
 		return fmt.Errorf("failed to check if systemd is running: %w", err)
 	}
 	if systemdRunning {
-		if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
+		if err := addSystemDEnvOverrides(ctx, "datadog-agent.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
+		if err := addSystemDEnvOverrides(ctx, "datadog-agent-exp.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
+		if err := addSystemDEnvOverrides(ctx, "datadog-agent-trace.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
+		if err := addSystemDEnvOverrides(ctx, "datadog-agent-trace-exp.service"); err != nil {
 			return err
 		}
-		if err := systemdReload(ctx); err != nil {
+		if err := systemd.Reload(ctx); err != nil {
 			return err
 		}
 	}
@@ -179,16 +179,5 @@ func addSystemDEnvOverrides(ctx context.Context, unit string) (err error) {
 	// We don't need a file mutator here as we're fully hard coding the content.
 	// We don't really need to remove the file either as it'll just be ignored once the
 	// unit is removed.
-	path := filepath.Join(systemdPath, unit+".d", "datadog_environment.conf")
-	err = os.Mkdir(filepath.Dir(path), 0755)
-	if err != nil && !os.IsExist(err) {
-		err = fmt.Errorf("error creating systemd environment override directory: %w", err)
-		return err
-	}
-	err = os.WriteFile(path, content, 0644)
-	if err != nil {
-		err = fmt.Errorf("error writing systemd environment override: %w", err)
-		return err
-	}
-	return nil
+	return systemd.WriteUnitOverride(ctx, unit, "datadog_environment", string(content))
 }
