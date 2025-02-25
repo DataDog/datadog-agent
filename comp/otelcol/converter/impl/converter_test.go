@@ -38,6 +38,7 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 			httpsprovider.NewFactory(),
 		},
 		ConverterFactories: []confmap.ConverterFactory{},
+		DefaultScheme:      "env",
 	})
 }
 
@@ -47,6 +48,8 @@ func TestNewConverterForAgent(t *testing.T) {
 }
 
 func TestConvert(t *testing.T) {
+	t.Setenv("DD_API_KEY", "")
+	t.Setenv("DD_SITE", "")
 	tests := []struct {
 		name           string
 		provided       string
@@ -69,6 +72,11 @@ func TestConvert(t *testing.T) {
 			expectedResult: "connectors/set-default/config-result.yaml",
 		},
 		{
+			name:           "extensions/empty-extensions",
+			provided:       "extensions/empty-extensions/config.yaml",
+			expectedResult: "extensions/empty-extensions/config-result.yaml",
+		},
+		{
 			name:           "extensions/no-extensions",
 			provided:       "extensions/no-extensions/config.yaml",
 			expectedResult: "extensions/no-extensions/config-result.yaml",
@@ -82,6 +90,11 @@ func TestConvert(t *testing.T) {
 			name:           "extensions/no-changes",
 			provided:       "extensions/no-changes/config.yaml",
 			expectedResult: "extensions/no-changes/config.yaml",
+		},
+		{
+			name:           "processors/empty-processors",
+			provided:       "processors/empty-processors/config.yaml",
+			expectedResult: "processors/empty-processors/config-result.yaml",
 		},
 		{
 			name:           "processors/no-processors",
@@ -102,6 +115,11 @@ func TestConvert(t *testing.T) {
 			name:           "processors/no-changes",
 			provided:       "processors/no-changes/config.yaml",
 			expectedResult: "processors/no-changes/config.yaml",
+		},
+		{
+			name:           "receivers/empty-receivers",
+			provided:       "receivers/empty-receivers/config.yaml",
+			expectedResult: "receivers/empty-receivers/config-result.yaml",
 		},
 		{
 			name:           "receivers/job-name-change",
@@ -149,6 +167,16 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
 		},
 		{
+			name:           "receivers/empty-staticconfigs",
+			provided:       "receivers/empty-staticconfigs/config.yaml",
+			expectedResult: "receivers/empty-staticconfigs/config-result.yaml",
+		},
+		{
+			name:           "receivers/missing-staticconfigs-section",
+			provided:       "receivers/missing-staticconfigs-section/config.yaml",
+			expectedResult: "receivers/missing-staticconfigs-section/config-result.yaml",
+		},
+		{
 			name:           "processors/dd-connector",
 			provided:       "processors/dd-connector/config.yaml",
 			expectedResult: "processors/dd-connector/config-result.yaml",
@@ -189,6 +217,12 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/apikey/no-api-key-section/acfg.yaml",
 		},
 		{
+			name:           "dd-core-cfg/apikey/no-api-no-add",
+			provided:       "dd-core-cfg/apikey/no-api-no-add/config.yaml",
+			expectedResult: "dd-core-cfg/apikey/no-api-no-add/config-result.yaml",
+			agentConfig:    "dd-core-cfg/apikey/no-api-no-add/acfg.yaml",
+		},
+		{
 			name:           "dd-core-cfg/apikey/multiple-dd-exporter",
 			provided:       "dd-core-cfg/apikey/multiple-dd-exporter/config.yaml",
 			expectedResult: "dd-core-cfg/apikey/multiple-dd-exporter/config-result.yaml",
@@ -217,6 +251,12 @@ func TestConvert(t *testing.T) {
 			provided:       "dd-core-cfg/site/unset/config.yaml",
 			expectedResult: "dd-core-cfg/site/unset/config-result.yaml",
 			agentConfig:    "dd-core-cfg/site/unset/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/site/unset-core-mptystr-col",
+			provided:       "dd-core-cfg/site/unset-core-mptystr-col/config.yaml",
+			expectedResult: "dd-core-cfg/site/unset-core-mptystr-col/config-result.yaml",
+			agentConfig:    "dd-core-cfg/site/unset-core-mptystr-col/acfg.yaml",
 		},
 		{
 			name:           "dd-core-cfg/site/api-set-no-site",
@@ -253,6 +293,30 @@ func TestConvert(t *testing.T) {
 			provided:       "dd-core-cfg/none/config.yaml",
 			expectedResult: "dd-core-cfg/none/config-result.yaml",
 			agentConfig:    "dd-core-cfg/none/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/env/no-profiler-options",
+			provided:       "dd-core-cfg/env/no-profiler-options/config.yaml",
+			expectedResult: "dd-core-cfg/env/no-profiler-options/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/no-profiler-options/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/env/no-env",
+			provided:       "dd-core-cfg/env/no-env/config.yaml",
+			expectedResult: "dd-core-cfg/env/no-env/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/no-env/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/env/no-override",
+			provided:       "dd-core-cfg/env/no-override/config.yaml",
+			expectedResult: "dd-core-cfg/env/no-override/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/no-override/acfg.yaml",
+		},
+		{
+			name:           "dd-core-cfg/env/empty-profiler-options",
+			provided:       "dd-core-cfg/env/empty-profiler-options/config.yaml",
+			expectedResult: "dd-core-cfg/env/empty-profiler-options/config-result.yaml",
+			agentConfig:    "dd-core-cfg/env/empty-profiler-options/acfg.yaml",
 		},
 	}
 

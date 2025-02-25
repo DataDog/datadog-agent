@@ -5,6 +5,8 @@ include:
 .tests_macos_gitlab:
   stage: source_test
   extends: .macos_gitlab
+  rules:
+    - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     TEST_OUTPUT_FILE: test_output.json
@@ -29,7 +31,7 @@ include:
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
-  tags: ["macos:monterey-amd64", "specific:true"]
+  tags: ["macos:ventura-amd64", "specific:true"]
   after_script:
     - !reference [.vault_login]
     - !reference [.select_python_env_commands]
@@ -40,7 +42,7 @@ tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
   rules:
     !reference [.manual]
-  tags: ["macos:monterey-arm64", "specific:true"]
+  tags: ["macos:ventura-arm64", "specific:true"]
   allow_failure: true
   after_script:
     - !reference [.vault_login]

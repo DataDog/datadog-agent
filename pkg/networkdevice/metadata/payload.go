@@ -43,6 +43,7 @@ type NetworkDevicesMetadata struct {
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
 	DeviceOIDs       []DeviceOID            `json:"device_oids,omitempty"`
+	DeviceScanStatus *ScanStatusMetadata    `json:"scan_status,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -79,6 +80,24 @@ type DeviceOID struct {
 	OID      string `json:"oid"`
 	Type     string `json:"type"`
 	Value    string `json:"value"`
+}
+
+// ScanStatus type for the different possible scan statuses
+type ScanStatus string
+
+const (
+	// ScanStatusInProgress represents a scan in progress
+	ScanStatusInProgress ScanStatus = "in progress"
+	// ScanStatusCompleted represents a completed scan
+	ScanStatusCompleted ScanStatus = "completed"
+	// ScanStatusError represents a scan error
+	ScanStatusError ScanStatus = "error"
+)
+
+// ScanStatusMetadata contains scan status metadata
+type ScanStatusMetadata struct {
+	DeviceID   string     `json:"device_id"`
+	ScanStatus ScanStatus `json:"scan_status"`
 }
 
 // InterfaceMetadata contains interface metadata

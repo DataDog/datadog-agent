@@ -35,19 +35,19 @@ type dependencies struct {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newComponent),
-		fx.Supply(Params{}),
-	)
-}
+		fx.Supply(params),
 
-// ModuleWithParams defines the fx options for this component, but
-// requires additionally specifying custom Params from the fx App, to be
-// passed to the constructor.
-func ModuleWithParams() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newComponent),
+		// configSync is a component with no public method, therefore nobody depends on it and FX only instantiates
+		// components when they're needed. Adding a dummy function that takes our Component as a parameter force
+		// the instantiation of configsync. This means that simply using 'configsync.Module()' will run our
+		// component (which is the expected behavior).
+		//
+		// This prevent silent corner case where including 'configsync' in the main function would not actually
+		// instantiate it. This also remove the need for every main using configsync to add the line bellow.
+		fx.Invoke(func(_ configsync.Component) {}),
 	)
 }
 
@@ -64,13 +64,13 @@ type configSync struct {
 }
 
 // newComponent checks if the component was enabled as per the config and return a enable/disabled configsync
-func newComponent(deps dependencies) configsync.Component {
+func newComponent(deps dependencies) (configsync.Component, error) {
 	agentIPCPort := deps.Config.GetInt("agent_ipc.port")
 	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
 
 	if agentIPCPort <= 0 || configRefreshIntervalSec <= 0 {
 		deps.Log.Infof("configsync disabled (agent_ipc.port: %d | agent_ipc.config_refresh_interval: %d)", agentIPCPort, configRefreshIntervalSec)
-		return configSync{}
+		return configSync{}, nil
 	}
 
 	deps.Log.Infof("configsync enabled (agent_ipc '%s:%d' | agent_ipc.config_refresh_interval: %d)", deps.Config.GetString("agent_ipc.host"), agentIPCPort, configRefreshIntervalSec)
@@ -79,7 +79,7 @@ func newComponent(deps dependencies) configsync.Component {
 
 // newConfigSync creates a new configSync component.
 // agentIPCPort and configRefreshIntervalSec must be strictly positive.
-func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec int) configsync.Component {
+func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec int) (configsync.Component, error) {
 	agentIPCHost := deps.Config.GetString("agent_ipc.host")
 
 	url := &url.URL{
@@ -102,17 +102,20 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 		enabled:   true,
 	}
 
-	if deps.SyncParams.OnInit {
-		if deps.SyncParams.Delay != 0 {
-			select {
-			case <-ctx.Done(): //context cancelled
-				// TODO: this component should return an error
-				cancel()
-				return nil
-			case <-time.After(deps.SyncParams.Delay):
+	if deps.SyncParams.OnInitSync {
+		deps.Log.Infof("triggering configsync on init (will retry for %s)", deps.SyncParams.OnInitSyncTimeout)
+		deadline := time.Now().Add(deps.SyncParams.OnInitSyncTimeout)
+		for {
+			if err := configSync.updater(); err == nil {
+				break
 			}
+			if time.Now().After(deadline) {
+				cancel()
+				return nil, deps.Log.Errorf("failed to sync config at startup, is the core agent listening on '%s' ?", url.String())
+			}
+			time.Sleep(2 * time.Second)
 		}
-		configSync.updater()
+		deps.Log.Infof("triggering configsync on init succeeded")
 	}
 
 	// start and stop the routine in fx hooks
@@ -127,5 +130,5 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 		},
 	})
 
-	return configSync
+	return configSync, nil
 }

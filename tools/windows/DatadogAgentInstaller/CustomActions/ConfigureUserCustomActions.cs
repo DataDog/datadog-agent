@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
@@ -90,11 +91,21 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ConfigureUserGroups()
         {
-            if (_nativeMethods.IsReadOnlyDomainController())
+            try
             {
-                _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
-                             " Install will continue, agent may not function properly if user has not been added to these groups.");
-                return;
+                if (_nativeMethods.IsReadOnlyDomainController())
+                {
+                    _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
+                                 " Install will continue, agent may not function properly if user has not been added to these groups.");
+                    return;
+                }
+            }
+            catch (Exception e)
+            {
+                // On error assume the host is not a read-only domain controller
+                // If the host is actually a read-only domain controller then the following operations will fail
+                _session.Log($"Error determining if host is a read-only domain controller, continuing assuming it is not: {e}");
+                _session.Log("If the host is actually a read-only domain controller, ensure the LanmanServer/Server service is running.");
             }
 
             _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
@@ -185,21 +196,6 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Make an iterator that returns elements from each IEnumerable in order.
-        /// Example: Chain("ABC", "DEF") -> A B C D E F
-        /// </summary>
-        private static IEnumerable<T> Chain<T>(IEnumerable<IEnumerable<T>> collection)
-        {
-            foreach (var inner in collection)
-            {
-                foreach (var item in inner)
-                {
-                    yield return item;
-                }
-            }
-        }
-
-        /// <summary>
         /// Reset the permissions for select files and directories in the agent configuration directory APPLICATIONDATADIRECTORY.
         /// - Enable ACE inheritance
         /// - Remove redundant explicit ACEs for the agent user that may have been left by previous installer versions
@@ -217,38 +213,14 @@ namespace Datadog.CustomActions
         /// </remarks>
         private void ResetConfigurationPermissions()
         {
-            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
-            var fsEnum = new List<IEnumerable<string>>();
-
-            // directories to process recursively
-            var dirs = new List<string> {
-                Path.Combine(configRoot, "conf.d"),
-                Path.Combine(configRoot, "checks.d"),
-                Path.Combine(configRoot, "run"),
-                Path.Combine(configRoot, "logs"),
-            };
-            // Add the directories themselves
-            fsEnum.Add(dirs);
-            // add their subdirs/files (recursively)
-            foreach (var dir in dirs)
+            var paths = _session.PathsWithAgentAccess();
+            // add dirs recursively only if they exist (EnumerateFileSystemEntries throws an exception if they don't)
+            foreach (var dir in paths.Where(_fileSystemServices.IsDirectory).ToArray())
             {
-                // add dirs only if they exist (EnumerateFileSystemEntries throws an exception if they don't)
-                if (_fileSystemServices.Exists(dir))
-                {
-                    fsEnum.Add(Directory.EnumerateFileSystemEntries(dir, "*.*", SearchOption.AllDirectories));
-                }
+                paths.AddRange(Directory.EnumerateFileSystemEntries(dir, "*.*", SearchOption.AllDirectories));
             }
-            // add specific files
-            fsEnum.Add(new List<string>
-                {
-                    Path.Combine(configRoot, "datadog.yaml"),
-                    Path.Combine(configRoot, "system-probe.yaml"),
-                    Path.Combine(configRoot, "auth_token"),
-                    Path.Combine(configRoot, "install_info"),
-                }
-             );
 
-            foreach (var filePath in Chain(fsEnum))
+            foreach (var filePath in paths)
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -375,7 +347,7 @@ namespace Datadog.CustomActions
         private void GrantAgentAccessPermissions()
         {
             // add ddagentuser FullControl to select places
-            foreach (var filePath in PathsWithAgentAccess())
+            foreach (var filePath in _session.PathsWithAgentAccess())
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -446,6 +418,58 @@ namespace Datadog.CustomActions
             }
         }
 
+        private void AddDatadogUserToDataFolder()
+        {
+            var dataDirectory = _session.Property("APPLICATIONDATADIRECTORY");
+
+            FileSystemSecurity fileSystemSecurity;
+            try
+            {
+                fileSystemSecurity = _fileSystemServices.GetAccessControl(dataDirectory, AccessControlSections.All);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to get ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+            // ddagentuser Read and execute permissions, enable child inheritance of this ACE
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // datadog write on this folder
+            // This allows creating new files/folders, but not deleting or modifying permissions.
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                _ddAgentUserSID,
+                FileSystemRights.WriteData | FileSystemRights.AppendData | FileSystemRights.WriteAttributes | FileSystemRights.WriteExtendedAttributes | FileSystemRights.Synchronize,
+                InheritanceFlags.None,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            // add full control to CREATOR OWNER
+            // Grants FullControl to any files/directories created by the Agent user
+            // Marked InherityOnly so it applies only to children and not this directory
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.InheritOnly,
+                AccessControlType.Allow));
+            try
+            {
+                UpdateAndLogAccessControl(dataDirectory, fileSystemSecurity);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to set ACLs on {dataDirectory}: {e}");
+                throw;
+            }
+
+        }
+
         private void ConfigureFilePermissions()
         {
             try
@@ -471,6 +495,7 @@ namespace Datadog.CustomActions
 
                 if (_ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
+                    AddDatadogUserToDataFolder();
                     GrantAgentAccessPermissions();
                 }
             }
@@ -577,17 +602,6 @@ namespace Datadog.CustomActions
             return new ConfigureUserCustomActions(new SessionWrapper(session), "ConfigureUser").ConfigureUserRollback();
         }
 
-        private List<string> PathsWithAgentAccess()
-        {
-            return new List<string>
-            {
-                // agent needs to be able to write logs/
-                // agent GUI needs to be able to edit config
-                // agent needs to be able to write to run/
-                // agent needs to be able to create auth_token
-                _session.Property("APPLICATIONDATADIRECTORY"),
-            };
-        }
 
         /// <summary>
         /// Remove an explicit access ACE for the ddagentuser for @sid from @filePath
@@ -665,20 +679,19 @@ namespace Datadog.CustomActions
                 if (securityIdentifier != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
                     _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-                    foreach (var filePath in PathsWithAgentAccess())
+                    foreach (var filePath in _session.PathsWithAgentAccess().Where(_fileSystemServices.Exists))
                     {
                         try
                         {
-                            if (_fileSystemServices.Exists(filePath))
-                            {
-                                RemoveAgentAccess(securityIdentifier, filePath);
-                            }
+                            RemoveAgentAccess(securityIdentifier, filePath);
                         }
                         catch (Exception e)
                         {
                             _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
                         }
                     }
+                    //remove datadog access to root folder and restore to base permissions
+                    SetBaseInheritablePermissions();
                 }
 
                 // We intentionally do NOT delete the ddagentuser account.

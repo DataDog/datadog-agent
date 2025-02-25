@@ -324,7 +324,7 @@ def download_with_retry(
     destination=".",
     retry_count=3,
     retry_interval=10,
-    repository="DataDog/datadog-agent-macos-build",
+    repository=None,
 ):
     import requests
 
@@ -332,7 +332,11 @@ def download_with_retry(
 
     while retry > 0:
         try:
-            download_function(run, destination, repository)
+            if repository:
+                # download_artifacts with repository argument
+                download_function(run, destination, repository)
+            else:
+                download_function(run, destination)
             print(color_message(f"Download successful for run {run.id} to {destination}", "blue"))
             return
         except (requests.exceptions.RequestException, ConnectionError):

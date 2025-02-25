@@ -34,7 +34,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -131,7 +131,7 @@ func setup() (workloadmeta.Component, tagger.Component, error) {
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module(),
-		fx.Supply(optional.NewNoneOption[secrets.Component]()),
+		fx.Supply(option.None[secrets.Component]()),
 		fx.Supply(logdef.ForOneShot("TEST", "info", false)),
 		logfx.Module(),
 		wmcatalog.GetCatalog(),

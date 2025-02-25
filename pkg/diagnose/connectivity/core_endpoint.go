@@ -25,13 +25,45 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
+func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	datadogConfig := pkgconfigsetup.Datadog()
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
-	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
+
+	var endpoints *logsConfig.Endpoints
+	var err error
+
+	if useTCP {
+		endpoints, err = logsConfig.BuildEndpointsWithConfig(
+			datadogConfig,
+			logsConfigKey,
+			"agent-http-intake.logs.",
+			false,
+			"logs",
+			logsConfig.AgentJSONIntakeProtocol,
+			logsConfig.DefaultIntakeOrigin)
+	} else {
+		endpoints, err = logsConfig.BuildHTTPEndpointsWithConfig(
+			datadogConfig,
+			logsConfigKey,
+			"agent-http-intake.logs.",
+			"logs",
+			logsConfig.AgentJSONIntakeProtocol,
+			logsConfig.DefaultIntakeOrigin)
+	}
+
+	return endpoints, err
+}
+
+// getLogsUseTCP returns true if the agent should use TCP to transport logs
+func getLogsUseTCP() bool {
+	datadogConfig := pkgconfigsetup.Datadog()
+	useTCP := datadogConfig.GetBool("logs_config.force_use_tcp") && !datadogConfig.GetBool("logs_config.force_use_http")
+
+	return useTCP
 }
 
 // Diagnose performs connectivity diagnosis
@@ -57,7 +89,8 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	// Create diagnosis for logs
 	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
-		endpoints, err := getLogsHTTPEndpoints()
+		useTCP := getLogsUseTCP()
+		endpoints, err := getLogsEndpoints(useTCP)
 
 		if err != nil {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
@@ -68,9 +101,16 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				RawError:    err.Error(),
 			})
 		} else {
-			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
+			var url string
+			connType := "HTTPS"
+			if useTCP {
+				connType = "TCP"
+				url, err = logstcp.CheckConnectivityDiagnose(endpoints.Main, 5)
+			} else {
+				url, err = logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
+			}
 
-			name := fmt.Sprintf("Connectivity to %s", url)
+			name := fmt.Sprintf("%s connectivity to %s", connType, url)
 			diag := createDiagnosis(name, url, "", err)
 
 			diagnoses = append(diagnoses, diag)
@@ -105,6 +145,7 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 				// Check if there is a response and if it's valid
 				report, reportErr := verifyEndpointResponse(diagCfg, statusCode, responseBody, err)
+
 				diagnosisName := "Connectivity to " + logURL
 				d := createDiagnosis(diagnosisName, logURL, report, reportErr)
 

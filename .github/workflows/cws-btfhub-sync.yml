@@ -8,11 +8,6 @@ on:
         required: false
         default: 'main'
         type: string
-      force_refresh:
-        description: 'Force refresh of the constants'
-        required: false
-        default: 'false'
-        type: boolean
   schedule:
     - cron: '30 4 * * 5' # at 4:30 UTC on Friday
 
@@ -66,9 +61,9 @@ jobs:
           persist-credentials: false
 
       - name: Install python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
-          python-version: 3.11
+          python-version-file: .python-version
           cache: 'pip'
       - run: pip install -r requirements.txt
 
@@ -83,18 +78,10 @@ jobs:
           echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
 
       - name: Sync constants
-        if: ${{ !inputs.force_refresh }}
         env:
           ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
         run: |
           inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
-
-      - name: Force sync constants
-        if: ${{ inputs.force_refresh }}
-        env:
-          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
-        run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json --force-refresh
 
       - name: Upload artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
@@ -115,9 +102,9 @@ jobs:
           ref: ${{ inputs.base_branch || 'main' }}
 
       - name: Install python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
-          python-version: 3.11
+          python-version-file: .python-version
           cache: 'pip'
       - run: pip install -r requirements.txt
 
@@ -136,13 +123,14 @@ jobs:
       - name: Combine constants
         run: |
           inv -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
+          inv -e security-agent.split-btfhub-constants
 
       - name: Compute branch name
         id: branch-name
         run: |
           echo "BRANCH_NAME=cws/constants-sync-$(date +%s)" >> $GITHUB_OUTPUT
 
-      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
+      - uses: stefanzweifel/git-auto-commit-action@e348103e9026cc0eee72ae06630dbe30c8bf7a79 # v5.1.0
         id: commit-creator
         with:
           commit_message: "CWS: sync BTFhub constants"

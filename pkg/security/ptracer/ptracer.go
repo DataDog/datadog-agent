@@ -92,7 +92,6 @@ func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
 	remoteIov := []unix.RemoteIovec{
 		{Base: addr, Len: size},
 	}
-
 	return unix.ProcessVMReadv(pid, localIov, remoteIov, 0)
 }
 

@@ -140,6 +140,7 @@ iot-agent-armhf:
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
 
 .dogstatsd_build_common:
+  needs: ["go_mod_tidy_check", "go_deps"]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -166,7 +167,6 @@ iot-agent-armhf:
 
 dogstatsd-x64:
   extends: .dogstatsd_build_common
-  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
@@ -177,7 +177,6 @@ dogstatsd-arm64:
   extends: .dogstatsd_build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
   variables:
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
     DD_CXX: "aarch64-unknown-linux-gnu-g++"

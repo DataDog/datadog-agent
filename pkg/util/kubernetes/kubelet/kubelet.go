@@ -52,7 +52,6 @@ type KubeUtil struct {
 	kubeletClient          *kubeletClient
 	rawConnectionInfo      map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration   time.Duration
-	filter                 *containers.Filter
 	waitOnMissingContainer time.Duration
 	podUnmarshaller        *podUnmarshaller
 	podResourcesClient     *PodResourcesClient
@@ -60,11 +59,6 @@ type KubeUtil struct {
 
 func (ku *KubeUtil) init() error {
 	var err error
-	ku.filter, err = containers.GetSharedMetricFilter()
-	if err != nil {
-		return err
-	}
-
 	ku.kubeletClient, err = getKubeletClient(context.Background())
 	if err != nil {
 		return err

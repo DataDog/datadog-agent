@@ -8,6 +8,7 @@
 package uprobes
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,7 +27,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
@@ -62,6 +62,45 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 
 	err = ua.AttachPIDWithOptions(1, false)
 	require.ErrorIs(t, err, ErrInternalDDogProcessRejected)
+}
+
+func TestAttachPidReadsSharedLibraries(t *testing.T) {
+	exe := "foobar"
+	pid := uint32(1)
+	libname := "/target/libssl.so"
+	maps := fmt.Sprintf("08048000-08049000 r-xp 00000000 03:00 8312       %s", libname)
+	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
+	config := AttacherConfig{
+		ProcRoot: procRoot,
+		Rules: []*AttachRule{
+			{LibraryNameRegex: regexp.MustCompile(`libssl\.so`), Targets: AttachToSharedLibraries},
+			{Targets: AttachToExecutable},
+		},
+		SharedLibsLibset:      sharedlibraries.LibsetCrypto,
+		EnableDetailedLogging: true,
+	}
+
+	registry := &MockFileRegistry{}
+	// Force a failure on the Register call for the executable, to simulate a
+	// binary that doesn't have our desired functions to attach
+	registry.On("Register", exe, pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("cannot attach"))
+
+	// Expect a call to Register for the library
+	registry.On("Register", libname, pid, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+	require.True(t, ua.handlesExecutables())
+	require.True(t, ua.handlesLibraries())
+	ua.fileRegistry = registry
+
+	err = ua.AttachPIDWithOptions(pid, true)
+	require.Error(t, err)
+
+	// We should get calls to Register both with the executable and the library
+	// name, even though the executable returns an error
+	registry.AssertExpectations(t)
 }
 
 func TestAttachPidExcludesSelf(t *testing.T) {
@@ -701,10 +740,6 @@ func TestUprobeAttacher(t *testing.T) {
 
 	procMon := launchProcessMonitor(t, false)
 
-	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
-	require.NoError(t, err)
-	t.Cleanup(func() { buf.Close() })
-
 	connectProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}
 	mainProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__main"}
 
@@ -748,9 +783,15 @@ func TestUprobeAttacher(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	require.NoError(t, mgr.InitWithOptions(buf, manager.Options{}))
-	require.NoError(t, mgr.Start())
-	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+	err = ddebpf.LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		require.NoError(t, mgr.InitWithOptions(buf, opts))
+		require.NoError(t, mgr.Start())
+		t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+
+		return nil
+	})
+	require.NoError(t, err)
+
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
 
@@ -827,11 +868,7 @@ type SharedLibrarySuite struct {
 }
 
 func TestAttacherSharedLibrary(t *testing.T) {
-	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
-	if !prebuilt.IsDeprecated() {
-		modes = append(modes, ebpftest.Prebuilt)
-	}
-	ebpftest.TestBuildModes(t, modes, "", func(tt *testing.T) {
+	ebpftest.TestBuildModes(t, ebpftest.SupportedBuildModes(), "", func(tt *testing.T) {
 		if !sharedlibraries.IsSupported(ddebpf.NewConfig()) {
 			tt.Skip("shared library tracing not supported for this platform")
 		}

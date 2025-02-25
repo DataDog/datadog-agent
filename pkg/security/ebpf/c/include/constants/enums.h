@@ -43,6 +43,7 @@ enum event_type
     EVENT_DNS,
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
+    EVENT_ACCEPT,
     EVENT_BIND,
     EVENT_CONNECT,
     EVENT_UNSHARE_MNTNS,
@@ -52,6 +53,8 @@ enum event_type
     EVENT_LOGIN_UID_WRITE,
     EVENT_CGROUP_WRITE,
     EVENT_RAW_PACKET,
+    EVENT_NETWORK_FLOW_MONITOR,
+    EVENT_STAT,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

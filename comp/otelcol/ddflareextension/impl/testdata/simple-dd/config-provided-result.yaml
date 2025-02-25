@@ -7,6 +7,8 @@ exporters:
       site: datadoghq.com
     auth: null
     compression: ""
+    compression_params:
+      level: 0
     cookies: null
     disable_keep_alives: false
     endpoint: ""
@@ -23,8 +25,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dialer:
-        timeout: 0s
       dump_payloads: false
       endpoint: https://http-intake.logs.datadoghq.com
       use_compression: true
@@ -33,8 +33,6 @@ exporters:
     max_idle_conns_per_host: 0
     metrics:
       delta_ttl: 3600
-      dialer:
-        timeout: 0s
       endpoint: https://api.datadoghq.com
       histograms:
         mode: distributions
@@ -58,36 +56,21 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
+      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
       storage: null
     timeout: 15s
-    tls:
-      ca_file: ""
-      ca_pem: "[REDACTED]"
-      cert_file: ""
-      cert_pem: "[REDACTED]"
-      cipher_suites: []
-      include_system_ca_certs_pool: false
-      insecure: false
-      insecure_skip_verify: false
-      key_file: ""
-      key_pem: "[REDACTED]"
-      max_version: ""
-      min_version: ""
-      reload_interval: 0s
-      server_name_override: ""
+    tls: {}
     traces:
-      compute_stats_by_span_kind: false
+      compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
-      dialer:
-        timeout: 0s
       endpoint: https://trace.agent.datadoghq.com
       ignore_resources: []
-      peer_service_aggregation: false
+      peer_service_aggregation: true
       peer_tags: []
-      peer_tags_aggregation: false
+      peer_tags_aggregation: true
       span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 0
@@ -107,6 +90,7 @@ receivers:
         scrape_protocols:
           - OpenMetricsText1.0.0
           - OpenMetricsText0.0.1
+          - PrometheusText1.0.0
           - PrometheusText0.0.4
         scrape_timeout: 10s
       runtime:
@@ -114,6 +98,7 @@ receivers:
       scrape_configs:
         - enable_compression: true
           enable_http2: true
+          fallback_scrape_protocol: PrometheusText1.0.0
           follow_redirects: true
           honor_timestamps: true
           job_name: datadog-agent
@@ -123,6 +108,7 @@ receivers:
           scrape_protocols:
             - OpenMetricsText1.0.0
             - OpenMetricsText0.0.1
+            - PrometheusText1.0.0
             - PrometheusText0.0.4
           scrape_timeout: 5s
           static_configs:
@@ -180,10 +166,14 @@ service:
       readers:
         - pull:
             exporter:
-              additionalproperties:
               prometheus:
                 host: localhost
                 port: 8888
+                with_resource_constant_labels:
+                  included: []
+                without_scope_info: true
+                without_type_suffix: true
+                without_units: true
     resource: {}
     traces:
       level: Basic

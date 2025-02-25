@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -77,11 +78,16 @@ event_monitoring_config:
     - "*custom*"
   network:
     enabled: true
+    flow_monitor:
+      enabled: {{ .NetworkFlowMonitorEnabled }}
     ingress:
       enabled: {{ .NetworkIngressEnabled }}
     raw_packet:
       enabled: {{ .NetworkRawPacketEnabled}}
   flush_discarder_window: 0
+  event_stream:
+    use_fentry: true
+    use_kprobe_fallback: false
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -173,7 +179,10 @@ runtime_security_config:
 {{end}}
 
   self_test:
-    enabled: false
+    enabled: {{.EnableSelfTests}}
+{{if .EnableSelfTests}}
+    send_report: true
+{{end}}
 
   policies:
     dir: {{.TestPoliciesDir}}
@@ -342,7 +351,7 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	eventJSON, err := serializers.MarshalEvent(event)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -461,7 +470,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
+		eventJSON, err := serializers.MarshalEvent(event)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -516,7 +525,7 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 		return
 	}
 
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	eventJSON, err := serializers.MarshalEvent(event)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -751,7 +760,8 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		compression := logscompression.NewComponent()
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
@@ -1208,7 +1218,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error
 		return nil, errors.New("No activity dump manager")
 	}
 
-	ad := dump.NewActivityDump(adm)
+	ad := dump.NewActivityDump(adm, 0)
 	if ad == nil {
 		return nil, errors.New("Creation of new activity dump fails")
 	}
@@ -1447,6 +1457,16 @@ func searchForBind(ad *dump.ActivityDump) bool {
 func searchForSyscalls(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.Syscalls) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+//nolint:deadcode,unused
+func searchForNetworkFlowMonitorEvents(ad *dump.ActivityDump) bool {
+	for _, node := range ad.ActivityTree.ProcessNodes {
+		if len(node.NetworkDevices) > 0 {
 			return true
 		}
 	}

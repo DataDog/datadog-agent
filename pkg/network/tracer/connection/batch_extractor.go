@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package connection //nolint:revive // TODO
+package connection
 
 import (
 	"time"

@@ -71,7 +71,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	}
 
 	if state.macros != nil {
-		if macro, ok := state.macros[*obj.Ident]; ok {
+		if macro, ok := state.macros.GetMacroEvaluator(*obj.Ident); ok {
 			return macro.Value, obj.Pos, nil
 		}
 	}
@@ -129,7 +129,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		return &evaluator, array.Pos, nil
 	} else if array.Ident != nil {
 		if state.macros != nil {
-			if macro, ok := state.macros[*array.Ident]; ok {
+			if macro, ok := state.macros.GetMacroEvaluator(*array.Ident); ok {
 				return macro.Value, array.Pos, nil
 			}
 		}

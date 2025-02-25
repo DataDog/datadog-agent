@@ -7,8 +7,8 @@ on:
         description: 'Full version of the release to schedule (e.g. 7.31.0)'
         required: true
         type: string
-      freeze_date:
-        description: 'Isoformat date when we freeze CI (e.g. 2023-12-31)'
+      cutoff_date:
+        description: 'Isoformat date when we the cut-off happens (e.g. 2023-12-31)'
         required: true
         type: string
 
@@ -25,9 +25,9 @@ jobs:
         ref: ${{ github.head_ref }}
         persist-credentials: false
     - name: Install python
-      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
       with:
-        python-version: 3.11
+        python-version-file: .python-version
         cache: "pip"
     - name: Install Python dependencies
       run: |
@@ -38,6 +38,6 @@ jobs:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
         ATLASSIAN_PASSWORD : ${{ secrets.ATLASSIAN_PASSWORD }}
         INPUT_VERSION: ${{ github.event.inputs.version }}
-        FREEZE_DATE: ${{ github.event.inputs.freeze_date }}
+        CUTOFF_DATE: ${{ github.event.inputs.cutoff_date }}
       run: |
-        inv -e release.create-schedule --version "$INPUT_VERSION" --freeze-date "$FREEZE_DATE"
+        inv -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "$CUTOFF_DATE"

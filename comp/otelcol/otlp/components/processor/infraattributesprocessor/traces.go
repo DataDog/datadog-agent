@@ -19,15 +19,13 @@ type infraAttributesSpanProcessor struct {
 	logger      *zap.Logger
 	tagger      taggerClient
 	cardinality types.TagCardinality
-	generateID  GenerateKubeMetadataEntityID
 }
 
-func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateID GenerateKubeMetadataEntityID) (*infraAttributesSpanProcessor, error) {
+func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesSpanProcessor, error) {
 	iasp := &infraAttributesSpanProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
-		generateID:  generateID,
 	}
 	set.Logger.Info("Span Infra Attributes Processor configured")
 	return iasp, nil
@@ -37,7 +35,7 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 	rss := td.ResourceSpans()
 	for i := 0; i < rss.Len(); i++ {
 		resourceAttributes := rss.At(i).Resource().Attributes()
-		processInfraTags(iasp.logger, iasp.tagger, iasp.cardinality, iasp.generateID, resourceAttributes)
+		processInfraTags(iasp.logger, iasp.tagger, iasp.cardinality, resourceAttributes)
 	}
 	return td, nil
 }

@@ -62,24 +62,19 @@ func (e *OSOnlyFilterEvent) GetFieldValue(field eval.Field) (interface{}, error)
 // Init inits the rule filter event
 func (e *OSOnlyFilterEvent) Init() {}
 
-// GetFieldEventType returns the event type for the given field
-func (e *OSOnlyFilterEvent) GetFieldEventType(_ eval.Field) (string, error) {
-	return "*", nil
-}
-
 // SetFieldValue sets the value for the given field
 func (e *OSOnlyFilterEvent) SetFieldValue(field eval.Field, _ interface{}) error {
 	return &eval.ErrFieldNotFound{Field: field}
 }
 
-// GetFieldType get the type of the field
-func (e *OSOnlyFilterEvent) GetFieldType(field eval.Field) (reflect.Kind, error) {
+// GetFieldMetadata get the type of the field
+func (e *OSOnlyFilterEvent) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
 	switch field {
 	case "os":
-		return reflect.String, nil
+		return "*", reflect.String, nil
 	}
 
-	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 
 // GetType returns the type for this event

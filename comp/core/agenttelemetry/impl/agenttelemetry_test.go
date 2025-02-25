@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/zstd"
 )
 
@@ -61,6 +62,8 @@ func (s *senderMock) flushSession(_ *senderSession) error {
 }
 func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentmetric) {
 	s.sentMetrics = append(s.sentMetrics, metrics...)
+}
+func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
 }
 
 // Runner mock (TODO: use use mock.Mock)
@@ -319,7 +322,7 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 }
 
 func getPayload(a *atel) (*Payload, error) {
-	payloadJSON, err := a.GetAsJSON()
+	payloadJSON, err := a.getAsJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +346,8 @@ func getPayloadMetric(a *atel, metricName string) (*MetricPayload, bool) {
 	return nil, false
 }
 
-func getPayloadMetrics(a *atel, metricName string) ([]*MetricPayload, bool) {
+// If you have multiple metrics with the same name (timeseries) and filtered by a metric, use getPayloadFilteredMetricList
+func getPayloadFilteredMetricList(a *atel, metricName string) ([]*MetricPayload, bool) {
 	payload, err := getPayload(a)
 	if err != nil {
 		return nil, false
@@ -359,6 +363,39 @@ func getPayloadMetrics(a *atel, metricName string) ([]*MetricPayload, bool) {
 	}
 
 	return payloads, true
+}
+
+// If you have multiple metrics with different name (timeseries), meaning no multiple tags use getPayloadMetricMap
+func getPayloadMetricMap(a *atel) map[string]*MetricPayload {
+	payload, err := getPayload(a)
+	if err != nil {
+		return nil
+	}
+
+	payloads := make(map[string]*MetricPayload)
+
+	if mm, ok := payload.Payload.([]Payload); ok {
+		for _, payload := range mm {
+			metrics := payload.Payload.(AgentMetricsPayload).Metrics
+			for metricName, metricItf := range metrics {
+				metric := metricItf.(MetricPayload)
+				payloads[metricName] = &metric
+			}
+		}
+		return payloads
+	}
+
+	if m, ok := payload.Payload.(AgentMetricsPayload); ok {
+		metrics := m.Metrics
+		for metricName, metricItf := range metrics {
+			if metric, ok2 := metricItf.(MetricPayload); ok2 {
+				payloads[metricName] = &metric
+			}
+		}
+		return payloads
+	}
+
+	return nil
 }
 
 func getPayloadMetricByTagValues(metrics []*MetricPayload, tags map[string]interface{}) (*MetricPayload, bool) {
@@ -467,7 +504,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -500,16 +537,55 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
 	assert.Nil(t, m.GetLabel())
 }
 
-func TestNoTagSpecifiedAggregationGauge(t *testing.T) {
+func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
+  `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	gauge := tel.NewGauge("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
+	gauge.WithTags(map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"}).Set(10)
+	gauge.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Set(20)
+	gauge.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Set(30)
+
+	o := convertYamlStrToMap(t, c)
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+	require.True(t, a.enabled)
+
+	// run the runner to trigger the telemetry report
+	a.start()
+	r.(*runnerMock).run()
+
+	// 1 metric sent
+	assert.Equal(t, 1, len(s.sentMetrics))
+
+	// aggregated to 10 + 20 + 30 = 60
+	m := s.sentMetrics[0].metrics[0]
+	assert.Equal(t, float64(60), m.Gauge.GetValue())
+
+	// no tags
+	assert.Nil(t, m.GetLabel())
+}
+
+func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            metrics:
+              - name: bar.zoo
   `
 
 	// setup and initiate atel
@@ -547,7 +623,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -589,7 +665,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags:
                   - tag1
@@ -638,7 +714,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_total: true
                 aggregate_tags:
@@ -759,7 +835,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
 
-	payloadJSON, err := a.GetAsJSON()
+	payloadJSON, err := a.getAsJSON()
 	require.NoError(t, err)
 	var payload map[string]interface{}
 	err = json.Unmarshal(payloadJSON, &payload)
@@ -1183,7 +1259,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	counter.AddWithTags(1, map[string]string{"tag": "val1"})
 	counter.AddWithTags(2, map[string]string{"tag": "val2"})
 
-	ms, ok := getPayloadMetrics(a, "foo.bar")
+	ms, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	m1, ok1 := getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
 	require.True(t, ok1)
@@ -1195,7 +1271,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	// Second addition (expected values should be the same as the added values)
 	counter.AddWithTags(10, map[string]string{"tag": "val1"})
 	counter.AddWithTags(20, map[string]string{"tag": "val2"})
-	ms, ok = getPayloadMetrics(a, "foo.bar")
+	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
 	require.True(t, ok1)
@@ -1207,7 +1283,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	// Third and fourth addition (expected values should be the sum of 3rd and 4th values)
 	counter.AddWithTags(100, map[string]string{"tag": "val1"})
 	counter.AddWithTags(200, map[string]string{"tag": "val2"})
-	ms, ok = getPayloadMetrics(a, "foo.bar")
+	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
 	require.True(t, ok1)
@@ -1217,7 +1293,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 	assert.Equal(t, m2.Value, 200.0)
 
 	// No addition (expected values should be zero)
-	ms, ok = getPayloadMetrics(a, "foo.bar")
+	ms, ok = getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	m1, ok1 = getPayloadMetricByTagValues(ms, map[string]interface{}{"tag": "val1"})
 	require.True(t, ok1)
@@ -1669,7 +1745,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 	hist.Observe(2000, "val2")
 
 	// Test payload1
-	metrics1, ok := getPayloadMetrics(a, "foo.bar")
+	metrics1, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	require.Len(t, metrics1, 2)
 	require.Len(t, metrics1[0].Buckets, 5)
@@ -1695,7 +1771,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 	}
 
 	// Test payload2 (no new observations, everything is reset)
-	metrics2, ok := getPayloadMetrics(a, "foo.bar")
+	metrics2, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	require.Len(t, metrics2, 2)
 	require.Len(t, metrics2[0].Buckets, 5)
@@ -1789,7 +1865,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 	hist.Observe(2000, "val2")
 
 	// Test payload3
-	metrics3, ok := getPayloadMetrics(a, "foo.bar")
+	metrics3, ok := getPayloadFilteredMetricList(a, "foo.bar")
 	require.True(t, ok)
 	require.Len(t, metrics3, 2)
 	require.Len(t, metrics3[0].Buckets, 5)
@@ -1966,4 +2042,230 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	compressBodyLen := len(cl1.(*clientMock).body)
 	nonCompressBodyLen := len(cl2.(*clientMock).body)
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
+}
+
+func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: xxx
+          metric:
+            metrics:
+              - name: foo.bar
+              - name: bar.foo
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+	require.True(t, a.enabled)
+
+	gaugeFooBar := tel.NewGaugeWithOpts("foo", "bar", nil, "", telemetry.Options{DefaultMetric: false})
+	gaugeBarFoo := tel.NewGaugeWithOpts("bar", "foo", nil, "", telemetry.Options{DefaultMetric: true})
+	gaugeFooBar.Set(10)
+	gaugeBarFoo.Set(20)
+
+	// Test payload
+	metrics := getPayloadMetricMap(a)
+	require.Len(t, metrics, 2)
+	m1, ok1 := metrics["foo.bar"]
+	require.True(t, ok1)
+	assert.Equal(t, 10.0, m1.Value)
+	m2, ok2 := metrics["bar.foo"]
+	require.True(t, ok2)
+	assert.Equal(t, 20.0, m2.Value)
+}
+
+func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
+	c := defaultProfiles
+	o := convertYamlStrToMap(t, c)
+	cfg := makeCfgMock(t, o)
+	atCfg, err := parseConfig(cfg)
+
+	require.NoError(t, err)
+
+	assert.True(t, len(atCfg.events) > 0)
+	assert.True(t, len(atCfg.schedule) > 0)
+	assert.True(t, len(atCfg.Profiles) > len(atCfg.events))
+}
+
+func TestAgentTelemetryEventConfiguration(t *testing.T) {
+	// Use nearly full
+	c := `
+    agent_telemetry:
+      enabled: true
+      profiles:
+      - name: checks
+        metric:
+          metrics:
+            - name: checks.execution_time
+              aggregate_tags:
+                - check_name
+            - name: pymem.inuse
+        schedule:
+          start_after: 123
+          iterations: 0
+          period: 456
+      - name: logs-and-metrics
+        metric:
+          exclude:
+            zero_metric: true
+          metrics:
+            - name: dogstatsd.udp_packets_bytes
+            - name: dogstatsd.uds_packets_bytes
+        schedule:
+          start_after: 30
+          iterations: 0
+          period: 900
+      - name: ondemand
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agent_bsod
+            message: 'Agent BSOD'
+          - name: foobar
+            request_type: agent-foobar
+            payload_key: agent_foobar
+            message: 'Agent foobar'
+      - name: ondemand2
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agent_bsod
+            message: 'Agent BSOD'
+          - name: barfoo
+            request_type: agent-barfoo
+            payload_key: agent_barfoo
+            message: 'Agent barfoo'
+    `
+
+	o := convertYamlStrToMap(t, c)
+	cfg := makeCfgMock(t, o)
+	atCfg, err := parseConfig(cfg)
+
+	require.NoError(t, err)
+
+	// single event map keeps unique event names
+	assert.Len(t, atCfg.events, 3)
+	assert.Len(t, atCfg.schedule, 2)
+	assert.Len(t, atCfg.Profiles, 4)
+}
+
+func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
+	// Use nearly full
+	var cfg = `
+    agent_telemetry:
+      enabled: true
+      use_compression: false
+      profiles:
+      - name: xxx
+        metric:
+          metrics:
+            - name: foo.bar
+      - name: ondemand
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agent_bsod
+            message: 'Agent BSOD'
+          - name: foobar
+            request_type: agent-foobar
+            payload_key: agent_foobar
+            message: 'Agent foobar'
+    `
+
+	payloadObj := struct {
+		Date     string `json:"date"`
+		Offender string `json:"offender"`
+		BugCheck string `json:"bugcheck"`
+	}{
+		Date:     "2024-30-02 17:31:12",
+		Offender: "ddnpm+0x1a3",
+		BugCheck: "0x7A",
+	}
+	// conert to json
+	payload, err := json.Marshal(payloadObj)
+	require.NoError(t, err)
+
+	// setup and initiate atel
+	o := convertYamlStrToMap(t, cfg)
+	cl := newClientMock()
+	s := makeSenderImpl(t, cl, cfg)
+	r := newRunnerMock()
+	a := getTestAtel(t, nil, o, s, cl, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	err = a.SendEvent("agentbsod", payload)
+	require.NoError(t, err)
+	assert.True(t, len(cl.(*clientMock).body) > 0)
+
+	//deserialize the payload of cl.(*clientMock).body
+	var topPayload map[string]interface{}
+	err = json.Unmarshal(cl.(*clientMock).body, &topPayload)
+	require.NoError(t, err)
+	fmt.Print(string(cl.(*clientMock).body))
+
+	v, ok, err2 := jsonquery.RunSingleOutput(".payload.message", topPayload)
+	require.NoError(t, err2)
+	require.True(t, ok)
+	assert.Equal(t, "Agent BSOD", v)
+
+	v, ok, err2 = jsonquery.RunSingleOutput(".payload.agent_bsod.offender", topPayload)
+	require.NoError(t, err2)
+	require.True(t, ok)
+	assert.Equal(t, "ddnpm+0x1a3", v)
+}
+
+func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {
+	// Use nearly full
+	var cfg = `
+    agent_telemetry:
+      enabled: true
+      use_compression: false
+      profiles:
+      - name: xxx
+        metric:
+          metrics:
+            - name: foo.bar
+      - name: ondemand
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agentbsod
+            message: 'Agent BSOD'
+          - name: foobar
+            request_type: agent-foobar
+            payload_key: agentfoobar
+            message: 'Agent foobar'
+    `
+
+	payloadObj := struct {
+		Date     string `json:"date"`
+		Offender string `json:"offender"`
+		BugCheck string `json:"bugcheck"`
+	}{
+		Date:     "2024-30-02 17:31:12",
+		Offender: "ddnpm+0x1a3",
+		BugCheck: "0x7A",
+	}
+	// conert to json
+	payload, err := json.Marshal(payloadObj)
+	require.NoError(t, err)
+
+	// setup and initiate atel
+	o := convertYamlStrToMap(t, cfg)
+	cl := newClientMock()
+	s := makeSenderImpl(t, cl, cfg)
+	r := newRunnerMock()
+	a := getTestAtel(t, nil, o, s, cl, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	err = a.SendEvent("agentbsod2", payload)
+	require.Error(t, err)
 }

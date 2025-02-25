@@ -27,7 +27,7 @@ import (
 
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
 
-type packageTestsWithSkipedFlavors struct {
+type packageTestsWithSkippedFlavors struct {
 	t                          packageTests
 	skippedFlavors             []e2eos.Descriptor
 	skippedInstallationMethods []InstallMethodOption
@@ -35,7 +35,7 @@ type packageTestsWithSkipedFlavors struct {
 
 var (
 	amd64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2204,
+		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
@@ -44,11 +44,11 @@ var (
 		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2204,
+		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
-	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
+	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
@@ -162,11 +162,21 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.setupFakeIntake()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 	s.disableUnattendedUpgrades()
+	s.updateCurlOnUbuntu()
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
 		s.Env().RemoteHost.MustExecute("sudo apt remove -y unattended-upgrades")
+	}
+}
+
+func (s *packageBaseSuite) updateCurlOnUbuntu() {
+	// There is an issue with the default cURL version on Ubuntu that causes sporadic
+	// SSL failures, and the fix is to update it.
+	// See https://stackoverflow.com/questions/72627218/openssl-error-messages-error0a000126ssl-routinesunexpected-eof-while-readin
+	if s.os.Flavor == e2eos.Ubuntu {
+		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt upgrade -y curl")
 	}
 }
 
@@ -240,6 +250,7 @@ func (s *packageBaseSuite) Purge() {
 	}
 
 	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
+	s.Env().RemoteHost.MustExecute("sudo rm -rf /etc/datadog-agent")
 }
 
 // setupFakeIntake sets up the fake intake for the agent and trace agent.

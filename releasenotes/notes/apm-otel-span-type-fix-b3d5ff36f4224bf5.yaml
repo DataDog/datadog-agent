@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Datadog span.Type and span.Resource attributes are set correctly for OTel spans 
+    processed via OTel Agent and Datadog Exporter when client span type is a database 
+    span.Type.
+
+    span.Type logic update is limited to ReceiveResourceSpansV2 logic, set using 
+    `"enable_receive_resource_spans_v2"` in `DD_APM_FEATURES`
+
+    span.Resource logic update is limited to OperationAndResourceNameV2 logic, set 
+    using `"enable_operation_and_resource_name_logic_v2"` in `DD_APM_FEATURES`
+
+    Users should set a `span.type` attribute on their telemetry if they wish to
+    override the default span type.

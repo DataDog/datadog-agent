@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -107,8 +107,8 @@ func (c *checkImpl) buildTags(lps []*dto.LabelPair) []string {
 }
 
 // Factory creates a new check factory
-func Factory(telemetry telemetry.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(telemetry telemetry.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &checkImpl{
 			CheckBase: corechecks.NewCheckBase(CheckName),
 			telemetry: telemetry,

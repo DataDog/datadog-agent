@@ -9,8 +9,11 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
-
 	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operator"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -130,12 +133,16 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
+		if params.operatorDDAOptions != nil {
+			newDdaOpts := []agentwithoperatorparams.Option{agentwithoperatorparams.WithFakeIntake(fakeIntake)}
+			params.operatorDDAOptions = append(newDdaOpts, params.operatorDDAOptions...)
+		}
 	} else {
 		env.FakeIntake = nil
 	}
 
 	var dependsOnDDAgent pulumi.ResourceOption
-	if params.agentOptions != nil {
+	if params.agentOptions != nil && !params.deployOperator {
 		helmValues := `
 datadog:
   kubelet:
@@ -155,8 +162,23 @@ agents:
 			return err
 		}
 		dependsOnDDAgent = utils.PulumiDependsOn(agent)
-	} else {
-		env.Agent = nil
+	}
+
+	if params.deployOperator {
+		operatorOpts := make([]operatorparams.Option, 0)
+		operatorOpts = append(
+			operatorOpts,
+			params.operatorOptions...,
+		)
+
+		operatorComp, err := operator.NewOperator(&awsEnv, awsEnv.Namer.ResourceName("dd-operator"), kubeProvider, operatorOpts...)
+		if err != nil {
+			return err
+		}
+		err = operatorComp.Export(ctx, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	if params.deployDogstatsd {
@@ -211,6 +233,22 @@ agents:
 		if err != nil {
 			return err
 		}
+	}
+
+	if params.deployOperator && params.operatorDDAOptions != nil {
+		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("kind-with-operator"), kubeProvider, params.operatorDDAOptions...)
+		if err != nil {
+			return err
+		}
+
+		if err := ddaWithOperatorComp.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+			return err
+		}
+
+	}
+
+	if params.agentOptions == nil || (params.operatorDDAOptions == nil) {
+		env.Agent = nil
 	}
 
 	return nil

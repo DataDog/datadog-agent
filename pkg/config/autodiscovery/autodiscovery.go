@@ -125,5 +125,11 @@ func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkg
 		log.Info("Adding Kubelet listener from environment")
 	}
 
+	isGPUEnv := env.IsFeaturePresent(env.NVML)
+	if isGPUEnv {
+		detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.GPU})
+		log.Info("Adding GPU provider from environment")
+	}
+
 	return detectedProviders, detectedListeners
 }

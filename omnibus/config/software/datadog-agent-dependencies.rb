@@ -6,9 +6,9 @@ description "Enforce building dependencies as soon as possible so they can be ca
 if linux_target?
   dependency 'procps-ng'
   dependency 'curl'
-  if fips_mode?
-    dependency 'openssl-fips-provider'
-  end
+end
+if fips_mode?
+  dependency 'openssl-fips-provider'
 end
 
 # Bundled cacerts file (is this a good idea?)
@@ -20,9 +20,6 @@ dependency 'jmxfetch'
 if linux_target?
   dependency 'sds'
 end
-
-# version manifest file
-dependency 'version-manifest'
 
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'

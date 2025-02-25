@@ -18,7 +18,7 @@ WORKTREE_DIRECTORY = Path.cwd().parent / "datadog-agent-worktree"
 LOCAL_DIRECTORY = Path.cwd().resolve()
 
 
-def init_env(ctx, branch: str | None = None):
+def init_env(ctx, branch: str | None = None, commit: str | None = None):
     """Will prepare the environment for commands applying to a worktree.
 
     To be used before each worktree section.
@@ -44,6 +44,18 @@ def init_env(ctx, branch: str | None = None):
                 code=1,
             )
 
+    # Copy the configuration file
+    ctx.run(f"cp {LOCAL_DIRECTORY}/.git/config {WORKTREE_DIRECTORY}/.git/config", hide=True)
+    ctx.run(
+        f"git -C '{WORKTREE_DIRECTORY}' branch --set-upstream-to=origin/{branch or 'main'} {branch or 'main'}",
+        hide=True,
+    )
+    # If the state is not clean, clean it
+    if ctx.run(f"git -C '{WORKTREE_DIRECTORY}' status --porcelain", hide=True).stdout.strip():
+        print(f'{color_message("Info", Color.BLUE)}: Cleaning worktree directory', file=sys.stderr)
+        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' reset --hard", hide=True)
+        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' clean -f", hide=True)
+
     if branch:
         worktree_branch = ctx.run(
             f"git -C '{WORKTREE_DIRECTORY}' rev-parse --abbrev-ref HEAD", hide=True
@@ -65,6 +77,12 @@ def init_env(ctx, branch: str | None = None):
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
             ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
 
+    if commit:
+        if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
+            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
+
+        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{commit}'", hide=True)
+
 
 def remove_env(ctx):
     """Will remove the environment for commands applying to a worktree."""
@@ -78,14 +96,14 @@ def is_worktree():
     return Path.cwd().resolve() == WORKTREE_DIRECTORY.resolve()
 
 
-def enter_env(ctx, branch: str | None, skip_checkout=False):
+def enter_env(ctx, branch: str | None, skip_checkout=False, commit: str | None = None):
     """Enters the worktree environment."""
 
-    if not branch:
-        assert skip_checkout, 'skip_checkout must be set to True if branch is None'
+    if not (branch or commit):
+        assert skip_checkout, 'skip_checkout must be set to True if branch and commit are None'
 
     if not skip_checkout:
-        init_env(ctx, branch)
+        init_env(ctx, branch, commit=commit)
     else:
         assert WORKTREE_DIRECTORY.is_dir(), "Worktree directory is not present and skip_checkout is set to True"
 
@@ -104,12 +122,13 @@ def exit_env():
 
 
 @contextmanager
-def agent_context(ctx, branch: str | None, skip_checkout=False):
+def agent_context(ctx, branch: str | None = None, skip_checkout=False, commit: str | None = None):
     """Applies code to the worktree environment if the branch is not None.
 
     Args:
         branch: The branch to switch to. If None, will enter the worktree environment without switching branch (ensures that skip_checkout is True).
         skip_checkout: If True, the branch will not be checked out (no pull will be performed too).
+        commit: The commit to checkout. Is used instead of branch if provided.
 
     Usage:
         > with agent_context(ctx, branch):
@@ -118,14 +137,34 @@ def agent_context(ctx, branch: str | None, skip_checkout=False):
 
     # Do not stack two environments
     if is_worktree():
-        yield
-        return
+        if not skip_checkout and (
+            branch
+            and branch != get_current_branch(ctx)
+            or commit
+            and commit != ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+        ):
+            raise RuntimeError('Cannot stack two different worktree environments (two different branches requested)')
+        else:
+            # Some tasks need to stack two different worktree environments but
+            # on the same branch
+            # Simulate worktree environment
+            yield
+            return
 
     try:
         # Enter
-        enter_env(ctx, branch, skip_checkout=skip_checkout)
+        enter_env(ctx, branch, skip_checkout=skip_checkout, commit=commit)
 
         yield
+    except Exception as e:
+        location = get_current_branch(ctx)
+        message = f'{color_message("WARNING", Color.ORANGE)}: This error takes place in a worktree environment on branch {location}'
+
+        e.add_note(message)
+        # Also print the warning since it might be an invoke error which exits without displaying the message
+        print(message, file=sys.stderr)
+
+        raise e
     finally:
         # Exit
         exit_env()

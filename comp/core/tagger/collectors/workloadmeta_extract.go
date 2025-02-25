@@ -46,6 +46,11 @@ const (
 	dockerLabelService = "com.datadoghq.tags.service"
 
 	autodiscoveryLabelTagsKey = "com.datadoghq.ad.tags"
+
+	// Datadog Autoscaling annotation
+	// (from pkg/clusteragent/autoscaling/workload/model/const.go)
+	// no importing due to packages it pulls
+	datadogAutoscalingIDAnnotation = "autoscaling.datadoghq.com/autoscaler-id"
 )
 
 var (
@@ -62,9 +67,10 @@ var (
 	}
 
 	otelResourceAttributesMapping = map[string]string{
-		"service.name":           tags.Service,
-		"service.version":        tags.Version,
-		"deployment.environment": tags.Env,
+		"service.name":                tags.Service,
+		"service.version":             tags.Version,
+		"deployment.environment":      tags.Env,
+		"deployment.environment.name": tags.Env,
 	}
 
 	lowCardOrchestratorEnvKeys = map[string]string{
@@ -149,6 +155,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
+			case workloadmeta.KindGPU:
+				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -354,6 +362,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	// gpu requested vendor as tags
 	for _, gpuVendor := range pod.GPUVendorList {
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
+	}
+
+	// autoscaler presence
+	if pod.Annotations[datadogAutoscalingIDAnnotation] != "" {
+		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
 	}
 
 	kubeServiceDisabled := false
@@ -603,6 +616,35 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 		{
 			Source:               kubeMetadataSource,
 			EntityID:             common.BuildTaggerEntityID(kubeMetadata.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInfo {
+	gpu := ev.Entity.(*workloadmeta.GPU)
+
+	tagList := taglist.NewTagList()
+
+	tagList.AddLow(tags.KubeGPUVendor, gpu.Vendor)
+	tagList.AddLow(tags.KubeGPUDevice, gpu.Device)
+	tagList.AddLow(tags.KubeGPUUUID, gpu.ID)
+
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               gpuSource,
+			EntityID:             common.BuildTaggerEntityID(gpu.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

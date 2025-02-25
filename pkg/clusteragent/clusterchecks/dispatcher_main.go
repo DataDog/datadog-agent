@@ -20,20 +20,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
-	store                         *clusterStore
-	nodeExpirationSeconds         int64
-	extraTags                     []string
-	clcRunnersClient              clusteragent.CLCRunnerClientInterface
-	advancedDispatching           bool
-	excludedChecks                map[string]struct{}
-	excludedChecksFromDispatching map[string]struct{}
-	rebalancingPeriod             time.Duration
+	store                            *clusterStore
+	nodeExpirationSeconds            int64
+	unscheduledCheckThresholdSeconds int64
+	extraTags                        []string
+	clcRunnersClient                 clusteragent.CLCRunnerClientInterface
+	advancedDispatching              bool
+	excludedChecks                   map[string]struct{}
+	excludedChecksFromDispatching    map[string]struct{}
+	rebalancingPeriod                time.Duration
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
@@ -41,6 +43,12 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
+	d.unscheduledCheckThresholdSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.unscheduled_check_threshold")
+
+	if d.unscheduledCheckThresholdSeconds < d.nodeExpirationSeconds {
+		log.Warnf("The unscheduled_check_threshold value should be larger than node_expiration_timeout, setting it to the same value")
+		d.unscheduledCheckThresholdSeconds = d.nodeExpirationSeconds
+	}
 
 	// Attach the cluster agent's global tags to all dispatched checks
 	// as defined in the tagger's workloadmeta collector
@@ -162,15 +170,19 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 }
 
 // reschdule sends configurations to dispatching without checking or patching them as Schedule does.
-func (d *dispatcher) reschedule(configs []integration.Config) {
+func (d *dispatcher) reschedule(configs []integration.Config) []string {
+	addedConfigIDs := make([]string, 0, len(configs))
 	for _, c := range configs {
 		log.Debugf("Rescheduling the check %s:%s", c.Name, c.Digest())
-		d.add(c)
+		if d.add(c) {
+			addedConfigIDs = append(addedConfigIDs, c.Digest())
+		}
 	}
+	return addedConfigIDs
 }
 
 // add stores and delegates a given configuration
-func (d *dispatcher) add(config integration.Config) {
+func (d *dispatcher) add(config integration.Config) bool {
 	target := d.getNodeToScheduleCheck()
 	if target == "" {
 		// If no node is found, store it in the danglingConfigs map for retrying later.
@@ -179,7 +191,7 @@ func (d *dispatcher) add(config integration.Config) {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)
 	}
 
-	d.addConfig(config, target)
+	return d.addConfig(config, target)
 }
 
 // remove deletes a given configuration
@@ -194,6 +206,21 @@ func (d *dispatcher) reset() {
 	d.store.Lock()
 	defer d.store.Unlock()
 	d.store.reset()
+}
+
+// scanUnscheduledChecks scans the store for configs that have been
+// unscheduled for longer than the unscheduledCheckThresholdSeconds
+func (d *dispatcher) scanUnscheduledChecks() {
+	d.store.Lock()
+	defer d.store.Unlock()
+
+	for _, c := range d.store.danglingConfigs {
+		if !c.unscheduledCheck && c.isStuckScheduling(d.unscheduledCheckThresholdSeconds) {
+			log.Warnf("Detected unscheduled check config. Name:%s, Source:%s", c.config.Name, c.config.Source)
+			c.unscheduledCheck = true
+			unscheduledCheck.Inc(le.JoinLeaderValue, c.config.Name, c.config.Source)
+		}
+	}
 }
 
 // run is the main management goroutine for the dispatcher
@@ -211,6 +238,9 @@ func (d *dispatcher) run(ctx context.Context) {
 	rebalanceTicker := time.NewTicker(d.rebalancingPeriod)
 	defer rebalanceTicker.Stop()
 
+	unscheduledCheckTicker := time.NewTicker(time.Duration(d.unscheduledCheckThresholdSeconds) * time.Second)
+	defer unscheduledCheckTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -223,9 +253,15 @@ func (d *dispatcher) run(ctx context.Context) {
 
 			// Re-dispatch dangling configs
 			if d.shouldDispatchDangling() {
-				danglingConfs := d.retrieveAndClearDangling()
-				d.reschedule(danglingConfs)
+				danglingConfigs := d.retrieveDangling()
+				scheduledConfigIDs := d.reschedule(danglingConfigs)
+				d.store.Lock()
+				d.deleteDangling(scheduledConfigIDs)
+				d.store.Unlock()
 			}
+		case <-unscheduledCheckTicker.C:
+			// Check for configs that have been dangling longer than expected
+			d.scanUnscheduledChecks()
 		case <-rebalanceTicker.C:
 			if d.advancedDispatching {
 				d.rebalance(false)

@@ -28,12 +28,15 @@ const (
 
 func TestPrintConfigCheck(t *testing.T) {
 	integrationConfigCheckResponse := integration.ConfigCheckResponse{
-		Configs: []integration.Config{
+		Configs: []integration.ConfigResponse{
 			{
-				Instances:    []integration.Data{integration.Data("{foo:bar}")},
-				InitConfig:   integration.Data("{baz:qux}"),
-				LogsConfig:   integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
-				MetricConfig: integration.Data("[{\"metric\":\"some_metric\"}]"),
+				InstanceIDs: []string{":3c3de4a3617771b4"},
+				Config: integration.Config{
+					Instances:    []integration.Data{integration.Data("{foo:bar}")},
+					InitConfig:   integration.Data("{baz:qux}"),
+					LogsConfig:   integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
+					MetricConfig: integration.Data("[{\"metric\":\"some_metric\"}]"),
+				},
 			},
 		},
 		ConfigErrors: map[string]string{
@@ -197,10 +200,10 @@ func TestContainerExclusionRulesInfo(t *testing.T) {
 
 	for i, test := range testCases {
 		t.Run(fmt.Sprintf("case %d: %s", i, test.name), func(t *testing.T) {
-			config := newConfig(test.configType, test.excluded)
+			config, instancesIDs := newConfig(test.configType, test.excluded)
 
 			var result bytes.Buffer
-			PrintConfig(&result, config, "")
+			PrintConfigWithInstanceIDs(&result, config, instancesIDs, "")
 
 			if test.expectMsg {
 				assert.Contains(t, result.String(), outputMsgs[test.configType])
@@ -211,8 +214,9 @@ func TestContainerExclusionRulesInfo(t *testing.T) {
 	}
 }
 
-func newConfig(configType configType, excluded bool) integration.Config {
+func newConfig(configType configType, excluded bool) (integration.Config, []string) {
 	var config integration.Config
+	var instancesIDs []string
 
 	switch configType {
 	case metricsConfig:
@@ -222,13 +226,15 @@ func newConfig(configType configType, excluded bool) integration.Config {
 			ClusterCheck:    false,
 			MetricsExcluded: excluded,
 		}
+		instancesIDs = []string{"{foo:bar}"}
 	case logsConfig:
 		config = integration.Config{
 			LogsConfig:    integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
 			ADIdentifiers: []string{"some_identifier"},
 			LogsExcluded:  excluded,
 		}
+		instancesIDs = []string{}
 	}
 
-	return config
+	return config, instancesIDs
 }

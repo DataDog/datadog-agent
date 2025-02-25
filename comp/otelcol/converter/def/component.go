@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
-// team: opentelemetry
+// team: opentelemetry opentelemetry-agent
 
 // Component implements the confmap.Converter interface.
 type Component interface {

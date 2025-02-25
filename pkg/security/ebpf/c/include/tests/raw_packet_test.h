@@ -1,7 +1,7 @@
 #ifndef _RAW_PACKET_TEST_H
 #define _RAW_PACKET_TEST_H
 
-#include "helpers/network.h"
+#include "helpers/network/raw.h"
 #include "baloum.h"
 
 SEC("test/raw_packet_tail_calls")

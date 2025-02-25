@@ -10,10 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
 	// component dependencies
@@ -47,7 +45,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	// third-party dependencies
 	dto "github.com/prometheus/client_model/go"
@@ -74,8 +72,8 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		replaymock.MockModule(),
 		secretsimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
-		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
+		fx.Supply(option.None[rcservice.Component]()),
+		fx.Supply(option.None[rcservicemrf.Component]()),
 		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
 		taggermock.Module(),
@@ -87,8 +85,8 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
 			return mock
 		}),
-		fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
-		fx.Supply(optional.NewNoneOption[collector.Component]()),
+		fx.Supply(option.None[logsAgent.Component]()),
+		fx.Supply(option.None[collector.Component]()),
 		pidmapimpl.Module(),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
@@ -124,21 +122,9 @@ func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
 }
 
 func TestStartBothServersWithObservability(t *testing.T) {
-	authToken, err := os.CreateTemp("", "auth_token")
-	require.NoError(t, err)
-	defer os.Remove(authToken.Name())
-
-	authTokenValue := strings.Repeat("a", 64)
-	_, err = io.WriteString(authToken, authTokenValue)
-	require.NoError(t, err)
-
-	err = authToken.Close()
-	require.NoError(t, err)
-
 	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port":             0,
-		"agent_ipc.port":       56789,
-		"auth_token_file_path": authToken.Name(),
+		"cmd_port":       0,
+		"agent_ipc.port": 56789,
 	}}
 
 	deps := getTestAPIServer(t, cfgOverride)
