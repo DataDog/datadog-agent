@@ -109,8 +109,12 @@ new-agent_dmg-x64-a7:
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
     # - eval $("$HOME/homebrew/bin/brew" shellenv)
+    - ls "$HOME"
+    - ls "$HOME/bin"
     - export PATH="$HOME/bin:$HOME/homebrew/bin:$HOME/rust/rustup/bin:$HOME/rust/cargo/bin"
     - python3 --version
+    - ls
+    - touch /tmp/hello
     - which which
     - which rustup
     - which cargo
