@@ -18,13 +18,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -83,7 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) error {
+func streamLogs(lc log.Component, config config.Component, cliParams *CliParams) error {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
@@ -101,11 +101,12 @@ func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) 
 	var bufWriter *bufio.Writer
 
 	if cliParams.FilePath != "" {
-		if err = stream.EnsureDirExists(cliParams.FilePath); err != nil {
+		if err = filesystem.EnsureParentDirsExist(cliParams.FilePath); err != nil {
 			return fmt.Errorf("error creating directory for file %s: %v", cliParams.FilePath, err)
 		}
 
-		f, bufWriter, err = stream.OpenFileForWriting(cliParams.FilePath)
+		lc.Infof("Opening file %s for writing logs. This file will be used to store streamlog output.", cliParams.FilePath)
+		f, bufWriter, err = filesystem.OpenFileForWriting(cliParams.FilePath)
 		if err != nil {
 			return fmt.Errorf("error opening file %s for writing: %v", cliParams.FilePath, err)
 		}

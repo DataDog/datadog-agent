@@ -7,13 +7,10 @@
 package stream
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
@@ -95,24 +92,4 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 			}
 		}
 	}
-}
-
-// OpenFileForWriting opens a file for writing
-func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
-	log.Infof("Opening file %s for writing logs. This file will be used to store streamlog output.", filePath)
-	f, err := os.OpenFile(filePath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
-	}
-	bufWriter := bufio.NewWriter(f)
-	return f, bufWriter, nil
-}
-
-// EnsureDirExists checks if the directory for the given path exists, if not then create it.
-func EnsureDirExists(path string) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	return nil
 }

@@ -12,13 +12,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logger "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coresetting "github.com/DataDog/datadog-agent/comp/core/settings"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -78,12 +78,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 // exportStreamLogs export output of stream-logs to a file. Currently used for remote config stream logs
 func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLogParams *LogParams) error {
-	if err := stream.EnsureDirExists(streamLogParams.FilePath); err != nil {
-		return fmt.Errorf("error creating directory for file %q: %w", streamLogParams.FilePath, err)
+	fp := streamLogParams.FilePath
+	if err := filesystem.EnsureParentDirsExist(fp); err != nil {
+		return fmt.Errorf("error creating directory for file %q: %w", fp, err)
 	}
-	f, bufWriter, err := stream.OpenFileForWriting(streamLogParams.FilePath)
+	logger.Infof("Opening file %s for writing logs. This file will be used to store streamlog output.", fp)
+	f, bufWriter, err := filesystem.OpenFileForWriting(fp)
 	if err != nil {
-		return fmt.Errorf("error opening file %s for writing: %v", streamLogParams.FilePath, err)
+		return fmt.Errorf("error opening file %s for writing: %v", fp, err)
 	}
 	defer func() {
 		if err = bufWriter.Flush(); err != nil {
@@ -133,8 +135,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Componen
 
 	slDuration := fb.GetFlareArgs().StreamLogsDuration
 	if slDuration <= 0 {
-		_ = fb.Logf("Streamlogs has been disabled via an unset duration, exiting streamlogs flare filler")
-		return nil
+		return fmt.Errorf("remote streamlogs has been disabled via an unset duration, exiting streamlogs flare filler")
 	}
 	streamLogParams := LogParams{
 		FilePath: streamlogsLogFilePath,
