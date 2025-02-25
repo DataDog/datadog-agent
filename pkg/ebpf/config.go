@@ -56,6 +56,9 @@ type Config struct {
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
 	RuntimeCompilerOutputDir string
 
+	// BTFOutputDir is the directory where extracted BTF files are stored
+	BTFOutputDir string
+
 	// AptConfigDir is the path to the apt config directory
 	AptConfigDir string
 
@@ -92,8 +95,9 @@ func NewConfig() *Config {
 		ProcRoot:                 kernel.ProcFSRoot(),
 		InternalTelemetryEnabled: cfg.GetBool(sysconfig.FullKeyPath(spNS, "telemetry_enabled")),
 
-		EnableCORE: cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_co_re")),
-		BTFPath:    cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_path")),
+		EnableCORE:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_co_re")),
+		BTFPath:      cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_path")),
+		BTFOutputDir: cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_output_dir")),
 
 		EnableRuntimeCompiler:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_runtime_compiler")),
 		RuntimeCompilerOutputDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "runtime_compiler_output_dir")),

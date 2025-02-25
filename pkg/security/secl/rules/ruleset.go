@@ -94,6 +94,14 @@ func (rs *RuleSet) ListMacroIDs() []MacroID {
 	return ids
 }
 
+// GetVariables returns the variables store
+func (rs *RuleSet) GetVariables() map[string]eval.SECLVariable {
+	if rs.evalOpts == nil || rs.evalOpts.VariableStore == nil {
+		return nil
+	}
+	return rs.evalOpts.VariableStore.Variables
+}
+
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
 func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*PolicyMacro) *multierror.Error {
 	var result *multierror.Error

@@ -17,7 +17,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import send_metrics
-from tasks.libs.common.utils import gitlab_section
+from tasks.libs.common.utils import gitlab_section, is_conductor_scheduled_pipeline
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
 from tasks.libs.notify.jira_failing_tests import close_issue, get_failing_tests_names, get_jira
 from tasks.libs.notify.utils import PROJECT_NAME, should_notify
@@ -127,6 +127,13 @@ def failure_summary_send_notifications(
     assert (
         daily_summary or weekly_summary and not (daily_summary and weekly_summary)
     ), "Exactly one of daily or weekly summary must be set"
+
+    if not (is_conductor_scheduled_pipeline()):
+        print(
+            "Failure summary notifications are only sent during the conductor scheduled pipeline, skipping",
+            file=sys.stderr,
+        )
+        return
 
     period = timedelta(days=1) if daily_summary else timedelta(weeks=1)
     failure_summary.send_summary_messages(ctx, weekly_summary, max_length, period, dry_run=dry_run)
@@ -286,5 +293,5 @@ def post_message(_: Context, channel: str, message: str):
     """
     from slack_sdk import WebClient
 
-    client = WebClient(token=os.environ['SLACK_API_TOKEN'])
+    client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     client.chat_postMessage(channel=channel, text=message)

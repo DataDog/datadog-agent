@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -45,7 +46,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T06:59:48.396Z"
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
-        with patch.dict('os.environ', {'SLACK_API_TOKEN': 'coin'}, clear=True):
+        with patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'coin'}, clear=True):
             notify.send_message(MockContext(), "42", dry_run=True)
         list_mock.assert_called()
         repo_mock.pipelines.get.assert_called_with("42")
@@ -128,7 +129,7 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         get_failed_jobs_mock.return_value = failed
-        with patch.dict('os.environ', {'SLACK_API_TOKEN': 'meuh'}, clear=True):
+        with patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'meuh'}, clear=True):
             notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
         get_failed_jobs_mock.assert_called()
@@ -224,7 +225,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
         repo_mock.pipelines.get.return_value.finished_at = None
 
-        with patch.dict('os.environ', {'SLACK_API_TOKEN': 'ouaf'}, clear=True):
+        with patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'ouaf'}, clear=True):
             notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("merge" in print_mock.mock_calls[0].args[0])
         trace_mock.assert_called()
@@ -233,7 +234,7 @@ class TestSendMessage(unittest.TestCase):
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
     @patch('slack_sdk.WebClient', new=MagicMock())
-    @patch.dict('os.environ', {'DEPLOY_AGENT': 'true', 'SLACK_API_TOKEN': 'hihan'})
+    @patch.dict('os.environ', {'DEPLOY_AGENT': 'true', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'hihan'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
     def test_deploy_with_get_failed_call(self, print_mock, api_mock):
@@ -273,7 +274,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.pipelines.get.return_value.started_at = "2025-02-07T05:59:48.396Z"
         repo_mock.pipelines.get.return_value.finished_at = "2025-02-07T06:59:48.396Z"
 
-        with patch.dict('os.environ', {'SLACK_API_TOKEN': 'miaou'}, clear=True):
+        with patch.dict('os.environ', {'SLACK_DATADOG_AGENT_BOT_TOKEN': 'miaou'}, clear=True):
             notify.send_message(MockContext(), "42", dry_run=True)
         self.assertTrue("arrow_forward" in print_mock.mock_calls[0].args[0])
         self.assertTrue("[:hourglass: 60 min]" in print_mock.mock_calls[0].args[0])
@@ -284,7 +285,8 @@ class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch.dict(
-        'os.environ', {'DDR': 'true', 'DDR_WORKFLOW_ID': '1337', 'DEPLOY_AGENT': 'false', 'SLACK_API_TOKEN': 'ni'}
+        'os.environ',
+        {'DDR': 'true', 'DDR_WORKFLOW_ID': '1337', 'DEPLOY_AGENT': 'false', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'ni'},
     )
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
@@ -394,3 +396,21 @@ class TestJobOwners(unittest.TestCase):
                 ('@DataDog/team-everything', {'this_is_a_test', 'hello_world'}),
             ],
         )
+
+
+class TestFailureSummarySendNotifications(unittest.TestCase):
+    @patch.dict('os.environ', {'CI_PIPELINE_CREATED_AT': '2025-02-07T11:11:11.111Z'})
+    @patch('builtins.print')
+    def test_ignore_non_scheduled_conductor(self, print_mock):
+        notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
+        print_mock.assert_called_with(
+            "Failure summary notifications are only sent during the conductor scheduled pipeline, skipping",
+            file=sys.stderr,
+        )
+
+    @patch.dict('os.environ', {'CI_PIPELINE_CREATED_AT': '2025-02-07T06:11:11.111Z'})
+    @patch('tasks.notify.failure_summary', new=MagicMock())
+    @patch('builtins.print')
+    def test_sheduled_conductor(self, print_mock):
+        notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
+        print_mock.assert_not_called()

@@ -1,4 +1,4 @@
-go 1.23.3
+go 1.23.5
 
 toolchain go1.23.6
 
@@ -52,6 +52,8 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
+	comp/otelcol/status/def
+	comp/otelcol/status/impl
 	comp/serializer/logscompression
 	comp/serializer/metricscompression
 	comp/trace/agent/def
@@ -76,8 +78,10 @@ use (
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
+	pkg/config/viperconfig
 	pkg/errors
 	pkg/fips
+	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
 	pkg/logs/auditor
@@ -131,6 +135,7 @@ use (
 	pkg/util/log/setup
 	pkg/util/option
 	pkg/util/pointer
+	pkg/util/prometheus
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop

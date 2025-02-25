@@ -15,7 +15,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/DataDog/viper"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cast"
 
@@ -55,14 +54,14 @@ var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertArrayToMap = true
 }
 
-// errorUnused is a viper.DecoderConfigOption that enables erroring on unused keys
-var errorUnused = viper.DecoderConfigOption(func(cfg *mapstructure.DecoderConfig) {
+// errorUnused is a mapstructure.DecoderConfig that enables erroring on unused keys
+var errorUnused = func(cfg *mapstructure.DecoderConfig) {
 	cfg.ErrorUnused = true
-})
+}
 
 // legacyConvertArrayToMap convert array to map when DD_CONF_NODETREEMODEL is disabled
-var legacyConvertArrayToMap = viper.DecodeHook(
-	func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
+var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
+	c.DecodeHook = func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
 		if rf != reflect.Slice {
 			return data, nil
 		}
@@ -74,8 +73,8 @@ var legacyConvertArrayToMap = viper.DecodeHook(
 			newData[i] = true
 		}
 		return newData, nil
-	},
-)
+	}
+}
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct.
@@ -86,7 +85,7 @@ var legacyConvertArrayToMap = viper.DecodeHook(
 // Else the viper/legacy version is used.
 func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
 	nodetreemodel := os.Getenv("DD_CONF_NODETREEMODEL")
-	if nodetreemodel == "enabled" || nodetreemodel == "unmarshal" {
+	if nodetreemodel == "enable" || nodetreemodel == "unmarshal" {
 		return unmarshalKeyReflection(cfg, key, target, opts...)
 	}
 
@@ -95,7 +94,7 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 		o(fs)
 	}
 
-	decodeHooks := []viper.DecoderConfigOption{}
+	decodeHooks := []func(c *mapstructure.DecoderConfig){}
 	if fs.convertArrayToMap {
 		decodeHooks = append(decodeHooks, legacyConvertArrayToMap)
 	}

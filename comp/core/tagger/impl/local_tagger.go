@@ -248,7 +248,3 @@ func (t *localTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo)
 func (t *localTagger) ChecksCardinality() types.TagCardinality {
 	return types.LowCardinality
 }
-
-func (t *localTagger) DogstatsdCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
