@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package packages
+package apminject
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 )
 
 func TestSetDockerConfig(t *testing.T) {
-	a := &apmInjectorInstaller{
+	a := &InjectorInstaller{
 		installPath: "/tmp/stable",
 	}
 
@@ -70,7 +70,7 @@ func TestSetDockerConfig(t *testing.T) {
 }
 
 func TestRemoveDockerConfig(t *testing.T) {
-	a := &apmInjectorInstaller{
+	a := &InjectorInstaller{
 		installPath: "/tmp/stable",
 	}
 

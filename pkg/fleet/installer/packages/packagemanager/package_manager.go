@@ -5,7 +5,8 @@
 
 //go:build !windows
 
-package packages
+// Package packagemanager provides an interface over the OS package manager
+package packagemanager
 
 import (
 	"context"
@@ -32,12 +33,12 @@ func rpmInstalled() (bool, error) {
 	return err == nil, nil
 }
 
-// removeDebRPMPackage removes a package installed via deb/rpm package manager
+// RemovePackage removes a package installed via deb/rpm package manager
 // It doesn't remove dependencies or purge as we want to keep existing configuration files
 // and reinstall the package using the installer.
 // Note: we don't run the pre/post remove scripts as we want to avoid surprises for older agent versions (like removing config)
-func removeDebRPMPackage(ctx context.Context, pkg string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "removeDebRPMPackage")
+func RemovePackage(ctx context.Context, pkg string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "RemovePackage")
 	defer func() { span.Finish(err) }()
 
 	dpkgInstalled, err := dpkgInstalled()
