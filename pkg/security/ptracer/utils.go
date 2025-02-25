@@ -82,7 +82,7 @@ func getContainerIDFromCgroupData(data []byte) (containerutils.ContainerID, erro
 		}
 		if cid, _ := containerutils.FindContainerID(containerutils.CGroupID(str)); cid != "" {
 			return cid, nil
-		} else if cid, _ = containerutils.FindContainerID(containerutils.CGroupID(str)); cid != "" {
+		} else if cid, _ = containerutils.FindContainerID(containerutils.CGroupID(cgroup.path)); cid != "" {
 			return cid, nil
 		}
 	}

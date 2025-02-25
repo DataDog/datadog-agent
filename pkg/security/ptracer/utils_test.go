@@ -33,4 +33,15 @@ func TestContainerID(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, containerutils.ContainerID("7022ec9d5774c69f38feddd6460373c4681ef72a4e03bc6f2d374387e9bde981"), cid)
 	})
+
+	t.Run("from-cgroup-ecs", func(t *testing.T) {
+		cgroupContent := `11:devices:/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770
+		10:memory:/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770
+		9:blkio:/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770
+		1:name=systemd:/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770`
+		cid, err := getContainerIDFromCgroupData([]byte(cgroupContent))
+
+		assert.NoError(t, err)
+		assert.Equal(t, containerutils.ContainerID("8a28a84664034325be01ca46b33d1dd3-4092616770"), cid)
+	})
 }
