@@ -10,9 +10,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -43,7 +43,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Print the hostname used by the Agent",
 		Long:  ``,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(getHostname,
+			return fxutil.OneShot(printHostname,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
@@ -58,31 +58,32 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{getHostnameCommand}
 }
 
-func getHostname(_ log.Component, config config.Component, params *cliParams) error {
-	return getHostnameWithWriter(config, params, os.Stdout)
+func printHostname(_ log.Component, config config.Component, params *cliParams) error {
+	hname, err := getHostname(config, params)
+
+	if err != nil {
+		return fmt.Errorf("Error getting the hostname: %v", err)
+	}
+
+	fmt.Println(hname)
+	return nil
 }
 
-func getHostnameWithWriter(config config.Component, params *cliParams, writer io.Writer) error {
+func getHostname(config config.Component, params *cliParams) (string, error) {
 	var hname string
 	var err error
 
 	if !params.forceLocal {
 		hname, err = getRemoteHostname(config)
-		if err != nil {
-			// print the warning on stderr to avoid polluting the output
-			fmt.Fprintf(os.Stderr, "Error getting the hostname from the running agent: %v\nComputing the hostname from the command line...\n", err)
+		if err == nil {
+			return hname, nil
 		}
+
+		// print the warning on stderr to avoid polluting the output
+		fmt.Fprintln(os.Stderr, color.RedString("Error getting the hostname from the running agent: %v\nComputing the hostname from the command line...", err))
 	}
 
-	if hname == "" {
-		hname, err = hostname.Get(context.Background())
-		if err != nil {
-			return fmt.Errorf("Error getting the hostname: %v", err)
-		}
-	}
-
-	fmt.Fprintln(writer, hname)
-	return nil
+	return hostname.Get(context.Background())
 }
 
 func getRemoteHostname(config config.Component) (string, error) {

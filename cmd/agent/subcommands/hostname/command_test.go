@@ -6,13 +6,11 @@
 package hostname
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +29,7 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"hostname"},
-		getHostname,
+		printHostname,
 		func(_ *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
@@ -56,7 +54,7 @@ func hostnameHandler(hostname string) http.Handler {
 	})
 }
 
-func TestGetHostnameRemote(t *testing.T) {
+func TestGetHostname(t *testing.T) {
 	testCases := []struct {
 		name           string
 		forceLocal     bool
@@ -82,7 +80,7 @@ func TestGetHostnameRemote(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			config := config.NewMock(t)
-			logger := logmock.New(t)
+			logmock.New(t)
 			cliParams := &cliParams{
 				GlobalParams: &command.GlobalParams{},
 				forceLocal:   tc.forceLocal,
@@ -102,15 +100,14 @@ func TestGetHostnameRemote(t *testing.T) {
 			config.Set("auth_token_file_path", path.Join(t.TempDir(), "auth_token"), model.SourceFile)
 			apiutil.CreateAndSetAuthToken(config)
 
-			var buff bytes.Buffer
-			err = getHostnameWithWriter(logger, config, cliParams, &buff)
+			hname, err := getHostname(config, cliParams)
 			require.NoError(t, err)
 
 			expectedHostname := localHostname
 			if !tc.forceLocal && tc.remoteHostname != "" {
 				expectedHostname = tc.remoteHostname
 			}
-			require.Equal(t, expectedHostname, strings.TrimSpace(buff.String()))
+			require.Equal(t, expectedHostname, hname)
 		})
 	}
 }
