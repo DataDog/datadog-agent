@@ -59,10 +59,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func getHostname(_ log.Component, config config.Component, params *cliParams) error {
-	return getHostnameWithWriter(nil, config, params, os.Stdout)
+	return getHostnameWithWriter(config, params, os.Stdout)
 }
 
-func getHostnameWithWriter(_ log.Component, config config.Component, params *cliParams, writer io.Writer) error {
+func getHostnameWithWriter(config config.Component, params *cliParams, writer io.Writer) error {
 	var hname string
 	var err error
 
