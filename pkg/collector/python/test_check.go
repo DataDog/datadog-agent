@@ -10,7 +10,6 @@ package python
 import (
 	"fmt"
 	"runtime"
-	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -676,16 +675,4 @@ func NewPythonFakeCheck(senderManager sender.SenderManager) (*PythonCheck, error
 	}
 
 	return c, err
-}
-
-func mockRtloader(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	pythonOnce.Do(func() {})
-	t.Cleanup(func() {
-		// We have to wrap this in locks otherwise the race detector complains
-		pyDestroyLock.Lock()
-		rtloader = nil
-		pythonOnce = sync.Once{}
-		pyDestroyLock.Unlock()
-	})
 }
