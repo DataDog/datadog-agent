@@ -94,8 +94,6 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
-	"github.com/DataDog/datadog-agent/comp/logs"
-	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
@@ -425,7 +423,13 @@ func getSharedFxOption() fx.Option {
 				},
 			})
 		}),
-		logs.Bundle(),
+		fx.Provide(func() option.Option[logsAgent.Component] {
+			return option.None[logsAgent.Component]()
+		}),
+
+		fx.Provide(func() option.Option[integrations.Component] {
+			return option.None[integrations.Component]()
+		}),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
@@ -455,7 +459,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobefx.Module(),
-		adschedulerimpl.Module(),
+		// adschedulerimpl.Module(),
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
