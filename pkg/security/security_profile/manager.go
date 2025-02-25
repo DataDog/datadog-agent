@@ -485,7 +485,7 @@ func (m *Manager) cleanup() {
 		if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 			if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-			} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
+			} else if m.config.RuntimeSecurity.SecurityProfileEnabled { // drop the profile if we don't care about using it as a security profile
 				select {
 				case m.newProfiles <- ad.Profile:
 				default:
@@ -997,7 +997,7 @@ func (m *Manager) triggerLoadController() {
 		if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 			if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-			} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
+			} else if m.config.RuntimeSecurity.SecurityProfileEnabled { // drop the profile if we don't care about using it as a security profile
 				select {
 				case m.newProfiles <- ad.Profile:
 				default:
@@ -2214,7 +2214,7 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 				if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-				} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
+				} else if m.config.RuntimeSecurity.SecurityProfileEnabled { // drop the profile if we don't care about using it as a security profile
 					select {
 					case m.newProfiles <- ad.Profile:
 					default:
