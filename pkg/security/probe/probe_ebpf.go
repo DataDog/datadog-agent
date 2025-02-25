@@ -370,7 +370,7 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 }
 
 func (p *EBPFProbe) initEBPFManager() error {
-	loader := ebpf.NewProbeLoader(p.config.Probe, p.useSyscallWrapper, p.useRingBuffers, p.useFentry, p.statsdClient)
+	loader := ebpf.NewProbeLoader(p.config.Probe, p.useSyscallWrapper, p.useRingBuffers, p.useFentry)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -621,7 +621,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 
 	}
 
-	p.Resolvers.ProcessResolver.Walk(entryToEvent)
+	p.Walk(entryToEvent)
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
@@ -1690,6 +1690,11 @@ func (p *EBPFProbe) RefreshUserCache(containerID containerutils.ContainerID) err
 // require to sync with the current state of the system
 func (p *EBPFProbe) Snapshot() error {
 	return p.Resolvers.Snapshot()
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFProbe) Walk(callback func(*model.ProcessCacheEntry)) {
+	p.Resolvers.ProcessResolver.Walk(callback)
 }
 
 // Stop the probe

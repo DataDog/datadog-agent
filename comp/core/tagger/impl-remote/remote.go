@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -49,8 +50,8 @@ const (
 )
 
 var (
-	errTaggerStreamNotStarted                        = errors.New("tagger stream not started")
-	errTaggerFailedGenerateContainerIDFromOriginInfo = errors.New("tagger failed to generate container ID from origin info")
+	errTaggerStreamNotStarted = errors.New("tagger stream not started")
+	errFetchAuthToken         = errors.New("failed to fetch auth token")
 )
 
 // Requires defines the dependencies for the remote tagger.
@@ -194,6 +195,36 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 		return err
 	}
 
+	// Fetch the auth token
+	t.log.Debug("fetching auth token")
+
+	retries := 0
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 50 * time.Millisecond
+	expBackoff.MaxInterval = 500 * time.Millisecond
+	expBackoff.MaxElapsedTime = 5 * time.Second
+	err = backoff.Retry(func() error {
+		select {
+		case <-t.ctx.Done():
+			return &backoff.PermanentError{Err: errFetchAuthToken}
+		default:
+		}
+
+		t.token, err = t.options.TokenFetcher()
+		if err != nil {
+			retries++
+			t.log.Warnf("unable to fetch auth token, will possibly retry: %s", err)
+			return err
+		}
+		return nil
+	}, expBackoff)
+	if err != nil {
+		t.log.Errorf("unable to fetch auth token after %d retries: %s", retries, err)
+		return err
+	}
+
+	t.log.Debugf("auth token fetched after %d retries", retries)
+
 	t.client = pb.NewAgentSecureClient(t.conn)
 
 	t.log.Info("remote tagger initialized successfully")
@@ -287,65 +318,47 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 }
 
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
-func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (containerID string, err error) {
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 50 * time.Millisecond
-	expBackoff.MaxInterval = 200 * time.Millisecond
-	expBackoff.MaxElapsedTime = 500 * time.Millisecond
+func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	// Check the auth token
+	if t.token == "" {
+		return "", errors.New("RemoteTagger initialization failed: auth token is unset")
+	}
 
-	err = backoff.Retry(func() error {
-		select {
-		case <-t.ctx.Done():
-			return &backoff.PermanentError{Err: errTaggerFailedGenerateContainerIDFromOriginInfo}
-		default:
-		}
+	// Create the context with the auth token
+	queryCtx, queryCancel := context.WithTimeout(
+		metadata.NewOutgoingContext(t.ctx, metadata.MD{
+			"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
+		}),
+		1*time.Second,
+	)
+	defer queryCancel()
 
-		// Fetch the auth token
-		if t.token == "" {
-			var authError error
-			t.token, authError = t.options.TokenFetcher()
-			if authError != nil {
-				_ = t.log.Errorf("unable to fetch auth token, will possibly retry: %s", authError)
-				return authError
-			}
-		}
+	// Call the gRPC method to get the container ID from the OriginInfo.
+	containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
+		LocalData: &pb.GenerateContainerIDFromOriginInfoRequest_LocalData{
+			ProcessID:   &originInfo.LocalData.ProcessID,
+			ContainerID: &originInfo.LocalData.ContainerID,
+			Inode:       &originInfo.LocalData.Inode,
+			PodUID:      &originInfo.LocalData.PodUID,
+		},
+		ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
+			Init:          &originInfo.ExternalData.Init,
+			ContainerName: &originInfo.ExternalData.ContainerName,
+			PodUID:        &originInfo.ExternalData.PodUID,
+		},
+	})
+	if err != nil {
+		t.log.Debugf("unable to generate container ID from origin info: %s", err)
+		return "", err
+	}
 
-		// Create the context with the auth token
-		queryCtx, queryCancel := context.WithCancel(
-			metadata.NewOutgoingContext(t.ctx, metadata.MD{
-				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
-			}),
-		)
-		defer queryCancel()
+	if containerIDResponse == nil {
+		t.log.Debugf("unable to generate container ID from origin info: %s", err)
+		return "", errors.New("containerIDResponse is nil")
+	}
+	containerID := containerIDResponse.ContainerID
 
-		// Call the gRPC method to get the container ID from the OriginInfo.
-		containerIDResponse, err := t.client.TaggerGenerateContainerIDFromOriginInfo(queryCtx, &pb.GenerateContainerIDFromOriginInfoRequest{
-			LocalData: &pb.GenerateContainerIDFromOriginInfoRequest_LocalData{
-				ProcessID:   &originInfo.LocalData.ProcessID,
-				ContainerID: &originInfo.LocalData.ContainerID,
-				Inode:       &originInfo.LocalData.Inode,
-				PodUID:      &originInfo.LocalData.PodUID,
-			},
-			ExternalData: &pb.GenerateContainerIDFromOriginInfoRequest_ExternalData{
-				Init:          &originInfo.ExternalData.Init,
-				ContainerName: &originInfo.ExternalData.ContainerName,
-				PodUID:        &originInfo.ExternalData.PodUID,
-			},
-		})
-		if err != nil {
-			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
-			return err
-		}
-
-		if containerIDResponse == nil {
-			t.log.Debugf("unable to generate container ID from origin info, will retry: %s", err)
-			return errors.New("containerIDResponse is nil")
-		}
-		containerID = containerIDResponse.ContainerID
-
-		t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
-		return nil
-	}, expBackoff)
+	t.log.Debugf("Container ID generated successfully from origin info %+v: %s", originInfo, containerID)
 
 	return containerID, err
 }
@@ -441,10 +454,6 @@ func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.Origi
 
 func (t *remoteTagger) ChecksCardinality() types.TagCardinality {
 	return t.checksCardinality
-}
-
-func (t *remoteTagger) DogstatsdCardinality() types.TagCardinality {
-	return t.dogstatsdCardinality
 }
 
 // Subscribe currently returns a non-nil error indicating that the method is not supported
@@ -566,15 +575,16 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 		default:
 		}
 
-		token, err := t.options.TokenFetcher()
-		if err != nil {
-			t.log.Infof("unable to fetch auth token, will possibly retry: %s", err)
-			return err
+		var err error
+
+		// Check the auth token
+		if t.token == "" {
+			return errors.New("RemoteTagger initialization failed: auth token is unset")
 		}
 
 		t.streamCtx, t.streamCancel = context.WithCancel(
 			metadata.NewOutgoingContext(t.ctx, metadata.MD{
-				"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+				"authorization": []string{fmt.Sprintf("Bearer %s", t.token)},
 			}),
 		)
 

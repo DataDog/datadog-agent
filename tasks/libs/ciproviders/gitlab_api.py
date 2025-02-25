@@ -37,8 +37,8 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token():
-    if "GITLAB_TOKEN" not in os.environ:
-        print("GITLAB_TOKEN not found in env. Trying keychain...")
+    if "GITLAB_TOKEN" not in os.environ and "DD_GITLAB_TOKEN" not in os.environ:
+        print("GITLAB_TOKEN / DD_GITLAB_TOKEN not found in env. Trying keychain...")
         if platform.system() == "Darwin":
             try:
                 output = subprocess.check_output(
@@ -56,7 +56,8 @@ def get_gitlab_token():
             "or export it from your .bashrc or equivalent."
         )
         raise Exit(code=1)
-    return os.environ["GITLAB_TOKEN"]
+
+    return os.environ.get("GITLAB_TOKEN", os.environ.get("DD_GITLAB_TOKEN"))
 
 
 def get_gitlab_bot_token():
@@ -1042,7 +1043,7 @@ def get_preset_contexts(required_tests):
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
         ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
+        ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
@@ -1063,7 +1064,7 @@ def get_preset_contexts(required_tests):
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
         ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),
+        ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("RUN_ALL_BUILDS", ["false"]),
         ("RUN_E2E_TESTS", ["auto"]),
@@ -1082,6 +1083,7 @@ def get_preset_contexts(required_tests):
         ("RELEASE_VERSION_7", ["nightly-a7"]),
         ("BUCKET_BRANCH", ["dev"]),
         ("DEPLOY_AGENT", ["false"]),
+        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
         ("RUN_KITCHEN_TESTS", ["false"]),
         ("RUN_E2E_TESTS", ["off"]),

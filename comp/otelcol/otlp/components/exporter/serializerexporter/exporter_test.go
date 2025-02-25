@@ -179,7 +179,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := &metricRecorder{}
 			ctx := context.Background()
-			f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+			f := NewFactoryForAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
 			}, nil, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
@@ -295,7 +295,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := &metricRecorder{}
 			ctx := context.Background()
-			f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+			f := NewFactoryForAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
 			}, nil, nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
@@ -346,7 +346,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+	f := NewFactoryForAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
 	}, nil, nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)

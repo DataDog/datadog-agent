@@ -45,7 +45,6 @@ var (
 	InstallerConfigPaths = []string{
 		path.Join(baseConfigPath, "packages"),
 		path.Join(baseConfigPath, "configs"),
-		path.Join(baseConfigPath, "locks"),
 		path.Join(baseConfigPath, "tmp"),
 	}
 )
