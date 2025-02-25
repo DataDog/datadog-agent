@@ -412,8 +412,8 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
     result_json_name = result_json_path.split("/")[-1]
     result_json_dir = result_json_path.removesuffix('/' + result_json_name)
     washer = TestWasher(test_output_json_file=result_json_name)
-    failing_tests, marked_flaky_tests = washer.parse_test_results(result_json_dir)
-    all_known_flakes = washer.merge_known_flakes(marked_flaky_tests)
+    failing_tests = washer.get_failing_tests(result_json_dir)
+    flaky_failures = washer.get_flaky_failures(result_json_dir)
 
     try:
         # (failing, flaky) -> [(package, test_name, logs)]
@@ -424,7 +424,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
             # The name of the parent / nth parent if test_depth is lower than the test name depth
             group_name = '/'.join(test_name.split('/')[:test_depth])
 
-            package_flaky = all_known_flakes.get(package, set())
+            package_flaky = flaky_failures.get(package, set())
             package_failing = failing_tests.get(package, set())
 
             # Flaky if one of its parents is flaky as well
