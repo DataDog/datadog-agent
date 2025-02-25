@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    The hostname subcommand of the agent now tries reaching out to the running agent,
-    and fallback to computing the hostname locally if the agent is not running.
+    The hostname subcommand for the Agent now tries to reach out to the running Agent,
+    and falls back to computing the hostname locally if the Agent is not running.
     You can use the `--local` option to force the local computation.
