@@ -1359,11 +1359,15 @@ func (e EventBundle) Acknowledge() {
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
 
+// GPUClockType is an enum to access different clock rates of the GPU Device through the MaxClockRates array field of the GPU.
 type GPUClockType int
 
 const (
+	// SM Clock, use nvml.CLOCK_SM to get the value
 	SM GPUClockType = iota
+	// Memory Clock, use nvml.CLOCK_MEM to get the value
 	Memory
+	// COUNT is the total number of clock types in this enum
 	COUNT
 )
 
