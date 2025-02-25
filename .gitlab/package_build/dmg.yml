@@ -108,12 +108,6 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    # - eval $("$HOME/homebrew/bin/brew" shellenv)
-    - export PATH="$HOME/bin:$HOME/homebrew/bin:$HOME/rust/rustup/bin:$HOME/rust/cargo/bin"
-    - python3 --version
-    - $HOME/bin/which rustup || true
-    - $HOME/bin/which cargo || true
-
     # - echo AWS config
     # - which aws
     # - python3 -m venv .venv
@@ -303,6 +297,13 @@ new-agent_dmg-x64-a7:
     #   if [ "${USE_CACHING_PROXY_RUBY}" = "true" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
     #   if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
     #   mkdir -p $GOMODCACHE
+    # - eval $("$HOME/homebrew/bin/brew" shellenv)
+    - echo Setting up custom homebrew env
+    - export PATH="$HOME/bin:$HOME/homebrew/bin:$HOME/rust/rustup/bin:$HOME/rust/cargo/bin"
+    - ls ~/rust/rustup/bin || true
+    - python3 --version
+    - rustup --version || true
+    - cargo --version || true
     - bash .gitlab/package_build/build_script.sh
     # TODO: Other things...
 
