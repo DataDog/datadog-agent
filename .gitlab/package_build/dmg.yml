@@ -108,17 +108,7 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    - ls "$HOME"
-    - ls "$HOME"/homebrew || true
-    - ls "$HOME"/homebrew/bin || true
-    - ls "$HOME"/homebrew/Cellar || true
-    - find "$HOME"/homebrew -name 'python3' || true
-    - echo "$PATH"
-    - python3 --version || true
     - eval $("$HOME/homebrew/bin/brew" shellenv)
-    - echo "$PATH"
-    - python3 --version || true
-    - exit
     # - echo AWS config
     # - which aws
     # - python3 -m venv .venv
@@ -256,11 +246,7 @@ new-agent_dmg-x64-a7:
     # - bash .gitlab/package_build/builder_setup.sh
     # Setup
     - |
-      echo "$PWD/homebrew/bin" || true
-      ls "$PWD/homebrew/bin" || true
-      echo "Using custom homebrew"
-      export PATH="$PWD/homebrew/bin:$PATH"
-      which python3
+      echo Setting up venv
       python3 -m venv .venv
       . .venv/bin/activate
       python3 -m pip install -r requirements.txt -r tasks/requirements.txt
