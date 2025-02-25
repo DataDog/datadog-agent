@@ -14,6 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -24,9 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 )
 
 // MockTimeNow mocks time.Now
@@ -120,4 +122,12 @@ func waitForProcessedPathtests(npCollector *npCollectorImpl, timeout time.Durati
 			}
 		}
 	}
+}
+
+func statsdConvertToMetricNames(metrics []teststatsd.MetricsArgs) []string {
+	var metricNames []string
+	for _, metric := range metrics {
+		metricNames = append(metricNames, metric.Name)
+	}
+	return metricNames
 }
