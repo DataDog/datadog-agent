@@ -100,7 +100,7 @@ func doHTTPRequest(ctx context.Context, url string, allowedIMDSVersions ec2IMDSV
 			if allowedIMDSVersions.V2Only() {
 				return "", fmt.Errorf("could not fetch token from IMDSv2: %s", err)
 			}
-			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
+			log.Debugf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {
 			headers["X-aws-ec2-metadata-token"] = tokenValue
 			if !allowedIMDSVersions.V2Only() {

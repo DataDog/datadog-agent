@@ -379,7 +379,10 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 
 // GetSECLVariables returns the set of SECL variables along with theirs values
 func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
-	rs := e.currentRuleSet.Load().(*rules.RuleSet)
+	rs := e.GetRuleSet()
+	if rs == nil {
+		return nil
+	}
 	var seclVariables = make(map[string]*api.SECLVariableState)
 	for name, value := range rs.GetVariables() {
 		if strings.HasPrefix(name, "process.") {

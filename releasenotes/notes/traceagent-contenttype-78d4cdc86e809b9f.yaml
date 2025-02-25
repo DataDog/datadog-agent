@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Bump go-sqllexer to v0.1.0 for cpu and memory allocations improvements.
+    APM: Return the correct content-type header when rejecting trace payloads.

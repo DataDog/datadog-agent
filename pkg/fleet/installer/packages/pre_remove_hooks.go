@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
 package packages
 
-// IsSystemdRunning noop
-func IsSystemdRunning() (running bool, err error) {
-	return false, nil
-}
+import (
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+)
+
+// PreRemoveHooks contains the mapping between packages and their pre-remove hooks
+var PreRemoveHooks = map[string]repository.PreRemoveHook{}
