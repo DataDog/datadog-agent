@@ -158,7 +158,7 @@ func assertContainersCollectedNew(t assert.TestingT, payloads []*aggregator.Proc
 // requireProcessNotCollected asserts that the given process is NOT collected by the process check
 func requireProcessNotCollected(t require.TestingT, payloads []*aggregator.ProcessPayload, process string) {
 	for _, payload := range payloads {
-		require.Empty(t, filterProcess(process, payload.Processes))
+		require.Empty(t, filterProcesses(process, payload.Processes))
 	}
 }
 
@@ -168,7 +168,7 @@ func findProcess(
 	name string, processes []*agentmodel.Process, withIOStats bool,
 ) (found, populated bool) {
 	for _, process := range processes {
-		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
+		if matchProcess(process, name) {
 			found = true
 			populated = processHasData(process)
 
@@ -189,22 +189,17 @@ func findProcess(
 func filterProcesses(name string, processes []*agentmodel.Process) []*agentmodel.Process {
 	var matched []*agentmodel.Process
 	for _, process := range processes {
-		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
+		if matchProcess(process, name) {
 			matched = append(matched, process)
 		}
 	}
 	return matched
 }
 
-// filterProcess returns process with the given name exists in the given list of processes
-func filterProcess(name string, processes []*agentmodel.Process) []*agentmodel.Process {
-	var found []*agentmodel.Process
-	for _, process := range processes {
-		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
-			found = append(found, process)
-		}
-	}
-	return found
+// matchProcess returns whether the given process matches the given name in the Args or Exe
+func matchProcess(process *agentmodel.Process, name string) bool {
+	return len(process.Command.Args) > 0 &&
+		(process.Command.Args[0] == name || process.Command.Exe == name)
 }
 
 // processHasData asserts that the given process has the expected data populated
@@ -332,7 +327,7 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	procs := filterProcess(process, checkOutput.Processes)
+	procs := filterProcesses(process, checkOutput.Processes)
 	assert.NotEmpty(t, procs, "no processes found")
 
 	var hasData bool
