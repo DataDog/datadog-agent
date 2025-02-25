@@ -46,7 +46,7 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	}))
 	defer ts1.Close()
 
-	client := defaultforwarder.NewHTTPClient(pkgconfigsetup.Datadog())
+	client := defaultforwarder.NewHTTPClient(pkgconfigsetup.Datadog(), nil)
 
 	// With the correct API Key, it should be a 200
 	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)

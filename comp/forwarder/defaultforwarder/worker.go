@@ -81,7 +81,7 @@ func NewWorker(
 		resetConnectionChan:   make(chan struct{}, 1),
 		stopChan:              make(chan struct{}),
 		stopped:               make(chan struct{}),
-		Client:                NewHTTPClient(config),
+		Client:                NewHTTPClient(config, log),
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
 		isLocal:               isLocal,
@@ -94,7 +94,7 @@ func NewWorker(
 }
 
 // NewHTTPClient creates a new http.Client
-func NewHTTPClient(config config.Component) *http.Client {
+func NewHTTPClient(config config.Component, log log.Component) *http.Client {
 	var transport *http.Transport
 
 	transportConfig := config.Get("forwarder_http_protocol")
@@ -105,6 +105,11 @@ func NewHTTPClient(config config.Component) *http.Client {
 	case "auto":
 		fallthrough
 	default:
+		if transportConfig != "auto" && log != nil {
+			// The diagnose package calls this function and doesn't have access to a logger,
+			// so we need to check if one is provided.
+			log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
+		}
 		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(1))
 	}
 
@@ -296,6 +301,6 @@ func (w *Worker) resetConnections() {
 	if w.isLocal {
 		w.Client = newBearerAuthHTTPClient()
 	} else {
-		w.Client = NewHTTPClient(w.config)
+		w.Client = NewHTTPClient(w.config, w.log)
 	}
 }
