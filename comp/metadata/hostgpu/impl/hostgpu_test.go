@@ -83,8 +83,8 @@ func (s *wmsErrorMock) ListGPUs() []*workloadmeta.GPU {
 }
 
 func getTestInventoryHost(t *testing.T) *gpuHost {
-	p := newGPUHostProvider(
-		fxutil.Test[dependencies](
+	p := NewGPUHostProvider(
+		fxutil.Test[Dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() workloadmeta.Component { return &wmsMock{} }),

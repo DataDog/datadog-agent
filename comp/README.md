@@ -331,7 +331,9 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 ### [comp/metadata/hostgpu](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/hostgpu)
 
-Package hostgpu exposes the interface for the component to generate the 'host_gpu_metadata' metadata payload for inventory.
+*Datadog Team*: ebpf-platform
+
+Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 
 ### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryagent)
 

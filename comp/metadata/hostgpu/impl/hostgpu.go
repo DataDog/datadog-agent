@@ -14,31 +14,22 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/hostgpu"
+	hostgpu "github.com/DataDog/datadog-agent/comp/metadata/hostgpu/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 const flareFileName = "hostgpu.json"
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newGPUHostProvider))
-}
 
 type gpuDeviceMetadata struct {
 	Index         int    `json:"gpu_index"`
@@ -93,25 +84,24 @@ type gpuHost struct {
 	hostname string
 }
 
-type dependencies struct {
-	fx.In
-
+// Dependencies defines the dependencies for the hostgpu component
+type Dependencies struct {
 	WMeta      workloadmeta.Component
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 }
 
-type provides struct {
-	fx.Out
-
+// Provides defines the output of the hostgpu component
+type Provides struct {
 	Comp          hostgpu.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
 
-func newGPUHostProvider(deps dependencies) provides {
+// NewGPUHostProvider creates a new hostgpu component
+func NewGPUHostProvider(deps Dependencies) Provides {
 	hname, _ := hostname.Get(context.Background())
 	gh := &gpuHost{
 		conf:     deps.Config,
@@ -122,7 +112,7 @@ func newGPUHostProvider(deps dependencies) provides {
 	}
 	gh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, gh.getPayload, flareFileName)
 
-	return provides{
+	return Provides{
 		Comp:          gh,
 		Provider:      gh.MetadataProvider(),
 		FlareProvider: gh.FlareProvider(),
