@@ -909,6 +909,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("inventories_min_interval", 0) // 0 == default interval from inventories
 	// Seconds to wait to sent metadata payload to the backend after startup
 	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
+	// Get the version of every python package in the embedded python
+	config.BindEnvAndSetDefault("inventories_python_packages", true)
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
@@ -1307,9 +1309,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// ... and overridden by the following two lines - do not switch these 3 lines order
 	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
-
-	// Get the version of every python package in the embedded python
-	config.BindEnvAndSetDefault("telemetry.python_packages", true)
 }
 
 func serializer(config pkgconfigmodel.Setup) {

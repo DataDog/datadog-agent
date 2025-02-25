@@ -470,7 +470,7 @@ func Initialize(paths ...string) error {
 	}
 
 	// If we want to report the packages version
-	if pkgconfigsetup.Datadog().GetBool("telemetry.python_packages") {
+	if pkgconfigsetup.Datadog().GetBool("inventories_python_packages") {
 		// Get the python packages version
 		// New packages can be installed, but they're not taken into account until the agent is restarted,
 		// so it's safe to cache the versions here.
