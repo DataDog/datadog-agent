@@ -13,10 +13,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"syscall"
 	"testing"
-	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
@@ -92,15 +90,9 @@ func TestGetContainerID(t *testing.T) {
 		inodePrefix             = "in-"
 	)
 
-	// fudge factor to ease testing, if our tests take over 24 hours we got bigger problems
-	timeFudgeFactor := 24 * time.Hour
-	c := NewCache(timeFudgeFactor)
-	c.Store(time.Now().Add(timeFudgeFactor), strconv.Itoa(containerPID), containerID, nil)
-
 	provider := &cgroupIDProvider{
 		procRoot:   "",
 		controller: "",
-		cache:      c,
 	}
 
 	t.Run("ContainerID header", func(t *testing.T) {
@@ -217,15 +209,6 @@ func TestGetContainerID(t *testing.T) {
 			t.Fail()
 		}
 		req.Header.Add(header.LocalData, legacyContainerIDPrefix+containerID)
-		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
-	})
-
-	t.Run("No header with a PID", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
-		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
-		if !assert.NoError(t, err) {
-			t.Fail()
-		}
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 

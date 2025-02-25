@@ -46,6 +46,9 @@ trigger_auto_staging_release_on_failure:
   variables:
     AUTO_RELEASE: "false"
     TARGET_REPO: staging
+    # The jobs in the downstream pipeline will all be manual, so following
+    # the created pipeline would likely cause this job to timeout
+    NO_FOLLOW: "--no-follow"
   rules:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
@@ -102,7 +105,7 @@ generate_windows_gitlab_runner_bump_pr:
     - !reference [.setup_github_app_agent_platform_auto_pr]
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-    - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
+    - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - inv -e github.update-windows-runner-version
 
 # Manual job to generate the gitlab bump pr on buildenv if trigger_auto_staging_release fails
@@ -123,5 +126,5 @@ generate_windows_gitlab_runner_bump_pr_manual:
     - !reference [.setup_github_app_agent_platform_auto_pr]
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
-    - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
+    - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - inv -e github.update-windows-runner-version

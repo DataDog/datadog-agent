@@ -149,6 +149,12 @@ build do
             delete "#{install_dir}/embedded/man"
             delete "#{install_dir}/embedded/share/man"
 
+            # removing gtk-doc html documentation to reduce package size by ~3MB
+            delete "#{install_dir}/embedded/share/gtk-doc"
+
+            # removing the info folder to reduce package size by ~4MB
+            delete "#{install_dir}/embedded/share/info"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119

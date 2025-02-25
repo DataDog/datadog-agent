@@ -7,12 +7,14 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import sys
 import tempfile
 import time
 import traceback
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
@@ -680,3 +682,12 @@ def is_linux():
 
 def is_windows():
     return sys.platform == 'win32'
+
+
+def is_installed(binary) -> bool:
+    return shutil.which(binary) is not None
+
+
+def is_conductor_scheduled_pipeline() -> bool:
+    pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
+    return pipeline_start.hour == 6 and pipeline_start.minute < 30

@@ -20,6 +20,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,6 +43,7 @@ type Metric struct {
 	Name  string   // Name holds the name of the metric.
 	Value float64  // Value holds the value of the metric.
 	Tags  []string // Tags holds the tags associated with the metric.
+	Type  metrics.MetricType
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -52,6 +54,9 @@ type Collector interface {
 
 	// Name returns the name of the subsystem
 	Name() CollectorName
+
+	// DeviceUUID returns the UUID of the device this collector is collecting metrics from. Returns an empty string if there's no UUID
+	DeviceUUID() string
 }
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives

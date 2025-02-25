@@ -35,7 +35,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 		}
 		return nil
 	}
-
+	seenPointers := map[string]bool{}
 	// Go through each target type/field which needs to be captured
 	for i := range expressionTargets {
 		pathToInstrumentationTarget, instrumentationTarget := expressionTargets[i].TypePath, expressionTargets[i].Parameter
@@ -85,6 +85,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					targetExpressions = append(targetExpressions,
 						ditypes.DirectReadLocationExpression(elementParam),
 					)
+					_, ok := seenPointers[elementParam.ID]
+					if !ok {
+						targetExpressions = append(targetExpressions, ditypes.PopPointerAddressCompoundLocationExpression())
+						seenPointers[elementParam.ID] = true
+					}
 				} else {
 					targetExpressions = append(targetExpressions,
 						ditypes.DirectReadLocationExpression(elementParam),
@@ -98,6 +103,11 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					targetExpressions = append(targetExpressions,
 						ditypes.DereferenceLocationExpression(uint(elementParam.TotalSize)),
 					)
+					_, ok := seenPointers[elementParam.ID]
+					if !ok {
+						targetExpressions = append(targetExpressions, ditypes.PopPointerAddressCompoundLocationExpression())
+						seenPointers[elementParam.ID] = true
+					}
 				} else if elementParam.Kind == uint(reflect.Struct) {
 					// Structs don't provide context on location, or have values themselves
 					// but we know that if there's a struct, the next element will have to have
@@ -121,6 +131,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 
+					stringLength.LocationExpressions = append(stringLength.LocationExpressions, targetExpressions...)
 					if stringLength.Location != nil {
 						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
 							ditypes.DirectReadLocationExpression(stringLength),
@@ -153,12 +164,12 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if len(elementParam.ParameterPieces) != 3 {
 						continue
 					}
-					sliceIdentifier := randomLabel()
 					slicePointer := elementParam.ParameterPieces[0]
 					sliceLength := elementParam.ParameterPieces[1]
 					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
 						ditypes.PrintStatement("%s", "Reading the length of slice"),
 					)
+					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions, targetExpressions...)
 					if sliceLength.Location != nil {
 						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
 							ditypes.DirectReadLocationExpression(sliceLength),
@@ -177,7 +188,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					// Generate and collect the location expressions for collecting an individual
 					// element of this slice
 					sliceElementType := slicePointer.ParameterPieces[0]
-
+					sliceIdentifier := randomLabel()
 					labelName := randomLabel()
 
 					if slicePointer.Location != nil && sliceLength.Location != nil {
@@ -211,7 +222,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
 							GenerateLocationExpression(limitsInfo, sliceElementType)
 							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
-							labelName := randomLabel()
 							targetExpressions = append(targetExpressions,
 								ditypes.PrintStatement("%s", "Reading slice element "+fmt.Sprintf("%d", i)),
 								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),

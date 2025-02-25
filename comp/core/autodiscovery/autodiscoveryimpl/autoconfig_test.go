@@ -586,7 +586,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			out := responseRecorder.Body.Bytes()
 			err := json.Unmarshal(out, &result)
 			require.NoError(t, err)
-			assert.Equal(t, string(result.Configs[0].Instances[0]), tc.expectedResult)
+			assert.Equal(t, string(result.Configs[0].Config.Instances[0]), tc.expectedResult)
 		})
 	}
 }

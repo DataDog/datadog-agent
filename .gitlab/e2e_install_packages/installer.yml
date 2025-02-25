@@ -12,5 +12,8 @@ qa_installer_script_main:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
+    - for file in $(find "$OMNIBUS_PACKAGE_DIR" -name "install*.sh"); do
+        sed -i '/^#!\/bin\/bash$/a export DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com' "$file";
+      done
     - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/scripts/"
 
