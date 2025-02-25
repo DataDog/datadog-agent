@@ -517,7 +517,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
-	var cleanerCB func(map[uint32]struct{}) = nil
+	var cleanerCB func(map[uint32]struct{})
 	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
 		cleanerCB = o.cleanupDeadPids
 	}
