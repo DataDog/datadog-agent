@@ -133,7 +133,7 @@ func (c *Config) genQuery() error {
 }
 
 func setOptionalDefault[T any](optional *option.Option[T], def T) {
-	option.SetIfNone(def)
+	optional.SetIfNone(def)
 }
 
 func setOptionalDefaultWithInitConfig[T any](instance *option.Option[T], shared option.Option[T], def T) {

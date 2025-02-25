@@ -111,9 +111,9 @@ type WindowsRegistryCheck struct {
 }
 
 func createOptionMapping[T any](reflector *jsonschema.Reflector, sourceType jsonschema.SimpleType) {
-	option := jsonschema.Schema{}
-	option.AddType(sourceType)
-	reflector.AddTypeMapping(option.Option[T]{}, option)
+	optionValue := jsonschema.Schema{}
+	optionValue.AddType(sourceType)
+	reflector.AddTypeMapping(option.Option[T]{}, optionValue)
 }
 
 func createSchema() ([]byte, error) {
