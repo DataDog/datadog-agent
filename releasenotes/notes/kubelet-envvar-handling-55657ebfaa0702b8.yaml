@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Environment variables that the kubelet collector recieves that are
-    not explicitly defined in plaintext will now be completely ignored.
+    Environment variables that the kubelet collector receives and are
+    not explicitly defined in plaintext will now be ignored.
