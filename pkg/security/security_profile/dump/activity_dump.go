@@ -141,7 +141,8 @@ func (ad *ActivityDump) Insert(event *model.Event, resolvers *resolvers.EBPFReso
 		return false, 0, nil
 	}
 
-	return ad.Profile.Insert(event, resolvers)
+	imageTag := ad.Profile.GetTagValue("image_tag")
+	return ad.Profile.InsertAndGetSize(event, true, imageTag, activity_tree.Runtime, resolvers)
 }
 
 // SetState sets the state of the activity dump

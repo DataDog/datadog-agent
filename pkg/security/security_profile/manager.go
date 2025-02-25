@@ -1540,7 +1540,7 @@ func (m *Manager) tryAutolearn(profile *profile.Profile, ctx *profile.VersionCon
 		insertMissingProcesses = true
 	}
 
-	newEntry, err := profile.InsertProfile(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
+	newEntry, err := profile.Insert(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
 		return model.NoProfile
