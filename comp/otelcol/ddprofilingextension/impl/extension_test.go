@@ -16,7 +16,7 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/impl"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/def"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"

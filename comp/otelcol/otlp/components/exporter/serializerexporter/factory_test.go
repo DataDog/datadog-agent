@@ -11,7 +11,7 @@ import (
 	"context"
 	"testing"
 
-	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/mock"
+	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
 	exp "go.opentelemetry.io/collector/exporter"

@@ -10,7 +10,7 @@ package otlp
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/def"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 

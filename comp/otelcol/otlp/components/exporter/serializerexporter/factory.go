@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/def"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"

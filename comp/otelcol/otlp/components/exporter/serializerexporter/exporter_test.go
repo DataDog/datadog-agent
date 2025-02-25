@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/mock"
+	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

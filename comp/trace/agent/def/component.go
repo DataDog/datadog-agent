@@ -10,7 +10,7 @@ import (
 	"context"
 	"net/http"
 
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/def"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"

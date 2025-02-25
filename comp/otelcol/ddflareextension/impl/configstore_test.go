@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
-	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/mock"
+	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 

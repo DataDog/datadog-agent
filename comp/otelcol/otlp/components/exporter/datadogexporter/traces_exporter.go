@@ -7,7 +7,7 @@ import (
 	"context"
 	"net/http"
 
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/def"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"

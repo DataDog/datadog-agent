@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package mock implements mock for gateway-usage component interface
+// Package mock implements mock for gatewayusage component interface
 package mock
 
-import gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/def"
+import gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 
 type gatewayUsageMock struct{}
 

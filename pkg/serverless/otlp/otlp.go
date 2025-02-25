@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/def"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	coreOtlp "github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

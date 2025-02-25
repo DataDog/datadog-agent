@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package fx provides the fx module for the gateway-usage component
+// Package fx provides the fx module for the gatewayusage component
 package fx
 
 import (
-	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/def"
-	gatewayusageimpl "github.com/DataDog/datadog-agent/comp/otelcol/gateway-usage/impl"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
+	gatewayusageimpl "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
