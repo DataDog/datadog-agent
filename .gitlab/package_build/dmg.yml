@@ -245,11 +245,6 @@ new-agent_dmg-x64-a7:
     # - bash .gitlab/package_build/builder_setup.sh
     # Setup
     - |
-      echo Setting up venv
-      python3 -m venv .venv
-      . .venv/bin/activate
-      python3 -m pip install -r requirements.txt -r tasks/requirements.txt
-    - |
       # TODO A: Omnibus cache
       unset INTEGRATION_WHEELS_CACHE_BUCKET || true
       unset INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD || true
@@ -304,6 +299,13 @@ new-agent_dmg-x64-a7:
     - python3 --version
     - rustup --version || true
     - cargo --version || true
+    - |
+      echo Setting up venv
+      python3 -m venv .venv
+      . .venv/bin/activate
+      python3 -m pip install -r requirements.txt -r tasks/requirements.txt
+
+    # Build
     - bash .gitlab/package_build/build_script.sh
     # TODO: Other things...
 
