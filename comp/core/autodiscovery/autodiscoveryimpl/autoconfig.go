@@ -146,7 +146,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	schController := scheduler.CreateNewController()
+	schController := scheduler.NewController()
 	// Non-blocking start of the scheduler controller
 	go func() {
 		retries := 0
