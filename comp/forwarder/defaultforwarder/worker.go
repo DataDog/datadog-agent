@@ -67,6 +67,11 @@ func NewWorker(
 	isLocal bool,
 	maxConcurrentRequests int64,
 ) *Worker {
+	var maxConcurrentRequestsSem *semaphore.Weighted
+	if maxConcurrentRequests > 0 {
+		maxConcurrentRequestsSem = semaphore.NewWeighted(maxConcurrentRequests)
+	}
+
 	worker := &Worker{
 		config:                config,
 		log:                   log,
@@ -80,7 +85,7 @@ func NewWorker(
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
 		isLocal:               isLocal,
-		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
+		maxConcurrentRequests: maxConcurrentRequestsSem,
 	}
 	if isLocal {
 		worker.Client = newBearerAuthHTTPClient()
@@ -96,15 +101,11 @@ func NewHTTPClient(config config.Component) *http.Client {
 
 	switch transportConfig {
 	case "http1":
-		transport = httputils.CreateHTTPTransport(config, func(t *http.Transport) {
-			t.MaxConnsPerHost = 1
-		})
+		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(1))
 	case "auto":
 		fallthrough
 	default:
-		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), func(t *http.Transport) {
-			t.MaxConnsPerHost = 1
-		})
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(1))
 	}
 
 	return &http.Client{
@@ -199,6 +200,26 @@ func (w *Worker) ScheduleConnectionReset() {
 	}
 }
 
+// acquireRequestSemaphore attempts to acquire a semaphore, which will block
+// if we are already sending too many requests.
+// This can be bypassed by configuring `forwarder_max_concurrent_requests = 0`.
+func (w *Worker) acquireRequestSemaphore(ctx context.Context) error {
+	if w.maxConcurrentRequests != nil {
+		err := w.maxConcurrentRequests.Acquire(ctx, 1)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *Worker) releaseRequestSemaphore() {
+	if w.maxConcurrentRequests != nil {
+		w.maxConcurrentRequests.Release(1)
+	}
+}
+
 // callProcess will process a transaction and cancel it if we need to stop the
 // worker.
 func (w *Worker) callProcess(t transaction.Transaction) error {
@@ -213,7 +234,7 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
 
 	// Block here if we are already sending too many requests
-	err := w.maxConcurrentRequests.Acquire(ctx, 1)
+	err := w.acquireRequestSemaphore(ctx)
 	if err != nil {
 		cancel()
 		return err
@@ -223,12 +244,11 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	go func() {
 		defer cancel()
 		w.process(ctx, t)
-		w.maxConcurrentRequests.Release(1)
+		w.releaseRequestSemaphore()
 		done <- nil
 	}()
 
 	select {
-	// wait for the Transaction process to be over
 	case <-w.stopChan:
 		// cancel current Transaction if we need to stop the worker
 		cancel()
