@@ -103,6 +103,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	var request *http.Request
 	var response *http.Response
 
+	go crunchNumbers(32342342342)
+
 	if request, err = http.NewRequest(http.MethodGet, registration.NextUrl(), nil); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
@@ -266,4 +268,10 @@ func finishTimeoutExecutionSpan(daemon *daemon.Daemon, isColdStart bool, isProac
 	log.Debug("Could not complete the execution span due to a timeout. Attempting to finish the span without details from the tracer.")
 	daemon.InvocationProcessor.OnInvokeEnd(timeoutDetails)
 	daemon.SetExecutionSpanIncomplete(false)
+}
+
+func crunchNumbers(x int) {
+	for {
+		x = x * x
+	}
 }
