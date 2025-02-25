@@ -47,7 +47,7 @@ func (s *wmsMock) ListGPUs() []*workloadmeta.GPU {
 			TotalMemoryMB:  4096,
 			SMCount:        2040,
 			MemoryBusWidth: 256,
-			MaxClockRates:  [workloadmeta.COUNT]uint32{4000, 5000},
+			MaxClockRates:  [workloadmeta.GPUCOUNT]uint32{4000, 5000},
 		},
 		{
 			EntityID: workloadmeta.EntityID{
@@ -69,7 +69,7 @@ func (s *wmsMock) ListGPUs() []*workloadmeta.GPU {
 			TotalMemoryMB:  8192,
 			SMCount:        4050,
 			MemoryBusWidth: 256,
-			MaxClockRates:  [workloadmeta.COUNT]uint32{8000, 10000},
+			MaxClockRates:  [workloadmeta.GPUCOUNT]uint32{8000, 10000},
 		},
 	}
 }
@@ -97,7 +97,7 @@ func getTestInventoryHost(t *testing.T) *gpuHost {
 
 func TestGetPayload(t *testing.T) {
 	gh := getTestInventoryHost(t)
-	expectedMetadata := hostGPUMetadata{
+	expectedMetadata := &hostGPUMetadata{
 		Devices: []*gpuDeviceMetadata{
 			{
 				Index:              0,
@@ -116,7 +116,7 @@ func TestGetPayload(t *testing.T) {
 			{
 				Index:              1,
 				Vendor:             "nvidia",
-				UUID:               "GPU-87654321-4321-8765-4321-876543218765",
+				UUID:               "GPU-87654321-1234-5678-1234-222222222222",
 				Name:               "H100",
 				Architecture:       "hopper",
 				ComputeVersion:     "12.4",
@@ -137,12 +137,9 @@ func TestGetPayload(t *testing.T) {
 func TestGetPayloadError(t *testing.T) {
 	gh := getTestInventoryHost(t)
 	gh.wmeta = &wmsErrorMock{}
-	expected := &hostGPUMetadata{
-		Devices: nil,
-	}
 
 	p := gh.getPayload().(*Payload)
-	assert.Equal(t, expected, p.Metadata)
+	assert.Equal(t, &hostGPUMetadata{}, p.Metadata)
 }
 
 func TestFlareProviderFilename(t *testing.T) {
