@@ -96,6 +96,7 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
+  comp/otelcol/status/def: default
   comp/serializer/logscompression:
     used_by_otel: true
   comp/serializer/metricscompression:
