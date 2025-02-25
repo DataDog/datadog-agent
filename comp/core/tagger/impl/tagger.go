@@ -369,14 +369,14 @@ func (t *TaggerWrapper) ResetCaptureTagger() {
 func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality, t.dogstatsdCardinality, t.log)
 
-	productOrigin := originInfo.ProductOrigin
-	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
-	// TODO: remove this when origin_detection_unified is enabled by default
-	if !t.datadogConfig.originDetectionUnifiedEnabled && productOrigin == origindetection.ProductOriginDogStatsD {
-		productOrigin = origindetection.ProductOriginDogStatsDLegacy
+	// Generate container ID from Socket
+	if originInfo.LocalData.ContainerID == "" {
+		var processIDResolutionError error
+		originInfo.LocalData.ContainerID, processIDResolutionError = t.generateContainerIDFromProcessID(originInfo.LocalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
+		if processIDResolutionError != nil {
+			t.log.Tracef("Failed to resolve container ID from process ID %d: %v", originInfo.LocalData.ProcessID, processIDResolutionError)
+		}
 	}
-
-	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLengh()
 
 	// Generate container ID from Inode
 	if originInfo.LocalData.ContainerID == "" {
@@ -387,113 +387,40 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		}
 	}
 
-	switch productOrigin {
-	case origindetection.ProductOriginDogStatsDLegacy:
-		// The following was moved from the dogstatsd package
-		// originFromUDS is the origin discovered via UDS origin detection (container ID).
-		// originFromTag is the origin sent by the client via the dd.internal.entity_id tag (non-prefixed pod uid).
-		// originFromMsg is the origin sent by the client via the container field (non-prefixed container ID).
-		// entityIDPrecedenceEnabled refers to the dogstatsd_entity_id_precedence parameter.
-		//
-		//	---------------------------------------------------------------------------------
-		//
-		// | originFromUDS | originFromTag | entityIDPrecedenceEnabled || Result: udsOrigin  |
-		// |---------------|---------------|---------------------------||--------------------|
-		// | any           | any           | false                     || originFromUDS      |
-		// | any           | any           | true                      || empty              |
-		// | any           | empty         | any                       || originFromUDS      |
-		//
-		//	---------------------------------------------------------------------------------
-		//
-		//	---------------------------------------------------------------------------------
-		//
-		// | originFromTag          | originFromMsg   || Result: originFromClient            |
-		// |------------------------|-----------------||-------------------------------------|
-		// | not empty && not none  | any             || pod prefix + originFromTag          |
-		// | empty                  | empty           || empty                               |
-		// | none                   | empty           || empty                               |
-		// | empty                  | not empty       || container prefix + originFromMsg    |
-		// | none                   | not empty       || container prefix + originFromMsg    |
-		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == types.NoneCardinalityString {
-			originInfo.ContainerIDFromSocket = packets.NoOrigin
-			originInfo.LocalData.PodUID = ""
-			originInfo.LocalData.ContainerID = ""
-			return
-		}
+	// Disable origin detection if cardinality is none
+	if originInfo.Cardinality == types.NoneCardinalityString {
+		originInfo.ContainerIDFromSocket = packets.NoOrigin
+		originInfo.LocalData.PodUID = ""
+		originInfo.LocalData.ContainerID = ""
+		return
+	}
 
-		// We use the UDS socket origin if no origin ID was specify in the tags
-		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
-		if originInfo.ContainerIDFromSocket != packets.NoOrigin &&
-			(originInfo.LocalData.PodUID == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) &&
-			len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
-			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			originFromClient := types.NewEntityID(types.ContainerID, containerID)
-			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				t.log.Errorf("%s", err.Error())
-			}
-		}
+	// Tag using Local Data
+	if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
+		t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
+	}
 
-		// originFromClient can either be originInfo.FromTag or originInfo.FromMsg
-		var originFromClient types.EntityID
-		if originInfo.LocalData.PodUID != "" && originInfo.LocalData.PodUID != "none" {
-			// Check if the value is not "none" in order to avoid calling the tagger for entity that doesn't exist.
-			// Currently only supported for pods
-			originFromClient = types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID)
-		} else if originInfo.LocalData.PodUID == "" && len(originInfo.LocalData.ContainerID) > 0 {
-			// originInfo.FromMsg is the container ID sent by the newer clients.
-			originFromClient = types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID)
-		}
+	if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID), cardinality, tb); err != nil {
+		t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.PodUID, err)
+	}
 
-		if !originFromClient.Empty() {
-			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				t.tlmUDPOriginDetectionError.Inc()
-				t.log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
-			}
+	// Accumulate tags for pod UID
+	if originInfo.ExternalData.PodUID != "" {
+		if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.ExternalData.PodUID), cardinality, tb); err != nil {
+			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ExternalData.PodUID, err)
 		}
-	default:
-		// Disable origin detection if cardinality is none
-		if originInfo.Cardinality == types.NoneCardinalityString {
-			originInfo.ContainerIDFromSocket = packets.NoOrigin
-			originInfo.LocalData.PodUID = ""
-			originInfo.LocalData.ContainerID = ""
-			return
-		}
+	}
 
-		// Tag using Local Data
-		if originInfo.ContainerIDFromSocket != packets.NoOrigin && len(originInfo.ContainerIDFromSocket) > containerIDFromSocketCutIndex {
-			containerID := originInfo.ContainerIDFromSocket[containerIDFromSocketCutIndex:]
-			originFromClient := types.NewEntityID(types.ContainerID, containerID)
-			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				t.log.Errorf("%s", err.Error())
-			}
-		}
+	// Generate container ID from External Data
+	generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
+	if err != nil {
+		t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
+	}
 
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, originInfo.LocalData.ContainerID), cardinality, tb); err != nil {
-			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.ContainerID, err)
-		}
-
-		if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.LocalData.PodUID), cardinality, tb); err != nil {
-			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.LocalData.PodUID, err)
-		}
-
-		// Accumulate tags for pod UID
-		if originInfo.ExternalData.PodUID != "" {
-			if err := t.AccumulateTagsFor(types.NewEntityID(types.KubernetesPodUID, originInfo.ExternalData.PodUID), cardinality, tb); err != nil {
-				t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ExternalData.PodUID, err)
-			}
-		}
-
-		// Generate container ID from External Data
-		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
-		if err != nil {
-			t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
-		}
-
-		// Accumulate tags for generated container ID
-		if generatedContainerID != "" {
-			if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
-				t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
-			}
+	// Accumulate tags for generated container ID
+	if generatedContainerID != "" {
+		if err := t.AccumulateTagsFor(types.NewEntityID(types.ContainerID, generatedContainerID), cardinality, tb); err != nil {
+			t.log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
 		}
 	}
 
@@ -505,6 +432,11 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
 func (t *TaggerWrapper) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	return t.defaultTagger.GenerateContainerIDFromOriginInfo(originInfo)
+}
+
+// generateContainerIDFromProcessID generates a container ID from the CGroup inode.
+func (t *TaggerWrapper) generateContainerIDFromProcessID(l origindetection.LocalData, metricsProvider provider.ContainerIDForPIDRetriever) (string, error) {
+	return metricsProvider.GetContainerIDForPID(int(l.ProcessID), time.Second)
 }
 
 // generateContainerIDFromInode generates a container ID from the CGroup inode.
