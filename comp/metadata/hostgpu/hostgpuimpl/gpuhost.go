@@ -132,6 +132,11 @@ func newGPUHostProvider(deps dependencies) provides {
 
 func (gh *gpuHost) fillData() {
 	gpus := gh.wmeta.ListGPUs()
+	if len(gpus) == 0 {
+		gh.data = &hostGPUMetadata{}
+		return
+	}
+
 	gh.data = &hostGPUMetadata{
 		Devices: make([]*gpuDeviceMetadata, 0, len(gpus)),
 	}
@@ -147,8 +152,8 @@ func (gh *gpuHost) fillData() {
 			ProcessorUnits:     gpu.SMCount,
 			TotalMemory:        gpu.TotalMemoryMB * 1024 * 1024,
 			MemoryBusWidth:     gpu.MemoryBusWidth,
-			MaxSMClockRate:     gpu.MaxClockRates[workloadmeta.SM],
-			MaxMemoryClockRate: gpu.MaxClockRates[workloadmeta.Memory],
+			MaxSMClockRate:     gpu.MaxClockRates[workloadmeta.GPUSM],
+			MaxMemoryClockRate: gpu.MaxClockRates[workloadmeta.GPUMemory],
 		}
 		gh.data.Devices = append(gh.data.Devices, dev)
 	}
