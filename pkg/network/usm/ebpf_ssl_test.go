@@ -18,10 +18,12 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -92,35 +94,35 @@ func TestSSLMapsCleaner(t *testing.T) {
 		cleanProtocolMaps(t, "bio_new_socket_args", monitor.ebpfProgram.Manager.Manager)
 
 		// find maps by names
-		maps := getMaps(t, monitor, sslPidKeyMaps)
+		maps := getMaps(t, monitor.ebpfProgram.Manager.Manager, sslPidKeyMaps)
 		require.Equal(t, len(maps), 6)
 
 		// add random pid to the maps
 		pid := 100
 		addPidEntryToMaps(t, maps, pid)
-		checkPidExistsInMaps(t, monitor, maps, pid)
+		checkPidExistsInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, pid)
 
 		// verify that map is empty after cleaning up terminated processes
-		cleanDeadPidsInSslMaps(t, monitor)
-		checkPidNotFoundInMaps(t, monitor, maps, pid)
+		cleanDeadPidsInSslMaps(t, monitor.ebpfProgram.Manager.Manager)
+		checkPidNotFoundInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, pid)
 
 		// start dummy program and add its pid to the map
 		cmd, cancel := startDummyProgram(t)
 		addPidEntryToMaps(t, maps, cmd.Process.Pid)
-		checkPidExistsInMaps(t, monitor, maps, cmd.Process.Pid)
+		checkPidExistsInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, cmd.Process.Pid)
 
 		// verify exit of process cleans the map
 		cancel()
 		_ = cmd.Wait()
-		checkPidNotFoundInMaps(t, monitor, maps, cmd.Process.Pid)
+		checkPidNotFoundInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, cmd.Process.Pid)
 	})
 }
 
 // getMaps returns eBPF maps searched by names.
-func getMaps(t *testing.T, monitor *Monitor, mapNames []string) []*ebpf.Map {
+func getMaps(t *testing.T, manager *manager.Manager, mapNames []string) []*ebpf.Map {
 	maps := make([]*ebpf.Map, 0, len(mapNames))
 	for _, mapName := range mapNames {
-		emap, _, _ := monitor.ebpfProgram.Manager.Manager.GetMap(mapName)
+		emap, _, _ := manager.GetMap(mapName)
 		require.NotNil(t, emap)
 		maps = append(maps, emap)
 	}
@@ -142,7 +144,7 @@ func addPidEntryToMaps(t *testing.T, maps []*ebpf.Map, pid int) {
 }
 
 // checkPidExistsInMaps checks that pid exists in all provided maps.
-func checkPidExistsInMaps(t *testing.T, monitor *Monitor, maps []*ebpf.Map, pid int) {
+func checkPidExistsInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf.Map, pid int) {
 	// make the key for single thread process when pid and tgid are the same
 	key := uint64(pid)<<32 | uint64(pid)
 
@@ -151,18 +153,19 @@ func checkPidExistsInMaps(t *testing.T, monitor *Monitor, maps []*ebpf.Map, pid 
 		mapInfo, err := m.Info()
 		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
+		assert.Eventually(t, func() bool {
 			return findKeyInMap(m, key)
 		}, 1*time.Second, 100*time.Millisecond)
 		if t.Failed() {
 			t.Logf("pid '%d' not found in the map '%s'", pid, mapInfo.Name)
-			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, mapInfo.Name)
+			ebpftest.DumpMapsTestHelper(t, manager.DumpMaps, mapInfo.Name)
+			t.FailNow()
 		}
 	}
 }
 
 // checkPidNotFoundInMaps checks that pid does not exist in all provided maps.
-func checkPidNotFoundInMaps(t *testing.T, monitor *Monitor, maps []*ebpf.Map, pid int) {
+func checkPidNotFoundInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf.Map, pid int) {
 	// make the key for single thread process when pid and tgid are the same
 	key := uint64(pid)<<32 | uint64(pid)
 
@@ -173,7 +176,8 @@ func checkPidNotFoundInMaps(t *testing.T, monitor *Monitor, maps []*ebpf.Map, pi
 
 		if findKeyInMap(m, key) == true {
 			t.Logf("pid '%d' was found in the map '%s'", pid, mapInfo.Name)
-			ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, mapInfo.Name)
+			ebpftest.DumpMapsTestHelper(t, manager.DumpMaps, mapInfo.Name)
+			t.FailNow()
 		}
 	}
 }
@@ -205,11 +209,9 @@ func startDummyProgram(t *testing.T) (*exec.Cmd, context.CancelFunc) {
 }
 
 // cleanDeadPidsInSslMap delete terminated pid entries in the SSL maps.
-func cleanDeadPidsInSslMaps(t *testing.T, monitor *Monitor) {
+func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
 	for _, mapName := range sslPidKeyMaps {
-		err := deleteDeadPidsInMap(monitor.ebpfProgram.Manager.Manager, mapName, nil)
-		if err != nil {
-			require.NoError(t, err)
-		}
+		err := deleteDeadPidsInMap(manager, mapName, nil)
+		require.NoError(t, err)
 	}
 }

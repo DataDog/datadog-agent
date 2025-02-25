@@ -20,6 +20,7 @@ import (
 	"time"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
@@ -38,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -503,7 +503,7 @@ func (o *sslProgram) Name() string {
 }
 
 // ConfigureOptions changes map attributes to the given options.
-func (o *sslProgram) ConfigureOptions(m *manager.Manager, options *manager.Options) {
+func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -512,17 +512,16 @@ func (o *sslProgram) ConfigureOptions(m *manager.Manager, options *manager.Optio
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	o.addProcessExitProbe(m, options)
+	o.addProcessExitProbe(options)
 }
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
+	var cleanerCB func(map[uint32]struct{}) = nil
 	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		o.watcher.Start(o.cleanupDeadPids)
-	} else {
-		o.watcher.Start(nil)
+		cleanerCB = o.cleanupDeadPids
 	}
-
+	o.watcher.Start(cleanerCB)
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
@@ -829,7 +828,7 @@ func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
 }
 
 // addProcessExitProbe adds a raw or regular tracepoint program depending on which is supported.
-func (o *sslProgram) addProcessExitProbe(mgr *manager.Manager, options *manager.Options) {
+func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
 	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
 		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps
 		p := &manager.Probe{
@@ -839,7 +838,7 @@ func (o *sslProgram) addProcessExitProbe(mgr *manager.Manager, options *manager.
 			},
 			TracepointName: "sched_process_exit",
 		}
-		mgr.Probes = append(mgr.Probes, p)
+		o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
 		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
 		// exclude regular tracepoint
 		options.ExcludedFunctions = append(options.ExcludedFunctions, oldTracepointSchedProcessExit)
@@ -851,7 +850,7 @@ func (o *sslProgram) addProcessExitProbe(mgr *manager.Manager, options *manager.
 				UID:          probeUID,
 			},
 		}
-		mgr.Probes = append(mgr.Probes, p)
+		o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
 		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
 		// exclude a raw tracepoint
 		options.ExcludedFunctions = append(options.ExcludedFunctions, rawTracepointSchedProcessExit)
@@ -869,12 +868,12 @@ var sslPidKeyMaps = []string{
 
 // cleanupDeadPids clears maps of terminated processes.
 func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
-	if o.ebpfManager != nil && features.HaveProgramType(ebpf.RawTracepoint) != nil {
+	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
 		// call maps cleaner if raw tracepoints are not supported
 		for _, mapName := range sslPidKeyMaps {
 			err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
 			if err != nil {
-				log.Debugf("SSL maps %q cleanup error: %v", mapName, err)
+				log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 			}
 		}
 	}
