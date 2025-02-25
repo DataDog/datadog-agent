@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
@@ -310,8 +309,6 @@ func extractTraceContextFromNestedStepFunctionContext(event events.NestedStepFun
 
 // extractTraceContextFromLambdaRootStepFunctionContext extracts the explicitly defined Trace ID and uses that value
 func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRootStepFunctionPayload) (*TraceContext, error) {
-	log.Debugf("HII1 %v", event)
-
 	if event.TraceID == "" || event.TraceTags == "" {
 		return nil, errorNoStepFunctionContextFound
 	}
@@ -321,8 +318,6 @@ func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRoo
 		return nil, err
 	}
 
-	log.Debugf("HII2 %v", tc)
-
 	traceID, err := strconv.ParseUint(event.TraceID, 10, 64)
 	if err != nil {
 		return nil, err
@@ -330,8 +325,6 @@ func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRoo
 
 	tc.TraceID = traceID
 	tc.TraceIDUpper64Hex = parseUpper64Bits(event.TraceTags)
-
-	log.Debugf("HII3 %v", tc)
 
 	return tc, nil
 }
