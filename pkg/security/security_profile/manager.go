@@ -1870,16 +1870,13 @@ func (m *Manager) persistProfile(p *profile.Profile) error {
 	return nil
 }
 
-// onNewProfile handles the arrival of a new profile (or the new version of a profile) from a provider
+// onNewProfile handles the arrival of a new profile after it was created as an activity dump
 func (m *Manager) onNewProfile(newProfile *profile.Profile) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	// a profile loaded from file can be of two forms:
-	// 1. a profile coming from the activity dump manager, providing an activity tree corresponding to
-	//    the selector image_name + image_tag.
-	// 2. a profile coming from the security profile manager, providing an activity tree corresponding to
-	//    the selector image_name, containing multiple image tag versions. Not yet the case, but it will be.
+	// here the new profile is coming from an activity dump, so its activity tree corresponds to the selector image_name + image_tag.
+	// we need to update the selector to a security profile selector (image_name + "*" to match all image tags).
 	selector := *newProfile.GetWorkloadSelector()
 	profileManagerSelector := selector
 	if selector.Tag != "*" {
