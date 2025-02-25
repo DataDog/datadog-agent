@@ -15,10 +15,10 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta optional.Option[workloadmeta.Component]) {
+func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta option.Option[workloadmeta.Component]) {
 	vars := mux.Vars(r)
 	moduleName := sysconfigtypes.ModuleName(vars["module-name"])
 

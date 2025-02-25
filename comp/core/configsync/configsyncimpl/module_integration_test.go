@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestOptionalModule(t *testing.T) {
@@ -44,7 +44,7 @@ func TestOptionalModule(t *testing.T) {
 		"agent_ipc.port":                    port,
 		"agent_ipc.config_refresh_interval": 1,
 	}
-	csopt := fxutil.Test[optional.Option[configsync.Component]](t, fx.Options(
+	csopt := fxutil.Test[option.Option[configsync.Component]](t, fx.Options(
 		core.MockBundle(),
 		fetchonlyimpl.Module(),
 		OptionalModule(),
