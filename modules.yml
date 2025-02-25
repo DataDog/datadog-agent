@@ -270,6 +270,7 @@ modules:
     used_by_otel: true
   pkg/util/pointer:
     used_by_otel: true
+  pkg/util/prometheus: default
   pkg/util/scrubber:
     used_by_otel: true
   pkg/util/sort:

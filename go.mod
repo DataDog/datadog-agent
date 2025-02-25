@@ -473,6 +473,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.0.0-00010101000000-000000000000
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/mattn/go-sqlite3 v1.14.24
@@ -1076,6 +1077,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ./pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ./pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/prometheus => ./pkg/util/prometheus
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ./pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ./pkg/util/startstop
