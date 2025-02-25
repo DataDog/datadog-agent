@@ -843,6 +843,51 @@ func TestKubeletTestSuite(t *testing.T) {
 	suite.Run(t, new(KubeletTestSuite))
 }
 
+func (suite *KubeletTestSuite) TestContainerEnvVars() {
+	ctx := context.Background()
+	mockConfig := configmock.New(suite.T())
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	require.Nil(suite.T(), err)
+	defer ts.Close()
+
+	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
+
+	kubeutil := suite.getCustomKubeUtil()
+	kubelet.dropRequests() // Throwing away first GETs
+
+	pods, err := kubeutil.ForceGetLocalPodList(ctx)
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), pods)
+
+	var nginxPod *Pod
+	for _, pod := range pods.Items {
+		if pod.Metadata.Name == "nginx-99d8b564-4r4vq" {
+			nginxPod = pod
+			break
+		}
+	}
+	require.NotNil(suite.T(), nginxPod)
+
+	var nginxContainer *ContainerSpec
+	for _, container := range nginxPod.Spec.Containers {
+		if container.Name == "nginx" {
+			nginxContainer = &container
+			break
+		}
+	}
+	require.NotNil(suite.T(), nginxContainer)
+
+	expectedEnvVars := []EnvVar{
+		{Name: "DEFINED_VAR", Value: "true"},
+	}
+	assert.ElementsMatch(suite.T(), nginxContainer.Env, expectedEnvVars)
+}
+
 func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())

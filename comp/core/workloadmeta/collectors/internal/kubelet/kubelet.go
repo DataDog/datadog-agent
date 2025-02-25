@@ -417,9 +417,18 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 			continue
 		}
 
+		ok := true
 		runtimeVal := e.Value
 		if runtimeVal != "" {
-			runtimeVal = expansion.Expand(runtimeVal, mappingFunc)
+			runtimeVal, ok = expansion.Expand(runtimeVal, mappingFunc)
+		}
+
+		// Ignore environment variables that failed to expand
+		// This occurs when the env var references another env var
+		// that has its value sourced from an external source
+		// (eg. ConfigMap, Secret, DownwardAPI)
+		if !ok {
+			continue
 		}
 
 		env[e.Name] = runtimeVal
