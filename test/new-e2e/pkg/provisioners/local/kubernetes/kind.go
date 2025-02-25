@@ -37,7 +37,6 @@ type ProvisionerParams struct {
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
 	workloadAppFuncs  []WorkloadAppFunc
-	disableDefaultCNI bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -46,7 +45,6 @@ func newProvisionerParams() *ProvisionerParams {
 		agentOptions:      []kubernetesagentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
-		disableDefaultCNI: false,
 	}
 }
 
@@ -104,14 +102,6 @@ func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	}
 }
 
-// WithoutDefaultCNI disable the default CNI on the kind cluster
-func WithoutDefaultCNI() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.disableDefaultCNI = true
-		return nil
-	}
-}
-
 // Provisioner creates a new provisioner
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -139,7 +129,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewLocalKindCluster(&localEnv, params.name, localEnv.KubernetesVersion(), params.disableDefaultCNI)
+	kindCluster, err := kubeComp.NewLocalKindCluster(&localEnv, params.name, localEnv.KubernetesVersion())
 	if err != nil {
 		return err
 	}
