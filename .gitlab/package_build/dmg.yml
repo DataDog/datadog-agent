@@ -305,6 +305,10 @@ new-agent_dmg-x64-a7:
       . .venv/bin/activate
       python3 -m pip install -r requirements.txt -r tasks/requirements.txt
 
+    # TODO: Done multiple times
+    - eval "$(gimme $GO_VERSION)"
+    - go version || true
+
     # Build
     - bash .gitlab/package_build/build_script.sh
     # TODO: Other things...
