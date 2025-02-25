@@ -2077,6 +2077,7 @@ func (m *Manager) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Pro
 }
 
 // AddProfile adds a profile to the manager
+// This function is only used for testing purposes
 func (m *Manager) AddProfile(profile *profile.Profile) {
 	m.newProfiles <- profile
 }
