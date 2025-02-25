@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -32,18 +34,6 @@ import (
 
 const flareFileName = "hostgpu.json"
 
-// PCIVendorMap maps PCI vendor IDs to vendor names
-var PCIVendorMap = map[string]string{
-	"0x10de": "nvidia",
-	"0x8086": "intel",
-	"0x1002": "amd",
-}
-
-// Collector functions
-var (
-	baseGPUGet = collectBaseGPUInfo
-)
-
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
@@ -51,30 +41,26 @@ func Module() fxutil.Module {
 }
 
 type gpuDeviceMetadata struct {
-	ID             int    `json:"gou_id"`
-	Vendor         string `json:"gpu_vendor"`
-	Device         string `json:"gpu_device"`
-	DriverVersion  string `json:"driver_version"`
-	RuntimeVersion string `json:"runtime_version"`
-	UUID           string `json:"gpu_uuid"`
-	Architecture   string `json:"gpu_architecture"`
+	Index         int    `json:"gpu_index"`
+	Vendor        string `json:"gpu_vendor"`
+	Name          string `json:"gpu_device"`
+	DriverVersion string `json:"driver_version"`
+	UUID          string `json:"gpu_uuid"`
+	Architecture  string `json:"gpu_architecture"`
 
 	ComputeVersion string `json:"gpu_compute_version"` //e.g: in nvidia this refers to Compute Capability
 	ProcessorUnits int    `json:"gpu_processor_units"` // e.g: in nvidia it is SMCount (Streaming MultiProcessor Count)
-	Cores          int    `json:"gpu_cores"`           //e.g: for nvidia it is cuda cores
 
-	TotalMemory       int64 `json:"device_total memory"`
-	MaxClockRate      int   `json:"device_max_clock_rate"`
-	MemoryClockRate   int   `json:"device_memory_clock_rate"`
-	MemoryBusWidth    int   `json:"device_memory_bus_width"`
-	L2CacheSize       int   `json:"device_l2_cache_size"`
-	WarpSize          int   `json:"device_warp_size"`
-	RegistersPerBlock int   `json:"device_registers_per_block"`
+	//Total device memory in bytes
+	TotalMemory        uint64 `json:"device_total memory"`
+	MaxSMClockRate     uint32 `json:"device_max_sm_clock_rate"`
+	MaxMemoryClockRate uint32 `json:"device_max_memory_clock_rate"`
+	MemoryBusWidth     uint32 `json:"device_memory_bus_width"`
 }
 
 // hostGPUMetadata contains host's gpu metadata
 type hostGPUMetadata struct {
-	Devices []gpuDeviceMetadata `json:"devices"`
+	Devices []*gpuDeviceMetadata `json:"devices"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -97,21 +83,12 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("could not split inventories host gpu payload any more, payload is too big for intake")
 }
 
-// collectBaseGPUInfo collects basic GPU information available through filesystem
-func collectBaseGPUInfo() (*hostGPUMetadata, error) {
-	return nil, nil
-}
-
-// collectNvidiaGPUInfo enhances GPU information for NVIDIA devices using NVML
-func collectNvidiaGPUInfo(device gpuDeviceMetadata) (*gpuDeviceMetadata, error) {
-	return nil, nil
-}
-
 type gpuHost struct {
 	util.InventoryPayload
 
 	log      log.Component
 	conf     config.Component
+	wmeta    workloadmeta.Component
 	data     *hostGPUMetadata
 	hostname string
 }
@@ -119,6 +96,7 @@ type gpuHost struct {
 type dependencies struct {
 	fx.In
 
+	WMeta      workloadmeta.Component
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
@@ -138,6 +116,7 @@ func newGPUHostProvider(deps dependencies) provides {
 	gh := &gpuHost{
 		conf:     deps.Config,
 		log:      deps.Log,
+		wmeta:    deps.WMeta,
 		hostname: hname,
 		data:     &hostGPUMetadata{},
 	}
@@ -152,14 +131,27 @@ func newGPUHostProvider(deps dependencies) provides {
 }
 
 func (gh *gpuHost) fillData() {
-
-	var err error
-	gh.data, err = baseGPUGet()
-	if err != nil {
-		gh.log.Errorf("Failed to collect base GPU information: %v", err)
-		return
+	gpus := gh.wmeta.ListGPUs()
+	gh.data = &hostGPUMetadata{
+		Devices: make([]*gpuDeviceMetadata, 0, len(gpus)),
 	}
-
+	for _, gpu := range gpus {
+		dev := &gpuDeviceMetadata{
+			Index:              gpu.Index,
+			UUID:               gpu.ID,
+			Vendor:             strings.ToLower(gpu.Vendor),
+			DriverVersion:      gpu.DriverVersion,
+			ComputeVersion:     gpu.ComputeCapability.String(),
+			Name:               gpu.Name,
+			Architecture:       gpu.Architecture,
+			ProcessorUnits:     gpu.SMCount,
+			TotalMemory:        gpu.TotalMemoryMB * 1024 * 1024,
+			MemoryBusWidth:     gpu.MemoryBusWidth,
+			MaxSMClockRate:     gpu.MaxClockRates[workloadmeta.SM],
+			MaxMemoryClockRate: gpu.MaxClockRates[workloadmeta.Memory],
+		}
+		gh.data.Devices = append(gh.data.Devices, dev)
+	}
 }
 
 func (gh *gpuHost) getPayload() marshaler.JSONMarshaler {
