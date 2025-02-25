@@ -315,6 +315,13 @@ def test(
 
     nocache = '-count=1' if not cache else ''
 
+    # Create temporary file for flaky patterns config
+    if os.environ.get("FLAKY_PATTERNS_CONFIG"):
+        if os.path.exists(os.environ.get("FLAKY_PATTERNS_CONFIG")):
+            os.remove(os.environ.get("FLAKY_PATTERNS_CONFIG"))
+        with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'a') as f:
+            f.write("{}")
+
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
         # We don't need to do that for GO_TEST_RESULT_TMP_JSON since gotestsum overwrites the output.

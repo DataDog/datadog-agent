@@ -61,6 +61,7 @@ class TestWasher:
                 if "Output" in test_result and self.is_marked_flaky(
                     test_result["Package"], test_result["Test"], test_result["Output"]
                 ):
+                    print("Test is marked as flaky", test_result["Package"], test_result["Test"])
                     marked_flaky_test[test_result["Package"]].add(test_result["Test"])
         return marked_flaky_test
 
@@ -68,7 +69,11 @@ class TestWasher:
         """Returns whether the test is marked as flaky based on the log output."""
         return (
             self.flaky_test_indicator in log
-            or (package in self.flaky_log_patterns and test in self.flaky_log_patterns[package])
+            or (
+                package in self.flaky_log_patterns
+                and test in self.flaky_log_patterns[package]
+                and len(self.flaky_log_patterns[package][test]) > 0
+            )
             or (package in self.known_flaky_tests and test in self.known_flaky_tests[package])
         )
 
