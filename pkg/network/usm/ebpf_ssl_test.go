@@ -138,7 +138,7 @@ func addPidEntryToMaps(t *testing.T, maps []*ebpf.Map, pid int) {
 		key := uint64(pid)<<32 | uint64(pid)
 		value := make([]byte, m.ValueSize())
 
-		err := m.Put(&key, value)
+		err := m.Put(unsafe.Pointer(&key), unsafe.Pointer(&value))
 		require.NoError(t, err)
 	}
 }
