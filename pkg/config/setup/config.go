@@ -856,6 +856,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
+	config.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false) // checked by the Global SBOM Scanner initialization
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
