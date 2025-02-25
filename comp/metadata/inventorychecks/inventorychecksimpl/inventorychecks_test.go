@@ -249,7 +249,7 @@ func TestGetPayload(t *testing.T) {
 				assert.Equal(t, expectedSourceStatus, actualSource[0]["state"])
 				assert.Equal(t, "awesome_cache", actualSource[0]["service"])
 				assert.Equal(t, "redis", actualSource[0]["source"])
-				assert.Equal(t, logConfig.TagsField{"env:prod"}, actualSource[0]["tags"])
+				assert.Equal(t, []string{"env:prod"}, actualSource[0]["tags"])
 			} else {
 				assert.Len(t, p.LogsMetadata, 0)
 			}
