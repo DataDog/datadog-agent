@@ -244,19 +244,25 @@ func (p *Profile) IsEmpty() bool {
 	return p.ActivityTree.IsEmpty()
 }
 
-// Insert inserts an event in the profile
-func (p *Profile) Insert(event *model.Event, resolvers *resolvers.EBPFResolvers) (bool, int64, error) {
+// InsertAndGetSize inserts an event in the profile and returns the new size of the profile if the event was inserted
+func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, int64, error) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	imageTag := utils.GetTagValue("image_tag", p.tags)
-
-	ok, err := p.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, resolvers)
+	ok, err := p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 	if !ok || err != nil {
 		return ok, 0, err
 	}
 
 	return ok, p.ActivityTree.Stats.ApproximateSize(), nil
+}
+
+// Insert inserts an event in the profile
+func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
 
 // ComputeInMemorySize returns the size of a dump in memory
@@ -396,14 +402,6 @@ func (p *Profile) Contains(event *model.Event, insertMissingProcesses bool, imag
 	defer p.m.Unlock()
 
 	return p.ActivityTree.Contains(event, insertMissingProcesses, imageTag, generationType, resolvers)
-}
-
-// InsertProfile inserts an event in the profile
-func (p *Profile) InsertProfile(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
-
-	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
 
 // SecurityProfile funcs
