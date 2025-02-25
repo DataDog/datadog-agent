@@ -6,7 +6,7 @@
 package languagemodels
 
 import (
-	"regexp"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 )
 
 // AnnotationRegex defines the regex pattern of language detection annotations
-var AnnotationRegex = regexp.MustCompile(`internal\.dd\.datadoghq\.com\/(init\.)?(.+?)\.detected_langs`)
+var AnnotationRegex = lazyregexp.New(`internal\.dd\.datadoghq\.com\/(init\.)?(.+?)\.detected_langs`)
 
 // GetLanguageAnnotationKey returns the language annotation key for the specified container
 func GetLanguageAnnotationKey(containerName string) string {
