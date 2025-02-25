@@ -8,9 +8,9 @@
 package hostgpuimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/metadata/hostgpu"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/metadata/hostgpu"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
