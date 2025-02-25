@@ -1432,7 +1432,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret(config pkgconfigmodel.Config, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", optional.NewNoneOption[secrets.Component](), additionalEnvVars)
+	return LoadDatadogCustom(config, "datadog.yaml", option.None[secrets.Component](), additionalEnvVars)
 }
 
 // LoadWithSecret reads config files and initializes config with decrypted secrets
