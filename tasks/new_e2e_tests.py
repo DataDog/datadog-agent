@@ -132,7 +132,6 @@ def run(
     tmp_flaky_patterns_config.write(b"{}")
     tmp_flaky_patterns_config.close()
     flaky_patterns_config = tmp_flaky_patterns_config.name
-    env_vars["E2E_FLAKY_PATTERNS_CONFIG"] = flaky_patterns_config
 
     cmd = f'gotestsum --format {gotestsum_format} '
     scrubber_raw_command = ""
@@ -165,7 +164,6 @@ def run(
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
-        "flaky_patterns_config": f'--flaky-patterns-config={flaky_patterns_config}' if flaky_patterns_config else '',
         "extra_flags": extra_flags,
     }
 
@@ -182,9 +180,7 @@ def run(
         test_profiler=None,
     )
 
-    success = process_test_result(
-        test_res, junit_tar, AgentFlavor.base, test_washer, extra_flakes_config=flaky_patterns_config
-    )
+    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI

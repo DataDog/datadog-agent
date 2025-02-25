@@ -77,9 +77,9 @@ func MarkOnLog(t testing.TB, pattern string) {
 	type configEntries = map[string][]testEntry
 
 	t.Helper()
-	flakyPatternsConfig := os.Getenv("E2E_FLAKY_PATTERNS_CONFIG")
+	flakyPatternsConfig := os.Getenv("FLAKY_PATTERNS_CONFIG")
 	if flakyPatternsConfig == "" {
-		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky since E2E_FLAKY_PATTERNS_CONFIG is not set")
+		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky since FLAKY_PATTERNS_CONFIG is not set")
 		return
 	}
 
