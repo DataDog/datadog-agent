@@ -55,7 +55,7 @@ type Component interface {
 func NoneModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(func() option.Option[Component] {
-			return optional.NewNoneOption[Component]()
+			return option.None[Component]()
 		}),
 	)
 }

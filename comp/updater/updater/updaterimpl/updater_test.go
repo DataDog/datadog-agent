@@ -32,7 +32,7 @@ func TestUpdaterWithoutRemoteConfig(t *testing.T) {
 	deps := fxutil.Test[testDependencies](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
-		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+		fx.Supply(option.None[rcservice.Component]()),
 		Module(),
 	))
 	_, err := newUpdaterComponent(&mockLifecycle{}, deps.Dependencies)

@@ -22,11 +22,11 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(), core.MockBundle(),
-		fx.Supply(optional.NewNoneOption[runnerimpl.MetadataProvider]()),
+		fx.Supply(option.None[runnerimpl.MetadataProvider]()),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		collectorimpl.MockModule(),
 		fx.Provide(func() option.Option[agent.Component] {
-			return optional.NewNoneOption[agent.Component]()
+			return option.None[agent.Component]()
 		}),
 		authtokenimpl.Module(),
 	)

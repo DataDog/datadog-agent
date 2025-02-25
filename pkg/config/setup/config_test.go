@@ -1241,7 +1241,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	_, err := LoadCustom(config, "unit_test", option.None[secrets.Component](), nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1298,7 +1298,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	_, err := LoadCustom(config, "unit_test", option.None[secrets.Component](), nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1402,7 +1402,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	_, err := LoadCustom(config, "unit_test", option.None[secrets.Component](), nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")

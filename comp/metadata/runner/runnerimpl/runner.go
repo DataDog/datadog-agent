@@ -65,7 +65,7 @@ func NewProvider(callback MetadataProvider) Provider {
 // can be enabled/disabled through configuration.
 func NewEmptyProvider() Provider {
 	return Provider{
-		Callback: optional.NewNoneOption[MetadataProvider](),
+		Callback: option.None[MetadataProvider](),
 	}
 }
 

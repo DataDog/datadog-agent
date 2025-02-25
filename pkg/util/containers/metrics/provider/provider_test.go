@@ -49,7 +49,7 @@ func TestRuntimeMetadataString(t *testing.T) {
 }
 
 func TestGenericProvider(t *testing.T) {
-	provider := newProvider(optional.NewNoneOption[workloadmeta.Component]())
+	provider := newProvider(option.None[workloadmeta.Component]())
 
 	// First collector is going to be priority 1 on stats and 2 on network
 	statsCollector := &dummyCollector{

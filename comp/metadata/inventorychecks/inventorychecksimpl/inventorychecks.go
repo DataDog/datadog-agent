@@ -111,7 +111,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		conf:     deps.Config,
 		log:      deps.Log,
 		coll:     deps.Coll,
-		sources:  optional.NewNoneOption[*sources.LogSources](),
+		sources:  option.None[*sources.LogSources](),
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 	}

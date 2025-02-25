@@ -139,7 +139,7 @@ func getNetworkMode() (string, error) {
 	}
 
 	// Get container id if containerized
-	selfContainerID, err := metrics.GetProvider(optional.NewNoneOption[workloadmeta.Component]()).GetMetaCollector().GetSelfContainerID()
+	selfContainerID, err := metrics.GetProvider(option.None[workloadmeta.Component]()).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return "host", nil
 	}

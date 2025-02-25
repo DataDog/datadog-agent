@@ -28,7 +28,7 @@ type ServerlessDogstatsd interface {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessServer(demux aggregator.Demultiplexer) (ServerlessDogstatsd, error) {
-	wmeta := optional.NewNoneOption[workloadmeta.Component]()
+	wmeta := option.None[workloadmeta.Component]()
 	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, demux, wmeta)
 
 	err := s.start(context.TODO())

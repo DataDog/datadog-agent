@@ -57,7 +57,7 @@ func newOptionalConfigSync(deps dependencies) option.Option[configsync.Component
 	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
 
 	if agentIPCPort <= 0 || configRefreshIntervalSec <= 0 {
-		return optional.NewNoneOption[configsync.Component]()
+		return option.None[configsync.Component]()
 	}
 
 	configSync := newConfigSync(deps, agentIPCPort, configRefreshIntervalSec)

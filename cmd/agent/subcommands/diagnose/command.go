@@ -99,7 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.runLocal,
 					}
 				}),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
+				fx.Supply(option.None[collector.Component]()),
 				workloadmeta.Module(),
 				tagger.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),

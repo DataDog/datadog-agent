@@ -133,7 +133,7 @@ func newLogsAgent(deps dependencies) provides {
 
 	deps.Log.Info("logs-agent disabled")
 	return provides{
-		Comp:           optional.NewNoneOption[Component](),
+		Comp:           option.None[Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 	}
 }

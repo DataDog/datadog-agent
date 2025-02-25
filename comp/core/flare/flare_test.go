@@ -40,8 +40,8 @@ func TestFlareCreation(t *testing.T) {
 			fx.Provide(func() diagnosesendermanager.Component { return nil }),
 			fx.Provide(func() Params { return Params{} }),
 			collector.NoneModule(),
-			fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-			fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
+			fx.Supply(option.None[workloadmeta.Component]()),
+			fx.Supply(option.None[autodiscovery.Component]()),
 			// provider a nil FlareCallback
 			fx.Provide(fx.Annotate(
 				func() types.FlareCallback { return nil },

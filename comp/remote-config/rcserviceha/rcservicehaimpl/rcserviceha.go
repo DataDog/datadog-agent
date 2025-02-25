@@ -46,7 +46,7 @@ type dependencies struct {
 
 // newHaRemoteConfigServiceOptional conditionally creates and configures a new HA remote config service, based on whether RC is enabled.
 func newHaRemoteConfigServiceOptional(deps dependencies) option.Option[rcserviceha.Component] {
-	none := optional.NewNoneOption[rcserviceha.Component]()
+	none := option.None[rcserviceha.Component]()
 	if !config.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("ha.enabled") {
 		return none
 	}

@@ -125,7 +125,7 @@ func newWorkloadMeta(deps dependencies) provider {
 func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 	if deps.Params.NoInstance {
 		return optionalProvider{
-			Comp: optional.NewNoneOption[Component](),
+			Comp: option.None[Component](),
 		}
 	}
 	c := newWorkloadMeta(deps)

@@ -64,7 +64,7 @@ func run(diagnoseSenderManager diagnosesendermanager.Component, secretResolver s
 		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
 		Include:  []string{"connectivity-datadog-autodiscovery"},
 	}
-	diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, optional.NewNoneOption[collector.Component](), secretResolver, optional.NewNoneOption[workloadmeta.Component](), optional.NewNoneOption[autodiscovery.Component]())
+	diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, option.None[collector.Component](), secretResolver, option.None[workloadmeta.Component](), option.None[autodiscovery.Component]())
 
 	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseDeps)
 }

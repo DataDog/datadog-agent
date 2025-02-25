@@ -30,9 +30,9 @@ func Module() fxutil.Module {
 // dependencies (k8s, several MBs) while building binaries not needing these.
 func newOrchestratorForwarder(_ log.Component, _ config.Component, params Params) orchestrator.Component {
 	if params.useNoopOrchestratorForwarder {
-		forwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+		forwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 		return &forwarder
 	}
-	forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
+	forwarder := option.None[defaultforwarder.Forwarder]()
 	return &forwarder
 }

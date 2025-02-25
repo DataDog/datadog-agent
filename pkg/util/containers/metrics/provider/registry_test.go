@@ -21,7 +21,7 @@ func TestCollectorRegistry(t *testing.T) {
 	assert.Nil(t, c.effectiveCollectors[RuntimeMetadata{runtime: RuntimeNameDocker}])
 
 	// Check for collectors (none are registered, should not change output)
-	c.retryCollectors(nil, optional.NewNoneOption[workloadmeta.Component]())
+	c.retryCollectors(nil, option.None[workloadmeta.Component]())
 	assert.Nil(t, c.effectiveCollectors[RuntimeMetadata{runtime: RuntimeNameDocker}])
 
 	c.registerCollector(
@@ -91,7 +91,7 @@ func TestCollectorRegistry(t *testing.T) {
 		assert.Equal(t, expected, actual)
 	}
 
-	wmeta := optional.NewNoneOption[workloadmeta.Component]()
+	wmeta := option.None[workloadmeta.Component]()
 	collectorsToRetry := c.retryCollectors(nil, wmeta)
 	assert.Equal(t, 1, collectorsToRetry)
 	assertCollectors(map[RuntimeMetadata]string{

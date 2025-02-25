@@ -23,7 +23,7 @@ import (
 )
 
 func udsDatagramListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component) (StatsdListener, error) {
-	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component]())
+	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, option.None[workloadmeta.Component]())
 }
 
 func TestNewUDSDatagramListener(t *testing.T) {

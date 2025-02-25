@@ -88,7 +88,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return logimpl.NewLogger(lc, params, sysprobeconfig)
 				}),
-				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+				fx.Supply(option.None[workloadmeta.Component]()),
 			)
 		},
 	}
@@ -217,7 +217,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		telemetry.Module(),
 		compstatsd.Module(),
 		sysprobeconfigimpl.Module(),
-		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+		fx.Supply(option.None[workloadmeta.Component]()),
 		// use system-probe config instead of agent config for logging
 		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 			return logimpl.NewLogger(lc, params, sysprobeconfig)

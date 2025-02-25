@@ -413,7 +413,7 @@ func OptionalModule() fxutil.Module {
 func NewOptionalTagger(deps optionalTaggerDeps) option.Option[Component] {
 	w, ok := deps.Wmeta.Get()
 	if !ok {
-		return optional.NewNoneOption[Component]()
+		return option.None[Component]()
 	}
 	return option.New[Component](newTaggerClient(dependencies{
 		In:     deps.In,

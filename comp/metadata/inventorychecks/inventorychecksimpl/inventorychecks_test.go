@@ -50,7 +50,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 
 func TestSet(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), option.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("instance_1", "key", "value")
@@ -69,7 +69,7 @@ func TestSet(t *testing.T) {
 
 func TestSetEmptyInstance(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), option.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("", "key", "value")
@@ -79,7 +79,7 @@ func TestSetEmptyInstance(t *testing.T) {
 
 func TestGetInstanceMetadata(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), option.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 
 	ic.Set("instance_1", "key1", "value1")
@@ -242,7 +242,7 @@ func TestGetPayload(t *testing.T) {
 
 func TestFlareProviderFilename(t *testing.T) {
 	ic := getTestInventoryChecks(
-		t, optional.NewNoneOption[collector.Component](), option.Option[logagent.Component]{}, nil,
+		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
 }

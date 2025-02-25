@@ -37,6 +37,6 @@ type Component interface {
 // the implementation to avoid linking with the dependencies from rcclient.
 func NoneModule() fxutil.Module {
 	return fxutil.Component(fx.Provide(func() option.Option[Component] {
-		return optional.NewNoneOption[Component]()
+		return option.None[Component]()
 	}))
 }

@@ -619,7 +619,7 @@ func OptionalModule() fxutil.Module {
 func newOptionalAutoConfig(deps optionalModuleDeps) option.Option[autodiscovery.Component] {
 	_, ok := deps.TaggerComp.Get()
 	if !ok {
-		return optional.NewNoneOption[autodiscovery.Component]()
+		return option.None[autodiscovery.Component]()
 	}
 	return option.New[autodiscovery.Component](
 		createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta))

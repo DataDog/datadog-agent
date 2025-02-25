@@ -99,7 +99,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(&config.Listeners{}, optional.NewOption(suite.wmeta))
+	dl, err := listeners.NewContainerListener(&config.Listeners{}, option.New(suite.wmeta))
 	if err != nil {
 		panic(err)
 	}
