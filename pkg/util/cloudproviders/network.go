@@ -58,7 +58,7 @@ func GetNetworkID(ctx context.Context) (string, error) {
 		})
 }
 
-func getVPCSubnetsForHost(ctx context.Context) ([]string, error) {
+func getVPCSubnetsForHostImpl(ctx context.Context) ([]string, error) {
 	subnets, ec2err := ec2.GetVPCSubnetsForHost(ctx)
 	if ec2err == nil {
 		return subnets, nil
@@ -68,6 +68,9 @@ func getVPCSubnetsForHost(ctx context.Context) ([]string, error) {
 
 	return nil, fmt.Errorf("could not detect VPC subnets: %w", errors.Join(ec2err))
 }
+
+// use a global to allow easy mocking
+var getVPCSubnetsForHost = getVPCSubnetsForHostImpl
 
 // GetVPCSubnetsForHost gets all the subnets in the VPCs this host has network interfaces for
 func GetVPCSubnetsForHost(ctx context.Context) ([]*net.IPNet, error) {
