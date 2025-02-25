@@ -1359,6 +1359,14 @@ func (e EventBundle) Acknowledge() {
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
 
+type GPUClockType int
+
+const (
+	SM GPUClockType = iota
+	Memory
+	COUNT
+)
+
 // GPU represents a GPU resource.
 type GPU struct {
 	EntityID
@@ -1366,12 +1374,17 @@ type GPU struct {
 	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
 	Vendor string
 
-	// Device is the comercial name of the device (e.g., Tesla V100) as returned
+	// Device is the commercial name of the device (e.g., Tesla V100) as returned
 	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
 	// have some additional information like the memory size (e.g., Tesla
 	// A100-SXM2-80GB), the exact format of this field is vendor and device
 	// specific.
-	Device     string
+	Device string
+
+	//DriverVersion is the version of the driver used for the gpu device
+	DriverVersion string
+
+	//ActivePIDs is the list of process IDs that are using the GPU.
 	ActivePIDs []int
 
 	// Index is the index of the GPU in the host system. This is useful as sometimes
@@ -1388,6 +1401,15 @@ type GPU struct {
 
 	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
 	SMCount int
+
+	//TotalMemory is the total available memory for the device in MB
+	TotalMemoryMB uint64
+
+	// MaxClockRates contains the maximum clock rates for SM and Memory
+	MaxClockRates [COUNT]uint32
+
+	// MemoryBusWidth is the width of the memory bus in bits.
+	MemoryBusWidth uint32
 
 	// MigEnabled is true if the GPU supports MIG (Multi-Instance GPU) and it is enabled.
 	MigEnabled bool
@@ -1428,7 +1450,7 @@ func (g *GPU) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge GPU with different kind %T", e)
 	}
 
-	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the soure
+	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the source
 	if gg.ActivePIDs != nil {
 		g.ActivePIDs = nil
 	}
@@ -1453,12 +1475,17 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, g.EntityMeta.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
+	_, _ = fmt.Fprintln(&sb, "Driver Version:", g.DriverVersion)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
 	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
 	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
+	_, _ = fmt.Fprintln(&sb, "Total Memory (in MB):", g.TotalMemoryMB)
+	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
+	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[SM])
+	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[Memory])
 	if g.MigEnabled {
 		_, _ = fmt.Fprintln(&sb, "----------- MIG Device -----------")
 		_, _ = fmt.Fprintln(&sb, "MIG Enabled: true")

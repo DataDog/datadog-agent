@@ -81,7 +81,7 @@ func (c *collector) getDeviceInfoMig(migDevice nvml.Device) (*workloadmeta.MigDe
 	}, nil
 }
 
-func (c *collector) getGPUdeviceInfo(device nvml.Device) (*workloadmeta.GPU, error) {
+func (c *collector) getGPUDeviceInfo(device nvml.Device) (*workloadmeta.GPU, error) {
 	uuid, name, err := c.getDeviceInfo(device)
 	if err != nil {
 		return nil, err
@@ -90,6 +90,8 @@ func (c *collector) getGPUdeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get GPU index ID: %v", nvml.ErrorString(ret))
 	}
+	//we try to get the driver version as a best effort, don't care if we fail
+	driver, _ := c.nvmlLib.SystemGetDriverVersion()
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
@@ -98,11 +100,12 @@ func (c *collector) getGPUdeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: name,
 		},
-		Vendor:     nvidiaVendor,
-		Device:     name,
-		Index:      gpuIndexID,
-		MigEnabled: false,
-		MigDevices: nil,
+		Vendor:        nvidiaVendor,
+		Device:        name,
+		DriverVersion: driver,
+		Index:         gpuIndexID,
+		MigEnabled:    false,
+		MigDevices:    nil,
 	}
 
 	c.fillMIGData(&gpuDeviceInfo, device)
@@ -176,6 +179,34 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device nvml.
 		}
 	} else {
 		gpuDeviceInfo.SMCount = int(devAttr.MultiprocessorCount)
+		gpuDeviceInfo.TotalMemoryMB = devAttr.MemorySizeMB
+	}
+
+	memBusWidth, ret := device.GetMemoryBusWidth()
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
+		}
+	} else {
+		gpuDeviceInfo.MemoryBusWidth = memBusWidth
+	}
+
+	maxSMClock, ret := device.GetMaxClockInfo(nvml.CLOCK_SM)
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
+		}
+	} else {
+		gpuDeviceInfo.MaxClockRates[workloadmeta.SM] = maxSMClock
+	}
+
+	maxMemoryClock, ret := device.GetMaxClockInfo(nvml.CLOCK_MEM)
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
+		}
+	} else {
+		gpuDeviceInfo.MaxClockRates[workloadmeta.Memory] = maxMemoryClock
 	}
 }
 
@@ -254,7 +285,7 @@ func (c *collector) Pull(_ context.Context) error {
 			return fmt.Errorf("failed to get device handle for index %d: %v", i, nvml.ErrorString(ret))
 		}
 
-		gpu, err := c.getGPUdeviceInfo(dev)
+		gpu, err := c.getGPUDeviceInfo(dev)
 		if err != nil {
 			return err
 		}
