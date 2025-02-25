@@ -110,7 +110,6 @@ new-agent_dmg-x64-a7:
   script:
     # - eval $("$HOME/homebrew/bin/brew" shellenv)
     - export PATH="$HOME/bin:$HOME/homebrew/bin:$HOME/rust/rustup/bin:$HOME/rust/cargo/bin"
-    - ls --version
     - python3 --version
     - which which
     - which rustup
