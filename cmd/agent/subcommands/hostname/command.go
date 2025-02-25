@@ -8,7 +8,9 @@ package hostname
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -26,6 +29,7 @@ type cliParams struct {
 	*command.GlobalParams
 
 	logLevelDefaultOff command.LogLevelDefaultOff
+	forceLocal         bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -47,16 +51,51 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
+	getHostnameCommand.Flags().BoolVarP(&cliParams.forceLocal, "local", "l", false, "Force computing the hostname in the command line instead of the agent process")
+
 	cliParams.logLevelDefaultOff.Register(getHostnameCommand)
 	return []*cobra.Command{getHostnameCommand}
 }
 
-func getHostname(_ log.Component, _ config.Component, _ *cliParams) error {
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		return fmt.Errorf("Error getting the hostname: %v", err)
+func getHostname(_ log.Component, config config.Component, params *cliParams) error {
+	var hname string
+	var err error
+
+	if !params.forceLocal {
+		hname, err = getRemoteHostname(config)
+		if err != nil {
+			// print the warning on stderr to avoid polluting the output
+			fmt.Fprintf(os.Stderr, "Error getting the hostname from the running agent: %v\nComputing the hostname from the command line...\n", err)
+		}
+	}
+
+	if hname == "" {
+		hname, err = hostname.Get(context.Background())
+		if err != nil {
+			return fmt.Errorf("Error getting the hostname: %v", err)
+		}
 	}
 
 	fmt.Println(hname)
 	return nil
+}
+
+func getRemoteHostname(config config.Component) (string, error) {
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/hostname")
+	if err != nil {
+		return "", err
+	}
+
+	res, err := endpoint.DoGet()
+	if err != nil {
+		return "", err
+	}
+
+	var hname string
+	err = json.Unmarshal(res, &hname)
+	if err != nil {
+		return "", err
+	}
+
+	return hname, nil
 }
