@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Makes CWS report the correct container ID on EKS Fargate.
