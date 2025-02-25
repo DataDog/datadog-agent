@@ -504,8 +504,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^sub-team:contint$`,
-				`^example-instance-tag$`,
-				`^example-env-tag$`,
+				`^example-instance-tag:static$`,
+				`^example-env-tag:static$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -602,8 +602,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_cluster_name:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
-				`^example-instance-tag$`,
-				`^example-env-tag$`,
+				`^example-instance-tag:static$`,
+				`^example-env-tag:static$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -814,8 +814,8 @@ func (suite *k8sSuite) TestKSM() {
 				`^org:agent-org$`,
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
-				`^example-instance-tag$`,
-				`^example-env-tag$`,
+				`^example-instance-tag:static$`,
+				`^example-env-tag:static$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -836,8 +836,8 @@ func (suite *k8sSuite) TestKSM() {
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^kube_namespace:workload-redis$`,
-				`^example-instance-tag$`,
-				`^example-env-tag$`,
+				`^example-instance-tag:static$`,
+				`^example-env-tag:static$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -859,8 +859,8 @@ func (suite *k8sSuite) TestKSM() {
 				`^cr_type:ddm$`,
 				`^ddm_namespace:workload-(?:nginx|redis)$`,
 				`^ddm_name:(?:nginx|redis)$`,
-				`^example-instance-tag$`,
-				`^example-env-tag$`,
+				`^example-instance-tag:static$`,
+				`^example-env-tag:static$`,
 			},
 		},
 	})
