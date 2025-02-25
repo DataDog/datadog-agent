@@ -578,10 +578,7 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
-  parallel:
-    matrix:
-      - EXTRA_PARAMS: --run TestHaAgentSuite
-      - EXTRA_PARAMS: --run TestHaAgentMetadataSuite
+    EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
 
 new-e2e-ha-agent-failover:
   extends: .new_e2e_template_needs_deb_x64
