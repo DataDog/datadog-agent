@@ -113,6 +113,7 @@ func (t *TagsField) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				*t = append(*t, str)
 			}
 		}
+		return nil
 	}
 	return fmt.Errorf("invalid tags format")
 }

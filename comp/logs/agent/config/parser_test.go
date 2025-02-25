@@ -244,6 +244,162 @@ logs:
 				assert.Nil(t, err, "Pattern should be a valid regex")
 			},
 		},
+		{
+			name: "Test 5: Parse journald with include_units",
+			yaml: []byte(`
+logs:
+  - type: journald
+    path: /var/log/journal/
+    source: custom_log
+    service: random-logger
+    include_units:
+      - random-logger.service
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				config := configs[0]
+				assert.Equal(t, "journald", config.Type)
+				assert.Equal(t, "/var/log/journal/", config.Path)
+				assert.Equal(t, "custom_log", config.Source)
+				assert.Equal(t, "random-logger", config.Service)
+				require.Equal(t, len(config.IncludeSystemUnits), 1)
+				assert.Equal(t, "random-logger.service", config.IncludeSystemUnits[0])
+			},
+		},
+		{
+			name: "Test 6: Parse journald with exclude_units",
+			yaml: []byte(`
+logs:
+  - type: journald
+    source: custom_log
+    service: no-datadog
+    exclude_units:
+      - datadog-agent.service
+      - datadog-agent-trace.service
+      - datadog-agent-process.service
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				config := configs[0]
+				assert.Equal(t, "journald", config.Type)
+				assert.Equal(t, "custom_log", config.Source)
+				assert.Equal(t, "no-datadog", config.Service)
+				require.Equal(t, len(config.ExcludeSystemUnits), 3)
+				assert.Equal(t, "datadog-agent.service", config.ExcludeSystemUnits[0])
+				assert.Equal(t, "datadog-agent-trace.service", config.ExcludeSystemUnits[1])
+				assert.Equal(t, "datadog-agent-process.service", config.ExcludeSystemUnits[2])
+			},
+		},
+		{
+			name: "Test 7: Parse minimal journald config",
+			yaml: []byte(`
+logs:
+  - type: journald
+    service: hello
+    source: custom_log
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				config := configs[0]
+				assert.Equal(t, "journald", config.Type)
+				assert.Equal(t, "hello", config.Service)
+				assert.Equal(t, "custom_log", config.Source)
+			},
+		},
+		{
+			name: "Test Comprehensive: All parseable fields in LogsConfig",
+			yaml: []byte(`
+logs:
+  - type: journald
+    integrationname: test_integration
+    port: 8080
+    idle_timeout: "30s"
+    path: /var/log/journal/
+    encoding: utf-8
+    exclude_paths:
+      - /var/log/exclude1.log
+      - /var/log/exclude2.log
+    start_position: beginning
+    config_id: test_config_id
+    include_units:
+      - systemd-unit.service
+    exclude_units:
+      - datadog-agent.service
+      - datadog-agent-trace.service
+      - datadog-agent-process.service
+    include_user_units:
+      - user-systemd-unit.service
+    exclude_user_units:
+      - user-exclude.service
+    include_matches:
+      - some_match
+    exclude_matches:
+      - some_exclude_match
+    container_mode: true
+    image: test_image
+    label: test_label
+    name: test_container
+    identifier: test_identifier
+    channel_path: /test/channel
+    query: SELECT * FROM logs
+    service: test_service
+    source: test_source
+    sourcecategory: test_category
+    tags:
+      - key:value
+      - another_key:another_value
+    log_processing_rules:
+      - type: include_at_match
+        name: include_example
+        pattern: example_pattern
+    process_raw_message: true
+    auto_multi_line_detection: true
+    auto_multi_line_sample_size: 5
+    auto_multi_line_match_threshold: 2.5
+`),
+			assert: func(t *testing.T, configs []*LogsConfig, err error) {
+				assert.Nil(t, err)
+				require.Equal(t, len(configs), 1)
+				config := configs[0]
+				assert.Equal(t, "journald", config.Type)
+				assert.Equal(t, "test_integration", config.IntegrationName)
+				assert.Equal(t, 8080, config.Port)
+				assert.Equal(t, "30s", config.IdleTimeout)
+				assert.Equal(t, "/var/log/journal/", config.Path)
+				assert.Equal(t, "utf-8", config.Encoding)
+				require.Equal(t, len(config.ExcludePaths), 2)
+				assert.Equal(t, "beginning", config.TailingMode)
+				assert.Equal(t, "test_config_id", config.ConfigId)
+				require.Equal(t, len(config.IncludeSystemUnits), 1)
+				require.Equal(t, len(config.ExcludeSystemUnits), 3)
+				require.Equal(t, len(config.IncludeUserUnits), 1)
+				require.Equal(t, len(config.ExcludeUserUnits), 1)
+				require.Equal(t, len(config.IncludeMatches), 1)
+				require.Equal(t, len(config.ExcludeMatches), 1)
+				assert.Equal(t, true, config.ContainerMode)
+				assert.Equal(t, "test_image", config.Image)
+				assert.Equal(t, "test_label", config.Label)
+				assert.Equal(t, "test_container", config.Name)
+				assert.Equal(t, "test_identifier", config.Identifier)
+				assert.Equal(t, "/test/channel", config.ChannelPath)
+				assert.Equal(t, "SELECT * FROM logs", config.Query)
+				assert.Equal(t, "test_service", config.Service)
+				assert.Equal(t, "test_source", config.Source)
+				assert.Equal(t, "test_category", config.SourceCategory)
+				require.Equal(t, len(config.Tags), 2)
+				require.Equal(t, len(config.ProcessingRules), 1)
+				assert.Equal(t, "include_at_match", config.ProcessingRules[0].Type)
+				assert.Equal(t, "include_example", config.ProcessingRules[0].Name)
+				assert.Equal(t, "example_pattern", config.ProcessingRules[0].Pattern)
+				assert.Equal(t, true, *config.ProcessRawMessage)
+				assert.Equal(t, true, *config.AutoMultiLine)
+				assert.Equal(t, 5, config.AutoMultiLineSampleSize)
+				assert.Equal(t, 2.5, config.AutoMultiLineMatchThreshold)
+			},
+		},
 	}
 
 	for _, tt := range tests {
