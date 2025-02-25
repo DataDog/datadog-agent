@@ -290,12 +290,12 @@ build do
       if windows_target?
         # We delete the libraries shipped with the wheel and replace them with links to the embedded OpenSSL libraries.
         # This is the most straightforward solution on Windows because manipulating the binary would be a bit too involved
-        cryptography_libs_folder = windows_safe_path(install_dir, "embedded3", "lib", "site-packages", "cryptography.libs")
-        libssl_match = Dir.glob(windows_safe_path(cryptography_libs_folder, "libssl-*.so.3"))[0]
-        libcrypto_match = Dir.glob(windows_safe_path(cryptography_libs_folder, "libcrypto-*.so.3"))[0]
-        dll_folder = windows_safe_path(install_dir, "embedded3", "DLLS")
-        FileUtils.ln_s(windows_safe_path(dll_folder, "libssl-3-x64.dll"), libssl_match, force=true)
-        FileUtils.ln_s(windows_safe_path(dll_folder, "libcrypto-3-x64.dll"), libcrypto_match, force=true)
+        cryptography_libs_folder = File.join(install_dir, "embedded3", "lib", "site-packages", "cryptography.libs")
+        libssl_match = Dir.glob(File.join(cryptography_libs_folder, "libssl-3-*.dll"))[0]
+        libcrypto_match = Dir.glob(File.join(cryptography_libs_folder, "libcrypto-3-*.dll"))[0]
+        dll_folder = File.join("..", "..", "..", "DLLS")
+        FileUtils.ln_s(File.join(dll_folder, "libssl-3-x64.dll"), libssl_match, force: true)
+        FileUtils.ln_s(File.join(dll_folder, "libcrypto-3-x64.dll"), libcrypto_match, force: true)
       end
     end
   end
