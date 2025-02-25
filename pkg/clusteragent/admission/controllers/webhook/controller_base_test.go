@@ -109,6 +109,7 @@ func TestAutoInstrumentation(t *testing.T) {
 					Name: "foo",
 					Labels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
+						"app":                             "billing-service",
 					},
 					Namespace: "foo",
 				},
@@ -155,11 +156,11 @@ func TestAutoInstrumentation(t *testing.T) {
 			response := f(request)
 
 			// Check if the patch is expected.
-			emptyPatch := []byte("null")
+			emptyPatch := "null"
 			if tt.expectPatch {
-				assert.NotEqual(t, string(emptyPatch), string(response.Patch))
+				assert.NotEqual(t, emptyPatch, string(response.Patch))
 			} else {
-				assert.Equal(t, string(emptyPatch), string(response.Patch))
+				assert.Equal(t, emptyPatch, string(response.Patch))
 			}
 		})
 	}
