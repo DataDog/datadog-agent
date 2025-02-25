@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/status/def
 
-go 1.23.5
+go 1.23.0
 
 // This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
 
