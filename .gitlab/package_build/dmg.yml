@@ -110,7 +110,7 @@ new-agent_dmg-x64-a7:
   script:
     # TODO A: Add it in the runner
     - |
-      binaries="tmutil"
+      binaries="tmutil sed grep"
       for binary in $binaries; do
         echo Using $binary
         ln -s "$(which $binary)" "$HOME"/bin/$binary || true
