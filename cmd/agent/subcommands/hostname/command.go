@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -58,6 +59,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func getHostname(_ log.Component, config config.Component, params *cliParams) error {
+	return getHostnameWithWriter(nil, config, params, os.Stdout)
+}
+
+func getHostnameWithWriter(_ log.Component, config config.Component, params *cliParams, writer io.Writer) error {
 	var hname string
 	var err error
 
@@ -76,7 +81,7 @@ func getHostname(_ log.Component, config config.Component, params *cliParams) er
 		}
 	}
 
-	fmt.Println(hname)
+	fmt.Fprintln(writer, hname)
 	return nil
 }
 
@@ -86,16 +91,16 @@ func getRemoteHostname(config config.Component) (string, error) {
 		return "", err
 	}
 
-	res, err := endpoint.DoGet()
+	hname, err := endpoint.DoGet()
 	if err != nil {
 		return "", err
 	}
 
-	var hname string
-	err = json.Unmarshal(res, &hname)
+	var hostname string
+	err = json.Unmarshal(hname, &hostname)
 	if err != nil {
 		return "", err
 	}
 
-	return hname, nil
+	return hostname, nil
 }
