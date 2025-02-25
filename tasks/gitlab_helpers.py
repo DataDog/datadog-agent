@@ -338,3 +338,11 @@ def open_latest(ctx):
     j = [j for j in jobs if j.name == 'new-agent_dmg-x64-a7'][0]
     print('job', j.web_url)
     ctx.run(f'open {j.web_url}')
+
+
+@task
+def cancel_latest(ctx):
+    repo = get_gitlab_repo()
+    pipeline = repo.pipelines.list(ref=get_current_branch(ctx), page=1, per_page=1, iterator=False)[0]
+    print('Pipeline', pipeline.id, 'created at', pipeline.created_at)
+    pipeline.cancel()
