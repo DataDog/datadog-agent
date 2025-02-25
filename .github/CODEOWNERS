@@ -216,7 +216,6 @@
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/ndm-core
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
-/cmd/agent/installer.go                 @DataDog/fleet
 /cmd/agent/install*.sh                  @DataDog/container-ecosystems @DataDog/agent-delivery
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
