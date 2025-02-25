@@ -197,7 +197,7 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device nvml.
 			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
 		}
 	} else {
-		gpuDeviceInfo.MaxClockRates[workloadmeta.SM] = maxSMClock
+		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
 	}
 
 	maxMemoryClock, ret := device.GetMaxClockInfo(nvml.CLOCK_MEM)
@@ -206,7 +206,7 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device nvml.
 			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
 		}
 	} else {
-		gpuDeviceInfo.MaxClockRates[workloadmeta.Memory] = maxMemoryClock
+		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
 	}
 }
 

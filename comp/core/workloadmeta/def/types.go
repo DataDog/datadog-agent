@@ -1363,12 +1363,12 @@ type InitHelper func(context.Context, Component, config.Component) error
 type GPUClockType int
 
 const (
-	// SM Clock, use nvml.CLOCK_SM to get the value
-	SM GPUClockType = iota
-	// Memory Clock, use nvml.CLOCK_MEM to get the value
-	Memory
-	// COUNT is the total number of clock types in this enum
-	COUNT
+	// GPUSM represents SM Clock, use nvml.CLOCK_SM to get the value
+	GPUSM GPUClockType = iota
+	// GPUMemory represents Memory Clock, use nvml.CLOCK_MEM to get the value
+	GPUMemory
+	// GPUCOUNT is the total number of clock types in this enum
+	GPUCOUNT
 )
 
 // GPU represents a GPU resource.
@@ -1410,7 +1410,7 @@ type GPU struct {
 	TotalMemoryMB uint64
 
 	// MaxClockRates contains the maximum clock rates for SM and Memory
-	MaxClockRates [COUNT]uint32
+	MaxClockRates [GPUCOUNT]uint32
 
 	// MemoryBusWidth is the width of the memory bus in bits.
 	MemoryBusWidth uint32
@@ -1488,8 +1488,8 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
 	_, _ = fmt.Fprintln(&sb, "Total Memory (in MB):", g.TotalMemoryMB)
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
-	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[SM])
-	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[Memory])
+	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
+	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
 	if g.MigEnabled {
 		_, _ = fmt.Fprintln(&sb, "----------- MIG Device -----------")
 		_, _ = fmt.Fprintln(&sb, "MIG Enabled: true")
