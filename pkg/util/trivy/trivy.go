@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"runtime"
 	"slices"
 	"sync"
@@ -99,7 +100,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		DisabledHandlers:  DefaultDisabledHandlers(),
 		WalkerOption: walker.Option{
 			ErrorCallback: func(_ string, err error) error {
-				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
 					return nil
 				}
 				return err
