@@ -259,6 +259,48 @@ var pointerCaptures = fixtures{
 		},
 	}}},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nil_struct_pointer": {"x": {Type: "*struct"}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_pointer": {"z": {
+		Type: "*string",
+		Fields: fieldMap{
+			"arg_0": capturedValue("string", "abc"),
+		},
+	}},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_string": {
+		"s": &ditypes.CapturedValue{
+			Type: "*struct",
+			Fields: fieldMap{
+				"arg_0": &ditypes.CapturedValue{
+					Type: "struct",
+					Fields: fieldMap{
+						"arg_0": capturedValue("int", "5"),
+						"arg_1": capturedValue("string", "abcdef"),
+					},
+				},
+			},
+		},
+	},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_pointer_to_struct_with_a_slice": {
+		"s": &ditypes.CapturedValue{
+			Type: "*struct",
+			Fields: fieldMap{
+				"arg_0": &ditypes.CapturedValue{
+					Type: "struct",
+					Fields: fieldMap{
+						"arg_0": capturedValue("int", "5"),
+						"arg_1": &ditypes.CapturedValue{
+							Type: "[]uint8",
+							Fields: fieldMap{
+								"[0]uint8": capturedValue("uint8", "2"),
+								"[1]uint8": capturedValue("uint8", "3"),
+								"[2]uint8": capturedValue("uint8", "4"),
+							},
+						},
+						"arg_2": capturedValue("uint64", "5"),
+					},
+				},
+			},
+		},
+	},
 }
 
 // mergeMaps combines multiple fixture maps into a single map

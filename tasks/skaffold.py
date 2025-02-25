@@ -23,7 +23,7 @@ def minikube_start(ctx, path: str = ".") -> None:
             Color.BLUE,
         )
     )
-    if not is_installed(ctx, "minikube"):
+    if not is_installed("minikube"):
         print(
             color_message(
                 "Minikube CLI is not installed. Check https://minikube.sigs.k8s.io/docs/start",
@@ -73,7 +73,7 @@ def devcontainer_start(ctx) -> None:
             Color.BLUE,
         )
     )
-    if not is_installed(ctx, "docker"):
+    if not is_installed("docker"):
         print(
             color_message(
                 "Docker CLI is not installed. Check https://docs.docker.com/desktop.",
@@ -146,7 +146,7 @@ def dev(ctx) -> None:
         )
     )
     # Check if Skaffold is installed
-    if not is_installed(ctx, "skaffold"):
+    if not is_installed("skaffold"):
         print(
             color_message(
                 "Skaffold is not installed. Check https://skaffold.dev/docs/install/#standalone-binary.",

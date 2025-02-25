@@ -40,14 +40,15 @@ type CRDCollector struct {
 func NewCRDCollector() *CRDCollector {
 	return &CRDCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsManifestProducer:        true,
-			IsMetadataProducer:        false,
-			SupportsManifestBuffering: false,
-			Name:                      crdName,
-			NodeType:                  orchestrator.K8sCRD,
-			Version:                   crdVersion,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsManifestProducer:                   true,
+			IsMetadataProducer:                   false,
+			SupportsManifestBuffering:            false,
+			Name:                                 crdName,
+			NodeType:                             orchestrator.K8sCRD,
+			Version:                              crdVersion,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CRDHandlers)),
 	}

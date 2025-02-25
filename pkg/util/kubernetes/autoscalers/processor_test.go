@@ -17,8 +17,9 @@ import (
 
 	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
@@ -30,11 +31,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
-var maxAge = 30 * time.Second
+const (
+	testMaxAge          = 30 * time.Second
+	testParallelQueries = 10
+)
 
 func makePoints(ts, val int) datadog.DataPoint {
 	if ts == 0 {
-		ts = (int(metav1.Now().Unix()) - int(maxAge.Seconds())) * 1000 // use ms
+		ts = (int(metav1.Now().Unix()) - int(testMaxAge.Seconds())) * 1000 // use ms
 	}
 	tsPtr := float64(ts)
 	valPtr := float64(val)
@@ -46,8 +50,28 @@ func makePartialPoints(ts int) datadog.DataPoint {
 	return datadog.DataPoint{&tsPtr, nil}
 }
 
+func TestParallelLimit(t *testing.T) {
+	cfg := configmock.New(t)
+
+	cfg.Set("external_metrics_provider.max_parallel_queries", 3000, pkgconfigmodel.SourceLocalConfigProcess)
+	p := NewProcessor(nil)
+	assert.Equal(t, maxParallelQueries, p.parallelQueries)
+
+	cfg.Set("external_metrics_provider.max_parallel_queries", 0, pkgconfigmodel.SourceLocalConfigProcess)
+	p = NewProcessor(nil)
+	assert.Equal(t, maxParallelQueries, p.parallelQueries)
+
+	cfg.Set("external_metrics_provider.max_parallel_queries", -20, pkgconfigmodel.SourceLocalConfigProcess)
+	p = NewProcessor(nil)
+	assert.Equal(t, maxParallelQueries, p.parallelQueries)
+
+	cfg.Set("external_metrics_provider.max_parallel_queries", 20, pkgconfigmodel.SourceLocalConfigProcess)
+	p = NewProcessor(nil)
+	assert.Equal(t, 20, p.parallelQueries)
+}
+
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {
-	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
+	penTime := (int(time.Now().Unix()) - int(testMaxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
 	tests := []struct {
 		desc     string
@@ -161,7 +185,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
 				return tt.series, nil
 			})
-			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
+			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: testMaxAge, parallelQueries: testParallelQueries}
 
 			externalMetrics := hpaCl.UpdateExternalMetrics(tt.metrics)
 			fmt.Println(externalMetrics)
@@ -197,7 +221,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 		return nil, fmt.Errorf("API error 400 Bad Request: {\"error\": [\"Rate limit of 300 requests in 3600 seconds reqchec.\"]}")
 	})
 
-	hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
+	hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: testMaxAge, parallelQueries: testParallelQueries}
 	invList := hpaCl.UpdateExternalMetrics(emList)
 	require.Len(t, invList, len(emList))
 	for _, i := range invList {
@@ -217,7 +241,7 @@ func randStringRune(n int) string {
 
 func TestValidateExternalMetricsBatching(t *testing.T) {
 	metricName := "foo"
-	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
+	penTime := (int(time.Now().Unix()) - int(testMaxAge.Seconds()/2)) * 1000
 	tests := []struct {
 		desc       string
 		in         []string
@@ -344,7 +368,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 				}
 				return tt.out, nil
 			})
-			p := &Processor{datadogClient: datadogClientComp}
+			p := &Processor{datadogClient: datadogClientComp, parallelQueries: testParallelQueries}
 
 			_ = p.QueryExternalMetric(tt.in, GetDefaultTimeWindow())
 			assert.Equal(t, tt.batchCalls, res.bc)
@@ -470,7 +494,7 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
 			datadogClientComp := datadogclientmock.New(t).Comp
-			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
+			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: testMaxAge, parallelQueries: testParallelQueries}
 
 			externalMetrics := hpaCl.ProcessHPAs(&tt.metrics)
 			for id, m := range externalMetrics {
@@ -597,7 +621,7 @@ func TestUpdateRateLimiting(t *testing.T) {
 			datadogClientComp.SetGetRateLimitsFunc(func() map[string]datadog.RateLimit {
 				return tt.rateLimits
 			})
-			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
+			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: testMaxAge, parallelQueries: testParallelQueries}
 
 			hpaCl.updateRateLimitingMetrics()
 			key := strings.Join([]string{queryEndpoint, le.JoinLeaderValue}, ",")

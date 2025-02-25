@@ -767,11 +767,9 @@ func TestClientComputedStatsHeader(t *testing.T) {
 }
 
 func TestHandleTraces(t *testing.T) {
-	assert := assert.New(t)
-
 	// prepare the msgpack payload
 	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
-	assert.Nil(err)
+	assert.Nil(t, err)
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -799,17 +797,44 @@ func TestHandleTraces(t *testing.T) {
 	}
 
 	rs := receiver.Stats
-	assert.Equal(5, len(rs.Stats)) // We have a tagStats struct for each application
+	assert.Equal(t, 5, len(rs.Stats)) // We have a tagStats struct for each application
 
 	// We test stats for each app
 	for _, lang := range langs {
 		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4", Service: "fennel_IS amazing!"}]
-		assert.True(ok)
-		assert.Equal(int64(20), ts.TracesReceived.Load())
-		assert.Equal(int64(83022), ts.TracesBytes.Load())
+		assert.True(t, ok)
+		assert.Equal(t, int64(20), ts.TracesReceived.Load())
+		assert.Equal(t, int64(83022), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
-	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
+	assert.Equal(t, "C#|go|java|python|ruby", receiver.Languages())
+
+	t.Run("overwhelmed", func(t *testing.T) {
+		// prepare the msgpack payload
+		bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+		assert.Nil(t, err)
+
+		// prepare the receiver
+		conf := newTestReceiverConfig()
+		conf.DecoderTimeout = 1
+		conf.Decoders = 1
+		dynConf := sampler.NewDynamicConfig()
+
+		rawTraceChan := make(chan *Payload)
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
+		// response recorder
+		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
+		rr := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set("Datadog-Send-Real-Http-Status", "true")
+		handler.ServeHTTP(rr, req)
+		result := rr.Result()
+		defer result.Body.Close()
+		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
+		assert.Equal(t, "application/json", result.Header.Get("Content-Type"))
+	})
 }
 
 func TestClientComputedTopLevel(t *testing.T) {
