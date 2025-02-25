@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -655,18 +654,7 @@ func (p *Profile) GetImageNameTag() (string, string) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	var imageName, imageTag string
-	for _, tag := range p.tags {
-		if tagName, tagValue, valid := strings.Cut(tag, ":"); valid {
-			switch tagName {
-			case "image_name":
-				imageName = tagValue
-			case "image_tag":
-				imageTag = tagValue
-			}
-		}
-	}
-	return imageName, imageTag
+	return p.selector.Image, p.selector.Tag
 }
 
 func (p *Profile) getTimeOrderedVersionContexts() []*VersionContext {
