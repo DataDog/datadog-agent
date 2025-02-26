@@ -132,7 +132,7 @@ def run(
         if os.path.exists(os.environ.get("FLAKY_PATTERNS_CONFIG")):
             os.remove(os.environ.get("FLAKY_PATTERNS_CONFIG"))
         with open(os.environ.get("FLAKY_PATTERNS_CONFIG"), 'a') as f:
-            f.write(b"{}")
+            f.write("{}")
 
     cmd = f'gotestsum --format {gotestsum_format} '
     scrubber_raw_command = ""
