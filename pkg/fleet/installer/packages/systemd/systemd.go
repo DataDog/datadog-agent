@@ -5,7 +5,8 @@
 
 //go:build !windows
 
-package packages
+// Package systemd offers an interface over systemd
+package systemd
 
 import (
 	"context"
@@ -21,9 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const systemdPath = "/etc/systemd/system"
+const (
+	// UnitsPath is the path where systemd unit files are stored
+	UnitsPath = "/etc/systemd/system"
+)
 
-func stopUnit(ctx context.Context, unit string, args ...string) (err error) {
+// StopUnit starts a systemd unit
+func StopUnit(ctx context.Context, unit string, args ...string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "stop_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
@@ -41,7 +46,8 @@ func stopUnit(ctx context.Context, unit string, args ...string) (err error) {
 	return errors.New(string(exitErr.Stderr))
 }
 
-func startUnit(ctx context.Context, unit string, args ...string) (err error) {
+// StartUnit starts a systemd unit
+func StartUnit(ctx context.Context, unit string, args ...string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "start_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
@@ -55,7 +61,8 @@ func startUnit(ctx context.Context, unit string, args ...string) (err error) {
 	return errors.New(string(exitErr.Stderr))
 }
 
-func enableUnit(ctx context.Context, unit string) (err error) {
+// EnableUnit enables a systemd unit
+func EnableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "enable_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
@@ -68,7 +75,8 @@ func enableUnit(ctx context.Context, unit string) (err error) {
 	return errors.New(string(exitErr.Stderr))
 }
 
-func disableUnit(ctx context.Context, unit string) (err error) {
+// DisableUnit disables a systemd unit
+func DisableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "disable_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
@@ -92,30 +100,51 @@ func disableUnit(ctx context.Context, unit string) (err error) {
 	return errors.New(string(exitErr.Stderr))
 }
 
-func loadUnit(ctx context.Context, unit string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "load_unit")
+// WriteEmbeddedUnit writes a systemd unit from embedded resources
+func WriteEmbeddedUnit(ctx context.Context, unit string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "write_embedded_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 	content, err := embedded.FS.ReadFile(unit)
 	if err != nil {
 		return fmt.Errorf("error reading embedded unit %s: %w", unit, err)
 	}
-	unitPath := filepath.Join(systemdPath, unit)
+	err = os.MkdirAll(UnitsPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating systemd directory: %w", err)
+	}
+	unitPath := filepath.Join(UnitsPath, unit)
 	return os.WriteFile(unitPath, content, 0644)
 }
 
-func removeUnit(ctx context.Context, unit string) (err error) {
+// RemoveUnit removes a systemd unit
+func RemoveUnit(ctx context.Context, unit string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "remove_unit")
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
-	err = os.Remove(path.Join(systemdPath, unit))
+	err = os.Remove(path.Join(UnitsPath, unit))
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
 }
 
-func systemdReload(ctx context.Context) (err error) {
+// WriteUnitOverride writes a systemd unit override
+func WriteUnitOverride(ctx context.Context, unit string, name string, content string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "write_unit_override")
+	defer func() { span.Finish(err) }()
+	span.SetTag("unit", unit)
+	span.SetTag("name", name)
+	err = os.MkdirAll(filepath.Join(UnitsPath, unit+".d"), 0755)
+	if err != nil {
+		return fmt.Errorf("error creating systemd directory: %w", err)
+	}
+	overridePath := filepath.Join(UnitsPath, unit+".d", fmt.Sprintf("%s.conf", name))
+	return os.WriteFile(overridePath, []byte(content), 0644)
+}
+
+// Reload reloads the systemd daemon
+func Reload(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "systemd_reload")
 	defer func() { span.Finish(err) }()
 	err = exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
@@ -127,9 +156,9 @@ func systemdReload(ctx context.Context) (err error) {
 	return errors.New(string(exitErr.Stderr))
 }
 
-// isSystemdRunning checks if systemd is running using the documented way
+// IsRunning checks if systemd is running using the documented way
 // https://www.freedesktop.org/software/systemd/man/latest/sd_booted.html#Notes
-func isSystemdRunning() (running bool, err error) {
+func IsRunning() (running bool, err error) {
 	_, err = os.Stat("/run/systemd/system")
 	if os.IsNotExist(err) {
 		log.Infof("Installer: systemd is not running, skip unit setup")

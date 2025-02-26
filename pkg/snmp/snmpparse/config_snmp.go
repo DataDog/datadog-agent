@@ -151,8 +151,8 @@ func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 	// c is of type config while the cr is the config check response including the instances
 	var snmpConfigs []SNMPConfig
 	for _, c := range cr.Configs {
-		if c.Name == "snmp" {
-			snmpConfigs = append(snmpConfigs, ParseConfigSnmp(c)...)
+		if c.Config.Name == "snmp" {
+			snmpConfigs = append(snmpConfigs, ParseConfigSnmp(c.Config)...)
 		}
 	}
 	snmpconfigMain, _ := parseConfigSnmpMain(conf)

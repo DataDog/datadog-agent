@@ -45,16 +45,17 @@ func NewVerticalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *Ver
 
 	return &VerticalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      vpaName,
-			NodeType:                  orchestrator.K8sVerticalPodAutoscaler,
-			Version:                   vpaVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 vpaName,
+			NodeType:                             orchestrator.K8sVerticalPodAutoscaler,
+			Version:                              vpaVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.VerticalPodAutoscalerHandlers)),
 	}

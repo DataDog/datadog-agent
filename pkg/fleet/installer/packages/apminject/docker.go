@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package packages
+package apminject
 
 import (
 	"bytes"
@@ -32,7 +32,7 @@ var (
 )
 
 // instrumentDocker instruments the docker runtime to use the APM injector.
-func (a *apmInjectorInstaller) instrumentDocker(ctx context.Context) (func() error, error) {
+func (a *InjectorInstaller) instrumentDocker(ctx context.Context) (func() error, error) {
 	err := os.MkdirAll("/etc/docker", 0755)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (a *apmInjectorInstaller) instrumentDocker(ctx context.Context) (func() err
 }
 
 // uninstrumentDocker removes the APM injector from the Docker runtime.
-func (a *apmInjectorInstaller) uninstrumentDocker(ctx context.Context) error {
+func (a *InjectorInstaller) uninstrumentDocker(ctx context.Context) error {
 	if !isDockerInstalled(ctx) {
 		return nil
 	}
@@ -73,7 +73,7 @@ func (a *apmInjectorInstaller) uninstrumentDocker(ctx context.Context) error {
 }
 
 // setDockerConfigContent sets the content of the docker daemon configuration
-func (a *apmInjectorInstaller) setDockerConfigContent(ctx context.Context, previousContent []byte) (res []byte, err error) {
+func (a *InjectorInstaller) setDockerConfigContent(ctx context.Context, previousContent []byte) (res []byte, err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "set_docker_config_content")
 	defer span.Finish(err)
 
@@ -106,7 +106,7 @@ func (a *apmInjectorInstaller) setDockerConfigContent(ctx context.Context, previ
 }
 
 // deleteDockerConfigContent restores the content of the docker daemon configuration
-func (a *apmInjectorInstaller) deleteDockerConfigContent(_ context.Context, previousContent []byte) ([]byte, error) {
+func (a *InjectorInstaller) deleteDockerConfigContent(_ context.Context, previousContent []byte) ([]byte, error) {
 	dockerConfig := dockerDaemonConfig{}
 
 	if len(previousContent) > 0 {
@@ -139,7 +139,7 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(_ context.Context, prev
 // As the reload is eventually consistent we have to retry a few times
 //
 // This method is valid since at least Docker 17.03 (last update 2018-08-30)
-func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error) {
+func (a *InjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "verify_docker_runtime")
 	defer func() { span.Finish(err) }()
 

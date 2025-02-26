@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -414,7 +413,6 @@ type installerConfig struct {
 func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
-		"DD_REMOTE_POLICIES=true",
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -443,7 +441,6 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	timestamp := s.host.LastJournaldTimestamp()
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
-		"DD_REMOTE_POLICIES=true",
 	)
 	defer s.Purge()
 
@@ -536,7 +533,6 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
-		"DD_REMOTE_POLICIES=true",
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -573,7 +569,6 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
-		"DD_REMOTE_POLICIES=true",
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -853,7 +848,7 @@ func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config ins
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s '%s' > /tmp/start_config_experiment.log 2>&1", pkg, config.ID, rawConfig)
 	s.T().Logf("Running start command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_REMOTE_POLICIES": "true"}))
+	return s.Env().RemoteHost.Execute(cmd)
 }
 
 func (s *upgradeScenarioSuite) mustStartConfigExperiment(pkg packageName, config installerConfig) string {
@@ -870,7 +865,7 @@ func (s *upgradeScenarioSuite) promoteConfigExperiment(pkg packageName) (string,
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo -E datadog-installer promote-config-experiment %s > /tmp/promote_config_experiment.log 2>&1", pkg)
 	s.T().Logf("Running promote command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_REMOTE_POLICIES": "true"}))
+	return s.Env().RemoteHost.Execute(cmd)
 }
 
 func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(pkg packageName) string {
@@ -887,7 +882,7 @@ func (s *upgradeScenarioSuite) stopConfigExperiment(pkg packageName) (string, er
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo -E datadog-installer remove-config-experiment %s > /tmp/stop_config_experiment.log 2>&1", pkg)
 	s.T().Logf("Running stop command: %s", cmd)
-	return s.Env().RemoteHost.Execute(cmd, client.WithEnvVariables(map[string]string{"DD_REMOTE_POLICIES": "true"}))
+	return s.Env().RemoteHost.Execute(cmd)
 }
 
 func (s *upgradeScenarioSuite) mustStopConfigExperiment(pkg packageName) string {
