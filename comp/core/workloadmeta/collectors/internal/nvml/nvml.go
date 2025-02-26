@@ -52,7 +52,7 @@ func (c *collector) getDeviceInfo(device nvml.Device) (string, string, error) {
 // getMigProfileName() returns the canonical name of the MIG device
 func getMigProfileName(attr nvml.DeviceAttributes) (string, error) {
 	g := attr.GpuInstanceSliceCount
-	gb := ((attr.MemorySizeMB + 1024 - 1) / 1024)
+	gb := (attr.MemorySizeMB + 1024 - 1) / 1024
 	r := fmt.Sprintf("%dg.%dgb", g, gb)
 	return r, nil
 }
