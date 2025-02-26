@@ -1,5 +1,6 @@
 #!/bin/bash -e
 
+# TODO A: Remove, this is from the runner
 if [ "$1" = SETUP_RUNNER ]; then
     set -euxo pipefail
 
@@ -71,7 +72,7 @@ if [ "$1" = SETUP_RUNNER ]; then
     brew tap DataDog/datadog-agent-macos-build
 
     echo Install libffi
-    brew install libffi@LIBFFI_VERSION -f
+    brew install libffi@$LIBFFI_VERSION -f
 
     echo Install cmake
     brew install DataDog/datadog-agent-macos-build/cmake@$CMAKE_VERSION -f
