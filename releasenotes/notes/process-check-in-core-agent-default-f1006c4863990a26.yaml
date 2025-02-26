@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Process checks will now run in the core agent by default on Linux. Process Agent will only run if needed for other configured features.
+    Process checks now run in the core Agent by default on Linux. Process Agent will only run if needed for other configured features.
