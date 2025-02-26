@@ -505,7 +505,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^sub-team:contint$`,
 				`^kube_instance_tag:static$`,
-				fmt.Sprintf("^stackid:%s$", suite.clusterName),
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -603,7 +603,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,
-				fmt.Sprintf("^stackid:%s$", suite.clusterName),
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -815,7 +815,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^kube_instance_tag:static$`,
-				fmt.Sprintf("^stackid:%s$", suite.clusterName),
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -837,7 +837,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,
-				fmt.Sprintf("^stackid:%s$", suite.clusterName),
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -860,7 +860,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^ddm_namespace:workload-(?:nginx|redis)$`,
 				`^ddm_name:(?:nginx|redis)$`,
 				`^kube_instance_tag:static$`,
-				fmt.Sprintf("^stackid:%s$", suite.clusterName),
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 			},
 		},
 	})
