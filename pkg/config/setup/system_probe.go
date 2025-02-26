@@ -493,4 +493,6 @@ var DefaultPrivateIPCIDRs = []string{
 	"100.64.0.0/10",
 	// IETF RFC 4193
 	"fc00::/7",
+	// IPv6 loopback address
+	"::1/128",
 }
