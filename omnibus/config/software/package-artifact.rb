@@ -12,7 +12,7 @@ build do
   Dir.glob("*.tar.xz", base: input_dir).each do |input|
     path = File.join(input_dir, input)
     command "tar xf #{path} -C /"
-    delete path
+    FileUtils.rm path
   end
 
   # Merge version manifests together
@@ -25,7 +25,7 @@ build do
       additional_versions = FFI_Yajl::Parser.parse(File.read(version_manifest_json_path))
 
       versions["software"].merge!(additional_versions["software"])
-      delete version_manifest_json_path
+      FileUtils.rm version_manifest_json_path
     end
     File.open(main_json_manifest, "w") do |f|
       f.write(FFI_Yajl::Encoder.encode(versions.to_hash, pretty: true))
@@ -38,7 +38,7 @@ build do
       # Simply append the listing part. The first 4 lines are the package name, blank lines
       # listing headers and a separator.
       command "tail -n +5 #{version_manifest_txt_path} >> #{main_txt_manifest}"
-      delete version_manifest_txt_path
+      FileUtils.rm version_manifest_txt_path
     end
   end
 
