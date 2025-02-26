@@ -45,15 +45,11 @@ import (
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
-type ActivityDumpHandler interface {
-	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
-}
 
 const (
 	// ActivityDumpSource defines the source of activity dumps
@@ -93,8 +89,8 @@ type Manager struct {
 	workloadDenyListHits *atomic.Uint64
 
 	// storage
-	localStorage              *Directory
-	remoteStorage             *ActivityDumpRemoteStorageForwarder
+	localStorage              *storage.Directory
+	remoteStorage             *storage.ActivityDumpRemoteStorageForwarder
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
 
 	activeDumps         []*dump.ActivityDump
@@ -136,7 +132,7 @@ type Manager struct {
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler ActivityDumpHandler) (*Manager, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler storage.ActivityDumpHandler) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -191,12 +187,12 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		workloadDenyList = append(workloadDenyList, selectorTmp)
 	}
 
-	localStorage, err := NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
+	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the local storage: %w", err)
 	}
 
-	remoteStorage, err := NewActivityDumpRemoteStorageForwarder(dumpHandler)
+	remoteStorage, err := storage.NewActivityDumpRemoteStorageForwarder(dumpHandler)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the remote storage forwarder: %w", err)
 	}
@@ -2027,7 +2023,7 @@ func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.Storage
 		}
 
 		for _, request := range requests {
-			var storage ActivityDumpStorage
+			var storage storage.ActivityDumpStorage
 			switch request.Type {
 			case config.LocalStorage:
 				storage = m.localStorage

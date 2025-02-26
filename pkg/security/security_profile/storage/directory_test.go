@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package securityprofile holds security profiles related files
-package securityprofile
+// Package storage holds files related to storages for security profiles
+package storage
 
 import (
 	"os"
