@@ -162,9 +162,12 @@ func TestMergeGPU(t *testing.T) {
 		EntityMeta: EntityMeta{
 			Name: "gpu-1",
 		},
-		Vendor:     "nvidia",
-		Device:     "",
-		ActivePIDs: []int{123, 456},
+		Vendor:         "nvidia",
+		DriverVersion:  "460.32.03",
+		Device:         "",
+		ActivePIDs:     []int{123, 456},
+		TotalMemoryMB:  4096,
+		MemoryBusWidth: 256,
 	}
 	gpu2 := GPU{
 		EntityID: EntityID{
@@ -174,9 +177,12 @@ func TestMergeGPU(t *testing.T) {
 		EntityMeta: EntityMeta{
 			Name: "gpu-1",
 		},
-		Vendor:     "nvidia",
-		Device:     "tesla",
-		ActivePIDs: []int{654},
+		Vendor:         "nvidia",
+		DriverVersion:  "460.32.03",
+		Device:         "tesla",
+		ActivePIDs:     []int{654},
+		TotalMemoryMB:  4096,
+		MemoryBusWidth: 256,
 	}
 
 	err := gpu1.Merge(&gpu2)
