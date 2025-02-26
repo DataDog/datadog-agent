@@ -46,7 +46,6 @@ if [ "$1" = SETUP_RUNNER ]; then
     export GPG_VERSION=1.4.23
     # export CODECOV_VERSION=v0.6.1
     export OPENSSL_VERSION=1.1
-    export LIBFFI_VERSION=3.4.6
 
     # TODO A: Try block listing?
     # TODO A: Find a better way
@@ -72,7 +71,7 @@ if [ "$1" = SETUP_RUNNER ]; then
     brew tap DataDog/datadog-agent-macos-build
 
     echo Install libffi
-    brew install libffi@$LIBFFI_VERSION -f
+    brew install libffi -f
 
     echo Install cmake
     brew install DataDog/datadog-agent-macos-build/cmake@$CMAKE_VERSION -f
