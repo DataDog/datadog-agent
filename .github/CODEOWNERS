@@ -192,9 +192,12 @@
 /cmd/                                   @DataDog/agent-configuration
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc       @DataDog/windows-agent
+/cmd/agent/subcommands/check            @DataDog/agent-runtimes @DataDog/agent-metric-pipelines @DataDog/agent-integrations
 /cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metric-pipelines
 /cmd/agent/subcommands/integrations     @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metric-pipelines
+/cmd/agent/subcommands/hostname         @DataDog/agent-runtimes
+/cmd/agent/subcommands/version          @DataDog/agent-runtimes
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/ndm-core
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-log-pipelines
@@ -359,6 +362,8 @@
 /pkg/collector/                         @DataDog/agent-metric-pipelines
 /pkg/commonchecks/                      @DataDog/agent-metric-pipelines
 /pkg/cli/                               @DataDog/agent-configuration
+/pkg/cli/subcommands/check              @DataDog/agent-runtimes @DataDog/agent-metric-pipelines @DataDog/agent-integrations
+/pkg/cli/subcommands/version            @DataDog/agent-runtimes
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/discovery/                         @DataDog/agent-discovery
 /pkg/errors/                            @DataDog/agent-runtimes
