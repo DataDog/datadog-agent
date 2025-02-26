@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package securityprofile holds security profiles related files
-package securityprofile
+// Package storage holds files related to storages for security profiles
+package storage
 
 import (
 	"bytes"
