@@ -7,7 +7,6 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -15,6 +14,9 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"google.golang.org/genproto/googleapis/rpc/code"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -31,15 +33,16 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service      string
-	Name         string
-	Resource     string
-	Type         string
-	SpanKind     string
-	StatusCode   uint32
-	Synthetics   bool
-	PeerTagsHash uint64
-	IsTraceRoot  pb.Trilean
+	Service        string
+	Name           string
+	Resource       string
+	Type           string
+	SpanKind       string
+	StatusCode     uint32
+	Synthetics     bool
+	PeerTagsHash   uint64
+	IsTraceRoot    pb.Trilean
+	GRPCStatusCode string
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -82,15 +85,16 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:     s.resource,
-			Service:      s.service,
-			Name:         s.name,
-			SpanKind:     s.spanKind,
-			Type:         s.typ,
-			StatusCode:   s.statusCode,
-			Synthetics:   synthetics,
-			IsTraceRoot:  isTraceRoot,
-			PeerTagsHash: peerTagsHash(s.matchingPeerTags),
+			Resource:       s.resource,
+			Service:        s.service,
+			Name:           s.name,
+			SpanKind:       s.spanKind,
+			Type:           s.typ,
+			StatusCode:     s.statusCode,
+			Synthetics:     synthetics,
+			IsTraceRoot:    isTraceRoot,
+			GRPCStatusCode: s.grpcStatusCode,
+			PeerTagsHash:   peerTagsHash(s.matchingPeerTags),
 		},
 	}
 	return agg
@@ -117,14 +121,48 @@ func peerTagsHash(tags []string) uint64 {
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:     g.Resource,
-			Service:      g.Service,
-			Name:         g.Name,
-			SpanKind:     g.SpanKind,
-			StatusCode:   g.HTTPStatusCode,
-			Synthetics:   g.Synthetics,
-			PeerTagsHash: peerTagsHash(g.PeerTags),
-			IsTraceRoot:  g.IsTraceRoot,
+			Resource:       g.Resource,
+			Service:        g.Service,
+			Name:           g.Name,
+			SpanKind:       g.SpanKind,
+			StatusCode:     g.HTTPStatusCode,
+			Synthetics:     g.Synthetics,
+			PeerTagsHash:   peerTagsHash(g.PeerTags),
+			IsTraceRoot:    g.IsTraceRoot,
+			GRPCStatusCode: g.GRPCStatusCode,
 		},
 	}
+}
+
+func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
+	// List of possible keys to check in order
+	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
+
+	for _, key := range metaKeys {
+		if strC, exists := meta[key]; exists && strC != "" {
+			c, err := strconv.ParseUint(strC, 10, 32)
+			if err == nil {
+				return strconv.FormatUint(c, 10)
+			}
+			strCUpper := strings.ToUpper(strC)
+			if strCUpper == "CANCELED" || strCUpper == "CANCELLED" { // the rpc code google api checks for "CANCELLED" but we receive "Canceled" from upstream
+				return strconv.FormatInt(int64(codes.Canceled), 10)
+			}
+
+			// If not integer, check for valid gRPC status string
+			if codeNum, found := code.Code_value[strCUpper]; found {
+				return strconv.Itoa(int(codeNum))
+			}
+
+			return ""
+		}
+	}
+
+	for _, key := range metaKeys { // metaKeys are the same keys we check for in metrics
+		if code, ok := metrics[key]; ok {
+			return strconv.FormatUint(uint64(code), 10)
+		}
+	}
+
+	return ""
 }
