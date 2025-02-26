@@ -7,12 +7,14 @@ package ec2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	ddhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 var publicIPv4Fetcher = cachedfetch.Fetcher{
@@ -113,6 +115,12 @@ var vpcSubnetFetcher = cachedfetch.Fetcher{
 		addMAC := func(mac string, endpoint string) error {
 			mac = strings.TrimSuffix(mac, "/")
 			cidrs, err := getMetadataItem(ctx, fmt.Sprintf("%s/%s/%s", imdsNetworkMacs, mac, endpoint), imdsV2, true)
+			var sce *ddhttp.StatusCodeError
+			// if the interface doesn't have CIDRs, e.g. it's ipv4 only, then it will 404.
+			// treat that as an empty list of CIDRs.
+			if errors.As(err, &sce) && sce.StatusCode == 404 {
+				return nil
+			}
 			if err != nil {
 				return fmt.Errorf("EC2: GetVPCSubnetsForHost failed to get CIDRs for mac %s: %w", mac, err)
 			}
