@@ -91,7 +91,7 @@ func NewSBOMContainerFilter() (*containers.Filter, error) {
 	excludeList := pkgconfigsetup.Datadog().GetStringSlice("sbom.container_image.container_exclude")
 
 	if pkgconfigsetup.Datadog().GetBool("sbom.container_image.exclude_pause_container") {
-		excludeList = containers.GetPauseContainerExcludeList()
+		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
 	}
 
 	return containers.NewFilter(containers.GlobalFilter, includeList, excludeList)
