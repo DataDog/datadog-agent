@@ -2244,7 +2244,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					transform.KeyDatadogResource:       "test-resource",
 					transform.KeyDatadogType:           "test-type",
 					transform.KeyDatadogError:          1,
-					transform.KeyDatadogEnv:            "test-env",
+					transform.KeyDatadogEnvironment:    "test-env",
 					transform.KeyDatadogVersion:        "test-version",
 					transform.KeyDatadogSpanKind:       "test-kind",
 					transform.KeyDatadogErrorMsg:       "Out of memory",

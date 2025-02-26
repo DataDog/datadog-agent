@@ -26,22 +26,36 @@ import (
 )
 
 const (
-	KeyDatadogService        = "datadog.service"
-	KeyDatadogName           = "datadog.name"
-	KeyDatadogResource       = "datadog.resource"
-	KeyDatadogSpanKind       = "datadog.span.kind"
-	KeyDatadogType           = "datadog.type"
-	KeyDatadogError          = "datadog.error"
-	KeyDatadogEnv            = "datadog.env"
-	KeyDatadogVersion        = "datadog.version"
+	// KeyDatadogService is the key for the service name in the Datadog namespace
+	KeyDatadogService = "datadog.service"
+	// KeyDatadogName is the key for the operation name in the Datadog namespace
+	KeyDatadogName = "datadog.name"
+	// KeyDatadogResource is the key for the resource name in the Datadog namespace
+	KeyDatadogResource = "datadog.resource"
+	// KeyDatadogSpanKind is the key for the span kind in the Datadog namespace
+	KeyDatadogSpanKind = "datadog.span.kind"
+	// KeyDatadogType is the key for the span type in the Datadog namespace
+	KeyDatadogType = "datadog.type"
+	// KeyDatadogError is the key for the error flag in the Datadog namespace
+	KeyDatadogError = "datadog.error"
+	// KeyDatadogErrorMsg is the key for the error message in the Datadog namespace
+	KeyDatadogErrorMsg = "datadog.error.msg"
+	// KeyDatadogErrorType is the key for the error type in the Datadog namespace
+	KeyDatadogErrorType = "datadog.error.type"
+	// KeyDatadogErrorStack is the key for the error stack in the Datadog namespace
+	KeyDatadogErrorStack = "datadog.error.stack"
+	// KeyDatadogVersion is the key for the version in the Datadog namespace
+	KeyDatadogVersion = "datadog.version"
+	// KeyDatadogHTTPStatusCode is the key for the HTTP status code in the Datadog namespace
 	KeyDatadogHTTPStatusCode = "datadog.http_status_code"
-	KeyDatadogErrorMsg       = "datadog.error.msg"
-	KeyDatadogErrorType      = "datadog.error.type"
-	KeyDatadogErrorStack     = "datadog.error.stack"
-	KeyDatadogHost           = "datadog.host"
-	KeyDatadogEnvironment    = "datadog.environment"
-	KeyDatadogContainerId    = "datadog.container_id"
-	KeyDatadogContainerTags  = "datadog.container_tags"
+	// KeyDatadogHost is the key for the host in the Datadog namespace
+	KeyDatadogHost = "datadog.host"
+	// KeyDatadogEnvironment is the key for the environment in the Datadog namespace
+	KeyDatadogEnvironment = "datadog.env"
+	// KeyDatadogContainerID is the key for the container ID in the Datadog namespace
+	KeyDatadogContainerID = "datadog.container_id"
+	// KeyDatadogContainerTags is the key for the container tags in the Datadog namespace
+	KeyDatadogContainerTags = "datadog.container_tags"
 )
 
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
@@ -200,7 +214,7 @@ func setMetricOTLPWithSemConvMappings(k string, value float64, ddspan *pb.Span, 
 }
 
 var ddSemanticsKeysToMetaKeys = map[string]string{
-	KeyDatadogEnv:            "env",
+	KeyDatadogEnvironment:    "env",
 	KeyDatadogVersion:        "version",
 	KeyDatadogHTTPStatusCode: "http.status_code",
 	KeyDatadogErrorMsg:       "error.msg",
@@ -209,7 +223,7 @@ var ddSemanticsKeysToMetaKeys = map[string]string{
 }
 
 var metaKeysToDDSemanticsKeys = map[string]string{
-	"env":              KeyDatadogEnv,
+	"env":              KeyDatadogEnvironment,
 	"version":          KeyDatadogVersion,
 	"http.status_code": KeyDatadogHTTPStatusCode,
 	"error.msg":        KeyDatadogErrorMsg,

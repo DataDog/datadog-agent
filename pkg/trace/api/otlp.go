@@ -311,7 +311,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		hostname = incomingHostname
 	}
 
-	containerID := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerId)
+	containerID := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerID)
 	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		containerID = traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 	}
