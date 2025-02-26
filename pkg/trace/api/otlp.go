@@ -337,7 +337,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
 		payloadTags := flatten(ctags)
 
-		// Ppoulate container tags by calling ContainerTags tagger from configuration
+		// Populate container tags by calling ContainerTags tagger from configuration
 		if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
 			appendTags(payloadTags, tags)
 		} else {

@@ -169,7 +169,8 @@ func isDatadogAPMConventionKey(k string) bool {
 }
 
 // GetDDKeyForOTLPAttribute looks for a key in the Datadog HTTP convention that matches the given key from the
-// OTLP HTTP convention
+// OTLP HTTP convention. Otherwise, check if it is a Datadog APM convention key - if it is, it will be handled with
+// specialized logic elsewhere, so return an empty string. If it isn't, return the original key.
 func GetDDKeyForOTLPAttribute(k string) string {
 	mappedKey, found := attributes.HTTPMappings[k]
 	switch {
@@ -246,9 +247,9 @@ func OtelSpanToDDSpan(
 	}
 	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil)
 
-	for k, v := range ddSemanticsKeysToMetaKeys {
-		if incomingValue := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, k); incomingValue != "" {
-			ddspan.Meta[v] = incomingValue
+	for ddSemanticKey, ddSpanMetaKey := range ddSemanticsKeysToMetaKeys {
+		if incomingValue := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, ddSemanticKey); incomingValue != "" {
+			ddspan.Meta[ddSpanMetaKey] = incomingValue
 		}
 	}
 
