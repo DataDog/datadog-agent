@@ -29,9 +29,9 @@ func TestContextMetricsGaugeSampling(t *testing.T) {
 	series, err := metrics.Flush(12345)
 
 	assert.Len(t, err, 0)
-	expectedSerie := &Serie{
+	expectedSerie := SerieData{
 		ContextKey: contextKey,
-		Points:     []Point{{12345.0, mSample.Value}},
+		Point:      Point{12345.0, mSample.Value},
 		MType:      APIGaugeType,
 		NameSuffix: "",
 	}
