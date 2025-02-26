@@ -399,7 +399,7 @@ def pretty_print_test_logs(logs_per_test: dict[tuple[str, str], str], max_size):
     return size
 
 
-def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_depth=1):
+def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_depth=1, flakes_files=None):
     """Pretty prints logs with a specific order.
 
     Print order:
@@ -408,10 +408,12 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
         3. Successful and non flaky tests
         4. Successful and flaky tests
     """
+    if flakes_files is None:
+        flakes_files = []
 
     result_json_name = result_json_path.split("/")[-1]
     result_json_dir = result_json_path.removesuffix('/' + result_json_name)
-    washer = TestWasher(test_output_json_file=result_json_name)
+    washer = TestWasher(test_output_json_file=result_json_name, flakes_file_paths=flakes_files)
     failing_tests = washer.get_failing_tests(result_json_dir)
     flaky_failures = washer.get_flaky_failures(result_json_dir)
 
