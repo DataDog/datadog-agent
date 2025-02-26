@@ -32,7 +32,7 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
-if windows_target? || osx_target?
+unless linux_target?
     raise UnknownPlatform
 end
 
@@ -69,9 +69,7 @@ end
 # ------------------------------------
 dependency 'datadog-otel-agent'
 
-if linux_target?
-    extra_package_file "#{output_config_dir}/etc/datadog-agent/"
-end
+extra_package_file "#{output_config_dir}/etc/datadog-agent/"
 
 exclude '\.git*'
 exclude 'bundler\/git'
