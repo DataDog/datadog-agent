@@ -169,6 +169,7 @@ export KEYCHAIN_NAME=${KEYCHAIN_NAME:-"login.keychain"}
 
 # Load build setup vars
 source ~/.build_setup
+source ~/.zshrc
 
 # Install python deps (invoke, etc.)
 
