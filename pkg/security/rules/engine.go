@@ -404,7 +404,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					return
 				}
 
-				scopedValue := fmt.Sprintf("%v", value)
+				scopedValue := fmt.Sprintf("%+v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
 					Value: scopedValue,
@@ -417,8 +417,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			if !found {
 				continue
 			}
-
-			scopedValue := fmt.Sprintf("%v", value)
+			scopedValue := fmt.Sprintf("%+v", value)
 			seclVariables[name] = &api.SECLVariableState{
 				Name:  name,
 				Value: scopedValue,
