@@ -37,7 +37,7 @@ const (
 	reverseDNSLookupMetricPrefix        = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
-	netpathConnsSkippedMetricName       = networkPathCollectorMetricPrefix + "conns_skipped"
+	netpathConnsSkippedMetricName       = networkPathCollectorMetricPrefix + "schedule.conns_skipped"
 )
 
 type npCollectorImpl struct {
