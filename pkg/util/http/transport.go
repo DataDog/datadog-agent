@@ -239,3 +239,11 @@ func WithHTTP2() func(*http.Transport) {
 		}
 	}
 }
+
+// MaxConnsPerHost configures the maximum number of connections that can be created
+// per host on the http transport
+func MaxConnsPerHost(maxConns int) func(*http.Transport) {
+	return func(transport *http.Transport) {
+		transport.MaxConnsPerHost = maxConns
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -43,6 +44,9 @@ type Worker struct {
 	pointSuccessfullySent PointSuccessfullySent
 	// If the client is for cluster agent
 	isLocal bool
+
+	// The maximum number of HTTP requests we can have inflight at any one time.
+	maxConcurrentRequests *semaphore.Weighted
 }
 
 // PointSuccessfullySent is called when sending successfully a point to the intake.
@@ -61,7 +65,13 @@ func NewWorker(
 	blocked *blockedEndpoints,
 	pointSuccessfullySent PointSuccessfullySent,
 	isLocal bool,
+	maxConcurrentRequests int64,
 ) *Worker {
+	var maxConcurrentRequestsSem *semaphore.Weighted
+	if maxConcurrentRequests > 0 {
+		maxConcurrentRequestsSem = semaphore.NewWeighted(maxConcurrentRequests)
+	}
+
 	worker := &Worker{
 		config:                config,
 		log:                   log,
@@ -71,10 +81,11 @@ func NewWorker(
 		resetConnectionChan:   make(chan struct{}, 1),
 		stopChan:              make(chan struct{}),
 		stopped:               make(chan struct{}),
-		Client:                NewHTTPClient(config),
+		Client:                NewHTTPClient(config, log),
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
 		isLocal:               isLocal,
+		maxConcurrentRequests: maxConcurrentRequestsSem,
 	}
 	if isLocal {
 		worker.Client = newBearerAuthHTTPClient()
@@ -83,8 +94,24 @@ func NewWorker(
 }
 
 // NewHTTPClient creates a new http.Client
-func NewHTTPClient(config config.Component) *http.Client {
-	transport := httputils.CreateHTTPTransport(config)
+func NewHTTPClient(config config.Component, log log.Component) *http.Client {
+	var transport *http.Transport
+
+	transportConfig := config.Get("forwarder_http_protocol")
+
+	switch transportConfig {
+	case "http1":
+		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(1))
+	case "auto":
+		fallthrough
+	default:
+		if transportConfig != "auto" && log != nil {
+			// The diagnose package calls this function and doesn't have access to a logger,
+			// so we need to check if one is provided.
+			log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
+		}
+		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(1))
+	}
 
 	return &http.Client{
 		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
@@ -178,6 +205,26 @@ func (w *Worker) ScheduleConnectionReset() {
 	}
 }
 
+// acquireRequestSemaphore attempts to acquire a semaphore, which will block
+// if we are already sending too many requests.
+// This can be bypassed by configuring `forwarder_max_concurrent_requests = 0`.
+func (w *Worker) acquireRequestSemaphore(ctx context.Context) error {
+	if w.maxConcurrentRequests != nil {
+		err := w.maxConcurrentRequests.Acquire(ctx, 1)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *Worker) releaseRequestSemaphore() {
+	if w.maxConcurrentRequests != nil {
+		w.maxConcurrentRequests.Release(1)
+	}
+}
+
 // callProcess will process a transaction and cancel it if we need to stop the
 // worker.
 func (w *Worker) callProcess(t transaction.Transaction) error {
@@ -190,23 +237,34 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
+
+	// Block here if we are already sending too many requests
+	err := w.acquireRequestSemaphore(ctx)
+	if err != nil {
+		cancel()
+		return err
+	}
+
 	done := make(chan interface{})
 	go func() {
+		defer cancel()
 		w.process(ctx, t)
+		w.releaseRequestSemaphore()
 		done <- nil
 	}()
 
 	select {
-	case <-done:
-		// wait for the Transaction process to be over
 	case <-w.stopChan:
 		// cancel current Transaction if we need to stop the worker
 		cancel()
 		w.requeue(t)
 		<-done // We still need to wait for the process func to return
 		return fmt.Errorf("Worker was requested to stop")
+
+	default:
+		// Don't block
 	}
-	cancel()
+
 	return nil
 }
 
@@ -243,6 +301,6 @@ func (w *Worker) resetConnections() {
 	if w.isLocal {
 		w.Client = newBearerAuthHTTPClient()
 	} else {
-		w.Client = NewHTTPClient(w.config)
+		w.Client = NewHTTPClient(w.config, w.log)
 	}
 }

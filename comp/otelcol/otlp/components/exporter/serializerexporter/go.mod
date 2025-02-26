@@ -203,6 +203,7 @@ require (
 	go.opentelemetry.io/collector/extension/auth v0.120.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.120.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.59.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
 )
 
 // This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
