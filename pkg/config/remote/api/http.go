@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -240,9 +241,7 @@ func (c *HTTPClient) UpdatePARJWT(jwt string) {
 
 func (c *HTTPClient) addHeaders(req *http.Request) {
 	c.headerLock.RLock()
-	for k, v := range c.header {
-		req.Header[k] = v
-	}
+	maps.Copy(req.Header, c.header)
 	c.headerLock.RUnlock()
 }
 

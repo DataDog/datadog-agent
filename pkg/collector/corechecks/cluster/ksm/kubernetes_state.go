@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -257,11 +258,9 @@ func (jc *JoinsConfigWithoutLabelsMapping) setupGetAllLabels() {
 		return
 	}
 
-	for _, l := range jc.LabelsToGet {
-		if l == "*" {
-			jc.GetAllLabels = true
-			return
-		}
+	if slices.Contains(jc.LabelsToGet, "*") {
+		jc.GetAllLabels = true
+		return
 	}
 }
 

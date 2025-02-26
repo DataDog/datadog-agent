@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"strings"
@@ -461,9 +462,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
-	for k, v := range ia.data {
-		data[k] = v
-	}
+	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
 
@@ -481,8 +480,6 @@ func (ia *inventoryagent) Get() map[string]interface{} {
 	defer ia.m.Unlock()
 
 	data := map[string]interface{}{}
-	for k, v := range ia.data {
-		data[k] = v
-	}
+	maps.Copy(data, ia.data)
 	return data
 }

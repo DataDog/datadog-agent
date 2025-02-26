@@ -10,13 +10,13 @@ import (
 	"hash/fnv"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
@@ -463,13 +462,7 @@ func (s *CheckSubmitter) getRequestID(start time.Time, chunkIndex int) string {
 }
 
 func (s *CheckSubmitter) shouldDropPayload(check string) bool {
-	for _, d := range s.dropCheckPayloads {
-		if d == check {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(s.dropCheckPayloads, check)
 }
 
 func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {

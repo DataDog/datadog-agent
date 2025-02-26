@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -392,10 +393,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.auto_suppression.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
-			mds := pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size")
-			if mds < ADMinMaxDumSize {
-				mds = ADMinMaxDumSize
-			}
+			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
 
@@ -559,11 +557,8 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 // sanitizeRuntimeSecurityConfigActivityDump ensures that runtime_security_config.activity_dump is properly configured
 func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() error {
 	var execFound bool
-	for _, evtType := range c.ActivityDumpTracedEventTypes {
-		if evtType == model.ExecEventType {
-			execFound = true
-			break
-		}
+	if slices.Contains(c.ActivityDumpTracedEventTypes, model.ExecEventType) {
+		execFound = true
 	}
 	if !execFound {
 		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
