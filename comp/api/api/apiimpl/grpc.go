@@ -25,6 +25,7 @@ import (
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -119,8 +120,8 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	}
 
 	// FiXME: we should perhaps lock the capture processing while doing this...
-	taggerReplay := s.taggerComp.ReplayTagger()
-	if taggerReplay == nil {
+	fakeTagger := taggerMock.New().Comp
+	if fakeTagger == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}
 	state := make([]taggerTypes.Entity, 0, len(req.State))
@@ -142,10 +143,9 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 		})
 	}
 
-	taggerReplay.LoadState(state)
+	fakeTagger.LoadState(state)
 
 	log.Debugf("API: setting capture state tagger")
-	s.taggerComp.SetNewCaptureTagger(taggerReplay)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")
