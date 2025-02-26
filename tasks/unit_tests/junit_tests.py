@@ -48,14 +48,14 @@ class TestSplitJUnitXML(unittest.TestCase):
     def test_without_split(self):
         xml_file = Path("./tasks/unit_tests/testdata/secret.tar.gz/bedroom-rspec-win2016-azure-x86_64.xml")
         owners = read_owners(".github/CODEOWNERS")
-        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 1)
+        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, {}, {}), 1)
         generated_folder = xml_file.parent / "windows-agent_base"
         self.assertTrue(generated_folder.exists())
 
     def test_with_split(self):
         xml_file = Path("./tasks/unit_tests/testdata/secret.tar.gz/-go-src-datadog-agent-junit-out-base.xml")
         owners = read_owners(".github/CODEOWNERS")
-        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 28)
+        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, {}, {}), 28)
 
 
 class TestGroupPerTag(unittest.TestCase):
