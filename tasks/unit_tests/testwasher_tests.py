@@ -166,7 +166,7 @@ class TestUtils(unittest.TestCase):
                 }
             },
         )
-    
+
     def test_flaky_non_failing(self):
         test_washer = TestWasher(
             test_output_json_file="test_output_no_failure.json",
@@ -175,7 +175,7 @@ class TestUtils(unittest.TestCase):
         module_path = "tasks/unit_tests/testdata"
         marked_flaky_tests = test_washer.get_flaky_marked_tests(module_path)
         self.assertEqual(marked_flaky_tests, {"github.com/DataDog/datadog-agent/pkg/gohai": {"TestGetPayload"}})
-    
+
     def test_flaky_non_failing_marked(self):
         test_washer = TestWasher(
             test_output_json_file="test_output_no_failure_marker.json",
@@ -183,4 +183,6 @@ class TestUtils(unittest.TestCase):
         )
         module_path = "tasks/unit_tests/testdata"
         marked_flaky_tests = test_washer.get_flaky_marked_tests(module_path)
-        self.assertEqual(marked_flaky_tests, {"github.com/DataDog/datadog-agent/pkg/gohai": {"TestGetPayloadContainerized"}})
+        self.assertEqual(
+            marked_flaky_tests, {"github.com/DataDog/datadog-agent/pkg/gohai": {"TestGetPayloadContainerized"}}
+        )
