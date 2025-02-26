@@ -517,11 +517,11 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
-	var cleanerCB func(map[uint32]struct{})
-	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		cleanerCB = o.cleanupDeadPids
-	}
-	o.watcher.Start(cleanerCB)
+	//var cleanerCB func(map[uint32]struct{})
+	//if features.HaveProgramType(ebpf.RawTracepoint) != nil {
+	//	cleanerCB = o.cleanupDeadPids
+	//}
+	o.watcher.Start(o.cleanupDeadPids)
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
@@ -868,15 +868,15 @@ var sslPidKeyMaps = []string{
 
 // cleanupDeadPids clears maps of terminated processes.
 func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
-	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		// call maps cleaner if raw tracepoints are not supported
-		for _, mapName := range sslPidKeyMaps {
-			err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
-			if err != nil {
-				log.Debugf("SSL map %q cleanup error: %v", mapName, err)
-			}
+	//if features.HaveProgramType(ebpf.RawTracepoint) != nil {
+	// call maps cleaner if raw tracepoints are not supported
+	for _, mapName := range sslPidKeyMaps {
+		err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
+		if err != nil {
+			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
 	}
+	//}
 }
 
 // deleteDeadPidsInMap finds a map by name and deletes dead processes.
