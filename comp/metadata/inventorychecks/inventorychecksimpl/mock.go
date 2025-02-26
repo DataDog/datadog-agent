@@ -45,8 +45,9 @@ func (m *InventorychecksMock) Set(instanceID string, key string, value interface
 	m.metadata[instanceID][key] = value
 }
 
-func (m *InventorychecksMock) SetPackages(pythonPackages map[string]string) {
-	m.pythonPackages = pythonPackages
+// SetPackages set the extra python packages values
+func (m *InventorychecksMock) SetPackages(extraPythonPackages map[string]string) {
+	m.pythonPackages = extraPythonPackages
 }
 
 // Refresh is a empty method for the inventorychecks mock
