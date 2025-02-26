@@ -159,6 +159,7 @@ func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
 }
 
 func (l *LogsConfigKeys) getAdditionalEndpoints() []unmarshalEndpoint {
+	// wack
 	var endpoints []unmarshalEndpoint
 	var err error
 	configKey := l.getConfigKey("additional_endpoints")
