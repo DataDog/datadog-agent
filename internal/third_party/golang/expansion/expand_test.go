@@ -165,13 +165,13 @@ func doExpansionTest(t *testing.T, mapping func(string) (string, bool)) {
 		{
 			name:           "nested var references",
 			input:          "$(VAR_A$(VAR_B))",
-			expected:       "",
+			expected:       "$(VAR_A$(VAR_B))",
 			expectedStatus: false,
 		},
 		{
 			name:           "nested var references second type",
 			input:          "$(VAR_A$(VAR_B)",
-			expected:       "",
+			expected:       "$(VAR_A$(VAR_B)",
 			expectedStatus: false,
 		},
 		{
@@ -219,7 +219,7 @@ func doExpansionTest(t *testing.T, mapping func(string) (string, bool)) {
 		{
 			name:           "undefined vars are passed through",
 			input:          "$(VAR_DNE)",
-			expected:       "",
+			expected:       "$(VAR_DNE)",
 			expectedStatus: false,
 		},
 		{
@@ -237,7 +237,7 @@ func doExpansionTest(t *testing.T, mapping func(string) (string, bool)) {
 		{
 			name:           "multiple (odd) operators, var undefined",
 			input:          "$$$$$$$(GOOD_ODDS)",
-			expected:       "",
+			expected:       "$$$$(GOOD_ODDS)",
 			expectedStatus: false,
 		},
 		{
@@ -303,7 +303,7 @@ func doExpansionTest(t *testing.T, mapping func(string) (string, bool)) {
 		{
 			name:           "escaped operators in variable names are not escaped",
 			input:          "$(foo$$var)",
-			expected:       "",
+			expected:       "$(foo$$var)",
 			expectedStatus: false,
 		},
 		{

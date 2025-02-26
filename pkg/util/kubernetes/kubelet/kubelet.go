@@ -230,8 +230,6 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
 			pod.Status.AllContainers = allContainers
-			filterEnvVars(pod.Spec.Containers)
-			filterEnvVars(pod.Spec.InitContainers)
 			tmpSlice = append(tmpSlice, pod)
 		}
 	}
@@ -481,18 +479,4 @@ func isPodStatic(pod *Pod) bool {
 		return len(pod.Status.Containers) == 0
 	}
 	return false
-}
-
-// filterEnvVars removes unsupported env var sources (eg. ConfigMap, Secrets, etc.)
-func filterEnvVars(containers []ContainerSpec) {
-	for i := range containers {
-		cleanEnvVars := make([]EnvVar, 0)
-		for _, envVar := range containers[i].Env {
-			if envVar.ValueFrom != nil {
-				continue
-			}
-			cleanEnvVars = append(cleanEnvVars, envVar)
-		}
-		containers[i].Env = cleanEnvVars
-	}
 }
