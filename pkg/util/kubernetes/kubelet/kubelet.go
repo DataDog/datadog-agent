@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -24,6 +25,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+	kubeclient "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	kubecache "k8s.io/client-go/tools/cache"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
@@ -56,6 +65,11 @@ type KubeUtil struct {
 	waitOnMissingContainer time.Duration
 	podUnmarshaller        *podUnmarshaller
 	podResourcesClient     *PodResourcesClient
+	useAPIServer           bool
+	apiClient              *kubeclient.Clientset
+	nodeName               string
+	store                  kubecache.Store
+	controller             kubecache.Controller
 }
 
 func (ku *KubeUtil) init() error {
@@ -92,7 +106,33 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
+	if ku.useAPIServer {
+		ku.apiClient, err = newAPIClient()
+		if err != nil {
+			log.Errorf("failed to get API Server Client: %v", err)
+			return err
+		}
+		ku.nodeName, err = os.Hostname()
+		if err != nil {
+			log.Errorf("failed to get node hostname: %v", err)
+			return err
+		}
+		ku.initPodListWatch(context.Background())
+	}
+
 	return nil
+}
+
+func newAPIClient() (*kubeclient.Clientset, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
+	}
+	client, err := kubeclient.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create API client: %w", err)
+	}
+	return client, nil
 }
 
 // NewKubeUtil returns a new KubeUtil
@@ -106,6 +146,10 @@ func NewKubeUtil() *KubeUtil {
 	waitOnMissingContainer := pkgconfigsetup.Datadog().GetDuration("kubelet_wait_on_missing_container")
 	if waitOnMissingContainer > 0 {
 		ku.waitOnMissingContainer = waitOnMissingContainer * time.Second
+	}
+	if pkgconfigsetup.Datadog().GetBool("gke_autopilot") {
+		log.Infof("Running on GKE Autopilot, Pod List will be accessed through the Kubernetes API Server instead of the Kubelet")
+		ku.useAPIServer = true
 	}
 
 	return ku
@@ -202,7 +246,8 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 		}
 	}
 
-	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
+	//data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
+	data, code, err := ku.queryPodList(ctx)
 	if err != nil {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
 	}
@@ -245,6 +290,97 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
 	return &pods, nil
+}
+
+// initPodListWatch initializes a ListWatch for pods on the current node.
+func (ku *KubeUtil) initPodListWatch(ctx context.Context) {
+	// Ensure we only watch pods scheduled on this node
+	fieldSelector := fields.OneTermEqualSelector("spec.nodeName", ku.nodeName).String()
+
+	lw := &kubecache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			options.FieldSelector = fieldSelector
+			options.ResourceVersion = "0" // Fresh query from API server
+			return ku.apiClient.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			options.FieldSelector = fieldSelector
+			return ku.apiClient.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
+		},
+	}
+
+	// Create store & controller for tracking pods
+	ku.store, ku.controller = kubecache.NewInformer(
+		lw,
+		&v1.Pod{},
+		0, // No resync, only use Watch for updates
+		kubecache.ResourceEventHandlerFuncs{
+			AddFunc:    ku.handlePodAdd,
+			UpdateFunc: ku.handlePodUpdate,
+			DeleteFunc: ku.handlePodDelete,
+		},
+	)
+
+	// Run controller in a separate goroutine
+	go ku.controller.Run(ctx.Done())
+}
+
+func (ku *KubeUtil) handlePodAdd(obj interface{}) {
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		log.Errorf("handlePodAdd: expected *v1.Pod but got %T", obj)
+		return
+	}
+	log.Infof("Pod added: %s/%s", pod.Namespace, pod.Name)
+	// You can add additional logic here if needed
+}
+
+func (ku *KubeUtil) handlePodUpdate(oldObj, newObj interface{}) {
+	newPod, ok := newObj.(*v1.Pod)
+	if !ok {
+		log.Errorf("handlePodUpdate: expected *v1.Pod but got %T", newObj)
+		return
+	}
+	log.Infof("Pod updated: %s/%s", newPod.Namespace, newPod.Name)
+	// You can compare oldObj and newObj if you need to track changes
+}
+
+func (ku *KubeUtil) handlePodDelete(obj interface{}) {
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		log.Errorf("handlePodDelete: expected *v1.Pod but got %T", obj)
+		return
+	}
+	log.Infof("Pod deleted: %s/%s", pod.Namespace, pod.Name)
+}
+
+func (ku *KubeUtil) queryPodList(ctx context.Context) ([]byte, int, error) {
+	if ku.useAPIServer {
+		if ku.apiClient == nil {
+			return nil, 0, fmt.Errorf("API Server client is not initialized")
+		}
+		if ku.nodeName == "" {
+			return nil, 0, fmt.Errorf("node name is not set")
+		}
+
+		podList, err := ku.apiClient.CoreV1().Pods(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
+			FieldSelector: fmt.Sprintf("spec.nodeName=%s", ku.nodeName),
+		})
+		if err != nil {
+			log.Errorf("failed to retrieve pods from API Server: %v", err)
+			return nil, http.StatusInternalServerError, err
+		}
+
+		data, err := json.Marshal(podList)
+		if err != nil {
+			log.Errorf("failed to marshal pod list: %v", err)
+			return nil, http.StatusInternalServerError, err
+		}
+
+		log.Debugf("Successfully queried API Server for pods on node %s", ku.nodeName)
+		return data, http.StatusOK, nil
+	}
+	return ku.QueryKubelet(ctx, kubeletPodPath)
 }
 
 // addContainerResourcesData modifies the given pod list, populating the
