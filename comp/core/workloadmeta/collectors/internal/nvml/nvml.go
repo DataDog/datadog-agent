@@ -52,7 +52,7 @@ func (c *collector) getDeviceInfo(device nvml.Device) (string, string, error) {
 // getMigProfileName() returns the canonical name of the MIG device
 func getMigProfileName(attr nvml.DeviceAttributes) (string, error) {
 	g := attr.GpuInstanceSliceCount
-	gb := ((attr.MemorySizeMB + 1024 - 1) / 1024)
+	gb := (attr.MemorySizeMB + 1024 - 1) / 1024
 	r := fmt.Sprintf("%dg.%dgb", g, gb)
 	return r, nil
 }
@@ -118,7 +118,7 @@ func (c *collector) fillMIGData(gpuDeviceInfo *workloadmeta.GPU, device nvml.Dev
 	if ret != nvml.SUCCESS || migEnabled != nvml.DEVICE_MIG_ENABLE {
 		return
 	}
-	// If any mid detection fails, we will return an mig disabled in config
+	// If any MIG detection fails, we will return mig disabled in config
 	migDeviceCount, ret := c.nvmlLib.DeviceGetMaxMigDeviceCount(device)
 	if ret != nvml.SUCCESS {
 		if logLimiter.ShouldLog() {
@@ -134,16 +134,16 @@ func (c *collector) fillMIGData(gpuDeviceInfo *workloadmeta.GPU, device nvml.Dev
 			if logLimiter.ShouldLog() {
 				log.Warnf("failed to get handle for MIG device %d: %v", j, nvml.ErrorString(ret))
 			}
-			return
+			continue
 		}
 		migDeviceInfo, err := c.getDeviceInfoMig(migDevice)
 		if err != nil {
 			if logLimiter.ShouldLog() {
 				log.Warnf("failed to get device info for MIG device %d: %v", j, err)
 			}
-			return
+		} else {
+			migDevs = append(migDevs, migDeviceInfo)
 		}
-		migDevs = append(migDevs, migDeviceInfo)
 	}
 
 	gpuDeviceInfo.MigEnabled = true
