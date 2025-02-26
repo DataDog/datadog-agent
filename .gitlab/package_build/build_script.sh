@@ -2,7 +2,7 @@
 
 # TODO A: Remove, this is from the runner
 if [ "$1" = SETUP_RUNNER ]; then
-    set -euxo pipefail
+    set -euo pipefail
 
     cd ~
 

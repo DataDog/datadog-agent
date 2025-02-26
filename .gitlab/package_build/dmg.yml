@@ -265,6 +265,7 @@ new-agent_dmg-x64-a7:
     # # TODO
     # - bash .gitlab/package_build/builder_setup.sh
     # Setup
+    - echo "goroot $GOROOT"
     - |
       # TODO A: Omnibus cache
       unset INTEGRATION_WHEELS_CACHE_BUCKET || true
@@ -315,9 +316,15 @@ new-agent_dmg-x64-a7:
     #   if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
     #   mkdir -p $GOMODCACHE
 
-    # TODO A: Within runner
-    - eval $("$HOME/homebrew/bin/brew" shellenv)
-    - brew install libffi
+    # - eval $("$HOME/homebrew/bin/brew" shellenv)
+    # - brew install libffi
+
+    - |
+      echo "PATH: $PATH"
+      eval "$(gimme $GO_VERSION)"
+      echo "PATH: $PATH"
+      which go
+
 
     - echo Setting up custom homebrew env
     - export PATH="$HOME/bin:$HOME/homebrew/bin:$HOME/rust/rustup/bin:$HOME/rust/cargo/bin"
@@ -333,8 +340,8 @@ new-agent_dmg-x64-a7:
 
     # TODO: Done multiple times
     - |
-      eval "$(gimme $GO_VERSION)"
       export PATH="$GOPATH/bin:$PATH"
+      eval "$(gimme $GO_VERSION)"
       go version || true
 
     # Build
