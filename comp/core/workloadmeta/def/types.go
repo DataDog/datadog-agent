@@ -1403,11 +1403,12 @@ type GPU struct {
 	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
 	ComputeCapability GPUComputeCapability
 
-	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
-	SMCount int
+	// Total number of cores available for the device,
+	// this is a number that represents number of SMs * number of cores per SM (depends on the model)
+	TotalCores int
 
-	//TotalMemory is the total available memory for the device in MB
-	TotalMemoryMB uint64
+	//TotalMemory is the total available memory for the device in bytes
+	TotalMemory uint64
 
 	// MaxClockRates contains the maximum clock rates for SM and Memory
 	MaxClockRates [GPUCOUNT]uint32
@@ -1485,8 +1486,8 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
 	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
-	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
-	_, _ = fmt.Fprintln(&sb, "Total Memory (in MB):", g.TotalMemoryMB)
+	_, _ = fmt.Fprintln(&sb, "Total Number of Cores:", g.TotalCores)
+	_, _ = fmt.Fprintln(&sb, "Device Total Memory (in bytes):", g.TotalMemory)
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
 	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
