@@ -84,7 +84,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
 	// those configs are used by the core agent path, but are not used by the system probe
-	cfg.SetKnown("sbom.container_image.enabled")
 	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan")
 
 	// Auto exit configuration
