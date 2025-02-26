@@ -100,7 +100,6 @@ type provides struct {
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
 	Endpoint       api.AgentEndpointProvider
-	EndpointRaw    api.AgentEndpointProvider
 	FlareProvider  flaretypes.Provider
 }
 
@@ -227,9 +226,20 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 
-	scrubbedConfigs := ac.scrubConfigs(configSlice)
+	configResponses := make([]integration.ConfigResponse, len(configSlice))
 
-	response.Configs = scrubbedConfigs
+	for i, config := range configSlice {
+		instanceIDs := make([]string, len(config.Instances))
+		for j, instance := range config.Instances {
+			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
+		}
+		configResponses[i] = integration.ConfigResponse{
+			Config:      ac.scrubConfig(config),
+			InstanceIDs: instanceIDs,
+		}
+	}
+
+	response.Configs = configResponses
 
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
@@ -238,7 +248,12 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
 
 	for ids, configs := range unresolved {
-		scrubbedUnresolved[ids] = ac.scrubConfigs(configs)
+		scrubbedConfigs := make([]integration.Config, len(configs))
+		for idx, config := range configs {
+			scrubbedConfigs[idx] = ac.scrubConfig(config)
+		}
+
+		scrubbedUnresolved[ids] = scrubbedConfigs
 	}
 
 	response.Unresolved = scrubbedUnresolved
@@ -255,7 +270,20 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 
-	response.Configs = configSlice
+	configResponses := make([]integration.ConfigResponse, len(configSlice))
+
+	for i, config := range configSlice {
+		instanceIDs := make([]string, len(config.Instances))
+		for j, instance := range config.Instances {
+			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
+		}
+		configResponses[i] = integration.ConfigResponse{
+			Config:      config,
+			InstanceIDs: instanceIDs,
+		}
+	}
+
+	response.Configs = configResponses
 
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
@@ -264,55 +292,50 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 	return response
 }
 
-func (ac *AutoConfig) scrubConfigs(configs []integration.Config) []integration.Config {
-	scrubbedConfigs := make([]integration.Config, len(configs))
-
-	for i, c := range configs {
-		scrubbedInstances := make([]integration.Data, len(c.Instances))
-		for instanceIndex, inst := range c.Instances {
-			subbedData, err := scrubData(inst)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from config: %s", err)
-				continue
-			}
-			scrubbedInstances[instanceIndex] = subbedData
+func (ac *AutoConfig) scrubConfig(config integration.Config) integration.Config {
+	scrubbedConfig := config
+	scrubbedInstances := make([]integration.Data, len(config.Instances))
+	for instanceIndex, inst := range config.Instances {
+		scrubbedData, err := scrubData(inst)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from config: %s", err)
+			continue
 		}
-		c.Instances = scrubbedInstances
+		scrubbedInstances[instanceIndex] = scrubbedData
+	}
+	scrubbedConfig.Instances = scrubbedInstances
 
-		if len(c.InitConfig) > 0 {
-			subbedData, err := scrubData(c.InitConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
-				c.InitConfig = []byte{}
-			} else {
-				c.InitConfig = subbedData
-			}
+	if len(config.InitConfig) > 0 {
+		scrubbedData, err := scrubData(config.InitConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
+			scrubbedConfig.InitConfig = []byte{}
+		} else {
+			scrubbedConfig.InitConfig = scrubbedData
 		}
-
-		if len(c.MetricConfig) > 0 {
-			subbedData, err := scrubData(c.MetricConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
-				c.MetricConfig = []byte{}
-			} else {
-				c.MetricConfig = subbedData
-			}
-		}
-
-		if len(c.LogsConfig) > 0 {
-			subbedData, err := scrubData(c.LogsConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
-				c.LogsConfig = []byte{}
-			} else {
-				c.LogsConfig = subbedData
-			}
-		}
-
-		scrubbedConfigs[i] = c
 	}
 
-	return scrubbedConfigs
+	if len(config.MetricConfig) > 0 {
+		scrubbedData, err := scrubData(config.MetricConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
+			scrubbedConfig.MetricConfig = []byte{}
+		} else {
+			scrubbedConfig.MetricConfig = scrubbedData
+		}
+	}
+
+	if len(config.LogsConfig) > 0 {
+		scrubbedData, err := scrubData(config.LogsConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
+			scrubbedConfig.LogsConfig = []byte{}
+		} else {
+			scrubbedConfig.LogsConfig = scrubbedData
+		}
+	}
+
+	return scrubbedConfig
 }
 
 func scrubData(data []byte) ([]byte, error) {

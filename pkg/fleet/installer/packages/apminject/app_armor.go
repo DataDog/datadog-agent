@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package packages
+package apminject
 
 import (
 	"bufio"
@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -155,7 +156,7 @@ func reloadAppArmor(ctx context.Context) error {
 	if !isAppArmorRunning() {
 		return nil
 	}
-	if running, err := isSystemdRunning(); err != nil {
+	if running, err := systemd.IsRunning(); err != nil {
 		return err
 	} else if running {
 		return tracedCommand(ctx, "systemctl", "reload", "apparmor")
