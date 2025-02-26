@@ -234,4 +234,15 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
     return is_network_flow_monitor_enabled;
 }
 
+#define SYSCTL_SHOT     0
+#define SYSCTL_OK       1
+
+#define MAX_SYSCTL_BUFFER_LEN 1024
+#define MAX_SYSCTL_OBJ_LEN 256
+#define SYSCTL_EVENT_GEN_KEY 0
+
+#define SYSCTL_NAME_TRUNCATED (1 << 0)
+#define SYSCTL_CURRENT_VALUE_TRUNCATED (1 << 1)
+#define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
+
 #endif
