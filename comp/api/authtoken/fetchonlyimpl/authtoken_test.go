@@ -41,21 +41,26 @@ func TestGet(t *testing.T) {
 		),
 	).(*authToken)
 
-	assert.Empty(t, comp.Get())
+	_, err := comp.Get()
+
+	assert.Error(t, err)
 	assert.False(t, comp.tokenLoaded)
 
-	err := os.WriteFile(authPath, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), 0777)
+	err = os.WriteFile(authPath, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), 0777)
 	require.NoError(t, err)
 
 	// Should be empty because the cert/key weren't generated yet
-	assert.Empty(t, comp.Get())
+	_, err = comp.Get()
+	assert.Error(t, err)
 	assert.False(t, comp.tokenLoaded)
 
 	// generating IPC cert/key files
 	_, _, err = cert.FetchOrCreateIPCCert(context.Background(), cfg)
 	require.NoError(t, err)
 
-	assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", comp.Get())
+	token, err := comp.Get()
+	assert.NoError(t, err)
+	assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", token)
 	assert.True(t, comp.tokenLoaded)
 
 }
