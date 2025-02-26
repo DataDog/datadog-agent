@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package securityprofile holds security profiles related files
-package securityprofile
+// Package storage holds files related to storages for security profiles
+package storage
 
 import (
 	"bytes"
@@ -148,7 +148,7 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		directoryPath: directoryPath,
 		maxProfiles:   maxProfiles,
 		profiles:      profiles,
-		deletedCount:  atomic.NewUint64(0),
+		deletedCount:  deletedCount,
 	}, nil
 }
 
@@ -195,9 +195,9 @@ func (d *Directory) Persist(request config.StorageRequest, p *profile.Profile, r
 
 	d.profilesLock.Lock()
 	entry, ok := d.profiles.Get(p.Metadata.Name)
-	if ok {
+	if ok && !slices.Contains(entry.filePaths, filePath) { // the file can already exist if the profile was updated
 		entry.filePaths = append(entry.filePaths, filePath)
-	} else {
+	} else if !ok {
 		d.profiles.Add(p.Metadata.Name, &profileEntry{
 			selector:  *p.GetWorkloadSelector(),
 			filePaths: []string{filePath},
