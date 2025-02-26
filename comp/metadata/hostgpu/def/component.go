@@ -6,10 +6,8 @@
 // Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 package hostgpu
 
-// team: agent-shared-components
+// team: ebpf-platform
 
 // Component is the component type.
 type Component interface {
-	// Refresh trigger a new payload to be sent while still respecting the minimal interval between two updates.
-	Refresh()
 }
