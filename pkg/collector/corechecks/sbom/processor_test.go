@@ -27,6 +27,7 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -597,6 +598,7 @@ func TestProcessEvents(t *testing.T) {
 	cacheDir := t.TempDir()
 
 	cfg := configmock.New(t)
+	systemProbe := configmock.NewSystemProbe(t)
 	wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -606,8 +608,13 @@ func TestProcessEvents(t *testing.T) {
 				"sbom.container_image.enabled": true,
 			},
 		}),
+		fx.Replace(sysprobeconfigimpl.MockParams{
+			Overrides: map[string]interface{}{
+				"runtime_security_config.sbom.enabled": true,
+			},
+		}),
 	))
-	_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
+	_, err := sbomscanner.CreateGlobalScanner(cfg, systemProbe, wmeta)
 	assert.Nil(t, err)
 
 	for _, test := range tests {

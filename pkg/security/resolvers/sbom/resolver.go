@@ -144,7 +144,7 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), option.None[workloadmeta.Component]())
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.DataDog(), pkgconfigsetup.SystemProbe(), option.None[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
 	}

@@ -22,10 +22,10 @@ import (
 // GetWorkloadmetaInit provides the InitHelper for workloadmeta so it can be injected as a Param
 // at workloadmeta comp fx injection.
 func GetWorkloadmetaInit() workloadmeta.InitHelper {
-	return func(ctx context.Context, wm workloadmeta.Component, cfg config.Component) error {
+	return func(ctx context.Context, wm workloadmeta.Component, coreConfig config.Component, systemProbeConfig config.Component) error {
 		// SBOM scanner needs to be called here as initialization is required prior to the
 		// catalog getting instantiated and initialized.
-		sbomScanner, err := scanner.CreateGlobalScanner(cfg, option.New(wm))
+		sbomScanner, err := scanner.CreateGlobalScanner(coreConfig, systemProbeConfig, option.New(wm))
 		if err != nil {
 			return fmt.Errorf("failed to create SBOM scanner: %s", err)
 		} else if sbomScanner != nil {
