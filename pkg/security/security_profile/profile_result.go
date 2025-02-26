@@ -12,9 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// DefaultProfileName used as default profile name
-const DefaultProfileName = "default"
-
 // EventFilteringResult is used to compute metrics for the event filtering feature
 type EventFilteringResult uint8
 
