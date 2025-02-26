@@ -402,6 +402,7 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 }
 
 func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
+	filterEnvVars(&envSpec)
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
 
@@ -416,15 +417,37 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 			continue
 		}
 
+		ok := true
 		runtimeVal := e.Value
 		if runtimeVal != "" {
-			runtimeVal = expansion.Expand(runtimeVal, mappingFunc)
+			runtimeVal, ok = expansion.Expand(runtimeVal, mappingFunc)
+		}
+
+		// Ignore environment variables that failed to expand
+		// This occurs when the env var references another env var
+		// that has its value sourced from an external source
+		// (eg. ConfigMap, Secret, DownwardAPI)
+		if !ok {
+			continue
 		}
 
 		env[e.Name] = runtimeVal
 	}
 
 	return env
+}
+
+// filterEnvVars removes unsupported env var sources (eg. ConfigMap, Secrets, etc.)
+func filterEnvVars(envSpec *[]kubelet.EnvVar) {
+	j := 0 // Position for the next valid element
+	for _, envVar := range *envSpec {
+		if envVar.ValueFrom != nil {
+			continue
+		}
+		(*envSpec)[j] = envVar
+		j++
+	}
+	*envSpec = (*envSpec)[:j]
 }
 
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {

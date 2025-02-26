@@ -19,25 +19,32 @@ func syntaxWrap(input string) string {
 // implements the expansion semantics defined in the expansion spec; it
 // returns the input string wrapped in the expansion syntax if no mapping
 // for the input is found.
-func MappingFuncFor(context ...map[string]string) func(string) string {
-	return func(input string) string {
+//
+// Additionally, it returns a boolean indicating whether the variable was
+// found in the context.
+func MappingFuncFor(context ...map[string]string) func(string) (string, bool) {
+	return func(input string) (string, bool) {
 		for _, vars := range context {
 			val, ok := vars[input]
 			if ok {
-				return val
+				return val, true
 			}
 		}
 
-		return syntaxWrap(input)
+		return syntaxWrap(input), false
 	}
 }
 
 // Expand replaces variable references in the input string according to
 // the expansion spec using the given mapping function to resolve the
 // values of variables.
-func Expand(input string, mapping func(string) string) string {
+//
+// Additionally, it returns the status of whether all nested variables
+// have a defined mapping value in the environment.
+func Expand(input string, mapping func(string) (string, bool)) (string, bool) {
 	var buf bytes.Buffer
 	checkpoint := 0
+	allMappingsFound := true
 	for cursor := 0; cursor < len(input); cursor++ {
 		if input[cursor] == operator && cursor+1 < len(input) {
 			// Copy the portion of the input string since the last
@@ -52,7 +59,14 @@ func Expand(input string, mapping func(string) string) string {
 				// We were able to read a variable name correctly;
 				// apply the mapping to the variable name and copy the
 				// bytes into the buffer
-				buf.WriteString(mapping(read))
+				mappedValue, found := mapping(read)
+
+				// Record that the read variable is not mapped in the environment
+				if !found {
+					allMappingsFound = false
+				}
+
+				buf.WriteString(mappedValue)
 			} else {
 				// Not a variable name; copy the read bytes into the buffer
 				buf.WriteString(read)
@@ -68,8 +82,9 @@ func Expand(input string, mapping func(string) string) string {
 	}
 
 	// Return the buffer and any remaining unwritten bytes in the
-	// input string.
-	return buf.String() + input[checkpoint:]
+	// input string. Also return whether any nested variables in
+	// the input string were not found in the environment.
+	return buf.String() + input[checkpoint:], allMappingsFound
 }
 
 // tryReadVariableName attempts to read a variable name from the input

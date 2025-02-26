@@ -65,6 +65,17 @@ func TestPodParser(t *testing.T) {
 								"cpu": resource.MustParse("100m"),
 							},
 						},
+						Env: []kubelet.EnvVar{
+							{
+								Name:  "ExplicitEnvVar",
+								Value: "true",
+							},
+							{
+								Name:      "ImplicitEnvVar",
+								Value:     "",
+								ValueFrom: &struct{}{},
+							},
+						},
 					},
 				},
 			},
@@ -121,8 +132,10 @@ func TestPodParser(t *testing.T) {
 			Kind: "kubernetes_pod",
 			ID:   "uniqueIdentifier",
 		},
-		Ports:   []workloadmeta.ContainerPort{},
-		EnvVars: map[string]string{},
+		Ports: []workloadmeta.ContainerPort{},
+		EnvVars: map[string]string{
+			"ExplicitEnvVar": "true",
+		},
 		State: workloadmeta.ContainerState{
 			Health: "healthy",
 		},
