@@ -34,7 +34,7 @@ var flakyPatternsConfigMutex = sync.Mutex{}
 func Mark(t testing.TB) {
 	t.Helper()
 	if shouldSkipFlake() {
-		t.Skip("flakytest: skip known flaky test")
+		t.Skip(fmt.Sprintf("%s, skipping ", flakyTestMessage))
 		return
 	}
 	t.Log(flakyTestMessage)
