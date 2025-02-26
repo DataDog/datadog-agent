@@ -235,13 +235,14 @@ func (ps *ProbabilisticSampler) report(statsd statsd.ClientInterface) {
 		return
 	}
 	ps.samplingRuleMetricsMutex.Lock()
-	defer ps.samplingRuleMetricsMutex.Unlock()
-	for service, metrics := range ps.samplingRuleMetrics {
+	ruleMetrics := ps.samplingRuleMetrics
+	ps.samplingRuleMetrics = make(map[string]probabilisticSamplerRuleMetrics)
+	ps.samplingRuleMetricsMutex.Unlock()
+	for service, metrics := range ruleMetrics {
 		tags := []string{"rule_type:trace", "target_service:" + service}
 		_ = statsd.Count(MetricsProbabilisticSamplerSamplingRulesEvaluations, metrics.evaluations, tags, 1)
 		_ = statsd.Count(MetricsProbabilisticSamplerSamplingRuleMatches, metrics.matches, tags, 1)
 	}
-	ps.samplingRuleMetrics = make(map[string]probabilisticSamplerRuleMetrics)
 }
 
 // Sample a trace given the chunk's root span, returns true if the trace should be kept
