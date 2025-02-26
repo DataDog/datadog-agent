@@ -62,6 +62,7 @@ var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
 // DefaultGPUAttributes is the attributes for the default device returned by the mock
 var DefaultGPUAttributes = nvml.DeviceAttributes{
 	MultiprocessorCount: 10,
+	MemorySizeMB:        4096,
 }
 
 // DefaultProcessInfo is the list of processes running on the default device returned by the mock
@@ -100,6 +101,19 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
+		GetMemoryBusWidthFunc: func() (uint32, nvml.Return) {
+			return 256, nvml.SUCCESS
+		},
+		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
+			switch clockType {
+			case nvml.CLOCK_SM:
+				return 1000, nvml.SUCCESS
+			case nvml.CLOCK_MEM:
+				return 2000, nvml.SUCCESS
+			default:
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+		},
 	}
 }
 
@@ -132,6 +146,9 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 		},
 		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
+		},
+		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
+			return "470.57.02", nvml.SUCCESS
 		},
 	}
 }

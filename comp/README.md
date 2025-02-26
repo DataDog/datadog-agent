@@ -308,6 +308,10 @@ read), and tailing mode for each log file.
 Package integrations adds a go interface for integrations to register and
 send logs.
 
+### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
+
+Package streamlogs is metadata provider for streamlogs
+
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
 *Datadog Team*: agent-configuration
