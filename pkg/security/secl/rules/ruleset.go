@@ -398,7 +398,6 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		if action.Def.Set != nil && action.Def.Set.Field != "" {
 			if _, found := rs.fieldEvaluators[action.Def.Set.Field]; !found {
 				evaluator, err := rs.model.GetEvaluator(action.Def.Set.Field, "")
-				fmt.Println("000000000", evaluator, err)
 				if err != nil {
 					return "", err
 				}
