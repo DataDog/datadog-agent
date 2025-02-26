@@ -308,6 +308,10 @@ read), and tailing mode for each log file.
 Package integrations adds a go interface for integrations to register and
 send logs.
 
+### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
+
+Package streamlogs is metadata provider for streamlogs
+
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
 *Datadog Team*: agent-configuration
@@ -467,6 +471,10 @@ Package expvars initializes the expvar server of the process agent.
 ### [comp/process/forwarders](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/forwarders)
 
 Package forwarders implements a component to provide forwarders used by the process agent.
+
+### [comp/process/gpusubscriber](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/gpusubscriber)
+
+Package gpusubscriber subscribes to GPU events
 
 ### [comp/process/hostinfo](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/hostinfo)
 

@@ -23,7 +23,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -96,7 +97,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 
 	// Check if we're allowed to rollout, we don't care about the source in this case, so passing most favorable source: manual
 	updateStrategy, reason := getVerticalPatchingStrategy(autoscalerInternal)
-	if updateStrategy == datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy {
+	if updateStrategy == datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy {
 		autoscalerInternal.UpdateFromVerticalAction(nil, errors.New(reason))
 		return autoscaling.NoRequeue, nil
 	}
@@ -120,7 +121,7 @@ func (u *verticalController) syncDeploymentKind(
 	ctx context.Context,
 	podAutoscaler *datadoghq.DatadogPodAutoscaler,
 	autoscalerInternal *model.PodAutoscalerInternal,
-	_ datadoghq.DatadogPodAutoscalerUpdateStrategy,
+	_ datadoghqcommon.DatadogPodAutoscalerUpdateStrategy,
 	target NamespacedPodOwner,
 	targetGVK schema.GroupVersionKind,
 	recommendationID string,
@@ -180,10 +181,10 @@ func (u *verticalController) syncDeploymentKind(
 	telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "ok", le.JoinLeaderValue)
 	u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulTriggerRolloutEventReason, "Successfully triggered rollout on target:%s/%s", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
 
-	autoscalerInternal.UpdateFromVerticalAction(&datadoghq.DatadogPodAutoscalerVerticalAction{
+	autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
 		Time:    metav1.NewTime(patchTime),
 		Version: recommendationID,
-		Type:    datadoghq.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
+		Type:    datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 	}, nil)
 	// Requeue regularly to check for rollout completion
 	return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
@@ -191,35 +192,35 @@ func (u *verticalController) syncDeploymentKind(
 
 // getVerticalPatchingStrategy applied policies to determine effective patching strategy.
 // Return (strategy, reason). Reason is only returned when chosen strategy disables vertical patching.
-func getVerticalPatchingStrategy(autoscalerInternal *model.PodAutoscalerInternal) (datadoghq.DatadogPodAutoscalerUpdateStrategy, string) {
+func getVerticalPatchingStrategy(autoscalerInternal *model.PodAutoscalerInternal) (datadoghqcommon.DatadogPodAutoscalerUpdateStrategy, string) {
 	// If we don't have spec, we cannot take decisions, should not happen.
 	if autoscalerInternal.Spec() == nil {
-		return datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy, "pod autoscaling hasn't been initialized yet"
+		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "pod autoscaling hasn't been initialized yet"
 	}
 
 	// If we don't have a ScalingValue, we cannot take decisions, should not happen.
 	if autoscalerInternal.ScalingValues().Vertical == nil {
-		return datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy, "no scaling values available"
+		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "no scaling values available"
 	}
 
 	// By default, policy is to allow all
-	if autoscalerInternal.Spec().Policy == nil {
-		return datadoghq.DatadogPodAutoscalerAutoUpdateStrategy, ""
+	if autoscalerInternal.Spec().ApplyPolicy == nil {
+		return datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy, ""
 	}
 
 	// We do have policies, checking if they allow this source
-	if !model.ApplyModeAllowSource(autoscalerInternal.Spec().Policy.ApplyMode, autoscalerInternal.ScalingValues().Vertical.Source) {
-		return datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy, fmt.Sprintf("vertical scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerInternal.Spec().Policy.ApplyMode, autoscalerInternal.ScalingValues().Vertical.Source)
+	if !model.ApplyModeAllowSource(autoscalerInternal.Spec().ApplyPolicy.Mode, autoscalerInternal.ScalingValues().Vertical.Source) {
+		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, fmt.Sprintf("vertical scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerInternal.Spec().ApplyPolicy.Mode, autoscalerInternal.ScalingValues().Vertical.Source)
 	}
 
-	if autoscalerInternal.Spec().Policy.Update != nil {
-		if autoscalerInternal.Spec().Policy.Update.Strategy == datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy {
-			return datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy, "vertical scaling disabled due to update strategy set to disabled"
+	if autoscalerInternal.Spec().ApplyPolicy.Update != nil {
+		if autoscalerInternal.Spec().ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy {
+			return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "vertical scaling disabled due to update strategy set to disabled"
 		}
 
-		return autoscalerInternal.Spec().Policy.Update.Strategy, ""
+		return autoscalerInternal.Spec().ApplyPolicy.Update.Strategy, ""
 	}
 
 	// No update strategy defined, defaulting to auto
-	return datadoghq.DatadogPodAutoscalerAutoUpdateStrategy, ""
+	return datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy, ""
 }

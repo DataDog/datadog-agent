@@ -32,8 +32,6 @@ type OverrideField = string
 const (
 	// OverrideAllFields used to override all the fields
 	OverrideAllFields OverrideField = "all"
-	// OverrideExpressionField used to override the expression
-	OverrideExpressionField OverrideField = "expression"
 	// OverrideActionFields used to override the actions
 	OverrideActionFields OverrideField = "actions"
 	// OverrideEveryField used to override the every field

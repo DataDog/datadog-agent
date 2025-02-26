@@ -11,24 +11,24 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
-	"github.com/google/go-cmp/cmp"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestNewResourceRecommenderSettings(t *testing.T) {
 	tests := []struct {
-		name   string
-		target datadoghq.DatadogPodAutoscalerTarget
-		want   *resourceRecommenderSettings
-		err    error
+		name      string
+		objective datadoghqcommon.DatadogPodAutoscalerObjective
+		want      *resourceRecommenderSettings
+		err       error
 	}{
 		{
 			name: "Invalid resource type",
-			target: datadoghq.DatadogPodAutoscalerTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
 				Type: "something-invalid",
 			},
 			want: nil,
@@ -36,12 +36,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Pod resource - CPU target utilization",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -55,12 +55,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Pod resource - memory utilization",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "memory",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -74,35 +74,21 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Pod resource - nil target",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type:        datadoghq.DatadogPodAutoscalerResourceTargetType,
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type:        datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
 				PodResource: nil,
 			},
 			want: nil,
 			err:  fmt.Errorf("nil target"),
 		},
 		{
-			name: "Pod resource - invalid value type",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
-					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type: datadoghq.DatadogPodAutoscalerAbsoluteTargetValueType,
-					},
-				},
-			},
-			want: nil,
-			err:  fmt.Errorf("invalid value type: Absolute"),
-		},
-		{
 			name: "Pod resource - invalid name",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "some-resource",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -112,12 +98,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Pod resource - nil utilization",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type: datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type: datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 					},
 				},
 			},
@@ -126,12 +112,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Pod resource - out of bounds utilization value",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(0)),
 					},
 				},
@@ -141,12 +127,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Container resource - CPU target utilization",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
-				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+				ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 					Container: "container-foo",
@@ -162,12 +148,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Container resource - memory utilization",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
-				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+				ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
 					Name: "memory",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 					Container: "container-foo",
@@ -183,36 +169,21 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Container resource - nil target",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type:              datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type:              datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
 				ContainerResource: nil,
 			},
 			want: nil,
 			err:  fmt.Errorf("nil target"),
 		},
 		{
-			name: "Container resource - invalid value type",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
-				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
-					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type: datadoghq.DatadogPodAutoscalerAbsoluteTargetValueType,
-					},
-					Container: "container-foo",
-				},
-			},
-			want: nil,
-			err:  fmt.Errorf("invalid value type: Absolute"),
-		},
-		{
 			name: "Container resource - invalid name",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
-				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+				ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
 					Name: "some-resource",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -222,12 +193,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Container resource - nil utilization",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
-				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+				ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type: datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type: datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 					},
 					Container: "container-foo",
 				},
@@ -237,12 +208,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 		},
 		{
 			name: "Container resource - out of bounds utilization value",
-			target: datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
-				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+			objective: datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+				ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(0)),
 					},
 					Container: "container-foo",
@@ -255,14 +226,12 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recommenderSettings, err := newResourceRecommenderSettings(tt.target)
+			recommenderSettings, err := newResourceRecommenderSettings(tt.objective)
 			if tt.err != nil {
 				assert.Error(t, err, tt.err.Error())
 			} else {
 				assert.NoError(t, err)
-				if diff := cmp.Diff(recommenderSettings, tt.want, cmp.AllowUnexported(resourceRecommenderSettings{})); diff != "" {
-					t.Error(diff)
-				}
+				assert.Empty(t, cmp.Diff(recommenderSettings, tt.want, cmp.AllowUnexported(resourceRecommenderSettings{})))
 			}
 		})
 	}

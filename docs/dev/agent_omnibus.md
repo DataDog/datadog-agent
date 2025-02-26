@@ -44,7 +44,12 @@ affected by [this bug](https://github.com/moby/moby/issues/28705).
 
 ## Building on your system (Linux and Mac)
 
-The project will be built locally then compressed in the final deb/rpm/dmg artifact.
+The project will be built locally and provide a .tar.xz tarball (in the omnibus/pkg folder)
+with the resulting artifacts by default on linux.
+This artifact is the expected source when building a container image.
+You can chose to generate an installable package in the form of a deb/rpm artifact by
+providing a `OMNIBUS_FORCE_PACKAGES` environment variable during the build.
+On macOS, a dmg artifact will always be generated.
 Most of the files will be copied or created under the same installation path of
 the final package, `/opt/datadog-agent`, but if you run Omnibus from Linux, some
 files will be copied into `/etc`. This means two things:
