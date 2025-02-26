@@ -67,11 +67,15 @@ func TestPodParser(t *testing.T) {
 						},
 						Env: []kubelet.EnvVar{
 							{
-								Name:  "ExplicitEnvVar",
-								Value: "true",
+								Name:  "DD_ENV",
+								Value: "prod",
 							},
 							{
-								Name:      "ImplicitEnvVar",
+								Name:  "OTEL_SERVICE_NAME",
+								Value: "$(DD_ENV)-$(DD_EXCLUDED_VAR)",
+							},
+							{
+								Name:      "DD_EXCLUDED_VAR",
 								Value:     "",
 								ValueFrom: &struct{}{},
 							},
@@ -134,7 +138,7 @@ func TestPodParser(t *testing.T) {
 		},
 		Ports: []workloadmeta.ContainerPort{},
 		EnvVars: map[string]string{
-			"ExplicitEnvVar": "true",
+			"DD_ENV": "prod",
 		},
 		State: workloadmeta.ContainerState{
 			Health: "healthy",
