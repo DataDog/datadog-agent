@@ -10,6 +10,7 @@ package trivy
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"runtime"
 	"slices"
@@ -36,9 +37,15 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
-	// This is required to load sqlite based RPM databases
-	_ "modernc.org/sqlite"
+	"github.com/mattn/go-sqlite3"
 )
+
+// This is required to load sqlite based RPM databases
+func init() {
+	// mattn/go-sqlite3 is only registering the sqlite3 driver
+	// let's register the sqlite (no 3) driver as well
+	sql.Register("sqlite", &sqlite3.SQLiteDriver{})
+}
 
 const (
 	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
