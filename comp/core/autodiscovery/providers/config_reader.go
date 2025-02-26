@@ -26,16 +26,16 @@ import (
 )
 
 type configFormat struct {
-	ADIdentifiers           []string                           `yaml:"ad_identifiers"`
-	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers"`
-	ClusterCheck            bool                               `yaml:"cluster_check"`
 	InitConfig              interface{}                        `yaml:"init_config"`
 	MetricConfig            interface{}                        `yaml:"jmx_metrics"`
 	LogsConfig              interface{}                        `yaml:"logs"`
+	CheckTagCardinality     string                             `yaml:"check_tag_cardinality"` // Use to set the tag cardinality override for the check
+	ADIdentifiers           []string                           `yaml:"ad_identifiers"`
+	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers"`
 	Instances               []integration.RawMap
-	DockerImages            []string `yaml:"docker_images"`             // Only imported for deprecation warning
+	DockerImages            []string `yaml:"docker_images"` // Only imported for deprecation warning
+	ClusterCheck            bool     `yaml:"cluster_check"`
 	IgnoreAutodiscoveryTags bool     `yaml:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
-	CheckTagCardinality     string   `yaml:"check_tag_cardinality"`     // Use to set the tag cardinality override for the check
 }
 
 type configPkg struct {
@@ -45,19 +45,19 @@ type configPkg struct {
 }
 
 type configEntry struct {
-	conf       integration.Config
+	err        error
 	name       string
+	conf       integration.Config
 	isDefault  bool
 	isMetric   bool
 	isLogsOnly bool
-	err        error
 }
 
 var reader *configFilesReader
 
 type configFilesReader struct {
-	paths []string
 	cache *cache.Cache
+	paths []string
 	sync.Mutex
 }
 

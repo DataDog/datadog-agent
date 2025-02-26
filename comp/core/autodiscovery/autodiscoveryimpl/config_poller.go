@@ -23,16 +23,17 @@ import (
 type configPoller struct {
 	provider providers.ConfigProvider
 
-	isRunning bool
-
-	canPoll      bool
-	pollInterval time.Duration
-
 	stopChan chan struct{}
 
-	configsMu      sync.Mutex
 	configs        map[uint64]integration.Config
 	telemetryStore *telemetry.Store
+	pollInterval   time.Duration
+
+	configsMu sync.Mutex
+
+	isRunning bool
+
+	canPoll bool
 }
 
 func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval time.Duration, telemetryStore *telemetry.Store) *configPoller {

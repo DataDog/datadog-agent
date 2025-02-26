@@ -30,21 +30,21 @@ const (
 )
 
 type dogstatsdEvent struct {
-	title          string
-	text           string
-	timestamp      int64
-	hostname       string
-	aggregationKey string
-	priority       eventPriority
-	sourceType     string
-	alertType      alertType
-	tags           []string
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection
-	externalData origindetection.ExternalData
+	externalData   origindetection.ExternalData
+	title          string
+	text           string
+	hostname       string
+	aggregationKey string
+	sourceType     string
 	// cardinality is used for Origin Detection
 	cardinality string
+	tags        []string
+	timestamp   int64
+	priority    eventPriority
+	alertType   alertType
 }
 
 type eventHeader struct {

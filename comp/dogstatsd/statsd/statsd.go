@@ -26,9 +26,9 @@ func Module() fxutil.Module {
 }
 
 type service struct {
-	sync.Mutex
 	// The default shared client.
 	client ddgostatsd.ClientInterface
+	sync.Mutex
 }
 
 // Get returns a pre-configured and shared statsd client (requires STATSD_URL env var to be set)

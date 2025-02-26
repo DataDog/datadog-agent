@@ -34,9 +34,9 @@ var (
 
 // any modification to this struct should also be applied to datadog-agent/test/fakeintake/server/body.go
 type flareResponse struct {
-	CaseID      int    `json:"case_id,omitempty"`
 	Error       string `json:"error,omitempty"`
 	RequestUUID string `json:"request_uuid,omitempty"`
+	CaseID      int    `json:"case_id,omitempty"`
 }
 
 // FlareSource has metadata about why the flare was sent

@@ -35,12 +35,12 @@ const (
 // InferredSpan contains the pb.Span and Async information
 // of the inferredSpan for the current invocation
 type InferredSpan struct {
-	Span    *pb.Span
-	IsAsync bool
 	// CurrentInvocationStartTime is the start time of the
 	// current invocation not he inferred span. It is used
 	// for async function calls to calculate the duration.
 	CurrentInvocationStartTime time.Time
+	Span                       *pb.Span
+	IsAsync                    bool
 }
 
 var functionTagsToIgnore = []string{

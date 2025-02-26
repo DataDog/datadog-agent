@@ -45,16 +45,17 @@ var workerUtilization = telemetry.NewGauge(
 // Worker is an object that encapsulates the logic to manage a loop of processing
 // checks over the provided `PendingCheckChan`
 type Worker struct {
-	ID   int
-	Name string
+	haAgent haagent.Component
 
 	checksTracker           *tracker.RunningChecksTracker
 	getDefaultSenderFunc    func() (sender.Sender, error)
 	pendingChecksChan       chan check.Check
-	runnerID                int
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
+	Name                    string
+
+	ID                      int
+	runnerID                int
 	utilizationTickInterval time.Duration
-	haAgent                 haagent.Component
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed

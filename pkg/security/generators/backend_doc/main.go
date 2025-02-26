@@ -24,8 +24,8 @@ import (
 // CWSEvent is a similar struct to what we actually send to the backend, except in the real case
 // we actually do some struct-less string concatenation optimization
 type CWSEvent struct {
-	events.BackendEvent         `json:",inline"`
 	serializers.EventSerializer `json:",inline"`
+	events.BackendEvent         `json:",inline"`
 }
 
 func generateBackendJSON(output string) error {

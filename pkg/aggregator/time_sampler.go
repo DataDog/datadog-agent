@@ -21,8 +21,8 @@ import (
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one. Series must have the same contextKey.
 type SerieSignature struct {
-	mType      metrics.APIMetricType
 	nameSuffix string
+	mType      metrics.APIMetricType
 }
 
 // TimeSamplerID is a type ID for sharded time samplers.
@@ -30,18 +30,19 @@ type TimeSamplerID int
 
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
-	interval           int64
 	contextResolver    *timestampContextResolver
 	metricsByTimestamp map[int64]metrics.ContextMetrics
-	lastCutOffTime     int64
 	sketchMap          sketchMap
+
+	idString string
+
+	hostname       string
+	interval       int64
+	lastCutOffTime int64
 
 	// id is a number to differentiate multiple time samplers
 	// since we start running more than one with the demultiplexer introduction
-	id       TimeSamplerID
-	idString string
-
-	hostname string
+	id TimeSamplerID
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler

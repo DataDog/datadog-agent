@@ -50,6 +50,14 @@ const (
 type cliParams struct {
 	*command.GlobalParams
 
+	logLevelDefaultOff command.LogLevelDefaultOff
+
+	// diagnose suites to run as a list of regular expressions
+	include []string
+
+	// diagnose suites not to run as a list of regular expressions
+	exclude []string
+
 	// verbose will show details not only failed diagnosis but also succesfull diagnosis
 	// it is the, value of the --verbose flag
 	verbose bool
@@ -62,14 +70,6 @@ type cliParams struct {
 
 	// run diagnose on other processes, value of --list flag
 	listSuites bool
-
-	// diagnose suites to run as a list of regular expressions
-	include []string
-
-	// diagnose suites not to run as a list of regular expressions
-	exclude []string
-
-	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
 // payloadName is the name of the payload to display

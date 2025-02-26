@@ -29,9 +29,9 @@ var (
 // procedures for metrics, events and service checks.
 type enrichConfig struct {
 	metricPrefix              string
+	defaultHostname           string
 	metricPrefixBlacklist     []string
 	metricBlocklist           blocklist
-	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
 }

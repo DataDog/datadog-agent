@@ -14,8 +14,8 @@ import (
 var globalRegistry *registry
 
 type registry struct {
-	sync.Mutex
 	metrics map[string]metric
+	sync.Mutex
 }
 
 func (r *registry) FindOrCreate(m metric) metric {

@@ -29,9 +29,10 @@ const providerName = "resources"
 type resourcesImpl struct {
 	log log.Component
 
+	serializer serializer.MetricSerializer
+
 	hostname        string
 	collectInterval time.Duration
-	serializer      serializer.MetricSerializer
 }
 
 type dependencies struct {

@@ -84,10 +84,10 @@ type InvocationHandler func(doneChannel chan bool, daemon *daemon.Daemon, arn st
 // the AWS Extension env.
 type Payload struct {
 	EventType          RuntimeEvent   `json:"eventType"`
-	DeadlineMs         int64          `json:"deadlineMs"`
 	InvokedFunctionArn string         `json:"invokedFunctionArn"`
 	ShutdownReason     ShutdownReason `json:"shutdownReason"`
 	RequestID          string         `json:"requestId"`
+	DeadlineMs         int64          `json:"deadlineMs"`
 }
 
 // FlushableAgent allows flushing

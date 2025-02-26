@@ -48,12 +48,12 @@ type netUDPConn interface {
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
 	conn            netUDPConn
+	trafficCapture  replay.Component // Currently ignored
 	packetsBuffer   *packets.Buffer
 	packetAssembler *packets.Assembler
-	buffer          []byte
-	trafficCapture  replay.Component // Currently ignored
-	listenWg        sync.WaitGroup
 	telemetryStore  *TelemetryStore
+	buffer          []byte
+	listenWg        sync.WaitGroup
 }
 
 // NewUDPListener returns an idle UDP Statsd listener

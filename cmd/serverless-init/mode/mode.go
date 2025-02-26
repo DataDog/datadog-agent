@@ -16,10 +16,10 @@ import (
 
 // Conf contains the configuration for the mode in which the serverless-init agent should run
 type Conf struct {
-	LoggerName     string
 	Runner         func(logConfig *serverlessLog.Config) error
-	TagVersionMode string
 	EnvDefaults    map[string]string
+	LoggerName     string
+	TagVersionMode string
 }
 
 const (

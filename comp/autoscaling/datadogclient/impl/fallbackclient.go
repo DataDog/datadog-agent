@@ -18,11 +18,11 @@ import (
 )
 
 type datadogIndividualClient struct {
-	client             *datadog.Client
-	lastQuerySucceeded bool
 	lastFailure        time.Time
 	lastSuccess        time.Time
+	client             *datadog.Client
 	retryInterval      time.Duration
+	lastQuerySucceeded bool
 }
 
 const (
@@ -32,9 +32,9 @@ const (
 
 // DatadogFallbackClient represents a datadog client able to query metrics to a second Datadog endpoint if the first one fails
 type datadogFallbackClient struct {
+	log            logComp.Component
 	clients        []*datadogIndividualClient
 	lastUsedClient int
-	log            logComp.Component
 }
 
 // NewDatadogFallbackClient generates a new client able to query metrics to a second Datadog endpoint if the first one fails

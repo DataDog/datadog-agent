@@ -31,8 +31,8 @@ import (
 )
 
 type remoteAgentServer struct {
-	started time.Time
 	pbcore.UnimplementedRemoteAgentServer
+	started time.Time
 }
 
 func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {

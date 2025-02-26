@@ -8,26 +8,25 @@ package server
 import "github.com/DataDog/datadog-agent/comp/core/telemetry"
 
 type stringInternerTelemetry struct {
-	enabled bool
-
 	resets               telemetry.Counter
 	size                 telemetry.Gauge
 	bytes                telemetry.Gauge
 	hits                 telemetry.Counter
 	miss                 telemetry.Counter
 	globaltlmSIRStrBytes telemetry.SimpleHistogram
+	enabled              bool
 }
 
 type stringInternerInstanceTelemetry struct {
-	enabled  bool
-	curBytes int
-
 	resets               telemetry.SimpleCounter
 	size                 telemetry.SimpleGauge
 	bytes                telemetry.SimpleGauge
 	hits                 telemetry.SimpleCounter
 	miss                 telemetry.SimpleCounter
 	globaltlmSIRStrBytes telemetry.SimpleHistogram
+	curBytes             int
+
+	enabled bool
 }
 
 func newSiTelemetry(enabled bool, telemetry telemetry.Component) *stringInternerTelemetry {

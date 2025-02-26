@@ -29,37 +29,38 @@ var (
 
 // ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
-	//nolint:revive // TODO(PROC) Fix revive linter
-	Pid          int32
-	ContainerId  string
-	NsPid        int32
-	CreationTime int64
 	Language     *languagemodels.Language
+	ContainerId  string
+	CreationTime int64
+	//nolint:revive // TODO(PROC) Fix revive linter
+	Pid   int32
+	NsPid int32
 }
 
 // WorkloadMetaExtractor does these two things:
 //   - Detecting the language of new processes and sending them to WorkloadMeta
 //   - Detecting the processes that terminate and sending their PID to WorkloadMeta
 type WorkloadMetaExtractor struct {
+	sysprobeConfig pkgconfigmodel.Reader
 	// Cache is a map from process hash to the workloadmeta entity
 	// The cache key takes the form of `pid:<pid>|createTime:<createTime>`. See hashProcess
-	cache        map[string]*ProcessEntity
-	cacheVersion int32
-	cacheMutex   sync.RWMutex
+	cache map[string]*ProcessEntity
 
 	diffChan chan *ProcessCacheDiff
 
 	pidToCid map[int]string
 
-	sysprobeConfig pkgconfigmodel.Reader
+	cacheMutex sync.RWMutex
+
+	cacheVersion int32
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
 // Extract call from the WorkloadMetaExtractor cache
 type ProcessCacheDiff struct {
-	cacheVersion int32
 	Creation     []*ProcessEntity
 	Deletion     []*ProcessEntity
+	cacheVersion int32
 }
 
 var (

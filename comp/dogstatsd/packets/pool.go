@@ -22,10 +22,10 @@ import (
 // Strings extracted with `string(Contents[n:m]) don't share the
 // origin []byte storage, so they will be unaffected.
 type Pool struct {
-	pool *ddsync.TypedPool[Packet]
-	// telemetry
-	tlmEnabled       bool
+	pool             *ddsync.TypedPool[Packet]
 	packetsTelemetry *TelemetryStore
+	// telemetry
+	tlmEnabled bool
 }
 
 var usedByTestTelemetry = false

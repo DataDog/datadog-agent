@@ -25,20 +25,20 @@ type processCacheKey struct {
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type DataScrubberPattern struct {
-	FastCheck string
 	Re        *regexp.Regexp
+	FastCheck string
 }
 
 // DataScrubber allows the agent to disallow-list cmdline arguments that match
 // a list of predefined and custom words
 type DataScrubber struct {
-	Enabled           bool
-	StripAllArguments bool
-	SensitivePatterns []DataScrubberPattern
 	seenProcess       map[processCacheKey]struct{}
 	scrubbedCmdlines  map[processCacheKey][]string
+	SensitivePatterns []DataScrubberPattern
 	cacheCycles       uint32 // used to control the cache age
 	cacheMaxCycles    uint32 // number of cycles before resetting the cache content
+	Enabled           bool
+	StripAllArguments bool
 }
 
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled

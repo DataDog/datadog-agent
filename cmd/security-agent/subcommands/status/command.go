@@ -29,9 +29,10 @@ import (
 type cliParams struct {
 	*command.GlobalParams
 
+	file string
+
 	json            bool
 	prettyPrintJSON bool
-	file            string
 }
 
 // Commands returns the status commands

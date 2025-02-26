@@ -28,8 +28,8 @@ type ContainerConfigProvider struct {
 	workloadmetaStore workloadmeta.Component
 	configErrors      map[string]ErrorMsgSet                   // map[entity name]ErrorMsgSet
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
-	mu                sync.RWMutex
 	telemetryStore    *telemetry.Store
+	mu                sync.RWMutex
 }
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container

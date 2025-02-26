@@ -14,14 +14,14 @@ import (
 // v1: In the second version of the auditor, Timestamp became LastUpdated and we added Timestamp to record container offsets.
 
 type registryEntryV1 struct {
+	LastUpdated time.Time
 	Timestamp   string
 	Offset      int64
-	LastUpdated time.Time
 }
 
 type jsonRegistryV1 struct {
-	Version  int
 	Registry map[string]registryEntryV1
+	Version  int
 }
 
 func unmarshalRegistryV1(b []byte) (map[string]*RegistryEntry, error) {

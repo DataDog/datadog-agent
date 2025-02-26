@@ -105,8 +105,8 @@ func (s *AtTheEnd) Success() {
 // Periodically is the strategy flushing at least every N [nano/micro/milli]seconds
 // at the start of the function.
 type Periodically struct {
-	interval  time.Duration
 	lastFlush time.Time
+	interval  time.Duration
 }
 
 // NewPeriodically returns an initialized Periodically flush strategy.

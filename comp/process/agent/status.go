@@ -20,8 +20,8 @@ import (
 
 // StatusProvider is the type for process component status methods
 type StatusProvider struct {
-	testServerURL string
 	config        config.Component
+	testServerURL string
 }
 
 // NewStatusProvider fetches the status

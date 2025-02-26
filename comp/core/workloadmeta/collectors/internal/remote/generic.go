@@ -65,21 +65,23 @@ type StreamHandler interface {
 
 // GenericCollector is a generic remote workloadmeta collector with resync mechanisms.
 type GenericCollector struct {
-	CollectorID   string
-	Catalog       workloadmeta.AgentType
 	StreamHandler StreamHandler
 
-	store        workloadmeta.Component
-	resyncNeeded bool
+	store workloadmeta.Component
 
 	client GrpcClient
 	stream Stream
 
-	streamCtx    context.Context
+	streamCtx context.Context
+
+	ctx          context.Context
 	streamCancel context.CancelFunc
 
-	ctx    context.Context
 	cancel context.CancelFunc
+
+	CollectorID  string
+	Catalog      workloadmeta.AgentType
+	resyncNeeded bool
 
 	Insecure bool // for testing
 }

@@ -44,6 +44,17 @@ import (
 // This component translates the decoder.Messages into message.Messages and
 // sends them to the tailer's output channel.
 type Tailer struct {
+
+	// tagProvider provides additional tags to be attached to each log message.  It
+	// is called once for each log message.
+	tagProvider tag.Provider
+
+	// forwardContext is the context for attempts to send completed messages to
+	// the tailer's output channel.  Once this context is finished, messages may
+	// be discarded.
+	forwardContext context.Context
+
+	PipelineMonitor metrics.PipelineMonitor
 	// lastReadOffset is the last file offset that was read.
 	lastReadOffset *atomic.Int64
 
@@ -55,26 +66,44 @@ type Tailer struct {
 	// If you are looking for the os.file use to read on the FS, see osFile.
 	file *File
 
-	// fullpath is the absolute path to file.Path.
-	fullpath string
-
 	// osFile is the os.File object from which log data is read.  The read implementation
 	// is platform-specific.
 	osFile *os.File
-
-	// tags are the tags to be attached to each log message, excluding tags provided
-	// by the tag provider.
-	tags []string
-
-	// tagProvider provides additional tags to be attached to each log message.  It
-	// is called once for each log message.
-	tagProvider tag.Provider
 
 	// outputChan is the channel to which fully-decoded messages are written.
 	outputChan chan *message.Message
 
 	// decoder handles decoding the raw bytes read from the file into log messages.
 	decoder *decoder.Decoder
+
+	// isFinished is true when the tailer has closed its input and flushed all messages.
+	isFinished *atomic.Bool
+
+	// didFileRotate is true when we are tailing a file after it has been rotated
+	didFileRotate *atomic.Bool
+
+	// stop is monitored by the readForever component, and causes it to stop reading
+	// and close the channel to the decoder.
+	stop chan struct{}
+
+	// done is closed when the forwardMessages component has forwarded all messages.
+	done chan struct{}
+
+	// stopForward is the cancellation function for forwardContext.  This will
+	// force the forwardMessages goroutine to stop, even if it is currently
+	// blocked sending to the tailer's outputChan.
+	stopForward context.CancelFunc
+
+	info      *status.InfoRegistry
+	bytesRead *status.CountInfo
+	movingSum *util.MovingSum
+
+	// fullpath is the absolute path to file.Path.
+	fullpath string
+
+	// tags are the tags to be attached to each log message, excluding tags provided
+	// by the tag provider.
+	tags []string
 
 	// sleepDuration is the time between polls of the underlying file.
 	sleepDuration time.Duration
@@ -92,46 +121,18 @@ type Tailer struct {
 	// at a time that the application producing the logs would like to delete
 	// it.
 	windowsOpenFileTimeout time.Duration
-
-	// isFinished is true when the tailer has closed its input and flushed all messages.
-	isFinished *atomic.Bool
-
-	// didFileRotate is true when we are tailing a file after it has been rotated
-	didFileRotate *atomic.Bool
-
-	// stop is monitored by the readForever component, and causes it to stop reading
-	// and close the channel to the decoder.
-	stop chan struct{}
-
-	// done is closed when the forwardMessages component has forwarded all messages.
-	done chan struct{}
-
-	// forwardContext is the context for attempts to send completed messages to
-	// the tailer's output channel.  Once this context is finished, messages may
-	// be discarded.
-	forwardContext context.Context
-
-	// stopForward is the cancellation function for forwardContext.  This will
-	// force the forwardMessages goroutine to stop, even if it is currently
-	// blocked sending to the tailer's outputChan.
-	stopForward context.CancelFunc
-
-	info            *status.InfoRegistry
-	bytesRead       *status.CountInfo
-	movingSum       *util.MovingSum
-	PipelineMonitor metrics.PipelineMonitor
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
-	OutputChan      chan *message.Message   // Required
-	File            *File                   // Required
-	SleepDuration   time.Duration           // Required
-	Decoder         *decoder.Decoder        // Required
-	Info            *status.InfoRegistry    // Required
-	Rotated         bool                    // Optional
 	TagAdder        tag.EntityTagAdder      // Required
 	PipelineMonitor metrics.PipelineMonitor // Required
+	OutputChan      chan *message.Message   // Required
+	File            *File                   // Required
+	Decoder         *decoder.Decoder        // Required
+	Info            *status.InfoRegistry    // Required
+	SleepDuration   time.Duration           // Required
+	Rotated         bool                    // Optional
 }
 
 // NewTailer returns an initialized Tailer, read to be started.

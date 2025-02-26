@@ -22,10 +22,10 @@ type buffering struct {
 // TelemetrySubscriptionPayload is the payload we send while subscribing to the
 // AWS Telemetry API
 type TelemetrySubscriptionPayload struct {
-	Buffering     buffering   `json:"buffering"`
 	Destination   destination `json:"destination"`
-	Types         []string    `json:"types"`
 	SchemaVersion string      `json:"schemaVersion"`
+	Types         []string    `json:"types"`
+	Buffering     buffering   `json:"buffering"`
 }
 
 // MarshalJSON marshals the given TelemetrySubscriptionPayload object

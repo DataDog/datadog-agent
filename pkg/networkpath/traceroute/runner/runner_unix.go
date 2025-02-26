@@ -55,8 +55,8 @@ func (r *Runner) runUDP(cfg config.Config, hname string, dest net.IP, maxTTL uin
 
 func (r *Runner) processDublinResults(res *results.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
 	type node struct {
-		node  string
 		probe *results.Probe
+		node  string
 	}
 
 	traceroutePath := payload.NetworkPath{

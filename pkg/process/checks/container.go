@@ -37,21 +37,21 @@ func NewContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Componen
 
 // ContainerCheck is a check that returns container metadata and stats.
 type ContainerCheck struct {
-	sync.Mutex
-
 	config pkgconfigmodel.Reader
 
-	hostInfo          *HostInfo
 	containerProvider proccontainers.ContainerProvider
-	lastRates         map[string]*proccontainers.ContainerRateMetrics
-	networkID         string
+	wmeta             workloadmeta.Component
+
+	hostInfo  *HostInfo
+	lastRates map[string]*proccontainers.ContainerRateMetrics
 
 	containerFailedLogLimit *log.Limit
 
-	maxBatchSize int
-	wmeta        workloadmeta.Component
-
 	sysprobeClient *http.Client
+	networkID      string
+
+	maxBatchSize int
+	sync.Mutex
 }
 
 // Init initializes a ContainerCheck instance.

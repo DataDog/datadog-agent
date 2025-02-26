@@ -16,17 +16,17 @@ type StatusSection map[string]string
 
 // StatusData contains the status data for a remote agent
 type StatusData struct {
+	MainSection   StatusSection
+	NamedSections map[string]StatusSection
 	AgentID       string
 	DisplayName   string
 	FailureReason string
-	MainSection   StatusSection
-	NamedSections map[string]StatusSection
 }
 
 // FlareData contains the flare data for a remote agent
 type FlareData struct {
-	AgentID string
 	Files   map[string][]byte
+	AgentID string
 }
 
 // RegistrationData contains the registration information for a remote agent

@@ -69,19 +69,19 @@ type dependencies struct {
 	Capture               replay.Component
 	PidMap                pidmap.Component
 	SecretResolver        secrets.Component
-	RcService             option.Option[rcservice.Component]
-	RcServiceMRF          option.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
 	Tagger                tagger.Component
 	Cfg                   config.Component
 	AutoConfig            autodiscovery.Component
-	LogsAgentComp         option.Option[logsAgent.Component]
 	WorkloadMeta          workloadmeta.Component
-	Collector             option.Option[collector.Component]
 	DiagnoseSenderManager diagnosesendermanager.Component
 	Telemetry             telemetry.Component
-	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 	RemoteAgentRegistry   remoteagentregistry.Component
+	RcService             option.Option[rcservice.Component]
+	RcServiceMRF          option.Option[rcservicemrf.Component]
+	LogsAgentComp         option.Option[logsAgent.Component]
+	Collector             option.Option[collector.Component]
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)

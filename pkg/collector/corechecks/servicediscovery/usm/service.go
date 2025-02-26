@@ -52,8 +52,8 @@ const (
 type ServiceMetadata struct {
 	Name              string
 	Source            ServiceNameSource
-	AdditionalNames   []string
 	DDService         string
+	AdditionalNames   []string
 	DDServiceInjected bool
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
@@ -141,16 +141,16 @@ func newDotnetDetector(ctx DetectionContext) detector {
 
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
-	// Pid process PID
-	Pid int
-	// Args the command line arguments of the process
-	Args []string
-	// Envs targeted environment variables of the process
-	Envs envs.Variables
 	// Fs provides access to a file system
 	fs fs.SubFS
+	// Envs targeted environment variables of the process
+	Envs envs.Variables
 	// DetectorContextMap a map to pass data between detectors, like some paths.
 	ContextMap DetectorContextMap
+	// Args the command line arguments of the process
+	Args []string
+	// Pid process PID
+	Pid int
 }
 
 // NewDetectionContext initializes DetectionContext.

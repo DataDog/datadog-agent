@@ -29,36 +29,38 @@ type StatusResponse struct {
 
 // RebalanceResponse holds the DCA response for a rebalancing request
 type RebalanceResponse struct {
-	CheckID     string `json:"check_id"`
-	CheckWeight int    `json:"check_weight"`
+	CheckID string `json:"check_id"`
 
 	SourceNodeName string `json:"source_node_name"`
-	SourceDiff     int    `json:"source_diff"`
 
 	DestNodeName string `json:"dest_node_name"`
-	DestDiff     int    `json:"dest_diff"`
+	CheckWeight  int    `json:"check_weight"`
+
+	SourceDiff int `json:"source_diff"`
+
+	DestDiff int `json:"dest_diff"`
 }
 
 // IsolateResponse holds the DCA response for an isolate request
 type IsolateResponse struct {
 	CheckID    string `json:"check_id"`
 	CheckNode  string `json:"check_node"`
-	IsIsolated bool   `json:"is_isolated"`
 	Reason     string `json:"reason"`
+	IsIsolated bool   `json:"is_isolated"`
 }
 
 // ConfigResponse holds the DCA response for a config query
 type ConfigResponse struct {
-	LastChange int64                `json:"last_change"`
 	Configs    []integration.Config `json:"configs"`
+	LastChange int64                `json:"last_change"`
 }
 
 // StateResponse holds the DCA response for a dispatching state query
 type StateResponse struct {
 	NotRunning string               `json:"not_running"` // Reason why not running, empty if leading
-	Warmup     bool                 `json:"warmup"`
 	Nodes      []StateNodeResponse  `json:"nodes"`
 	Dangling   []integration.Config `json:"dangling"`
+	Warmup     bool                 `json:"warmup"`
 }
 
 // StateNodeResponse is a chunk of StateResponse
@@ -69,19 +71,20 @@ type StateNodeResponse struct {
 
 // Stats holds statistics for the agent status command
 type Stats struct {
-	// Following
-	Follower bool
-	LeaderIP string
+	CheckNames map[string]struct{}
+	LeaderIP   string
 
-	// Leading
-	Leader            bool
-	Active            bool
 	NodeCount         int
 	ActiveConfigs     int
 	DanglingConfigs   int
 	UnscheduledChecks int
 	TotalConfigs      int
-	CheckNames        map[string]struct{}
+	// Following
+	Follower bool
+
+	// Leading
+	Leader bool
+	Active bool
 }
 
 // LeaderIPCallback describes the leader-election method we
@@ -103,8 +106,8 @@ type CLCRunnerStats struct {
 
 // Workers is used to unmarshal the workers info of each CLC Runner
 type Workers struct {
-	Count     int                   `json:"Count"`
 	Instances map[string]WorkerInfo `json:"Instances"`
+	Count     int                   `json:"Count"`
 }
 
 // WorkerInfo is used to unmarshal the utilization of each worker

@@ -38,34 +38,35 @@ type Tags struct {
 
 //nolint:revive // TODO(SERV) Fix revive linter
 type LambdaInitMetric struct {
-	InitDurationTelemetry float64
 	InitStartTime         time.Time
+	InitDurationTelemetry float64
 }
 
 // LambdaLogsCollector is the route to which the AWS environment is sending the logs
 // for the extension to collect them.
 type LambdaLogsCollector struct {
-	In                     chan []LambdaLogAPIMessage
-	lastRequestID          string
-	coldstartRequestID     string
-	lastOOMRequestID       string
-	out                    chan<- *logConfig.ChannelMessage
-	demux                  aggregator.Demultiplexer
-	extraTags              *Tags
-	logsEnabled            bool
-	enhancedMetricsEnabled bool
-	invocationStartTime    time.Time
-	invocationEndTime      time.Time
+	invocationStartTime time.Time
+	invocationEndTime   time.Time
+	demux               aggregator.Demultiplexer
+	In                  chan []LambdaLogAPIMessage
+	out                 chan<- *logConfig.ChannelMessage
+	extraTags           *Tags
 	//nolint:revive // TODO(SERV) Fix revive linter
 	process_once         *sync.Once
 	executionContext     *executioncontext.ExecutionContext
 	lambdaInitMetricChan chan<- *LambdaInitMetric
 	orphanLogsChan       chan []LambdaLogAPIMessage
 
+	// handleRuntimeDone is the function to be called when a platform.runtimeDone log message is received
+	handleRuntimeDone  func()
+	lastRequestID      string
+	coldstartRequestID string
+	lastOOMRequestID   string
+
 	arn string
 
-	// handleRuntimeDone is the function to be called when a platform.runtimeDone log message is received
-	handleRuntimeDone func()
+	logsEnabled            bool
+	enhancedMetricsEnabled bool
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter

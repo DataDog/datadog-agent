@@ -68,10 +68,10 @@ type agentMetadata map[string]interface{}
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string        `json:"hostname"`
-	Timestamp int64         `json:"timestamp"`
 	Metadata  agentMetadata `json:"agent_metadata"`
+	Hostname  string        `json:"hostname"`
 	UUID      string        `json:"uuid"`
+	Timestamp int64         `json:"timestamp"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -88,15 +88,15 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 }
 
 type inventoryagent struct {
+	log       log.Component
+	conf      config.Component
+	authToken authtoken.Component
+	data      agentMetadata
 	util.InventoryPayload
 
-	log          log.Component
-	conf         config.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
-	m            sync.Mutex
-	data         agentMetadata
 	hostname     string
-	authToken    authtoken.Component
+	m            sync.Mutex
 }
 
 type dependencies struct {
@@ -104,9 +104,9 @@ type dependencies struct {
 
 	Log            log.Component
 	Config         config.Component
-	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
 	AuthToken      authtoken.Component
+	SysProbeConfig option.Option[sysprobeconfig.Component]
 }
 
 type provides struct {

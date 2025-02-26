@@ -46,9 +46,12 @@ type DemultiplexerWithAggregator interface {
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
 type AgentDemultiplexer struct {
-	log log.Component
 
-	m sync.RWMutex
+	// sharded statsd time samplers
+	statsd
+	dataOutputs
+
+	log log.Component
 
 	// stopChan completely stops the flushLoop of the Demultiplexer when receiving
 	// a message, not doing anything else.
@@ -58,17 +61,16 @@ type AgentDemultiplexer struct {
 	// to the shared serializer.
 	flushChan chan trigger
 
-	// options are the options with which the demultiplexer has been created
-	options    AgentDemultiplexerOptions
 	aggregator *BufferedAggregator
-	dataOutputs
 
 	senders *senders
 
 	hostTagProvider *HostTagProvider
 
-	// sharded statsd time samplers
-	statsd
+	// options are the options with which the demultiplexer has been created
+	options AgentDemultiplexerOptions
+
+	m sync.RWMutex
 }
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
@@ -93,18 +95,18 @@ func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 }
 
 type statsd struct {
-	// how many sharded statsdSamplers exists.
-	// len(workers) would return the same result but having it stored
-	// it will provide more explicit visiblility / no extra function call for
-	// every metric to distribute.
-	pipelinesCount int
-	workers        []*timeSamplerWorker
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 
 	// the noAggregationStreamWorker is the one dealing with metrics that don't need to
 	// be aggregated/sampled.
 	noAggStreamWorker *noAggregationStreamWorker
+	workers           []*timeSamplerWorker
+	// how many sharded statsdSamplers exists.
+	// len(workers) would return the same result but having it stored
+	// it will provide more explicit visiblility / no extra function call for
+	// every metric to distribute.
+	pipelinesCount int
 }
 
 type forwarders struct {

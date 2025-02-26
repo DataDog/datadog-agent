@@ -72,18 +72,18 @@ type MainData struct {
 	RepoGpgcheck     bool
 }
 type repoData struct {
-	baseurl      []string
-	enabled      bool
 	metalink     string
 	mirrorlist   string
+	baseurl      []string
+	gpgkey       []string
+	enabled      bool
 	gpgcheck     bool
 	repoGpgcheck bool
-	gpgkey       []string
 }
 
 type multiLine struct {
-	inside bool
 	name   string
+	inside bool
 }
 
 // ParseRPMRepoFile extracts information from yum repo files

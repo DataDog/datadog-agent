@@ -43,9 +43,9 @@ type JSONFormatter struct {
 }
 
 type trapVariable struct {
+	Value   interface{} `json:"value"`
 	OID     string      `json:"oid"`
 	VarType string      `json:"type"`
-	Value   interface{} `json:"value"`
 }
 
 const (

@@ -62,14 +62,14 @@ type dependencies struct {
 	Shutdowner fx.Shutdowner
 
 	Config             config.Component
-	Secrets            option.Option[secrets.Component]
 	Context            context.Context
-	Params             *Params
 	TelemetryCollector telemetry.TelemetryCollector
 	Statsd             statsd.Component
 	Tagger             tagger.Component
 	Compressor         compression.Component
 	At                 authtoken.Component
+	Params             *Params
+	Secrets            option.Option[secrets.Component]
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -95,16 +95,16 @@ func (c component) GetHTTPHandler(endpoint string) http.Handler {
 }
 
 type component struct {
-	*pkgagent.Agent
-
-	cancel             context.CancelFunc
 	config             config.Component
-	secrets            option.Option[secrets.Component]
-	params             *Params
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
 	at                 authtoken.Component
-	wg                 *sync.WaitGroup
+	*pkgagent.Agent
+
+	cancel  context.CancelFunc
+	params  *Params
+	wg      *sync.WaitGroup
+	secrets option.Option[secrets.Component]
 }
 
 // NewAgent creates a new Agent component.

@@ -56,10 +56,11 @@ type configSync struct {
 	Log       log.Component
 	Authtoken authtoken.Component
 
+	ctx context.Context
+
 	url       *url.URL
 	client    *http.Client
 	connected bool
-	ctx       context.Context
 	enabled   bool
 }
 

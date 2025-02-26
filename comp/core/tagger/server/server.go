@@ -33,8 +33,8 @@ const (
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
-	maxEventSize    int
 	throttler       Throttler
+	maxEventSize    int
 }
 
 // NewServer returns a new Server

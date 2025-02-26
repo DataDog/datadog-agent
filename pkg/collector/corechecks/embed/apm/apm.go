@@ -45,15 +45,15 @@ type apmCheckConf struct {
 
 // APMCheck keeps track of the running command
 type APMCheck struct {
-	binPath        string
-	commandOpts    []string
 	running        *atomic.Bool
 	stop           chan struct{}
 	stopDone       chan struct{}
+	binPath        string
 	source         string
-	telemetry      bool
 	initConfig     string
 	instanceConfig string
+	commandOpts    []string
+	telemetry      bool
 }
 
 // String displays the Agent name

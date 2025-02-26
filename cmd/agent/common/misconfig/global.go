@@ -26,9 +26,9 @@ type checkFn func() error
 
 // nolint: deadcode, unused
 type check struct {
-	name            string
 	run             checkFn
 	supportedAgents map[AgentType]struct{}
+	name            string
 }
 
 const (

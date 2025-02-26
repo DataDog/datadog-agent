@@ -68,13 +68,13 @@ type rdnsQuerierTelemetry = struct {
 }
 
 type rdnsQuerierImpl struct {
+	logger log.Component
+
+	cache             cache
 	config            *rdnsQuerierConfig
-	logger            log.Component
 	internalTelemetry *rdnsQuerierTelemetry
 
 	started bool
-
-	cache cache
 }
 
 // NewComponent creates a new rdnsquerier component

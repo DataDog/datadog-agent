@@ -41,9 +41,9 @@ type dependencies struct {
 	Log log.Component
 
 	Config     config.Component
-	Checks     []types.CheckComponent `group:"check"`
 	Forwarders forwarders.Component
 	HostInfo   hostinfo.Component
+	Checks     []types.CheckComponent `group:"check"`
 }
 
 type result struct {

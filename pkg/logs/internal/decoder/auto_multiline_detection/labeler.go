@@ -20,13 +20,13 @@ const (
 )
 
 type messageContext struct {
-	rawMessage []byte
+	labelAssignedBy string
+	rawMessage      []byte
 	// NOTE: tokens can be nil if the heuristic runs before the tokenizer.
 	// Heuristic implementations must check if tokens is nil before using it.
-	tokens          []tokens.Token
-	tokenIndicies   []int
-	label           Label
-	labelAssignedBy string
+	tokens        []tokens.Token
+	tokenIndicies []int
+	label         Label
 }
 
 // Heuristic is an interface representing a strategy to label log messages.

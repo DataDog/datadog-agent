@@ -22,9 +22,10 @@ import (
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
 	dogStatsDServer dogstatsdServer.ServerlessDogstatsd
-	tags            []string
 	Tagger          tagger.Component
 	Demux           aggregator.Demultiplexer
+
+	tags []string
 
 	SketchesBucketOffset time.Duration
 }

@@ -12,12 +12,12 @@ import (
 
 type queue[T any] struct {
 	clock            clock.Clock
-	maxNbItem        int
-	maxRetentionTime clock.Duration
 	flushCB          func([]T)
 	enqueueCh        chan T
-	data             []T
 	timer            *clock.Timer
+	data             []T
+	maxNbItem        int
+	maxRetentionTime clock.Duration
 }
 
 // NewQueue returns a chan to enqueue elements

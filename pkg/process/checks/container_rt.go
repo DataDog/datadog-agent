@@ -32,12 +32,12 @@ func NewRTContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Compon
 
 // RTContainerCheck collects numeric statistics about live ctrList.
 type RTContainerCheck struct {
-	maxBatchSize      int
-	hostInfo          *HostInfo
 	containerProvider proccontainers.ContainerProvider
-	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	config            pkgconfigmodel.Reader
 	wmeta             workloadmeta.Component
+	hostInfo          *HostInfo
+	lastRates         map[string]*proccontainers.ContainerRateMetrics
+	maxBatchSize      int
 }
 
 // Init initializes a RTContainerCheck instance.

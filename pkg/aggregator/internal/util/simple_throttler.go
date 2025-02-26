@@ -20,18 +20,19 @@ import (
 // There is no automatic decrease whatsoever in the execution count in time.
 // SimpleThrottler is not thread-safe.
 type SimpleThrottler struct {
-	// ExecLimit represents the execution count limit after which the
-	// throttler will indicates it's time to throttle
-	ExecLimit uint32
-	// PauseDuration represents how long the SimpleThrottler consider
-	// we have to throttle execution.
-	PauseDuration time.Duration
+	lastThrottling time.Time
 	// ThrottlingMessage is the warning message logged when the throttling is triggered.
 	// An empty message won't log anything.
 	ThrottlingMessage string
 
-	execCount      uint32
-	lastThrottling time.Time
+	// PauseDuration represents how long the SimpleThrottler consider
+	// we have to throttle execution.
+	PauseDuration time.Duration
+	// ExecLimit represents the execution count limit after which the
+	// throttler will indicates it's time to throttle
+	ExecLimit uint32
+
+	execCount uint32
 }
 
 // changed to a mocked clock in unit tests

@@ -12,10 +12,10 @@ import (
 
 // VariableMetadata is the MIB-extracted information of a given trap variable
 type VariableMetadata struct {
-	Name               string         `yaml:"name" json:"name"`
-	Description        string         `yaml:"descr" json:"descr"`
 	Enumeration        map[int]string `yaml:"enum" json:"enum"`
 	Bits               map[int]string `yaml:"bits" json:"bits"`
+	Name               string         `yaml:"name" json:"name"`
+	Description        string         `yaml:"descr" json:"descr"`
 	IsIntermediateNode bool           `yaml:"-" json:"-"`
 	// In theory, variables should always be leaves of the OID tree as intermediate nodes do not contain data.
 	// This isn't true in practice (see 1.3.6.1.4.1.4962.2.1.6.3).
@@ -31,10 +31,10 @@ type VariableSpec map[string]VariableMetadata
 // This is to prevent variable conflicts and to give precedence to the variable definitions located]
 // in the same trap db file as the trap.
 type TrapMetadata struct {
+	VariableSpecPtr VariableSpec `yaml:"-" json:"-"`
 	Name            string       `yaml:"name" json:"name"`
 	MIBName         string       `yaml:"mib" json:"mib"`
 	Description     string       `yaml:"descr" json:"descr"`
-	VariableSpecPtr VariableSpec `yaml:"-" json:"-"`
 }
 
 // TrapSpec contains the variableMetadata for each known trap in all trap db files

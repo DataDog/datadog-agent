@@ -26,8 +26,6 @@ const (
 // Once the event rate goes above the threshold the circuit breaker will trip
 // and remain open until Reset() is called.
 type CircuitBreaker struct {
-	// The maximum rate of events allowed to pass
-	maxEventsPerSec int64
 
 	// The number of events elapsed since the last tick
 	eventCount *atomic.Int64
@@ -43,6 +41,8 @@ type CircuitBreaker struct {
 	lastUpdate *atomic.Int64
 
 	done chan struct{}
+	// The maximum rate of events allowed to pass
+	maxEventsPerSec int64
 }
 
 // NewCircuitBreaker instantiates a new CircuitBreaker that only allows

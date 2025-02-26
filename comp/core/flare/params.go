@@ -7,9 +7,6 @@ package flare
 
 // Params defines the parameters for the flare component.
 type Params struct {
-	// local is set to true when we could not contact a running Agent and the flare is created directly from the
-	// CLI.
-	local bool
 
 	// distPath is the fully qualified path to the 'dist' directory
 	distPath string
@@ -28,6 +25,9 @@ type Params struct {
 
 	// defaultStreamlogsLogFile the path to the default Streamlogs log file
 	defaultStreamlogsLogFile string
+	// local is set to true when we could not contact a running Agent and the flare is created directly from the
+	// CLI.
+	local bool
 }
 
 // NewLocalParams returns parameters for to initialize a local flare component. Local flares are meant to be created by

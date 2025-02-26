@@ -42,9 +42,9 @@ var (
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	Metadata  map[string]interface{} `json:"system_probe_metadata"`
 	Hostname  string                 `json:"hostname"`
 	Timestamp int64                  `json:"timestamp"`
-	Metadata  map[string]interface{} `json:"system_probe_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON

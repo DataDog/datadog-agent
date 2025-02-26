@@ -17,10 +17,10 @@ import (
 // Router provides a wrapper around mux.Router so routes can be re-registered
 // This is needed to support the module-restart feature
 type Router struct {
-	mux            sync.Mutex
 	handlerByRoute map[string]func(http.ResponseWriter, *http.Request)
 	router         *mux.Router
 	labels         pprof.LabelSet
+	mux            sync.Mutex
 }
 
 // NewRouter returns a new Router

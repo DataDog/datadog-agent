@@ -13,17 +13,17 @@ import (
 )
 
 type collectorConfigs struct {
-	connectionsMonitoringEnabled bool
+	networkDevicesNamespace      string
+	storeConfig                  pathteststore.Config
 	workers                      int
 	timeout                      time.Duration
 	maxTTL                       int
 	pathtestInputChanSize        int
 	pathtestProcessingChanSize   int
-	storeConfig                  pathteststore.Config
 	flushInterval                time.Duration
-	reverseDNSEnabled            bool
 	reverseDNSTimeout            time.Duration
-	networkDevicesNamespace      string
+	connectionsMonitoringEnabled bool
+	reverseDNSEnabled            bool
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {

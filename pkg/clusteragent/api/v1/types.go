@@ -124,10 +124,10 @@ func NewMetadataResponseBundle() *MetadataResponseBundle {
 
 // MetadataResponse use to encore /api/v1/tags payloads
 type MetadataResponse struct {
-	Nodes    map[string]*MetadataResponseBundle `json:"Nodes,omitempty"`    // Nodes with uppercase for backward compatibility
-	Warnings []string                           `json:"Warnings,omitempty"` // Warnings with uppercase for backward compatibility
-	Errors   string                             `json:"Errors,omitempty"`   // Errors with uppercase for backward compatibility
+	Nodes  map[string]*MetadataResponseBundle `json:"Nodes,omitempty"`  // Nodes with uppercase for backward compatibility
+	Errors string                             `json:"Errors,omitempty"` // Errors with uppercase for backward compatibility
 	// TODO: Since it is Errors, it should be []string and not string
+	Warnings []string `json:"Warnings,omitempty"` // Warnings with uppercase for backward compatibility
 }
 
 // NewMetadataResponse returns new NewMetadataResponse initialized instance

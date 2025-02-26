@@ -30,12 +30,12 @@ const (
 // underlying buffer reference to avoid re-sizing the slice
 // before reading
 type Packet struct {
+	Origin     string     // Origin container if identified
+	ListenerID string     // Listener ID
 	Contents   []byte     // Contents, might contain several messages
 	Buffer     []byte     // Underlying buffer for data read
-	Origin     string     // Origin container if identified
-	ProcessID  uint32     // ProcessID that sent the packet
-	ListenerID string     // Listener ID
 	Source     SourceType // Type of listener that produced the packet
+	ProcessID  uint32     // ProcessID that sent the packet
 }
 
 // Packets is a slice of packet pointers

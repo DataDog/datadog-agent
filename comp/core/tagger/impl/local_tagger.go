@@ -40,17 +40,18 @@ const (
 // methods in comp/core/tagger to use the default Tagger instead of instantiating it
 // directly.
 type localTagger struct {
-	sync.RWMutex
-
-	tagStore      *tagstore.TagStore
 	workloadStore workloadmeta.Component
 	log           log.Component
 	cfg           config.Component
-	collector     *collectors.WorkloadMetaCollector
 
-	ctx            context.Context
+	ctx context.Context
+
+	tagStore  *tagstore.TagStore
+	collector *collectors.WorkloadMetaCollector
+
 	cancel         context.CancelFunc
 	telemetryStore *telemetry.Store
+	sync.RWMutex
 }
 
 func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryStore *telemetry.Store) (tagger.Component, error) {

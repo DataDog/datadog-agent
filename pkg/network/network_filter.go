@@ -18,10 +18,9 @@ var wildcard = netip.Prefix{}
 
 // ConnectionFilter holds a user-defined excluded IP/CIDR, and ports
 type ConnectionFilter struct {
+	Ports    map[uint16]ConnTypeFilter
 	IP       netip.Prefix // zero-value matches all IPs
 	AllPorts ConnTypeFilter
-
-	Ports map[uint16]ConnTypeFilter
 }
 
 // ConnTypeFilter holds user-defined protocols

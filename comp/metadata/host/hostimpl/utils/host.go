@@ -41,15 +41,15 @@ var (
 )
 
 type systemStats struct {
-	CPUCores  int32     `json:"cpuCores"`
-	Machine   string    `json:"machine"`
-	Platform  string    `json:"platform"`
-	Pythonv   string    `json:"pythonV"`
-	Processor string    `json:"processor"`
 	Macver    osVersion `json:"macV"`
 	Nixver    osVersion `json:"nixV"`
 	Fbsdver   osVersion `json:"fbsdV"`
 	Winver    osVersion `json:"winV"`
+	Machine   string    `json:"machine"`
+	Platform  string    `json:"platform"`
+	Pythonv   string    `json:"pythonV"`
+	Processor string    `json:"processor"`
+	CPUCores  int32     `json:"cpuCores"`
 }
 
 // LogsMeta is metadata about the host's logs agent
@@ -67,8 +67,8 @@ type NetworkMeta struct {
 // InstallMethod is metadata about the agent's installation
 type InstallMethod struct {
 	Tool             *string `json:"tool"`
-	ToolVersion      string  `json:"tool_version"`
 	InstallerVersion *string `json:"installer_version"`
+	ToolVersion      string  `json:"tool_version"`
 }
 
 // ProxyMeta is metatdata about the proxy configuration
@@ -85,9 +85,6 @@ type OtlpMeta struct {
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Os            string            `json:"os"`
-	AgentFlavor   string            `json:"agent-flavor"`
-	PythonVersion string            `json:"python"`
 	SystemStats   *systemStats      `json:"systemStats"`
 	Meta          *Meta             `json:"meta"`
 	HostTags      *hosttags.Tags    `json:"host-tags"`
@@ -97,6 +94,9 @@ type Payload struct {
 	InstallMethod *InstallMethod    `json:"install-method"`
 	ProxyMeta     *ProxyMeta        `json:"proxy-info"`
 	OtlpMeta      *OtlpMeta         `json:"otlp"`
+	Os            string            `json:"os"`
+	AgentFlavor   string            `json:"agent-flavor"`
+	PythonVersion string            `json:"python"`
 }
 
 func getNetworkMeta(ctx context.Context) *NetworkMeta {

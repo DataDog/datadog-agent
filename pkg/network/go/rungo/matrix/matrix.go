@@ -25,15 +25,6 @@ import (
 // It handles downloading the Go toolchains for each version
 // to the provided `InstallDirectory`, which can be cached to speed up future runs.
 type Runner struct {
-	// The number of single architecture-version runners that are active at any time.
-	Parallelism int
-	// List of Go versions to run commands on.
-	// These should all be non-beta/RC versions.
-	Versions []goversion.GoVersion
-	// List of Go architectures (values for GOARCH) to run commands on.
-	Architectures []string
-	// The root directory that the matrix runner should use to install the Go toolchain versions.
-	InstallDirectory string
 	// Constructs the command to run for the single architecture-version runner.
 	// The implementation should use `exec.CommandContext` and pass in the supplied context
 	// to ensure that the command is cancelled if the runner exits early.
@@ -45,6 +36,15 @@ type Runner struct {
 	//
 	// To skip a version-architecture pair, return `nil` for this function.
 	GetCommand func(ctx context.Context, version goversion.GoVersion, arch string, goExe string) *exec.Cmd
+	// The root directory that the matrix runner should use to install the Go toolchain versions.
+	InstallDirectory string
+	// List of Go versions to run commands on.
+	// These should all be non-beta/RC versions.
+	Versions []goversion.GoVersion
+	// List of Go architectures (values for GOARCH) to run commands on.
+	Architectures []string
+	// The number of single architecture-version runners that are active at any time.
+	Parallelism int
 }
 
 type architectureVersion struct {
@@ -91,8 +91,8 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	jobs := make(chan architectureVersion, len(combinations))
 	results := make(chan struct {
-		version architectureVersion
 		err     error
+		version architectureVersion
 	})
 
 	cancellableContext, cancel := context.WithCancel(ctx)
@@ -105,8 +105,8 @@ func (r *Runner) Run(ctx context.Context) error {
 			for j := range jobs {
 				err := r.runSingleCommand(cancellableContext, executables[j.version], j.version, j.architecture)
 				results <- struct {
-					version architectureVersion
 					err     error
+					version architectureVersion
 				}{j, err}
 			}
 		}()
@@ -138,9 +138,9 @@ func (r *Runner) Run(ctx context.Context) error {
 func (r *Runner) installAllVersions(ctx context.Context) (map[goversion.GoVersion]string, error) {
 	jobs := make(chan goversion.GoVersion, len(r.Versions))
 	results := make(chan struct {
+		err     error
 		version goversion.GoVersion
 		exe     string
-		err     error
 	})
 
 	cancellableContext, cancel := context.WithCancel(ctx)
@@ -151,9 +151,9 @@ func (r *Runner) installAllVersions(ctx context.Context) (map[goversion.GoVersio
 			for j := range jobs {
 				exe, err := r.installSingleVersion(cancellableContext, j)
 				results <- struct {
+					err     error
 					version goversion.GoVersion
 					exe     string
-					err     error
 				}{j, exe, err}
 			}
 		}()

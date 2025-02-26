@@ -57,12 +57,12 @@ type EntityTags interface {
 // not be shared outside of the store. Usage inside the store is safe since it
 // relies on a global lock.
 type EntityTagsWithMultipleSources struct {
-	entityID           types.EntityID
 	sourceTags         map[string]sourceTags
-	cacheValid         bool
+	entityID           types.EntityID
 	cachedAll          tagset.HashedTags // Low + orchestrator + high
 	cachedOrchestrator tagset.HashedTags // Low + orchestrator (subslice of cachedAll)
 	cachedLow          tagset.HashedTags // Sub-slice of cachedAll
+	cacheValid         bool
 }
 
 func newEntityTags(entityID types.EntityID, source string) EntityTags {

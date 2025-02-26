@@ -29,11 +29,11 @@ type EntityTagAdder interface {
 
 // provider provides a list of up-to-date tags for a given entity by calling the tagger.
 type provider struct {
-	entityID             types.EntityID
-	taggerWarmupDuration time.Duration
 	localTagProvider     Provider
 	clock                clock.Clock
 	tagAdder             EntityTagAdder
+	entityID             types.EntityID
+	taggerWarmupDuration time.Duration
 	sync.Once
 }
 

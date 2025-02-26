@@ -16,16 +16,16 @@ import (
 )
 
 type bucket struct {
+	message        *message.Message
+	buffer         *bytes.Buffer
+	maxContentSize int
+
+	originalDataLen  int
+	lineCount        int
 	tagTruncatedLogs bool
 	tagMultiLineLogs bool
-	maxContentSize   int
-
-	message         *message.Message
-	originalDataLen int
-	buffer          *bytes.Buffer
-	lineCount       int
-	shouldTruncate  bool
-	needsTruncation bool
+	shouldTruncate   bool
+	needsTruncation  bool
 }
 
 func (b *bucket) add(msg *message.Message) {
@@ -107,11 +107,11 @@ func (b *bucket) flush() *message.Message {
 type Aggregator struct {
 	outputFn           func(m *message.Message)
 	bucket             *bucket
-	maxContentSize     int
-	flushTimeout       time.Duration
 	flushTimer         *time.Timer
 	multiLineMatchInfo *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
+	maxContentSize     int
+	flushTimeout       time.Duration
 }
 
 // NewAggregator creates a new aggregator.

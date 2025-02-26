@@ -30,32 +30,35 @@ type workloadmeta struct {
 	log    log.Component
 	config config.Component
 
-	// Store related
-	storeMut sync.RWMutex
-	store    map[wmdef.Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
+	store map[wmdef.Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
 
-	subscribersMut sync.RWMutex
-	subscribers    []subscriber
-
-	collectorMut sync.RWMutex
-	candidates   map[string]wmdef.Collector
-	collectors   map[string]wmdef.Collector
+	candidates map[string]wmdef.Collector
+	collectors map[string]wmdef.Collector
 
 	eventCh chan []wmdef.CollectorEvent
 
+	ongoingPulls map[string]time.Time // collector ID => time when last pull started
+	subscribers  []subscriber
+
+	// Store related
+	storeMut sync.RWMutex
+
+	subscribersMut sync.RWMutex
+
+	collectorMut sync.RWMutex
+
 	ongoingPullsMut sync.Mutex
-	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
 }
 
 // Dependencies defines the dependencies of the workloadmeta component.
 type Dependencies struct {
 	Lc compdef.Lifecycle
 
-	Log     log.Component
-	Config  config.Component
-	Catalog wmdef.CollectorList `group:"workloadmeta"`
+	Log    log.Component
+	Config config.Component
 
-	Params wmdef.Params
+	Params  wmdef.Params
+	Catalog wmdef.CollectorList `group:"workloadmeta"`
 }
 
 // Provider contains components provided by workloadmeta constructor.

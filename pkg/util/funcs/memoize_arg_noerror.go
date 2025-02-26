@@ -8,9 +8,9 @@ package funcs
 import "sync"
 
 type memoizedArgNoErrorFunc[K comparable, T any] struct {
-	sync.Mutex
 	fn      func(K) T
 	results map[K]T
+	sync.Mutex
 }
 
 func (mf *memoizedArgNoErrorFunc[K, T]) do(arg K) T {

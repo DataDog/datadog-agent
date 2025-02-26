@@ -51,30 +51,32 @@ func init() {
 // back packets ready to be processed.
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
+	trafficCapture replay.Component
+	pidMap         pidmap.Component
+	config         model.Reader
+
+	// telemetry
+	telemetry               telemetry.Component
 	packetOut               chan packets.Packets
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	oobPoolManager          *packets.PoolManager[[]byte]
-	trafficCapture          replay.Component
-	pidMap                  pidmap.Component
-	OriginDetection         bool
-	config                  model.Reader
+
+	listenWg *sync.WaitGroup
+
+	telemetryStore        *TelemetryStore
+	packetsTelemetryStore *packets.TelemetryStore
 
 	wmeta option.Option[workloadmeta.Component]
 
 	transport string
 
-	dogstatsdMemBasedRateLimiter bool
-
 	packetBufferSize         uint
 	packetBufferFlushTimeout time.Duration
-	telemetryWithListenerID  bool
+	OriginDetection          bool
 
-	listenWg *sync.WaitGroup
+	dogstatsdMemBasedRateLimiter bool
 
-	// telemetry
-	telemetry             telemetry.Component
-	telemetryStore        *TelemetryStore
-	packetsTelemetryStore *packets.TelemetryStore
+	telemetryWithListenerID bool
 }
 
 // Wrapper for net.UnixConn

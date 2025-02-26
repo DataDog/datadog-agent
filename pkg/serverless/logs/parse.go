@@ -16,11 +16,11 @@ import (
 
 // platformObjectRecord contains additional information found in Platform log messages
 type platformObjectRecord struct {
+	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
 	requestID       string           // uuid; present in LogTypePlatform{Start,End,Report}
 	startLogItem    startLogItem     // present in LogTypePlatformStart only
-	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
-	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
 	status          string           // status is the status of either an init or invocation phase
+	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
 }
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
@@ -30,13 +30,13 @@ type platformObjectRecord struct {
 // early in the invocation, which is a bit confusing
 // TODO Astuyve - refactor out initDurationMs to draw from TelemetryAPI
 type reportLogMetrics struct {
+	initStartTime         time.Time
 	durationMs            float64
 	billedDurationMs      int
 	memorySizeMB          int
 	maxMemoryUsedMB       int
 	initDurationMs        float64
 	initDurationTelemetry float64
-	initStartTime         time.Time
 }
 
 // runtimeDoneItem contains metrics found in a LogTypePlatformRuntimeDone log

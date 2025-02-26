@@ -36,11 +36,11 @@ var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.
 // ExecutionStartInfo is saved information from when an execution span was started
 type ExecutionStartInfo struct {
 	startTime         time.Time
-	TraceID           uint64
 	TraceIDUpper64Hex string
+	requestPayload    []byte
+	TraceID           uint64
 	SpanID            uint64
 	parentID          uint64
-	requestPayload    []byte
 	SamplingPriority  sampler.SamplingPriority
 }
 

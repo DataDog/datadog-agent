@@ -72,8 +72,8 @@ func (s *stream) Recv() (interface{}, error) {
 }
 
 type streamHandler struct {
-	port int
 	model.Reader
+	port int
 }
 
 // workloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event

@@ -92,10 +92,11 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		Logger logcomp.Component
 
-		Checks       []types.CheckComponent `group:"check"`
 		Syscfg       sysprobeconfig.Component
 		Config       config.Component
 		WorkloadMeta workloadmeta.Component
+
+		Checks []types.CheckComponent `group:"check"`
 	}
 	app := fx.New(
 		fx.Supply(

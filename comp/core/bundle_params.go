@@ -20,9 +20,9 @@ import (
 // must be called.
 type BundleParams struct {
 	ConfigParams
-	SecretParams
-	SysprobeConfigParams
 	LogParams
+	SysprobeConfigParams
+	SecretParams
 }
 
 // ConfigParams defines the parameters of the config component

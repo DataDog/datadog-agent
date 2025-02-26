@@ -87,9 +87,9 @@ func (s *stream) Recv() (interface{}, error) {
 }
 
 type streamHandler struct {
-	port   int
-	filter *workloadmeta.Filter
 	model.Config
+	filter *workloadmeta.Filter
+	port   int
 }
 
 // NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.

@@ -38,9 +38,9 @@ const (
 // These include the core config configuration and component config params.
 type Dependencies struct {
 	fx.In
-	Params Params
 	Config coreconfig.Component
 	Tagger tagger.Component
+	Params Params
 }
 
 // cfg implements the Component.

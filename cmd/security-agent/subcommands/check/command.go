@@ -43,14 +43,15 @@ import (
 type CliParams struct {
 	*command.GlobalParams
 
-	args []string
-
 	framework         string
 	file              string
-	verbose           bool
-	report            bool
 	overrideRegoInput string
 	dumpReports       string
+
+	args []string
+
+	verbose bool
+	report  bool
 }
 
 // SecurityAgentCommands returns the security agent commands

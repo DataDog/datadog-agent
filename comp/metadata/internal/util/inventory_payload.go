@@ -87,21 +87,22 @@ type PayloadGetter func() marshaler.JSONMarshaler
 // Embedding type need to provide a PayloadGetter callback when calling Init. This callback will be called each time a
 // new payload need to be generated.
 type InventoryPayload struct {
-	m sync.Mutex
+	createdAt   time.Time
+	LastCollect time.Time
 
 	conf          config.Component
 	log           log.Component
 	serializer    serializer.MetricSerializer
 	getPayload    PayloadGetter
-	createdAt     time.Time
+	FlareFileName string
 	firstRunDelay time.Duration
 
-	Enabled       bool
-	LastCollect   time.Time
-	MinInterval   time.Duration
-	MaxInterval   time.Duration
-	forceRefresh  atomic.Bool
-	FlareFileName string
+	MinInterval  time.Duration
+	MaxInterval  time.Duration
+	forceRefresh atomic.Bool
+	m            sync.Mutex
+
+	Enabled bool
 }
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload

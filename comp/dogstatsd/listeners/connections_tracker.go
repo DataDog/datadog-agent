@@ -22,9 +22,9 @@ type ConnectionTracker struct {
 	connToClose       chan net.Conn
 	stopChan          chan struct{}
 	stoppedChan       chan struct{}
-	closeDelay        time.Duration
 	activeConnections *atomic.Int32
 	name              string
+	closeDelay        time.Duration
 }
 
 // NewConnectionTracker creates a new ConnectionTracker.

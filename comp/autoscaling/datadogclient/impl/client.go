@@ -81,10 +81,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 // refresh of the client pointer in case of app/api key changes
 type datadogClientWrapper struct {
 	client            datadogclient.Component
-	mux               sync.RWMutex
 	datadogConfig     configComponent.Component
 	log               logComp.Component
 	numberOfRefreshes int
+	mux               sync.RWMutex
 }
 
 var _ datadogclient.Component = (*datadog.Client)(nil)       // client implemented by zorkian/go-datadog-api.v2

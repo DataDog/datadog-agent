@@ -59,26 +59,27 @@ type dependencies struct {
 }
 
 type collectorImpl struct {
-	log     log.Component
-	config  config.Component
-	haAgent haagent.Component
+	createdAt time.Time
+	log       log.Component
+	config    config.Component
+	haAgent   haagent.Component
 
-	senderManager    sender.SenderManager
-	metricSerializer option.Option[serializer.MetricSerializer]
-	checkInstances   int64
+	senderManager sender.SenderManager
 
 	// state is 'started' or 'stopped'
 	state *atomic.Uint32
 
-	scheduler      *scheduler.Scheduler
-	runner         *runner.Runner
-	checks         map[checkid.ID]*middleware.CheckWrapper
-	eventReceivers []collector.EventReceiver
+	scheduler        *scheduler.Scheduler
+	runner           *runner.Runner
+	checks           map[checkid.ID]*middleware.CheckWrapper
+	metricSerializer option.Option[serializer.MetricSerializer]
+	eventReceivers   []collector.EventReceiver
+
+	checkInstances int64
 
 	cancelCheckTimeout time.Duration
 
-	m         sync.RWMutex
-	createdAt time.Time
+	m sync.RWMutex
 }
 
 type provides struct {

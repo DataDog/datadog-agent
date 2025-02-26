@@ -34,9 +34,9 @@ type AgentTaskConfig struct {
 
 // agentTaskData is the content of a agent task configuration file
 type agentTaskData struct {
+	TaskArgs map[string]string `json:"args"`
 	TaskType string            `json:"task_type"`
 	UUID     string            `json:"uuid"`
-	TaskArgs map[string]string `json:"args"`
 }
 
 // ParseConfigAgentTask parses an agent task config

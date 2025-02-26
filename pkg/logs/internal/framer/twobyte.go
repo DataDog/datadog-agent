@@ -20,13 +20,13 @@ var (
 // two-byte-aligned two-byte sequence.  It is suitable for two-byte encodings such
 // as UTF-16.
 type twoByteNewLineMatcher struct {
+
+	// newline is the newline character being matched
+	newline []byte
 	// contentLenLimit is the maximum content length that will be returned.
 	// Lines longer than this value will be split into multiple frames.  This
 	// value will be rounded down to a multiple of 2.
 	contentLenLimit int
-
-	// newline is the newline character being matched
-	newline []byte
 }
 
 // FindFrame implements EndLineMatcher#FindFrame.

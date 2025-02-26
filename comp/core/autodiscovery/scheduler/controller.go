@@ -23,8 +23,9 @@ const (
 
 // Controller is a scheduler dispatching to all its registered schedulers
 type Controller struct {
-	// m protects all fields in this struct.
-	m sync.Mutex
+
+	// a workqueue to process the config events
+	queue workqueue.TypedDelayingInterface[Digest]
 
 	// activeSchedulers is the set of schedulers currently subscribed to configs.
 	activeSchedulers map[string]Scheduler
@@ -36,11 +37,11 @@ type Controller struct {
 	// ConfigStateStore contains the desired state of configs
 	configStateStore *ConfigStateStore
 
-	// a workqueue to process the config events
-	queue workqueue.TypedDelayingInterface[Digest]
-
-	started     bool
 	stopChannel chan struct{}
+	// m protects all fields in this struct.
+	m sync.Mutex
+
+	started bool
 }
 
 // NewController inits a scheduler controller

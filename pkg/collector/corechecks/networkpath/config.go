@@ -38,35 +38,35 @@ type InitConfig struct {
 type InstanceConfig struct {
 	DestHostname string `yaml:"hostname"`
 
-	DestPort uint16 `yaml:"port"`
-
 	Protocol string `yaml:"protocol"`
 
 	SourceService      string `yaml:"source_service"`
 	DestinationService string `yaml:"destination_service"`
 
-	MaxTTL uint8 `yaml:"max_ttl"`
+	Tags []string `yaml:"tags"`
 
 	TimeoutMs int64 `yaml:"timeout"`
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 
-	Tags []string `yaml:"tags"`
+	DestPort uint16 `yaml:"port"`
+
+	MaxTTL uint8 `yaml:"max_ttl"`
 }
 
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
 	DestHostname          string
-	DestPort              uint16
 	SourceService         string
 	DestinationService    string
-	MaxTTL                uint8
 	Protocol              payload.Protocol
+	Namespace             string
+	Tags                  []string
 	Timeout               time.Duration
 	MinCollectionInterval time.Duration
-	Tags                  []string
-	Namespace             string
+	DestPort              uint16
+	MaxTTL                uint8
 }
 
 // NewCheckConfig builds a new check config

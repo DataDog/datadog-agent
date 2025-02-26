@@ -26,9 +26,9 @@ type haAgentMetadata = map[string]interface{}
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	Metadata  haAgentMetadata `json:"ha_agent_metadata"`
 	Hostname  string          `json:"hostname"`
 	Timestamp int64           `json:"timestamp"`
-	Metadata  haAgentMetadata `json:"ha_agent_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -45,14 +45,14 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 }
 
 type haagentimpl struct {
+	conf    config.Component
+	log     log.Component
+	haAgent haagentcomp.Component
+	data    haAgentMetadata
 	util.InventoryPayload
 
-	conf     config.Component
-	log      log.Component
-	m        sync.Mutex
-	data     haAgentMetadata
 	hostname string
-	haAgent  haagentcomp.Component
+	m        sync.Mutex
 }
 
 func (i *haagentimpl) refreshMetadata() {

@@ -51,10 +51,10 @@ const (
 
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
-	usePrefixes bool
 
 	// args are the positional command-line arguments
-	args []string
+	args        []string
+	usePrefixes bool
 }
 
 // Commands returns a slice of subcommands of the parent command.

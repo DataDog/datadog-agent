@@ -23,10 +23,10 @@ type PathtestMetadata struct {
 // Pathtest details of information necessary to run a traceroute (pathtrace)
 type Pathtest struct {
 	Hostname          string
-	Port              uint16
 	Protocol          payload.Protocol
 	SourceContainerID string
 	Metadata          PathtestMetadata
+	Port              uint16
 }
 
 // GetHash returns the hash of the Pathtest

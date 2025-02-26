@@ -38,10 +38,10 @@ type lookupFunctionTemplateArgs struct {
 }
 
 type archCaseTemplateArgs struct {
-	Arch     string
-	HasMin   bool
 	Min      goversion.GoVersion
+	Arch     string
 	Branches []branchTemplateArgs
+	HasMin   bool
 }
 
 type branchTemplateArgs struct {

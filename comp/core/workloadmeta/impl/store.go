@@ -32,10 +32,10 @@ const (
 )
 
 type subscriber struct {
-	name     string
-	priority wmdef.SubscriberPriority
 	ch       chan wmdef.EventBundle
 	filter   *wmdef.Filter
+	name     string
+	priority wmdef.SubscriberPriority
 }
 
 // start starts the workload metadata store.

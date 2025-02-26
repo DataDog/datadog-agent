@@ -42,25 +42,25 @@ type RegistryEntry struct {
 
 // JSONRegistry represents the registry that will be written on disk
 type JSONRegistry struct {
-	Version  int
 	Registry map[string]RegistryEntry
+	Version  int
 }
 
 // A registryAuditor is storing the Auditor information using a registry.
 type registryAuditor struct {
+	log                log.Component
 	health             *health.Handle
-	chansMutex         sync.Mutex
 	inputChan          chan *message.Payload
 	registry           map[string]*RegistryEntry
+	done               chan struct{}
 	registryPath       string
 	registryDirPath    string
 	registryTmpFile    string
-	registryMutex      sync.Mutex
 	entryTTL           time.Duration
-	done               chan struct{}
 	messageChannelSize int
 
-	log log.Component
+	chansMutex    sync.Mutex
+	registryMutex sync.Mutex
 }
 
 // Dependencies defines the dependencies of the auditor

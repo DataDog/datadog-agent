@@ -21,9 +21,10 @@ import (
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfigFilePaths      []string
 	SysProbeConfFilePath string
 	FleetPoliciesDirPath string
+
+	ConfigFilePaths []string
 
 	// NoColor is a flag to disable color output
 	NoColor bool

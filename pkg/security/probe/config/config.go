@@ -38,8 +38,64 @@ func setEnv() {
 
 // Config defines a security config
 type Config struct {
+
+	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
+	SocketPath string
+
+	// StatsTagsCardinality determines the cardinality level of the tags added to the exported metrics
+	StatsTagsCardinality string
+
 	// event monitor/probe parameters
 	ebpf.Config
+
+	// CustomSensitiveWords defines words to add to the scrubber
+	CustomSensitiveWords []string
+
+	// NOTE(safchain) need to revisit this one as it can impact multiple event consumers
+	// EnvsWithValue lists environnement variables that will be fully exported
+	EnvsWithValue []string
+
+	// NetworkLazyInterfacePrefixes is the list of interfaces prefix that aren't explicitly deleted by the container
+	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
+	// agent detect when a network namespace should be purged from all caches.
+	NetworkLazyInterfacePrefixes []string
+
+	// NetworkPrivateIPRanges defines the list of IP that should be considered private
+	NetworkPrivateIPRanges []string
+
+	// NetworkExtraPrivateIPRanges defines the list of extra IP that should be considered private
+	NetworkExtraPrivateIPRanges []string
+
+	// FlushDiscarderWindow defines the maximum time window for discarders removal.
+	// This is used during reload to avoid removing all the discarders at the same time.
+	FlushDiscarderWindow int
+
+	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
+	EventServerBurst int
+
+	// PIDCacheSize is the size of the user space PID caches
+	PIDCacheSize int
+
+	// DentryCacheSize is the size of the user space dentry cache
+	DentryCacheSize int
+
+	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
+	EventStreamBufferSize int
+
+	// NetworkFlowMonitorPeriod defines the period at which collected flows should flushed to user space.
+	NetworkFlowMonitorPeriod time.Duration
+
+	// StatsPollingInterval determines how often metrics should be polled
+	StatsPollingInterval time.Duration
+
+	// NetworkClassifierPriority defines the priority at which CWS should insert its TC classifiers.
+	NetworkClassifierPriority uint16
+
+	// NetworkClassifierHandle defines the handle at which CWS should insert its TC classifiers.
+	NetworkClassifierHandle uint16
+
+	// RawNetworkClassifierHandle defines the handle at which CWS should insert its Raw TC classifiers.
+	RawNetworkClassifierHandle uint16
 
 	// EnableAllProbes defines if all probes should be activated regardless of loaded rules (while still respecting config, especially network disabled)
 	EnableAllProbes bool
@@ -53,46 +109,17 @@ type Config struct {
 	// EnableDiscarders defines if in-kernel discarders should be activated or not
 	EnableDiscarders bool
 
-	// FlushDiscarderWindow defines the maximum time window for discarders removal.
-	// This is used during reload to avoid removing all the discarders at the same time.
-	FlushDiscarderWindow int
-
-	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
-	SocketPath string
-
-	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
-	EventServerBurst int
-
-	// PIDCacheSize is the size of the user space PID caches
-	PIDCacheSize int
-
-	// StatsTagsCardinality determines the cardinality level of the tags added to the exported metrics
-	StatsTagsCardinality string
-
-	// CustomSensitiveWords defines words to add to the scrubber
-	CustomSensitiveWords []string
-
 	// ERPCDentryResolutionEnabled determines if the ERPC dentry resolution is enabled
 	ERPCDentryResolutionEnabled bool
 
 	// MapDentryResolutionEnabled determines if the map resolution is enabled
 	MapDentryResolutionEnabled bool
 
-	// DentryCacheSize is the size of the user space dentry cache
-	DentryCacheSize int
-
-	// NOTE(safchain) need to revisit this one as it can impact multiple event consumers
-	// EnvsWithValue lists environnement variables that will be fully exported
-	EnvsWithValue []string
-
 	// RuntimeMonitor defines if the Go runtime and system monitor should be enabled
 	RuntimeMonitor bool
 
 	// EventStreamUseRingBuffer specifies whether to use eBPF ring buffers when available
 	EventStreamUseRingBuffer bool
-
-	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
-	EventStreamBufferSize int
 
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
@@ -103,25 +130,8 @@ type Config struct {
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
-	// NetworkLazyInterfacePrefixes is the list of interfaces prefix that aren't explicitly deleted by the container
-	// runtime, and that are lazily deleted by the kernel when a network namespace is cleaned up. This list helps the
-	// agent detect when a network namespace should be purged from all caches.
-	NetworkLazyInterfacePrefixes []string
-
-	// NetworkClassifierPriority defines the priority at which CWS should insert its TC classifiers.
-	NetworkClassifierPriority uint16
-
-	// NetworkClassifierHandle defines the handle at which CWS should insert its TC classifiers.
-	NetworkClassifierHandle uint16
-
-	// RawNetworkClassifierHandle defines the handle at which CWS should insert its Raw TC classifiers.
-	RawNetworkClassifierHandle uint16
-
 	// NetworkFlowMonitorEnabled defines if the network flow monitor should be enabled.
 	NetworkFlowMonitorEnabled bool
-
-	// NetworkFlowMonitorPeriod defines the period at which collected flows should flushed to user space.
-	NetworkFlowMonitorPeriod time.Duration
 
 	// NetworkFlowMonitorSKStorageEnabled defines if the network flow monitor should use a SK_STORAGE map (higher memory footprint).
 	NetworkFlowMonitorSKStorageEnabled bool
@@ -140,15 +150,6 @@ type Config struct {
 
 	// NetworkRawPacketEnabled defines if the network raw packet is enabled
 	NetworkRawPacketEnabled bool
-
-	// NetworkPrivateIPRanges defines the list of IP that should be considered private
-	NetworkPrivateIPRanges []string
-
-	// NetworkExtraPrivateIPRanges defines the list of extra IP that should be considered private
-	NetworkExtraPrivateIPRanges []string
-
-	// StatsPollingInterval determines how often metrics should be polled
-	StatsPollingInterval time.Duration
 
 	// SyscallsMonitorEnabled defines if syscalls monitoring metrics should be collected
 	SyscallsMonitorEnabled bool

@@ -14,9 +14,9 @@ const defaultBufferSize = 1e9 // 1M
 // safeBuffer is a thread safe buffer implementation which acts like a rolling
 // buffer based on the size of the internal slice.
 type safeBuffer struct {
-	mu  sync.RWMutex
 	b   []byte
 	off int
+	mu  sync.RWMutex
 }
 
 // newSafeBuffer returns a new safe buffer with a default rolling size.

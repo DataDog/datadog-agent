@@ -58,8 +58,8 @@ type dependencies struct {
 	Log        logComp.Component
 	TaggerComp tagger.Component
 	Secrets    secrets.Component
-	WMeta      option.Option[workloadmeta.Component]
 	Telemetry  telemetry.Component
+	WMeta      option.Option[workloadmeta.Component]
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -67,8 +67,9 @@ type dependencies struct {
 // and then "schedule" or "unschedule" them by notifying subscribers.  See the
 // module README for details.
 type AutoConfig struct {
-	configPollers            []*configPoller
-	listeners                []listeners.ServiceListener
+	cfgMgr                   configManager
+	taggerComp               tagger.Component
+	logs                     logComp.Component
 	listenerCandidates       map[string]*listenerCandidate
 	listenerRetryStop        chan struct{}
 	schedulerController      *scheduler.Controller
@@ -77,21 +78,21 @@ type AutoConfig struct {
 	newService               chan listeners.Service
 	delService               chan listeners.Service
 	store                    *store
-	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providers.ConfigProviderFactory
-	started                  bool
-	wmeta                    option.Option[workloadmeta.Component]
-	taggerComp               tagger.Component
-	logs                     logComp.Component
 	telemetryStore           *acTelemetry.Store
+
+	// ranOnce is set to 1 once the AutoConfig has been executed
+	ranOnce       *atomic.Bool
+	wmeta         option.Option[workloadmeta.Component]
+	configPollers []*configPoller
+	listeners     []listeners.ServiceListener
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
 	m sync.RWMutex
 
-	// ranOnce is set to 1 once the AutoConfig has been executed
-	ranOnce *atomic.Bool
+	started bool
 }
 
 type provides struct {

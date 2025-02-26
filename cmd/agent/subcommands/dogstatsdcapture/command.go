@@ -40,8 +40,9 @@ const (
 type cliParams struct {
 	*command.GlobalParams
 
+	dsdCaptureFilePath string
+
 	dsdCaptureDuration   time.Duration
-	dsdCaptureFilePath   string
 	dsdCaptureCompressed bool
 }
 

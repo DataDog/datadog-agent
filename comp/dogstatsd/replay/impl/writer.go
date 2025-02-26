@@ -53,20 +53,21 @@ var captureFs = backendFs{
 
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
-	zWriter   *zstd.Writer
-	writer    *bufio.Writer
-	Traffic   chan *replay.CaptureBuffer
-	ongoing   bool
-	accepting bool
+	tagger tagger.Component
+
+	zWriter *zstd.Writer
+	writer  *bufio.Writer
+	Traffic chan *replay.CaptureBuffer
 
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	oobPacketPoolManager    *packets.PoolManager[[]byte]
 
 	taggerState map[int32]string
-	tagger      tagger.Component
 
 	// Synchronizes access to ongoing, accepting and closing of Traffic
 	sync.RWMutex
+	ongoing   bool
+	accepting bool
 }
 
 // NewTrafficCaptureWriter creates a TrafficCaptureWriter instance.

@@ -37,11 +37,11 @@ func (b batch) getOrAddPodInfo(pod *workloadmeta.KubernetesPod) *podInfo {
 }
 
 type podInfo struct {
-	namespace     string
 	containerInfo languagemodels.ContainersLanguages
 	ownerRef      *workloadmeta.KubernetesPodOwner
 	// Record all of the containers in the pod
 	containers map[languagemodels.Container]struct{}
+	namespace  string
 }
 
 func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {

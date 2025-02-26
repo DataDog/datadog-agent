@@ -21,14 +21,14 @@ import (
 
 // Requires contains the dependencies for the dual tagger component
 type Requires struct {
-	Lc           compdef.Lifecycle
-	LocalParams  tagger.Params
 	RemoteParams tagger.RemoteParams
-	DualParams   tagger.DualParams
+	Lc           compdef.Lifecycle
 	Config       config.Component
 	Log          log.Component
 	Wmeta        workloadmeta.Component
 	Telemetry    telemetry.Component
+	DualParams   tagger.DualParams
+	LocalParams  tagger.Params
 }
 
 // Provides contains returned values for the  dual tagger component

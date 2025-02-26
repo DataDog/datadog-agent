@@ -222,9 +222,9 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 }
 
 type defaultEventPlatformForwarder struct {
-	purgeMx         sync.Mutex
 	pipelines       map[string]*passthroughPipeline
 	destinationsCtx *client.DestinationsContext
+	purgeMx         sync.Mutex
 }
 
 // SendEventPlatformEvent sends messages to the event platform intake.
@@ -494,12 +494,12 @@ func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver
 
 type dependencies struct {
 	fx.In
-	Params                Params
 	Config                configcomp.Component
 	Lc                    fx.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
 	Compression           logscompression.Component
+	Params                Params
 }
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder

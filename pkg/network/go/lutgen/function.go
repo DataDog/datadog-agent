@@ -101,8 +101,8 @@ func (f *LookupFunction) convertResultToValueTable(resultTable map[architectureV
 }
 
 type architectureValueSet struct {
-	arch   string
 	values map[goversion.GoVersion]interface{}
+	arch   string
 }
 
 func (f *LookupFunction) binArchitectures(valueTable map[architectureVersion]interface{}) []architectureValueSet {
@@ -136,8 +136,8 @@ type compressedArchitectureValueSet struct {
 }
 
 type entry struct {
-	version goversion.GoVersion
 	value   interface{}
+	version goversion.GoVersion
 }
 
 func (f *LookupFunction) compressLookupTable(valueSet architectureValueSet) compressedArchitectureValueSet {

@@ -30,9 +30,9 @@ import (
 )
 
 type cloudProviderDetector struct {
-	name              string
 	callback          func(context.Context) bool
 	accountIDCallback func(context.Context) (string, error)
+	name              string
 }
 
 var cloudProviderDetectors = []cloudProviderDetector{
@@ -69,8 +69,8 @@ func DetectCloudProvider(ctx context.Context, collectAccountID bool, l logcomp.C
 }
 
 type cloudProviderNTPDetector struct {
-	name     string
 	callback func(context.Context) []string
+	name     string
 }
 
 // GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
@@ -95,8 +95,8 @@ func GetCloudProviderNTPHosts(ctx context.Context) []string {
 }
 
 type cloudProviderAliasesDetector struct {
-	name     string
 	callback func(context.Context) ([]string, error)
+	name     string
 }
 
 // getValidHostAliases is an alias from pkg config

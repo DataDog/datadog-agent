@@ -39,14 +39,14 @@ type UserV3 struct {
 // TrapsConfig contains configuration for SNMP trap listeners.
 // YAML field tags provided for test marshalling purposes.
 type TrapsConfig struct {
-	Enabled               bool     `mapstructure:"enabled" yaml:"enabled"`
-	Port                  uint16   `mapstructure:"port" yaml:"port"`
-	Users                 []UserV3 `mapstructure:"users" yaml:"users"`
-	CommunityStrings      []string `mapstructure:"community_strings" yaml:"community_strings"`
 	BindHost              string   `mapstructure:"bind_host" yaml:"bind_host"`
-	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
 	Namespace             string   `mapstructure:"namespace" yaml:"namespace"`
 	authoritativeEngineID string   `mapstructure:"-" yaml:"-"`
+	Users                 []UserV3 `mapstructure:"users" yaml:"users"`
+	CommunityStrings      []string `mapstructure:"community_strings" yaml:"community_strings"`
+	StopTimeout           int      `mapstructure:"stop_timeout" yaml:"stop_timeout"`
+	Port                  uint16   `mapstructure:"port" yaml:"port"`
+	Enabled               bool     `mapstructure:"enabled" yaml:"enabled"`
 }
 
 // ReadConfig builds the traps configuration from the Agent configuration.

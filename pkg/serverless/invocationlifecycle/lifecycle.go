@@ -29,16 +29,17 @@ import (
 
 // LifecycleProcessor is a InvocationProcessor implementation
 type LifecycleProcessor struct {
-	ExtraTags            *serverlessLog.Tags
-	ProcessTrace         func(p *api.Payload)
-	Demux                aggregator.Demultiplexer
-	DetectLambdaLibrary  func() bool
-	InferredSpansEnabled bool
-	SubProcessor         InvocationSubProcessor
-	Extractor            propagation.Extractor
+	Demux        aggregator.Demultiplexer
+	SubProcessor InvocationSubProcessor
+	Extractor    propagation.Extractor
 
-	requestHandler *RequestHandler
-	serviceName    string
+	ExtraTags           *serverlessLog.Tags
+	ProcessTrace        func(p *api.Payload)
+	DetectLambdaLibrary func() bool
+
+	requestHandler       *RequestHandler
+	serviceName          string
+	InferredSpansEnabled bool
 }
 
 // RequestHandler is the struct that stores information about the trace,

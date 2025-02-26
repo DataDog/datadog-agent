@@ -16,9 +16,9 @@ import (
 
 // AggregatorFormatDriver is used as goflow formatter to forward flow data to aggregator/EP Forwarder
 type AggregatorFormatDriver struct {
-	namespace         string
 	flowAggIn         chan *common.Flow
 	listenerFlowCount *atomic.Int64
+	namespace         string
 }
 
 // NewAggregatorFormatDriver returns a new AggregatorFormatDriver

@@ -57,16 +57,11 @@ var (
 
 // hostMetadata contains metadata about the host
 type hostMetadata struct {
-	// from gohai/cpu
-	CPUCores             uint64  `json:"cpu_cores"`
-	CPULogicalProcessors uint64  `json:"cpu_logical_processors"`
-	CPUVendor            string  `json:"cpu_vendor"`
-	CPUModel             string  `json:"cpu_model"`
-	CPUModelID           string  `json:"cpu_model_id"`
-	CPUFamily            string  `json:"cpu_family"`
-	CPUStepping          string  `json:"cpu_stepping"`
-	CPUFrequency         float64 `json:"cpu_frequency"`
-	CPUCacheSize         uint64  `json:"cpu_cache_size"`
+	CPUVendor   string `json:"cpu_vendor"`
+	CPUModel    string `json:"cpu_model"`
+	CPUModelID  string `json:"cpu_model_id"`
+	CPUFamily   string `json:"cpu_family"`
+	CPUStepping string `json:"cpu_stepping"`
 
 	// from gohai/platform
 	KernelName      string `json:"kernel_name"`
@@ -74,10 +69,6 @@ type hostMetadata struct {
 	KernelVersion   string `json:"kernel_version"`
 	OS              string `json:"os"`
 	CPUArchitecture string `json:"cpu_architecture"`
-
-	// from gohai/memory
-	MemoryTotalKb     uint64 `json:"memory_total_kb"`
-	MemorySwapTotalKb uint64 `json:"memory_swap_total_kb"`
 
 	// from gohai/network
 	IPAddress   string `json:"ip_address"`
@@ -98,6 +89,16 @@ type hostMetadata struct {
 	DmiBoardAssetTag    string `json:"dmi_board_asset_tag"`
 	DmiBoardVendor      string `json:"dmi_board_vendor"`
 
+	// from gohai/cpu
+	CPUCores             uint64  `json:"cpu_cores"`
+	CPULogicalProcessors uint64  `json:"cpu_logical_processors"`
+	CPUFrequency         float64 `json:"cpu_frequency"`
+	CPUCacheSize         uint64  `json:"cpu_cache_size"`
+
+	// from gohai/memory
+	MemoryTotalKb     uint64 `json:"memory_total_kb"`
+	MemorySwapTotalKb uint64 `json:"memory_swap_total_kb"`
+
 	// from package repositories
 	LinuxPackageSigningEnabled   bool `json:"linux_package_signing_enabled"`
 	RPMGlobalRepoGPGCheckEnabled bool `json:"rpm_global_repo_gpg_check_enabled"`
@@ -105,10 +106,10 @@ type hostMetadata struct {
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string        `json:"hostname"`
-	Timestamp int64         `json:"timestamp"`
 	Metadata  *hostMetadata `json:"host_metadata"`
+	Hostname  string        `json:"hostname"`
 	UUID      string        `json:"uuid"`
+	Timestamp int64         `json:"timestamp"`
 }
 
 // MarshalJSON serialization a Payload to JSON

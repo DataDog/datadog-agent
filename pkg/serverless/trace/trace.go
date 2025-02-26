@@ -49,8 +49,8 @@ type Load interface {
 
 // LoadConfig is implementing Load to retrieve the config
 type LoadConfig struct {
-	Path   string
 	Tagger tagger.Component
+	Path   string
 }
 
 // httpURLMetaKey is the key of the span meta containing the HTTP URL
@@ -96,12 +96,12 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
 type StartServerlessTraceAgentArgs struct {
-	Enabled               bool
 	LoadConfig            Load
 	LambdaSpanChan        chan<- *pb.Span
-	ColdStartSpanID       uint64
-	AzureContainerAppTags string
 	RCService             *remoteconfig.CoreAgentService
+	AzureContainerAppTags string
+	ColdStartSpanID       uint64
+	Enabled               bool
 }
 
 // Start starts the agent

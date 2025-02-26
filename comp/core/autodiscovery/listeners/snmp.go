@@ -33,8 +33,8 @@ var (
 
 // AutodiscoveryStatus represents the status of the autodiscovery of a subnet we want to expose in the snmp status
 type AutodiscoveryStatus struct {
-	DevicesFoundList    []string
 	CurrentDevice       string
+	DevicesFoundList    []string
 	DevicesScannedCount int
 }
 
@@ -55,34 +55,34 @@ const (
 
 // SNMPListener implements SNMP discovery
 type SNMPListener struct {
-	sync.RWMutex
 	newService chan<- Service
 	delService chan<- Service
 	stop       chan bool
-	config     snmp.ListenerConfig
 	services   map[string]*SNMPService
+	config     snmp.ListenerConfig
+	sync.RWMutex
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
 type SNMPService struct {
+	subnet       *snmpSubnet
+	config       snmp.Config
 	adIdentifier string
 	entityID     string
 	deviceIP     string
-	config       snmp.Config
-	subnet       *snmpSubnet
 }
 
 // Make sure SNMPService implements the Service interface
 var _ Service = &SNMPService{}
 
 type snmpSubnet struct {
-	adIdentifier          string
-	config                snmp.Config
-	startingIP            net.IP
-	network               net.IPNet
-	cacheKey              string
 	devices               map[string]string
 	deviceFailures        map[string]int
+	config                snmp.Config
+	adIdentifier          string
+	cacheKey              string
+	network               net.IPNet
+	startingIP            net.IP
 	devicesScannedCounter atomic.Uint32
 }
 

@@ -99,11 +99,11 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 
 // Server manages netflow listeners.
 type Server struct {
-	Addr      string
-	config    *nfconfig.NetflowConfig
-	listeners []*netflowListener
-	FlowAgg   *flowaggregator.FlowAggregator
 	logger    log.Component
+	config    *nfconfig.NetflowConfig
+	FlowAgg   *flowaggregator.FlowAggregator
+	Addr      string
+	listeners []*netflowListener
 	running   bool
 }
 

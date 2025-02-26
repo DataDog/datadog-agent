@@ -55,12 +55,14 @@ func Module() fxutil.Module {
 type gui struct {
 	logger log.Component
 
-	address  string
 	listener net.Listener
 	router   *mux.Router
 
-	auth         authenticator
 	intentTokens map[string]bool
+
+	address string
+
+	auth authenticator
 
 	// To compute uptime
 	startTimestamp int64
@@ -91,8 +93,9 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp     option.Option[guicomp.Component]
 	Endpoint api.AgentEndpointProvider
+
+	Comp option.Option[guicomp.Component]
 }
 
 // GUI component implementation constructor
@@ -220,8 +223,8 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	e = t.Execute(w, struct {
-		RestartEnabled bool
 		DocURL         template.URL
+		RestartEnabled bool
 	}{
 		RestartEnabled: restartEnabled(),
 		DocURL:         docURL,

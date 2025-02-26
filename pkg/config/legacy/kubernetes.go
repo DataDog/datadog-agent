@@ -27,40 +27,42 @@ const (
 )
 
 type legacyKubernetesInstance struct {
-	KubeletPort      int               `yaml:"kubelet_port"`
-	KubeletHost      string            `yaml:"host"`
-	KubeletClientCrt string            `yaml:"kubelet_client_crt"`
-	KubeletClientKey string            `yaml:"kubelet_client_key"`
-	KubeletCACert    string            `yaml:"kubelet_cert"`
-	KubeletTokenPath string            `yaml:"bearer_token_path"`
-	KubeletTLSVerify string            `yaml:"kubelet_tls_verify"`
 	NodeLabelsToTags map[string]string `yaml:"node_labels_to_host_tags"`
 
-	CollectEvents       bool   `yaml:"collect_events"`
-	LeaderCandidate     bool   `yaml:"leader_candidate"`
-	LeaderLeaseDuration int    `yaml:"leader_lease_duration"`
-	CollectServiceTags  string `yaml:"collect_service_tags"`
-	ServiceTagUpdateTag int    `yaml:"service_tag_update_freq"`
-	CadvisorPort        string `yaml:"port"`
+	KubeletHost        string `yaml:"host"`
+	KubeletClientCrt   string `yaml:"kubelet_client_crt"`
+	KubeletClientKey   string `yaml:"kubelet_client_key"`
+	KubeletCACert      string `yaml:"kubelet_cert"`
+	KubeletTokenPath   string `yaml:"bearer_token_path"`
+	KubeletTLSVerify   string `yaml:"kubelet_tls_verify"`
+	CollectServiceTags string `yaml:"collect_service_tags"`
+	CadvisorPort       string `yaml:"port"`
 
 	// Deprecated
-	APIServerURL       string   `yaml:"api_server_url"`
-	APIServerClientCrt string   `yaml:"apiserver_client_crt"`
-	APIServerClientKey string   `yaml:"apiserver_client_key"`
-	APIServerCACert    string   `yaml:"apiserver_ca_cert"`
-	Namespaces         []string `yaml:"namespaces"`
-	NamespacesRegexp   string   `yaml:"namespace_name_regexp"`
-	UseHisto           bool     `yaml:"use_histogram"`
-	LabelTagPrefix     string   `yaml:"label_to_tag_prefix"`
+	APIServerURL       string `yaml:"api_server_url"`
+	APIServerClientCrt string `yaml:"apiserver_client_crt"`
+	APIServerClientKey string `yaml:"apiserver_client_key"`
+	APIServerCACert    string `yaml:"apiserver_ca_cert"`
+	NamespacesRegexp   string `yaml:"namespace_name_regexp"`
+	LabelTagPrefix     string `yaml:"label_to_tag_prefix"`
 
-	Tags []string `yaml:"tags"`
+	Namespaces []string `yaml:"namespaces"`
+
+	Tags                []string `yaml:"tags"`
+	KubeletPort         int      `yaml:"kubelet_port"`
+	LeaderLeaseDuration int      `yaml:"leader_lease_duration"`
+	ServiceTagUpdateTag int      `yaml:"service_tag_update_freq"`
+
+	CollectEvents   bool `yaml:"collect_events"`
+	LeaderCandidate bool `yaml:"leader_candidate"`
+	UseHisto        bool `yaml:"use_histogram"`
 }
 
 type newKubeletInstance struct {
-	CadvisorPort  int      `yaml:"cadvisor_port"` // will default to 0 == disable
 	Tags          []string `yaml:"tags,omitempty"`
 	EnabledRates  []string `yaml:"enabled_rates,omitempty"`
 	EnabledGauges []string `yaml:"enabled_gauges,omitempty"`
+	CadvisorPort  int      `yaml:"cadvisor_port"` // will default to 0 == disable
 }
 
 type kubeDeprecations map[string][]string

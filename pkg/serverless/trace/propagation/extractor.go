@@ -45,8 +45,8 @@ type Extractor struct {
 
 // TraceContext stores the propagated trace context values.
 type TraceContext struct {
-	TraceID           uint64
 	TraceIDUpper64Hex string
+	TraceID           uint64
 	ParentID          uint64
 	SamplingPriority  sampler.SamplingPriority
 }

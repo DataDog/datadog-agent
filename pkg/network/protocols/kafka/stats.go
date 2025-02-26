@@ -26,10 +26,10 @@ const (
 
 // Key is an identifier for a group of Kafka transactions
 type Key struct {
+	TopicName *intern.StringValue
+	types.ConnectionKey
 	RequestAPIKey  uint16
 	RequestVersion uint16
-	TopicName      *intern.StringValue
-	types.ConnectionKey
 }
 
 // RequestStats stores Kafka request statistics per Kafka error code

@@ -406,21 +406,21 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.
 // SuitesDeps stores the dependencies for the diagnose suites.
 type SuitesDeps struct {
 	SenderManager  sender.DiagnoseSenderManager
-	Collector      option.Option[collector.Component]
 	SecretResolver secrets.Component
-	WMeta          option.Option[workloadmeta.Component]
 	AC             autodiscovery.Component
 	Tagger         tagger.Component
+	Collector      option.Option[collector.Component]
+	WMeta          option.Option[workloadmeta.Component]
 }
 
 // SuitesDepsInCLIProcess stores the dependencies for the diagnose suites when running the CLI Process.
 type SuitesDepsInCLIProcess struct {
 	senderManager  sender.DiagnoseSenderManager
 	secretResolver secrets.Component
-	wmeta          option.Option[workloadmeta.Component]
 	AC             autodiscovery.Component
 	logReceiver    integrations.Component
 	tagger         tagger.Component
+	wmeta          option.Option[workloadmeta.Component]
 }
 
 // NewSuitesDepsInCLIProcess returns a new instance of SuitesDepsInCLIProcess.

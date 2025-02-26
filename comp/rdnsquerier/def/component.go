@@ -14,9 +14,9 @@ import (
 
 // ReverseDNSResult is the result of a reverse DNS lookup
 type ReverseDNSResult struct {
+	Err      error
 	IP       string
 	Hostname string
-	Err      error
 }
 
 // Component is the component type.

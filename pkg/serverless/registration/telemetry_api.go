@@ -25,10 +25,10 @@ const (
 type EnableTelemetryCollectionArgs struct {
 	ID                  ID
 	RegistrationURL     string
-	RegistrationTimeout time.Duration
 	LogsType            string
-	Port                int
 	CollectionRoute     string
+	RegistrationTimeout time.Duration
+	Port                int
 	Timeout             int
 	MaxBytes            int
 	MaxItems            int

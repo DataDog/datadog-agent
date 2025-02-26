@@ -21,9 +21,9 @@ const (
 type spanModifier struct {
 	tags           map[string]string
 	lambdaSpanChan chan<- *pb.Span
+	ddOrigin       string
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId uint64
-	ddOrigin        string
 }
 
 // ModifySpan applies extra logic to the given span

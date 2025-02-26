@@ -43,25 +43,26 @@ const (
 
 // CWSConsumer represents the system-probe module for the runtime security agent
 type CWSConsumer struct {
-	sync.RWMutex
-	config       *config.RuntimeSecurityConfig
-	probe        *probe.Probe
 	statsdClient statsd.ClientInterface
 
-	// internals
-	wg            sync.WaitGroup
 	ctx           context.Context
+	eventSender   events.EventSender
+	reloader      ReloaderInterface
+	config        *config.RuntimeSecurityConfig
+	probe         *probe.Probe
 	cancelFnc     context.CancelFunc
 	apiServer     *APIServer
 	rateLimiter   *events.RateLimiter
 	sendStatsChan chan chan bool
-	eventSender   events.EventSender
 	grpcServer    *GRPCServer
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
 	selfTestRetry *atomic.Int32
-	reloader      ReloaderInterface
 	crtelemetry   *telemetry.ContainersRunningTelemetry
+
+	// internals
+	wg sync.WaitGroup
+	sync.RWMutex
 }
 
 // NewCWSConsumer initializes the module with options

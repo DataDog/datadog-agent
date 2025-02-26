@@ -69,22 +69,23 @@ import (
 type cliParams struct {
 	*command.GlobalParams
 
+	// subcommand-specific flags
+
+	customerEmail      string
+	logLevelDefaultOff command.LogLevelDefaultOff
+
 	// args are the positional command-line arguments
 	args []string
 
-	// subcommand-specific flags
-
-	customerEmail        string
-	autoconfirm          bool
-	forceLocal           bool
 	profiling            int
-	profileMutex         bool
 	profileMutexFraction int
-	profileBlocking      bool
 	profileBlockingRate  int
 	withStreamLogs       time.Duration
-	logLevelDefaultOff   command.LogLevelDefaultOff
 	providerTimeout      time.Duration
+	autoconfirm          bool
+	forceLocal           bool
+	profileMutex         bool
+	profileBlocking      bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.

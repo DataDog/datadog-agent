@@ -28,17 +28,17 @@ var ErrNotStarted = errors.New("runner: not started")
 // then RunAgent to start agent instances. Post may be used to send payloads to the
 // agent and Out to receive its output.
 type Runner struct {
-	// Verbose will make the runner output more verbose, more specifically
-	// around operations regarding the trace-agent process.
-	Verbose bool
+	agent   *agentRunner
+	backend *fakeBackend
 
 	// ChannelSize specifies the size of the payload buffer of the fake backend.
 	// If reached, HTTP handlers will block until payloads are received from
 	// the out channel. It defaults to 100.
 	ChannelSize int
 
-	agent   *agentRunner
-	backend *fakeBackend
+	// Verbose will make the runner output more verbose, more specifically
+	// around operations regarding the trace-agent process.
+	Verbose bool
 }
 
 // Start initializes the runner and starts the fake backend.

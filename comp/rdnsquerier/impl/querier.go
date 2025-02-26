@@ -22,23 +22,24 @@ type querier interface {
 
 // Standard querier implementation
 type querierImpl struct {
-	config            *rdnsQuerierConfig
-	logger            log.Component
-	internalTelemetry *rdnsQuerierTelemetry
+	logger log.Component
 
 	rateLimiter rateLimiter
 	resolver    resolver
 
 	// Context is used by the rate limiter and also for shutting down worker goroutines via its Done() channel.
-	ctx       context.Context
+	ctx               context.Context
+	config            *rdnsQuerierConfig
+	internalTelemetry *rdnsQuerierTelemetry
+
 	cancel    context.CancelFunc
-	wg        sync.WaitGroup
 	queryChan chan *query
+	wg        sync.WaitGroup
 }
 
 type query struct {
-	addr                string
 	updateHostnameAsync func(string, error)
+	addr                string
 }
 
 func newQuerier(config *rdnsQuerierConfig, logger log.Component, internalTelemetry *rdnsQuerierTelemetry) querier {

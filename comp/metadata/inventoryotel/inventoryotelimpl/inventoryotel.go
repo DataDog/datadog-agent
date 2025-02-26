@@ -47,10 +47,10 @@ type otelMetadata = map[string]interface{}
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string       `json:"hostname"`
-	Timestamp int64        `json:"timestamp"`
 	Metadata  otelMetadata `json:"otel_metadata"`
+	Hostname  string       `json:"hostname"`
 	UUID      string       `json:"uuid"`
+	Timestamp int64        `json:"timestamp"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -67,16 +67,16 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 }
 
 type inventoryotel struct {
-	util.InventoryPayload
-
 	conf       config.Component
 	log        log.Component
-	m          sync.Mutex
-	data       otelMetadata
-	hostname   string
 	authToken  authtoken.Component
+	data       otelMetadata
 	f          *freshConfig
 	httpClient *http.Client
+	util.InventoryPayload
+
+	hostname string
+	m        sync.Mutex
 }
 
 type dependencies struct {

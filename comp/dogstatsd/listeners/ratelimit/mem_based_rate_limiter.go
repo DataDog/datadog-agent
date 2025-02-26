@@ -30,10 +30,10 @@ import (
 type MemBasedRateLimiter struct {
 	telemetry               telemetryInterface
 	memoryUsage             memoryUsage
-	lowSoftLimitRate        float64
-	highSoftLimitRate       float64
 	memoryRateLimiter       *geometricRateLimiter
 	freeOSMemoryRateLimiter *geometricRateLimiter
+	lowSoftLimitRate        float64
+	highSoftLimitRate       float64
 	previousMemoryUsageRate float64
 }
 

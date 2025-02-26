@@ -24,10 +24,10 @@ import (
 )
 
 type cliParams struct {
-	command.GlobalParams
 	pkg     string
 	version string
 	catalog string
+	command.GlobalParams
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {

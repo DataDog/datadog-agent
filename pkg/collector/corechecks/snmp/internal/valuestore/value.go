@@ -17,8 +17,8 @@ import (
 
 // ResultValue represent a snmp value
 type ResultValue struct {
-	SubmissionType profiledefinition.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
 	Value          interface{}                         `json:"value"`              // might be a `string`, `[]byte` or `float64` type
+	SubmissionType profiledefinition.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
 }
 
 // ToFloat64 converts value to float64

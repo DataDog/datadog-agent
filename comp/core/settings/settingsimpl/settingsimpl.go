@@ -52,10 +52,10 @@ type dependencies struct {
 }
 
 type settingsRegistry struct {
-	rwMutex  sync.RWMutex
-	settings map[string]settings.RuntimeSetting
 	log      log.Component
 	config   config.Component
+	settings map[string]settings.RuntimeSetting
+	rwMutex  sync.RWMutex
 }
 
 // RuntimeSettings returns all runtime configurable settings

@@ -50,19 +50,19 @@ type dependencies struct {
 	Lc             fx.Lifecycle
 	Log            log.Component
 	Config         config.Component
-	Checks         []types.CheckComponent `group:"check"`
 	Runner         runner.Component
 	Submitter      submitterComp.Component
 	SysProbeConfig sysprobeconfig.Component
 	HostInfo       hostinfo.Component
 	Statsd         statsdComp.Component
+	Checks         []types.CheckComponent `group:"check"`
 }
 
 type processAgent struct {
-	enabled     bool
-	Checks      []checks.Check
 	Log         log.Component
 	flarehelper *agent.FlareHelper
+	Checks      []checks.Check
+	enabled     bool
 }
 
 type provides struct {

@@ -45,17 +45,17 @@ type grpcServer struct {
 
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
-	taggerServer        *taggerserver.Server
 	taggerComp          tagger.Component
-	workloadmetaServer  *workloadmetaServer.Server
-	configService       option.Option[rcservice.Component]
-	configServiceMRF    option.Option[rcservicemrf.Component]
 	dogstatsdServer     dogstatsdServer.Component
 	capture             dsdReplay.Component
 	pidMap              pidmap.Component
 	remoteAgentRegistry remoteagentregistry.Component
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
+	taggerServer        *taggerserver.Server
+	workloadmetaServer  *workloadmetaServer.Server
+	configService       option.Option[rcservice.Component]
+	configServiceMRF    option.Option[rcservicemrf.Component]
 }
 
 func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {

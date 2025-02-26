@@ -58,16 +58,6 @@ type Config struct {
 
 // Store is used to accumulate aggregated contexts
 type Store struct {
-	logger       log.Component
-	statsdClient ddgostatsd.ClientInterface
-
-	contexts map[uint64]*PathtestContext
-
-	// mutex is needed to protect `contexts` since `Store.add()` and  `pathtestStore.flush()`
-	// are called by different routines.
-	contextsMutex sync.Mutex
-
-	config Config
 
 	// lastFlushTime is the last time the store was flushed, used by MaxPerMinute limiting
 	lastFlushTime time.Time
@@ -75,11 +65,22 @@ type Store struct {
 	// lastContextWarning is the last time a warning was logged about the store being full
 	lastContextWarning time.Time
 
+	logger       log.Component
+	statsdClient ddgostatsd.ClientInterface
+
+	contexts map[uint64]*PathtestContext
+
 	// rateLimiter is used to limit the number of pathtests that can be flushed per minute
 	rateLimiter *rate.Limiter
 
 	// structures needed to ease mocking/testing
 	timeNowFn func() time.Time
+
+	config Config
+
+	// mutex is needed to protect `contexts` since `Store.add()` and  `pathtestStore.flush()`
+	// are called by different routines.
+	contextsMutex sync.Mutex
 }
 
 func (f *Store) newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *PathtestContext {

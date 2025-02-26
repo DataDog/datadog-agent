@@ -28,12 +28,12 @@ type worker struct {
 	batcher *batcher
 	parser  *parser
 
+	packetsTelemetry *packets.TelemetryStore
+
 	// we allocate it once per worker instead of once per packet. This will
 	// be used to store the samples out a of packets. Allocating it every
 	// time is very costly, especially on the GC.
 	samples metrics.MetricSampleBatch
-
-	packetsTelemetry *packets.TelemetryStore
 }
 
 func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {

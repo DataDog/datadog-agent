@@ -166,9 +166,9 @@ var yamlp = parser{
 }
 
 type dataToResolve struct {
+	parser parser
 	data   *integration.Data
 	dtype  dataType
-	parser parser
 }
 
 func listDataToResolve(config *integration.Config) []dataToResolve {

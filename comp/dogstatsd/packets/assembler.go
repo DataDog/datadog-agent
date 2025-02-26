@@ -16,13 +16,13 @@ const messageSeparator = byte('\n')
 // Assembler merges multiple incoming datagrams into one "Packet" object to
 // save space and make number of message in a single "Packet" more predictable
 type Assembler struct {
-	packet       *Packet
-	packetLength int
+	packet *Packet
 	// assembled packets are pushed into this buffer
 	packetsBuffer           *Buffer
 	sharedPacketPoolManager *PoolManager[Packet]
 	flushTimer              *time.Ticker
 	closeChannel            chan struct{}
+	packetLength            int
 	packetSourceType        SourceType
 	sync.Mutex
 }

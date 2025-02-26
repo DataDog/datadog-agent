@@ -45,7 +45,6 @@ const (
 // When IsEphemeral is called, only curStore is used.
 // UseNewStoreAsCurrentStore is meant to be called externally to use new store as current store and empty the new store.
 type EndpointPairPortRollupStore struct {
-	portRollupThreshold int
 
 	// We might also use map[uint16]struct to store ports, but using []uint16 takes less mem.
 	// - Empty map is about 128 bytes
@@ -53,6 +52,8 @@ type EndpointPairPortRollupStore struct {
 	// - It's more costly to search in a list, but the number of expected entry is at most equal to `portRollupThreshold`.
 	curStore map[string][]uint16
 	newStore map[string][]uint16
+
+	portRollupThreshold int
 
 	// mutex used to protect access to curStore and newStore
 	storeMu sync.RWMutex

@@ -15,9 +15,9 @@ import (
 )
 
 type cacheEntry struct {
+	ExpirationTime   time.Time
 	Hostname         string
 	callbacks        []func(string, error)
-	ExpirationTime   time.Time
 	retriesRemaining int
 	queryInProgress  bool
 }
@@ -36,15 +36,16 @@ type cache interface {
 // The cache is cleaned periodically to remove expired entries.
 // A maximum size is also enforced.
 type cacheImpl struct {
+	logger log.Component
+
+	querier           querier
 	config            *rdnsQuerierConfig
-	logger            log.Component
 	internalTelemetry *rdnsQuerierTelemetry
 
-	mutex sync.Mutex
-	data  map[string]*cacheEntry
-	exit  chan struct{}
+	data map[string]*cacheEntry
+	exit chan struct{}
 
-	querier querier
+	mutex sync.Mutex
 }
 
 func (c *cacheImpl) start() {

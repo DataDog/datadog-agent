@@ -20,12 +20,12 @@ import (
 // object is reused. You need to hold on to the object until you extracted all
 // the information needed.
 type float64ListPool struct {
-	pool sync.Pool
-	// telemetry
-	tlmEnabled            bool
+	pool                  sync.Pool
 	tlmFloat64ListPoolGet telemetry.Counter
 	tlmFloat64ListPoolPut telemetry.Counter
 	tlmFloat64ListPool    telemetry.Gauge
+	// telemetry
+	tlmEnabled bool
 }
 
 // newFloat64ListPool creates a new pool with a specified buffer size

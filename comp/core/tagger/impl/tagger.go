@@ -79,19 +79,20 @@ type TaggerWrapper struct {
 	// state when replaying a capture scenario
 	captureTagger tagger.Component
 
-	mux sync.RWMutex
-
 	defaultTagger tagger.Component
 
-	wmeta         workloadmeta.Component
-	datadogConfig datadogConfig
-
-	checksCardinality          types.TagCardinality
-	dogstatsdCardinality       types.TagCardinality
+	wmeta                      workloadmeta.Component
 	tlmUDPOriginDetectionError coretelemetry.Counter
-	telemetryStore             *telemetry.Store
 
-	log log.Component
+	log            log.Component
+	telemetryStore *telemetry.Store
+
+	checksCardinality    types.TagCardinality
+	dogstatsdCardinality types.TagCardinality
+
+	mux sync.RWMutex
+
+	datadogConfig datadogConfig
 }
 
 // NewComponent returns a new tagger client

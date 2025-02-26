@@ -15,25 +15,25 @@ import (
 // InvocationStartDetails stores information about the start of an invocation.
 // This structure is passed to the onInvokeStart method of the invocationProcessor interface
 type InvocationStartDetails struct {
+	InferredSpan          inferredspan.InferredSpan
 	StartTime             time.Time
-	InvokeEventRawPayload []byte
 	InvokeEventHeaders    http.Header
 	InvokedFunctionARN    string
-	InferredSpan          inferredspan.InferredSpan
+	InvokeEventRawPayload []byte
 }
 
 // InvocationEndDetails stores information about the end of an invocation.
 // This structure is passed to the onInvokeEnd method of the invocationProcessor interface
 type InvocationEndDetails struct {
 	EndTime            time.Time
-	IsError            bool
-	IsTimeout          bool
 	RequestID          string
-	ResponseRawPayload []byte
-	ColdStart          bool
-	ProactiveInit      bool
 	Runtime            string
 	ErrorMsg           string
 	ErrorType          string
 	ErrorStack         string
+	ResponseRawPayload []byte
+	IsError            bool
+	IsTimeout          bool
+	ColdStart          bool
+	ProactiveInit      bool
 }

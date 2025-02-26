@@ -25,9 +25,9 @@ type Throttler interface {
 
 // limiter implements the Throttler interface
 type limiter struct {
-	mutex          sync.RWMutex
 	tokensChan     chan struct{}
 	activeRequests map[token]struct{}
+	mutex          sync.RWMutex
 }
 
 // NewSyncThrottler creates and returns a new Throttler

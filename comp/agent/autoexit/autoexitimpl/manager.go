@@ -135,8 +135,8 @@ func defaultNoProcessExit(cfg config.Component, log log.Component) (exitDetector
 }
 
 type noProcessExit struct {
-	excludedProcesses []*regexp.Regexp
 	log               log.Component
+	excludedProcesses []*regexp.Regexp
 }
 
 func (s *noProcessExit) check() bool {

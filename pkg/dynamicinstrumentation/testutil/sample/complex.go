@@ -16,9 +16,9 @@ type middle struct {
 }
 
 type inner struct {
+	E string
 	C int
 	D byte
-	E string
 }
 
 //nolint:all
@@ -26,9 +26,9 @@ type inner struct {
 func test_multiple_dereferences(o outer) {}
 
 type bigStruct struct {
+	writer io.Writer
 	x      []*string
 	z      int
-	writer io.Writer
 }
 
 //nolint:all

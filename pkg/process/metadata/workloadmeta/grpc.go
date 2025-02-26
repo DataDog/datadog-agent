@@ -33,16 +33,17 @@ var DuplicateConnectionErr = errors.New("the stream was closed because another c
 
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
-	config    pkgconfigmodel.Reader
-	extractor *WorkloadMetaExtractor
-	server    *grpc.Server
+	config pkgconfigmodel.Reader
 	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
 	addr net.Addr
 
-	wg sync.WaitGroup
+	extractor *WorkloadMetaExtractor
+	server    *grpc.Server
 
 	streamMutex         *sync.Mutex
 	closeExistingStream context.CancelFunc
+
+	wg sync.WaitGroup
 }
 
 const keepaliveInterval = 10 * time.Second

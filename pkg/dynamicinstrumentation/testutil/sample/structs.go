@@ -187,28 +187,28 @@ type deepStruct6 struct {
 }
 
 type nStruct struct {
-	aBool  bool
 	aInt   int
 	aInt16 int16
+	aBool  bool
 }
 
 type aStruct struct {
-	aBool   bool
+	nested  nestedStruct
 	aString string
 	aNumber int
-	nested  nestedStruct
+	aBool   bool
 }
 
 type bStruct struct {
-	aInt16 int16
 	nested aStruct
-	aBool  bool
 	aInt32 int32
+	aInt16 int16
+	aBool  bool
 }
 
 type cStruct struct {
-	aInt32 int32
 	aUint  uint
+	aInt32 int32
 	nested structWithNoStrings
 }
 
@@ -222,19 +222,19 @@ type structWithAnArray struct {
 }
 
 type structWithASlice struct {
-	x     int
 	slice []uint8
+	x     int
 	z     uint64
 }
 
 type structWithAString struct {
-	x int
 	s string
+	x int
 }
 
 type nestedStruct struct {
-	anotherInt    int
 	anotherString string
+	anotherInt    int
 }
 
 type anotherStruct struct {

@@ -35,16 +35,16 @@ var ErrNotFound = errors.New("entity not found")
 // TagStore stores entity tags in memory and handles search and collation.
 // Queries should go through the Tagger for cache-miss handling
 type TagStore struct {
-	sync.RWMutex
-
-	store     types.ObjectStore[EntityTags]
-	telemetry map[string]map[string]float64
+	store types.ObjectStore[EntityTags]
 
 	subscriptionManager subscriber.SubscriptionManager
 
 	clock clock.Clock
 
+	telemetry map[string]map[string]float64
+
 	telemetryStore *telemetry.Store
+	sync.RWMutex
 }
 
 // NewTagStore creates new LocalTaggerTagStore.

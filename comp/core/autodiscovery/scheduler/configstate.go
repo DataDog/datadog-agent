@@ -31,8 +31,8 @@ const (
 // ConfigStateData contains
 // desiredState which is the eventually desired state of the config (to be scheduled or unscheduled)
 type ConfigStateData struct {
-	desiredState ConfigState
 	config       *integration.Config
+	desiredState ConfigState
 }
 
 // copy returns a copy of ConfigStateData
@@ -50,10 +50,10 @@ func (c ConfigStateData) copy() ConfigStateData {
 // for example, a new config has been called
 // with [schedule, unschedule, schedule], the config will be scheduled, but only one schedule should be executed
 type ConfigStateStore struct {
-	configsLock sync.Mutex
 
 	// Events to Controller would update immediately configStatusMap
 	configStateMap map[Digest]ConfigStateData
+	configsLock    sync.Mutex
 }
 
 // NewConfigStateStore creates a new NewConfigStateStore

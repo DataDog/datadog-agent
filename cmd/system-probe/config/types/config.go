@@ -14,24 +14,26 @@ type ModuleName string
 
 // Config represents the configuration options for the system-probe
 type Config struct {
-	Enabled        bool
 	EnabledModules map[ModuleName]struct{}
+
+	SocketAddress string
+
+	LogFile  string
+	LogLevel string
+
+	StatsdHost         string
+	MaxConnsPerMessage int
+
+	DebugPort  int
+	HealthPort int
+	StatsdPort int
+	Enabled    bool
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
 	ExternalSystemProbe bool
 
-	SocketAddress      string
-	MaxConnsPerMessage int
-
-	LogFile          string
-	LogLevel         string
-	DebugPort        int
-	HealthPort       int
 	TelemetryEnabled bool
-
-	StatsdHost string
-	StatsdPort int
 }
 
 // ModuleIsEnabled returns a bool indicating if the given module name is enabled.

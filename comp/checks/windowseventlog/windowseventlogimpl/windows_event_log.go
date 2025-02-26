@@ -30,12 +30,13 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
+	Config configComponent.Component
+
+	Lifecycle fx.Lifecycle
+
 	// Logs Agent component, used to send integration logs
 	// It is optional because the Logs Agent can be disabled
 	LogsComponent option.Option[logsAgent.Component]
-	Config        configComponent.Component
-
-	Lifecycle fx.Lifecycle
 }
 
 func newComp(deps dependencies) windowseventlog.Component {

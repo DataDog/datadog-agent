@@ -44,8 +44,8 @@ type cliParams struct {
 	GlobalParams
 
 	checkName string
-	force     bool
 	checkID   string
+	force     bool
 }
 
 // MakeCommand returns a `clusterchecks` command to be used by cluster-agent

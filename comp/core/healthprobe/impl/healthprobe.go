@@ -37,10 +37,10 @@ type Provides struct {
 }
 
 type healthprobe struct {
-	options  healthprobeComponent.Options
 	log      log.Component
-	server   *http.Server
 	listener net.Listener
+	server   *http.Server
+	options  healthprobeComponent.Options
 }
 
 func (h *healthprobe) start() error {
@@ -94,8 +94,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 type liveHandler struct {
-	logsGoroutines bool
 	log            log.Component
+	logsGoroutines bool
 }
 
 func (lh liveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -103,8 +103,8 @@ func (lh liveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type readyHandler struct {
-	logsGoroutines bool
 	log            log.Component
+	logsGoroutines bool
 }
 
 func (rh readyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -112,8 +112,8 @@ func (rh readyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type startupHandler struct {
-	logsGoroutines bool
 	log            log.Component
+	logsGoroutines bool
 }
 
 func (sh startupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -20,9 +20,9 @@ import (
 // GRPCServer defines a gRPC server
 type GRPCServer struct {
 	server  *grpc.Server
-	wg      sync.WaitGroup
 	family  string
 	address string
+	wg      sync.WaitGroup
 }
 
 // NewGRPCServer returns a new gRPC server

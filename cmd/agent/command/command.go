@@ -34,9 +34,6 @@ type GlobalParams struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
-	// ExtraConfFilePath represents the paths to additional configuration files.
-	ExtraConfFilePath []string
-
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
@@ -47,6 +44,9 @@ type GlobalParams struct {
 	// FleetPoliciesDirPath holds the path to the folder containing the remotely received agent
 	// configuration files, to allow overrides from the command line
 	FleetPoliciesDirPath string
+
+	// ExtraConfFilePath represents the paths to additional configuration files.
+	ExtraConfFilePath []string
 
 	// NoColor is a flag to disable color output
 	NoColor bool

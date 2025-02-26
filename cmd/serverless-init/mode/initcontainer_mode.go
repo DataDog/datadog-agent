@@ -92,8 +92,8 @@ func forwardSignals(process *os.Process, sigs chan os.Signal) {
 // initialization function that automatically instruments the
 // tracer
 type Tracer struct {
-	FsPath string
 	InitFn func()
+	FsPath string
 }
 
 func instrumentNode() {

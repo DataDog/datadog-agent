@@ -50,6 +50,27 @@ type Config struct {
 	// Name of the integration
 	Name string `json:"check_name"` // (include in digest: true)
 
+	// Provider is the name of the config provider that issued the config.  If
+	// this is "", then the config is a service config, representing a service
+	// discovered by a listener.
+	Provider string `json:"provider"` // (include in digest: false)
+
+	// ServiceID is the ID of the service (set only for resolved templates and
+	// for service configs)
+	ServiceID string `json:"service_id"` // (include in digest: true)
+
+	// TaggerEntity is the tagger entity ID
+	TaggerEntity string `json:"-"` // (include in digest: false)
+
+	// NodeName is node name in case of an endpoint check backed by a pod
+	NodeName string `json:"node_name"` // (include in digest: true)
+
+	// Source is the source of the configuration
+	Source string `json:"source"` // (include in digest: false)
+
+	// CheckTagCardinality is used to override the default tag cardinality in the agent configuration
+	CheckTagCardinality string `json:"check_tag_cardinality"` // (include in digest: false)
+
 	// Instances is the list of instances in YAML or JSON.
 	Instances []Data `json:"instances"` // (include in digest: true)
 
@@ -73,32 +94,11 @@ type Config struct {
 	// see ADIdentifiers.  (optional)
 	AdvancedADIdentifiers []AdvancedADIdentifier `json:"advanced_ad_identifiers"` // (include in digest: false)
 
-	// Provider is the name of the config provider that issued the config.  If
-	// this is "", then the config is a service config, representing a service
-	// discovered by a listener.
-	Provider string `json:"provider"` // (include in digest: false)
-
-	// ServiceID is the ID of the service (set only for resolved templates and
-	// for service configs)
-	ServiceID string `json:"service_id"` // (include in digest: true)
-
-	// TaggerEntity is the tagger entity ID
-	TaggerEntity string `json:"-"` // (include in digest: false)
-
 	// ClusterCheck is cluster-check configuration flag
 	ClusterCheck bool `json:"cluster_check"` // (include in digest: false)
 
-	// NodeName is node name in case of an endpoint check backed by a pod
-	NodeName string `json:"node_name"` // (include in digest: true)
-
-	// Source is the source of the configuration
-	Source string `json:"source"` // (include in digest: false)
-
 	// IgnoreAutodiscoveryTags is used to ignore tags coming from autodiscovery
 	IgnoreAutodiscoveryTags bool `json:"ignore_autodiscovery_tags"` // (include in digest: true)
-
-	// CheckTagCardinality is used to override the default tag cardinality in the agent configuration
-	CheckTagCardinality string `json:"check_tag_cardinality"` // (include in digest: false)
 
 	// MetricsExcluded is whether metrics collection is disabled (set by
 	// container listeners only)
@@ -111,12 +111,12 @@ type Config struct {
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
 type CommonInstanceConfig struct {
-	MinCollectionInterval int      `yaml:"min_collection_interval"`
-	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
-	Tags                  []string `yaml:"tags"`
 	Service               string   `yaml:"service"`
 	Name                  string   `yaml:"name"`
 	Namespace             string   `yaml:"namespace"`
+	Tags                  []string `yaml:"tags"`
+	MinCollectionInterval int      `yaml:"min_collection_interval"`
+	EmptyDefaultHostname  bool     `yaml:"empty_default_hostname"`
 	NoIndex               bool     `yaml:"no_index"`
 }
 

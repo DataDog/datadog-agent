@@ -49,13 +49,13 @@ type dependencies struct {
 	Log                   log.Component
 	Config                config.Component
 	Diagnosesendermanager diagnosesendermanager.Component
-	Params                Params
-	Providers             []*types.FlareFiller `group:"flare"`
-	Collector             option.Option[collector.Component]
-	WMeta                 option.Option[workloadmeta.Component]
 	Secrets               secrets.Component
 	AC                    autodiscovery.Component
 	Tagger                tagger.Component
+	Params                Params
+	Collector             option.Option[collector.Component]
+	WMeta                 option.Option[workloadmeta.Component]
+	Providers             []*types.FlareFiller `group:"flare"`
 }
 
 type provides struct {
@@ -67,11 +67,11 @@ type provides struct {
 }
 
 type flare struct {
+	diagnoseDeps diagnose.SuitesDeps
 	log          log.Component
 	config       config.Component
 	params       Params
 	providers    []*types.FlareFiller
-	diagnoseDeps diagnose.SuitesDeps
 }
 
 func newFlare(deps dependencies) provides {

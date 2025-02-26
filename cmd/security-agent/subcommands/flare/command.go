@@ -30,8 +30,8 @@ type cliParams struct {
 	*command.GlobalParams
 
 	customerEmail string
-	autoconfirm   bool
 	caseID        string
+	autoconfirm   bool
 }
 
 // Commands returns the flare commands

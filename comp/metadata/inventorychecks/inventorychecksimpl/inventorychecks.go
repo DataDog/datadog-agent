@@ -51,11 +51,11 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname     string                `json:"hostname"`
-	Timestamp    int64                 `json:"timestamp"`
 	Metadata     map[string][]metadata `json:"check_metadata"`
 	LogsMetadata map[string][]metadata `json:"logs_metadata"`
+	Hostname     string                `json:"hostname"`
 	UUID         string                `json:"uuid"`
+	Timestamp    int64                 `json:"timestamp"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -73,22 +73,23 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 
 type instanceMetadata struct {
 	LastUpdated time.Time
-	instanceID  string
 	metadata    metadata
+	instanceID  string
 }
 
 type inventorychecksImpl struct {
-	util.InventoryPayload
-
-	m sync.Mutex
+	log  log.Component
+	conf config.Component
 	// data is a map of instanceID to metadata
 	data map[string]instanceMetadata
 
-	log      log.Component
-	conf     config.Component
+	util.InventoryPayload
+
 	coll     option.Option[collector.Component]
 	sources  option.Option[*sources.LogSources]
 	hostname string
+
+	m sync.Mutex
 }
 
 type dependencies struct {

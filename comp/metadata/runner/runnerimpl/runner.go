@@ -30,10 +30,11 @@ type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
+	stopChan chan struct{}
+
 	providers []MetadataProvider
 
-	wg       sync.WaitGroup
-	stopChan chan struct{}
+	wg sync.WaitGroup
 }
 
 type dependencies struct {

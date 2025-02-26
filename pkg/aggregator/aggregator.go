@@ -50,10 +50,10 @@ var tagsetTlm *tagsetTelemetry
 
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
+	Name       string
 	Flushes    [32]int64 // circular buffer of recent flushes stat
 	FlushIndex int       // last flush position in circular buffer
 	LastFlush  int64     // most recent flush stat, provided for convenience
-	Name       string
 	m          sync.Mutex
 }
 
@@ -228,6 +228,10 @@ func init() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
+	serializer             serializer.MetricSerializer
+	eventPlatformForwarder eventplatform.Component
+	haAgent                haagent.Component
+	tagger                 tagger.Component
 	bufferedServiceCheckIn chan []*servicecheck.ServiceCheck
 	bufferedEventIn        chan []*event.Event
 
@@ -243,32 +247,29 @@ type BufferedAggregator struct {
 	// Used by the Dogstatsd Batcher.
 	MetricSamplePool *metrics.MetricSamplePool
 
-	tagsStore              *tags.Store
-	checkSamplers          map[checkid.ID]*CheckSampler
-	serviceChecks          servicecheck.ServiceChecks
-	events                 event.Events
-	manifests              []*senderOrchestratorManifest
-	flushInterval          time.Duration
-	mu                     sync.Mutex // to protect the checkSamplers field
-	flushMutex             sync.Mutex // to start multiple flushes in parallel
-	serializer             serializer.MetricSerializer
-	eventPlatformForwarder eventplatform.Component
-	haAgent                haagent.Component
-	configID               string
-	hostname               string
-	hostnameUpdate         chan string
-	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
-	flushChan              chan flushTrigger
+	tagsStore          *tags.Store
+	checkSamplers      map[checkid.ID]*CheckSampler
+	hostnameUpdate     chan string
+	hostnameUpdateDone chan struct{} // signals that the hostname update is finished
+	flushChan          chan flushTrigger
 
-	stopChan  chan struct{}
-	health    *health.Handle
-	agentName string // Name of the agent for telemetry metrics
+	stopChan   chan struct{}
+	health     *health.Handle
+	agentTags  func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+	globalTags func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
+	configID   string
+	hostname   string
+	agentName  string // Name of the agent for telemetry metrics
 
-	tlmContainerTagsEnabled     bool                                         // Whether we should call the tagger to tag agent telemetry metrics
-	agentTags                   func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
-	globalTags                  func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
-	tagger                      tagger.Component
+	serviceChecks               servicecheck.ServiceChecks
+	events                      event.Events
+	manifests                   []*senderOrchestratorManifest
 	flushAndSerializeInParallel FlushAndSerializeInParallel
+	flushInterval               time.Duration
+	mu                          sync.Mutex // to protect the checkSamplers field
+	flushMutex                  sync.Mutex // to start multiple flushes in parallel
+
+	tlmContainerTagsEnabled bool // Whether we should call the tagger to tag agent telemetry metrics
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.

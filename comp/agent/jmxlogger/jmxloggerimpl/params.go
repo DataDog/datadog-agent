@@ -7,8 +7,8 @@ package jmxloggerimpl
 
 // Params defines the parameters for the JMX logger.
 type Params struct {
-	fromCLI  bool
 	logFile  string
+	fromCLI  bool
 	disabled bool
 }
 

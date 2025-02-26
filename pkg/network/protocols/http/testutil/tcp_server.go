@@ -12,10 +12,10 @@ import (
 
 // TCPServer represents a basic TCP server configuration.
 type TCPServer struct {
-	address    string
 	onMessage  func(c net.Conn)
-	isTLS      bool
+	address    string
 	tlsVersion uint16
+	isTLS      bool
 }
 
 // NewTCPServer creates and initializes a new TCPServer instance with the provided address

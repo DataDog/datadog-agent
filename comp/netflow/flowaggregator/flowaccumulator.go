@@ -27,22 +27,23 @@ type flowContext struct {
 
 // flowAccumulator is used to accumulate aggregated flows
 type flowAccumulator struct {
-	flows map[uint64]flowContext
-	// mutex is needed to protect `flows` since `flowAccumulator.add()` and  `flowAccumulator.flush()`
-	// are called by different routines.
-	flowsMutex sync.Mutex
+	logger      log.Component
+	rdnsQuerier rdnsquerier.Component
+	flows       map[uint64]flowContext
+
+	portRollup *portrollup.EndpointPairPortRollupStore
+
+	hashCollisionFlowCount *atomic.Uint64
 
 	flowFlushInterval time.Duration
 	flowContextTTL    time.Duration
 
-	portRollup          *portrollup.EndpointPairPortRollupStore
 	portRollupThreshold int
-	portRollupDisabled  bool
+	// mutex is needed to protect `flows` since `flowAccumulator.add()` and  `flowAccumulator.flush()`
+	// are called by different routines.
+	flowsMutex sync.Mutex
 
-	hashCollisionFlowCount *atomic.Uint64
-
-	logger      log.Component
-	rdnsQuerier rdnsquerier.Component
+	portRollupDisabled bool
 }
 
 func newFlowContext(flow *common.Flow) flowContext {

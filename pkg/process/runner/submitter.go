@@ -50,11 +50,6 @@ var _ Submitter = &CheckSubmitter{}
 //nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {
 	log log.Component
-	// Per-check Weighted Queues
-	processResults     *api.WeightedQueue
-	rtProcessResults   *api.WeightedQueue
-	eventResults       *api.WeightedQueue
-	connectionsResults *api.WeightedQueue
 
 	// Forwarders
 	processForwarder     defaultforwarder.Component
@@ -62,11 +57,12 @@ type CheckSubmitter struct {
 	connectionsForwarder defaultforwarder.Component
 	eventForwarder       defaultforwarder.Component
 
-	// Endpoints for logging purposes
-	processAPIEndpoints       []apicfg.Endpoint
-	processEventsAPIEndpoints []apicfg.Endpoint
-
-	hostname string
+	clock clock.Clock
+	// Per-check Weighted Queues
+	processResults     *api.WeightedQueue
+	rtProcessResults   *api.WeightedQueue
+	eventResults       *api.WeightedQueue
+	connectionsResults *api.WeightedQueue
 
 	exit chan struct{}
 	wg   *sync.WaitGroup
@@ -75,17 +71,23 @@ type CheckSubmitter struct {
 	// getRequestID method. Must use pointer, to distinguish between uninitialized value and the theoretical but yet
 	// possible 0 value for the hash result.
 	requestIDCachedHash *uint64
-	dropCheckPayloads   []string
-
-	forwarderRetryMaxQueueBytes int
 
 	// Channel for notifying the submitter to enable/disable realtime mode
 	rtNotifierChan chan types.RTResponse
 
-	agentStartTime int64
-
 	stopHeartbeat chan struct{}
-	clock         clock.Clock
+
+	hostname string
+
+	// Endpoints for logging purposes
+	processAPIEndpoints       []apicfg.Endpoint
+	processEventsAPIEndpoints []apicfg.Endpoint
+
+	dropCheckPayloads []string
+
+	forwarderRetryMaxQueueBytes int
+
+	agentStartTime int64
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

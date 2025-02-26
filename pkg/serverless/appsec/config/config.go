@@ -27,17 +27,17 @@ type StartOption func(c *Config)
 
 // Config is the AppSec configuration.
 type Config struct {
+	// Obfuscator is the configuration for sensitive data obfuscation (in-WAF)
+	Obfuscator appsec.ObfuscatorConfig
 	// Rules is the security rules loaded via the env var DD_APPSEC_RULES.
 	// When not set, the builtin rules will be used.
 	Rules []byte
+	// APISec is the configuration for API Security schema collection
+	APISec appsec.APISecConfig
 	// WafTimeout is the maximum WAF execution time
 	WafTimeout time.Duration
 	// TraceRateLimit is the rate limit of AppSec traces (per second).
 	TraceRateLimit uint
-	// Obfuscator is the configuration for sensitive data obfuscation (in-WAF)
-	Obfuscator appsec.ObfuscatorConfig
-	// APISec is the configuration for API Security schema collection
-	APISec appsec.APISecConfig
 }
 
 // IsEnabled returns true when appsec is enabled when the environment variable

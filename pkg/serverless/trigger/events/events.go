@@ -38,8 +38,8 @@ type APIGatewayProxyRequestContext struct {
 	RequestID        string
 	Path             string
 	HTTPMethod       string
-	RequestTimeEpoch int64
 	APIID            string
+	RequestTimeEpoch int64
 }
 
 // APIGatewayV2HTTPRequest mirrors events.APIGatewayV2HTTPRequest type,
@@ -53,12 +53,12 @@ type APIGatewayV2HTTPRequest struct {
 // APIGatewayV2HTTPRequestContext mirrors events.APIGatewayV2HTTPRequestContext
 // type, removing unused fields.
 type APIGatewayV2HTTPRequestContext struct {
+	HTTP       APIGatewayV2HTTPRequestContextHTTPDescription
 	Stage      string
 	RequestID  string
 	APIID      string
 	DomainName string
 	TimeEpoch  int64
-	HTTP       APIGatewayV2HTTPRequestContextHTTPDescription
 }
 
 // APIGatewayV2HTTPRequestContextHTTPDescription mirrors
@@ -89,8 +89,8 @@ type APIGatewayWebsocketProxyRequestContext struct {
 	DomainName       string
 	EventType        string
 	MessageDirection string
-	RequestTimeEpoch int64
 	RouteKey         string
+	RequestTimeEpoch int64
 }
 
 // APIGatewayCustomAuthorizerRequest mirrors
@@ -201,8 +201,8 @@ type DynamoDBEventRecord struct {
 // unused fields.
 type DynamoDBStreamRecord struct {
 	ApproximateCreationDateTime events.SecondsEpochTime
-	SizeBytes                   int64
 	StreamViewType              string
+	SizeBytes                   int64
 }
 
 // KinesisEvent mirrors events.KinesisEvent type, removing unused fields.
@@ -229,12 +229,12 @@ type KinesisRecord struct {
 // EventBridgeEvent is used for unmarshalling a EventBridge event.  AWS Go
 // libraries do not provide this type of event for deserialization.
 type EventBridgeEvent struct {
-	DetailType string `json:"detail-type"`
-	Source     string
-	Time       time.Time
-	Detail     struct {
+	Time   time.Time
+	Detail struct {
 		TraceContext map[string]string `json:"_datadog"`
 	}
+	DetailType string `json:"detail-type"`
+	Source     string
 }
 
 // S3Event mirrors events.S3Event type, removing unused fields.
@@ -265,8 +265,8 @@ type S3Bucket struct {
 // S3Object mirrors events.S3Object type, removing unused fields.
 type S3Object struct {
 	Key  string
-	Size int64
 	ETag string
+	Size int64
 }
 
 // SNSEvent mirrors events.SNSEvent type, removing unused fields.
@@ -308,8 +308,8 @@ type SQSMessage struct {
 // fields.
 type SQSMessageAttribute struct {
 	StringValue *string
-	BinaryValue []byte
 	DataType    string
+	BinaryValue []byte
 }
 
 // LambdaFunctionURLRequest mirrors events.LambdaFunctionURLRequest type,
@@ -322,11 +322,11 @@ type LambdaFunctionURLRequest struct {
 // LambdaFunctionURLRequestContext mirrors
 // events.LambdaFunctionURLRequestContext type, removing unused fields.
 type LambdaFunctionURLRequestContext struct {
+	HTTP       LambdaFunctionURLRequestContextHTTPDescription
 	RequestID  string
 	APIID      string
 	DomainName string
 	TimeEpoch  int64
-	HTTP       LambdaFunctionURLRequestContextHTTPDescription
 }
 
 // LambdaFunctionURLRequestContextHTTPDescription mirrors

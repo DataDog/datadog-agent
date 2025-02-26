@@ -23,10 +23,10 @@ import (
 // StatusResponse is the response to the status endpoint.
 type StatusResponse struct {
 	APIResponse
-	Version            string                  `json:"version"`
 	Packages           map[string]PackageState `json:"packages"`
-	ApmInjectionStatus APMInjectionStatus      `json:"apm_injection_status"`
+	Version            string                  `json:"version"`
 	RemoteConfigState  []*pbgo.PackageState    `json:"remote_config_state"`
+	ApmInjectionStatus APMInjectionStatus      `json:"apm_injection_status"`
 }
 
 // APMInjectionStatus contains the instrumentation status of the APM injection.

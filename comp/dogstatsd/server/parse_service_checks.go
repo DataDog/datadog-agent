@@ -24,18 +24,18 @@ const (
 )
 
 type dogstatsdServiceCheck struct {
-	name      string
-	status    serviceCheckStatus
-	timestamp int64
-	hostname  string
-	message   string
-	tags      []string
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection
 	externalData origindetection.ExternalData
+	name         string
+	hostname     string
+	message      string
 	// cardinality is used for Origin Detection
 	cardinality string
+	tags        []string
+	status      serviceCheckStatus
+	timestamp   int64
 }
 
 var (

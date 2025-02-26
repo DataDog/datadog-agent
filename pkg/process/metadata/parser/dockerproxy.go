@@ -24,9 +24,9 @@ type DockerProxy struct {
 }
 
 type proxy struct {
-	pid    int32
 	ip     string
 	target model.ContainerAddr
+	pid    int32
 }
 
 // NewDockerProxy instantiates a new filter loaded with docker-proxy instance information

@@ -40,8 +40,8 @@ type Tags struct {
 }
 
 type providerDef struct {
-	retries int
 	getTags func(context.Context) ([]string, error)
+	retries int
 }
 
 func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {

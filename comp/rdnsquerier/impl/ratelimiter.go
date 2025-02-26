@@ -27,9 +27,10 @@ type rateLimiter interface {
 
 // Rate limiter implementation for when rdnsquerier rate limiting is enabled
 type rateLimiterImpl struct {
-	config            *rdnsQuerierConfig
-	logger            log.Component
-	internalTelemetry *rdnsQuerierTelemetry
+	timeOfNextIncrease time.Time
+	logger             log.Component
+	config             *rdnsQuerierConfig
+	internalTelemetry  *rdnsQuerierTelemetry
 
 	limiter *rate.Limiter
 
@@ -37,9 +38,8 @@ type rateLimiterImpl struct {
 	failure chan struct{}
 	exit    chan struct{}
 
-	currentLimit       int
-	consecutiveErrors  int
-	timeOfNextIncrease time.Time
+	currentLimit      int
+	consecutiveErrors int
 }
 
 func newRateLimiter(config *rdnsQuerierConfig, logger log.Component, internalTelemetry *rdnsQuerierTelemetry) rateLimiter {

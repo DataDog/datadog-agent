@@ -50,17 +50,17 @@ type grpcServer struct {
 }
 
 type agentRunner struct {
-	mu  sync.RWMutex // guards pid
-	pid int          // agent pid, if running
-
-	port                 int         // agent receiver port
-	log                  *safeBuffer // agent log output
-	ddAddr               string      // Datadog intake address (host:port)
-	bindir               string      // the temporary directory where the trace-agent binary is located
-	verbose              bool
-	agentServer          *grpc.Server
 	agentServerListerner net.Listener
+	log                  *safeBuffer // agent log output
+	agentServer          *grpc.Server
+	ddAddr               string // Datadog intake address (host:port)
+	bindir               string // the temporary directory where the trace-agent binary is located
 	authToken            string
+	pid                  int // agent pid, if running
+
+	port    int          // agent receiver port
+	mu      sync.RWMutex // guards pid
+	verbose bool
 }
 
 func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agentRunner, error) {

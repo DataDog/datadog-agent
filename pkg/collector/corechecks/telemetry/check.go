@@ -28,8 +28,8 @@ const (
 )
 
 type checkImpl struct {
-	corechecks.CheckBase
 	telemetry telemetry.Component
+	corechecks.CheckBase
 }
 
 func (c *checkImpl) Run() error {

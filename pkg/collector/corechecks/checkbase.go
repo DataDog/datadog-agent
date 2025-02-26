@@ -45,12 +45,12 @@ type CheckBase struct {
 	senderManager  sender.SenderManager
 	checkName      string
 	checkID        checkid.ID
-	latestWarnings []error
-	checkInterval  time.Duration
 	source         string
-	telemetry      bool
 	initConfig     string
 	instanceConfig string
+	latestWarnings []error
+	checkInterval  time.Duration
+	telemetry      bool
 }
 
 // NewCheckBase returns a check base struct with a given check name

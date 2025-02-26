@@ -38,13 +38,13 @@ func init() {
 // * Module termination;
 // * Module telemetry consolidation;
 type loader struct {
-	sync.Mutex
 	modules map[sysconfigtypes.ModuleName]Module
 	errors  map[sysconfigtypes.ModuleName]error
 	stats   map[string]interface{}
 	cfg     *sysconfigtypes.Config
 	routers map[sysconfigtypes.ModuleName]*Router
-	closed  bool
+	sync.Mutex
+	closed bool
 }
 
 func (l *loader) forEachModule(fn func(name string, mod Module)) {

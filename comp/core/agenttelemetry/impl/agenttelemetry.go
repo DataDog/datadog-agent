@@ -36,17 +36,19 @@ type atel struct {
 	logComp log.Component
 	telComp telemetry.Component
 
-	enabled bool
-	sender  sender
-	runner  runner
-	atelCfg *Config
+	sender sender
+	runner runner
 
 	cancelCtx context.Context
-	cancel    context.CancelFunc
+	atelCfg   *Config
+
+	cancel context.CancelFunc
 
 	prevPromMetricCounterValues   map[string]float64
 	prevPromMetricHistogramValues map[string]uint64
 	prevPromMetricValuesMU        sync.Mutex
+
+	enabled bool
 }
 
 // Requires defines the dependencies for the agenttelemetry component
@@ -81,9 +83,9 @@ func (j job) Run() {
 
 // Passing metrics to sender Interfacing with sender
 type agentmetric struct {
+	family  *dto.MetricFamily
 	name    string
 	metrics []*dto.Metric
-	family  *dto.MetricFamily
 }
 
 func createSender(

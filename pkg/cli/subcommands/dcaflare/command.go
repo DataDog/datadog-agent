@@ -34,12 +34,12 @@ import (
 type cliParams struct {
 	caseID               string
 	email                string
-	send                 bool
 	profiling            int
-	profileMutex         bool
 	profileMutexFraction int
-	profileBlocking      bool
 	profileBlockingRate  int
+	send                 bool
+	profileMutex         bool
+	profileBlocking      bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.

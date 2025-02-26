@@ -26,15 +26,15 @@ var (
 // Meta is the metadata nested under the meta key
 type Meta struct {
 	SocketHostname            string   `json:"socket-hostname"`
-	Timezones                 []string `json:"timezones"`
 	SocketFqdn                string   `json:"socket-fqdn"`
 	EC2Hostname               string   `json:"ec2-hostname"`
 	Hostname                  string   `json:"hostname"`
-	HostAliases               []string `json:"host_aliases"`
 	InstanceID                string   `json:"instance-id"`
 	AgentHostname             string   `json:"agent-hostname,omitempty"`
 	ClusterName               string   `json:"cluster-name,omitempty"`
 	LegacyResolutionHostname  string   `json:"legacy-resolution-hostname,omitempty"`
+	Timezones                 []string `json:"timezones"`
+	HostAliases               []string `json:"host_aliases"`
 	HostnameResolutionVersion int      `json:"hostname-resolution-version,omitempty"`
 }
 

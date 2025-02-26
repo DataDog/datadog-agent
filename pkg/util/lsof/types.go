@@ -40,8 +40,8 @@ type File struct {
 	Type     string
 	OpenPerm string
 	FilePerm string
-	Size     int64
 	Name     string
+	Size     int64
 }
 
 // Files represents a list of open files

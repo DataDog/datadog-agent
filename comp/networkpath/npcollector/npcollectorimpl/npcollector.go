@@ -38,13 +38,17 @@ const (
 )
 
 type npCollectorImpl struct {
-	collectorConfigs *collectorConfigs
 
 	// Deps
 	epForwarder  eventplatform.Forwarder
 	logger       log.Component
 	statsdClient ddgostatsd.ClientInterface
 	rdnsquerier  rdnsquerier.Component
+
+	// Telemetry component
+	telemetrycomp telemetryComp.Component
+
+	collectorConfigs *collectorConfigs
 
 	// Counters
 	receivedPathtestCount    *atomic.Uint64
@@ -55,16 +59,9 @@ type npCollectorImpl struct {
 	pathtestInputChan      chan *common.Pathtest
 	pathtestProcessingChan chan *pathteststore.PathtestContext
 
-	// Scheduling related
-	running       bool
-	workers       int
 	stopChan      chan struct{}
 	flushLoopDone chan struct{}
 	runDone       chan struct{}
-	flushInterval time.Duration
-
-	// Telemetry component
-	telemetrycomp telemetryComp.Component
 
 	// structures needed to ease mocking/testing
 	TimeNowFn func() time.Time
@@ -73,6 +70,11 @@ type npCollectorImpl struct {
 	runTraceroute func(cfg config.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 
 	networkDevicesNamespace string
+	workers                 int
+	flushInterval           time.Duration
+
+	// Scheduling related
+	running bool
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {

@@ -34,16 +34,16 @@ var timeNow = time.Now
 
 // Client is an HTTP Cisco SDWAN client.
 type Client struct {
+	tokenExpiry         time.Time
 	httpClient          *http.Client
+	authenticationMutex *sync.Mutex
 	endpoint            string
 	token               string
-	tokenExpiry         time.Time
 	username            string
 	password            string
-	authenticationMutex *sync.Mutex
+	maxCount            string // Stored as string to be passed as an HTTP param
 	maxAttempts         int
 	maxPages            int
-	maxCount            string // Stored as string to be passed as an HTTP param
 	lookback            time.Duration
 }
 

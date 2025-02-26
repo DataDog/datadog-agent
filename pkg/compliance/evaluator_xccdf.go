@@ -51,9 +51,9 @@ type oscapIORule struct {
 }
 
 type oscapIOResult struct {
+	Data   map[string]interface{}
 	Rule   string
 	Result int
-	Data   map[string]interface{}
 }
 
 var (
@@ -63,11 +63,11 @@ var (
 
 type oscapIO struct {
 	cmd      *exec.Cmd
-	File     string
 	RuleCh   chan *oscapIORule
 	ResultCh chan *oscapIOResult
 	ErrorCh  chan error
 	DoneCh   chan bool
+	File     string
 }
 
 // From pkg/collector/corechecks/embed/process_agent.go.

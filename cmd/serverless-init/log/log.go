@@ -32,9 +32,9 @@ const (
 
 // Config holds the log configuration
 type Config struct {
-	FlushTimeout time.Duration
 	Channel      chan *logConfig.ChannelMessage
 	source       string
+	FlushTimeout time.Duration
 	IsEnabled    bool
 }
 

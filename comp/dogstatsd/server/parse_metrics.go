@@ -37,24 +37,24 @@ var (
 )
 
 type dogstatsdMetricSample struct {
-	name string
-	// use for single value messages
-	value float64
-	// use for multiple value messages
-	values []float64
-	// use to store set's values
-	setValue   string
-	metricType metricType
-	sampleRate float64
-	tags       []string
+	// timestamp read in the message if any
+	ts time.Time
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection
 	externalData origindetection.ExternalData
+	name         string
+	// use to store set's values
+	setValue string
 	// cardinality is used for Origin Detection
 	cardinality string
-	// timestamp read in the message if any
-	ts time.Time
+	// use for multiple value messages
+	values []float64
+	tags   []string
+	// use for single value messages
+	value      float64
+	metricType metricType
+	sampleRate float64
 }
 
 // sanity checks a given message against the metric sample format

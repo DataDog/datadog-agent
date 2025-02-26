@@ -28,8 +28,8 @@ type CLCStats struct {
 
 // Workers is used to unmarshall the workers info needed from the runner expvar payload
 type Workers struct {
-	Count     int                   `json:"Count"`
 	Instances map[string]WorkerInfo `json:"Instances"`
+	Count     int                   `json:"Count"`
 }
 
 // WorkerInfo is used to unmarshall the workers info needed from the runner expvar payload

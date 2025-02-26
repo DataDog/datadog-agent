@@ -16,14 +16,26 @@ import (
 // Flow contains flow info used for aggregation
 // json annotations are used in AsJSONString() for debugging purpose
 type Flow struct {
-	Namespace    string
-	FlowType     FlowType
-	SequenceNum  uint32
-	SamplingRate uint64
-	Direction    uint32
+
+	// Configured fields
+	AdditionalFields AdditionalFields
+	Namespace        string
+	FlowType         FlowType
+
+	// Reverse DNS enrichment added during Flow aggregation processing
+	SrcReverseDNSHostname string
+	DstReverseDNSHostname string
 
 	// Exporter information
 	ExporterAddr []byte
+
+	// Source/destination addresses
+	SrcAddr []byte // FLOW KEY
+	DstAddr []byte // FLOW KEY
+
+	NextHop []byte // FLOW KEY
+
+	SamplingRate uint64
 
 	// Flow time
 	StartTimestamp uint64 // in seconds
@@ -33,9 +45,12 @@ type Flow struct {
 	Bytes   uint64
 	Packets uint64
 
-	// Source/destination addresses
-	SrcAddr []byte // FLOW KEY
-	DstAddr []byte // FLOW KEY
+	// Mac Address
+	SrcMac uint64
+	DstMac uint64
+
+	SequenceNum uint32
+	Direction   uint32
 
 	// Layer 3 protocol (IPv4/IPv6/ARP/MPLS...)
 	EtherType uint32
@@ -55,25 +70,13 @@ type Flow struct {
 	InputInterface  uint32 // FLOW KEY
 	OutputInterface uint32
 
-	// Mac Address
-	SrcMac uint64
-	DstMac uint64
-
 	// Mask
 	SrcMask uint32
 	DstMask uint32
 
-	// Reverse DNS enrichment added during Flow aggregation processing
-	SrcReverseDNSHostname string
-	DstReverseDNSHostname string
-
 	// Ethernet information
 	Tos uint32 // FLOW KEY
 
-	NextHop []byte // FLOW KEY
-
-	// Configured fields
-	AdditionalFields AdditionalFields
 }
 
 // AdditionalFields holds additional fields collected

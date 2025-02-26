@@ -13,7 +13,7 @@ import (
 
 // Factory encapsulates the initialization of a Module
 type Factory struct {
+	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
 	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
-	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
 }

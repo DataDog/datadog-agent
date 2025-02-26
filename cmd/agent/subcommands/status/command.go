@@ -33,15 +33,16 @@ import (
 type cliParams struct {
 	*command.GlobalParams
 
+	statusFilePath     string
+	logLevelDefaultOff command.LogLevelDefaultOff
+
 	// args are the positional command-line arguments
 	args []string
 
-	jsonStatus         bool
-	prettyPrintJSON    bool
-	statusFilePath     string
-	verbose            bool
-	list               bool
-	logLevelDefaultOff command.LogLevelDefaultOff
+	jsonStatus      bool
+	prettyPrintJSON bool
+	verbose         bool
+	list            bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.

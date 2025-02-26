@@ -29,20 +29,20 @@ type RawSender interface {
 
 // checkSender implements Sender
 type checkSender struct {
-	id                      checkid.ID
-	defaultHostname         string
-	defaultHostnameDisabled bool
-	metricStats             stats.SenderStats
-	priormetricStats        stats.SenderStats
-	statsLock               sync.RWMutex
 	itemsOut                chan<- senderItem
 	serviceCheckOut         chan<- servicecheck.ServiceCheck
 	eventOut                chan<- event.Event
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
-	checkTags               []string
+	metricStats             stats.SenderStats
+	priormetricStats        stats.SenderStats
+	id                      checkid.ID
+	defaultHostname         string
 	service                 string
+	checkTags               []string
+	statsLock               sync.RWMutex
+	defaultHostnameDisabled bool
 	noIndex                 bool
 }
 
@@ -52,8 +52,8 @@ type senderItem interface {
 }
 
 type senderMetricSample struct {
-	id           checkid.ID
 	metricSample *metrics.MetricSample
+	id           checkid.ID
 	commit       bool
 }
 
@@ -62,8 +62,8 @@ func (s *senderMetricSample) handle(agg *BufferedAggregator) {
 }
 
 type senderHistogramBucket struct {
-	id     checkid.ID
 	bucket *metrics.HistogramBucket
+	id     checkid.ID
 }
 
 func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
@@ -72,19 +72,19 @@ func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
 
 type senderEventPlatformEvent struct {
 	id        checkid.ID
-	rawEvent  []byte
 	eventType string
+	rawEvent  []byte
 }
 
 type senderOrchestratorMetadata struct {
-	msgs        []types.ProcessMessageBody
 	clusterID   string
+	msgs        []types.ProcessMessageBody
 	payloadType int
 }
 
 type senderOrchestratorManifest struct {
-	msgs      []types.ProcessMessageBody
 	clusterID string
+	msgs      []types.ProcessMessageBody
 }
 
 type checkSenderPool struct {

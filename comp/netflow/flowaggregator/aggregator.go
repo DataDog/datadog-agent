@@ -36,25 +36,25 @@ const metricPrefix = "datadog.netflow."
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
-	flowIn                       chan *common.Flow
+	sender                   sender.Sender
+	epForwarder              eventplatform.Forwarder
+	goflowPrometheusGatherer prometheus.Gatherer
+
+	logger            log.Component
+	flowIn            chan *common.Flow
+	flowAcc           *flowAccumulator
+	stopChan          chan struct{}
+	flushLoopDone     chan struct{}
+	runDone           chan struct{}
+	receivedFlowCount *atomic.Uint64
+	flushedFlowCount  *atomic.Uint64
+	TimeNowFunction   func() time.Time // Allows to mock time in tests
+
+	lastSequencePerExporter      map[sequenceDeltaKey]uint32
+	hostname                     string
 	FlushFlowsToSendInterval     time.Duration // interval for checking flows to flush and send them to EP Forwarder
 	rollupTrackerRefreshInterval time.Duration
-	flowAcc                      *flowAccumulator
-	sender                       sender.Sender
-	epForwarder                  eventplatform.Forwarder
-	stopChan                     chan struct{}
-	flushLoopDone                chan struct{}
-	runDone                      chan struct{}
-	receivedFlowCount            *atomic.Uint64
-	flushedFlowCount             *atomic.Uint64
-	hostname                     string
-	goflowPrometheusGatherer     prometheus.Gatherer
-	TimeNowFunction              func() time.Time // Allows to mock time in tests
-
-	lastSequencePerExporter   map[sequenceDeltaKey]uint32
-	lastSequencePerExporterMu sync.Mutex
-
-	logger log.Component
+	lastSequencePerExporterMu    sync.Mutex
 }
 
 type sequenceDeltaKey struct {

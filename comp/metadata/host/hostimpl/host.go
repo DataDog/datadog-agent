@@ -47,9 +47,10 @@ type host struct {
 	config    config.Component
 	resources resources.Component
 
+	serializer serializer.MetricSerializer
+
 	hostname        string
 	collectInterval time.Duration
-	serializer      serializer.MetricSerializer
 }
 
 // Module defines the fx options for this component.

@@ -217,8 +217,8 @@ type required struct {
 }
 
 type verification struct {
-	MinOptional int      `xml:"MinOptional,attr"`
 	Required    required `xml:"Required"`
+	MinOptional int      `xml:"MinOptional,attr"`
 }
 
 func getDebsigFileFromPolicy(policyFile string) string {

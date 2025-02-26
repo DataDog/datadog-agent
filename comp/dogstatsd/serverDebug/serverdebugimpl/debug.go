@@ -50,28 +50,29 @@ type dependencies struct {
 // metricStat holds how many times a metric has been
 // processed and when was the last time.
 type metricStat struct {
-	Name     string    `json:"name"`
-	Count    uint64    `json:"count"`
 	LastSeen time.Time `json:"last_seen"`
+	Name     string    `json:"name"`
 	Tags     string    `json:"tags"`
+	Count    uint64    `json:"count"`
 }
 
 type serverDebugImpl struct {
-	sync.Mutex
-	log     log.Component
-	enabled *atomic.Bool
-	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
 	// counting number of metrics processed last X seconds
 	metricsCounts metricsCountBuckets
-	// keyGen is used to generate hashes of the metrics received by dogstatsd
-	keyGen *ckey.KeyGenerator
+	log           log.Component
 
 	// clock is used to keep a consistent time state within the debug server whether
 	// we use a real clock in production code or a mock clock for unit testing
-	clock           clock.Clock
-	tagsAccumulator *tagset.HashingTagsAccumulator
+	clock clock.Clock
 	// dogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
 	dogstatsdDebugLogger pkglog.LoggerInterface
+	enabled              *atomic.Bool
+	Stats                map[ckey.ContextKey]metricStat `json:"stats"`
+	// keyGen is used to generate hashes of the metrics received by dogstatsd
+	keyGen *ckey.KeyGenerator
+
+	tagsAccumulator *tagset.HashingTagsAccumulator
+	sync.Mutex
 }
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
@@ -105,11 +106,11 @@ func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Compone
 // metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
 // It is used to detect spikes.
 type metricsCountBuckets struct {
-	counts     [5]uint64
-	bucketIdx  int
 	currentSec time.Time
 	metricChan chan struct{}
 	closeChan  chan struct{}
+	counts     [5]uint64
+	bucketIdx  int
 }
 
 // FormatDebugStats returns a printable version of debug stats.

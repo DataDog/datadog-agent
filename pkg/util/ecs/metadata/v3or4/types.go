@@ -7,50 +7,50 @@ package v3or4
 
 // Task represents a task as returned by the ECS metadata API v3 or v4.
 type Task struct {
+	Limits                  map[string]float64 `json:"Limits,omitempty"`
+	ContainerInstanceTags   map[string]string  `json:"ContainerInstanceTags,omitempty"`
+	TaskTags                map[string]string  `json:"TaskTags,omitempty"`
+	EphemeralStorageMetrics map[string]int64   `json:"EphemeralStorageMetrics,omitempty"`
 	ClusterName             string             `json:"Cluster"`
-	Containers              []Container        `json:"Containers"`
 	KnownStatus             string             `json:"KnownStatus"`
 	TaskARN                 string             `json:"TaskARN"`
 	Family                  string             `json:"Family"`
 	Version                 string             `json:"Revision"`
-	Limits                  map[string]float64 `json:"Limits,omitempty"`
 	DesiredStatus           string             `json:"DesiredStatus"`
 	LaunchType              string             `json:"LaunchType,omitempty"` // present only in v4
-	ContainerInstanceTags   map[string]string  `json:"ContainerInstanceTags,omitempty"`
-	TaskTags                map[string]string  `json:"TaskTags,omitempty"`
-	EphemeralStorageMetrics map[string]int64   `json:"EphemeralStorageMetrics,omitempty"`
 	ServiceName             string             `json:"ServiceName,omitempty"`
 	VPCID                   string             `json:"VPCID,omitempty"`
 	PullStartedAt           string             `json:"PullStartedAt,omitempty"`
 	PullStoppedAt           string             `json:"PullStoppedAt,omitempty"`
 	ExecutionStoppedAt      string             `json:"ExecutionStoppedAt,omitempty"`
 	AvailabilityZone        string             `json:"AvailabilityZone,omitempty"`
+	Containers              []Container        `json:"Containers"`
 }
 
 // Container represents a container within a task.
 type Container struct {
-	Name          string            `json:"Name"`
 	Limits        map[string]uint64 `json:"Limits,omitempty"`
+	Labels        map[string]string `json:"Labels,omitempty"`
+	LogOptions    map[string]string `json:"LogOptions,omitempty"` // present only in v4
+	Health        *HealthStatus     `json:"Health,omitempty"`
+	ExitCode      *int64            `json:"ExitCode,omitempty"`
+	RestartCount  *int              `json:"RestartCount,omitempty"` // present only in v4
+	Name          string            `json:"Name"`
 	ImageID       string            `json:"ImageID,omitempty"`
 	StartedAt     string            `json:"StartedAt,omitempty"` // 2017-11-17T17:14:07.781711848Z
 	DockerName    string            `json:"DockerName"`
 	Type          string            `json:"Type"`
 	Image         string            `json:"Image"`
-	Labels        map[string]string `json:"Labels,omitempty"`
 	KnownStatus   string            `json:"KnownStatus"` // See https://github.com/aws/amazon-ecs-agent/blob/master/agent/api/container/status/containerstatus.go
 	DesiredStatus string            `json:"DesiredStatus"`
 	DockerID      string            `json:"DockerID"`
 	CreatedAt     string            `json:"CreatedAt,omitempty"`
+	LogDriver     string            `json:"LogDriver,omitempty"`    // present only in v4
+	ContainerARN  string            `json:"ContainerARN,omitempty"` // present only in v4
+	Snapshotter   string            `json:"Snapshotter,omitempty"`
 	Networks      []Network         `json:"Networks,omitempty"`
 	Ports         []Port            `json:"Ports,omitempty"`
-	LogDriver     string            `json:"LogDriver,omitempty"`    // present only in v4
-	LogOptions    map[string]string `json:"LogOptions,omitempty"`   // present only in v4
-	ContainerARN  string            `json:"ContainerARN,omitempty"` // present only in v4
-	Health        *HealthStatus     `json:"Health,omitempty"`
 	Volumes       []Volume          `json:"Volumes,omitempty"`
-	ExitCode      *int64            `json:"ExitCode,omitempty"`
-	Snapshotter   string            `json:"Snapshotter,omitempty"`
-	RestartCount  *int              `json:"RestartCount,omitempty"` // present only in v4
 }
 
 // HealthStatus represents the health status of a container
@@ -70,10 +70,10 @@ type Network struct {
 
 // Port represents the ports of a container
 type Port struct {
-	ContainerPort uint16 `json:"ContainerPort,omitempty"`
 	Protocol      string `json:"Protocol,omitempty"`
-	HostPort      uint16 `json:"HostPort,omitempty"`
 	HostIP        string `json:"HostIP,omitempty"`
+	ContainerPort uint16 `json:"ContainerPort,omitempty"`
+	HostPort      uint16 `json:"HostPort,omitempty"`
 }
 
 // Volume represents the volumes of a container

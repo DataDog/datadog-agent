@@ -33,19 +33,19 @@ type (
 	// Response encapsulates the data from
 	// an ICMP response packet needed for matching
 	Response struct {
-		SrcIP        net.IP
-		DstIP        net.IP
-		TypeCode     layers.ICMPv4TypeCode
-		InnerSrcIP   net.IP
-		InnerDstIP   net.IP
-		InnerSrcPort uint16
-		InnerDstPort uint16
+		SrcIP      net.IP
+		DstIP      net.IP
+		InnerSrcIP net.IP
+		InnerDstIP net.IP
 		// InnerIdentifier will be populated with
 		// an additional identifcation field for matching
 		// received packets. For TCP packets, this is the
 		// sequence number. For UDP packets, this is the
 		// checksum, a uint16 cast to a uint32.
 		InnerIdentifier uint32
+		TypeCode        layers.ICMPv4TypeCode
+		InnerSrcPort    uint16
+		InnerDstPort    uint16
 	}
 )
 

@@ -35,55 +35,29 @@ const FlushTimeout time.Duration = 5 * time.Second
 
 // Daemon is the communication server between the runtime and the serverless agent and coordinates the flushing of telemetry.
 type Daemon struct {
-	httpServer *http.Server
-	mux        *http.ServeMux
-
-	MetricAgent *metrics.ServerlessMetricAgent
-
 	LogsAgent logsAgent.ServerlessLogsAgent
 
 	TraceAgent trace.ServerlessTraceAgent
-
-	ColdStartCreator *trace.ColdStartSpanCreator
-
-	OTLPAgent *otlp.ServerlessOTLPAgent
-
-	// lastInvocations stores last invocation times to be able to compute the
-	// interval of invocation of the function.
-	lastInvocations []time.Time
 
 	// flushStrategy is the currently selected flush strategy, defaulting to the
 	// the "flush at the end" naive strategy.
 	flushStrategy flush.Strategy
 
-	// useAdaptiveFlush is set to false when the flush strategy has been forced
-	// through configuration.
-	useAdaptiveFlush bool
+	// InvocationProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
+	InvocationProcessor invocationlifecycle.InvocationProcessor
 
-	// Stopped represents whether the Daemon has been Stopped
-	Stopped bool
+	httpServer *http.Server
+	mux        *http.ServeMux
 
-	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
-	LambdaLibraryDetected bool
+	MetricAgent *metrics.ServerlessMetricAgent
 
-	// LambdaLibraryStateLock keeps track of whether the Datadog Lambda Library was detected in the environment
-	LambdaLibraryStateLock sync.Mutex
+	ColdStartCreator *trace.ColdStartSpanCreator
 
-	// executionSpanIncomplete indicates whether the Lambda span has been completed by the Extension
-	executionSpanIncomplete bool
-
-	// ExecutionSpanStateLock keeps track of whether the serverless Invocation routes have been hit to complete the execution span
-	ExecutionSpanStateLock sync.Mutex
-
-	// runtimeStateMutex is used to ensure that modifying the state of the runtime is thread-safe
-	runtimeStateMutex sync.Mutex
+	OTLPAgent *otlp.ServerlessOTLPAgent
 
 	// RuntimeWg is used to keep track of whether the runtime is currently handling an invocation.
 	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
 	RuntimeWg *sync.WaitGroup
-
-	// FlushLock is used to keep track of whether there is currently a flush in progress
-	FlushLock sync.Mutex
 
 	ExtraTags *serverlessLog.Tags
 
@@ -96,6 +70,24 @@ type Daemon struct {
 	// so we must use a pointer here to create a new sync.Once without overwriting the old one when resetting.
 	TellDaemonRuntimeDoneOnce *sync.Once
 
+	logCollector *serverlessLog.LambdaLogsCollector
+
+	// lastInvocations stores last invocation times to be able to compute the
+	// interval of invocation of the function.
+	lastInvocations []time.Time
+
+	// LambdaLibraryStateLock keeps track of whether the Datadog Lambda Library was detected in the environment
+	LambdaLibraryStateLock sync.Mutex
+
+	// ExecutionSpanStateLock keeps track of whether the serverless Invocation routes have been hit to complete the execution span
+	ExecutionSpanStateLock sync.Mutex
+
+	// runtimeStateMutex is used to ensure that modifying the state of the runtime is thread-safe
+	runtimeStateMutex sync.Mutex
+
+	// FlushLock is used to keep track of whether there is currently a flush in progress
+	FlushLock sync.Mutex
+
 	// metricsFlushMutex ensures that only one metrics flush can be underway at a given time
 	metricsFlushMutex sync.Mutex
 
@@ -105,10 +97,18 @@ type Daemon struct {
 	// logsFlushMutex ensures that only one logs flush can be underway at a given time
 	logsFlushMutex sync.Mutex
 
-	// InvocationProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
-	InvocationProcessor invocationlifecycle.InvocationProcessor
+	// useAdaptiveFlush is set to false when the flush strategy has been forced
+	// through configuration.
+	useAdaptiveFlush bool
 
-	logCollector *serverlessLog.LambdaLogsCollector
+	// Stopped represents whether the Daemon has been Stopped
+	Stopped bool
+
+	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
+	LambdaLibraryDetected bool
+
+	// executionSpanIncomplete indicates whether the Lambda span has been completed by the Extension
+	executionSpanIncomplete bool
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime and coordinate

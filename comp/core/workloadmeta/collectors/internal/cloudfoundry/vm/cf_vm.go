@@ -30,15 +30,17 @@ const (
 )
 
 type collector struct {
-	id      string
-	store   workloadmeta.Component
-	seen    map[workloadmeta.EntityID]struct{}
-	catalog workloadmeta.AgentType
+	store workloadmeta.Component
 
 	gardenUtil cloudfoundry.GardenUtilInterface
-	nodeName   string
 
-	dcaClient  clusteragent.DCAClientInterface
+	dcaClient clusteragent.DCAClientInterface
+	seen      map[workloadmeta.EntityID]struct{}
+	id        string
+	nodeName  string
+
+	catalog workloadmeta.AgentType
+
 	dcaEnabled bool
 }
 

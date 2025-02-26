@@ -16,8 +16,8 @@ import (
 // ChannelWriter is a buffered writer that log lines (lines ending with a \n) to a channel
 // to be sent to our intake.
 type ChannelWriter struct {
-	Buffer  bytes.Buffer
 	Channel chan *logConfig.ChannelMessage
+	Buffer  bytes.Buffer
 	IsError bool
 }
 

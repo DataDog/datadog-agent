@@ -23,12 +23,12 @@ const httpTO = 5 * time.Second
 type configGetter func(*url.URL) (otelMetadata, error)
 
 type freshConfig struct {
-	stale       bool
 	conf        otelMetadata
 	collectFunc configGetter
 	source      *url.URL
 	t           *time.Timer
 	mu          sync.RWMutex
+	stale       bool
 }
 
 func newFreshConfig(source string, f configGetter) (*freshConfig, error) {

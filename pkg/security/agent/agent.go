@@ -29,11 +29,9 @@ import (
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
-	hostname                string
 	reporter                common.RawReporter
 	client                  *RuntimeSecurityClient
 	running                 *atomic.Bool
-	wg                      sync.WaitGroup
 	connected               *atomic.Bool
 	eventReceived           *atomic.Uint64
 	activityDumpReceived    *atomic.Uint64
@@ -42,7 +40,9 @@ type RuntimeSecurityAgent struct {
 	cancel                  context.CancelFunc
 
 	// activity dump
-	storage *dump.ActivityDumpStorageManager
+	storage  *dump.ActivityDumpStorageManager
+	hostname string
+	wg       sync.WaitGroup
 }
 
 // RSAOptions represents the runtime security agent options

@@ -22,26 +22,28 @@ const (
 
 // Config is the top-level config for agent telemetry
 type Config struct {
-	Enabled  bool       `yaml:"enabled"`
-	Profiles []*Profile `yaml:"profiles"`
 
 	// config-wide and "compiled" fields
 	schedule map[Schedule][]*Profile
 	events   map[string]*Event
+	Profiles []*Profile `yaml:"profiles"`
+
+	Enabled bool `yaml:"enabled"`
 }
 
 // Profile is a single agent telemetry profile
 type Profile struct {
-	// parsed
-	Name     string             `yaml:"name"`
 	Metric   *AgentMetricConfig `yaml:"metric,omitempty"`
 	Schedule *Schedule          `yaml:"schedule,omitempty"`
-	Events   []*Event           `yaml:"events"`
 
 	// compiled
-	metricsMap        map[string]*MetricConfig
+	metricsMap     map[string]*MetricConfig
+	excludeTagsMap map[string]any
+	// parsed
+	Name   string   `yaml:"name"`
+	Events []*Event `yaml:"events"`
+
 	excludeZeroMetric bool
-	excludeTagsMap    map[string]any
 }
 
 // AgentMetricConfig specifies agent telemetry metrics payloads to be generated and emitted
@@ -58,13 +60,13 @@ type ExcludeMetricConfig struct {
 
 // MetricConfig is a list of metric selecting subset of telemetry.Gather() metrics to be included in agent
 type MetricConfig struct {
-	Name           string   `yaml:"name"` // required
-	AggregateTags  []string `yaml:"aggregate_tags,omitempty"`
-	AggregateTotal bool     `yaml:"aggregate_total"`
+	aggregateTagsMap map[string]any
+	Name             string   `yaml:"name"` // required
+	AggregateTags    []string `yaml:"aggregate_tags,omitempty"`
+	AggregateTotal   bool     `yaml:"aggregate_total"`
 
 	// compiled
 	aggregateTagsExists bool
-	aggregateTagsMap    map[string]any
 }
 
 // Schedule is a schedule for agent telemetry payloads to be generated and emitted

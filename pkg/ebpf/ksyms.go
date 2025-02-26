@@ -20,9 +20,9 @@ import (
 )
 
 type existCache struct {
-	mtx  sync.Mutex
-	path string
 	c    map[string]uint64
+	path string
+	mtx  sync.Mutex
 }
 
 func newExistCache(path string) *existCache {

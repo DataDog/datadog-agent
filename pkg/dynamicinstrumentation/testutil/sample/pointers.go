@@ -17,20 +17,20 @@ type structWithPointer struct {
 }
 
 type spws struct {
-	a int
 	x *string
+	a int
 }
 
 type swsp struct {
-	a int
 	b *nStruct
+	a int
 }
 
 type reallyComplexType struct {
 	pointerToStructWithAPointerToAStruct *swsp
-	anArray                              [1]nStruct
-	aString                              string
 	aStringPtr                           *string
+	aString                              string
+	anArray                              [1]nStruct
 }
 
 //nolint:all
@@ -42,8 +42,8 @@ func test_pointer_to_simple_struct(a *structWithTwoValues) {}
 func test_linked_list(a node) {}
 
 type node struct {
-	val int
 	b   *node
+	val int
 }
 
 //nolint:all

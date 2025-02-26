@@ -33,19 +33,20 @@ import (
 // Each lookup table is implemented as a function,
 // which are configured in LookupFunction types.
 type LookupTableGenerator struct {
-	Package                string
-	MinGoVersion           goversion.GoVersion
-	Architectures          []string
-	CompilationParallelism int
-	LookupFunctions        []LookupFunction
-	ExtraImports           []string
-	InspectBinary          func(binary Binary) (interface{}, error)
-	TestProgramPath        string
-	InstallDirectory       string
-	OutDirectory           string
+	InspectBinary    func(binary Binary) (interface{}, error)
+	MinGoVersion     goversion.GoVersion
+	Package          string
+	TestProgramPath  string
+	InstallDirectory string
+	OutDirectory     string
 
-	allBinaries   []Binary
-	allBinariesMu sync.Mutex
+	Architectures   []string
+	LookupFunctions []LookupFunction
+	ExtraImports    []string
+
+	allBinaries            []Binary
+	CompilationParallelism int
+	allBinariesMu          sync.Mutex
 }
 
 // Binary wraps the information about a single compiled test binary
@@ -262,17 +263,17 @@ func (g *LookupTableGenerator) inspectAllBinaries(ctx context.Context) (map[arch
 	binaries := g.getAllBinaries()
 
 	results := make(chan struct {
-		bin    Binary
 		result interface{}
 		err    error
+		bin    Binary
 	})
 	for _, bin := range binaries {
 		go func(bin Binary) {
 			result, err := g.InspectBinary(bin)
 			results <- struct {
-				bin    Binary
 				result interface{}
 				err    error
+				bin    Binary
 			}{bin, result, err}
 		}(bin)
 	}

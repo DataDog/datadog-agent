@@ -76,9 +76,9 @@ type dependencies struct {
 	Debug     serverdebug.Component
 	Replay    replay.Component
 	PidMap    pidmap.Component
-	Params    Params
-	WMeta     option.Option[workloadmeta.Component]
 	Telemetry telemetry.Component
+	WMeta     option.Option[workloadmeta.Component]
+	Params    Params
 }
 
 type provides struct {
@@ -91,28 +91,34 @@ type provides struct {
 // When the internal telemetry is enabled, used to tag the origin
 // on the processed metric.
 type cachedOriginCounter struct {
-	origin string
-	ok     map[string]string
-	err    map[string]string
 	okCnt  telemetry.SimpleCounter
 	errCnt telemetry.SimpleCounter
+	ok     map[string]string
+	err    map[string]string
+	origin string
 }
 
 // Server represent a Dogstatsd server
 type server struct {
 	log    log.Component
 	config model.Reader
-	// listeners are the instantiated socket listener (UDS or UDP or both)
-	listeners []listeners.StatsdListener
 
 	// demultiplexer will receive the metrics processed by the DogStatsD server,
 	// will take care of processing them concurrently if possible, and will
 	// also take care of forwarding the metrics to the intake.
 	demultiplexer aggregator.Demultiplexer
 
-	// running in their own routine, workers are responsible of parsing the packets
-	// and pushing them to the aggregator
-	workers []*worker
+	Debug serverdebug.Component
+
+	tCapture replay.Component
+	pidMap   pidmap.Component
+
+	// telemetry
+	telemetry         telemetry.Component
+	tlmProcessed      telemetry.Counter
+	tlmProcessedOk    telemetry.SimpleCounter
+	tlmProcessedError telemetry.SimpleCounter
+	tlmChannel        telemetry.Histogram
 
 	packetsIn               chan packets.Packets
 	captureChan             chan packets.Packets
@@ -121,17 +127,38 @@ type server struct {
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	sharedFloat64List       *float64ListPool
 	Statistics              *statutil.Stats
-	Started                 bool
 	stopChan                chan bool
 	health                  *health.Handle
-	histToDist              bool
-	histToDistPrefix        string
-	extraTags               []string
-	Debug                   serverdebug.Component
-
-	tCapture                replay.Component
-	pidMap                  pidmap.Component
 	mapper                  *mapper.MetricMapper
+	// cachedOriginCounters caches telemetry counter per origin
+	// (when dogstatsd origin telemetry is enabled)
+	// TODO: use lru.Cache and track listenerId too
+	cachedOriginCounters    map[string]cachedOriginCounter
+	listernersTelemetry     *listeners.TelemetryStore
+	packetsTelemetry        *packets.TelemetryStore
+	stringInternerTelemetry *stringInternerTelemetry
+
+	wmeta option.Option[workloadmeta.Component]
+
+	histToDistPrefix string
+	udpLocalAddr     string
+
+	enrichConfig enrichConfig
+
+	// listeners are the instantiated socket listener (UDS or UDP or both)
+	listeners []listeners.StatsdListener
+
+	// running in their own routine, workers are responsible of parsing the packets
+	// and pushing them to the aggregator
+	workers []*worker
+
+	extraTags   []string
+	cachedOrder []cachedOriginCounter // for cache eviction
+
+	// cachedTlmLock must be held when accessing cachedOriginCounters and cachedOrder
+	cachedTlmLock           sync.Mutex
+	Started                 bool
+	histToDist              bool
 	eolTerminationUDP       bool
 	eolTerminationUDS       bool
 	eolTerminationNamedPipe bool
@@ -141,34 +168,11 @@ type server struct {
 	// package (pkg/trace/log/throttled.go) for a possible throttler implementation.
 	disableVerboseLogs bool
 
-	// cachedTlmLock must be held when accessing cachedOriginCounters and cachedOrder
-	cachedTlmLock sync.Mutex
-	// cachedOriginCounters caches telemetry counter per origin
-	// (when dogstatsd origin telemetry is enabled)
-	// TODO: use lru.Cache and track listenerId too
-	cachedOriginCounters map[string]cachedOriginCounter
-	cachedOrder          []cachedOriginCounter // for cache eviction
-
 	// ServerlessMode is set to true if we're running in a serverless environment.
 	ServerlessMode bool
-	udpLocalAddr   string
 
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
-
-	enrichConfig enrichConfig
-
-	wmeta option.Option[workloadmeta.Component]
-
-	// telemetry
-	telemetry               telemetry.Component
-	tlmProcessed            telemetry.Counter
-	tlmProcessedOk          telemetry.SimpleCounter
-	tlmProcessedError       telemetry.SimpleCounter
-	tlmChannel              telemetry.Histogram
-	listernersTelemetry     *listeners.TelemetryStore
-	packetsTelemetry        *packets.TelemetryStore
-	stringInternerTelemetry *stringInternerTelemetry
 }
 
 func initTelemetry() {

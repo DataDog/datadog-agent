@@ -10,11 +10,11 @@ import "time"
 // sourceTags holds the tags for a given entity collected from a single source,
 // grouped by their cardinality.
 type sourceTags struct {
+	expiryDate           time.Time
 	lowCardTags          []string
 	orchestratorCardTags []string
 	highCardTags         []string
 	standardTags         []string
-	expiryDate           time.Time
 }
 
 func (st *sourceTags) isEmpty() bool {

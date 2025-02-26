@@ -18,9 +18,9 @@ import (
 // FlareController is a type that contains information needed to insert into a
 // flare from the logs agent.
 type FlareController struct {
-	mu           sync.Mutex
 	allFiles     []string
 	journalFiles []string
+	mu           sync.Mutex
 }
 
 // NewFlareController creates a new FlareController

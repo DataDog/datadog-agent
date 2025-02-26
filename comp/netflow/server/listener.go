@@ -17,9 +17,9 @@ import (
 // flowState can be of type *utils.StateNetFlow/StateSFlow/StateNFLegacy
 type netflowListener struct {
 	flowState *goflowlib.FlowStateWrapper
-	config    config.ListenerConfig
 	error     *atomic.String
 	flowCount *atomic.Int64
+	config    config.ListenerConfig
 }
 
 func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {

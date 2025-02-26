@@ -9,8 +9,8 @@ import "strings"
 
 // OptPairs is just a useful type alias to avoid writing this out multiple times.
 type OptPairs[T any] []struct {
-	Key string
 	Val T
+	Key string
 }
 
 // Options represents an ordered map of case-insensitive choices.

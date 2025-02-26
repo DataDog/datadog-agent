@@ -31,8 +31,8 @@ func Module() fxutil.Module {
 }
 
 type state struct {
-	mux    sync.RWMutex
 	pidMap pidContainerMap
+	mux    sync.RWMutex
 }
 
 // SetPidMap sets the map with the pid - containerID relations

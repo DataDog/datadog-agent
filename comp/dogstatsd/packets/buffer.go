@@ -13,14 +13,14 @@ import (
 // Buffer is a buffer of packets that will automatically flush to the given
 // output channel when it is full or after a configurable duration.
 type Buffer struct {
-	listenerID     string
-	packets        Packets
 	flushTimer     *time.Ticker
-	bufferSize     uint
 	outputChannel  chan Packets
 	closeChannel   chan struct{}
-	m              sync.Mutex
 	telemetryStore *TelemetryStore
+	listenerID     string
+	packets        Packets
+	bufferSize     uint
+	m              sync.Mutex
 }
 
 // NewBuffer creates a new buffer of packets of specified size

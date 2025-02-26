@@ -19,17 +19,17 @@ var templatesFS embed.FS
 // netflowServerStatus represents the status of the server including details about
 // listeners which are working and those which have closed.
 type netflowServerStatus struct {
+	WorkingListenerDetails []netflowListenerStatus
+	ClosedListenerDetails  []netflowListenerStatus
 	TotalListeners         int
 	OpenListeners          int
 	ClosedListeners        int
-	WorkingListenerDetails []netflowListenerStatus
-	ClosedListenerDetails  []netflowListenerStatus
 }
 
 // netflowListenerStatus handles logic related to pulling config information and associating it to an error.
 type netflowListenerStatus struct {
-	Config    nfconfig.ListenerConfig
 	Error     string
+	Config    nfconfig.ListenerConfig
 	FlowCount int64
 }
 

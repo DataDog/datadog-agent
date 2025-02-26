@@ -24,9 +24,10 @@ type genericPool[K managedPoolTypes] interface {
 // PoolManager helps manage sync pools so multiple references to the same pool objects may be held.
 type PoolManager[K managedPoolTypes] struct {
 	pool genericPool[K]
-	refs sync.Map
 
 	passthru *atomic.Bool
+
+	refs sync.Map
 
 	sync.RWMutex
 }

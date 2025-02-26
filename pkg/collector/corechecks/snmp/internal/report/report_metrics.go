@@ -23,19 +23,19 @@ import (
 // MetricSender is a wrapper around sender.Sender
 type MetricSender struct {
 	sender                  sender.Sender
-	hostname                string
-	submittedMetrics        int
-	interfaceConfigs        []snmpintegration.InterfaceConfig
 	interfaceBandwidthState InterfaceBandwidthState
+	hostname                string
+	interfaceConfigs        []snmpintegration.InterfaceConfig
+	submittedMetrics        int
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
 type MetricSample struct {
 	value      valuestore.ResultValue
-	tags       []string
 	symbol     profiledefinition.SymbolConfig
-	forcedType profiledefinition.ProfileMetricType
 	options    profiledefinition.MetricsConfigOption
+	forcedType profiledefinition.ProfileMetricType
+	tags       []string
 }
 
 // NewMetricSender create a new MetricSender

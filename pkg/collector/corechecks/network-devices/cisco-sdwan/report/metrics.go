@@ -26,9 +26,9 @@ const interfaceUserTagResourcePrefix = "dd.internal.resource:ndm_interface_user_
 // SDWanSender implements methods for sending Cisco SD-Wan metrics and metadata
 type SDWanSender struct {
 	sender       sender.Sender
-	namespace    string
 	lastTimeSent map[string]float64
 	deviceTags   map[string][]string
+	namespace    string
 }
 
 // NewSDWanSender returns a new SDWanSender

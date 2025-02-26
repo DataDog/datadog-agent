@@ -25,10 +25,10 @@ import (
 // Requires defines the dependencies for the streamlogs component
 type Requires struct {
 	compdef.In
-	LogsAgent   option.Option[logsAgent.Component]
 	Logger      logger.Component
 	Config      config.Component
 	CoreSetting coresetting.Component
+	LogsAgent   option.Option[logsAgent.Component]
 }
 
 // Provides defines the output of the streamlogs component

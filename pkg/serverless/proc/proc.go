@@ -86,11 +86,11 @@ func SearchProcsForEnvVariable(procPath string, envName string) []string {
 }
 
 type CPUData struct {
-	TotalUserTimeMs   float64
-	TotalSystemTimeMs float64
-	TotalIdleTimeMs   float64
 	// Maps CPU core name (e.g. "cpu1") to time in ms that the CPU spent in the idle process
 	IndividualCPUIdleTimes map[string]float64
+	TotalUserTimeMs        float64
+	TotalSystemTimeMs      float64
+	TotalIdleTimeMs        float64
 }
 
 // GetCPUData collects aggregated and per-core CPU usage data

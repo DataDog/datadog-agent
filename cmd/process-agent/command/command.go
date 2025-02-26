@@ -42,9 +42,6 @@ type GlobalParams struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
-	// ExtraConfFilePath represents the paths to additional configuration files.
-	ExtraConfFilePath []string
-
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
@@ -54,6 +51,9 @@ type GlobalParams struct {
 
 	// PidFilePath specifies the path to the pid file
 	PidFilePath string
+
+	// ExtraConfFilePath represents the paths to additional configuration files.
+	ExtraConfFilePath []string
 
 	// WinParams provides windows specific options
 	WinParams WinParams

@@ -16,10 +16,10 @@ import (
 // senders are the sender used and provided by the Demultiplexer for checks
 // to send metrics.
 type senders struct {
-	senderInit    sync.Once
 	defaultSender sender.Sender
 	senderPool    *checkSenderPool
 	agg           *BufferedAggregator // TODO(remy): do we really want to store this here?
+	senderInit    sync.Once
 }
 
 func newSenders(aggregator *BufferedAggregator) *senders {

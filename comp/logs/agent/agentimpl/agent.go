@@ -80,10 +80,10 @@ type dependencies struct {
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
-	WMeta              option.Option[workloadmeta.Component]
-	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
+	WMeta              option.Option[workloadmeta.Component]
+	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 }
 
 type provides struct {
@@ -106,28 +106,29 @@ type logAgent struct {
 	hostname       hostname.Component
 	tagger         tagger.Component
 
+	auditor          auditor.Auditor
+	pipelineProvider pipeline.Provider
+	integrationsLogs integrations.Component
+	compression      logscompression.Component
+
 	sources                   *sources.LogSources
 	services                  *service.Services
 	endpoints                 *config.Endpoints
 	tracker                   *tailers.TailerTracker
 	schedulers                *schedulers.Schedulers
-	auditor                   auditor.Auditor
 	destinationsCtx           *client.DestinationsContext
-	pipelineProvider          pipeline.Provider
 	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 	flarecontroller           *flareController.FlareController
-	wmeta                     option.Option[workloadmeta.Component]
-	schedulerProviders        []schedulers.Scheduler
-	integrationsLogs          integrations.Component
-	compression               logscompression.Component
+
+	// started is true if the logs agent is running
+	started            *atomic.Uint32
+	wmeta              option.Option[workloadmeta.Component]
+	schedulerProviders []schedulers.Scheduler
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
-
-	// started is true if the logs agent is running
-	started *atomic.Uint32
 }
 
 func newLogsAgent(deps dependencies) provides {

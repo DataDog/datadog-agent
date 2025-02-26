@@ -20,16 +20,16 @@ import (
 
 // TrafficCaptureReader allows reading back a traffic capture and its contents
 type TrafficCaptureReader struct {
-	Contents    []byte
-	rawContents []byte
-	Version     int
 	Traffic     chan *pb.UnixDogstatsdMsg
 	Done        chan struct{}
 	fuse        chan struct{}
-	offset      uint32
-	mmap        bool
+	Contents    []byte
+	rawContents []byte
+	Version     int
 
 	sync.Mutex
+	offset uint32
+	mmap   bool
 }
 
 // Read reads the contents of the traffic capture and writes each packet to a channel

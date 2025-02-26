@@ -44,22 +44,22 @@ type Component interface {
 // UnixDogstatsdMsg mirrors the exported fields of pkg/proto/pbgo/core/model.pb.go 'UnixDogstatsdMsg
 // to avoid forcing the import of pbgo on every user of dogstatsd.
 type UnixDogstatsdMsg struct {
+	Payload       []byte
+	Ancillary     []byte
 	Timestamp     int64
 	PayloadSize   int32
-	Payload       []byte
 	Pid           int32
 	AncillarySize int32
-	Ancillary     []byte
 }
 
 // CaptureBuffer holds pointers to captured packet's buffers (and oob buffer if required) and the protobuf
 // message used for serialization.
 type CaptureBuffer struct {
-	Pb          UnixDogstatsdMsg
 	Oob         *[]byte
-	Pid         int32
-	ContainerID string
 	Buff        *packets.Packet
+	ContainerID string
+	Pb          UnixDogstatsdMsg
+	Pid         int32
 }
 
 const (

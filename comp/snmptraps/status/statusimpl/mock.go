@@ -28,9 +28,9 @@ func newMock() status.Component {
 
 // mockManager mocks a manager using plain values (not expvars)
 type mockManager struct {
+	err                                              error
 	trapsPackets, trapsPacketsUnknownCommunityString int64
 	lock                                             sync.Mutex
-	err                                              error
 }
 
 func (s *mockManager) AddTrapsPackets(i int64) {

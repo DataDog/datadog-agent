@@ -31,64 +31,67 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers               int                        `mapstructure:"workers"`
-	DiscoveryInterval     int                        `mapstructure:"discovery_interval"`
-	AllowedFailures       int                        `mapstructure:"discovery_allowed_failures"`
-	Loader                string                     `mapstructure:"loader"`
-	CollectDeviceMetadata bool                       `mapstructure:"collect_device_metadata"`
-	CollectTopology       bool                       `mapstructure:"collect_topology"`
-	MinCollectionInterval uint                       `mapstructure:"min_collection_interval"`
-	Namespace             string                     `mapstructure:"namespace"`
-	UseDeviceISAsHostname bool                       `mapstructure:"use_device_id_as_hostname"`
-	Configs               []Config                   `mapstructure:"configs"`
-	PingConfig            snmpintegration.PingConfig `mapstructure:"ping"`
+	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
+
+	Loader                string   `mapstructure:"loader"`
+	Namespace             string   `mapstructure:"namespace"`
+	Configs               []Config `mapstructure:"configs"`
+	Workers               int      `mapstructure:"workers"`
+	DiscoveryInterval     int      `mapstructure:"discovery_interval"`
+	AllowedFailures       int      `mapstructure:"discovery_allowed_failures"`
+	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
 
 	// legacy
-	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
+	AllowedFailuresLegacy int  `mapstructure:"allowed_failures"`
+	CollectDeviceMetadata bool `mapstructure:"collect_device_metadata"`
+	CollectTopology       bool `mapstructure:"collect_topology"`
+	UseDeviceISAsHostname bool `mapstructure:"use_device_id_as_hostname"`
 }
 
 // Config holds configuration for a particular subnet
 type Config struct {
-	Network                     string          `mapstructure:"network_address"`
-	Port                        uint16          `mapstructure:"port"`
-	Version                     string          `mapstructure:"snmp_version"`
-	Timeout                     int             `mapstructure:"timeout"`
-	Retries                     int             `mapstructure:"retries"`
-	OidBatchSize                int             `mapstructure:"oid_batch_size"`
-	Community                   string          `mapstructure:"community_string"`
-	User                        string          `mapstructure:"user"`
-	AuthKey                     string          `mapstructure:"authKey"`
-	AuthProtocol                string          `mapstructure:"authProtocol"`
-	PrivKey                     string          `mapstructure:"privKey"`
-	PrivProtocol                string          `mapstructure:"privProtocol"`
-	ContextEngineID             string          `mapstructure:"context_engine_id"`
-	ContextName                 string          `mapstructure:"context_name"`
+	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
+
 	IgnoredIPAddresses          map[string]bool `mapstructure:"ignored_ip_addresses"`
-	ADIdentifier                string          `mapstructure:"ad_identifier"`
-	Loader                      string          `mapstructure:"loader"`
 	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
-	CollectDeviceMetadata       bool
-	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
-	CollectTopology             bool
-	UseDeviceIDAsHostnameConfig *bool `mapstructure:"use_device_id_as_hostname"`
-	UseDeviceIDAsHostname       bool
-	Namespace                   string   `mapstructure:"namespace"`
-	Tags                        []string `mapstructure:"tags"`
-	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
+	CollectTopologyConfig       *bool           `mapstructure:"collect_topology"`
+	UseDeviceIDAsHostnameConfig *bool           `mapstructure:"use_device_id_as_hostname"`
 
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
-	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
+	Network         string `mapstructure:"network_address"`
+	Version         string `mapstructure:"snmp_version"`
+	Community       string `mapstructure:"community_string"`
+	User            string `mapstructure:"user"`
+	AuthKey         string `mapstructure:"authKey"`
+	AuthProtocol    string `mapstructure:"authProtocol"`
+	PrivKey         string `mapstructure:"privKey"`
+	PrivProtocol    string `mapstructure:"privProtocol"`
+	ContextEngineID string `mapstructure:"context_engine_id"`
+	ContextName     string `mapstructure:"context_name"`
+	ADIdentifier    string `mapstructure:"ad_identifier"`
+	Loader          string `mapstructure:"loader"`
+	Namespace       string `mapstructure:"namespace"`
 
 	// Legacy
-	NetworkLegacy      string `mapstructure:"network"`
-	VersionLegacy      string `mapstructure:"version"`
-	CommunityLegacy    string `mapstructure:"community"`
-	AuthKeyLegacy      string `mapstructure:"authentication_key"`
-	AuthProtocolLegacy string `mapstructure:"authentication_protocol"`
-	PrivKeyLegacy      string `mapstructure:"privacy_key"`
-	PrivProtocolLegacy string `mapstructure:"privacy_protocol"`
+	NetworkLegacy         string   `mapstructure:"network"`
+	VersionLegacy         string   `mapstructure:"version"`
+	CommunityLegacy       string   `mapstructure:"community"`
+	AuthKeyLegacy         string   `mapstructure:"authentication_key"`
+	AuthProtocolLegacy    string   `mapstructure:"authentication_protocol"`
+	PrivKeyLegacy         string   `mapstructure:"privacy_key"`
+	PrivProtocolLegacy    string   `mapstructure:"privacy_protocol"`
+	Tags                  []string `mapstructure:"tags"`
+	Timeout               int      `mapstructure:"timeout"`
+	Retries               int      `mapstructure:"retries"`
+	OidBatchSize          int      `mapstructure:"oid_batch_size"`
+	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
+
+	Port                  uint16 `mapstructure:"port"`
+	CollectDeviceMetadata bool
+	CollectTopology       bool
+	UseDeviceIDAsHostname bool
 }
 
 type intOrBoolPtr interface {

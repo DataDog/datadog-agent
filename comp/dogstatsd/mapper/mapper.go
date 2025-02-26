@@ -40,16 +40,16 @@ type MappingProfileConfig struct {
 
 // MetricMapping represent one mapping rule
 type MetricMappingConfig struct {
+	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
 	Match     string            `mapstructure:"match" json:"match" yaml:"match"`
 	MatchType string            `mapstructure:"match_type" json:"match_type" yaml:"match_type"`
 	Name      string            `mapstructure:"name" json:"name" yaml:"name"`
-	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
 }
 
 // MetricMapper contains mappings and cache instance
 type MetricMapper struct {
-	Profiles []MappingProfile
 	cache    *mapperCache
+	Profiles []MappingProfile
 }
 
 // MappingProfile represent a group of mappings
@@ -61,9 +61,9 @@ type MappingProfile struct {
 
 // MetricMapping represent one mapping rule
 type MetricMapping struct {
-	name  string
 	tags  map[string]string
 	regex *regexp.Regexp
+	name  string
 }
 
 // MapResult represent the outcome of the mapping

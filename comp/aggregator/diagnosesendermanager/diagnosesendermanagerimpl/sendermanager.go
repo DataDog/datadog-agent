@@ -46,8 +46,8 @@ type dependencies struct {
 }
 
 type diagnoseSenderManager struct {
-	senderManager option.Option[sender.SenderManager]
 	deps          dependencies
+	senderManager option.Option[sender.SenderManager]
 }
 
 func newDiagnoseSenderManager(deps dependencies) diagnosesendermanager.Component {

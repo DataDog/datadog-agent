@@ -61,21 +61,24 @@ type client interface {
 // ---------------
 // senderImpl
 type senderImpl struct {
-	cfgComp config.Reader
-	logComp log.Component
-
-	compress         bool
-	compressionLevel int
-	client           client
-
-	endpoints *logconfig.Endpoints
-
-	agentVersion string
 
 	// pre-fill parts of payload which are not changing during run-time
 	payloadTemplate             Payload
-	metadataPayloadTemplate     AgentMetadataPayload
 	agentMetricsPayloadTemplate AgentMetricsPayload
+	cfgComp                     config.Reader
+	logComp                     log.Component
+
+	client client
+
+	endpoints *logconfig.Endpoints
+
+	metadataPayloadTemplate AgentMetadataPayload
+
+	agentVersion string
+
+	compressionLevel int
+
+	compress bool
 }
 
 // HostPayload defines the host payload object. It is currently used only as payload's header
@@ -96,12 +99,12 @@ type AgentMetadataPayload struct {
 
 // Payload defines the top level object in the payload
 type Payload struct {
+	Payload     interface{} `json:"payload"`
 	APIVersion  string      `json:"api_version"`
 	RequestType string      `json:"request_type"`
+	Host        HostPayload `json:"host"`
 	EventTime   int64       `json:"event_time"`
 	DebugFlag   bool        `json:"debug"`
-	Host        HostPayload `json:"host"`
-	Payload     interface{} `json:"payload"`
 }
 
 // ---------------
@@ -109,27 +112,28 @@ type Payload struct {
 //
 // part of payload batching
 type payloadInfo struct {
-	requestType string
 	payload     interface{}
+	requestType string
 }
 
 // senderSession store and seriaizes one or more payloads
 type senderSession struct {
-	cancelCtx       context.Context
 	payloadTemplate Payload
 
-	// metric payloads
-	metricPayloads []*AgentMetricsPayload
+	cancelCtx context.Context
 
 	// event payload
 	eventInfo    *Event
 	eventPayload map[string]interface{}
+
+	// metric payloads
+	metricPayloads []*AgentMetricsPayload
 }
 
 // BatchPayloadWrapper exported so it can be turned into json
 type BatchPayloadWrapper struct {
-	RequestType string      `json:"request_type"`
 	Payload     interface{} `json:"payload"`
+	RequestType string      `json:"request_type"`
 }
 
 // ---------------
@@ -138,19 +142,19 @@ type BatchPayloadWrapper struct {
 
 // AgentMetricsPayload defines Metrics object
 type AgentMetricsPayload struct {
-	Message string                 `json:"message"`
 	Metrics map[string]interface{} `json:"metrics"`
+	Message string                 `json:"message"`
 }
 
 // MetricPayload defines Metric object
 type MetricPayload struct {
-	Value   float64                `json:"value"`
-	Type    string                 `json:"type"`
 	Tags    map[string]interface{} `json:"tags,omitempty"`
 	Buckets map[string]uint64      `json:"buckets,omitempty"`
 	P75     *float64               `json:"p75,omitempty"`
 	P95     *float64               `json:"p95,omitempty"`
 	P99     *float64               `json:"p99,omitempty"`
+	Type    string                 `json:"type"`
+	Value   float64                `json:"value"`
 }
 
 // -------------------

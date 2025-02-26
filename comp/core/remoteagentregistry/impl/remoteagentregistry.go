@@ -85,8 +85,8 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 type remoteAgentRegistry struct {
 	conf         config.Component
 	agentMap     map[string]*remoteAgentDetails
-	agentMapMu   sync.Mutex
 	shutdownChan chan struct{}
+	agentMapMu   sync.Mutex
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -371,9 +371,9 @@ func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (p
 
 type remoteAgentDetails struct {
 	lastSeen    time.Time
+	client      pb.RemoteAgentClient
 	displayName string
 	apiEndpoint string
-	client      pb.RemoteAgentClient
 }
 
 func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {

@@ -36,17 +36,17 @@ const (
 var functionName = os.Getenv(functionNameEnvVar)
 
 type ColdStartSpanCreator struct {
+	initStartTime         time.Time
 	TraceAgent            ServerlessTraceAgent
-	createSpan            sync.Once
 	LambdaSpanChan        <-chan *pb.Span
 	LambdaInitMetricChan  <-chan *serverlessLog.LambdaInitMetric
-	syncSpanDurationMutex sync.Mutex
-	ColdStartSpanId       uint64
 	lambdaSpan            *pb.Span
-	initDuration          float64
 	StopChan              chan struct{}
-	initStartTime         time.Time
 	ColdStartRequestID    string
+	ColdStartSpanId       uint64
+	initDuration          float64
+	createSpan            sync.Once
+	syncSpanDurationMutex sync.Mutex
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter

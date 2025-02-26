@@ -19,8 +19,8 @@ const tokenVersion = "v1"
 
 // authenticator represents an authentication mechanism.
 type authenticator struct {
-	duration   time.Duration // The duration for which the authentication token is valid.
 	signingKey []byte        // The key used for signing the authentication token.
+	duration   time.Duration // The duration for which the authentication token is valid.
 }
 
 func newAuthenticator(authToken string, duration time.Duration) authenticator {

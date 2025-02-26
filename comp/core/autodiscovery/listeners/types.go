@@ -20,8 +20,8 @@ import (
 
 // ContainerPort represents a network port in a Service.
 type ContainerPort struct {
-	Port int
 	Name string
+	Port int
 }
 
 // Service represents an application we can run a check against.

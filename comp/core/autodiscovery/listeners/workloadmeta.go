@@ -40,12 +40,11 @@ type workloadmetaListener interface {
 
 // workloadmetaListenerImpl implements workloadmetaListener.
 type workloadmetaListenerImpl struct {
-	name string
-	stop chan struct{}
+	store workloadmeta.Component
+	stop  chan struct{}
 
 	processFn func(workloadmeta.Entity)
 
-	store            workloadmeta.Component
 	workloadFilters  *workloadmeta.Filter
 	containerFilters *containerFilters
 
@@ -56,6 +55,7 @@ type workloadmetaListenerImpl struct {
 	delService chan<- Service
 
 	telemetryStore *telemetry.Store
+	name           string
 }
 
 var _ workloadmetaListener = &workloadmetaListenerImpl{}

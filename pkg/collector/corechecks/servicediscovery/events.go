@@ -31,7 +31,6 @@ type eventPayload struct {
 	ServiceName                string   `json:"service_name"`
 	GeneratedServiceName       string   `json:"generated_service_name"`
 	GeneratedServiceNameSource string   `json:"generated_service_name_source,omitempty"`
-	AdditionalGeneratedNames   []string `json:"additional_generated_names,omitempty"`
 	ContainerServiceName       string   `json:"container_service_name,omitempty"`
 	ContainerServiceNameSource string   `json:"container_service_name_source,omitempty"`
 	DDService                  string   `json:"dd_service,omitempty"`
@@ -39,17 +38,18 @@ type eventPayload struct {
 	Env                        string   `json:"env"`
 	ServiceLanguage            string   `json:"service_language"`
 	ServiceType                string   `json:"service_type"`
+	APMInstrumentation         string   `json:"apm_instrumentation"`
+	ServiceNameSource          string   `json:"service_name_source,omitempty"`
+	ContainerID                string   `json:"container_id"`
+	AdditionalGeneratedNames   []string `json:"additional_generated_names,omitempty"`
+	Ports                      []uint16 `json:"ports"`
+	CommandLine                []string `json:"command_line"`
 	StartTime                  int64    `json:"start_time"`
 	StartTimeMilli             int64    `json:"start_time_milli"`
 	LastSeen                   int64    `json:"last_seen"`
-	APMInstrumentation         string   `json:"apm_instrumentation"`
-	ServiceNameSource          string   `json:"service_name_source,omitempty"`
-	Ports                      []uint16 `json:"ports"`
 	PID                        int      `json:"pid"`
-	CommandLine                []string `json:"command_line"`
 	RSSMemory                  uint64   `json:"rss_memory"`
 	CPUCores                   float64  `json:"cpu_cores"`
-	ContainerID                string   `json:"container_id"`
 	RxBytes                    uint64   `json:"rx_bytes"`
 	TxBytes                    uint64   `json:"tx_bytes"`
 	RxBps                      float64  `json:"rx_bps"`
@@ -57,9 +57,9 @@ type eventPayload struct {
 }
 
 type event struct {
+	Payload     *eventPayload `json:"payload"`
 	RequestType eventType     `json:"request_type"`
 	APIVersion  string        `json:"api_version"`
-	Payload     *eventPayload `json:"payload"`
 }
 
 type telemetrySender struct {

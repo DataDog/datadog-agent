@@ -64,15 +64,13 @@ type languageDetectionClient interface {
 // client sends language information to the Cluster-Agent
 type client struct {
 	ctx    context.Context
-	cancel context.CancelFunc
 	logger log.Component
 	store  workloadmeta.Component
 
-	// mutex protecting UpdatedPodDetails and currentBatch
-	mutex sync.Mutex
-
 	// DCA Client
 	langDetectionCl languageDetectionClient
+
+	cancel context.CancelFunc
 
 	// telemetry
 	telemetry *componentTelemetry
@@ -80,21 +78,25 @@ type client struct {
 	// Current batch, populated by process events and cleaned by pod events
 	currentBatch batch
 
-	// The client must send freshly updated PodDetails as soon as possible however,
-	// streaming every update to the cluster-agent could be costly. Thus we wait for
-	// `freshDataPeriod` before sending fresh updates.
-	freshDataPeriod    time.Duration
 	freshlyUpdatedPods map[string]struct{}
 
 	// There is a race between the process check and the kubelet. If the process check detects a language
 	// before the kubelet pulls pods, the client should retry after waiting that workloadmeta pulled metadata
 	// from the kubelet
-	processesWithoutPod              map[string]*eventsToRetry
+	processesWithoutPod map[string]*eventsToRetry
+
+	// The client must send freshly updated PodDetails as soon as possible however,
+	// streaming every update to the cluster-agent could be costly. Thus we wait for
+	// `freshDataPeriod` before sending fresh updates.
+	freshDataPeriod                  time.Duration
 	processesWithoutPodTTL           time.Duration
 	processesWithoutPodCleanupPeriod time.Duration
 
 	// periodicalFlushPeriod sets the interval between two periodical flushes
 	periodicalFlushPeriod time.Duration
+
+	// mutex protecting UpdatedPodDetails and currentBatch
+	mutex sync.Mutex
 }
 
 // newClient creates a new Client

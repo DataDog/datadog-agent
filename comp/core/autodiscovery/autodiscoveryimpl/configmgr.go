@@ -66,8 +66,7 @@ type reconcilingConfigManager struct {
 	//
 	// For non-template configs, only steps 1 and 4 are required.
 
-	// m synchronizes all operations on this struct.
-	m sync.Mutex
+	secretResolver secrets.Component
 
 	// activeConfigs contains an entry for each config from the config
 	// providers, keyed by its digest.  This is the "base truth" of configs --
@@ -98,7 +97,8 @@ type reconcilingConfigManager struct {
 	// methods correspond exactly to changes in this map.
 	scheduledConfigs map[string]integration.Config
 
-	secretResolver secrets.Component
+	// m synchronizes all operations on this struct.
+	m sync.Mutex
 }
 
 var _ configManager = &reconcilingConfigManager{}

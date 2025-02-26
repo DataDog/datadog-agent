@@ -25,10 +25,11 @@ import (
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
 	strings map[string]string
-	maxSize int
-	id      string
 
 	telemetry *stringInternerInstanceTelemetry
+	id        string
+
+	maxSize int
 }
 
 func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {

@@ -26,18 +26,18 @@ import (
 // workloadmeta.Store.
 type service struct {
 	entity          workloadmeta.Entity
-	tagsHash        string
-	adIdentifiers   []string
+	tagger          tagger.Component
 	hosts           map[string]string
-	ports           []ContainerPort
-	pid             int
-	hostname        string
-	ready           bool
-	checkNames      []string
 	extraConfig     map[string]string
+	tagsHash        string
+	hostname        string
+	adIdentifiers   []string
+	ports           []ContainerPort
+	checkNames      []string
+	pid             int
+	ready           bool
 	metricsExcluded bool
 	logsExcluded    bool
-	tagger          tagger.Component
 }
 
 var _ Service = &service{}

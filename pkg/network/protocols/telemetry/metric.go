@@ -74,10 +74,10 @@ func (g *Gauge) base() *metricBase {
 }
 
 type metricBase struct {
-	name  string
 	tags  sets.Set[string]
 	opts  sets.Set[string]
 	value *atomic.Int64
+	name  string
 }
 
 func newMetricBase(name string, tagsAndOptions []string) *metricBase {

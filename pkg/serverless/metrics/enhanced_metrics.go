@@ -90,11 +90,11 @@ func getOutOfMemorySubstrings() []string {
 type GenerateEnhancedMetricsFromRuntimeDoneLogArgs struct {
 	Start            time.Time
 	End              time.Time
+	Demux            aggregator.Demultiplexer
+	Tags             []string
 	ResponseLatency  float64
 	ResponseDuration float64
 	ProducedBytes    float64
-	Tags             []string
-	Demux            aggregator.Demultiplexer
 }
 
 // GenerateEnhancedMetricsFromRuntimeDoneLog generates the runtime duration metric
@@ -159,16 +159,16 @@ func GenerateOutOfMemoryEnhancedMetrics(time time.Time, tags []string, demux agg
 // GenerateEnhancedMetricsFromReportLogArgs provides the arguments required for
 // the GenerateEnhancedMetricsFromReportLog func
 type GenerateEnhancedMetricsFromReportLogArgs struct {
+	RuntimeStart     time.Time
+	RuntimeEnd       time.Time
+	T                time.Time
+	Demux            aggregator.Demultiplexer
+	Tags             []string
 	InitDurationMs   float64
 	DurationMs       float64
 	BilledDurationMs int
 	MemorySizeMb     int
 	MaxMemoryUsedMb  int
-	RuntimeStart     time.Time
-	RuntimeEnd       time.Time
-	T                time.Time
-	Tags             []string
-	Demux            aggregator.Demultiplexer
 }
 
 // GenerateEnhancedMetricsFromReportLog generates enhanced metrics from a LogTypePlatformReport log message
@@ -268,23 +268,23 @@ func SendASMInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplex
 }
 
 type generateCPUEnhancedMetricsArgs struct {
+	Demux           aggregator.Demultiplexer
+	Tags            []string
 	UserCPUTimeMs   float64
 	SystemCPUTimeMs float64
 	Uptime          float64
-	Tags            []string
-	Demux           aggregator.Demultiplexer
 	Time            float64
 }
 
 type GenerateCPUUtilizationEnhancedMetricArgs struct {
+	Demux                        aggregator.Demultiplexer
 	IndividualCPUIdleTimes       map[string]float64
 	IndividualCPUIdleOffsetTimes map[string]float64
+	Tags                         []string
 	IdleTimeMs                   float64
 	IdleTimeOffsetMs             float64
 	UptimeMs                     float64
 	UptimeOffsetMs               float64
-	Tags                         []string
-	Demux                        aggregator.Demultiplexer
 	Time                         float64
 }
 
@@ -462,12 +462,12 @@ func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []stri
 }
 
 type generateNetworkEnhancedMetricArgs struct {
+	Demux         aggregator.Demultiplexer
+	Tags          []string
 	RxBytesOffset float64
 	RxBytes       float64
 	TxBytesOffset float64
 	TxBytes       float64
-	Tags          []string
-	Demux         aggregator.Demultiplexer
 	Time          float64
 }
 
@@ -501,10 +501,10 @@ func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 }
 
 type generateTmpEnhancedMetricsArgs struct {
+	Demux   aggregator.Demultiplexer
+	Tags    []string
 	TmpMax  float64
 	TmpUsed float64
-	Tags    []string
-	Demux   aggregator.Demultiplexer
 	Time    float64
 }
 
@@ -569,18 +569,18 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 }
 
 type generateFdEnhancedMetricsArgs struct {
+	Demux aggregator.Demultiplexer
+	Tags  []string
 	FdMax float64
 	FdUse float64
-	Tags  []string
-	Demux aggregator.Demultiplexer
 	Time  float64
 }
 
 type generateThreadEnhancedMetricsArgs struct {
+	Demux      aggregator.Demultiplexer
+	Tags       []string
 	ThreadsMax float64
 	ThreadsUse float64
-	Tags       []string
-	Demux      aggregator.Demultiplexer
 	Time       float64
 }
 

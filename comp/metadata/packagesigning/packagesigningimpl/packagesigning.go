@@ -44,10 +44,10 @@ const defaultCollectInterval = 12 * time.Hour
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string           `json:"hostname"`
-	Timestamp int64            `json:"timestamp"`
 	Metadata  *signingMetadata `json:"signing_metadata"`
+	Hostname  string           `json:"hostname"`
 	UUID      string           `json:"uuid"`
+	Timestamp int64            `json:"timestamp"`
 }
 
 // MarshalJSON serialization a Payload to JSON

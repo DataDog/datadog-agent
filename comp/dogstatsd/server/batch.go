@@ -36,6 +36,20 @@ type dogstatsdBatcher interface {
 // batcher batches multiple metrics before submission
 // this struct is not safe for concurrent use
 type batcher struct {
+	demux aggregator.Demultiplexer
+	// buffer slice allocated once per contextResolver to combine and sort
+	// tags, origin detection tags and k8s tags.
+	shardGenerator shardKeyGenerator
+
+	// telemetry
+	tlmChannel telemetry.Histogram
+
+	// output channels
+	choutEvents        chan<- []*event.Event
+	choutServiceChecks chan<- []*servicecheck.ServiceCheck
+
+	metricSamplePool *metrics.MetricSamplePool
+
 	// slice of MetricSampleBatch (one entry per running sampling pipeline)
 	samples []metrics.MetricSampleBatch
 	// offset while writing into samples entries (i.e.  samples currently stored per pipeline)
@@ -45,23 +59,13 @@ type batcher struct {
 	// no multi-pipelines use for metrics with timestamp since we don't process them and we directly
 	// send them to the serializer
 	samplesWithTs metrics.MetricSampleBatch
-	// offset while writing into the sample with timestampe slice (i.e. count of samples
-	// with timestamp currently stored)
-	samplesWithTsCount int
 
 	events        []*event.Event
 	serviceChecks []*servicecheck.ServiceCheck
 
-	// output channels
-	choutEvents        chan<- []*event.Event
-	choutServiceChecks chan<- []*servicecheck.ServiceCheck
-
-	metricSamplePool *metrics.MetricSamplePool
-
-	demux aggregator.Demultiplexer
-	// buffer slice allocated once per contextResolver to combine and sort
-	// tags, origin detection tags and k8s tags.
-	shardGenerator shardKeyGenerator
+	// offset while writing into the sample with timestampe slice (i.e. count of samples
+	// with timestamp currently stored)
+	samplesWithTsCount int
 
 	pipelineCount int
 	// the batcher has to know if the no-aggregation pipeline is enabled or not:
@@ -71,9 +75,6 @@ type batcher struct {
 	// the batcher can decide to properly distribute these samples on the available
 	// pipelines.
 	noAggPipelineEnabled bool
-
-	// telemetry
-	tlmChannel telemetry.Histogram
 }
 
 type shardKeyGenerator interface {

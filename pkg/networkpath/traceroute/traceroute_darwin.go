@@ -26,8 +26,8 @@ const (
 // running traceroute from an agent running
 // on macOS
 type MacTraceroute struct {
-	cfg    config.Config
 	runner *runner.Runner
+	cfg    config.Config
 }
 
 // New creates a new instance of MacTraceroute

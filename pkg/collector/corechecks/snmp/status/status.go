@@ -88,10 +88,10 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 type subnetStatus struct {
 	Subnet         string
 	DeviceScanning string
+	configHash     string
+	DevicesFound   []string
 	DevicesScanned int
 	IpsCount       int
-	DevicesFound   []string
-	configHash     string
 }
 
 func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {

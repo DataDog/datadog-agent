@@ -23,8 +23,8 @@ type runnerImpl struct {
 }
 
 type runnerSchedule struct {
-	schedule Schedule
 	firstRun time.Time
+	schedule Schedule
 	iterated uint
 }
 

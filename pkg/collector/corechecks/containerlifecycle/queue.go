@@ -13,8 +13,8 @@ import (
 )
 
 type queue struct {
-	chunkSize int
 	data      []*model.EventsPayload
+	chunkSize int
 	sync.RWMutex
 }
 

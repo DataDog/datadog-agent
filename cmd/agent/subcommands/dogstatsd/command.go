@@ -31,9 +31,9 @@ import (
 
 type topFlags struct {
 	path               string
+	logLevelDefaultOff command.LogLevelDefaultOff
 	nmetrics           int
 	ntags              int
-	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
 // Commands initializes dogstatsd sub-command tree.
@@ -121,8 +121,8 @@ func dumpContexts(config cconfig.Component, _ log.Component) error {
 }
 
 type metric struct {
-	count uint
 	tags  map[string]struct{}
+	count uint
 }
 
 func topContexts(config cconfig.Component, flags *topFlags, _ log.Component) error {

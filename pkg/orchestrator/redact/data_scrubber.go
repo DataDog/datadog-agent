@@ -35,13 +35,13 @@ var (
 // DataScrubber allows the agent to block cmdline arguments that match
 // a list of predefined and custom words
 type DataScrubber struct {
-	Enabled bool
+	scrubbedCmdLines map[string][]string
 	// RegexSensitivePatterns are custom regex patterns which are currently not exposed externally
 	RegexSensitivePatterns []*regexp.Regexp
 	// LiteralSensitivePatterns are custom words which use to match against
 	LiteralSensitivePatterns         []string
 	regexSensitiveWordsInAnnotations []*regexp.Regexp
-	scrubbedCmdLines                 map[string][]string
+	Enabled                          bool
 }
 
 // NewDefaultDataScrubber creates a DataScrubber with the default behavior: enabled

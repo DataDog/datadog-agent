@@ -67,17 +67,18 @@ func (p *SingleLineParser) process(input *message.Message, rawDataLen int) {
 type MultiLineParser struct {
 	lineHandler LineHandler
 
+	parser parsers.Parser
+
 	// used to reconstruct the message
 
 	bufferedMsg *message.Message
 	buffer      *bytes.Buffer
+	flushTimer  *time.Timer
 	rawDataLen  int
 
 	// configuration attributes
 
 	flushTimeout time.Duration
-	flushTimer   *time.Timer
-	parser       parsers.Parser
 	lineLimit    int
 }
 

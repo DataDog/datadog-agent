@@ -47,18 +47,19 @@ const (
 )
 
 type rcClient struct {
-	client        *client.Client
-	clientMRF     *client.Client
-	m             *sync.Mutex
-	taskProcessed map[string]bool
+	settingsComponent settings.Component
+	config            configcomp.Component
+	client            *client.Client
+	clientMRF         *client.Client
+	m                 *sync.Mutex
+	taskProcessed     map[string]bool
+
+	sysprobeConfig option.Option[sysprobeconfig.Component]
 
 	listeners []types.RCListener
 	// Tasks are separated from the other products, because they must be executed once
-	taskListeners     []types.RCAgentTaskListener
-	settingsComponent settings.Component
-	config            configcomp.Component
-	sysprobeConfig    option.Option[sysprobeconfig.Component]
-	isSystemProbe     bool
+	taskListeners []types.RCAgentTaskListener
+	isSystemProbe bool
 }
 
 type dependencies struct {
@@ -67,12 +68,13 @@ type dependencies struct {
 	Log log.Component
 	Lc  fx.Lifecycle
 
-	Params            rcclient.Params             `optional:"true"`
-	Listeners         []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
-	TaskListeners     []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 	SettingsComponent settings.Component
 	Config            configcomp.Component
 	SysprobeConfig    option.Option[sysprobeconfig.Component]
+
+	Params        rcclient.Params             `optional:"true"`
+	Listeners     []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
+	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by

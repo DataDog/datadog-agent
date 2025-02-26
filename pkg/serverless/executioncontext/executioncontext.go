@@ -25,36 +25,37 @@ type ColdStartTags struct {
 
 // ExecutionContext represents the execution context
 type ExecutionContext struct {
-	m                  sync.Mutex
+	initTime  time.Time
+	startTime time.Time
+	endTime   time.Time
+
 	arn                string
 	lastRequestID      string
 	coldstartRequestID string
-	wasColdStart       bool
-	wasProactiveInit   bool
 	lastLogRequestID   string
 	lastOOMRequestID   string
 	runtime            string
-	initTime           time.Time
-	startTime          time.Time
-	endTime            time.Time
 
 	persistedStateFilePath string
+	m                      sync.Mutex
+	wasColdStart           bool
+	wasProactiveInit       bool
 	isStateSaved           bool
 }
 
 // State represents the state of the execution context at a point in time
 type State struct {
-	ARN                string
-	LastRequestID      string
-	ColdstartRequestID string
-	WasColdStart       bool
-	WasProactiveInit   bool
-	LastLogRequestID   string
-	LastOOMRequestID   string
-	Runtime            string
 	InitTime           time.Time
 	StartTime          time.Time
 	EndTime            time.Time
+	ARN                string
+	LastRequestID      string
+	ColdstartRequestID string
+	LastLogRequestID   string
+	LastOOMRequestID   string
+	Runtime            string
+	WasColdStart       bool
+	WasProactiveInit   bool
 }
 
 // GetCurrentState gets the current state of the execution context

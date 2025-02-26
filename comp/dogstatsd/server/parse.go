@@ -56,6 +56,9 @@ var (
 // parser parses dogstatsd messages
 // not safe for concurent use
 type parser struct {
+
+	// Generic Metric Provider
+	provider    provider.Provider
 	interner    *stringInterner
 	float64List *float64ListPool
 
@@ -66,9 +69,6 @@ type parser struct {
 
 	// readTimestamps is true if the parser has to read timestamps from messages.
 	readTimestamps bool
-
-	// Generic Metric Provider
-	provider provider.Provider
 }
 
 func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {

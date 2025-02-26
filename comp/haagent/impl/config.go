@@ -25,8 +25,8 @@ var validHaIntegrations = map[string]bool{
 }
 
 type haAgentConfigs struct {
-	enabled  bool
 	configID string
+	enabled  bool
 }
 
 func newHaAgentConfigs(agentConfig config.Component) *haAgentConfigs {

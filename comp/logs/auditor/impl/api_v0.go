@@ -15,14 +15,14 @@ import (
 // v0: In the first version of the auditor, we were only recording file offsets
 
 type registryEntryV0 struct {
-	Path      string
 	Timestamp time.Time
+	Path      string
 	Offset    int64
 }
 
 type jsonRegistryV0 struct {
-	Version  int
 	Registry map[string]registryEntryV0
+	Version  int
 }
 
 func unmarshalRegistryV0(b []byte) (map[string]*RegistryEntry, error) {

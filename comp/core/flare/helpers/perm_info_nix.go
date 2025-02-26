@@ -19,11 +19,11 @@ import (
 
 // filePermsInfo represents file rights on linux
 type filePermsInfo struct {
+	err   error
 	path  string
 	mode  string
 	owner string
 	group string
-	err   error
 }
 
 // Add puts the given filepath in the map

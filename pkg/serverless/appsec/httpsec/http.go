@@ -39,16 +39,16 @@ type Monitorer interface {
 // the WAF Result itself, the configuration of the WAF (Diagnostics)
 // and the Metrics (Stats) of the WAF call.
 type MonitorResult struct {
-	Result      waf.Result
-	Diagnostics waf.Diagnostics
 	Stats       waf.Stats
+	Diagnostics waf.Diagnostics
+	Result      waf.Result
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values
 // (which must be nullable to know when they were set or not), along with the
 // required context to report appsec-related span tags.
 type context struct {
-	requestSourceIP   string
+	requestBody       interface{}         // server.request.body
 	requestRoute      *string             // http.route
 	requestClientIP   *string             // http.client_ip
 	requestRawURI     *string             // server.request.uri.raw
@@ -56,8 +56,8 @@ type context struct {
 	requestCookies    map[string][]string // server.request.cookies
 	requestQuery      map[string][]string // server.request.query
 	requestPathParams map[string]string   // server.request.path_params
-	requestBody       interface{}         // server.request.body
 	responseStatus    *string             // server.response.status
+	requestSourceIP   string
 }
 
 // makeContext creates a http monitoring context out of the provided arguments.

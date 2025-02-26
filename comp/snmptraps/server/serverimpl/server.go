@@ -65,9 +65,9 @@ type provides struct {
 
 // TrapsServer implements the SNMP traps service.
 type TrapsServer struct {
+	stat    status.Component
 	app     *fx.App
 	running bool
-	stat    status.Component
 }
 
 // Running indicates whether the traps server is currently running.

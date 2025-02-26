@@ -45,12 +45,12 @@ type dependencies struct {
 	Log log.Component
 
 	Submitter  submitter.Component
+	HostInfo   hostinfo.Component
+	SysCfg     sysprobeconfig.Component
+	Config     config.Component
 	RTNotifier <-chan types.RTResponse `optional:"true"`
 
-	Checks   []types.CheckComponent `group:"check"`
-	HostInfo hostinfo.Component
-	SysCfg   sysprobeconfig.Component
-	Config   config.Component
+	Checks []types.CheckComponent `group:"check"`
 }
 
 func newRunner(deps dependencies) (runner.Component, error) {

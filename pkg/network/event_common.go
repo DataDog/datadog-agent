@@ -113,8 +113,8 @@ const (
 
 // BufferedData encapsulates data whose underlying memory can be recycled
 type BufferedData struct {
-	Conns  []ConnectionStats
 	buffer *ClientBuffer
+	Conns  []ConnectionStats
 }
 
 // Connections wraps a collection of ConnectionStats
@@ -123,14 +123,14 @@ type Connections struct {
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
-	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
-	PrebuiltAssets              []string
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStats
 	Postgres                    map[postgres.Key]*postgres.RequestStat
 	Redis                       map[redis.Key]*redis.RequestStat
+	PrebuiltAssets              []string
+	KernelHeaderFetchResult     int32
 }
 
 // NewConnections create a new Connections object

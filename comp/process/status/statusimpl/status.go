@@ -40,8 +40,8 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	testServerURL string
 	config        config.Component
+	testServerURL string
 }
 
 func newStatus(deps dependencies) provides {

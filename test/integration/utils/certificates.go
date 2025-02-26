@@ -27,11 +27,11 @@ import (
 // CertificatesConfig holds certificate configuration
 type CertificatesConfig struct {
 	Hosts        string
-	ValidFor     time.Duration
-	RsaBits      int
 	EcdsaCurve   string
 	CertFilePath string
 	KeyFilePath  string
+	ValidFor     time.Duration
+	RsaBits      int
 }
 
 func publicKey(priv interface{}) interface{} {

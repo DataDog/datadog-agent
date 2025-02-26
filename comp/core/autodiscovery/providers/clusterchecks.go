@@ -30,12 +30,12 @@ const (
 // ClusterChecksConfigProvider implements the ConfigProvider interface
 // for the cluster check feature.
 type ClusterChecksConfigProvider struct {
+	heartbeat        time.Time
 	dcaClient        clusteragent.DCAClientInterface
+	identifier       string
 	graceDuration    time.Duration
 	degradedDuration time.Duration
-	heartbeat        time.Time
 	lastChange       int64
-	identifier       string
 	flushedConfigs   bool
 }
 

@@ -28,10 +28,7 @@ type SNMPConfig struct {
 
 	// General
 	IPAddress string `yaml:"ip_address"`
-	Port      uint16 `yaml:"port"`
 	Version   string `yaml:"snmp_version"`
-	Timeout   int    `yaml:"timeout"`
-	Retries   int    `yaml:"retries"`
 	// v1 &2
 	CommunityString string `yaml:"community_string"`
 	// v3
@@ -46,6 +43,9 @@ type SNMPConfig struct {
 	// These are omitted from the yaml because we don't let users configure
 	// them, but there are cases where we use them (e.g. the snmpwalk command)
 	SecurityLevel           string `yaml:"-"`
+	Timeout                 int    `yaml:"timeout"`
+	Retries                 int    `yaml:"retries"`
+	Port                    uint16 `yaml:"port"`
 	UseUnconnectedUDPSocket bool   `yaml:"-"`
 }
 
