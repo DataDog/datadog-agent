@@ -36,6 +36,7 @@ const (
 type NetworkDevicesMetadata struct {
 	Subnet           string                 `json:"subnet,omitempty"`
 	Namespace        string                 `json:"namespace"`
+	Integration      string                 `json:"integration"`
 	Devices          []DeviceMetadata       `json:"devices,omitempty"`
 	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
 	IPAddresses      []IPAddressMetadata    `json:"ip_addresses,omitempty"`
