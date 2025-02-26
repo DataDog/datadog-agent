@@ -94,10 +94,13 @@ const (
 	ScanStatusError ScanStatus = "error"
 )
 
+// ScanType type for the different possible scan types manual or rc_triggered
 type ScanType string
 
 const (
-	ManualScan      ScanType = "manual"
+	// ManualScan represents a manual scan
+	ManualScan ScanType = "manual"
+	// RCTriggeredScan represents a rc triggered scan
 	RCTriggeredScan ScanType = "rc_triggered"
 )
 
