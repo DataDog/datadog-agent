@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -160,27 +159,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	return pathResult, nil
 }
 
-func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
-	destPort := cfg.DestPort
-	if destPort == 0 {
-		destPort = 80 // TODO: is this the default we want?
-	}
-
-	tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
-
-	results, err := tr.TracerouteSequential()
-	if err != nil {
-		return payload.NetworkPath{}, err
-	}
-
-	pathResult, err := r.processResults(results, payload.ProtocolTCP, hname, cfg.DestHostname)
-	if err != nil {
-		return payload.NetworkPath{}, err
-	}
-	log.Tracef("TCP Results: %+v", pathResult)
-
-	return pathResult, nil
-}
+// TODO: put runTCP back here
 
 func (r *Runner) processResults(res *common.Results, protocol payload.Protocol, hname string, destinationHost string) (payload.NetworkPath, error) {
 	if res == nil {
