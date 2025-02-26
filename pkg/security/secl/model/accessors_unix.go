@@ -54,6 +54,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("setxattr"),
 		eval.EventType("signal"),
 		eval.EventType("splice"),
+		eval.EventType("sysctl"),
 		eval.EventType("unlink"),
 		eval.EventType("unload_module"),
 		eval.EventType("utimes"),
@@ -20309,6 +20310,86 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "sysctl.action":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SysCtl.Action)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "sysctl.current_value":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SysCtl.CurrentValue
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "sysctl.current_value_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SysCtl.CurrentValueTruncated
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "sysctl.file_position":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SysCtl.FilePosition)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "sysctl.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SysCtl.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "sysctl.name_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SysCtl.NameTruncated
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "sysctl.new_value":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SysCtl.NewValue
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "sysctl.new_value_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SysCtl.NewValueTruncated
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "unlink.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -22209,6 +22290,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"splice.pipe_entry_flag",
 		"splice.pipe_exit_flag",
 		"splice.retval",
+		"sysctl.action",
+		"sysctl.current_value",
+		"sysctl.current_value_truncated",
+		"sysctl.file_position",
+		"sysctl.name",
+		"sysctl.name_truncated",
+		"sysctl.new_value",
+		"sysctl.new_value_truncated",
 		"unlink.file.change_time",
 		"unlink.file.filesystem",
 		"unlink.file.gid",
@@ -25066,6 +25155,22 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "splice", reflect.Int, "int", nil
 	case "splice.retval":
 		return "splice", reflect.Int, "int", nil
+	case "sysctl.action":
+		return "sysctl", reflect.Int, "int", nil
+	case "sysctl.current_value":
+		return "sysctl", reflect.String, "string", nil
+	case "sysctl.current_value_truncated":
+		return "sysctl", reflect.Bool, "bool", nil
+	case "sysctl.file_position":
+		return "sysctl", reflect.Int, "int", nil
+	case "sysctl.name":
+		return "sysctl", reflect.String, "string", nil
+	case "sysctl.name_truncated":
+		return "sysctl", reflect.Bool, "bool", nil
+	case "sysctl.new_value":
+		return "sysctl", reflect.String, "string", nil
+	case "sysctl.new_value_truncated":
+		return "sysctl", reflect.Bool, "bool", nil
 	case "unlink.file.change_time":
 		return "unlink", reflect.Int, "int", nil
 	case "unlink.file.filesystem":
@@ -40230,6 +40335,62 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "splice.retval"}
 		}
 		ev.Splice.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "sysctl.action":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "sysctl.action"}
+		}
+		ev.SysCtl.Action = uint32(rv)
+		return nil
+	case "sysctl.current_value":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "sysctl.current_value"}
+		}
+		ev.SysCtl.CurrentValue = rv
+		return nil
+	case "sysctl.current_value_truncated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "sysctl.current_value_truncated"}
+		}
+		ev.SysCtl.CurrentValueTruncated = rv
+		return nil
+	case "sysctl.file_position":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "sysctl.file_position"}
+		}
+		ev.SysCtl.FilePosition = uint32(rv)
+		return nil
+	case "sysctl.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "sysctl.name"}
+		}
+		ev.SysCtl.Name = rv
+		return nil
+	case "sysctl.name_truncated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "sysctl.name_truncated"}
+		}
+		ev.SysCtl.NameTruncated = rv
+		return nil
+	case "sysctl.new_value":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "sysctl.new_value"}
+		}
+		ev.SysCtl.NewValue = rv
+		return nil
+	case "sysctl.new_value_truncated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "sysctl.new_value_truncated"}
+		}
+		ev.SysCtl.NewValueTruncated = rv
 		return nil
 	case "unlink.file.change_time":
 		rv, ok := value.(int)

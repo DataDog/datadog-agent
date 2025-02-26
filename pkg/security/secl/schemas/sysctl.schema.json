@@ -1,0 +1,45 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "sysctl.schema.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "container_event.schema.json"
+        },
+        {
+            "$ref": "host_event.schema.json"
+        }
+    ],
+    "allOf": [
+        {
+            "properties": {
+                "sysctl": {
+                    "type": "object",
+                    "required": [
+                        "action",
+                        "current_value",
+                        "name",
+                        "new_value"
+                    ],
+                    "properties": {
+                        "action": {
+                            "type": "string"
+                        },
+                        "current_value": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "new_value": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "sysctl"
+            ]
+        }
+    ]
+}

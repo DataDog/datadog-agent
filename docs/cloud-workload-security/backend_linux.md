@@ -1620,6 +1620,45 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "SpliceEventSerializer serializes a splice event to JSON"
         },
+        "SysCtlEvent": {
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "description": "action performed on the system control parameter"
+                },
+                "file_position": {
+                    "type": "integer",
+                    "description": "file_position is the position in the sysctl control parameter file at which the action occurred"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "name is the name of the system control parameter"
+                },
+                "name_truncated": {
+                    "type": "boolean",
+                    "description": "name_truncated indicates if the name field is truncated"
+                },
+                "current_value": {
+                    "type": "string",
+                    "description": "current_value is the value of the system control parameter before the event"
+                },
+                "current_value_truncated": {
+                    "type": "boolean",
+                    "description": "current_value_truncated indicates if the current_value field is truncated"
+                },
+                "new_value": {
+                    "type": "string",
+                    "description": "new_value is the newly set value of the system control"
+                },
+                "new_value_truncated": {
+                    "type": "boolean",
+                    "description": "new_value_truncated indicates if the new_value field is truncated"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SysCtlEventSerializer defines a sysctl event serializer"
+        },
         "Syscall": {
             "properties": {
                 "name": {
@@ -1892,6 +1931,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "network_flow_monitor": {
             "$ref": "#/$defs/NetworkFlowMonitor"
+        },
+        "sysctl": {
+            "$ref": "#/$defs/SysCtlEvent"
         }
     },
     "additionalProperties": false,
@@ -1937,6 +1979,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
 | `packet` | $ref | Please see [RawPacket](#rawpacket) |
 | `network_flow_monitor` | $ref | Please see [NetworkFlowMonitor](#networkflowmonitor) |
+| `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
 
 ## `AWSIMDSEvent`
 
@@ -4348,6 +4391,64 @@ CSM Threats event for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `pipe_entry_flag` | Entry flag of the fd_out pipe passed to the splice syscall |
 | `pipe_exit_flag` | Exit flag of the fd_out pipe passed to the splice syscall |
+
+
+## `SysCtlEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "action": {
+            "type": "string",
+            "description": "action performed on the system control parameter"
+        },
+        "file_position": {
+            "type": "integer",
+            "description": "file_position is the position in the sysctl control parameter file at which the action occurred"
+        },
+        "name": {
+            "type": "string",
+            "description": "name is the name of the system control parameter"
+        },
+        "name_truncated": {
+            "type": "boolean",
+            "description": "name_truncated indicates if the name field is truncated"
+        },
+        "current_value": {
+            "type": "string",
+            "description": "current_value is the value of the system control parameter before the event"
+        },
+        "current_value_truncated": {
+            "type": "boolean",
+            "description": "current_value_truncated indicates if the current_value field is truncated"
+        },
+        "new_value": {
+            "type": "string",
+            "description": "new_value is the newly set value of the system control"
+        },
+        "new_value_truncated": {
+            "type": "boolean",
+            "description": "new_value_truncated indicates if the new_value field is truncated"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SysCtlEventSerializer defines a sysctl event serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `action` | action performed on the system control parameter |
+| `file_position` | file_position is the position in the sysctl control parameter file at which the action occurred |
+| `name` | name is the name of the system control parameter |
+| `name_truncated` | name_truncated indicates if the name field is truncated |
+| `current_value` | current_value is the value of the system control parameter before the event |
+| `current_value_truncated` | current_value_truncated indicates if the current_value field is truncated |
+| `new_value` | new_value is the newly set value of the system control |
+| `new_value_truncated` | new_value_truncated indicates if the new_value field is truncated |
 
 
 ## `Syscall`

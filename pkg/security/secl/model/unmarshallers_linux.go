@@ -1505,3 +1505,60 @@ func (e *NetworkFlowMonitorEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	return total, nil
 }
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	var cursor int
+
+	e.Action = binary.NativeEndian.Uint32(data[0:4])
+	e.FilePosition = binary.NativeEndian.Uint32(data[4:8])
+
+	nameLen := int(binary.NativeEndian.Uint16(data[8:10]))
+	currentValueLen := int(binary.NativeEndian.Uint16(data[10:12]))
+	newValueLen := int(binary.NativeEndian.Uint16(data[12:14]))
+	flags := binary.NativeEndian.Uint16(data[14:16])
+
+	// handle truncated fields
+	switch {
+	case flags&(1<<0) > 0:
+		e.NameTruncated = true
+		fallthrough
+	case flags&(1<<1) > 0:
+		e.CurrentValueTruncated = true
+		fallthrough
+	case flags&(1<<2) > 0:
+		e.NewValueTruncated = true
+	}
+	cursor += 16
+
+	// parse name and values
+	if nameLen+currentValueLen+newValueLen > len(data[cursor:]) {
+		return 0, ErrNotEnoughData
+	}
+
+	var err error
+	e.Name, err = UnmarshalString(data[cursor:cursor+nameLen], nameLen)
+	if err != nil {
+		return 0, err
+	}
+	e.Name = strings.TrimSpace(e.Name)
+	cursor += nameLen
+
+	e.CurrentValue, err = UnmarshalString(data[cursor:cursor+currentValueLen], currentValueLen)
+	if err != nil {
+		return 0, err
+	}
+	e.CurrentValue = strings.TrimSpace(e.CurrentValue)
+	cursor += currentValueLen
+
+	e.NewValue, err = UnmarshalString(data[cursor:cursor+newValueLen], newValueLen)
+	if err != nil {
+		return 0, err
+	}
+	e.NewValue = strings.TrimSpace(e.NewValue)
+	cursor += newValueLen
+	return cursor, nil
+}
