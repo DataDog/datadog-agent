@@ -1,6 +1,6 @@
 # Inventory Host Payload
 
-This package populates some of the Agent-related fields in the `inventories` product in DataDog. More specifically the
+This package populates some of the Agent-related fields in the `Resource Catalog` product in DataDog. More specifically the
 `host_gpu_agent` table.
 
 This is enabled by default but can be turned off using `inventories_gpu_enabled` config.
