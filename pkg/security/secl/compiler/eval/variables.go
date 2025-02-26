@@ -9,6 +9,7 @@ package eval
 import (
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"regexp"
 	"time"
@@ -163,6 +164,37 @@ func NewScopedBoolVariable(boolFnc func(ctx *Context) (bool, bool), setFnc func(
 	}
 }
 
+// ScopedIPVariable describes a scoped IP variable
+type ScopedIPVariable struct {
+	settableVariable
+	ipFnc func(ctx *Context) (net.IPNet, bool)
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (i *ScopedIPVariable) GetEvaluator() interface{} {
+	return &CIDREvaluator{
+		EvalFnc: func(ctx *Context) net.IPNet {
+			i, _ := i.ipFnc(ctx)
+			return i
+		},
+	}
+}
+
+// GetValue returns the variable value
+func (i *ScopedIPVariable) GetValue(ctx *Context) (interface{}, bool) {
+	return i.ipFnc(ctx)
+}
+
+// NewScopedIPVariable returns a new scoped IP variable
+func NewScopedIPVariable(ipFnc func(ctx *Context) (net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPVariable {
+	return &ScopedIPVariable{
+		ipFnc: ipFnc,
+		settableVariable: settableVariable{
+			setFnc: setFnc,
+		},
+	}
+}
+
 // ScopedStringArrayVariable describes a scoped string array variable
 type ScopedStringArrayVariable struct {
 	settableVariable
@@ -253,6 +285,54 @@ func (v *ScopedIntArrayVariable) Append(ctx *Context, value interface{}) error {
 func NewScopedIntArrayVariable(intFnc func(ctx *Context) ([]int, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIntArrayVariable {
 	return &ScopedIntArrayVariable{
 		intFnc: intFnc,
+		settableVariable: settableVariable{
+			setFnc: setFnc,
+		},
+	}
+}
+
+// ScopedIPArrayVariable describes a scoped IP array variable
+type ScopedIPArrayVariable struct {
+	settableVariable
+	ipFnc func(ctx *Context) ([]net.IPNet, bool)
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (i *ScopedIPArrayVariable) GetEvaluator() interface{} {
+	return &CIDRArrayEvaluator{
+		EvalFnc: func(ctx *Context) []net.IPNet {
+			i, _ := i.ipFnc(ctx)
+			return i
+		},
+	}
+}
+
+// GetValue returns the variable value
+func (i *ScopedIPArrayVariable) GetValue(ctx *Context) (interface{}, bool) {
+	return i.ipFnc(ctx)
+}
+
+// Set the array values
+func (i *ScopedIPArrayVariable) Set(ctx *Context, value interface{}) error {
+	if ip, ok := value.(net.IPNet); ok {
+		value = []net.IPNet{ip}
+	}
+	return i.settableVariable.Set(ctx, value)
+}
+
+// Append a value to the array
+func (i *ScopedIPArrayVariable) Append(ctx *Context, value interface{}) error {
+	if val, ok := value.(net.IPNet); ok {
+		value = []net.IPNet{val}
+	}
+	values, _ := i.ipFnc(ctx)
+	return i.Set(ctx, append(values, value.([]net.IPNet)...))
+}
+
+// NewScopedIPArrayVariable returns a new IP array variable
+func NewScopedIPArrayVariable(ipFnc func(ctx *Context) ([]net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPArrayVariable {
+	return &ScopedIPArrayVariable{
+		ipFnc: ipFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
 		},
@@ -385,6 +465,43 @@ func NewStringVariable() *StringVariable {
 	return &StringVariable{}
 }
 
+// IPVariable describes a global IP variable
+type IPVariable struct {
+	Value net.IPNet
+	set   bool
+}
+
+// GetValue returns the variable value
+func (m *IPVariable) GetValue() (interface{}, bool) {
+	return m.Value, m.set
+}
+
+// Set the variable with the specified value
+func (m *IPVariable) Set(_ *Context, value interface{}) error {
+	m.Value = value.(net.IPNet)
+	m.set = true
+	return nil
+}
+
+// Append a value to the IP
+func (m *IPVariable) Append(_ *Context, _ interface{}) error {
+	return errAppendNotSupported
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (m *IPVariable) GetEvaluator() interface{} {
+	return &CIDREvaluator{
+		EvalFnc: func(*Context) net.IPNet {
+			return m.Value
+		},
+	}
+}
+
+// NewIPVariable returns a new mutable IP variable
+func NewIPVariable() *IPVariable {
+	return &IPVariable{}
+}
+
 // StringArrayVariable describes a mutable string array variable
 type StringArrayVariable struct {
 	LRU *ttlcache.Cache[string, bool]
@@ -509,6 +626,81 @@ func NewIntArrayVariable(size int, ttl time.Duration) *IntArrayVariable {
 	}
 }
 
+// IPArrayVariable describes a global IP array variable
+type IPArrayVariable struct {
+	LRU *ttlcache.Cache[string, bool]
+}
+
+// GetValue returns the variable value
+func (m *IPArrayVariable) GetValue() (interface{}, bool) {
+	keys := []net.IPNet{}
+	for _, v := range m.LRU.Keys() {
+		_, ipNet, err := net.ParseCIDR(v)
+		if err == nil {
+			keys = append(keys, *ipNet)
+		}
+	}
+	return keys, len(keys) != 0
+}
+
+// Set the variable with the specified value
+func (m *IPArrayVariable) Set(_ *Context, values interface{}) error {
+	if ip, ok := values.(net.IPNet); ok {
+		values = []net.IPNet{ip}
+	}
+
+	for _, v := range values.([]net.IPNet) {
+		m.LRU.Set(v.String(), true, ttlcache.DefaultTTL)
+	}
+
+	return nil
+}
+
+// Append a value to the array
+func (m *IPArrayVariable) Append(_ *Context, value interface{}) error {
+	switch value := value.(type) {
+	case net.IPNet:
+		m.LRU.Set(value.String(), true, ttlcache.DefaultTTL)
+	case []net.IPNet:
+		for _, v := range value {
+			m.LRU.Set(v.String(), true, ttlcache.DefaultTTL)
+		}
+	default:
+		return errAppendNotSupported
+	}
+	return nil
+}
+
+// GetEvaluator returns the variable SECL evaluator
+func (m *IPArrayVariable) GetEvaluator() interface{} {
+	return &CIDRArrayEvaluator{
+		EvalFnc: func(*Context) []net.IPNet {
+			keys := []net.IPNet{}
+			for _, v := range m.LRU.Keys() {
+				_, ipNet, err := net.ParseCIDR(v)
+				if err == nil {
+					keys = append(keys, *ipNet)
+				}
+			}
+			return keys
+		},
+	}
+}
+
+// NewIPArrayVariable returns a new mutable IP array variable
+func NewIPArrayVariable(size int, ttl time.Duration) *IPArrayVariable {
+	if size == 0 {
+		size = defaultMaxVariables
+	}
+
+	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
+	go lru.Start()
+
+	return &IPArrayVariable{
+		LRU: lru,
+	}
+}
+
 // VariableScope is the interface to be implemented by scoped variable in order to be released
 type VariableScope interface {
 	AppendReleaseCallback(callback func())
@@ -539,10 +731,14 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 		return NewIntVariable(), nil
 	case string:
 		return NewStringVariable(), nil
+	case net.IPNet:
+		return NewIPVariable(), nil
 	case []string:
 		return NewStringArrayVariable(opts.Size, opts.TTL), nil
 	case []int:
 		return NewIntArrayVariable(opts.Size, opts.TTL), nil
+	case []net.IPNet:
+		return NewIPArrayVariable(opts.Size, opts.TTL), nil
 	default:
 		return nil, fmt.Errorf("unsupported value type: %s", reflect.TypeOf(value))
 	}
@@ -632,6 +828,14 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 			}
 			return "", false
 		}, setVariable), nil
+	case net.IPNet:
+		return NewScopedIPVariable(func(ctx *Context) (net.IPNet, bool) {
+			if v := getVariable(ctx); v != nil {
+				value, set := v.GetValue()
+				return value.(net.IPNet), set
+			}
+			return net.IPNet{}, false
+		}, setVariable), nil
 	case []string:
 		return NewScopedStringArrayVariable(func(ctx *Context) ([]string, bool) {
 			if v := getVariable(ctx); v != nil {
@@ -648,6 +852,14 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 			}
 			return nil, false
 
+		}, setVariable), nil
+	case []net.IPNet:
+		return NewScopedIPArrayVariable(func(ctx *Context) ([]net.IPNet, bool) {
+			if v := getVariable(ctx); v != nil {
+				value, set := v.GetValue()
+				return value.([]net.IPNet), set
+			}
+			return nil, false
 		}, setVariable), nil
 	default:
 		return nil, fmt.Errorf("unsupported variable type %s for '%s'", reflect.TypeOf(value), name)
