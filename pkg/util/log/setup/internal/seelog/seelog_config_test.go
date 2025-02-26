@@ -146,7 +146,7 @@ func testSeelogConfig(t *testing.T, config *Config, testName string) {
 	require.NoError(t, err)
 
 	if runtime.GOOS == "windows" {
-		expected = bytes.ReplaceAll(expected, []byte("\n"), []byte("\r\n"))
+		expected = bytes.ReplaceAll(expected, []byte("\r\n"), []byte("\n"))
 	}
 
 	require.Equal(t, string(expected), cfg)
