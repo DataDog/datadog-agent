@@ -155,16 +155,13 @@ int hook_security_path_truncate(ctx_t *ctx) {
 
 int __attribute__((always_inline)) handle_open(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall) {
+    if (!syscall || syscall->open.dentry) {
         return 0;
     }
 
-    // embedded in struct nameidata
     struct path *path = (struct path *)CTX_PARM1(ctx);
-
     struct dentry *dentry = get_path_dentry(path);
-
-    if (is_non_mountable_dentry(dentry)) {
+    if (!dentry || is_non_mountable_dentry(dentry)) {
         pop_syscall(EVENT_OPEN);
         return 0;
     }
@@ -187,6 +184,11 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx) {
     resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     return 0;
+}
+
+HOOK_ENTRY("vfs_open")
+int hook_vfs_open(ctx_t *ctx) {
+   return handle_open(ctx);
 }
 
 HOOK_ENTRY("terminate_walk")
@@ -247,7 +249,7 @@ int hook_io_openat2(ctx_t *ctx) {
 
 int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval) {
  struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
-    if (!syscall) {
+    if (!syscall || !syscall->open.dentry) {
         return 0;
     }
 
