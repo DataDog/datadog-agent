@@ -9,6 +9,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"slices"
 	"strings"
@@ -229,6 +230,10 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						variableValue = []int{}
 					case reflect.Bool:
 						variableValue = false
+					case reflect.Struct:
+						if strings.HasSuffix(actionDef.Set.Field, "ip") {
+							variableValue = []net.IPNet{}
+						}
 					default:
 						errs = multierror.Append(errs, fmt.Errorf("unsupported field type '%s' for variable '%s'", kind, actionDef.Set.Name))
 						continue
@@ -393,6 +398,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		if action.Def.Set != nil && action.Def.Set.Field != "" {
 			if _, found := rs.fieldEvaluators[action.Def.Set.Field]; !found {
 				evaluator, err := rs.model.GetEvaluator(action.Def.Set.Field, "")
+				fmt.Println("000000000", evaluator, err)
 				if err != nil {
 					return "", err
 				}
