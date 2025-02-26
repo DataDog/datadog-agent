@@ -90,8 +90,7 @@ func (c *collector) getGPUDeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get GPU index ID: %v", nvml.ErrorString(ret))
 	}
-	//we try to get the driver version as a best effort, don't care if we fail
-	driver, _ := c.nvmlLib.SystemGetDriverVersion()
+
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
@@ -100,12 +99,11 @@ func (c *collector) getGPUDeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: name,
 		},
-		Vendor:        nvidiaVendor,
-		Device:        name,
-		DriverVersion: driver,
-		Index:         gpuIndexID,
-		MigEnabled:    false,
-		MigDevices:    nil,
+		Vendor:     nvidiaVendor,
+		Device:     name,
+		Index:      gpuIndexID,
+		MigEnabled: false,
+		MigDevices: nil,
 	}
 
 	c.fillMIGData(&gpuDeviceInfo, device)
@@ -278,6 +276,17 @@ func (c *collector) Pull(_ context.Context) error {
 		return fmt.Errorf("failed to get device count: %v", nvml.ErrorString(ret))
 	}
 
+	// driver version is equal to all devices of the same vendor
+	// currently we handle only nvidia.
+	// in the future this function should be refactored to support more vendors
+	driverVersion, ret := c.nvmlLib.SystemGetDriverVersion()
+	//we try to get the driver version as a best effort, just log warning if it fails
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get nvidia driver version: %v", nvml.ErrorString(ret))
+		}
+	}
+
 	var events []workloadmeta.CollectorEvent
 	for i := 0; i < count; i++ {
 		dev, ret := nvmlLib.DeviceGetHandleByIndex(i)
@@ -286,6 +295,7 @@ func (c *collector) Pull(_ context.Context) error {
 		}
 
 		gpu, err := c.getGPUDeviceInfo(dev)
+		gpu.DriverVersion = driverVersion
 		if err != nil {
 			return err
 		}
