@@ -39,7 +39,7 @@ func TestDestinationHA(t *testing.T) {
 // TestConnecitivityDiagnoseNoBlock ensures the connectivity diagnose doesn't
 // block
 func TestConnecitivityDiagnoseNoBlock(t *testing.T) {
-	endpoint := config.NewEndpoint("00000000", "host", 0, true)
+	endpoint := config.NewEndpoint("00000000", "", "host", 0, true)
 	done := make(chan struct{})
 
 	go func() {
@@ -73,7 +73,7 @@ func TestConnectivityDiagnoseOperationSuccess(t *testing.T) {
 	portInt, err := strconv.Atoi(port)
 	assert.Nil(t, err)
 
-	testSuccessEndpoint := config.NewEndpoint("api-key", host, portInt, false)
+	testSuccessEndpoint := config.NewEndpoint("api-key", "", host, portInt, false)
 	connManager := NewConnectionManager(testSuccessEndpoint, statusinterface.NewNoopStatusProvider())
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -101,7 +101,7 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 	portInt, err := strconv.Atoi(port)
 	assert.Nil(t, err)
 
-	testFailEndpointWrongAddress := config.NewEndpoint("api-key", "failhost", portInt, false)
+	testFailEndpointWrongAddress := config.NewEndpoint("api-key", "", "failhost", portInt, false)
 	connManager := NewConnectionManager(testFailEndpointWrongAddress, statusinterface.NewNoopStatusProvider())
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -109,7 +109,7 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 	_, err = connManager.NewConnection(ctx)
 	assert.NotNil(t, err)
 
-	testFailEndpointWrongPort := config.NewEndpoint("api-key", host, portInt+1, false)
+	testFailEndpointWrongPort := config.NewEndpoint("api-key", "", host, portInt+1, false)
 	connManager = NewConnectionManager(testFailEndpointWrongPort, statusinterface.NewNoopStatusProvider())
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
