@@ -1357,7 +1357,7 @@ func (e EventBundle) Acknowledge() {
 
 // InitHelper this should be provided as a helper to allow passing the component into
 // the inithook for additional start-time configutation.
-type InitHelper func(context.Context, Component, config.Component, config.Component) error
+type InitHelper func(context.Context, Component, config.Component) error
 
 // GPU represents a GPU resource.
 type GPU struct {

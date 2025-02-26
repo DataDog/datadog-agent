@@ -144,12 +144,14 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.DataDog(), pkgconfigsetup.SystemProbe(), option.None[workloadmeta.Component]())
+	cfg := pkgconfigsetup.SystemProbe()
+	if !cfg.GetBool("runtime_security_config.sbom.enabled") {
+		return nil, errors.New("sbom is disabled")
+	}
+
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(cfg, option.None[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
-	}
-	if sbomScanner == nil {
-		return nil, errors.New("sbom is disabled")
 	}
 
 	dataCache, err := simplelru.NewLRU[workloadKey, *Data](c.SBOMResolverWorkloadsCacheSize, nil)

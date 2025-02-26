@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -52,10 +51,9 @@ type workloadmeta struct {
 type Dependencies struct {
 	Lc compdef.Lifecycle
 
-	Log               log.Component
-	Config            config.Component
-	SystemProbeConfig sysprobeconfig.Component
-	Catalog           wmdef.CollectorList `group:"workloadmeta"`
+	Log     log.Component
+	Config  config.Component
+	Catalog wmdef.CollectorList `group:"workloadmeta"`
 
 	Params wmdef.Params
 }
@@ -97,7 +95,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		mainCtx, _ := common.GetMainCtxCancel()
 
 		if deps.Params.InitHelper != nil {
-			err = deps.Params.InitHelper(mainCtx, wm, deps.Config, deps.SystemProbeConfig)
+			err = deps.Params.InitHelper(mainCtx, wm, deps.Config)
 			if err != nil {
 				return err
 			}
