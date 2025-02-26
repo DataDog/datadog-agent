@@ -6,10 +6,11 @@
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseJSONWithValidFormatShouldSucceed(t *testing.T) {
@@ -407,5 +408,44 @@ logs:
 			configs, err := ParseYAML(tt.yaml)
 			tt.assert(t, configs, err)
 		})
+	}
+}
+
+func TestValidFormat(t *testing.T) {
+	include := []string{`
+logs:
+  - type: journald
+    path: /var/log/journal/
+    source: custom_log
+    service: random-logger
+    include_units:
+      - boo.service
+      - far.service
+`}
+	exclude := []string{`
+logs:
+  - type: journald
+    path: /var/log/journal/
+    source: custom_log
+    service: random-logger
+    exclude_units:
+      - boo.service
+      - far.service
+`}
+
+	for _, format := range include {
+		configs, e := ParseYAML([]byte(format))
+		if e != nil {
+			println(e)
+		}
+		require.Equalf(t, len(configs[0].IncludeSystemUnits), 2, `Expected 2 exclude units, got %d`, len(configs[0].IncludeSystemUnits))
+	}
+
+	for _, format := range exclude {
+		configs, e := ParseYAML([]byte(format))
+		if e != nil {
+			println(e)
+		}
+		require.Equalf(t, len(configs[0].ExcludeSystemUnits), 2, `Expected 2 exclude units, got %d`, len(configs[0].ExcludeSystemUnits))
 	}
 }

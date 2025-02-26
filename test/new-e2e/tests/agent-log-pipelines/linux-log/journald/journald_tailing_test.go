@@ -8,10 +8,11 @@ package journaldlog
 import (
 	_ "embed"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,6 +136,10 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 		t.Log("Successfully enabled journald service")
 	}
 
+	time.Sleep(
+		5 * time.Second,
+	)
+
 	// Restart agent
 	_, err = vm.Execute("sudo service datadog-agent restart")
 	assert.NoErrorf(t, err, "Failed to restart the agent: %s", err)
@@ -143,6 +148,10 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 		agentReady := s.Env().Agent.Client.IsReady()
 		assert.Truef(c, agentReady, "Agent is not ready after restart")
 	}, utils.WaitFor, eventuallyWithTickDuration)
+
+	time.Sleep(
+		5 * time.Second,
+	)
 
 	// Check that the agent service log is collected
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "random-logger", "less important", []string{})
