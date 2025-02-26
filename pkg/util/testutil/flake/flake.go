@@ -33,11 +33,11 @@ var flakyPatternsConfigMutex = sync.Mutex{}
 // Otherwise test will be marked as known flake through a special message on tests output.
 func Mark(t testing.TB) {
 	t.Helper()
+	t.Log(flakyTestMessage)
 	if shouldSkipFlake() {
-		t.Skip(fmt.Sprintf("%s, skipping ", flakyTestMessage))
+		t.Skip("flakytest: skip known flaky test")
 		return
 	}
-	t.Log(flakyTestMessage)
 }
 
 // Get the test function package which is the topmost function in the stack that is part of the datadog-agent package

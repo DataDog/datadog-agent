@@ -75,7 +75,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "putsch"})
     def test_default(self):
         tags = junit.set_tags("agent-devx-infra", "base", "", {}, "")
-        self.assertEqual(len(tags), 14)
+        self.assertEqual(len(tags), 18)
         self.assertIn("slack_channel:agent-devx-ops", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
@@ -88,7 +88,7 @@ class TestSetTag(unittest.TestCase):
             ["upload_option.os_version_from_name"],
             "kitchen-rspec-win2016-azure-x86_64.xml",
         )
-        self.assertEqual(len(tags), 20)
+        self.assertEqual(len(tags), 22)
         self.assertIn("e2e_internal_error:true", tags)
         self.assertIn("version:win2016", tags)
         self.assertNotIn("upload_option.os_version_from_name", tags)
@@ -97,7 +97,7 @@ class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "revolution"})
     def test_additional_tags(self):
         tags = junit.set_tags("agent-devx-infra", "base", "", ["--tags", "simple:basique"], "")
-        self.assertEqual(len(tags), 16)
+        self.assertEqual(len(tags), 20)
         self.assertIn("simple:basique", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1789"})
@@ -106,7 +106,7 @@ class TestSetTag(unittest.TestCase):
         tags = junit.set_tags(
             "agent-devx-infra", "base", "", junit.read_additional_tags(Path("tasks/unit_tests/testdata")), ""
         )
-        self.assertEqual(len(tags), 14)
+        self.assertEqual(len(tags), 18)
 
 
 class TestJUnitUploadFromTGZ(unittest.TestCase):
