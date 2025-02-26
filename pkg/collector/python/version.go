@@ -13,8 +13,7 @@ import (
 )
 
 var (
-	pythonInfoCacheKey     = cache.BuildAgentKey("pythonInfo")
-	pythonPackagesCacheKey = cache.BuildAgentKey("pythonPackages")
+	pythonInfoCacheKey = cache.BuildAgentKey("pythonInfo")
 )
 
 // GetPythonInfo returns the info string as provided by the embedded Python interpreter.
@@ -34,14 +33,4 @@ func GetPythonInfo() string {
 // Example: '3.10.6'
 func GetPythonVersion() string {
 	return strings.SplitN(GetPythonInfo(), " ", 2)[0]
-}
-
-// GetPackagesVersion returns the version of the packages installed in the embedded Python interpreter.
-func GetPackagesVersion() map[string]string {
-	// retrieve the versions from the Agent cache
-	if x, found := cache.Cache.Get(pythonPackagesCacheKey); found {
-		return x.(map[string]string)
-	}
-
-	return map[string]string{}
 }

@@ -39,7 +39,12 @@ func InitPython(paths ...string) {
 		}
 		// Get the python packages version
 		// New packages can be installed, but they're not taken into account until the agent is restarted.
-		inventoryCheck.SetPackages(python.GetExtraPackagesVersion(python.PythonPath))
+		inventoryCheck.SetPackages(
+			python.GetExtraPackagesVersion(
+				python.PythonPath,
+				pkgconfigsetup.Datadog().GetString("python_version"),
+			),
+		)
 	}
 }
 

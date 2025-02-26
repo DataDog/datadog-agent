@@ -11,7 +11,9 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"unsafe"
@@ -19,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -288,7 +291,7 @@ func SetPythonPsutilProcPath(procPath string) error {
 	return getRtLoaderError()
 }
 
-func GetExtraPackagesVersion(pythonBinPath string) map[string]string {
+func GetExtraPackagesVersion(pythonBinPath string, pythonMajorVersion string) map[string]string {
 	args := []string{
 		"-m",
 		"pip",
@@ -303,6 +306,27 @@ func GetExtraPackagesVersion(pythonBinPath string) map[string]string {
 		return map[string]string{}
 	}
 
+	rootDir, err := executable.Folder()
+	if err != nil {
+		log.Errorf("Unable to get the executable folder: %v", err)
+		return map[string]string{}
+	}
+
+	// Read the embedded versions from the constraints file
+	embeddedVersions := make(map[string]string)
+	constraintsPath := filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", pythonMajorVersion))
+	read, err := os.ReadFile(constraintsPath)
+	if err != nil {
+		log.Errorf("Unable to read the constraints file: %v", err)
+		return map[string]string{}
+	}
+	constraints := strings.Split(string(read), "\n")
+	for _, constraint := range constraints {
+		name, version := parsePythonPackage(constraint)
+		embeddedVersions[name] = version
+	}
+
+	// Read the pip freeze output, and compare the versions with the embedded versions
 	packageVersions := make(map[string]string)
 	reader := bufio.NewReader(bytes.NewReader(output))
 	// Read line by line
@@ -312,22 +336,37 @@ func GetExtraPackagesVersion(pythonBinPath string) map[string]string {
 			// Can be io.EOF
 			break
 		}
-		// Can be `package==version`
-		// Or `package @ url`
-		// Or `-e package`
-		pkgVersion := strings.SplitN(string(line), "==", 2)
-		pkgURL := strings.SplitN(string(line), "@", 2)
-		if len(pkgVersion) == 2 {
-			packageVersions[pkgVersion[0]] = pkgVersion[1]
-		} else if len(pkgURL) == 2 {
-			packageVersions[pkgURL[0]] = pkgURL[1]
-		} else if strings.HasPrefix(string(line), "-e ") {
-			// This is a local package, we don't care about the version
-			packageVersions[strings.TrimPrefix(string(line), "-e ")] = "local"
-		} else {
-			log.Infof("Unable to parse python package version, it won't appear in the metadata payload: %s", line)
+		name, version := parsePythonPackage(string(line))
+		embeddedVersion, ok := embeddedVersions[name]
+		if ok && version != embeddedVersion || !ok {
+			packageVersions[name] = version
 		}
 	}
 
 	return packageVersions
+}
+
+// parsePythonPackages parses the constraints file and returns the name and version of the packages
+func parsePythonPackage(constraint string) (string, string) {
+	// Split the line into package and version
+	// Can be `package==version`
+	// Or `package @ url`
+	// Or `-e package`
+	var name, version string
+	pkgVersion := strings.SplitN(constraint, "==", 2)
+	pkgURL := strings.SplitN(constraint, " @", 2)
+	if len(pkgVersion) == 2 {
+		name = pkgVersion[0]
+		version = pkgVersion[1]
+	} else if len(pkgURL) == 2 {
+		name = pkgURL[0]
+		version = pkgURL[1]
+	} else if strings.HasPrefix(constraint, "-e ") {
+		// This is a local package, we don't care about the version
+		name = strings.TrimPrefix(constraint, "-e ")
+		version = "local"
+	} else {
+		log.Infof("Unable to parse python package version, it won't appear in the metadata payload: %s", constraint)
+	}
+	return name, version
 }
