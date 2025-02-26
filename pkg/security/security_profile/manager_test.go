@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package profile holds profile related files
-package profile
+// Package securityprofile holds security profiles related files
+package securityprofile
 
 import (
 	"errors"
@@ -16,6 +16,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
@@ -25,7 +26,954 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
+
+// Old activity dump manager unit tests
+
+func compareListOfDumps(t *testing.T, out, expectedOut []*dump.ActivityDump) {
+	for _, elem := range out {
+		var found bool
+		for _, expected := range expectedOut {
+			if elem.Profile.Metadata.Name == expected.Profile.Metadata.Name {
+				found = true
+			}
+		}
+
+		assert.Truef(t, found, "output didn't match: dump %s should not be in the output", elem.Profile.Metadata.Name)
+	}
+	for _, elem := range expectedOut {
+		var found bool
+		for _, got := range out {
+			if elem.Profile.Metadata.Name == got.Profile.Metadata.Name {
+				found = true
+			}
+		}
+
+		assert.Truef(t, found, "output didn't match: dump %s is missing from the output", elem.Profile.Metadata.Name)
+	}
+}
+
+func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
+	type fields struct {
+		activeDumps []*dump.ActivityDump
+	}
+	tests := []struct {
+		name         string
+		fields       fields
+		expiredDumps []*dump.ActivityDump
+		activeDumps  []*dump.ActivityDump
+	}{
+		{
+			"no_dump",
+			fields{},
+			[]*dump.ActivityDump{},
+			[]*dump.ActivityDump{},
+		},
+		{
+			"one_dump/one_expired_dump",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "1",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "1",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+			},
+			[]*dump.ActivityDump{},
+		},
+		{
+			"one_dump/no_expired_dump",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "1",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "1",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+			},
+		},
+		{
+			"5_dumps/no_expired_dump",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "1",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "2",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "3",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "4",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "5",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "1",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "2",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "3",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "4",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "5",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+			},
+		},
+		{
+			"5_dumps/5_expired_dumps",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "1",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "2",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "3",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "4",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "5",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "1",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "2",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "3",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "4",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "5",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+			},
+			[]*dump.ActivityDump{},
+		},
+		{
+			"5_dumps/2_expired_dumps",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "1",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "2",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "3",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "4",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "5",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "2",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "4",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "1",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "3",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "5",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+			},
+		},
+		{
+			"5_dumps/2_expired_dumps_at_the_start",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "1",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "2",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "3",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "4",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "5",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "1",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "2",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "3",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "4",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "5",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+			},
+		},
+		{
+			"5_dumps/2_expired_dumps_at_the_end",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "1",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "2",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "3",
+							End:  time.Now().Add(time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "4",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{
+							Name: "5",
+							End:  time.Now().Add(-time.Minute),
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "4",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "5",
+						End:  time.Now().Add(-time.Minute),
+					},
+				}},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "1",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "2",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{
+						Name: "3",
+						End:  time.Now().Add(time.Minute),
+					},
+				}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, ad := range tt.fields.activeDumps {
+				ad.SetState(dump.Running)
+			}
+
+			adm := &Manager{
+				activeDumps:        tt.fields.activeDumps,
+				ignoreFromSnapshot: make(map[model.PathKey]bool),
+			}
+
+			expiredDumps := adm.getExpiredDumps()
+			for _, ad := range expiredDumps {
+				ad.SetState(dump.Stopped)
+			}
+
+			compareListOfDumps(t, expiredDumps, tt.expiredDumps)
+			compareListOfDumps(t, adm.activeDumps, tt.activeDumps)
+		})
+	}
+}
+
+func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
+	type fields struct {
+		activeDumps []*dump.ActivityDump
+	}
+	tests := []struct {
+		name            string
+		fields          fields
+		overweightDumps []*dump.ActivityDump
+		activeDumps     []*dump.ActivityDump
+	}{
+		{
+			"no_dump",
+			fields{},
+			[]*dump.ActivityDump{},
+			[]*dump.ActivityDump{},
+		},
+		{
+			"one_dump/one_overweight_dump",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "1"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{ProcessNodes: 2},
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "1"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{ProcessNodes: 2},
+					},
+				}},
+			},
+			[]*dump.ActivityDump{},
+		},
+		{
+			"one_dump/no_overweight_dump",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "1"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "1"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+			},
+		},
+		{
+			"5_dumps/no_overweight_dump",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "1"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "2"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "3"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "4"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "5"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "1"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "2"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "3"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "4"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "5"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+			},
+		},
+		{
+			"5_dumps/5_overweight_dumps",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "1"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 2,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "2"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 3,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "3"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 2,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "4"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 3,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "5"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 2,
+							},
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "1"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 2,
+						},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "2"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 3,
+						},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "3"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 2,
+						},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "4"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 3,
+						},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "5"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 2,
+						},
+					},
+				}},
+			},
+			[]*dump.ActivityDump{},
+		},
+		{
+			"5_dumps/2_expired_dumps",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "1"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "2"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 3,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "3"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "4"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 2,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "5"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "2"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 3,
+						},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "4"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 2,
+						},
+					},
+				}},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "1"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "3"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "5"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+			},
+		},
+		{
+			"5_dumps/2_expired_dumps_at_the_start",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "1"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 3,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "2"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 2,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "3"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "4"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "5"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "1"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 3,
+						},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "2"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 2,
+						},
+					},
+				}},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "3"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "4"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "5"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+			},
+		},
+		{
+			"5_dumps/2_expired_dumps_at_the_end",
+			fields{
+				activeDumps: []*dump.ActivityDump{
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "1"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "2"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "3"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "4"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 3,
+							},
+						},
+					}},
+					{Profile: &profile.Profile{
+						Metadata: mtdt.Metadata{Name: "5"},
+						ActivityTree: &activity_tree.ActivityTree{
+							Stats: &activity_tree.Stats{
+								ProcessNodes: 2,
+							},
+						},
+					}},
+				},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "4"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 3,
+						},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "5"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{
+							ProcessNodes: 2,
+						},
+					},
+				}},
+			},
+			[]*dump.ActivityDump{
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "1"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "2"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+				{Profile: &profile.Profile{
+					Metadata: mtdt.Metadata{Name: "3"},
+					ActivityTree: &activity_tree.ActivityTree{
+						Stats: &activity_tree.Stats{},
+					},
+				}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adm := &Manager{
+				activeDumps: tt.fields.activeDumps,
+				config: &config.Config{
+					RuntimeSecurity: &config.RuntimeSecurityConfig{
+						ActivityDumpMaxDumpSize: func() int {
+							return 2048
+						},
+					},
+				},
+				statsdClient:       &statsd.NoOpClient{},
+				ignoreFromSnapshot: make(map[model.PathKey]bool),
+			}
+
+			compareListOfDumps(t, adm.getOverweightDumps(), tt.overweightDumps)
+			compareListOfDumps(t, adm.activeDumps, tt.activeDumps)
+		})
+	}
+}
+
+// Old security profile manager unit tests
 
 type testIteration struct {
 	name                string                           // test name
@@ -823,7 +1771,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	t0 := time.Now()
 
 	// secprofile manager, only use for config and stats
-	spm := &SecurityProfileManager{
+	spm := &Manager{
 		eventFiltering: make(map[eventFilteringEntry]*atomic.Uint64),
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
@@ -836,13 +1784,16 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	}
 	spm.initMetricsMap()
 
-	var profile *SecurityProfile
+	var secprof *profile.Profile
 	for _, ti := range tests {
 		t.Run(ti.name, func(t *testing.T) {
-			if ti.newProfile || profile == nil {
-				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
-				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
-				profile.Instances = append(profile.Instances, &tags.Workload{
+			if ti.newProfile || secprof == nil {
+				secprof = profile.New(
+					profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}),
+					profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
+				)
+				secprof.ActivityTree = activity_tree.NewActivityTree(secprof, nil, "security_profile")
+				secprof.Instances = append(secprof.Instances, &tags.Workload{
 					CacheEntry: &cgroupModel.CacheEntry{ContainerContext: model.ContainerContext{
 						ContainerID: containerutils.ContainerID(defaultContainerID),
 					},
@@ -852,14 +1803,14 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					},
 					Selector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})
-				profile.loadedNano = uint64(t0.UnixNano())
+				secprof.LoadedNano.Store(uint64(t0.UnixNano()))
 			}
-			profile.ActivityTree.Stats.ProcessNodes += ti.addFakeProcessNodes
-			ctx := profile.GetVersionContextIndex(0)
+			secprof.ActivityTree.Stats.ProcessNodes += ti.addFakeProcessNodes
+			ctx := secprof.GetVersionContextIndex(0)
 			if ctx == nil {
 				t.Fatal(errors.New("profile should have one ctx"))
 			}
-			ctx.firstSeenNano = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
+			ctx.FirstSeenNano = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 
 			if ti.loopUntil != 0 {
 				currentIncrement := time.Duration(0)
@@ -873,12 +1824,12 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					}
 					ti.eventTimestampRaw = currentIncrement
 					event := craftFakeEvent(t0, &ti, defaultContainerID)
-					assert.Equal(t, ti.result, spm.tryAutolearn(profile, ctx, event, "tag"))
+					assert.Equal(t, ti.result, spm.tryAutolearn(secprof, ctx, event, "tag"))
 					currentIncrement += ti.loopIncrement
 				}
 			} else { // only run once
 				event := craftFakeEvent(t0, &ti, defaultContainerID)
-				assert.Equal(t, ti.result, spm.tryAutolearn(profile, ctx, event, "tag"))
+				assert.Equal(t, ti.result, spm.tryAutolearn(secprof, ctx, event, "tag"))
 			}
 
 			// TODO: also check profile stats and global metrics
