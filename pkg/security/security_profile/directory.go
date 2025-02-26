@@ -35,8 +35,8 @@ import (
 const directoryPerm = fs.FileMode(0750)
 
 type profileEntry struct {
-	filePaths []string
-	selectors []cgroupModel.WorkloadSelector
+	selector  cgroupModel.WorkloadSelector
+	filePaths []string // a same profile can be stored using multiple file formats
 }
 
 // Directory is a local storage for security profiles
@@ -46,13 +46,9 @@ type Directory struct {
 	// Maximum number of security profiles to keep
 	maxProfiles int
 
-	mappingsLock sync.RWMutex
-	// selectorToName allows finding a security profile from a given selector
-	// selector to names is a 1-to-N mapping (because multiple profiles can be created for the same selector)
-	selectorToNames map[cgroupModel.WorkloadSelector][]string
-	// namesToFiles allows finding the files associated from a given security profile name
-	// name to files is a 1-to-N mapping (because a same profile can be stored with multiple file formats)
-	nameToEntry *simplelru.LRU[string, *profileEntry]
+	profilesLock sync.RWMutex
+	// profiles is a LRU cache that keeps track of profiles stored by the directory. Profiles are indexed by their name.
+	profiles *simplelru.LRU[string, *profileEntry]
 
 	// stats
 	deletedCount *atomic.Uint64
@@ -70,33 +66,6 @@ func fileHasProfileExtension(path string) bool {
 	return err == nil && format == config.Profile
 }
 
-func updateMappings(selectorToNames map[cgroupModel.WorkloadSelector][]string, nameToEntry *simplelru.LRU[string, *profileEntry], selector *cgroupModel.WorkloadSelector, name string, path string, versions []string) {
-	versionSelector := *selector
-	for _, version := range versions {
-		versionSelector.Tag = version
-		selectorToNames[versionSelector] = append(selectorToNames[versionSelector], name)
-	}
-
-	entry, ok := nameToEntry.Get(name)
-	if !ok {
-		newEntry := &profileEntry{
-			filePaths: []string{path},
-		}
-		for _, version := range versions {
-			versionSelector.Tag = version
-			newEntry.selectors = append(newEntry.selectors, versionSelector)
-		}
-		// nameToEntry.Add might call the eviction callback with mappingsLock held
-		nameToEntry.Add(name, newEntry)
-	} else {
-		entry.filePaths = append(entry.filePaths, path)
-		for _, version := range versions {
-			versionSelector.Tag = version
-			entry.selectors = append(entry.selectors, versionSelector)
-		}
-	}
-}
-
 type profileFile struct {
 	path  string
 	mTime time.Time
@@ -104,22 +73,12 @@ type profileFile struct {
 
 // NewDirectory creates a new Directory instance, loading the existing profiles from the provided directory path
 func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
-	selectorToNames := make(map[cgroupModel.WorkloadSelector][]string)
 	deletedCount := atomic.NewUint64(0)
-	nameToEntry, err := simplelru.NewLRU[string, *profileEntry](maxProfiles, func(deletedName string, entry *profileEntry) {
-		// This callback is expected to be called with mappingsLock write-lock held
+	profiles, err := simplelru.NewLRU[string, *profileEntry](maxProfiles, func(deletedName string, entry *profileEntry) {
+		// This callback is expected to be called with profilesLock write-lock held
 		for _, filePath := range entry.filePaths {
 			if err := os.Remove(filePath); err != nil {
-				seclog.Errorf("failed to remove file [%s]: %s", filePath, err)
-			}
-		}
-
-		for _, selector := range entry.selectors {
-			selectorToNames[selector] = slices.DeleteFunc(selectorToNames[selector], func(name string) bool {
-				return name == deletedName
-			})
-			if len(selectorToNames[selector]) == 0 {
-				delete(selectorToNames, selector)
+				seclog.Errorf("failed to remove file [%s] for profile %s: %v", deletedName, filePath, err)
 			}
 		}
 
@@ -179,21 +138,17 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 			seclog.Warnf("failed to load profile from file [%s]: %s", file.path, err)
 			continue
 		}
-		selector := cgroupModel.ProtoToWorkloadSelector(pProto.Selector)
-		versions := make([]string, 0, len(pProto.ProfileContexts))
-		for key := range pProto.ProfileContexts {
-			versions = append(versions, key)
-		}
-
-		updateMappings(selectorToNames, nameToEntry, &selector, pProto.Metadata.GetName(), file.path, versions)
+		profiles.Add(pProto.Metadata.Name, &profileEntry{
+			selector:  cgroupModel.ProtoToWorkloadSelector(pProto.Selector),
+			filePaths: []string{file.path},
+		})
 	}
 
 	return &Directory{
-		directoryPath:   directoryPath,
-		maxProfiles:     maxProfiles,
-		selectorToNames: selectorToNames,
-		nameToEntry:     nameToEntry,
-		deletedCount:    deletedCount,
+		directoryPath: directoryPath,
+		maxProfiles:   maxProfiles,
+		profiles:      profiles,
+		deletedCount:  atomic.NewUint64(0),
 	}, nil
 }
 
@@ -238,9 +193,17 @@ func (d *Directory) Persist(request config.StorageRequest, p *profile.Profile, r
 
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, p.GetSelectorStr(), filePath)
 
-	d.mappingsLock.Lock()
-	updateMappings(d.selectorToNames, d.nameToEntry, p.GetWorkloadSelector(), p.Metadata.Name, filePath, p.GetVersions())
-	d.mappingsLock.Unlock()
+	d.profilesLock.Lock()
+	entry, ok := d.profiles.Get(p.Metadata.Name)
+	if ok {
+		entry.filePaths = append(entry.filePaths, filePath)
+	} else {
+		d.profiles.Add(p.Metadata.Name, &profileEntry{
+			selector:  *p.GetWorkloadSelector(),
+			filePaths: []string{filePath},
+		})
+	}
+	d.profilesLock.Unlock()
 
 	return nil
 }
@@ -255,26 +218,20 @@ func (d *Directory) Load(wls *cgroupModel.WorkloadSelector, p *profile.Profile) 
 		return false, fmt.Errorf("no profile was provided")
 	}
 
-	d.mappingsLock.RLock()
-	defer d.mappingsLock.RUnlock()
+	d.profilesLock.RLock()
+	defer d.profilesLock.RUnlock()
 
-	for selector, names := range d.selectorToNames {
-		if selector.Match(*wls) {
-			for _, name := range names {
-				entry, ok := d.nameToEntry.Get(name)
-				if !ok {
+	for _, entry := range d.profiles.Values() {
+		if entry.selector.Match(*wls) {
+			for _, file := range entry.filePaths {
+				if !fileHasProfileExtension(file) {
 					continue
 				}
-				for _, file := range entry.filePaths {
-					if !fileHasProfileExtension(file) {
-						continue
-					}
 
-					if err := p.Decode(file); err != nil {
-						return false, fmt.Errorf("failed to decode profile [%s]: %s", file, err)
-					}
-					return true, nil
+				if err := p.Decode(file); err != nil {
+					return false, fmt.Errorf("failed to decode profile [%s]: %s", file, err)
 				}
+				return true, nil
 			}
 		}
 	}
@@ -289,12 +246,12 @@ func (d *Directory) GetStorageType() config.StorageType {
 
 // SendTelemetry sends telemetry for the current storage
 func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
-	d.mappingsLock.RLock()
+	d.profilesLock.RLock()
 	// send the count of dumps stored locally
-	if count := d.nameToEntry.Len(); count > 0 {
+	if count := d.profiles.Len(); count > 0 {
 		_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageCount, float64(count), nil, 1.0)
 	}
-	d.mappingsLock.RUnlock()
+	d.profilesLock.RUnlock()
 
 	// send the count of recently deleted dumps
 	if count := d.deletedCount.Swap(0); count > 0 {
