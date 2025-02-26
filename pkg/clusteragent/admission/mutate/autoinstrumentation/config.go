@@ -357,18 +357,8 @@ type pinnedLibraries struct {
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
 // given a registry.
 func getPinnedLibraries(libVersions map[string]string, registry string, checkDefaults bool) pinnedLibraries {
-	var (
-		res                       pinnedLibraries
-		remainingDefaultLanguages map[language]bool
-	)
-
-	if checkDefaults {
-		// we assume that this is true and then we prove that it is false
-		// by walking through the configuration given and seeing if it
-		// is equivalent to what is pinned in the agent.
-		res.areSetToDefaults = true
-		remainingDefaultLanguages = defaultSupportedLanguagesMap()
-	}
+	libs := []libInfo{}
+	allDefaults := true
 
 	for lang, version := range libVersions {
 		l := language(lang)
@@ -379,24 +369,17 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 
 		info := l.libInfo("", l.libImageName(registry, version))
 		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
-		res.libs = append(res.libs, info)
+		libs = append(libs, info)
 
-		if res.areSetToDefaults {
-			delete(remainingDefaultLanguages, l)
-			defaultImage := l.libImageName(registry, l.defaultLibVersion())
-			if info.image != defaultImage {
-				res.areSetToDefaults = false
-			}
+		if info.image != l.libImageName(registry, l.defaultLibVersion()) {
+			allDefaults = false
 		}
 	}
 
-	if checkDefaults {
-		if len(remainingDefaultLanguages) > 0 {
-			res.areSetToDefaults = false
-		}
+	return pinnedLibraries{
+		libs:             libs,
+		areSetToDefaults: checkDefaults && allDefaults && len(libs) == len(defaultSupportedLanguagesMap()),
 	}
-
-	return res
 }
 
 func initDefaultResources(datadogConfig config.Component) (initResourceRequirementConfiguration, error) {
