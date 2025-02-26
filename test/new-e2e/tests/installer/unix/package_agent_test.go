@@ -73,8 +73,8 @@ func (s *packageAgentSuite) TestInstall() {
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit)
-	state.AssertUnitsDead(probeUnit, processUnit, securityUnit)
+	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent because it may be running or dead based on timing
+	state.AssertUnitsDead(probeUnit, securityUnit)
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits {
