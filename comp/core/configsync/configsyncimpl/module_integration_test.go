@@ -18,11 +18,31 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// MakeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
+func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
+	return fxutil.Bundle(
+		config.MockModule(),
+		logParams,
+		logger,
+		telemetryimpl.MockModule(),
+	)
+}
+
+// MockBundle defines the mock fx options for this bundle.
+func MockBundle() fxutil.BundleOptions {
+	return MakeMockBundle(
+		fx.Supply(log.Params{}),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+	)
+}
 
 func TestOptionalModule(t *testing.T) {
 	handler := func(w http.ResponseWriter, _ *http.Request) {
@@ -44,7 +64,6 @@ func TestOptionalModule(t *testing.T) {
 		"agent_ipc.config_refresh_interval": 1,
 	}
 	comp := fxutil.Test[configsync.Component](t, fx.Options(
-		core.MockBundle(),
 		fetchonlyimpl.Module(),
 		Module(Params{}),
 		fx.Populate(&cfg),

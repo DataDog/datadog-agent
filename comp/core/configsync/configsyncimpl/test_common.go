@@ -19,14 +19,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func makeDeps(t *testing.T) dependencies {
 	return fxutil.Test[dependencies](t, fx.Options(
-		core.MockBundle(),
 		fetchonlyimpl.MockModule(), // use the mock to avoid trying to read the file
 		fx.Supply(NewParams(0, false, 0)),
 	))
