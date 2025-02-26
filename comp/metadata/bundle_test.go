@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -31,10 +31,11 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() option.Option[agent.Component] {
 			return option.None[agent.Component]()
 		}),
-		workloadmetafx.Module(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		authtokenimpl.Module(),
 		haagentmock.Module(),
 	)
+
 }
 
 func TestMockBundleDependencies(t *testing.T) {
