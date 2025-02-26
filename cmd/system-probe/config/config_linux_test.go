@@ -48,14 +48,14 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 
 func TestDynamicInstrumentation(t *testing.T) {
 	mock.NewSystemProbe(t)
-	os.Setenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED", "true")
-	defer os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
+	os.Setenv("DD_DYNAMIC_INSTRUMENTATION_GO_ENABLED", "true")
+	defer os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_GO_ENABLED")
 
 	cfg, err := New("", "")
 	require.NoError(t, err)
 	assert.Equal(t, true, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
 
-	os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
+	os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_GO_ENABLED")
 	cfg, err = New("", "")
 	require.NoError(t, err)
 	assert.Equal(t, false, cfg.ModuleIsEnabled(DynamicInstrumentationModule))

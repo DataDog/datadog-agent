@@ -198,7 +198,7 @@ func getServiceName(pid uint32) string {
 		if len(parts) == 2 && parts[0] == "DD_SERVICE" {
 			serviceName = parts[1]
 		}
-		if len(parts) == 2 && parts[0] == "DD_DYNAMIC_INSTRUMENTATION_ENABLED" {
+		if len(parts) == 2 && parts[0] == "DD_DYNAMIC_INSTRUMENTATION_GO_ENABLED" {
 			diEnabled = parts[1] == "true"
 		}
 	}
