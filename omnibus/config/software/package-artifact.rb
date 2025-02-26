@@ -11,14 +11,14 @@ build do
   # that have been stripped out during the build
   Dir.glob("*.tar.xz", base: input_dir).each do |input|
     path = File.join(input_dir, input)
-    command "tar xf #{path} -C /"
+    shellout! "tar xf #{path} -C /"
     FileUtils.rm path
   end
 
   # Merge version manifests together
   # The agent file is the main one, with no .$product suffix.
   # We will merge suffixed files into the main one
-  block do
+  block "Merge version-manifest.json" do
     main_json_manifest = "#{install_dir}/version-manifest.json"
     versions = FFI_Yajl::Parser.parse(File.read(main_json_manifest))
     Dir.glob("#{install_dir}/version-manifest.*.json").each do |version_manifest_json_path|
@@ -32,12 +32,12 @@ build do
     end
   end
 
-  block do
+  block "Merge version-manifest.txt" do
     main_txt_manifest = "#{install_dir}/version-manifest.txt"
     Dir.glob("#{install_dir}/version-manifest.*.txt").each do |version_manifest_txt_path|
       # Simply append the listing part. The first 4 lines are the package name, blank lines
       # listing headers and a separator.
-      command "tail -n +5 #{version_manifest_txt_path} >> #{main_txt_manifest}"
+      shellout! "tail -n +5 #{version_manifest_txt_path} >> #{main_txt_manifest}"
       FileUtils.rm version_manifest_txt_path
     end
   end
