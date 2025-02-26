@@ -119,9 +119,9 @@ func (m *MockCommandRunner) FakeRunCommand(cmd []string) (string, error) {
                 tcp        0      0 46.105.75.4:80          79.220.227.193:2032     TIME_WAIT
                 tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED`, nil
 	} else if contains(cmd, "ss") {
-		return `Recv-Q Send-Q Local Address           Foreign Address         State
-				0      0 46.105.75.4:143         90.56.111.177:56867     ESTAB
-                0      0 46.105.75.4:50468       107.20.207.175:443      TIME-WAIT`, nil
+		return `Netid   State     Recv-Q    Send-Q    Local Address           Foreign Address
+				tcp     ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153                 
+				tcp     TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342`, nil
 	}
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
@@ -137,10 +137,6 @@ func (m *MockSS) SSCommand() error {
 
 func (m *MockSS) NetstatCommand() error {
 	return errors.New("forced to use netstat")
-}
-
-func (m *MockSS) LookPathCommand(_ string) (string, error) {
-	return "/usr/bin/ss", nil // Fake path
 }
 
 func TestDefaultConfiguration(t *testing.T) {
@@ -1153,7 +1149,6 @@ func TestFetchQueueStatsSS(t *testing.T) {
 	ssAvailableFunction = mockSS.SSCommand
 	mockCommandRunner := new(MockCommandRunner)
 	runCommandFunction = mockCommandRunner.FakeRunCommand
-	lookPath = mockSS.LookPathCommand
 
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
@@ -1202,7 +1197,6 @@ func TestFetchQueueStatsNetstat(t *testing.T) {
 	ssAvailableFunction = mockSS.NetstatCommand
 	mockCommandRunner := new(MockCommandRunner)
 	runCommandFunction = mockCommandRunner.FakeRunCommand
-	lookPath = mockSS.LookPathCommand
 
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 

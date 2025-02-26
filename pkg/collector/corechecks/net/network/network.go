@@ -80,7 +80,6 @@ var (
 
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
-	lookPath            = exec.LookPath
 )
 
 // NetworkCheck represent a network check
@@ -429,7 +428,7 @@ func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCounters
 }
 
 func checkSSExecutable() error {
-	_, err := lookPath("ss")
+	_, err := exec.LookPath("ss")
 	if err != nil {
 		return errors.New("`ss` executable not found in system PATH")
 	}
@@ -437,8 +436,8 @@ func checkSSExecutable() error {
 }
 
 func getQueueMetrics(ipVersion string) (map[string][]uint64, error) {
-	cmd := fmt.Sprintf("ss --numeric --tcp --all --ipv%s", ipVersion)
-	output, err := runCommand([]string{"sh", "-c", cmd})
+	ipFlag := fmt.Sprintf("--ipv%s", ipVersion)
+	output, err := runCommandFunction([]string{"sh", "-c", "ss", "--numeric", "--tcp", "--all", ipFlag})
 	if err != nil {
 		return nil, fmt.Errorf("error executing ss command: %v", err)
 	}
@@ -446,7 +445,7 @@ func getQueueMetrics(ipVersion string) (map[string][]uint64, error) {
 }
 
 func getQueueMetricsNetstat(ipVersion string) (map[string][]uint64, error) {
-	output, err := runCommand([]string{"sh", "-c", "netstat", "-n -u -t -a"})
+	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
 	}
@@ -459,11 +458,11 @@ func parseQueueMetrics(output string) (map[string][]uint64, error) {
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) > 2 {
-			val, ok := tcpStateMetricsSuffixMapping_ss[fields[0]]
+			val, ok := tcpStateMetricsSuffixMapping_ss[fields[1]]
 			if ok {
 				state := val
-				recvQ := parseQueue(fields[1])
-				sendQ := parseQueue(fields[2])
+				recvQ := parseQueue(fields[2])
+				sendQ := parseQueue(fields[3])
 				queueMetrics[state] = append(queueMetrics[state], recvQ, sendQ)
 			}
 		}
