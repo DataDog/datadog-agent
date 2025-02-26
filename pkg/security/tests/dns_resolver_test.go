@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"net"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 )
@@ -48,11 +49,14 @@ func TestDNSResolver(t *testing.T) {
 
 			for _, ipAddress := range ipAddresses {
 				for ; attempts != 0; attempts-- {
-					nip, _ := netip.AddrFromSlice(ipAddress)
+					nip, ok := netip.AddrFromSlice(ipAddress)
+					if !ok {
+						t.Fatal("Couldn't get an IP address. Network issues?")
+					}
 					list := p.Resolvers.DNSResolver.HostListFromIP(nip)
 
 					if len(list) != 0 {
-						assert.Equal(t, hostname, list[0])
+						assert.True(t, slices.Contains(list, hostname))
 						break
 					}
 

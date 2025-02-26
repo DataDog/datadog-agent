@@ -1371,11 +1371,6 @@
           "property_doc_link": "bind-addr-family-doc"
         },
         {
-          "name": "bind.addr.hostname",
-          "definition": "Address hostname (if available)",
-          "property_doc_link": "bind-addr-hostname-doc"
-        },
-        {
           "name": "bind.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -9758,18 +9753,6 @@
       "link": "bind-addr-family-doc",
       "type": "int",
       "definition": "Address family",
-      "prefixes": [
-        "bind"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "bind.addr.hostname",
-      "link": "bind-addr-hostname-doc",
-      "type": "string",
-      "definition": "Address hostname (if available)",
       "prefixes": [
         "bind"
       ],

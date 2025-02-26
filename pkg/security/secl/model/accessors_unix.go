@@ -158,16 +158,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "bind.addr.hostname":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.Bind.Hostname
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "bind.addr.ip":
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
@@ -20849,7 +20839,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"accept.addr.port",
 		"accept.retval",
 		"bind.addr.family",
-		"bind.addr.hostname",
 		"bind.addr.ip",
 		"bind.addr.is_public",
 		"bind.addr.port",
@@ -22319,8 +22308,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "accept", reflect.Int, nil
 	case "bind.addr.family":
 		return "bind", reflect.Int, nil
-	case "bind.addr.hostname":
-		return "bind", reflect.String, nil
 	case "bind.addr.ip":
 		return "bind", reflect.Struct, nil
 	case "bind.addr.is_public":
@@ -25268,13 +25255,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "bind.addr.family"}
 		}
 		ev.Bind.AddrFamily = uint16(rv)
-		return nil
-	case "bind.addr.hostname":
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "bind.addr.hostname"}
-		}
-		ev.Bind.Hostname = rv
 		return nil
 	case "bind.addr.ip":
 		rv, ok := value.(net.IPNet)

@@ -16,6 +16,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"net/netip"
+	"slices"
 )
 
 // CacheStats defines metrics for the LRU
@@ -28,8 +29,8 @@ type CacheStats struct {
 
 // Resolver defines a DNS resolver
 type Resolver struct {
-	cache         *lru.Cache[netip.Addr, map[string]bool]
-	cnameCache    *lru.Cache[string, map[string]bool]
+	cache         *lru.Cache[netip.Addr, []string]
+	cnameCache    *lru.Cache[string, []string]
 	statsdClient  statsd.ClientInterface
 	resolverStats *CacheStats
 	cnameStats    *CacheStats
@@ -43,22 +44,22 @@ func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*R
 		cnameStats:    &CacheStats{},
 	}
 
-	cbResolver := func(netip.Addr, map[string]bool) {
+	cbResolver := func(netip.Addr, []string) {
 		ret.resolverStats.cacheEvictions.Inc()
 	}
 
-	cbCname := func(string, map[string]bool) {
+	cbCname := func(string, []string) {
 		ret.cnameStats.cacheEvictions.Inc()
 	}
 
 	var err error
 
-	ret.cache, err = lru.NewWithEvict[netip.Addr, map[string]bool](cfg.DNSResolverCacheSize, cbResolver)
+	ret.cache, err = lru.NewWithEvict[netip.Addr, []string](cfg.DNSResolverCacheSize, cbResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize DNS cache: %w", err)
 	}
 
-	ret.cnameCache, err = lru.NewWithEvict[string, map[string]bool](cfg.DNSResolverCacheSize, cbCname)
+	ret.cnameCache, err = lru.NewWithEvict[string, []string](cfg.DNSResolverCacheSize, cbCname)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize DNS cname cache: %w", err)
 	}
@@ -67,7 +68,7 @@ func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*R
 }
 
 // fillWithCnames Recursively fills the set with all the cname aliases for the hostname
-func (r *Resolver) fillWithCnames(hostname string, set *map[string]bool, depth int) {
+func (r *Resolver) fillWithCnames(hostname string, hostnames *[]string, depth int) {
 	if depth == 0 {
 		return
 	}
@@ -75,9 +76,11 @@ func (r *Resolver) fillWithCnames(hostname string, set *map[string]bool, depth i
 	c, ok := r.cnameCache.Get(hostname)
 	if ok {
 		r.cnameStats.cacheHits.Inc()
-		for hostname := range c {
-			(*set)[hostname] = true
-			r.fillWithCnames(hostname, set, depth-1)
+		for _, hostname := range c {
+			if !slices.Contains(*hostnames, hostname) {
+				*hostnames = append(*hostnames, hostname)
+			}
+			r.fillWithCnames(hostname, hostnames, depth-1)
 		}
 	} else {
 		r.cnameStats.cacheMisses.Inc()
@@ -86,21 +89,17 @@ func (r *Resolver) fillWithCnames(hostname string, set *map[string]bool, depth i
 
 // HostListFromIP gets a hostname from an IP address if cached
 func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
-	hostname, ok := r.cache.Get(addr)
+	hostnames, ok := r.cache.Get(addr)
 	if ok {
 		r.resolverStats.cacheHits.Inc()
-		// Create a set wil all the hostnames to be returned
-		allHosts := make(map[string]bool)
-		for k := range hostname {
-			allHosts[k] = true
-			r.fillWithCnames(k, &allHosts, 2)
+
+		var allHosts []string
+		for _, hostname := range hostnames {
+			allHosts = append(allHosts, hostname)
+			r.fillWithCnames(hostname, &allHosts, 2)
 		}
 
-		ret := make([]string, 0)
-		for hostname := range allHosts {
-			ret = append(ret, hostname)
-		}
-		return ret
+		return allHosts
 	}
 
 	r.resolverStats.cacheMisses.Inc()
@@ -113,10 +112,11 @@ func (r *Resolver) AddNew(hostname string, ip netip.Addr) {
 
 	if !ok {
 		r.resolverStats.cacheInsertions.Inc()
-		hostnames = map[string]bool{}
+		hostnames = []string{hostname}
+	} else if !slices.Contains(hostnames, hostname) {
+		hostnames = append(hostnames, hostname)
 	}
 
-	hostnames[hostname] = true
 	r.cache.Add(ip, hostnames)
 }
 
@@ -126,10 +126,11 @@ func (r *Resolver) AddNewCname(cname string, hostname string) {
 
 	if !ok {
 		r.cnameStats.cacheInsertions.Inc()
-		hostnames = map[string]bool{}
+		hostnames = []string{hostname}
+	} else if !slices.Contains(hostnames, hostname) {
+		hostnames = append(hostnames, hostname)
 	}
 
-	hostnames[hostname] = true
 	r.cnameCache.Add(cname, hostnames)
 }
 

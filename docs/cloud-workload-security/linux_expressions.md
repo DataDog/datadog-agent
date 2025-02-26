@@ -404,7 +404,6 @@ A bind was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`bind.addr.family`](#bind-addr-family-doc) | Address family |
-| [`bind.addr.hostname`](#bind-addr-hostname-doc) | Address hostname (if available) |
 | [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`bind.addr.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
@@ -2588,13 +2587,6 @@ Definition: Address hostname (if available)
 Type: int
 
 Definition: Address family
-
-
-
-### `bind.addr.hostname` {#bind-addr-hostname-doc}
-Type: string
-
-Definition: Address hostname (if available)
 
 
 
