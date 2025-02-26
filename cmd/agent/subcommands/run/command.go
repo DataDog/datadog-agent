@@ -447,7 +447,7 @@ func getSharedFxOption() fx.Option {
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
-		fx.Provide(func(config config.Component, demux aggregator.DemultiplexerWithAggregator) (ddgostatsd.ClientInterface, error) {
+		fx.Provide(func(config config.Component, demux demultiplexer.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux)
 		}),
 		process.Bundle(),
