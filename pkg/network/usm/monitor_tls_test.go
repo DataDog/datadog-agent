@@ -892,9 +892,9 @@ func reinitializeEventConsumer(t *testing.T) {
 }
 
 const (
-	// useExistingConsumer is used to indicate that we should use the existing consumer instance
+	// reInitEventConsumer is used to indicate that we should create a new consumer instance
 	reInitEventConsumer = true
-	// useExistingConsumer is used to indicate that we should create a new consumer instance
+	// useExistingConsumer is used to indicate that we should use the existing consumer instance
 	useExistingConsumer = false
 )
 

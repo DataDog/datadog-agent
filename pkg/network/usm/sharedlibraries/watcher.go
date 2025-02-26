@@ -71,6 +71,8 @@ type Watcher struct {
 	// telemetry
 	libHits    *telemetry.Counter
 	libMatches *telemetry.Counter
+
+	mapsCleaner func(map[uint32]struct{})
 }
 
 // Validate that Watcher implements the Attacher interface.
@@ -208,10 +210,11 @@ func (w *Watcher) handleLibraryOpen(lib LibPath) {
 }
 
 // Start consuming shared-library events
-func (w *Watcher) Start() {
+func (w *Watcher) Start(mapsCleaner func(map[uint32]struct{})) {
 	if w == nil {
 		return
 	}
+	w.mapsCleaner = mapsCleaner
 
 	var err error
 	w.thisPID, err = kernel.RootNSPID()
@@ -346,5 +349,9 @@ func (w *Watcher) sync() {
 
 	for pid := range deletionCandidates {
 		_ = w.registry.Unregister(pid)
+	}
+
+	if w.mapsCleaner != nil {
+		w.mapsCleaner(alivePIDs)
 	}
 }
