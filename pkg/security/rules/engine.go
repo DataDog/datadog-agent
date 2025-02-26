@@ -410,8 +410,34 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					Value: scopedValue,
 				}
 			})
-		} else if strings.HasPrefix(name, "container.") {
-			continue // skip container variables for now
+		} else if strings.HasPrefix(name, "container.") && runtime.GOOS == "linux" {
+			scopedVariable := value.(eval.ScopedVariable)
+
+			cgr := e.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.CGroupResolver
+			containerWorkloads := cgr.GetContainerWorkloads()
+			if containerWorkloads == nil {
+				continue
+			}
+
+			for _, cgce := range containerWorkloads.Values() {
+				cgce.RLock()
+				defer cgce.RUnlock()
+				event := e.probe.PlatformProbe.NewEvent()
+				event.ContainerContext = &cgce.ContainerContext
+				ctx := eval.NewContext(event)
+				scopedName := fmt.Sprintf("%s.%d", name, cgce.ContainerContext.ContainerID)
+				value, found := scopedVariable.GetValue(ctx)
+				if !found {
+					continue
+				}
+
+				scopedValue := fmt.Sprintf("%v", value)
+				seclVariables[scopedName] = &api.SECLVariableState{
+					Name:  scopedName,
+					Value: scopedValue,
+				}
+			}
+
 		} else { // global variables
 			value, found := value.(eval.Variable).GetValue()
 			if !found {
