@@ -7,6 +7,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -28,7 +29,7 @@ var (
 // PreRemoveHook are called before a package is removed.  It returns a boolean
 // indicating if the package files can be deleted safely and an error if an error happened
 // when running the hook.
-type PreRemoveHook func(string) (bool, error)
+type PreRemoveHook func(context.Context, string) (bool, error)
 
 // Repository contains the stable and experimental package of a single artifact managed by the updater.
 //
@@ -104,7 +105,7 @@ func (r *Repository) GetState() (State, error) {
 // 2. Create the root directory.
 // 3. Move the stable source to the repository.
 // 4. Create the stable link.
-func (r *Repository) Create(name string, stableSourcePath string) error {
+func (r *Repository) Create(ctx context.Context, name string, stableSourcePath string) error {
 	err := os.MkdirAll(r.rootPath, 0755)
 	if err != nil {
 		return fmt.Errorf("could not create packages root directory: %w", err)
@@ -129,7 +130,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		}
 	}
 
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -150,7 +151,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 // 1. Remove the stable and experiment links.
 // 2. Cleanup the repository to remove all package versions after running the pre-remove hooks.
 // 3. Remove the root directory.
-func (r *Repository) Delete() error {
+func (r *Repository) Delete(ctx context.Context) error {
 	// Remove symlinks first so that cleanup will attempt to remove all package versions
 	repositoryFiles, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
@@ -170,7 +171,7 @@ func (r *Repository) Delete() error {
 	}
 
 	// Delete all package versions
-	err = r.Cleanup()
+	err = r.Cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository for package %w", err)
 	}
@@ -197,12 +198,12 @@ func (r *Repository) Delete() error {
 // 1. Cleanup the repository.
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
-func (r *Repository) SetExperiment(name string, sourcePath string) error {
+func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath string) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -224,12 +225,12 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 1. Cleanup the repository.
 // 2. Set the stable link to the experiment package. The experiment link stays in place.
 // 3. Cleanup the repository to remove the previous stable package.
-func (r *Repository) PromoteExperiment() error {
+func (r *Repository) PromoteExperiment(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -246,7 +247,7 @@ func (r *Repository) PromoteExperiment() error {
 	if err != nil {
 		return fmt.Errorf("could not set stable: %w", err)
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -258,12 +259,12 @@ func (r *Repository) PromoteExperiment() error {
 // 1. Cleanup the repository.
 // 2. Sets the experiment link to the stable link.
 // 3. Cleanup the repository to remove the previous experiment package.
-func (r *Repository) DeleteExperiment() error {
+func (r *Repository) DeleteExperiment(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -277,7 +278,7 @@ func (r *Repository) DeleteExperiment() error {
 	if err != nil {
 		return fmt.Errorf("could not set experiment to stable: %w", err)
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -285,12 +286,12 @@ func (r *Repository) DeleteExperiment() error {
 }
 
 // Cleanup calls the cleanup function of the repository
-func (r *Repository) Cleanup() error {
+func (r *Repository) Cleanup(ctx context.Context) error {
 	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	return repository.cleanup()
+	return repository.cleanup(ctx)
 }
 
 type repositoryFiles struct {
@@ -366,7 +367,7 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 	return targetPath, nil
 }
 
-func (r *repositoryFiles) cleanup() error {
+func (r *repositoryFiles) cleanup(ctx context.Context) error {
 	// migrate old repositories that are missing the experiment link
 	if r.stable.Exists() && !r.experiment.Exists() {
 		err := r.setExperimentToStable()
@@ -396,7 +397,7 @@ func (r *repositoryFiles) cleanup() error {
 		pkgName := filepath.Base(r.rootPath)
 
 		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
-			canDelete, err := pkgHook(pkgRepositoryPath)
+			canDelete, err := pkgHook(ctx, pkgRepositoryPath)
 			if err != nil {
 				log.Errorf("Pre-remove hook for package %s returned an error: %v", pkgRepositoryPath, err)
 			}

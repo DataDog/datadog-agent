@@ -217,7 +217,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
-	err = i.packages.Create(pkg.Name, pkg.Version, tmpDir)
+	err = i.packages.Create(ctx, pkg.Name, pkg.Version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
@@ -282,7 +282,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 	repository := i.packages.Get(pkg.Name)
-	err = repository.SetExperiment(pkg.Version, tmpDir)
+	err = repository.SetExperiment(ctx, pkg.Version, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -302,7 +302,7 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
 		// Special case for the Linux installer since `stopExperiment`
 		// will kill the current process, delete the experiment first.
-		err := repository.DeleteExperiment()
+		err := repository.DeleteExperiment(ctx)
 		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrFilesystemIssue,
@@ -318,7 +318,7 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
-		err = repository.DeleteExperiment()
+		err = repository.DeleteExperiment(ctx)
 		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrFilesystemIssue,
@@ -335,7 +335,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	defer i.m.Unlock()
 
 	repository := i.packages.Get(pkg)
-	err := repository.PromoteExperiment()
+	err := repository.PromoteExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -379,7 +379,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 
 	configRepo := i.configs.Get(pkg)
-	err = configRepo.SetExperiment(version, tmpDir)
+	err = configRepo.SetExperiment(ctx, version, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -405,7 +405,7 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
 	repository := i.configs.Get(pkg)
-	err = repository.DeleteExperiment()
+	err = repository.DeleteExperiment(ctx)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -421,7 +421,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	defer i.m.Unlock()
 
 	repository := i.configs.Get(pkg)
-	err := repository.PromoteExperiment()
+	err := repository.PromoteExperiment(ctx)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -513,14 +513,14 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 }
 
 // GarbageCollect removes unused packages.
-func (i *installerImpl) GarbageCollect(_ context.Context) error {
+func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := i.packages.Cleanup()
+	err := i.packages.Cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup packages: %w", err)
 	}
-	err = i.configs.Cleanup()
+	err = i.configs.Cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup configs: %w", err)
 	}
@@ -681,7 +681,7 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	err = i.configs.Create(pkg, "empty", tmpDir)
+	err = i.configs.Create(ctx, pkg, "empty", tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create %s repository: %w", pkg, err)
 	}
