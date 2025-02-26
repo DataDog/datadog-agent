@@ -9,5 +9,5 @@
 fixes:
   - |
     Fixed issue in KSM check causing resources with irregular plural name
-    (e.g. `ingresses` and `storageclasses`) to miss tags configured in 
+    (such as `ingresses` and `storageclasses`) to miss tags configured in 
     `kubernetesResourcesLabelsAsTags` and `kubernetesResourcesAnnotationsAsTags`.
