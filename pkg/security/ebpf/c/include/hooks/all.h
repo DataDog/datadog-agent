@@ -30,6 +30,7 @@
 #include "setxattr.h"
 #include "signal.h"
 #include "splice.h"
+#include "sysctl.h"
 #include "umount.h"
 #include "unlink.h"
 #include "utimes.h"
