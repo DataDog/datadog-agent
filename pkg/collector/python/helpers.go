@@ -291,6 +291,8 @@ func SetPythonPsutilProcPath(procPath string) error {
 	return getRtLoaderError()
 }
 
+// GetExtraPackagesVersion returns the versions of the extra packages installed in the python environment
+// compared to the embedded versions
 func GetExtraPackagesVersion(pythonBinPath string, pythonMajorVersion string) map[string]string {
 	args := []string{
 		"-m",
