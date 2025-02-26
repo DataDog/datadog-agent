@@ -18,7 +18,7 @@ import (
 
 func main() {
 	tracerEnabled := os.Getenv("DD_SERVICE") != "" &&
-		os.Getenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED") != "" &&
+		os.Getenv("DD_DYNAMIC_INSTRUMENTATION_GO_ENABLED") != "" &&
 		os.Getenv("DD_DYNAMIC_INSTRUMENTATION_OFFLINE") == ""
 
 	log.Info("Starting sample process with tracerEnabled=", tracerEnabled)
