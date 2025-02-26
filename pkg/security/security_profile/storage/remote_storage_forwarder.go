@@ -5,8 +5,8 @@
 
 //go:build linux
 
-// Package securityprofile holds security profiles related files
-package securityprofile
+// Package storage holds files related to storages for security profiles
+package storage
 
 import (
 	"bytes"
@@ -18,6 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
+
+// ActivityDumpHandler represents an handler for the activity dumps sent by the probe
+type ActivityDumpHandler interface {
+	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
+}
 
 // ActivityDumpRemoteStorageForwarder is a remote storage that forwards dumps to the security-agent
 type ActivityDumpRemoteStorageForwarder struct {

@@ -69,6 +69,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
@@ -136,7 +137,7 @@ type EBPFProbe struct {
 	eventStream EventStream
 
 	// ActivityDumps section
-	activityDumpHandler securityprofile.ActivityDumpHandler
+	activityDumpHandler storage.ActivityDumpHandler
 
 	// Approvers / discarders section
 	Erpc                     *erpc.ERPC
@@ -671,7 +672,7 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
-func (p *EBPFProbe) AddActivityDumpHandler(handler securityprofile.ActivityDumpHandler) {
+func (p *EBPFProbe) AddActivityDumpHandler(handler storage.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
 }
 

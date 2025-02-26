@@ -27,8 +27,8 @@ import (
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
@@ -47,7 +47,7 @@ type RuntimeSecurityAgent struct {
 	cancel                  context.CancelFunc
 
 	// activity dump
-	storage securityprofile.ActivityDumpStorage
+	storage storage.ActivityDumpStorage
 }
 
 // RSAOptions represents the runtime security agent options
