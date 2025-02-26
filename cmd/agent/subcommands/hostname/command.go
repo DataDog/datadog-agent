@@ -70,11 +70,8 @@ func printHostname(_ log.Component, config config.Component, params *cliParams) 
 }
 
 func getHostname(config config.Component, params *cliParams) (string, error) {
-	var hname string
-	var err error
-
 	if !params.forceLocal {
-		hname, err = getRemoteHostname(config)
+		hname, err := getRemoteHostname(config)
 		if err == nil {
 			return hname, nil
 		}
