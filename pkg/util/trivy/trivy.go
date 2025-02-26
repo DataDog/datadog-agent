@@ -37,7 +37,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
 	// This is required to load sqlite based RPM databases
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 const (
