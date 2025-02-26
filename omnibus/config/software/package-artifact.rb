@@ -9,10 +9,13 @@ build do
   # Iterate over all provided intermediate artifacts. There can be the main one
   # which contains all binaries, and an optional debug one with the debuging symbols
   # that have been stripped out during the build
-  Dir.glob("*.tar.xz", base: input_dir).each do |input|
-    path = File.join(input_dir, input)
-    shellout! "tar xf #{path} -C /"
-    FileUtils.rm path
+  # We want this in a `block` to have access to the Builder DSL
+  block "Extract intermediate build artifacts" do
+    Dir.glob("*.tar.xz", base: input_dir).each do |input|
+      path = File.join(input_dir, input)
+      shellout! "tar xf #{path} -C /"
+      FileUtils.rm path
+    end
   end
 
   # Merge version manifests together
