@@ -574,6 +574,19 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
+	assert.Equal(t, float32(1.13), cfg.ProbabilisticSamplerSamplingPercentage)
+	assert.Equal(t, []traceconfig.ProbabilisticSamplerRule{
+		{
+			Service:       `^example-service.*`,
+			OperationName: `^example-operation-name.*`,
+			Percentage:    30,
+			Attributes:    map[string]string{"key1": `^value1-.*`, "key2": `^value2-.*`},
+		},
+		{
+			ResourceName: `^GET /api/v1/.*`,
+			Percentage:   12.34,
+		},
+	}, cfg.ProbabilisticSamplerTraceSamplingRules)
 
 	noProxy := true
 	if _, ok := os.LookupEnv("NO_PROXY"); ok {
@@ -961,6 +974,30 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, 12.3, cfg.OTLPReceiver.ProbabilisticSampling)
+	})
+
+	env = "DD_APM_PROBABILISTIC_SAMPLER_TRACE_SAMPLING_RULES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `[{"service":"^example-service.*","operation_name":"^example-operation-name.*","percentage":30,"attributes":{"key1":"^value1-.*","key2":"^value2-.*"}},{"resource_name":"^GET \/api\/v1\/.*","percentage":12.34}]`)
+
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, []traceconfig.ProbabilisticSamplerRule{
+			{
+				Service:       `^example-service.*`,
+				OperationName: `^example-operation-name.*`,
+				Percentage:    30,
+				Attributes:    map[string]string{"key1": `^value1-.*`, "key2": `^value2-.*`},
+			},
+			{
+				ResourceName: `^GET /api/v1/.*`,
+				Percentage:   12.34,
+			},
+		}, cfg.ProbabilisticSamplerTraceSamplingRules)
 	})
 
 	env = "DD_APM_ERROR_TRACKING_STANDALONE_ENABLED"
