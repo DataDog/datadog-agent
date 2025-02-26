@@ -11,12 +11,13 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/stretchr/testify/assert"
 )
 
 /*
@@ -138,8 +139,8 @@ func testLoadCustomCheck(t *testing.T) {
 		InitConfig: integration.Data("{}"),
 	}
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
+
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
@@ -176,8 +177,7 @@ func testLoadWheelCheck(t *testing.T) {
 		InitConfig: integration.Data("{}"),
 	}
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()

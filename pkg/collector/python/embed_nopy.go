@@ -5,7 +5,7 @@
 
 //go:build !python
 
-package collector
+package python
 
 // InitPython is a no-op when the build tag is not set
 func InitPython(_ ...string) {}
