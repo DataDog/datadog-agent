@@ -37,9 +37,10 @@ import (
 
 const (
 	// selftest
-	selftestMaxRetry   = 25 // more than 5 minutes so that we can get host tags
-	selftestStartAfter = 30 * time.Second
-	selftestDelay      = 15 * time.Second
+	selftestMaxRetry    = 25 // more than 5 minutes so that we can get host tags
+	selftestStartAfter  = 30 * time.Second
+	selftestDelay       = 15 * time.Second
+	selftestPassedDelay = 5 * time.Minute
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -50,19 +51,20 @@ type CWSConsumer struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
-	wg            sync.WaitGroup
-	ctx           context.Context
-	cancelFnc     context.CancelFunc
-	apiServer     *APIServer
-	rateLimiter   *events.RateLimiter
-	sendStatsChan chan chan bool
-	eventSender   events.EventSender
-	grpcServer    *GRPCServer
-	ruleEngine    *rulesmodule.RuleEngine
-	selfTester    *selftests.SelfTester
-	selfTestCount int
-	reloader      ReloaderInterface
-	crtelemetry   *telemetry.ContainersRunningTelemetry
+	wg             sync.WaitGroup
+	ctx            context.Context
+	cancelFnc      context.CancelFunc
+	apiServer      *APIServer
+	rateLimiter    *events.RateLimiter
+	sendStatsChan  chan chan bool
+	eventSender    events.EventSender
+	grpcServer     *GRPCServer
+	ruleEngine     *rulesmodule.RuleEngine
+	selfTester     *selftests.SelfTester
+	selfTestCount  int
+	selfTestPassed bool
+	reloader       ReloaderInterface
+	crtelemetry    *telemetry.ContainersRunningTelemetry
 }
 
 // NewCWSConsumer initializes the module with options
@@ -196,20 +198,26 @@ func (c *CWSConsumer) Start() error {
 	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
 		c.selfTestCount++
 
-		seclog.Debugf("self-test results : success : %v, failed : %v, try %d/%d", success, fails, c.selfTestCount, selftestMaxRetry)
+		seclog.Debugf("self-test results : success : %v, failed : %v, run %d", success, fails, c.selfTestCount)
 
-		if len(fails) > 0 && c.selfTestCount < selftestMaxRetry {
-			time.Sleep(selftestDelay)
-
-			if _, err := c.RunSelfTest(false); err != nil {
-				seclog.Errorf("self-test error: %s", err)
-			}
-			return
+		delay := selftestDelay
+		if c.selfTestPassed {
+			delay = selftestPassedDelay
 		}
 
-		if c.config.SelfTestSendReport && (len(fails) == 0 || c.selfTestCount == selftestMaxRetry) {
+		if !c.selfTestPassed && c.selfTestCount == selftestMaxRetry {
+			c.reportSelfTest(success, fails, testEvents)
+		} else if len(fails) == 0 {
+			c.selfTestPassed = true
+
 			c.reportSelfTest(success, fails, testEvents)
 		}
+
+		if _, err := c.RunSelfTest(false); err != nil {
+			seclog.Errorf("self-test error: %s", err)
+		}
+
+		time.Sleep(delay)
 	}
 	if c.selfTester != nil {
 		go c.selfTester.WaitForResult(cb)
