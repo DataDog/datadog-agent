@@ -41,7 +41,7 @@ The payload is a JSON dict with the following fields
     - `service` - **string**: the service name of the log source.
     - `source` - **string**: the log source name.
     - `tags` - **list of string**: a list of tags attached to the log source.
-- `python_packages` - **dict of string to string**: dictionary with package names as keys; value is the version of the package.
+- `extra_python_packages` - **dict of string to string**: dictionary with package names as keys; value is the version of the package.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 

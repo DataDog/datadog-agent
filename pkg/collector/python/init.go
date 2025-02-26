@@ -8,13 +8,10 @@
 package python
 
 import (
-	"bufio"
-	"bytes"
 	"errors"
 	"expvar"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -293,50 +290,6 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 	return absPath, nil
 }
 
-func getPythonPackagesVersion(pythonBinPath string) map[string]string {
-	args := []string{
-		"-m",
-		"pip",
-		"freeze",
-	}
-	pipCmd := exec.Command(pythonBinPath, args...)
-
-	// Execute pip freeze to get the list of installed packages
-	// Get the output of pip freeze
-	output, err := pipCmd.Output()
-	if err != nil {
-		return map[string]string{}
-	}
-
-	packageVersions := make(map[string]string)
-	reader := bufio.NewReader(bytes.NewReader(output))
-	// Read line by line
-	for {
-		line, _, err := reader.ReadLine()
-		if err != nil {
-			// Can be io.EOF
-			break
-		}
-		// Can be `package==version`
-		// Or `package @ url`
-		// Or `-e package`
-		pkgVersion := strings.SplitN(string(line), "==", 2)
-		pkgURL := strings.SplitN(string(line), "@", 2)
-		if len(pkgVersion) == 2 {
-			packageVersions[pkgVersion[0]] = pkgVersion[1]
-		} else if len(pkgURL) == 2 {
-			packageVersions[pkgURL[0]] = pkgURL[1]
-		} else if strings.HasPrefix(string(line), "-e ") {
-			// This is a local package, we don't care about the version
-			packageVersions[strings.TrimPrefix(string(line), "-e ")] = "local"
-		} else {
-			log.Infof("Unable to parse python package version, it won't appear in the metadata payload: %s", line)
-		}
-	}
-
-	return packageVersions
-}
-
 func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// Allow to relatively import python
 	_here, err := executable.Folder()
@@ -467,14 +420,6 @@ func Initialize(paths ...string) error {
 		if interval > 0 {
 			initPymemTelemetry(interval)
 		}
-	}
-
-	// If we want to report the packages version
-	if pkgconfigsetup.Datadog().GetBool("inventories_python_packages") {
-		// Get the python packages version
-		// New packages can be installed, but they're not taken into account until the agent is restarted,
-		// so it's safe to cache the versions here.
-		cache.Cache.Set(pythonPackagesCacheKey, getPythonPackagesVersion(pythonBinPath), cache.NoExpiration)
 	}
 
 	// Set the PYTHONPATH if needed.

@@ -8,8 +8,12 @@
 package python
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"os/exec"
 	"runtime"
+	"strings"
 	"unsafe"
 
 	"go.uber.org/atomic"
@@ -282,4 +286,48 @@ func SetPythonPsutilProcPath(procPath string) error {
 
 	C.set_module_attr_string(rtloader, module, attrName, attrValue)
 	return getRtLoaderError()
+}
+
+func GetExtraPackagesVersion(pythonBinPath string) map[string]string {
+	args := []string{
+		"-m",
+		"pip",
+		"freeze",
+	}
+	pipCmd := exec.Command(pythonBinPath, args...)
+
+	// Execute pip freeze to get the list of installed packages
+	// Get the output of pip freeze
+	output, err := pipCmd.Output()
+	if err != nil {
+		return map[string]string{}
+	}
+
+	packageVersions := make(map[string]string)
+	reader := bufio.NewReader(bytes.NewReader(output))
+	// Read line by line
+	for {
+		line, _, err := reader.ReadLine()
+		if err != nil {
+			// Can be io.EOF
+			break
+		}
+		// Can be `package==version`
+		// Or `package @ url`
+		// Or `-e package`
+		pkgVersion := strings.SplitN(string(line), "==", 2)
+		pkgURL := strings.SplitN(string(line), "@", 2)
+		if len(pkgVersion) == 2 {
+			packageVersions[pkgVersion[0]] = pkgVersion[1]
+		} else if len(pkgURL) == 2 {
+			packageVersions[pkgURL[0]] = pkgURL[1]
+		} else if strings.HasPrefix(string(line), "-e ") {
+			// This is a local package, we don't care about the version
+			packageVersions[strings.TrimPrefix(string(line), "-e ")] = "local"
+		} else {
+			log.Infof("Unable to parse python package version, it won't appear in the metadata payload: %s", line)
+		}
+	}
+
+	return packageVersions
 }

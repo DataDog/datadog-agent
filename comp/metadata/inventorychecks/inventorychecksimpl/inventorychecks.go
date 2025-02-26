@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -52,12 +51,12 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname       string                `json:"hostname"`
-	Timestamp      int64                 `json:"timestamp"`
-	Metadata       map[string][]metadata `json:"check_metadata"`
-	LogsMetadata   map[string][]metadata `json:"logs_metadata"`
-	PythonPackages map[string]string     `json:"python_packages"`
-	UUID           string                `json:"uuid"`
+	Hostname            string                `json:"hostname"`
+	Timestamp           int64                 `json:"timestamp"`
+	Metadata            map[string][]metadata `json:"check_metadata"`
+	LogsMetadata        map[string][]metadata `json:"logs_metadata"`
+	ExtraPythonPackages map[string]string     `json:"extra_python_packages"`
+	UUID                string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -184,8 +183,8 @@ func (ic *inventorychecksImpl) Set(instanceID string, key string, value interfac
 }
 
 // SetPackages sets a version for the python packages
-func (ic *inventorychecksImpl) SetPackages(pythonPackages map[string]string) {
-	if !ic.Enabled || pythonPackages == nil {
+func (ic *inventorychecksImpl) SetPackages(extraPythonPackages map[string]string) {
+	if !ic.Enabled || extraPythonPackages == nil {
 		return
 	}
 
@@ -195,8 +194,7 @@ func (ic *inventorychecksImpl) SetPackages(pythonPackages map[string]string) {
 	pythonPackagesVersion := make(map[string]string)
 	invPythonPackagesEnabled := ic.conf.GetBool("inventories_python_packages_enabled")
 	if invPythonPackagesEnabled {
-		pythonPackages := python.GetPackagesVersion()
-		for name, version := range pythonPackages {
+		for name, version := range extraPythonPackages {
 			pythonPackagesVersion[name] = version
 		}
 	}
@@ -301,12 +299,12 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 	}
 
 	return &Payload{
-		Hostname:       ic.hostname,
-		Timestamp:      time.Now().UnixNano(),
-		Metadata:       payloadData,
-		LogsMetadata:   logsMetadata,
-		PythonPackages: pythonPackagesVersion,
-		UUID:           uuid.GetUUID(),
+		Hostname:            ic.hostname,
+		Timestamp:           time.Now().UnixNano(),
+		Metadata:            payloadData,
+		LogsMetadata:        logsMetadata,
+		ExtraPythonPackages: pythonPackagesVersion,
+		UUID:                uuid.GetUUID(),
 	}
 }
 

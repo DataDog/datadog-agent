@@ -8,6 +8,7 @@
 package collector
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,6 +28,18 @@ func InitPython(paths ...string) {
 	// Prepare python environment if necessary
 	if err := pyPrepareEnv(); err != nil {
 		log.Errorf("Unable to perform additional configuration of the python environment: %v", err)
+	}
+
+	// If we want to report the packages version
+	if pkgconfigsetup.Datadog().GetBool("inventories_python_packages") {
+		inventoryCheck, err := check.GetInventoryChecksContext()
+		if err != nil {
+			log.Errorf("Unable to get the inventory checks context: %v", err)
+			return
+		}
+		// Get the python packages version
+		// New packages can be installed, but they're not taken into account until the agent is restarted.
+		inventoryCheck.SetPackages(python.GetExtraPackagesVersion(python.PythonPath))
 	}
 }
 
