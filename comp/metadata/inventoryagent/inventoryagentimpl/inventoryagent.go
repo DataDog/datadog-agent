@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
@@ -332,15 +331,6 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
 }
 
-func (ia *inventoryagent) fetchPythonMetadata() {
-	pythonData := make(map[string]interface{})
-	pythonData["python_version"] = python.GetPythonVersion()
-	pythonPackages := python.GetPackagesVersion()
-	pythonData["python_packages"] = pythonPackages
-
-	ia.data["python"] = pythonData
-}
-
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
 // Times out after 5 seconds to avoid blocking the agent startup.
 func (ia *inventoryagent) fetchECSFargateAgentMetadata() {
@@ -384,8 +374,6 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchSystemProbeMetadata()
 	// Fleet
 	ia.fetchFleetMetadata()
-	// Python environment
-	ia.fetchPythonMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {

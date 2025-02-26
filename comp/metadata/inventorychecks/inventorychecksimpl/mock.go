@@ -21,14 +21,16 @@ type MockProvides struct {
 
 // InventorychecksMock mocks methods for the inventorychecks components for testing
 type InventorychecksMock struct {
-	metadata map[string]map[string]interface{}
+	metadata       map[string]map[string]interface{}
+	pythonPackages map[string]string
 }
 
 // NewMock returns a new InventorychecksMock.
 // TODO: (components) - Once the checks are components we can make this method private
 func NewMock() MockProvides {
 	ic := &InventorychecksMock{
-		metadata: map[string]map[string]interface{}{},
+		metadata:       map[string]map[string]interface{}{},
+		pythonPackages: map[string]string{},
 	}
 	return MockProvides{
 		Comp: ic,
@@ -41,6 +43,10 @@ func (m *InventorychecksMock) Set(instanceID string, key string, value interface
 		m.metadata[instanceID] = map[string]interface{}{}
 	}
 	m.metadata[instanceID][key] = value
+}
+
+func (m *InventorychecksMock) SetPackages(pythonPackages map[string]string) {
+	m.pythonPackages = pythonPackages
 }
 
 // Refresh is a empty method for the inventorychecks mock

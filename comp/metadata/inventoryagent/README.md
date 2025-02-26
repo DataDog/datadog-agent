@@ -62,9 +62,6 @@ The payload is a JSON dict with the following fields
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_oom_kill_enabled` - **bool**: True if the OOM Kill check is enabled for System Probe (see: `system_probe_config.enable_oom_kill` config option in `system-probe.yaml`).
   - `feature_tcp_queue_length_enabled` - **bool**: True if TCP Queue Length check is enabled in System Probe (see: `system_probe_config.enable_tcp_queue_length` config option in `system-probe.yaml`).
-  - `python` - **object**:
-    - `python_version` - **string**: The version of the embedded python.
-    - `python_packages` - **dict of string to string**: All the python packages installed in the embedded python with their versions.
   - `system_probe_telemetry_enabled` - **bool**: True if Telemetry is enabled in the System Probe (see: `system_probe_config.telemetry_enabled` config option in `system-probe.yaml`).
   - `system_probe_core_enabled` - **bool**: True if CO-RE is enabled in the System Probe (see: `system_probe_config.enable_co_re` config option in `system-probe.yaml`).
   - `system_probe_runtime_compilation_enabled` - **bool**: True if Runtime Compilation is enabled in the System Probe (see: `system_probe_config.enable_runtime_compiler` config option in `system-probe.yaml`).
