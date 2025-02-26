@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/gorilla/mux"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
@@ -65,7 +66,7 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta workloadmeta.Component, tagger tagger.Component, telemetry telemetry.Component, compression logscompression.Component) error {
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta workloadmeta.Component, tagger tagger.Component, telemetry telemetry.Component, compression logscompression.Component, statsd ddgostatsd.ClientInterface) error {
 	var enabledModulesFactories []Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
@@ -88,6 +89,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 				Tagger:      tagger,
 				Telemetry:   telemetry,
 				Compression: compression,
+				Statsd:      statsd,
 			}
 			module, err = factory.Fn(cfg, deps)
 		})
