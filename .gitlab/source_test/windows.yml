@@ -7,7 +7,6 @@
     - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
   extends: 
-    - .unit_test_base
     - .windows_docker_default
   script:
     - $ErrorActionPreference = "Stop"
@@ -45,7 +44,7 @@
       -e CODECOV_TOKEN="${CODECOV_TOKEN}"
       -e S3_PERMANENT_ARTIFACTS_URI="${S3_PERMANENT_ARTIFACTS_URI}"
       -e COVERAGE_CACHE_FLAG="${COVERAGE_CACHE_FLAG}"
-      -e FLAKY_PATTERNS_CONFIG="${FLAKY_PATTERNS_CONFIG}"
+      -e FLAKY_PATTERNS_CONFIG="\mnt\flaky-patterns-runtime.yaml"
       ${WINBUILDIMAGE}
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-UnitTests.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1 -UploadCoverage 1 -UploadTestResults 1"
     - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
