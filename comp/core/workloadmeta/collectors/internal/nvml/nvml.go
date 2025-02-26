@@ -81,7 +81,7 @@ func (c *collector) getDeviceInfoMig(migDevice nvml.Device) (*workloadmeta.MigDe
 	}, nil
 }
 
-func (c *collector) getGPUdeviceInfo(device nvml.Device) (*workloadmeta.GPU, error) {
+func (c *collector) getGPUDeviceInfo(device nvml.Device) (*workloadmeta.GPU, error) {
 	uuid, name, err := c.getDeviceInfo(device)
 	if err != nil {
 		return nil, err
@@ -90,6 +90,7 @@ func (c *collector) getGPUdeviceInfo(device nvml.Device) (*workloadmeta.GPU, err
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get GPU index ID: %v", nvml.ErrorString(ret))
 	}
+
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
@@ -176,6 +177,34 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device nvml.
 		}
 	} else {
 		gpuDeviceInfo.SMCount = int(devAttr.MultiprocessorCount)
+		gpuDeviceInfo.TotalMemoryMB = devAttr.MemorySizeMB
+	}
+
+	memBusWidth, ret := device.GetMemoryBusWidth()
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
+		}
+	} else {
+		gpuDeviceInfo.MemoryBusWidth = memBusWidth
+	}
+
+	maxSMClock, ret := device.GetMaxClockInfo(nvml.CLOCK_SM)
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
+		}
+	} else {
+		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUSM] = maxSMClock
+	}
+
+	maxMemoryClock, ret := device.GetMaxClockInfo(nvml.CLOCK_MEM)
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
+		}
+	} else {
+		gpuDeviceInfo.MaxClockRates[workloadmeta.GPUMemory] = maxMemoryClock
 	}
 }
 
@@ -247,6 +276,17 @@ func (c *collector) Pull(_ context.Context) error {
 		return fmt.Errorf("failed to get device count: %v", nvml.ErrorString(ret))
 	}
 
+	// driver version is equal to all devices of the same vendor
+	// currently we handle only nvidia.
+	// in the future this function should be refactored to support more vendors
+	driverVersion, ret := c.nvmlLib.SystemGetDriverVersion()
+	//we try to get the driver version as a best effort, just log warning if it fails
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get nvidia driver version: %v", nvml.ErrorString(ret))
+		}
+	}
+
 	var events []workloadmeta.CollectorEvent
 	for i := 0; i < count; i++ {
 		dev, ret := nvmlLib.DeviceGetHandleByIndex(i)
@@ -254,7 +294,8 @@ func (c *collector) Pull(_ context.Context) error {
 			return fmt.Errorf("failed to get device handle for index %d: %v", i, nvml.ErrorString(ret))
 		}
 
-		gpu, err := c.getGPUdeviceInfo(dev)
+		gpu, err := c.getGPUDeviceInfo(dev)
+		gpu.DriverVersion = driverVersion
 		if err != nil {
 			return err
 		}
