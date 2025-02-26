@@ -101,7 +101,7 @@ var EbpfTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_target_failures", "Counter measuring the number of failed TCP connections in tcp_close", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_done_connection_flush", "Counter measuring the number of connection flushes performed in tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_connection_flush", "Counter measuring the number of connection flushes performed in tcp_close", nil, nil),
-	telemetry.NewCounter(connTracerModuleName, "tcp_failed_connections", []string{}, "Gauge measuring the number of unsupported failed TCP connections"),
+	telemetry.NewCounter(connTracerModuleName, "tcp_failed_connections", []string{"errno"}, "Gauge measuring the number of unsupported failed TCP connections"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
 	telemetry.NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
@@ -553,16 +553,16 @@ func (t *ebpfTracer) getEBPFTelemetry() *netebpf.Telemetry {
 	return tm
 }
 
-func (t *ebpfTracer) getTCPFailureTelemetry() map[int]uint64 {
-	mp, err := maps.GetMap[int, uint64](t.m.Manager, probes.TCPFailureTelemetry)
+func (t *ebpfTracer) getTCPFailureTelemetry() map[int32]uint64 {
+	mp, err := maps.GetMap[int32, uint64](t.m.Manager, probes.TCPFailureTelemetry)
 	if err != nil {
 		log.Warnf("error retrieving tcp failure telemetry map: %s", err)
 		return nil
 	}
 	it := mp.IterateWithBatchSize(100)
-	var key int
+	var key int32
 	var val uint64
-	result := make(map[int]uint64)
+	result := make(map[int32]uint64)
 
 	for it.Next(&key, &val) {
 		if err := it.Err(); err != nil {

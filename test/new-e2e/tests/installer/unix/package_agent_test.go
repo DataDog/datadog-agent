@@ -81,7 +81,12 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 		pkgManager := s.host.GetPkgManager()
 		switch pkgManager {
 		case "apt":
-			systemdPath = "/lib/systemd/system"
+			if s.os.Flavor == e2eos.Ubuntu {
+				// Ubuntu 24.04 moved to a new systemd path
+				systemdPath = "/usr/lib/systemd/system"
+			} else {
+				systemdPath = "/lib/systemd/system"
+			}
 		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
@@ -90,7 +95,6 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	}
 
 	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit} {
-
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
 }
