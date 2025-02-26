@@ -486,7 +486,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		// Generate container ID from External Data
 		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
 		if err != nil {
-			t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
+			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
 
 		// Accumulate tags for generated container ID
