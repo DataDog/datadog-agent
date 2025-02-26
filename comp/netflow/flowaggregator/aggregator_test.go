@@ -150,6 +150,7 @@ func TestAggregator(t *testing.T) {
 	metadataEvent := []byte(`
 {
   "namespace":"my-ns",
+  "integration": "netflow",
   "netflow_exporters":[
     {
       "id": "my-ns:127.0.0.1:netflow9",
@@ -253,6 +254,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	metadataEvent := []byte(`
 {
   "namespace":"default",
+  "integration": "netflow",
   "netflow_exporters":[
     {
       "id": "default:127.0.0.1:netflow5",
@@ -567,6 +569,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 		payload := metadata.NetworkDevicesMetadata{
 			Subnet:           "",
 			Namespace:        "my-ns",
+			Integration:      "netflow",
 			CollectTimestamp: now.Unix(),
 			NetflowExporters: exporters,
 		}
@@ -677,6 +680,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 	metadataEvent := []byte(`
 {
   "namespace":"my-ns",
+  "integration": "netflow",
   "netflow_exporters":[
     {
       "id": "my-ns:127.0.0.10:netflow9",
@@ -762,6 +766,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 	metadataEvent := []byte(`
 {
   "namespace":"my-ns1",
+  "integration": "netflow",
   "netflow_exporters":[
     {
       "id": "my-ns1:127.0.0.11:netflow9",
@@ -781,6 +786,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 	metadataEvent2 := []byte(`
 {
   "namespace":"my-ns2",
+  "integration": "netflow",
   "netflow_exporters":[
     {
       "id": "my-ns2:127.0.0.12:netflow9",
@@ -866,6 +872,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 	metadataEvent := []byte(`
 {
   "namespace":"my-ns1",
+  "integration": "netflow",
   "netflow_exporters":[
     {
       "id": "my-ns1:127.0.0.11:netflow9",

@@ -9,10 +9,11 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -142,6 +143,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -227,6 +229,7 @@ profiles:
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "my-ns:1.2.3.4",
@@ -374,6 +377,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -486,6 +490,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -560,6 +565,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -633,6 +639,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
@@ -707,6 +714,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
+	"integration": "snmp",
     "devices": [
         {
             "id": "1234",
