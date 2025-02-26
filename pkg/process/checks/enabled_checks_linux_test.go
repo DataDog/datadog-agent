@@ -19,7 +19,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		cfg := configmock.New(t)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -27,7 +27,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.event_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -35,7 +35,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.event_collection.enabled", false)
 
-		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 }
@@ -55,11 +55,11 @@ func TestConnectionsCheckLinux(t *testing.T) {
 		scfg.SetWithoutSource("system_probe_config.enabled", true)
 
 		flavor.SetFlavor("agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
 }
@@ -77,11 +77,11 @@ func TestProcessCheckLinux(t *testing.T) {
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
 
 		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 }
@@ -100,11 +100,11 @@ func TestProcessDiscoveryLinux(t *testing.T) {
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 
 		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 }
