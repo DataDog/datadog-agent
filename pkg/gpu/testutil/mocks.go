@@ -50,6 +50,10 @@ var DefaultGpuUUID = GPUUUIDs[0]
 // DefaultGPUName is the name for the default device returned by the mock
 var DefaultGPUName = "Tesla T4"
 
+var DefaultNvidiaDriverVersion = "470.57.02"
+
+var DefaultMemoryBusWidth = uint32(256)
+
 // DefaultGPUComputeCapMajor is the major number for the compute capabilities for the default device returned by the mock
 var DefaultGPUComputeCapMajor = 7
 
@@ -62,7 +66,6 @@ var DefaultGPUArch = nvml.DeviceArchitecture(nvml.DEVICE_ARCH_HOPPER)
 // DefaultGPUAttributes is the attributes for the default device returned by the mock
 var DefaultGPUAttributes = nvml.DeviceAttributes{
 	MultiprocessorCount: 10,
-	MemorySizeMB:        4096,
 }
 
 // DefaultProcessInfo is the list of processes running on the default device returned by the mock
@@ -73,6 +76,8 @@ var DefaultProcessInfo = []nvml.ProcessInfo{
 
 // DefaultTotalMemory is the total memory for the default device returned by the mock
 var DefaultTotalMemory = uint64(1000)
+
+var DefaultMaxClockRates = [2]uint32{1000, 2000}
 
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
@@ -102,14 +107,14 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 		GetMemoryBusWidthFunc: func() (uint32, nvml.Return) {
-			return 256, nvml.SUCCESS
+			return DefaultMemoryBusWidth, nvml.SUCCESS
 		},
 		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
 			switch clockType {
 			case nvml.CLOCK_SM:
-				return 1000, nvml.SUCCESS
+				return DefaultMaxClockRates[0], nvml.SUCCESS
 			case nvml.CLOCK_MEM:
-				return 2000, nvml.SUCCESS
+				return DefaultMaxClockRates[1], nvml.SUCCESS
 			default:
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
@@ -148,7 +153,7 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
 		},
 		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
-			return "470.57.02", nvml.SUCCESS
+			return DefaultNvidiaDriverVersion, nvml.SUCCESS
 		},
 	}
 }
