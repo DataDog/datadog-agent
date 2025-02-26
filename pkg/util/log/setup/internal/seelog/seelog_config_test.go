@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// run `go test ./setup/internal/... -generate` to regenerate the expected outputs in testdata/
 var generate = flag.Bool("generate", false, "generates output to testdata/ if set")
 
 func TestSeelogConfig(t *testing.T) {
@@ -136,6 +137,8 @@ func testSeelogConfig(t *testing.T, config *Config, testName string) {
 
 	expectedFileName := "testdata/" + testName + ".xml"
 
+	// if the flag is set, update the fixtures containing the expected output
+	// otherwise just compare the generated output with the expected one
 	if *generate {
 		err := os.WriteFile(expectedFileName, []byte(cfg), 0644)
 		require.NoError(t, err)
