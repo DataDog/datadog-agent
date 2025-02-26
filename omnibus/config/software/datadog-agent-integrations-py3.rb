@@ -260,7 +260,7 @@ build do
   end
 
   unless windows_target?
-    block do
+    block "Remove .exe files" do
       # setuptools come from supervisor and ddtrace
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{python_version}/site-packages/setuptools/*.exe"))
     end
@@ -288,6 +288,18 @@ build do
         FileUtils.rm([libssl_match, libcrypto_match])
       end
     end
+  end
+
+  block "Remove .pyi files" do
+    # We don't need them at runtime
+
+    pattern = "#{install_dir}/embedded/lib/python#{python_version}/site-packages/**/*.pyi"
+
+    if windows_target?
+      pattern = "#{python_3_embedded}/Lib/site-packages/**/*.pyi"
+    end
+
+    FileUtils.rm_f(Dir.glob(pattern))
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
