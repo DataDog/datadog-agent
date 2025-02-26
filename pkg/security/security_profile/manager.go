@@ -53,7 +53,9 @@ import (
 
 const (
 	// ActivityDumpSource defines the source of activity dumps
-	ActivityDumpSource         = "runtime-security-agent"
+	ActivityDumpSource = "runtime-security-agent"
+	// DefaultProfileName used as default profile name
+	DefaultProfileName         = "default"
 	absoluteMinimumDumpTimeout = 10 * time.Second
 )
 
