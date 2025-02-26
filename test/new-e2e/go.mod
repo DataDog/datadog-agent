@@ -44,7 +44,7 @@ require (
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.10.0
 	github.com/xeipuuv/gojsonschema v1.2.0
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/sys v0.30.0
 	golang.org/x/term v0.29.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -213,7 +213,7 @@ require (
 	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
 	golang.org/x/mod v0.23.0 // indirect
 	golang.org/x/net v0.35.0
-	golang.org/x/oauth2 v0.26.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/text v0.22.0
 	golang.org/x/time v0.9.0 // indirect
