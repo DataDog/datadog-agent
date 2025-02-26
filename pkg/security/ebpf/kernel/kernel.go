@@ -337,6 +337,42 @@ func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
 	return k.Code >= Kernel6_1
 }
 
+// HasCgroupSysctlSupportWithRingbuf returns true if cgroup/sysctl programs are available with access to ringbuffer
+func (k *Version) HasCgroupSysctlSupportWithRingbuf() bool {
+	if features.HaveProgramType(ebpf.CGroupSysctl) != nil {
+		return false
+	}
+
+	// features.HaveProgramHelper doesn't implement feature testing for cgroup/sysctl yet, keep the kernel version
+	// fall back for now.
+	if features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnRingbufOutput) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnGetSmpProcessorId) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnKtimeGetNs) == nil {
+		return true
+	}
+
+	return k.Code >= Kernel5_8
+}
+
+// HasTracingHelpersInCgroupSysctlPrograms returns true if basic tracing helpers are available in cgroup/sysctl programs
+// Namely, the helpers we care about are: bpf_probe_read_*, bpf_get_current_pid_tgid, bpf_get_current_task, etc
+func (k *Version) HasTracingHelpersInCgroupSysctlPrograms() bool {
+	if !k.HasCgroupSysctlSupportWithRingbuf() {
+		return false
+	}
+
+	// features.HaveProgramHelper doesn't implement feature testing for cgroup/sysctl yet, keep the kernel version
+	// fall back for now.
+	if features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnGetCurrentTask) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnGetCurrentComm) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnProbeReadKernel) == nil &&
+		features.HaveProgramHelper(ebpf.CGroupSysctl, asm.FnGetCurrentPidTgid) == nil {
+		return true
+	}
+
+	return k.Code >= Kernel6_1
+}
+
 // HasSKStorage returns true if the kernel supports SK_STORAGE maps
 // See https://github.com/torvalds/linux/commit/6ac99e8f23d4b10258406ca0dd7bffca5f31da9d
 func (k *Version) HasSKStorage() bool {
@@ -358,6 +394,8 @@ func (k *Version) HasSKStorageInTracingPrograms() bool {
 		return false
 	}
 
+	// features.HaveProgramHelper doesn't implement feature testing for ebpf.Tracing yet, keep the kernel version
+	// fall back for now.
 	if features.HaveProgramHelper(ebpf.Tracing, asm.FnSkStorageGet) == nil {
 		return true
 	}

@@ -261,6 +261,27 @@ type NetworkFlowMonitorSerializer struct {
 	Flows []*FlowSerializer `json:"flows,omitempty"`
 }
 
+// SysCtlEventSerializer defines a sysctl event serializer
+// easyjson:json
+type SysCtlEventSerializer struct {
+	// action performed on the system control parameter
+	Action string `json:"action,omitempty"`
+	// file_position is the position in the sysctl control parameter file at which the action occurred
+	FilePosition uint32 `json:"file_position,omitempty"`
+	// name is the name of the system control parameter
+	Name string `json:"name,omitempty"`
+	// name_truncated indicates if the name field is truncated
+	NameTruncated bool `json:"name_truncated,omitempty"`
+	// current_value is the value of the system control parameter before the event
+	CurrentValue string `json:"current_value,omitempty"`
+	// current_value_truncated indicates if the current_value field is truncated
+	CurrentValueTruncated bool `json:"current_value_truncated,omitempty"`
+	// new_value is the newly set value of the system control
+	NewValue string `json:"new_value,omitempty"`
+	// new_value_truncated indicates if the new_value field is truncated
+	NewValueTruncated bool `json:"new_value_truncated,omitempty"`
+}
+
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	mrs := MatchedRuleSerializer{
 		ID:            r.RuleID,
