@@ -109,6 +109,7 @@ new-agent_dmg-x64-a7:
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
     # TODO A: Add it in the runner
+    - rm -rf ~/bin ~/homebrew ~/rust
     - bash .gitlab/package_build/build_script.sh SETUP_RUNNER
     - ls ~
     - ~/bin/git --version
