@@ -2239,19 +2239,19 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Start:      now,
 				End:        now + 200000000,
 				Attributes: map[string]interface{}{
-					"datadog.service":          "test-service",
-					"datadog.name":             "test-name",
-					"datadog.resource":         "test-resource",
-					"datadog.type":             "test-type",
-					"datadog.error":            1,
-					"datadog.env":              "test-env",
-					"datadog.version":          "test-version",
-					"datadog.span.kind":        "test-kind",
-					"datadog.error.msg":        "Out of memory",
-					"datadog.error.type":       "mem",
-					"datadog.error.stack":      "1/2/3",
-					"datadog.http_status_code": 404,
-					"http.status_code":         200,
+					transform.KeyDatadogService:        "test-service",
+					transform.KeyDatadogName:           "test-name",
+					transform.KeyDatadogResource:       "test-resource",
+					transform.KeyDatadogType:           "test-type",
+					transform.KeyDatadogError:          1,
+					transform.KeyDatadogEnv:            "test-env",
+					transform.KeyDatadogVersion:        "test-version",
+					transform.KeyDatadogSpanKind:       "test-kind",
+					transform.KeyDatadogErrorMsg:       "Out of memory",
+					transform.KeyDatadogErrorType:      "mem",
+					transform.KeyDatadogErrorStack:     "1/2/3",
+					transform.KeyDatadogHTTPStatusCode: 404,
+					"http.status_code":                 200,
 				},
 			}),
 			operationNameV1: "test-name",
@@ -2283,7 +2283,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				Metrics: map[string]float64{
 					"http.status_code": 404,
 				},
-				Type: "web",
+				Type: "test-type",
 			},
 			topLevelOutMetrics: map[string]float64{
 				"_top_level":       1,
@@ -2421,8 +2421,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"http.url":                      "sample_url",
 					"http.useragent":                "sample_useragent",
 					"http.request.headers.example":  "test",
-					"http.status_code":              "",
-					"env":                           "",
 				},
 				Metrics: map[string]float64{
 					"approx":                               1.2,
@@ -2453,9 +2451,9 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				res.Attributes().PutStr(k, v)
 			}
 			got := transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf)
-			//if len(want.Meta) != len(got.Meta) {
-			//	t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
-			//}
+			if len(want.Meta) != len(got.Meta) {
+				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
+			}
 			for k, v := range want.Meta {
 				switch k {
 				case "events":

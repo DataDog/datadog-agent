@@ -244,7 +244,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
-			resourceName := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "datadog.resource")
+			resourceName := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, transform.KeyDatadogResource)
 			if resourceName == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 				if transform.OperationAndResourceNameV2Enabled(o.conf) {
 					resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
@@ -307,17 +307,17 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		hostname = ""
 	}
-	if incomingHostname := traceutil.GetOTelAttrVal(otelres.Attributes(), true, "datadog.host"); incomingHostname != "" {
+	if incomingHostname := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogHost); incomingHostname != "" {
 		hostname = incomingHostname
 	}
 
-	containerID := traceutil.GetOTelAttrVal(otelres.Attributes(), true, "datadog.container_id")
+	containerID := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerId)
 	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		containerID = traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 	}
 
 	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	env := traceutil.GetOTelAttrVal(otelres.Attributes(), true, "datadog.environment")
+	env := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogEnvironment)
 	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		env = traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 	}
@@ -331,7 +331,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 
 	var flattenedTags string
-	if incomingContainerTags := traceutil.GetOTelAttrVal(resourceAttributes, true, "datadog.container_tags"); incomingContainerTags != "" {
+	if incomingContainerTags := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
 		flattenedTags = incomingContainerTags
 	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)

@@ -25,6 +25,25 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 )
 
+const (
+	KeyDatadogService        = "datadog.service"
+	KeyDatadogName           = "datadog.name"
+	KeyDatadogResource       = "datadog.resource"
+	KeyDatadogSpanKind       = "datadog.span.kind"
+	KeyDatadogType           = "datadog.type"
+	KeyDatadogError          = "datadog.error"
+	KeyDatadogEnv            = "datadog.env"
+	KeyDatadogVersion        = "datadog.version"
+	KeyDatadogHTTPStatusCode = "datadog.http_status_code"
+	KeyDatadogErrorMsg       = "datadog.error.msg"
+	KeyDatadogErrorType      = "datadog.error.type"
+	KeyDatadogErrorStack     = "datadog.error.stack"
+	KeyDatadogHost           = "datadog.host"
+	KeyDatadogEnvironment    = "datadog.environment"
+	KeyDatadogContainerId    = "datadog.container_id"
+	KeyDatadogContainerTags  = "datadog.container_tags"
+)
+
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
 func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
 	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && conf.HasFeature("enable_operation_and_resource_name_logic_v2")
@@ -44,9 +63,10 @@ func OtelSpanToDDSpanMinimal(
 	spanKind := otelspan.Kind()
 
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelAttrVal(otelspan.Attributes(), true, "datadog.service"),
-		Name:     traceutil.GetOTelAttrVal(otelspan.Attributes(), true, "datadog.name"),
-		Resource: traceutil.GetOTelAttrVal(otelspan.Attributes(), true, "datadog.resource"),
+		Service:  traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogService),
+		Name:     traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogName),
+		Resource: traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogResource),
+		Type:     traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogType),
 		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
 		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
 		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
@@ -55,7 +75,7 @@ func OtelSpanToDDSpanMinimal(
 		Meta:     make(map[string]string, otelspan.Attributes().Len()+otelres.Attributes().Len()),
 		Metrics:  make(map[string]float64),
 	}
-	if isErrorVal, ok := otelspan.Attributes().Get("datadog.error"); ok {
+	if isErrorVal, ok := otelspan.Attributes().Get(KeyDatadogError); ok {
 		ddspan.Error = int32(isErrorVal.Int())
 	} else {
 		if otelspan.Status().Code() == ptrace.StatusCodeError {
@@ -63,7 +83,7 @@ func OtelSpanToDDSpanMinimal(
 		}
 	}
 
-	if incomingSpanKindName := traceutil.GetOTelAttrVal(otelspan.Attributes(), true, "datadog.span.kind"); incomingSpanKindName != "" {
+	if incomingSpanKindName := traceutil.GetOTelAttrVal(otelspan.Attributes(), true, KeyDatadogSpanKind); incomingSpanKindName != "" {
 		ddspan.Meta["span.kind"] = incomingSpanKindName
 	}
 
@@ -104,7 +124,7 @@ func OtelSpanToDDSpanMinimal(
 			ddspan.Meta["span.kind"] = traceutil.OTelSpanKindName(spanKind)
 		}
 		var code uint32
-		if incomingCode, ok := otelspan.Attributes().Get("datadog.http_status_code"); ok {
+		if incomingCode, ok := otelspan.Attributes().Get(KeyDatadogHTTPStatusCode); ok {
 			code = uint32(incomingCode.Int())
 		} else {
 			code = traceutil.GetOTelStatusCode(otelspan)
@@ -180,21 +200,21 @@ func setMetricOTLPWithSemConvMappings(k string, value float64, ddspan *pb.Span, 
 }
 
 var ddSemanticsKeysToMetaKeys = map[string]string{
-	"datadog.env":              "env",
-	"datadog.version":          "version",
-	"datadog.http_status_code": "http.status_code",
-	"datadog.error.msg":        "error.msg",
-	"datadog.error.type":       "error.type",
-	"datadog.error.stack":      "error.stack",
+	KeyDatadogEnv:            "env",
+	KeyDatadogVersion:        "version",
+	KeyDatadogHTTPStatusCode: "http.status_code",
+	KeyDatadogErrorMsg:       "error.msg",
+	KeyDatadogErrorType:      "error.type",
+	KeyDatadogErrorStack:     "error.stack",
 }
 
 var metaKeysToDDSemanticsKeys = map[string]string{
-	"env":              "datadog.env",
-	"version":          "datadog.version",
-	"http.status_code": "datadog.http_status_code",
-	"error.msg":        "datadog.error.msg",
-	"error.type":       "datadog.error.type",
-	"error.stack":      "datadog.error.stack",
+	"env":              KeyDatadogEnv,
+	"version":          KeyDatadogVersion,
+	"http.status_code": KeyDatadogHTTPStatusCode,
+	"error.msg":        KeyDatadogErrorMsg,
+	"error.type":       KeyDatadogErrorType,
+	"error.stack":      KeyDatadogErrorStack,
 }
 
 // OtelSpanToDDSpan converts an OTel span to a DD span.
