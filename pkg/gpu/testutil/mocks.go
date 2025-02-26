@@ -50,8 +50,10 @@ var DefaultGpuUUID = GPUUUIDs[0]
 // DefaultGPUName is the name for the default device returned by the mock
 var DefaultGPUName = "Tesla T4"
 
+// DefaultNvidiaDriverVersion is the default nvidia driver version
 var DefaultNvidiaDriverVersion = "470.57.02"
 
+// DefaultMemoryBusWidth is the memory bus width for the default device returned by the mock
 var DefaultMemoryBusWidth = uint32(256)
 
 // DefaultGPUComputeCapMajor is the major number for the compute capabilities for the default device returned by the mock
@@ -77,6 +79,7 @@ var DefaultProcessInfo = []nvml.ProcessInfo{
 // DefaultTotalMemory is the total memory for the default device returned by the mock
 var DefaultTotalMemory = uint64(1000)
 
+// DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
 var DefaultMaxClockRates = [2]uint32{1000, 2000}
 
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
