@@ -8,9 +8,9 @@ package system
 import (
 	"bufio"
 	"os"
-	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,7 +20,7 @@ const (
 	cIDRegexp               = `.*/([^\s/]+)/(` + cgroups.ContainerRegexpStr + `)/[\S]*hostname`
 )
 
-var cIDMountInfoRegexp = regexp.MustCompile(cIDRegexp)
+var cIDMountInfoRegexp = lazyregexp.New(cIDRegexp)
 
 func getSelfContainerID(hostCgroupNamespace bool, cgroupVersion int, cgroupBaseController string) (string, error) {
 	if cgroupVersion == 1 || hostCgroupNamespace {

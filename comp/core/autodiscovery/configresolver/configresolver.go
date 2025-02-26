@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	yaml "gopkg.in/yaml.v2"
@@ -383,7 +383,7 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 	return resolvedStringWithIPv6, err
 }
 
-var varPattern = regexp.MustCompile(`‰(.+?)(?:_(.+?))?‰`)
+var varPattern = lazyregexp.New(`‰(.+?)(?:_(.+?))?‰`)
 
 // resolveStringWithAdHocTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
 // The variable getters are passed as last parameter.

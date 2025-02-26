@@ -16,7 +16,6 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -35,13 +34,14 @@ import (
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
 )
 
 // Match .yaml and .yml to ship configuration files in the flare.
-var cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
+var cnfFileExtRx = lazyregexp.New(`(?i)\.ya?ml`)
 
 // searchPaths is a list of path where to look for checks configurations
 type searchPaths map[string]string
