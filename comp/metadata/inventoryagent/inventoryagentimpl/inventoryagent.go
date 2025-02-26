@@ -247,9 +247,9 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.fetchECSFargateAgentMetadata()
 
 	// EKS Fargate
-	eks_fargate := ia.conf.GetBool("eks_fargate")
-	ia.data["config_eks_fargate"] = eks_fargate
-	if eks_fargate {
+	eksFargate := ia.conf.GetBool("eks_fargate")
+	ia.data["config_eks_fargate"] = eksFargate
+	if eksFargate {
 		ia.data["eks_fargate_cluster_name"] = ia.conf.GetString("cluster_name")
 	}
 }
