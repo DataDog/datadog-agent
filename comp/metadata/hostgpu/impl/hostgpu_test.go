@@ -40,7 +40,7 @@ func (s *wmsMock) ListGPUs() []*workloadmeta.GPU {
 			},
 			DriverVersion: "460.32.03",
 
-			TotalMemory:    4096 * 1024 * 1024 * 1024, // 8 GB
+			TotalMemory:    4 * 1024 * 1024 * 1024, // 4 GB
 			TotalCores:     2040,
 			MemoryBusWidth: 256,
 			MaxClockRates:  [workloadmeta.GPUCOUNT]uint32{4000, 5000},
@@ -62,7 +62,7 @@ func (s *wmsMock) ListGPUs() []*workloadmeta.GPU {
 				Minor: 4,
 			},
 			DriverVersion:  "460.32.03",
-			TotalMemory:    8192 * 1024 * 1024 * 1024, // 8 GB
+			TotalMemory:    8 * 1024 * 1024 * 1024, // 8 GB
 			TotalCores:     4050,
 			MemoryBusWidth: 256,
 			MaxClockRates:  [workloadmeta.GPUCOUNT]uint32{8000, 10000},
