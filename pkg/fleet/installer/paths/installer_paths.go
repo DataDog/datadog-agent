@@ -8,6 +8,8 @@
 // Package paths defines commonly used paths throughout the installer
 package paths
 
+import "os"
+
 const (
 	// PackagesPath is the path to the packages directory.
 	PackagesPath = "/opt/datadog-packages"
@@ -24,3 +26,8 @@ const (
 	// RunPath is the default run path
 	RunPath = "/opt/datadog-packages/run"
 )
+
+// SetRepositoryPermissions sets the permissions on the repository directory
+func SetRepositoryPermissions(path string) error {
+	return os.Chmod(path, 0755)
+}
