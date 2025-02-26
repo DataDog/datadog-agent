@@ -6,7 +6,7 @@ configure_make(
         "--enable-ipv6",
         "--with-ensurepip=yes",
         "--enable-shared",
-        "--disable-static",
+        "--without-static-libpython",
         "--with-dbmliborder=",
         # Fixes an issue with __DATE__ being set to undefined `redacted`
         # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
@@ -34,6 +34,7 @@ configure_make(
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
         "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib:$$EXT_BUILD_DEPS/libxcrypt/lib",
+        "LD": "",
     },
     install_prefix = "py_install",
     lib_source = "@python3//:all",
