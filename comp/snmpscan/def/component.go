@@ -20,5 +20,5 @@ type Component interface {
 	RunDeviceScan(snmpConection *gosnmp.GoSNMP, deviceNamespace string, deviceID string) error
 	RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error
 	SendPayload(payload metadata.NetworkDevicesMetadata) error
-	ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string) error
+	ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error
 }
