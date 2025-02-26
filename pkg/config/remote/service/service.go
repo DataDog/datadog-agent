@@ -17,6 +17,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/go-tuf/verify"
 	"net/url"
 	"path"
 	"strconv"
@@ -157,6 +158,9 @@ type CoreAgentService struct {
 	newProducts        map[rdata.Product]struct{}
 	clients            *clients
 	cacheBypassClients cacheBypassClients
+
+	// Used to hold on to targets that need to be flushed in case the configs expire
+	cachedTargets []byte
 
 	// Used to report metrics on cache bypass requests
 	telemetryReporter RcTelemetryReporter
@@ -468,6 +472,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
+		cachedTargets:         nil,
 		telemetryReporter:     telemetryReporter,
 		agentVersion:          agentVersion,
 		stopOrgPoller:         make(chan struct{}),
@@ -754,6 +759,21 @@ func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 	return value, nil
 }
 
+func isExpiredError(err error) bool {
+	var errExpired verify.ErrExpired
+	return errors.As(err, &errExpired)
+}
+
+func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse, error) {
+	return &pbgo.ClientGetConfigsResponse{
+		Roots:         nil,
+		Targets:       s.cachedTargets,
+		TargetFiles:   nil,
+		ClientConfigs: nil,
+		ConfigStatus:  state.ConfigStatusExpired,
+	}, nil
+}
+
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 //
 //nolint:revive // TODO(RC) Fix revive linter
@@ -811,11 +831,17 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	}
 	roots, err := s.getNewDirectorRoots(s.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
+		if isExpiredError(err) {
+			return s.flushCacheResponse()
+		}
 		return nil, err
 	}
 
 	directorTargets, err := s.uptane.Targets()
 	if err != nil {
+		if isExpiredError(err) {
+			return s.flushCacheResponse()
+		}
 		return nil, err
 	}
 	matchedClientConfigs, err := executeTracerPredicates(request.Client, directorTargets)
@@ -830,11 +856,17 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 
 	targetFiles, err := s.getTargetFiles(s.uptane, neededFiles)
 	if err != nil {
+		if isExpiredError(err) {
+			return s.flushCacheResponse()
+		}
 		return nil, err
 	}
 
 	targetsRaw, err := s.uptane.TargetsMeta()
 	if err != nil {
+		if isExpiredError(err) {
+			return s.flushCacheResponse()
+		}
 		return nil, err
 	}
 	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
@@ -842,11 +874,14 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
+	s.cachedTargets = canonicalTargets
+
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
 		Targets:       canonicalTargets,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
+		ConfigStatus:  state.ConfigStatusOk,
 	}, nil
 }
 

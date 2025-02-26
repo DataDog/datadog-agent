@@ -7,6 +7,7 @@
 package core
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1585,6 +1586,7 @@ type ClientGetConfigsResponse struct {
 	ClientConfigs []string               `protobuf:"bytes,4,rep,name=client_configs,json=clientConfigs,proto3" json:"client_configs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
+	ConfigStatus  state.ConfigStatus
 }
 
 func (x *ClientGetConfigsResponse) Reset() {

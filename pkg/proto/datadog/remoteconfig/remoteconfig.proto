@@ -186,6 +186,7 @@ message ClientGetConfigsResponse {
   bytes targets = 2;
   repeated File target_files = 3;
   repeated string client_configs = 4;
+  uint64 config_status = 5;
 }
 
 // Full state

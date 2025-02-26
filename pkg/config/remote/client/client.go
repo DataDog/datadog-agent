@@ -478,6 +478,9 @@ func (c *Client) update() error {
 	if err != nil {
 		return err
 	}
+	if response.ConfigStatus != state.ConfigStatusOk {
+		log.Errorf("Config status %v", response.ConfigStatus)
+	}
 
 	changedProducts, err := c.applyUpdate(response)
 	if err != nil {

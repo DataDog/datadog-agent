@@ -75,6 +75,13 @@ type Metadata struct {
 	ApplyStatus ApplyStatus
 }
 
+type ConfigStatus int
+
+const (
+	ConfigStatusOk ConfigStatus = iota
+	ConfigStatusExpired
+)
+
 func newConfigMetadata(parsedPath configPath, tfm data.TargetFileMeta) (Metadata, error) {
 	var m Metadata
 	m.ID = parsedPath.ConfigID
