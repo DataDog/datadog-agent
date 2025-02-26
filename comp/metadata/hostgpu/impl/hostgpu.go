@@ -84,8 +84,8 @@ type gpuHost struct {
 	hostname string
 }
 
-// Dependencies defines the dependencies for the hostgpu component
-type Dependencies struct {
+// Requires defines the dependencies for the hostgpu component
+type Requires struct {
 	WMeta      workloadmeta.Component
 	Log        log.Component
 	Config     config.Component
@@ -101,7 +101,7 @@ type Provides struct {
 }
 
 // NewGPUHostProvider creates a new hostgpu component
-func NewGPUHostProvider(deps Dependencies) Provides {
+func NewGPUHostProvider(deps Requires) Provides {
 	hname, _ := hostname.Get(context.Background())
 	gh := &gpuHost{
 		conf:     deps.Config,

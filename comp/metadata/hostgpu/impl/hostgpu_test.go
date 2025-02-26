@@ -9,15 +9,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type wmsMock struct {
@@ -83,15 +79,12 @@ func (s *wmsErrorMock) ListGPUs() []*workloadmeta.GPU {
 }
 
 func getTestInventoryHost(t *testing.T) *gpuHost {
-	p := NewGPUHostProvider(
-		fxutil.Test[Dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() workloadmeta.Component { return &wmsMock{} }),
-			config.MockModule(),
-			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-		),
-	)
+	p := NewGPUHostProvider(Requires{
+		WMeta:      &wmsMock{},
+		Log:        logmock.New(t),
+		Config:     configmock.New(t),
+		Serializer: serializermock.NewMetricSerializer(t),
+	})
 	return p.Comp.(*gpuHost)
 }
 
