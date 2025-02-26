@@ -39,8 +39,8 @@ type gpuDeviceMetadata struct {
 	UUID          string `json:"gpu_uuid"`
 	Architecture  string `json:"gpu_architecture"`
 
-	ComputeVersion string `json:"gpu_compute_version"`       //e.g: in nvidia this refers to Compute Capability
-	ProcessorUnits int    `json:"gpu_processor_units_count"` // e.g: in nvidia it is SMCount (Streaming MultiProcessor Count)
+	ComputeVersion string `json:"gpu_compute_version"` //e.g: in nvidia this refers to Compute Capability
+	TotalCores     int    `json:"gpu_total_cores"`
 
 	//Total device memory in bytes
 	TotalMemory        uint64 `json:"device_total_memory"`
@@ -139,8 +139,8 @@ func (gh *gpuHost) fillData() {
 			ComputeVersion:     gpu.ComputeCapability.String(),
 			Name:               gpu.Name,
 			Architecture:       gpu.Architecture,
-			ProcessorUnits:     gpu.SMCount,
-			TotalMemory:        gpu.TotalMemoryMB * 1024 * 1024,
+			TotalCores:         gpu.TotalCores,
+			TotalMemory:        gpu.TotalMemory,
 			MemoryBusWidth:     gpu.MemoryBusWidth,
 			MaxSMClockRate:     gpu.MaxClockRates[workloadmeta.GPUSM],
 			MaxMemoryClockRate: gpu.MaxClockRates[workloadmeta.GPUMemory],

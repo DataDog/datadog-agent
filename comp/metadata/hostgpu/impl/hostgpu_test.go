@@ -40,8 +40,8 @@ func (s *wmsMock) ListGPUs() []*workloadmeta.GPU {
 			},
 			DriverVersion: "460.32.03",
 
-			TotalMemoryMB:  4096,
-			SMCount:        2040,
+			TotalMemory:    4096 * 1024 * 1024 * 1024, // 8 GB
+			TotalCores:     2040,
 			MemoryBusWidth: 256,
 			MaxClockRates:  [workloadmeta.GPUCOUNT]uint32{4000, 5000},
 		},
@@ -62,8 +62,8 @@ func (s *wmsMock) ListGPUs() []*workloadmeta.GPU {
 				Minor: 4,
 			},
 			DriverVersion:  "460.32.03",
-			TotalMemoryMB:  8192,
-			SMCount:        4050,
+			TotalMemory:    8192 * 1024 * 1024 * 1024, // 8 GB
+			TotalCores:     4050,
 			MemoryBusWidth: 256,
 			MaxClockRates:  [workloadmeta.GPUCOUNT]uint32{8000, 10000},
 		},
@@ -100,7 +100,7 @@ func TestGetPayload(t *testing.T) {
 				Architecture:       "turing",
 				ComputeVersion:     "12.4",
 				DriverVersion:      "460.32.03",
-				ProcessorUnits:     2040,
+				TotalCores:         2040,
 				TotalMemory:        4 * 1024 * 1024 * 1024, // 4 GB
 				MaxSMClockRate:     4000,                   // MHz
 				MaxMemoryClockRate: 5000,                   // MHz
@@ -114,7 +114,7 @@ func TestGetPayload(t *testing.T) {
 				Architecture:       "hopper",
 				ComputeVersion:     "12.4",
 				DriverVersion:      "460.32.03",
-				ProcessorUnits:     4050,
+				TotalCores:         4050,
 				TotalMemory:        8 * 1024 * 1024 * 1024, // 8 GB
 				MaxSMClockRate:     8000,                   // MHz
 				MaxMemoryClockRate: 10000,                  // MHz

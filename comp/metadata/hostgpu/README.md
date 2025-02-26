@@ -24,7 +24,7 @@ The payload is a JSON dict with the following fields
       - `gpu_uuid` - **string**: Unique identifier of the device.
       - `gpu_architecture` - **string**: GPU device architecture (e.g: for nvidia, kepler, pascal, hopper.
       - `gpu_compute_version` - **string**: GPU device compute capability.
-      - `gpu_processor_units_count` - **int**: Number of Streaming Multiprocessors (SM)) for the device.
+      - `gpu_total_cores` - **int**: Number of total available cores on the device.
       - `device_total_memory` - **uint64**: Total available memory on the device (in bytes).
       - `device_max_sm_clock_rate` - **uint32**: Device maximal Streaming Multiprocessor (SM) clock rate (in MHz).
       - `device_max_memory_clock_rate` - **string**:  Device maximal memory clock rate (in MHz).
@@ -46,7 +46,7 @@ Here an example of an inventory payload:
                 "gpu_uuid": "GPU-12345678-1234-5678-1234-567812345678",
                 "gpu_architecture": "volta",
                 "gpu_compute_version": "7.0",
-                "gpu_processor_units_count": 80,
+                "gpu_total_cores": 4010,
                 "device_total_memory": 16384,
                 "device_max_sm_clock_rate": 1530,
                 "device_max_memory_clock_rate": "877",
@@ -60,7 +60,7 @@ Here an example of an inventory payload:
                 "gpu_uuid": "GPU-87654321-4321-8765-4321-876543218765",
                 "gpu_architecture": "turing",
                 "gpu_compute_version": "7.5",
-                "gpu_processor_units_count": 40,
+                "gpu_total_cores": 2040,
                 "device_total_memory": 16384,
                 "device_max_sm_clock_rate": 1590,
                 "device_max_memory_clock_rate": "6251",
