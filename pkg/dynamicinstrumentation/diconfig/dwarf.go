@@ -18,10 +18,18 @@ import (
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func init() {
+	go func() {
+		log.Info(http.ListenAndServe("localhost:6069", nil))
+	}()
+}
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
 	return loadFunctionDefinitions(dwarfData, targetFunctions)
 }
@@ -48,10 +56,10 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 		entry      *dwarf.Entry
 		err        error
 	)
+	seenTypes := make(map[string]*seenTypeCounter)
 
 entryLoop:
 	for {
-		seenTypes := make(map[string]*seenTypeCounter)
 
 		entry, err = entryReader.Next()
 		if err == io.EOF || entry == nil {
@@ -173,6 +181,7 @@ entryLoop:
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
 				}
+				clear(seenTypes)
 			}
 		}
 
@@ -180,6 +189,7 @@ entryLoop:
 			// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
 			typeFields.Name = name
 			result.Functions[funcName] = append(result.Functions[funcName], typeFields)
+			typeFields = nil
 		}
 	}
 
