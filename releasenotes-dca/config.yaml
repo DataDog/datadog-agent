@@ -35,7 +35,7 @@ template: |
               List deprecations notes here, or remove this section.
           security:
             - |
-              Add security notes here, or remove this section. Please, do not mention any specific CVEs in the changelog directly, they will be handled automatically differently.
+              Include security notes here, or remove this section if none. Specific CVEs are handled automatically and should not be mentioned directly in the changelog.
               For instance, if you bumped a lib to fix a CVE, just mention the bump.
           fixes:
             - |
