@@ -88,7 +88,7 @@ class TestSetTag(unittest.TestCase):
             ["upload_option.os_version_from_name"],
             "kitchen-rspec-win2016-azure-x86_64.xml",
         )
-        self.assertEqual(len(tags), 18)
+        self.assertEqual(len(tags), 20)
         self.assertIn("e2e_internal_error:true", tags)
         self.assertIn("version:win2016", tags)
         self.assertNotIn("upload_option.os_version_from_name", tags)

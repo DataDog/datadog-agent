@@ -284,7 +284,9 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
         f"gitlab.pipeline_source:{os.environ['CI_PIPELINE_SOURCE']}",
         "--xpath-tag",
         "test.agent_is_known_flaky=/testcase/@agent_is_known_flaky",
+        "--xpath-tag",
         "test.agent_is_flaky_failure=/testcase/@agent_is_flaky_failure",
+        "--xpath-tag",
         "test.agent_is_marked_flaky=/testcase/@agent_is_marked_flaky",
     ]
     if 'e2e' in flag:
