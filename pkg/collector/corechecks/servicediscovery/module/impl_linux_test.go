@@ -1011,6 +1011,7 @@ func TestDocker(t *testing.T) {
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
 	require.Contains(t, startEvent.ContainerServiceNameSource, "app")
+	require.Equal(t, startEvent.ContainerRelevantTags, []string{"app:foo_from_app_tag", "kube_service:kube_foo"})
 	require.Contains(t, startEvent.Type, "web_service")
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }
@@ -1089,70 +1090,71 @@ func TestCache(t *testing.T) {
 
 func TestTagsPriority(t *testing.T) {
 	cases := []struct {
-		name                string
-		tags                []string
-		expectedTagName     string
-		expectedServiceName string
+		name         string
+		tags         []string
+		expectedTags []containerTag
 	}{
 		{
 			"nil tag list",
 			nil,
-			"",
-			"",
+			nil,
 		},
 		{
 			"empty tag list",
 			[]string{},
-			"",
-			"",
+			nil,
 		},
 		{
 			"no useful tags",
 			[]string{"foo:bar"},
-			"",
-			"",
+			nil,
 		},
 		{
 			"malformed tag",
 			[]string{"foobar"},
-			"",
-			"",
+			nil,
 		},
 		{
 			"service tag",
 			[]string{"service:foo"},
-			"service",
-			"foo",
+			[]containerTag{
+				{"service", "foo", true},
+			},
 		},
 		{
 			"app tag",
 			[]string{"app:foo"},
-			"app",
-			"foo",
+			[]containerTag{
+				{"app", "foo", true},
+			},
 		},
 		{
 			"short_image tag",
 			[]string{"short_image:foo"},
-			"short_image",
-			"foo",
+			[]containerTag{
+				{"short_image", "foo", true},
+			},
 		},
 		{
 			"kube_container_name tag",
 			[]string{"kube_container_name:foo"},
-			"kube_container_name",
-			"foo",
+			[]containerTag{
+				{"kube_container_name", "foo", true},
+			},
 		},
 		{
 			"kube_deployment tag",
 			[]string{"kube_deployment:foo"},
-			"kube_deployment",
-			"foo",
+			[]containerTag{
+				{"kube_deployment", "foo", true},
+			},
 		},
 		{
 			"kube_service tag",
 			[]string{"kube_service:foo"},
-			"kube_service",
-			"foo",
+			[]containerTag{
+				{"kube_service", "foo", true},
+			},
 		},
 		{
 			"multiple tags",
@@ -1162,8 +1164,9 @@ func TestTagsPriority(t *testing.T) {
 				"service:my_service",
 				"malformed",
 			},
-			"service",
-			"my_service",
+			[]containerTag{
+				{"service", "my_service", true},
+			},
 		},
 		{
 			"empty value",
@@ -1171,8 +1174,9 @@ func TestTagsPriority(t *testing.T) {
 				"service:",
 				"app:foo",
 			},
-			"app",
-			"foo",
+			[]containerTag{
+				{"app", "foo", true},
+			},
 		},
 		{
 			"multiple tags with priority",
@@ -1183,8 +1187,10 @@ func TestTagsPriority(t *testing.T) {
 				"service:my_service",
 				"malformed",
 			},
-			"service",
-			"my_service",
+			[]containerTag{
+				{"service", "my_service", true},
+				{"short_image", "my_image", true},
+			},
 		},
 		{
 			"all priority tags",
@@ -1192,12 +1198,18 @@ func TestTagsPriority(t *testing.T) {
 				"kube_service:my_kube_service",
 				"kube_deployment:my_kube_deployment",
 				"kube_container_name:my_kube_container_name",
-				"short_iamge:my_short_image",
+				"short_image:my_short_image",
 				"app:my_app",
 				"service:my_service",
 			},
-			"service",
-			"my_service",
+			[]containerTag{
+				{"service", "my_service", true},
+				{"app", "my_app", true},
+				{"short_image", "my_short_image", true},
+				{"kube_container_name", "my_kube_container_name", true},
+				{"kube_deployment", "my_kube_deployment", true},
+				{"kube_service", "my_kube_service", true},
+			},
 		},
 		{
 			"multiple tags",
@@ -1206,16 +1218,16 @@ func TestTagsPriority(t *testing.T) {
 				"service:bar",
 				"other:tag",
 			},
-			"service",
-			"bar",
+			[]containerTag{
+				{"service", "bar", true},
+			},
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			tagName, name := getServiceNameFromContainerTags(c.tags)
-			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
-			require.Equalf(t, c.expectedTagName, tagName, "got wrong tag name for service naming")
+			tagsPriority := getServiceNameFromContainerTags(c.tags)
+			require.Equal(t, c.expectedTags, tagsPriority)
 		})
 	}
 }
