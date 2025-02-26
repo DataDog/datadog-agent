@@ -31,6 +31,7 @@ import (
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -556,15 +557,15 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 			Storage: make([]*api.StorageRequestMessage, 0, len(storageRequests)),
 		}
 
-		var localStorage securityprofile.ActivityDumpStorage
+		var localStorage storage.ActivityDumpStorage
 		var localStorageErr error
-		var remoteStorage securityprofile.ActivityDumpStorage
+		var remoteStorage storage.ActivityDumpStorage
 		var remoteStorageErr error
 		for _, storageRequest := range storageRequests {
 			switch storageRequest.Type {
 			case secconfig.LocalStorage:
 				if localStorage == nil && localStorageErr == nil {
-					localStorage, localStorageErr = securityprofile.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
+					localStorage, localStorageErr = storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 					if localStorageErr != nil {
 						return fmt.Errorf("couldn't instantiate local storage: %w", localStorageErr)
 					}
@@ -579,7 +580,7 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 				output.Storage = append(output.Storage, storageRequest.ToStorageRequestMessage(p.Metadata.Name))
 			case secconfig.RemoteStorage:
 				if remoteStorage == nil && remoteStorageErr == nil {
-					remoteStorage, remoteStorageErr = securityprofile.NewActivityDumpRemoteStorage()
+					remoteStorage, remoteStorageErr = storage.NewActivityDumpRemoteStorage()
 					if remoteStorageErr != nil {
 						return fmt.Errorf("couldn't instantiate remote storage: %w", remoteStorageErr)
 					}
