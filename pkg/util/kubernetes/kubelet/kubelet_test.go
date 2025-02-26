@@ -883,7 +883,10 @@ func (suite *KubeletTestSuite) TestContainerEnvVars() {
 	require.NotNil(suite.T(), nginxContainer)
 
 	expectedEnvVars := []EnvVar{
+		// Variable explicitly defined in the pod spec
 		{Name: "DEFINED_VAR", Value: "true"},
+		// Variable from an external source (eg. ConfigMap, Secret, Downward API, etc.)
+		{Name: "UNDEFINED_VAR", Value: "", ValueFrom: &struct{}{}},
 	}
 	assert.ElementsMatch(suite.T(), nginxContainer.Env, expectedEnvVars)
 }
