@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
-const stackCreationDelay = 1 * time.Minute
+const stackCreationDelay = 5 * time.Second
 
 type installerScriptTests func(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite
 
