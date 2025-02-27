@@ -94,7 +94,7 @@ func (pt *ProcessTracker) handleProcessStop(pid uint32) {
 	pt.unregisterProcess(pid)
 }
 
-func remoteConfigCallback(version delve.GoVersion, goarch string) ([]bininspect.ParameterMetadata, error) {
+func remoteConfigCallback(_ delve.GoVersion, goarch string) ([]bininspect.ParameterMetadata, error) {
 	if goarch != "arm64" && goarch != "amd64" {
 		return nil, errors.New("invalid arch")
 	}

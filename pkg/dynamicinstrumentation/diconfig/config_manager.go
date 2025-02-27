@@ -306,6 +306,8 @@ func newConfigProbe() *ditypes.Probe {
 }
 
 const (
+	// ConfigProbeArgumentsMaxSize is the maximum size of the raw argument buffer
 	ConfigProbeArgumentsMaxSize = 50000
-	ConfigProbeStringMaxSize    = 10000
+	// ConfigProbeStringMaxSize is the maximum allowed size of instrumented string parameters/fields
+	ConfigProbeStringMaxSize = 10000
 )

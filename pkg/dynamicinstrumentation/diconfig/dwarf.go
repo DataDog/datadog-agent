@@ -16,20 +16,11 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/go-delve/delve/pkg/dwarf/godwarf"
-
-	"net/http"
-	_ "net/http/pprof"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 )
 
-func init() {
-	go func() {
-		log.Info(http.ListenAndServe("localhost:6069", nil))
-	}()
-}
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
 	return loadFunctionDefinitions(dwarfData, targetFunctions)
 }
