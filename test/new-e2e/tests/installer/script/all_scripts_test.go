@@ -94,6 +94,9 @@ func TestScripts(t *testing.T) {
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 
+				// INCIDENT(35594): To avoid rate limits, we need to wait between stack creation (aws imds rate limits)
+				time.Sleep(time.Duration(iteration) * stackCreationDelay)
+
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),
@@ -104,9 +107,6 @@ func TestScripts(t *testing.T) {
 					e2e.WithStackName(suite.Name()),
 				)
 			})
-
-			// INCIDENT(35594): To avoid rate limits, we need to wait between stack creation (aws imds rate limits)
-			time.Sleep(stackCreationDelay)
 
 			iteration++
 		}
