@@ -11,6 +11,7 @@ package kubelet
 import (
 	"context"
 	stdErrors "errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -402,7 +403,11 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 }
 
 func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
-	filterEnvVars(&envSpec)
+	// filter out env vars that have external sources (eg. ConfigMap, Secret, etc.)
+	envSpec = slices.DeleteFunc(envSpec, func(v kubelet.EnvVar) bool {
+		return v.ValueFrom != nil
+	})
+
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
 
@@ -435,19 +440,6 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	}
 
 	return env
-}
-
-// filterEnvVars removes unsupported env var sources (eg. ConfigMap, Secrets, etc.)
-func filterEnvVars(envSpec *[]kubelet.EnvVar) {
-	j := 0 // Position for the next valid element
-	for _, envVar := range *envSpec {
-		if envVar.ValueFrom != nil {
-			continue
-		}
-		(*envSpec)[j] = envVar
-		j++
-	}
-	*envSpec = (*envSpec)[:j]
 }
 
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {

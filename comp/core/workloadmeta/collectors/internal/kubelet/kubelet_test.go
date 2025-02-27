@@ -72,10 +72,10 @@ func TestPodParser(t *testing.T) {
 							},
 							{
 								Name:  "OTEL_SERVICE_NAME",
-								Value: "$(DD_ENV)-$(DD_EXCLUDED_VAR)",
+								Value: "$(DD_ENV)-$(DD_SERVICE)",
 							},
 							{
-								Name:      "DD_EXCLUDED_VAR",
+								Name:      "DD_SERVICE",
 								Value:     "",
 								ValueFrom: &struct{}{},
 							},
