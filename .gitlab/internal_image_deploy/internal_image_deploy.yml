@@ -191,7 +191,7 @@ docker_trigger_internal-ot_standalone:
   stage: internal_image_deploy
   rules: !reference [.on_deploy_internal_or_manual]
   needs:
-    - job: docker_build_ot_agent_standalone
+    - job: docker_build_ot_agent_standalone_amd64
       artifacts: false
     - job: docker_build_ot_agent_standalone_arm64
       artifacts: false

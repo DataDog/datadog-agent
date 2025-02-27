@@ -1,10 +1,8 @@
 # Use the Ubuntu Slim AMD64 base image
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
-ARG BASE_IMAGE_AGENT=registry.ddbuild.io/datadog/base-image-agent
-ARG BASE_IMAGE_AGENT_VERSION
+ARG AGENT_BASE_IMAGE_TAG
 
-LABEL org.opencontainers.image.title="Otel Agent"
 # ------------------------------
 # Build the OTel agent
 # ------------------------------
@@ -87,8 +85,9 @@ RUN . venv/bin/activate && invoke otel-agent.build
 # Inject the otel-agent in the base image
 # ------------------------------
 
-FROM ${BASE_IMAGE_AGENT}:${BASE_IMAGE_AGENT_VERSION} as release
+FROM $AGENT_BASE_IMAGE_TAG AS release
 
+LABEL org.opencontainers.image.title="Otel Agent"
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 # TODO: confirm if this should be copied to otel-config.yaml.example

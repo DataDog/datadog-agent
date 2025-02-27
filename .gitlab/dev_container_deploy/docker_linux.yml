@@ -246,7 +246,7 @@ dev_branch-ot-standalone:
   rules:
     - !reference [.manual]
   needs:
-    - docker_build_ot_agent_standalone
+    - docker_build_ot_agent_standalone_amd64
     - docker_build_ot_agent_standalone_arm64
   variables:
     IMG_REGISTRIES: dev

@@ -1,7 +1,8 @@
 # Use the Ubuntu Slim AMD64 base image
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS builder
+
+FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
 ARG BASE_IMAGE_UBUNTU_VERSION
 ARG BASE_IMAGE_UBUNTU_NAME
 LABEL baseimage.os="ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
@@ -37,7 +38,7 @@ RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sy
 # Final stage
 # ------------------------------
 
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION as release
+FROM baseimage AS release
 
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
@@ -45,8 +46,7 @@ LABEL maintainer="Datadog <package@datadoghq.com>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt update && \
-    apt full-upgrade -y && \
+RUN apt full-upgrade -y && \
     apt install -y tzdata ca-certificates adduser && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
@@ -79,7 +79,7 @@ COPY datadog*.yaml etc/datadog-agent/
 COPY install_info etc/datadog-agent/
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=builder /tmp/nosys.so /opt/lib/nosys.so
+COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so \
     PATH="/opt/datadog-agent/embedded/bin:${PATH}" \
     DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA} \
