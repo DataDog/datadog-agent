@@ -116,7 +116,7 @@ func NewGPUHostProvider(deps Requires) Provides {
 		Comp:          gh,
 		Provider:      gh.MetadataProvider(),
 		FlareProvider: gh.FlareProvider(),
-		Endpoint:      api.NewAgentEndpointProvider(gh.writePayloadAsJSON, "/metadata/inventory-host", "GET"),
+		Endpoint:      api.NewAgentEndpointProvider(gh.writePayloadAsJSON, "/metadata/host-gpu", "GET"),
 	}
 }
 
