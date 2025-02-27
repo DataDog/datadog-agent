@@ -133,10 +133,6 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
-	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
-	flake.Mark(s.T())
-
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
@@ -144,10 +140,6 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
-	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
-	flake.Mark(s.T())
-
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
 	assertManualProcessDiscoveryCheck(s.T(), check, "MsMpEng.exe")
