@@ -821,9 +821,10 @@ celian:
     # - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_AZURE subscription_id) || exit $?; export ARM_SUBSCRIPTION_ID
   script:
     - echo Trying to assume role
-    - set +e
-    - aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession > /tmp/roleoutput
+    # - aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession > /tmp/roleoutput
+    - aws sts assume-role --role-arn arn:aws:iam::669783387624:role/dd.gitlabRunner_datadogAgent --external-id dd.gitlabRunner_datadogAgent --role-session-name RoleSession > /tmp/role.json
     - wc -c /tmp/role.json
+    - set +e
     - |
       export AWS_ACCESS_KEY_ID=$(cat /tmp/role.json | jq -r '.Credentials.AccessKeyId')
       export AWS_SECRET_ACCESS_KEY=$(cat /tmp/role.json | jq -r '.Credentials.SecretAccessKey')
