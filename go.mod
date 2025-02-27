@@ -645,7 +645,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.4.1
 	github.com/rickar/props v1.0.0
-	github.com/sijms/go-ora/v2 v2.8.19
+	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/swaggest/jsonschema-go v0.3.70
 	github.com/valyala/fastjson v1.6.4
 	github.com/vibrantbyte/go-antpath v1.1.1
@@ -851,6 +851,7 @@ require (
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.30 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/signalfx/sapm-proto v0.17.0 // indirect
+	github.com/sijms/go-ora v2.1.15+incompatible // indirect
 	github.com/smartystreets/assertions v1.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
