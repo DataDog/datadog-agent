@@ -267,5 +267,5 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 func GetFlareEndpoint(cfg config.Reader) string {
 	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
 	flareRoute, _ := configUtils.AddAgentVersionToDomain(configUtils.GetInfraEndpoint(cfg), "flare")
-	return flareRoute + "/support/flare"
+	return flareRoute + datadogSupportURL
 }

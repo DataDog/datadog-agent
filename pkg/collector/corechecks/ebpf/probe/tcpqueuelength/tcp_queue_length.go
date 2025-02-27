@@ -13,6 +13,7 @@ package tcpqueuelength
 
 import (
 	"fmt"
+
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -171,7 +171,7 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 }
 
 func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*Tracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"})
 	if err != nil {
 		return nil, err
 	}

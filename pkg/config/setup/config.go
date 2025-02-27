@@ -371,6 +371,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("flare.rc_profiling.blocking_rate", 0)
 	config.BindEnvAndSetDefault("flare.rc_profiling.mutex_fraction", 0)
 
+	config.BindEnvAndSetDefault("flare.rc_streamlogs.duration", 60*time.Second)
+
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
 	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
@@ -841,6 +843,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1643,6 +1646,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// SDS logs blocking mechanism
 	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
 	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
+
+	// Max size in MB to allow for integrations logs files
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
+
+	// Control how the stream-logs log file is managed
+	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
+
 }
 
 func vector(config pkgconfigmodel.Setup) {

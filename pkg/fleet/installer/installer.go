@@ -35,7 +35,6 @@ import (
 const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
-	packageAPMLibraries     = "datadog-apm-libraries"
 	packageDatadogInstaller = "datadog-installer"
 )
 
@@ -98,8 +97,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
-		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
-		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
+		packages:   repository.NewRepositories(paths.PackagesPath, packages.PreRemoveHooks),
+		configs:    repository.NewRepositories(paths.ConfigsPath, nil),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
@@ -225,16 +224,6 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	err = i.configurePackage(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
-	}
-	if pkg.Name == packageDatadogInstaller {
-		// We must handle the configuration of some packages that are not
-		// don't have an OCI. To properly configure their configuration repositories,
-		// we call configurePackage when setting up the installer; which is the only
-		// package that is always installed.
-		err = i.configurePackage(ctx, packageAPMLibraries)
-		if err != nil {
-			return fmt.Errorf("could not configure package: %w", err)
-		}
 	}
 	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
@@ -677,6 +666,14 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 	defer func() { span.Finish(err) }()
 	// TODO: Windows support
 	if runtime.GOOS == "windows" {
+		return nil
+	}
+	state, err := i.configs.GetState(pkg)
+	if err != nil {
+		return fmt.Errorf("could not get config repository state: %w", err)
+	}
+	// If a config is already set, no need to initialize it
+	if state.Stable != "" {
 		return nil
 	}
 	tmpDir, err := i.configs.MkdirTemp()

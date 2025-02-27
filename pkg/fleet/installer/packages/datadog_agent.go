@@ -18,6 +18,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -77,14 +79,14 @@ func PrepareAgent(ctx context.Context) (err error) {
 	defer func() { span.Finish(err) }()
 
 	for _, unit := range stableUnits {
-		if err := stopUnit(ctx, unit); err != nil {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
-		if err := disableUnit(ctx, unit); err != nil {
+		if err := systemd.DisableUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
 	}
-	return removeDebRPMPackage(ctx, agentPackage)
+	return packagemanager.RemovePackage(ctx, agentPackage)
 }
 
 // SetupAgent installs and starts the agent
@@ -99,12 +101,12 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	}()
 
 	for _, unit := range stableUnits {
-		if err = loadUnit(ctx, unit); err != nil {
+		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
 		}
 	}
 	for _, unit := range experimentalUnits {
-		if err = loadUnit(ctx, unit); err != nil {
+		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
 			return fmt.Errorf("failed to load %s: %v", unit, err)
 		}
 	}
@@ -133,12 +135,12 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 		return fmt.Errorf("failed to chown /etc/datadog-agent/security-agent.yaml: %v", err)
 	}
 
-	if err = systemdReload(ctx); err != nil {
+	if err = systemd.Reload(ctx); err != nil {
 		return fmt.Errorf("failed to reload systemd daemon: %v", err)
 	}
 
 	// enabling the agentUnit only is enough as others are triggered by it
-	if err = enableUnit(ctx, agentUnit); err != nil {
+	if err = systemd.EnableUnit(ctx, agentUnit); err != nil {
 		return fmt.Errorf("failed to enable %s: %v", agentUnit, err)
 	}
 	if err = exec.CommandContext(ctx, "ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink).Run(); err != nil {
@@ -157,7 +159,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	// this is expected during a fresh install with the install script / asible / chef / etc...
 	// the config is populated afterwards by the install method and the agent is restarted
 	if !os.IsNotExist(err) {
-		if err = startUnit(ctx, agentUnit); err != nil {
+		if err = systemd.StartUnit(ctx, agentUnit); err != nil {
 			return err
 		}
 	}
@@ -171,33 +173,33 @@ func RemoveAgent(ctx context.Context) error {
 	defer func() { span.Finish(spanErr) }()
 	// stop experiments, they can restart stable agent
 	for _, unit := range experimentalUnits {
-		if err := stopUnit(ctx, unit); err != nil {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 			spanErr = err
 		}
 	}
 	// stop stable agents
 	for _, unit := range stableUnits {
-		if err := stopUnit(ctx, unit); err != nil {
+		if err := systemd.StopUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 			spanErr = err
 		}
 	}
 
-	if err := disableUnit(ctx, agentUnit); err != nil {
+	if err := systemd.DisableUnit(ctx, agentUnit); err != nil {
 		log.Warnf("Failed to disable %s: %s", agentUnit, err)
 		spanErr = err
 	}
 
 	// remove units from disk
 	for _, unit := range experimentalUnits {
-		if err := removeUnit(ctx, unit); err != nil {
+		if err := systemd.RemoveUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 			spanErr = err
 		}
 	}
 	for _, unit := range stableUnits {
-		if err := removeUnit(ctx, unit); err != nil {
+		if err := systemd.RemoveUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 			spanErr = err
 		}
@@ -244,12 +246,12 @@ func StartAgentExperiment(ctx context.Context) error {
 	if err = chownRecursive("/opt/datadog-packages/datadog-agent/experiment/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
 		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/experiment/: %v", err)
 	}
-	return startUnit(ctx, agentExp, "--no-block")
+	return systemd.StartUnit(ctx, agentExp, "--no-block")
 }
 
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
-	return startUnit(ctx, agentUnit)
+	return systemd.StartUnit(ctx, agentUnit)
 }
 
 // PromoteAgentExperiment promotes the agent experiment

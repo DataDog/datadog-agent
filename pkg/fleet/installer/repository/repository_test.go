@@ -6,7 +6,6 @@
 package repository
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,15 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func createTestRepository(t *testing.T, dir string, stablePackageName string) *Repository {
+func createTestRepository(t *testing.T, dir string, stablePackageName string, preRemoveHook PreRemoveHook) *Repository {
 	repositoryPath := path.Join(dir, "repository")
-	locksPath := path.Join(dir, "run")
 	os.MkdirAll(repositoryPath, 0755)
-	os.MkdirAll(locksPath, 0777)
 	stablePackagePath := createTestDownloadedPackage(t, dir, stablePackageName)
 	r := Repository{
-		rootPath:  repositoryPath,
-		locksPath: locksPath,
+		rootPath: repositoryPath,
+	}
+	if preRemoveHook != nil {
+		r.preRemoveHooks = map[string]PreRemoveHook{"repository": preRemoveHook}
 	}
 	err := r.Create(stablePackageName, stablePackagePath)
 	assert.NoError(t, err)
@@ -47,7 +46,7 @@ func assertLinkTarget(t *testing.T, repository *Repository, link string, target 
 
 func TestCreateFresh(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 	state, err := repository.GetState()
 
 	assert.DirExists(t, repository.rootPath)
@@ -62,9 +61,9 @@ func TestCreateFresh(t *testing.T) {
 
 func TestCreateOverwrite(t *testing.T) {
 	dir := t.TempDir()
-	oldRepository := createTestRepository(t, dir, "old")
+	oldRepository := createTestRepository(t, dir, "old", nil)
 
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 
 	assert.Equal(t, oldRepository.rootPath, repository.rootPath)
 	assert.DirExists(t, repository.rootPath)
@@ -72,34 +71,35 @@ func TestCreateOverwrite(t *testing.T) {
 	assert.NoDirExists(t, path.Join(oldRepository.rootPath, "old"))
 }
 
-func TestCreateOverwriteWithLockedPackage(t *testing.T) {
+func TestCreateOverwriteWithHookAllow(t *testing.T) {
 	dir := t.TempDir()
-	oldRepository := createTestRepository(t, dir, "old")
-	err := os.MkdirAll(path.Join(oldRepository.locksPath, "garbagetocollect"), 0777)
-	assert.NoError(t, err)
+	oldRepository := createTestRepository(t, dir, "old", nil)
 
-	// Add a running process... our own! So we're sure it's running.
-	err = os.MkdirAll(path.Join(oldRepository.locksPath, "old"), 0777)
-	assert.NoError(t, err)
-	err = os.WriteFile(
-		path.Join(oldRepository.locksPath, "old", fmt.Sprint(os.Getpid())),
-		nil,
-		0644,
-	)
-	assert.NoError(t, err)
+	hook := func(string) (bool, error) { return true, nil }
+	repository := createTestRepository(t, dir, "v1", hook)
 
-	repository := createTestRepository(t, dir, "v1")
+	assert.Equal(t, oldRepository.rootPath, repository.rootPath)
+	assert.DirExists(t, repository.rootPath)
+	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
+	assert.NoDirExists(t, path.Join(repository.rootPath, "old"))
+}
+
+func TestCreateOverwriteWithHookDeny(t *testing.T) {
+	dir := t.TempDir()
+	oldRepository := createTestRepository(t, dir, "old", nil)
+
+	hook := func(string) (bool, error) { return false, nil }
+	repository := createTestRepository(t, dir, "v1", hook)
 
 	assert.Equal(t, oldRepository.rootPath, repository.rootPath)
 	assert.DirExists(t, repository.rootPath)
 	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
 	assert.DirExists(t, path.Join(repository.rootPath, "old"))
-	assert.NoDirExists(t, path.Join(oldRepository.locksPath, "garbagetocollect"))
 }
 
 func TestSetExperiment(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
 	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
@@ -118,7 +118,7 @@ func TestSetExperiment(t *testing.T) {
 
 func TestSetExperimentTwice(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 	experiment1DownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 	experiment2DownloadPackagePath := createTestDownloadedPackage(t, dir, "v3")
 
@@ -142,7 +142,7 @@ func TestSetExperimentBeforeStable(t *testing.T) {
 
 func TestPromoteExperiment(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
 	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
@@ -163,7 +163,7 @@ func TestPromoteExperiment(t *testing.T) {
 
 func TestPromoteExperimentWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 
 	err := repository.PromoteExperiment()
 	assert.Error(t, err)
@@ -171,7 +171,7 @@ func TestPromoteExperimentWithoutExperiment(t *testing.T) {
 
 func TestDeleteExperiment(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
 	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
@@ -183,51 +183,41 @@ func TestDeleteExperiment(t *testing.T) {
 
 func TestDeleteExperimentWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 
 	err := repository.DeleteExperiment()
 	assert.NoError(t, err)
 }
 
-func TestDeleteExperimentWithLockedPackage(t *testing.T) {
+func TestDeleteExperimentWithHookAllow(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	hook := func(string) (bool, error) { return true, nil }
+	repository := createTestRepository(t, dir, "v1", hook)
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
 	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
+	err = repository.DeleteExperiment()
+	assert.NoError(t, err)
+	assert.NoDirExists(t, path.Join(repository.rootPath, "v2"))
+}
 
-	// Add a running process... our own! So we're sure it's running.
-	err = os.MkdirAll(path.Join(repository.locksPath, "v2"), 0766)
-	assert.NoError(t, err)
-	err = os.WriteFile(
-		path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())),
-		nil,
-		0644,
-	)
-	assert.NoError(t, err)
+func TestDeleteExperimentWithHookDeny(t *testing.T) {
+	dir := t.TempDir()
+	hook := func(string) (bool, error) { return false, nil }
+	repository := createTestRepository(t, dir, "v1", hook)
+	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	// Add a running process that's not running to check its deletion
-	err = os.MkdirAll(path.Join(repository.locksPath, "v2"), 0766)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = os.WriteFile(
-		path.Join(repository.locksPath, "v2", "-1"), // We're sure not to hit a running process
-		nil,
-		0644,
-	)
-	assert.NoError(t, err)
-
 	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
-	assert.DirExists(t, path.Join(repository.locksPath, "v2"))
-	assert.NoFileExists(t, path.Join(repository.locksPath, "v2", "-1"))
-	assert.FileExists(t, path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())))
 }
 
 func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
-	repository := createTestRepository(t, dir, "v1")
+	repository := createTestRepository(t, dir, "v1", nil)
 
 	err := os.Remove(path.Join(repository.rootPath, experimentVersionLink))
 	assert.NoError(t, err)
@@ -236,4 +226,62 @@ func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	assertLinkTarget(t, repository, stableVersionLink, "v1")
 	assertLinkTarget(t, repository, experimentVersionLink, "v1")
+}
+
+func TestDelete(t *testing.T) {
+	dir := t.TempDir()
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	err := repository.Delete()
+	assert.NoError(t, err)
+	assert.NoDirExists(t, repository.rootPath)
+}
+
+func TestDeleteHookAllow(t *testing.T) {
+	dir := t.TempDir()
+	hook := func(string) (bool, error) { return true, nil }
+	repository := createTestRepository(t, dir, "v1", hook)
+
+	err := repository.Delete()
+	assert.NoError(t, err)
+	assert.NoDirExists(t, repository.rootPath)
+}
+
+func TestDeleteHookDeny(t *testing.T) {
+	dir := t.TempDir()
+	hook := func(string) (bool, error) { return false, nil }
+	repository := createTestRepository(t, dir, "v1", hook)
+
+	err := repository.Delete()
+	assert.Error(t, err)
+	assert.DirExists(t, repository.rootPath)
+}
+
+func TestDeleteExtraFilesDoNotPreventDeletion(t *testing.T) {
+	dir := t.TempDir()
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	extraFilePath := path.Join(repository.rootPath, "extra")
+	err := os.WriteFile(extraFilePath, []byte("extra"), 0644)
+	assert.NoError(t, err)
+
+	err = repository.Delete()
+	assert.NoError(t, err)
+	assert.NoDirExists(t, repository.rootPath)
+}
+
+func TestDeleteHookDenyDoesNotPreventReinstall(t *testing.T) {
+	dir := t.TempDir()
+	hook := func(string) (bool, error) { return false, nil }
+	oldRepository := createTestRepository(t, dir, "old", hook)
+
+	err := oldRepository.Delete()
+	assert.Error(t, err)
+
+	repository := createTestRepository(t, dir, "v1", nil)
+
+	assert.Equal(t, oldRepository.rootPath, repository.rootPath)
+	assert.DirExists(t, repository.rootPath)
+	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
+	assert.NoDirExists(t, path.Join(oldRepository.rootPath, "old"))
 }

@@ -162,7 +162,7 @@ func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
 		if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
 			log.Infof("GOMAXPROCS manually set to %v", mp)
 		} else if tracecfg.MaxCPU > 0 {
-			allowedCores := int(tracecfg.MaxCPU / 100)
+			allowedCores := int(tracecfg.MaxCPU)
 			if allowedCores < 1 {
 				allowedCores = 1
 			}

@@ -95,6 +95,11 @@ func (pt *ProcessTracker) handleProcessStop(pid uint32) {
 }
 
 func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
+	// Avoid self-inspection.
+	if int(pid) == os.Getpid() {
+		return
+	}
+
 	serviceName := getServiceName(pid)
 	if serviceName == "" {
 		// if the expected env vars are not set we don't inspect the binary

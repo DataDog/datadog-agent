@@ -29,7 +29,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
-| `accept` | Network | An accept was executed | 7.60 |
+| `accept` | Network | An accept was executed | 7.63 |
 | `bind` | Network | A bind was executed | 7.37 |
 | `bpf` | Kernel | A BPF command was executed | 7.33 |
 | `capset` | Process | A process changed its capacity set | 7.27 |
