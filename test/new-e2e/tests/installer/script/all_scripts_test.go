@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
-const STACK_CREATION_DELAY = 5 * time.Second
+const stackCreationDelay = 5 * time.Second
 
 type installerScriptTests func(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite
 
@@ -95,7 +95,7 @@ func TestScripts(t *testing.T) {
 				t.Parallel()
 
 				// INCIDENT(35594): To avoid rate limits, we need to wait between stack creation (aws imds rate limits)
-				time.Sleep(time.Duration(iteration) * STACK_CREATION_DELAY)
+				time.Sleep(time.Duration(iteration) * stackCreationDelay)
 
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
