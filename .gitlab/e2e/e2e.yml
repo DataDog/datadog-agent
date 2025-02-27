@@ -68,7 +68,8 @@ new-e2e-containers:
   # TODO once images are deployed to ECR for dev branches, update
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
-  rules: !reference [.on_container_or_e2e_changes_or_manual]
+  # TODO A: Restore rules
+  # rules: !reference [.on_container_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
