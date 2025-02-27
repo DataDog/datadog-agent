@@ -290,7 +290,7 @@ generateCompileAttach:
 func newConfigProbe() *ditypes.Probe {
 	return &ditypes.Probe{
 		ID:       ditypes.ConfigBPFProbeID,
-		FuncName: "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration",
+		FuncName: ditypes.RemoteConfigCallback,
 		InstrumentationInfo: &ditypes.InstrumentationInfo{
 			InstrumentationOptions: &ditypes.InstrumentationOptions{
 				ArgumentsMaxSize:  50000,

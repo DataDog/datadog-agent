@@ -434,3 +434,5 @@ type FuncByPCEntry struct {
 	FileNumber int64
 	Line       int64
 }
+
+const RemoteConfigCallback = "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration"
