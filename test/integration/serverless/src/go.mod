@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/integration/serverless/src
 
-go 1.22.0
+go 1.23
 
 require (
 	github.com/DataDog/datadog-lambda-go v1.11.1-0.20231030204701-7ec92619787d
