@@ -122,9 +122,6 @@ func TestCustomBoltCache_Clear(t *testing.T) {
 	err = cache.PutArtifact(artifactID, newTestArtifactInfo())
 	require.NoError(t, err)
 
-	err = cache.Clear()
-	require.NoError(t, err)
-
 	_, err = cache.GetArtifact(artifactID)
 	require.Error(t, err)
 }
