@@ -65,6 +65,7 @@ func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool 
 }
 
 func TestScripts(t *testing.T) {
+	// INCIDENT(35594): This will match rate limits. Please remove me once this is fixed
 	flake.MarkOnLog(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
 
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
