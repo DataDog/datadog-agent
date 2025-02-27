@@ -10,6 +10,7 @@ package trivy
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"runtime"
 	"slices"
@@ -36,9 +37,15 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
-	// This is required to load sqlite based RPM databases
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
+
+// This is required to load sqlite based RPM databases
+func init() {
+	// mattn/go-sqlite3 is only registering the sqlite3 driver
+	// let's register the sqlite (no 3) driver as well
+	sql.Register("sqlite", &sqlite3.SQLiteDriver{})
+}
 
 const (
 	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
@@ -155,6 +162,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	if analyzersDisabled(LanguagesAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeIndividualPkgs...)
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeExecutable)
 	}
 	if analyzersDisabled(SecretAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
@@ -172,7 +180,6 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
 	}
 	disabledAnalyzers = append(disabledAnalyzers,
-		analyzer.TypeExecutable,
 		analyzer.TypeRedHatContentManifestType,
 		analyzer.TypeRedHatDockerfileType,
 		analyzer.TypeSBOM,
