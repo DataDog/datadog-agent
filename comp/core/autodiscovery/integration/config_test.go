@@ -281,7 +281,7 @@ func TestSetNameForInstance(t *testing.T) {
 
 	err := config.Instances[0].SetNameForInstance("new-name")
 	assert.NoError(t, err)
-	assert.Equal(t,"name: new-name\n", string(config.Instances[0]))
+	assert.Equal(t, "name: new-name\n", string(config.Instances[0]))
 }
 
 // this is here to prevent compiler optimization on the benchmarking code
