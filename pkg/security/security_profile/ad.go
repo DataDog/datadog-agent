@@ -494,7 +494,7 @@ workloadLoop:
 
 		defaultConfig, found := defaultConfigs[containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags)]
 		if !found {
-			seclog.Errorf("Failed to find default activity dump config for %s", containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags).String())
+			seclog.Errorf("Failed to find default activity dump config for cgroup %s managed by %s", string(workloads[0].CGroupContext.CGroupID), containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags).String())
 			continue
 		}
 
