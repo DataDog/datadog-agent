@@ -210,8 +210,6 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v56253564-2781d434
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_1809_X64: v56253564-2781d434
-  CI_IMAGE_WIN_1809_X64_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v56253564-2781d434
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
@@ -1220,9 +1218,6 @@ workflow:
 # Use in jobs that need to run on Windows Server 2019 runners.
 .windows_docker_2019:
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  variables:
-    # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
 
 # windows_docker_default configures the job to use the default Windows Server runners
 # Use in jobs that may need to have their version updated in the future.
