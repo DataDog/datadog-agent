@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	common "github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
@@ -73,7 +74,7 @@ func TestReceiveAndForward(t *testing.T) {
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := selector.NewCompressor(mockConfig)
+			strategy := selector.NewCompressor(mockConfig, gatewayusagemock.NewMock())
 
 			sc := []servicecheck.ServiceCheck{}
 			decompressedBody, err := strategy.Decompress([]byte(requests[0]))

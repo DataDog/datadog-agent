@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 )
@@ -189,12 +190,13 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			gatewayUsage := gatewayusagemock.NewMock()
+			pcfg, err := FromAgentConfig(cfg, gatewayUsage)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
 			}
-			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true, gatewayUsage)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.cfg, pcfg)
 		})
@@ -458,12 +460,13 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			}
 			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			gatewayUsage := gatewayusagemock.NewMock()
+			pcfg, err := FromAgentConfig(cfg, gatewayUsage)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
 			}
-			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true, gatewayUsage)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.cfg, pcfg)
 		})
@@ -510,12 +513,13 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			gatewayUsage := gatewayusagemock.NewMock()
+			pcfg, err := FromAgentConfig(cfg, gatewayUsage)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
 			}
-			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true, gatewayUsage)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.cfg, pcfg)
 		})
@@ -606,12 +610,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			gatewayUsage := gatewayusagemock.NewMock()
+			pcfg, err := FromAgentConfig(cfg, gatewayUsage)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
 			}
-			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true)
+			testInstance.cfg.Metrics, err = normalizeMetricsConfig(testInstance.cfg.Metrics, true, gatewayUsage)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.cfg, pcfg)
 			assert.Equal(t, testInstance.shouldSet, pcfg.shouldSetLoggingSection())

@@ -15,6 +15,7 @@ import (
 
 	"go.uber.org/multierr"
 
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -79,6 +80,7 @@ type SerializerConsumer interface {
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string)
+	addGatewayUsage(hostname string, gatewayUsage gatewayusage.Component)
 }
 
 type serializerConsumer struct {
@@ -171,6 +173,17 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 			SourceTypeName: "System",
 		})
 	}
+}
+
+func (c *serializerConsumer) addGatewayUsage(hostname string, gatewayUsage gatewayusage.Component) {
+	c.series = append(c.series, &metrics.Serie{
+		Name:           "datadog.otel.gateway",
+		Points:         []metrics.Point{{Value: gatewayUsage.Gauge(), Ts: float64(time.Now().Unix())}},
+		Tags:           tagset.CompositeTagsFromSlice([]string{}),
+		Host:           hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
 }
 
 // Send exports all data recorded by the consumer. It does not reset the consumer.

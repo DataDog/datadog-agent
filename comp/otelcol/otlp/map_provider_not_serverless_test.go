@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -1108,7 +1109,7 @@ func TestUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	fakeTagger := mock.SetupFakeTagger(t)
 
-	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, gatewayusagemock.NewMock())
 	require.NoError(t, err)
 
 	_, err = provider.Get(context.Background(), components)

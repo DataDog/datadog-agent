@@ -22,6 +22,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
@@ -63,6 +64,8 @@ type Requires struct {
 	InventoryAgent inventoryagent.Component
 
 	Tagger tagger.Component
+
+	GatewayUsage gatewayusage.Component
 }
 
 // Provides specifics the types returned by the constructor
@@ -85,6 +88,7 @@ type collectorImpl struct {
 	tagger         tagger.Component
 	client         *http.Client
 	ctx            context.Context
+	gatewayUsage   gatewayusage.Component
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -100,7 +104,7 @@ func (c *collectorImpl) start(context.Context) error {
 		}
 	}
 	var err error
-	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger)
+	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger, c.gatewayUsage)
 	if err != nil {
 		// failure to start the OTLP component shouldn't fail startup
 		c.log.Errorf("Error creating the OTLP ingest pipeline: %v", err)
@@ -146,6 +150,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		tagger:         reqs.Tagger,
 		client:         client,
 		ctx:            context.Background(),
+		gatewayUsage:   reqs.GatewayUsage,
 	}
 
 	reqs.Lc.Append(compdef.Hook{

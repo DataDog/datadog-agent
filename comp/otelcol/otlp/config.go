@@ -17,6 +17,7 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -32,7 +33,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
+func FromAgentConfig(cfg config.Reader, gatewayUsage gatewayusage.Component) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
@@ -56,7 +57,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	if tags != "" {
 		metricsConfigMap["tags"] = tags
 	}
-	mc, err := normalizeMetricsConfig(metricsConfigMap, false)
+	mc, err := normalizeMetricsConfig(metricsConfigMap, false, gatewayUsage)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("failed to normalize metrics config: %w", err))
 	}
@@ -74,12 +75,12 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	}, multierr.Combine(errs...)
 }
 
-func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool) (map[string]interface{}, error) {
+func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool, gatewayUsage gatewayusage.Component) (map[string]interface{}, error) {
 	// metricsConfigMap doesn't strictly match the types present in MetricsConfig struct
 	// so to get properly type map we need to decode it twice
 
 	// We need to start with default config to get the corrent default values
-	cf := serializerexporter.NewFactoryForAgent(nil, nil, nil, nil, nil).CreateDefaultConfig()
+	cf := serializerexporter.NewFactoryForAgent(nil, nil, nil, nil, nil, gatewayUsage).CreateDefaultConfig()
 
 	x := cf.(*serializerexporter.ExporterConfig).Metrics
 	if strict {

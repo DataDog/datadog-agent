@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
@@ -40,11 +41,12 @@ type Config struct {
 
 type factory struct {
 	logsAgentChannel chan *message.Message
+	gatewayUsage     gatewayusage.Component
 }
 
 // NewFactory creates a new logsagentexporter factory.
-func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
-	f := &factory{logsAgentChannel: logsAgentChannel}
+func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage gatewayusage.Component) exp.Factory {
+	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage}
 	cfgType, _ := component.NewType(TypeStr)
 
 	return exp.NewFactory(
@@ -76,7 +78,7 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	exporter, err := NewExporter(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator)
+	exporter, err := NewExporter(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator, f.gatewayUsage)
 	if err != nil {
 		return nil, err
 	}

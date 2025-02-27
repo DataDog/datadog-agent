@@ -16,6 +16,7 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -40,8 +41,8 @@ func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
+func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, gatewayusage gatewayusage.Component) source.Source {
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, gatewayusage)
 }
 
 func (c testComponent) SendStatsPayload(p *pb.StatsPayload) {

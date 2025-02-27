@@ -31,6 +31,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	gatewayusagefx "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -89,6 +91,7 @@ func main() {
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
+		gatewayusagefx.Module(),
 	)
 
 	if err != nil {
@@ -100,8 +103,8 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, gatewayUsage gatewayusage.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression, gatewayUsage)
 
 	err := modeConf.Runner(logConfig)
 
@@ -111,7 +114,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	return err
 }
 
-func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Component, gatewayUsage gatewayusage.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -149,7 +152,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	metricAgent := setupMetricAgent(tags, tagger)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
-	setupOtlpAgent(metricAgent, tagger)
+	setupOtlpAgent(metricAgent, tagger, gatewayUsage)
 
 	go flushMetricsAgent(metricAgent)
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
@@ -203,12 +206,12 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component) *metrics.
 	return metricAgent
 }
 
-func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Component) {
+func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Component, gatewayUsage gatewayusage.Component) {
 	if !otlp.IsEnabled() {
 		log.Debugf("otlp endpoint disabled")
 		return
 	}
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger, gatewayUsage)
 	otlpAgent.Start()
 }
 

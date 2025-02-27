@@ -430,6 +430,12 @@ Package ddflareextension defines the OpenTelemetry Extension component.
 
 Package ddprofilingextension defines the otel agent ddprofilingextension component.
 
+### [comp/otelcol/gatewayusage](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage)
+
+*Datadog Team*: @DataDog/opentelemetry-agent
+
+Package gatewayusage provides the gateway usage component type.
+
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
 Package logsagentpipeline contains logs agent pipeline component
