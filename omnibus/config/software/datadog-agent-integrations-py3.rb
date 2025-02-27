@@ -56,6 +56,11 @@ agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
 
+site_package_path = "#{install_dir}/embedded/lib/python#{python_version}/site-packages"
+if windows_target?
+  site_package_path = "#{python_3_embedded}/Lib/site-packages"
+end
+
 build do
   # The dir for confs
   if osx_target?
@@ -208,11 +213,7 @@ build do
         end
 
         # Drop the example files from the installed packages since they are copied in /etc/datadog-agent/conf.d and not used here
-        if windows_target?
-          delete "#{python_3_embedded}/Lib/site-packages/datadog_checks/#{check}/data/#{filename}"
-        else
-          delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/datadog_checks/#{check}/data/#{filename}"
-        end
+        delete "#{site_package_path}/datadog_checks/#{check}/data/#{filename}"
       end
 
       # Copy SNMP profiles
@@ -252,17 +253,13 @@ build do
     'websocket/tests',
   ]
   test_folders.each do |test_folder|
-    if windows_target?
-      delete "#{python_3_embedded}/Lib/site-packages/#{test_folder}/"
-    else
-      delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/#{test_folder}/"
-    end
+    delete "#{site_package_path}/#{test_folder}/"
   end
 
   unless windows_target?
     block "Remove .exe files" do
       # setuptools come from supervisor and ddtrace
-      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{python_version}/site-packages/setuptools/*.exe"))
+      FileUtils.rm_f(Dir.glob("#{site_package_path}/setuptools/*.exe"))
     end
   end
 
@@ -278,7 +275,7 @@ build do
       if linux_target?
         # We delete the libraries shipped with the wheel and replace references to those names
         # in the binary that references it using patchelf
-        cryptography_folder = "#{install_dir}/embedded/lib/python#{python_version}/site-packages/cryptography"
+        cryptography_folder = "#{site_package_path}/cryptography"
         so_to_patch = "#{cryptography_folder}/hazmat/bindings/_rust.abi3.so"
         libssl_match = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")[0]
         libcrypto_match = Dir.glob("#{cryptography_folder}.libs/libcrypto-*.so.3")[0]
@@ -290,16 +287,10 @@ build do
     end
   end
 
-  block "Remove .pyi files" do
-    # We don't need them at runtime
-
-    pattern = "#{install_dir}/embedded/lib/python#{python_version}/site-packages/**/*.pyi"
-
-    if windows_target?
-      pattern = "#{python_3_embedded}/Lib/site-packages/**/*.pyi"
-    end
-
-    FileUtils.rm_f(Dir.glob(pattern))
+  block "Remove type annotations files" do
+    # These are files containing Python type annotations which aren't used at runtime
+    FileUtils.rm_f(Dir.glob("#{site_package_path}/**/*.pyi"))
+    FileUtils.rm_f(Dir.glob("#{site_package_path}/**/py.typed"))
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
