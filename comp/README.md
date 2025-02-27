@@ -409,7 +409,7 @@ Package npcollector used to manage network paths
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
-*Datadog Team*: opentelemetry opentelemetry-agent
+*Datadog Team*: opentelemetry-agent
 
 Package otelcol contains the OTLP ingest bundle pipeline to be included
 into the agent components.
