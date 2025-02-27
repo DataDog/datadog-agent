@@ -792,6 +792,7 @@ new-e2e-eks-cleanup-on-failure:
 celian:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
+  stage: e2e
   needs: []
   before_script:
     # - !reference [.retrieve_linux_go_e2e_deps]
