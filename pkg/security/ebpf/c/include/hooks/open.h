@@ -60,7 +60,7 @@ HOOK_SYSCALL_COMPAT_ENTRY0(ftruncate) {
     int flags = O_CREAT | O_WRONLY | O_TRUNC;
     umode_t mode = 0;
     char filename[1] = "";
-    return trace__sys_openat(&filename[0], SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY3(open, const char *, filename, int, flags, umode_t, mode) {
@@ -77,23 +77,25 @@ HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_
     return trace__sys_openat(filename, SYNC_SYSCALL, how.flags, how.mode);
 }
 
-int __attribute__((always_inline)) handle_truncate_path_dentry(ctx_t *ctx, struct path *path, struct dentry *dentry) {
+int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall) {
+    if (!syscall || syscall->open.dentry) {
         return 0;
     }
 
-    if (syscall->open.dentry) {
+    //struct path *path = (struct path *)CTX_PARM1(ctx);
+    struct dentry *dentry = get_path_dentry(path);
+    if (!dentry || is_non_mountable_dentry(dentry)) {
         return 0;
     }
 
-    if (is_non_mountable_dentry(dentry)) {
-        pop_syscall(EVENT_OPEN);
+    struct path_key_t path_key = get_dentry_key_path(dentry, path);
+    if (path_key.ino == 0) {
         return 0;
     }
 
     syscall->open.dentry = dentry;
-    syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
+    syscall->open.file.path_key = path_key;
 
     set_file_inode(dentry, &syscall->open.file, 0);
 
@@ -116,26 +118,22 @@ int __attribute__((always_inline)) handle_truncate_path(ctx_t *ctx, struct path 
     if (path == NULL) {
         return 0;
     }
-
-    struct dentry *dentry = get_path_dentry(path);
-    return handle_truncate_path_dentry(ctx, path, dentry);
+    return handle_open(ctx, path);
 }
 
 HOOK_ENTRY("do_truncate")
 int hook_do_truncate(ctx_t *ctx) {
-    struct dentry *dentry = (struct dentry *)CTX_PARM1(ctx);
     struct file *f = (struct file *)CTX_PARM4(ctx);
     if (f == NULL) {
         return 0;
     }
-    struct path *path = get_file_f_path_addr(f);
-    return handle_truncate_path_dentry(ctx, path, dentry);
+    return handle_open(ctx, get_file_f_path_addr(f));
 }
 
 HOOK_ENTRY("vfs_truncate")
 int hook_vfs_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_truncate_path(ctx, path);
+    return handle_open(ctx, path);
 }
 
 HOOK_ENTRY("security_file_truncate")
@@ -144,56 +142,25 @@ int hook_security_file_truncate(ctx_t *ctx) {
     if (f == NULL) {
         return 0;
     }
-    return handle_truncate_path(ctx, get_file_f_path_addr(f));
+    return handle_open(ctx, get_file_f_path_addr(f));
 }
 
 HOOK_ENTRY("security_path_truncate")
 int hook_security_path_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_truncate_path(ctx, path);
-}
-
-int __attribute__((always_inline)) handle_open(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall || syscall->open.dentry) {
-        return 0;
-    }
-
-    struct path *path = (struct path *)CTX_PARM1(ctx);
-    struct dentry *dentry = get_path_dentry(path);
-    if (!dentry || is_non_mountable_dentry(dentry)) {
-        pop_syscall(EVENT_OPEN);
-        return 0;
-    }
-
-    syscall->open.dentry = dentry;
-    syscall->open.file.path_key = get_dentry_key_path(dentry, path);
-
-    set_file_inode(dentry, &syscall->open.file, 0);
-
-    // do not pop, we want to keep track of the mount ref counter later in the stack
-    approve_syscall(syscall, open_approvers);
-
-    syscall->resolver.key = syscall->open.file.path_key;
-    syscall->resolver.dentry = syscall->open.dentry;
-    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
-    syscall->resolver.iteration = 0;
-    syscall->resolver.ret = 0;
-
-    // tail call
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
-
-    return 0;
+    return handle_open(ctx, path);
 }
 
 HOOK_ENTRY("vfs_open")
 int hook_vfs_open(ctx_t *ctx) {
-   return handle_open(ctx);
+    struct path *path = (struct path *)CTX_PARM1(ctx);
+    return handle_open(ctx, path);
 }
 
 HOOK_ENTRY("terminate_walk")
 int hook_terminate_walk(ctx_t *ctx) {
-    return handle_open(ctx);
+    struct path *path = (struct path *)CTX_PARM1(ctx);
+    return handle_open(ctx, path);
 }
 
 HOOK_ENTRY("do_dentry_open")
