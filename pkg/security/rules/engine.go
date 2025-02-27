@@ -412,8 +412,11 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			})
 		} else if strings.HasPrefix(name, "container.") && runtime.GOOS == "linux" {
 			scopedVariable := value.(eval.ScopedVariable)
-
-			cgr := e.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.CGroupResolver
+			ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
+			if !ok {
+				continue
+			}
+			cgr := ebpfProbe.Resolvers.CGroupResolver
 			containerWorkloads := cgr.GetContainerWorkloads()
 			if containerWorkloads == nil {
 				continue
