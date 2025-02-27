@@ -82,6 +82,7 @@ func TestScripts(t *testing.T) {
 		flavor.Architecture = e2eos.ARM64Arch
 		flavors = append(flavors, flavor)
 	}
+	iteration := 0
 	for _, f := range flavors {
 		for _, test := range scriptTestsWithSkippedFlavors {
 			flavor := f // capture range variable for parallel tests closure
@@ -92,6 +93,9 @@ func TestScripts(t *testing.T) {
 			suite := test.t(flavor, flavor.Architecture)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
+
+				// INCIDENT(35594): To avoid rate limits, we need to wait between stack creation (aws imds rate limits)
+				time.Sleep(time.Duration(iteration) * STACK_CREATION_DELAY)
 
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
@@ -104,8 +108,7 @@ func TestScripts(t *testing.T) {
 				)
 			})
 
-			// INCIDENT(35594): To avoid rate limits, we need to wait between stack creation (aws imds rate limits)
-			time.Sleep(STACK_CREATION_DELAY)
+			iteration++
 		}
 	}
 }
