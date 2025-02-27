@@ -14,6 +14,7 @@ import textwrap
 import traceback
 from collections import defaultdict
 from collections.abc import Iterable
+from contextlib import contextmanager
 from pathlib import Path
 
 from invoke import task
@@ -313,31 +314,58 @@ def tidy_all(ctx):
     tidy(ctx)
 
 
+# we now have some godebug statements in the main go.mod
+# that are not all supported by go 1.24. To allow uses to tidy
+# with recent go versions we comment out those lines before
+# running the tidy and uncomment them after.
+@contextmanager
+def comment_out_godebug(ctx):
+    go_version_output = ctx.run('go version')
+    # result is like "go version go1.23.6 linux/amd64"
+    running_go_version = go_version_output.stdout.split(' ')[2]
+    should_comment_out = running_go_version.startswith("go1.24")
+
+    if should_comment_out:
+        if sys.platform == "darwin":
+            ctx.run("sed -i '' 's|^godebug|// godebug|g' go.mod")
+        else:
+            ctx.run("sed -i 's|^godebug|// godebug|g' go.mod")
+    try:
+        yield
+    finally:
+        if should_comment_out:
+            if sys.platform == "darwin":
+                ctx.run("sed -i '' 's|^// godebug|godebug|g' go.mod")
+            else:
+                ctx.run("sed -i 's|^// godebug|godebug|g' go.mod")
+
+
 @task
 def tidy(ctx):
     check_valid_mods(ctx)
 
-    ctx.run("go work sync")
+    with comment_out_godebug(ctx):
+        ctx.run("go work sync")
 
-    if os.name != 'nt':  # not windows
-        import resource
+        if os.name != 'nt':  # not windows
+            import resource
 
-        # Some people might face ulimit issues, so we bump it up if needed.
-        # It won't change it globally, only for this process and child processes.
-        # TODO: if this is working fine, let's do it during the init so all tasks can benefit from it if needed.
-        current_ulimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-        if current_ulimit[0] < 1024:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
+            # Some people might face ulimit issues, so we bump it up if needed.
+            # It won't change it globally, only for this process and child processes.
+            # TODO: if this is working fine, let's do it during the init so all tasks can benefit from it if needed.
+            current_ulimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+            if current_ulimit[0] < 1024:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
 
-    # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
-    promises = []
-    for mod in get_default_modules().values():
-        with ctx.cd(mod.full_path()):
-            # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-            promises.append(ctx.run("go mod tidy", asynchronous=True))
+        # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
+        promises = []
+        for mod in get_default_modules().values():
+            with ctx.cd(mod.full_path()):
+                # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
+                promises.append(ctx.run("go mod tidy", asynchronous=True))
 
-    for promise in promises:
-        promise.join()
+        for promise in promises:
+            promise.join()
 
 
 @task
