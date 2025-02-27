@@ -88,7 +88,7 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 		cfg.ProtocolClassificationEnabled = false
 	}
 
-	tr, err := NewTracer(cfg, nil)
+	tr, err := NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
