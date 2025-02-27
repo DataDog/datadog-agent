@@ -1,62 +1,62 @@
 # Package gates
 static_quality_gate_agent_deb_amd64:
-  max_on_wire_size: "202.62 MiB"
+  max_on_wire_size: "179.62 MiB"
   max_on_disk_size: "801.8 MiB"
 
 static_quality_gate_agent_deb_arm64:
-  max_on_wire_size: "184.51 MiB"
+  max_on_wire_size: "169.69 MiB"
   max_on_disk_size: "793.14 MiB"
 
 static_quality_gate_agent_rpm_amd64:
-  max_on_wire_size: "205.03 MiB"
+  max_on_wire_size: "181.73 MiB"
   max_on_disk_size: "801.79 MiB"
 
 static_quality_gate_agent_rpm_arm64:
-  max_on_wire_size: "186.44 MiB"
+  max_on_wire_size: "165.58 MiB"
   max_on_disk_size: "793.09 MiB"
 
 static_quality_gate_agent_suse_amd64:
-  max_on_wire_size: "205.03 MiB"
+  max_on_wire_size: "181.73 MiB"
   max_on_disk_size: "801.81 MiB"
 
 static_quality_gate_agent_suse_arm64:
-  max_on_wire_size: "186.44 MiB"
+  max_on_wire_size: "165.58 MiB"
   max_on_disk_size: "793.14 MiB"
 
 static_quality_gate_dogstatsd_deb_amd64:
-  max_on_wire_size: "19.78 MiB"
+  max_on_wire_size: "19.65 MiB"
   max_on_disk_size: "47.67 MiB"
 
 static_quality_gate_dogstatsd_deb_arm64:
-  max_on_wire_size: "18.49 MiB"
+  max_on_wire_size: "18.36 MiB"
   max_on_disk_size: "46.27 MiB"
 
 static_quality_gate_dogstatsd_rpm_amd64:
-  max_on_wire_size: "19.79 MiB"
+  max_on_wire_size: "19.65 MiB"
   max_on_disk_size: "47.67 MiB"
 
 static_quality_gate_dogstatsd_suse_amd64:
-  max_on_wire_size: "19.79 MiB"
+  max_on_wire_size: "19.65 MiB"
   max_on_disk_size: "47.67 MiB"
 
 static_quality_gate_iot_agent_deb_amd64:
-  max_on_wire_size: "24.8 MiB"
+  max_on_wire_size: "24.6 MiB"
   max_on_disk_size: "69.0 MiB"
 
 static_quality_gate_iot_agent_deb_arm64:
-  max_on_wire_size: "22.8 MiB"
+  max_on_wire_size: "22.59 MiB"
   max_on_disk_size: "66.4 MiB"
 
 static_quality_gate_iot_agent_rpm_amd64:
-  max_on_wire_size: "24.8 MiB"
+  max_on_wire_size: "24.62 MiB"
   max_on_disk_size: "69.0 MiB"
 
 static_quality_gate_iot_agent_rpm_arm64:
-  max_on_wire_size: "22.8 MiB"
+  max_on_wire_size: "22.61 MiB"
   max_on_disk_size: "66.4 MiB"
 
 static_quality_gate_iot_agent_suse_amd64:
-  max_on_wire_size: "24.8 MiB"
+  max_on_wire_size: "24.62 MiB"
   max_on_disk_size: "69.0 MiB"
 
 # Docker images gate
