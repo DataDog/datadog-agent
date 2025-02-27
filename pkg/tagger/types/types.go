@@ -10,8 +10,9 @@ import "github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 
 // OriginInfo contains the Origin Detection information.
 type OriginInfo struct {
-	LocalData     origindetection.LocalData     // LocalData is the local data list.
-	ExternalData  origindetection.ExternalData  // ExternalData is the external data list.
-	Cardinality   string                        // Cardinality is the cardinality of the resolved origin.
-	ProductOrigin origindetection.ProductOrigin // ProductOrigin is the product that sent the origin information.
+	ContainerIDFromSocket string                        // ContainerIDFromSocket is the origin resolved using Unix Domain Socket.
+	LocalData             origindetection.LocalData     // LocalData is the local data list.
+	ExternalData          origindetection.ExternalData  // ExternalData is the external data list.
+	Cardinality           string                        // Cardinality is the cardinality of the resolved origin.
+	ProductOrigin         origindetection.ProductOrigin // ProductOrigin is the product that sent the origin information.
 }
