@@ -117,7 +117,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_bprm_check"),
 				}},
 				kprobeOrFentry("setup_new_exec_interp"),
-				kprobeOrFentry("setup_new_exec_args_envs", withUID(SecurityAgentUID+"_a")),
+				kprobeOrFentry("setup_new_exec_args_envs"),
 				kprobeOrFentry("setup_arg_pages"),
 				kprobeOrFentry("mprotect_fixup"),
 				kprobeOrFentry("exit_itimers"),
@@ -172,9 +172,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 
 			// Open probes
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("security_path_truncate"),
+				kprobeOrFentry("vfs_open", withUIDSuffix("path_truncate")),
+				kprobeOrFentry("vfs_open", withUIDSuffix("vfs_truncate")),
 				kprobeOrFentry("security_file_truncate"),
-				kprobeOrFentry("vfs_truncate"),
 				kprobeOrFentry("do_truncate"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open", fentry, EntryAndExit, true)},
@@ -193,7 +193,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("filp_close"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("terminate_walk"),
+				kprobeOrFentry("vfs_open", withUIDSuffix("terminate_walk")),
 			}},
 
 			// iouring
