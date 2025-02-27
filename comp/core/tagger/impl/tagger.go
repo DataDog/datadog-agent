@@ -378,6 +378,45 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 
 	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLengh()
 
+	if originInfo.ContainerIDFromSocket == "" && originInfo.LocalData.ProcessID != 0 {
+		t.log.Criticalf("Wassim DSD Debug - ProcessID %d is set but not ContainerIDFromSocket", originInfo.LocalData.ProcessID)
+		var containerIDFromProcessID string
+		var processIDResolutionError error
+		containerIDFromProcessID, processIDResolutionError = t.generateContainerIDFromProcessID(originInfo.LocalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
+		if processIDResolutionError != nil {
+			t.log.Tracef("Failed to resolve container ID from ProcessID %d: %v", originInfo.LocalData.ProcessID, processIDResolutionError)
+		}
+
+		if containerIDFromProcessID != "" {
+			containerIDFromProcessID = types.NewEntityID(types.ContainerID, containerIDFromProcessID).String()
+			tags, taggingError := t.Tag(types.NewEntityID(types.ContainerID, containerIDFromProcessID), types.HighCardinality)
+			if taggingError != nil {
+				t.log.Criticalf("tags: %+v", tags)
+			}
+		}
+	}
+
+	originInfo.ContainerIDFromSocket = ""
+
+	if originInfo.LocalData.ProcessID != 0 {
+		var containerIDFromProcessID string
+		var processIDResolutionError error
+		containerIDFromProcessID, processIDResolutionError = t.generateContainerIDFromProcessID(originInfo.LocalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
+		if processIDResolutionError != nil {
+			t.log.Tracef("Failed to resolve container ID from ProcessID %d: %v", originInfo.LocalData.ProcessID, processIDResolutionError)
+		}
+
+		if containerIDFromProcessID != "" {
+			containerIDFromProcessID = types.NewEntityID(types.ContainerID, containerIDFromProcessID).String()
+			if containerIDFromProcessID != originInfo.ContainerIDFromSocket {
+				t.log.Criticalf("Wassim DSD Debug - Tagger Resolution %s is different from DogStatsD %s", containerIDFromProcessID, originInfo.ContainerIDFromSocket)
+			} else {
+				t.log.Criticalf("Wassim DSD Debug - Tagger Resolution %s is equal to DogStatsD %s", containerIDFromProcessID, originInfo.ContainerIDFromSocket)
+				originInfo.ContainerIDFromSocket = containerIDFromProcessID
+			}
+		}
+	}
+
 	// Generate container ID from Inode
 	if originInfo.LocalData.ContainerID == "" {
 		var inodeResolutionError error
@@ -505,6 +544,11 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
 func (t *TaggerWrapper) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	return t.defaultTagger.GenerateContainerIDFromOriginInfo(originInfo)
+}
+
+// generateContainerIDFromProcessID generates a container ID from the CGroup inode.
+func (t *TaggerWrapper) generateContainerIDFromProcessID(l origindetection.LocalData, metricsProvider provider.ContainerIDForPIDRetriever) (string, error) {
+	return metricsProvider.GetContainerIDForPID(int(l.ProcessID), time.Second)
 }
 
 // generateContainerIDFromInode generates a container ID from the CGroup inode.

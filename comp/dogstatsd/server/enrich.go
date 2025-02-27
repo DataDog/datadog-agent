@@ -15,6 +15,7 @@ import (
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -40,6 +41,8 @@ type enrichConfig struct {
 func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
 	host := conf.defaultHostname
 	metricSource := metrics.MetricSourceDogstatsd
+
+	log.Criticalf("Wassim DSD Debug - originFromUDS: %s", originFromUDS)
 
 	// Add Origin Detection metadata
 	origin := taggertypes.OriginInfo{
