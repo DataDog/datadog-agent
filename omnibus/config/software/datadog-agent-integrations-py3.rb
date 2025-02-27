@@ -271,8 +271,8 @@ build do
   # This is intended as a temporary kludge while we make a decision on how to handle the multiplicity
   # of openssl copies in a more general way while keeping risk low.
   if fips_mode?
-    block "Patch cryptography's openssl linking" do
-      if linux_target?
+    if linux_target?
+      block "Patch cryptography's openssl linking" do
         # We delete the libraries shipped with the wheel and replace references to those names
         # in the binary that references it using patchelf
         cryptography_folder = "#{site_packages_path}/cryptography"
@@ -284,20 +284,20 @@ build do
         shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
         FileUtils.rm([libssl_match, libcrypto_match])
       end
-      if windows_target?
-        # We delete the libraries shipped with the wheel and replace them with copies of the embedded OpenSSL libraries.
-        # This is the most straightforward solution on Windows because manipulating the binary would be a bit too involved
-        cryptography_libs_folder = File.join(install_dir, "embedded3", "lib", "site-packages", "cryptography.libs")
-        libssl_match = Dir.glob(File.join(cryptography_libs_folder, "libssl-3-*.dll"))[0]
-        libcrypto_match = Dir.glob(File.join(cryptography_libs_folder, "libcrypto-3-*.dll"))[0]
-        dll_folder = File.join(install_dir, "embedded3", "DLLS")
-        puts `dir "#{cryptography_libs_folder}"`
-        FileUtils.rm([libssl_match, libcrypto_match])
-        puts `dir "#{cryptography_libs_folder}"`
-        FileUtils.cp(File.join(dll_folder, "libssl-3-x64.dll"), libssl_match)
-        FileUtils.cp(File.join(dll_folder, "libcrypto-3-x64.dll"), libcrypto_match)
-        puts `dir "#{cryptography_libs_folder}"`
-      end
+    elsif windows_target?
+      # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
+      # We first need to copy some files around (we need the .lib files for building)
+      copy File.join(install_dir, "embedded3", "lib", "libssl.dll.a"),
+           File.join(install_dir, "embedded3", "dlls", "libssl-3-x64.lib")
+      copy File.join(install_dir, "embedded3", "lib", "libcrypto.dll.a"),
+           File.join(install_dir, "embedded3", "dlls", "libcrypto-3-x64.lib")
+
+      command "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography cryptography==43.0.1",
+              env: {
+                "OPENSSL_LIB_DIR" => File.join(install_dir, "embedded3", "DLLS"),
+                "OPENSSL_INCLUDE_DIR" => File.join(install_dir, "embedded3", "include"),
+                "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
+              }
     end
   end
 
