@@ -422,10 +422,11 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			for _, cgce := range containerWorkloads.Values() {
 				cgce.RLock()
 				defer cgce.RUnlock()
+
 				event := e.probe.PlatformProbe.NewEvent()
 				event.ContainerContext = &cgce.ContainerContext
 				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%d", name, cgce.ContainerContext.ContainerID)
+				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
 					continue
