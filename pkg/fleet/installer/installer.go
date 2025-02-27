@@ -93,7 +93,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	return &installerImpl{
+	i := &installerImpl{
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
@@ -102,7 +102,14 @@ func NewInstaller(env *env.Env) (Installer, error) {
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
-	}, nil
+	}
+
+	err = i.ensurePackagesAreConfigured(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("could not ensure packages are configured: %w", err)
+	}
+
+	return i, nil
 }
 
 // AvailableDiskSpace returns the available disk space.
@@ -661,6 +668,20 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	}
 }
 
+func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err error) {
+	pkgList, err := i.packages.GetStates()
+	if err != nil {
+		return fmt.Errorf("could not get package states: %w", err)
+	}
+	for pkg := range pkgList {
+		err = i.configurePackage(ctx, pkg)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
@@ -778,6 +799,7 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 	return nil
 }
 
+// ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
 	err := os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
@@ -786,6 +808,10 @@ func ensureRepositoriesExist() error {
 	err = os.MkdirAll(paths.ConfigsPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating configs directory: %w", err)
+	}
+	err = os.MkdirAll(paths.RootTmpDir, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating tmp directory: %w", err)
 	}
 	return nil
 }
