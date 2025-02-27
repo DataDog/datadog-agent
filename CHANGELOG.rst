@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.63.1:
+
+7.63.1
+======
+
+.. _Release Notes_7.63.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-26
+
+- Please refer to the `7.63.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7631>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.63.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Publish image tags of the `datadog-fips-agent` build.
+
+
 .. _Release Notes_7.63.0:
 
 7.63.0
