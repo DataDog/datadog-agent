@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
+const STACK_CREATION_DELAY = 5 * time.Second
+
 type installerScriptTests func(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite
 
 type installerScriptTestsWithSkippedFlavors struct {
@@ -101,6 +103,9 @@ func TestScripts(t *testing.T) {
 					e2e.WithStackName(suite.Name()),
 				)
 			})
+
+			// INCIDENT(35594): To avoid rate limits, we need to wait between stack creation (aws imds rate limits)
+			time.Sleep(STACK_CREATION_DELAY)
 		}
 	}
 }
