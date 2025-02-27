@@ -101,11 +101,12 @@ func processKey(rootPath, key, name string) (*Product, error) {
 
 // FindProductMSI returns the path to the MSI file for the given product code
 func FindProductMSI(productCode string) (string, error) {
-	msiLocation, err := msiGetProductInfo(productCode, INSTALLPROPERTY_LOCALPACKAGE)
-	if err != nil {
-		return "", err
-	}
-	return msiLocation, nil
+	return msiGetProductInfo(productCode, INSTALLPROPERTY_LOCALPACKAGE)
+}
+
+// GetProductVersion returns the version of the product with the given product code
+func GetProductVersion(productCode string) (string, error) {
+	return msiGetProductInfo(productCode, "VersionString")
 }
 
 // MsiGetProductInfo retrieves the requested information about a product in the Windows Installer database

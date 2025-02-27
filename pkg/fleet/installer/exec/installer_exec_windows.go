@@ -13,8 +13,9 @@ import (
 	"syscall"
 )
 
-func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) {
+func (i *InstallerExec) newInstallerCmdPlatform(cmd *exec.Cmd) *exec.Cmd {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
+	return cmd
 }

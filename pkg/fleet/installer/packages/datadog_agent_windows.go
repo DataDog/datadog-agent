@@ -13,11 +13,12 @@ import (
 	"os"
 	"path"
 
+	"golang.org/x/sys/windows/registry"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -41,6 +42,27 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 	_ = removeAgentIfInstalled(ctx)
 	err = installAgentPackage("stable", args)
 	return err
+}
+
+func GetCurrentAgentMSIProperties() (string, string, error) {
+	product, err := msi.FindProductCode("Datadog Agent")
+	if err != nil {
+		return "", "", err
+	}
+
+	productVersion, err := msi.GetProductVersion(product.Code)
+	if err != nil {
+		return "", "", err
+	}
+
+	// get MSI path
+	msiPath, err := msi.FindProductMSI(product.Code)
+	if err != nil {
+		return "", "", err
+	}
+
+	return msiPath, productVersion, nil
+
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -105,15 +127,9 @@ func RemoveAgent(ctx context.Context) (err error) {
 }
 
 func installAgentPackage(target string, args []string) error {
-	// Lookup Agent user stored in registry by the Installer MSI
-	// and pass it to the Agent MSI
-	agentUser, err := getAgentUserName()
-	if err != nil {
-		return fmt.Errorf("failed to get Agent user: %w", err)
-	}
 
 	rootPath := ""
-	_, err = os.Stat(paths.RootTmpDir)
+	_, err := os.Stat(paths.RootTmpDir)
 	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
 	if os.IsExist(err) {
 		rootPath = paths.RootTmpDir
@@ -127,10 +143,7 @@ func installAgentPackage(target string, args []string) error {
 	cmd, err := msi.Cmd(
 		msi.Install(),
 		msi.WithMsiFromPackagePath(target, datadogAgent),
-		msi.WithDdAgentUserName(agentUser),
 		msi.WithAdditionalArgs(args),
-		// The Agent package is not serviceable by the end user.
-		msi.HideControlPanelEntry(),
 		msi.WithLogFile(path.Join(tempDir, "msi.log")),
 	)
 	var output []byte
