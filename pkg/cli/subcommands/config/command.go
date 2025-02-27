@@ -231,7 +231,7 @@ func getConfigValue(_ log.Component, config config.Component, cliParams *cliPara
 
 func otelAgentCfg(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if !config.GetBool("otelcollector.enabled") {
-		return errors.New("otel-agent is not present")
+		return errors.New("otel-agent is not enabled")
 	}
 	if !config.GetBool("otelcollector.converter.enabled") {
 		return errors.New("otel-agent converter must be enabled to get otel-agent's runtime configs")
