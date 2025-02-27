@@ -6,8 +6,10 @@
 package installscript
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"testing"
@@ -70,6 +72,32 @@ func TestScripts(t *testing.T) {
 			t.FailNow()
 		}
 	}
+
+	// We should be able to do that by calling aws sts assume-role and then registering the access key and access key id in the AWS_ACCESS_KEY*  environment variables
+	// We just need to make sure that these credentials will live long enough because they will not be refreshed automatically in the middle of the test
+	roleArn := os.Getenv("AWS_ROLE_ARN")
+	if roleArn == "" {
+		t.Log("AWS_ROLE_ARN env var is not set, this test requires it to be set to work")
+		t.FailNow()
+	}
+
+	sessionName := fmt.Sprintf("e2e-test-session-%d", time.Now().Unix())
+	assumeRoleCmd := fmt.Sprintf("aws sts assume-role --role-arn %s --role-session-name %s", roleArn, sessionName)
+	output, err := exec.Command("sh", "-c", assumeRoleCmd).Output()
+	require.NoError(t, err, "failed to assume role")
+
+	var creds struct {
+		Credentials struct {
+			AccessKeyId     string `json:"AccessKeyId"`
+			SecretAccessKey string `json:"SecretAccessKey"`
+			SessionToken    string `json:"SessionToken"`
+		} `json:"Credentials"`
+	}
+	require.NoError(t, json.Unmarshal(output, &creds), "failed to unmarshal assume role output")
+
+	os.Setenv("AWS_ACCESS_KEY_ID", creds.Credentials.AccessKeyId)
+	os.Setenv("AWS_SECRET_ACCESS_KEY", creds.Credentials.SecretAccessKey)
+	os.Setenv("AWS_SESSION_TOKEN", creds.Credentials.SessionToken)
 
 	var flavors []e2eos.Descriptor
 	for _, flavor := range amd64Flavors {
