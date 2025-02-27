@@ -33,7 +33,6 @@ func TestPull(t *testing.T) {
 
 	gpus := wmetaMock.ListGPUs()
 	require.Equal(t, len(testutil.GPUUUIDs), len(gpus))
-
 	var expectedActivePIDs []int
 	for _, proc := range testutil.DefaultProcessInfo {
 		expectedActivePIDs = append(expectedActivePIDs, int(proc.Pid))
@@ -42,14 +41,16 @@ func TestPull(t *testing.T) {
 	foundIDs := make(map[string]bool)
 	for _, gpu := range gpus {
 		foundIDs[gpu.ID] = true
-
+		require.Equal(t, testutil.DefaultNvidiaDriverVersion, gpu.DriverVersion)
 		require.Equal(t, nvidiaVendor, gpu.Vendor)
 		require.Equal(t, testutil.DefaultGPUName, gpu.Name)
 		require.Equal(t, testutil.DefaultGPUName, gpu.Device)
 		require.Equal(t, "hopper", gpu.Architecture)
 		require.Equal(t, testutil.DefaultGPUComputeCapMajor, gpu.ComputeCapability.Major)
 		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
-		require.Equal(t, int(testutil.DefaultGPUAttributes.MultiprocessorCount), gpu.SMCount)
+		require.Equal(t, testutil.DefaultTotalMemory, gpu.TotalMemory)
+		require.Equal(t, testutil.DefaultMaxClockRates[workloadmeta.GPUSM], gpu.MaxClockRates[workloadmeta.GPUSM])
+		require.Equal(t, testutil.DefaultMaxClockRates[workloadmeta.GPUMemory], gpu.MaxClockRates[workloadmeta.GPUMemory])
 		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
 	}
 
