@@ -73,9 +73,7 @@ func assertClusterAgentPayload(t *testing.T, metadata map[string]interface{}) {
 
 func TestGetMetadata(t *testing.T) {
 	dca := getClusterAgentComp(t)
-	dca.log.Infof("hello")
 	metadata := dca.getMetadata()
-
 	assertClusterAgentPayload(t, metadata)
 }
 
