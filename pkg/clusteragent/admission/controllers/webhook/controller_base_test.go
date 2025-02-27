@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -132,9 +131,9 @@ func TestAutoInstrumentation(t *testing.T) {
 
 			// Create a mock meta.
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				fx.Supply(coreconfig.Params{}),
+				fx.Supply(config.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				coreconfig.MockModule(),
+				config.MockModule(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
