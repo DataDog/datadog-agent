@@ -103,7 +103,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 	otelCmd := &cobra.Command{
 		Use:   "otel-agent",
-		Short: "Otel-agnet, prints out the read-only runtime configs of otel-agent if otel-agent is present and converted is enabled",
+		Short: "Otel-agent, prints out the read-only runtime configs of otel-agent if otel-agent is present and converted is enabled",
 		Long:  ``,
 		RunE:  oneShotRunE(otelAgentCfg),
 	}
