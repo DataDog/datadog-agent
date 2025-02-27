@@ -38,7 +38,7 @@ import (
 const (
 	// selftest
 	selftestMaxRetry    = 25 // more than 5 minutes so that we can get host tags
-	selftestStartAfter  = 30 * time.Second
+	selftestStartAfter  = 15 * time.Second
 	selftestDelay       = 15 * time.Second
 	selftestPassedDelay = 5 * time.Minute
 )
