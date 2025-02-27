@@ -228,7 +228,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	err = i.configurePackage(ctx, pkg.Name) // Config
+	err = i.initPackageConfig(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
@@ -674,7 +674,7 @@ func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err er
 		return fmt.Errorf("could not get package states: %w", err)
 	}
 	for pkg := range pkgList {
-		err = i.configurePackage(ctx, pkg)
+		err = i.initPackageConfig(ctx, pkg)
 		if err != nil {
 			return err
 		}
@@ -682,7 +682,7 @@ func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err er
 	return nil
 }
 
-func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
+func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
 	// TODO: Windows support
