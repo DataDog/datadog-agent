@@ -83,7 +83,6 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
         return 0;
     }
 
-    //struct path *path = (struct path *)CTX_PARM1(ctx);
     struct dentry *dentry = get_path_dentry(path);
     if (!dentry || is_non_mountable_dentry(dentry)) {
         return 0;
@@ -130,12 +129,6 @@ int hook_do_truncate(ctx_t *ctx) {
     return handle_open(ctx, get_file_f_path_addr(f));
 }
 
-HOOK_ENTRY("vfs_truncate")
-int hook_vfs_truncate(ctx_t *ctx) {
-    struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_open(ctx, path);
-}
-
 HOOK_ENTRY("security_file_truncate")
 int hook_security_file_truncate(ctx_t *ctx) {
     struct file *f = (struct file *)CTX_PARM1(ctx);
@@ -145,20 +138,8 @@ int hook_security_file_truncate(ctx_t *ctx) {
     return handle_open(ctx, get_file_f_path_addr(f));
 }
 
-HOOK_ENTRY("security_path_truncate")
-int hook_security_path_truncate(ctx_t *ctx) {
-    struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_open(ctx, path);
-}
-
 HOOK_ENTRY("vfs_open")
 int hook_vfs_open(ctx_t *ctx) {
-    struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_open(ctx, path);
-}
-
-HOOK_ENTRY("terminate_walk")
-int hook_terminate_walk(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
     return handle_open(ctx, path);
 }
@@ -215,7 +196,7 @@ int hook_io_openat2(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval) {
- struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall || !syscall->open.dentry) {
         return 0;
     }

@@ -54,8 +54,8 @@ func kretprobeOrFexit(funcName string, options ...psbOption) *manager.ProbeSelec
 	}
 }
 
-func withUID(uid string) psbOption {
+func withUIDSuffix(uid string) psbOption {
 	return func(psb *probeSelectorBuilder) {
-		psb.uid = uid
+		psb.uid = SecurityAgentUID + "_" + uid
 	}
 }
