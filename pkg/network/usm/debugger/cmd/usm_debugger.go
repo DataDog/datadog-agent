@@ -46,8 +46,7 @@ func main() {
 	go func() {
 		t := time.NewTicker(10 * time.Second)
 		for range t.C {
-			_, cleaners = monitor.GetProtocolStats()
-			cleaners()
+			_ = monitor.GetProtocolStats()
 		}
 	}()
 

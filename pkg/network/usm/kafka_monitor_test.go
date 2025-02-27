@@ -1559,8 +1559,7 @@ func (i *PrintableInt) Add(other int) {
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		protocolStats, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
@@ -1589,8 +1588,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidationWithErrorCodes) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		protocolStats, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {

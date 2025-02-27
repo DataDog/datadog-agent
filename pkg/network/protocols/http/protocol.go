@@ -214,16 +214,15 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	p.mapCleaner = mapCleaner
 }
 
-// GetStats returns a map of HTTP stats and a callback to clean resources.
-// The format of HTTP stats:
+// GetStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
+func (p *protocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
 	return &protocols.ProtocolStats{
 		Type:  protocols.HTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
-	}, nil
+	}
 }
 
 // IsBuildModeSupported returns always true, as http module is supported by all modes.
