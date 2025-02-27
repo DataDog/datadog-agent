@@ -19,7 +19,7 @@ github_rate_limit_info:
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install datadog-agent-dev=="$(cat .deva/version)" --break-system-packages
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@$(cat .deva/version)" --break-system-packages
     - python3 -m deva self dep sync -f legacy-tasks
     # Send stats for app 1
     - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_1 key_b64) || exit $?; export GITHUB_KEY_B64
