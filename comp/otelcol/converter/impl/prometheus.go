@@ -18,8 +18,9 @@ var (
 		"config": map[string]any{
 			"scrape_configs": []any{
 				map[string]any{
-					"job_name":        "datadog-agent",
-					"scrape_interval": "60s",
+					"fallback_scrape_protocol": "PrometheusText1.0.0",
+					"job_name":                 "datadog-agent",
+					"scrape_interval":          "60s",
 					"static_configs": []any{
 						map[string]any{
 							"targets": []any{"0.0.0.0:8888"},

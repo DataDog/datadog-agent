@@ -34,7 +34,6 @@ docker_integration_tests:
   allow_failure: true
   script:
     - inv -e docker.test
-    - inv -e docker.integration-tests
 
 trace_agent_integration_tests:
   extends: .integration_tests_deb

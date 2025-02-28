@@ -50,6 +50,12 @@ var DefaultGpuUUID = GPUUUIDs[0]
 // DefaultGPUName is the name for the default device returned by the mock
 var DefaultGPUName = "Tesla T4"
 
+// DefaultNvidiaDriverVersion is the default nvidia driver version
+var DefaultNvidiaDriverVersion = "470.57.02"
+
+// DefaultMemoryBusWidth is the memory bus width for the default device returned by the mock
+var DefaultMemoryBusWidth = uint32(256)
+
 // DefaultGPUComputeCapMajor is the major number for the compute capabilities for the default device returned by the mock
 var DefaultGPUComputeCapMajor = 7
 
@@ -72,6 +78,9 @@ var DefaultProcessInfo = []nvml.ProcessInfo{
 
 // DefaultTotalMemory is the total memory for the default device returned by the mock
 var DefaultTotalMemory = uint64(1000)
+
+// DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
+var DefaultMaxClockRates = [2]uint32{1000, 2000}
 
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
@@ -99,6 +108,19 @@ func GetDeviceMock(deviceIdx int) *nvmlmock.Device {
 		},
 		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
+		},
+		GetMemoryBusWidthFunc: func() (uint32, nvml.Return) {
+			return DefaultMemoryBusWidth, nvml.SUCCESS
+		},
+		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
+			switch clockType {
+			case nvml.CLOCK_SM:
+				return DefaultMaxClockRates[0], nvml.SUCCESS
+			case nvml.CLOCK_MEM:
+				return DefaultMaxClockRates[1], nvml.SUCCESS
+			default:
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
 		},
 	}
 }
@@ -132,6 +154,9 @@ func GetBasicNvmlMock() *nvmlmock.Interface {
 		},
 		DeviceGetMemoryInfoFunc: func(nvml.Device) (nvml.Memory, nvml.Return) {
 			return nvml.Memory{Total: DefaultTotalMemory, Free: 500}, nvml.SUCCESS
+		},
+		SystemGetDriverVersionFunc: func() (string, nvml.Return) {
+			return DefaultNvidiaDriverVersion, nvml.SUCCESS
 		},
 	}
 }

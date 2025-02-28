@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -72,6 +74,7 @@ type RuleEngine struct {
 type APIServer interface {
 	ApplyRuleIDs([]rules.RuleID)
 	ApplyPolicyStates([]*monitor.PolicyState)
+	GetSECLVariables() map[string]*api.SECLVariableState
 }
 
 // NewRuleEngine returns a new rule engine
@@ -372,6 +375,50 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
 	e.apiServer.ApplyRuleIDs(ruleIDs)
 	e.apiServer.ApplyPolicyStates(policies)
+}
+
+func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
+	var seclVariables = make(map[string]*api.SECLVariableState)
+	for name, value := range rs.GetVariables() {
+		if strings.HasPrefix(name, "process.") {
+			scopedVariable := value.(eval.ScopedVariable)
+			if !scopedVariable.IsMutable() {
+				continue
+			}
+
+			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
+				entry.Retain()
+				defer entry.Release()
+
+				event := e.probe.PlatformProbe.NewEvent()
+				event.ProcessCacheEntry = entry
+				ctx := eval.NewContext(event)
+				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
+				value, found := scopedVariable.GetValue(ctx)
+				if !found {
+					return
+				}
+
+				scopedValue := fmt.Sprintf("%v", value)
+				seclVariables[scopedName] = &api.SECLVariableState{
+					Name:  scopedName,
+					Value: scopedValue,
+				}
+			})
+		} else { // global variables
+			value, found := value.(eval.Variable).GetValue()
+			if !found {
+				continue
+			}
+
+			scopedValue := fmt.Sprintf("%v", value)
+			seclVariables[name] = &api.SECLVariableState{
+				Name:  name,
+				Value: scopedValue,
+			}
+		}
+	}
+	return seclVariables
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {

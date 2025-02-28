@@ -109,6 +109,17 @@ var supportedLanguages = []language{
 	php, // PHP only works with injection v2, no environment variables are set in any case
 }
 
+func defaultSupportedLanguagesMap() map[language]bool {
+	m := map[language]bool{}
+	for _, l := range supportedLanguages {
+		if l.isEnabledByDefault() {
+			m[l] = true
+		}
+	}
+
+	return m
+}
+
 func (l language) isSupported() bool {
 	return slices.Contains(supportedLanguages, l)
 }
