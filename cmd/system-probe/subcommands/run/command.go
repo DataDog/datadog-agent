@@ -124,7 +124,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
 						return func() (string, error) { return security.FetchAuthToken(c) }
 					},
-					RemoteFilter: taggerTypes.NewMatchAllFilter(),
+					RemoteFilter:     taggerTypes.NewMatchAllFilter(),
+					ContinueOnErrors: true,
 				}),
 				autoexitimpl.Module(),
 				pidimpl.Module(),
@@ -298,7 +299,8 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
 				return func() (string, error) { return security.FetchAuthToken(c) }
 			},
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
+			RemoteFilter:     taggerTypes.NewMatchAllFilter(),
+			ContinueOnErrors: true,
 		}),
 		systemprobeloggerfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {

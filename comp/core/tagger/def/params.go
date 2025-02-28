@@ -20,6 +20,8 @@ type RemoteParams struct {
 	// RemoteTokenFetcher is the function to fetch the token for the remote tagger
 	// If it returns an error the remote tagger will continue to attempt to fetch the token
 	RemoteTokenFetcher func(config.Component) func() (string, error)
+	// ContinueOnErrors defines if we want to continue program execution without remote tagger
+	ContinueOnErrors bool
 }
 
 // Params provides local tagger parameters
