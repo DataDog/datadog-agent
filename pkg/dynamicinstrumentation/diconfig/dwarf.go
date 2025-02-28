@@ -16,9 +16,10 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/go-delve/delve/pkg/dwarf/godwarf"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 )
 
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
