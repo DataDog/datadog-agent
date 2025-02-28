@@ -377,12 +377,7 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-// GetSECLVariables returns the set of SECL variables along with theirs values
-func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
-	rs := e.GetRuleSet()
-	if rs == nil {
-		return nil
-	}
+func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
 	var seclVariables = make(map[string]*api.SECLVariableState)
 	for name, value := range rs.GetVariables() {
 		if strings.HasPrefix(name, "process.") {
@@ -410,38 +405,6 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					Value: scopedValue,
 				}
 			})
-		} else if strings.HasPrefix(name, "container.") && runtime.GOOS == "linux" {
-			scopedVariable := value.(eval.ScopedVariable)
-			ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
-			if !ok {
-				continue
-			}
-			cgr := ebpfProbe.Resolvers.CGroupResolver
-			containerWorkloads := cgr.GetContainerWorkloads()
-			if containerWorkloads == nil {
-				continue
-			}
-
-			for _, cgce := range containerWorkloads.Values() {
-				cgce.RLock()
-				defer cgce.RUnlock()
-
-				event := e.probe.PlatformProbe.NewEvent()
-				event.ContainerContext = &cgce.ContainerContext
-				ctx := eval.NewContext(event)
-				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
-				value, found := scopedVariable.GetValue(ctx)
-				if !found {
-					continue
-				}
-
-				scopedValue := fmt.Sprintf("%v", value)
-				seclVariables[scopedName] = &api.SECLVariableState{
-					Name:  scopedName,
-					Value: scopedValue,
-				}
-			}
-
 		} else { // global variables
 			value, found := value.(eval.Variable).GetValue()
 			if !found {

@@ -149,7 +149,7 @@ func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupCon
 	return cr.cgroups.Get(cgroupPath)
 }
 
-// GetHostWorkloads returns the host workloads
+// GetContainerWorkloads returns the container workloads
 func (cr *Resolver) GetContainerWorkloads() *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry] {
 	cr.Lock()
 	defer cr.Unlock()
