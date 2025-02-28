@@ -612,7 +612,7 @@ workflow:
   - <<: *if_not_main_branch
     when: never
 
-.except_main_or_release_branch:
+.except_main_release_or_mq:
   - <<: *if_main_branch
     when: never
   - <<: *if_release_branch
@@ -620,13 +620,13 @@ workflow:
   - !reference [.except_mergequeue]
 
 .on_dev_branches:
-  - !reference [.except_main_or_release_branch]
+  - !reference [.except_main_release_or_mq]
   - <<: *if_tagged_commit
     when: never
   - when: on_success
 
 .on_dev_branches_always:
-  - !reference [.except_main_or_release_branch]
+  - !reference [.except_main_release_or_mq]
   - <<: *if_tagged_commit
     when: never
   - when: always
