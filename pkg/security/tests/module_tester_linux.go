@@ -86,7 +86,7 @@ event_monitoring_config:
       enabled: {{ .NetworkRawPacketEnabled}}
   flush_discarder_window: 0
   event_stream:
-    use_fentry: false
+    use_fentry: true
     use_kprobe_fallback: false
 {{if .DisableFilters}}
   enable_kernel_filters: false
