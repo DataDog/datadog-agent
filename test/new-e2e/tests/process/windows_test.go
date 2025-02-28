@@ -165,9 +165,12 @@ func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
 	err := runDiskSpd(s.T(), s.Env().RemoteHost)
 	require.NoError(s.T(), err)
 
-	check := s.Env().RemoteHost.
-		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process -w5s --json")
-	assertManualProcessCheck(s.T(), check, true, "diskspd.exe")
+	// Try multiple times as all the I/O data may not be available in a given instant
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.
+			MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
+		assertManualProcessCheck(c, check, true, "diskspd.exe")
+	}, 1*time.Minute, 5*time.Second)
 }
 
 // Runs Diskspd in another ssh session

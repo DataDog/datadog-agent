@@ -120,6 +120,11 @@ func assertProcessCollectedNew(
 	}
 	require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", process, payloads)
 
+	assertProcesses(t, procs, withIOStats, process)
+}
+
+// assertProcesses asserts that the given processes are collected by the process check
+func assertProcesses(t require.TestingT, procs []*agentmodel.Process, withIOStats bool, process string) {
 	// verify process data is populated
 	var hasData bool
 	for _, proc := range procs {
@@ -313,13 +318,7 @@ func findContainer(name string, containers []*agentmodel.Container) bool {
 
 // assertManualProcessCheck asserts that the given process is collected and reported in the output
 // of the manual process check
-func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, process string, expectedContainers ...string) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Check output:\n%s\n", check)
-		}
-	}()
-
+func assertManualProcessCheck(t require.TestingT, check string, withIOStats bool, process string, expectedContainers ...string) {
 	var checkOutput struct {
 		Processes []*agentmodel.Process `json:"processes"`
 	}
@@ -328,33 +327,14 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	require.NoError(t, err, "failed to unmarshal process check output")
 
 	procs := filterProcesses(process, checkOutput.Processes)
-	assert.NotEmpty(t, procs, "no processes found")
+	require.NotEmpty(t, procs, "'%s' process not found in check:\n%s\n", process, check)
 
-	var hasData bool
-	for _, proc := range procs {
-		if processHasData(proc) {
-			hasData = true
-			break
-		}
-	}
-	assert.Truef(t, hasData, "Missing process data: %v", procs)
-
-	if withIOStats {
-		var hasIOStats bool
-		for _, proc := range procs {
-			if processHasIOStats(proc) {
-				hasIOStats = true
-				break
-			}
-		}
-		assert.Truef(t, hasIOStats, "Missing IOStats: %+v", procs)
-	}
-
+	assertProcesses(t, procs, withIOStats, process)
 	assertManualContainerCheck(t, check, expectedContainers...)
 }
 
 // assertManualContainerCheck asserts that the given container is collected from a manual container check
-func assertManualContainerCheck(t *testing.T, check string, expectedContainers ...string) {
+func assertManualContainerCheck(t require.TestingT, check string, expectedContainers ...string) {
 	var checkOutput struct {
 		Containers []*agentmodel.Container `json:"containers"`
 	}
