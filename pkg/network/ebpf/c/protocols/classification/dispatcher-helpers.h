@@ -122,6 +122,11 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     if (tcp_termination) {
         bpf_map_delete_elem(&connection_states, &skb_tup);
+        // remove also the inverted key
+        conn_tuple_t flip_tup = {0};
+        bpf_memcpy(&flip_tup, &skb_tup, sizeof(conn_tuple_t));
+        flip_tuple(&flip_tup);
+        bpf_map_delete_elem(&connection_states, &flip_tup);
     }
 
     protocol_stack_t *stack = get_protocol_stack_if_exists(&skb_tup);
