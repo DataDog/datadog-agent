@@ -289,6 +289,7 @@ func (c *Client) TargetsCustom() ([]byte, error) {
 	return c.directorLocalStore.GetMetaCustom(metaTargets)
 }
 
+// TimestampExpires returns the expiry time of the current up-to-date timestamp.json
 func (c *Client) TimestampExpires() (time.Time, error) {
 	c.Lock()
 	defer c.Unlock()

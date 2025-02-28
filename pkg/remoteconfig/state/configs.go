@@ -75,10 +75,13 @@ type Metadata struct {
 	ApplyStatus ApplyStatus
 }
 
+// ConfigStatus is the nature of the config update, e.g. valid or expired.
 type ConfigStatus int
 
 const (
+	// ConfigStatusOk indicates that the config update is valid.
 	ConfigStatusOk ConfigStatus = iota
+	// ConfigStatusExpired indicates that the config update is occurring due to expired configuration.
 	ConfigStatusExpired
 )
 
