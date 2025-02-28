@@ -9,8 +9,8 @@
 package model
 
 import (
-	"fmt"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -222,5 +222,5 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() string {
-	return fmt.Sprintf("%d/%s", pc.Pid)
+	return strconv.Itoa(int(pc.Pid))
 }
