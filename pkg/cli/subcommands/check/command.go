@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -76,7 +75,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -291,73 +289,74 @@ func run(
 		return nil
 	}
 
-	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
-	check.InitializeInventoryChecksContext(invChecks)
-	pkgcollector.InitPython(common.GetPythonPaths()...)
-	// TODO Ideally we would support RC in the check subcommand,
-	//  but at the moment this is not possible - only one process can access the RC database at a time,
-	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil)
+	// // TODO: (components) - Until the checks are components we set there context so they can depends on components.
+	// check.InitializeInventoryChecksContext(invChecks)
+	// pkgcollector.InitPython(common.GetPythonPaths()...)
+	// // TODO Ideally we would support RC in the check subcommand,
+	// //  but at the moment this is not possible - only one process can access the RC database at a time,
+	// //  so the subcommand can't read the RC database if the agent is also running.
+	// commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil)
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
-	ac.LoadAndRun(context.Background())
+	// common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	// ac.LoadAndRun(context.Background())
 
-	// Create the CheckScheduler, but do not attach it to
-	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger)
+	// // Create the CheckScheduler, but do not attach it to
+	// // AutoDiscovery.
+	// pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger)
 
-	waitCtx, cancelTimeout := context.WithTimeout(
-		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
+	// waitCtx, cancelTimeout := context.WithTimeout(
+	// 	context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 
-	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
-	cancelTimeout()
-	if err != nil {
-		return err
-	}
+	// allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
+	// cancelTimeout()
+	// if err != nil {
+	// 	return err
+	// }
 
-	// make sure the checks in cs are not JMX checks
-	for idx := range allConfigs {
-		conf := &allConfigs[idx]
-		if conf.Name != cliParams.checkName {
-			continue
-		}
+	// // make sure the checks in cs are not JMX checks
+	// for idx := range allConfigs {
+	// 	conf := &allConfigs[idx]
+	// 	if conf.Name != cliParams.checkName {
+	// 		continue
+	// 	}
 
-		if check.IsJMXConfig(*conf) {
-			// we'll mimic the check command behavior with JMXFetch by running
-			// it with the JSON reporter and the list_with_metrics command.
-			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
-			selectedChecks := []string{cliParams.checkName}
-			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger); err != nil {
-					return fmt.Errorf("while running the jmx check: %v", err)
-				}
-			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger); err != nil {
-					return fmt.Errorf("while running the jmx check: %v", err)
-				}
-			}
+	// 	if check.IsJMXConfig(*conf) {
+	// 		// we'll mimic the check command behavior with JMXFetch by running
+	// 		// it with the JSON reporter and the list_with_metrics command.
+	// 		fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+	// 		selectedChecks := []string{cliParams.checkName}
+	// 		if cliParams.checkRate {
+	// 			if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger); err != nil {
+	// 				return fmt.Errorf("while running the jmx check: %v", err)
+	// 			}
+	// 		} else {
+	// 			if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger); err != nil {
+	// 				return fmt.Errorf("while running the jmx check: %v", err)
+	// 			}
+	// 		}
 
-			instances := []integration.Data{}
+	// 		instances := []integration.Data{}
 
-			// Retain only non-JMX instances for later
-			for _, instance := range conf.Instances {
-				if check.IsJMXInstance(conf.Name, instance, conf.InitConfig) {
-					continue
-				}
-				instances = append(instances, instance)
-			}
+	// 		// Retain only non-JMX instances for later
+	// 		for _, instance := range conf.Instances {
+	// 			if check.IsJMXInstance(conf.Name, instance, conf.InitConfig) {
+	// 				continue
+	// 			}
+	// 			instances = append(instances, instance)
+	// 		}
 
-			if len(instances) == 0 {
-				fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", cliParams.checkName)
-				return nil
-			}
+	// 		if len(instances) == 0 {
+	// 			fmt.Printf("All instances of '%s' are JMXFetch instances, and have completed running\n", cliParams.checkName)
+	// 			return nil
+	// 		}
 
-			conf.Instances = instances
-		}
-	}
+	// 		conf.Instances = instances
+	// 	}
+	// }
 
 	if cliParams.profileMemory {
 		// If no directory is specified, make a temporary one
+		var err error
 		if cliParams.profileMemoryDir == "" {
 			cliParams.profileMemoryDir, err = os.MkdirTemp("", "datadog-agent-memory-profiler")
 			if err != nil {

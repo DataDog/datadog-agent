@@ -10,11 +10,13 @@ package check
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -78,7 +80,52 @@ func runChecks(collector option.Option[collector.Component], autodiscovery autod
 		delay = 100
 	}
 
+	profileMemoryDir := r.FormValue("profile-memory-dir")
+
 	allConfigs := autodiscovery.GetAllConfigs()
+
+	for _, c := range allConfigs {
+		if c.Name != checkName {
+			continue
+		}
+
+		if check.IsJMXConfig(c) {
+			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+		}
+	}
+	if profileMemoryDir != "" {
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
+			if conf.Name != checkName {
+				continue
+			}
+
+			var data map[string]interface{}
+
+			err = yaml.Unmarshal(conf.InitConfig, &data)
+			if err != nil {
+				// TODO
+				// return err
+			}
+
+			if data == nil {
+				data = make(map[string]interface{})
+			}
+
+			data["profile_memory"] = profileMemoryDir
+			err = populateMemoryProfileConfig(cliParams, data)
+			if err != nil {
+				// TODO
+				// return err
+			}
+
+			y, _ := yaml.Marshal(data)
+			conf.InitConfig = y
+
+			break
+		}
+	}
+
 	cs := pkgcollector.GetChecksByNameForConfigs(checkName, allConfigs)
 	// something happened while getting the check(s), display some info.
 	if len(cs) == 0 {
