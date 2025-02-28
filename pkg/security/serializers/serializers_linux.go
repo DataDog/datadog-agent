@@ -12,12 +12,14 @@ package serializers
 
 import (
 	"fmt"
+	"path"
 	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1097,7 +1099,12 @@ func newNetworkFlowMonitorSerializer(nm *model.NetworkFlowMonitorEvent, e *model
 }
 
 func newSysCtlEventSerializer(sce *model.SysCtlEvent, _ *model.Event) *SysCtlEventSerializer {
+	snapshot := sysctl.NewSnapshot()
+	relPath := path.Join("sys", sce.Name)
+	snapshot.InsertSnapshotEntry(snapshot.Proc, relPath, sce.Value)
+
 	return &SysCtlEventSerializer{
+		Proc:              snapshot.Proc,
 		Action:            model.SysCtlAction(sce.Action).String(),
 		FilePosition:      sce.FilePosition,
 		Name:              sce.Name,

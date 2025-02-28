@@ -18,7 +18,8 @@
                     "required": [
                         "action",
                         "value",
-                        "name"
+                        "name",
+                        "proc"
                     ],
                     "properties": {
                         "action": {
@@ -32,6 +33,9 @@
                         },
                         "old_value": {
                             "type": "string"
+                        },
+                        "proc": {
+                            "type": "object"
                         }
                     }
                 }

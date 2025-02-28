@@ -264,6 +264,8 @@ type NetworkFlowMonitorSerializer struct {
 // SysCtlEventSerializer defines a sysctl event serializer
 // easyjson:json
 type SysCtlEventSerializer struct {
+	// Proc contains the /proc system control parameters and their values
+	Proc map[string]interface{} `json:"proc,omitempty"`
 	// action performed on the system control parameter
 	Action string `json:"action,omitempty"`
 	// file_position is the position in the sysctl control parameter file at which the action occurred
