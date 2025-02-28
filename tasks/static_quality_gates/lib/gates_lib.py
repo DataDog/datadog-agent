@@ -89,7 +89,7 @@ class GateMetricHandler:
 
     def __init__(self, git_ref, bucket_branch):
         self.metrics = {}
-        self.metadata = {}
+        self.metadatxa = {}
         self.git_ref = git_ref
         self.bucket_branch = bucket_branch
 

@@ -8,8 +8,9 @@ from invoke import task
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
+from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
+BUFFER_SIZE = 10000000
 FAIL_CHAR = "❌"
 SUCCESS_CHAR = "✅"
 
@@ -141,3 +142,48 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     branch = os.environ["CI_COMMIT_BRANCH"]
     if github.get_pr_for_branch(branch).totalCount > 0:
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
+    # Generate PR to update static quality gates threshold on nightly pipelines
+    bucket_branch = metric_handler.bucket_branch
+    if bucket_branch and bucket_branch == "nightly":
+        update_quality_gates_threshold(ctx, metric_handler)
+
+def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler):
+    curr_size = metric_handler.metrics[current_gate][current_key]
+    max_curr_size = metric_handler.metrics[current_gate][max_key]
+    remaining_allowed_size = max_curr_size - curr_size
+    gate_limit = max_curr_size
+    if remaining_allowed_size > BUFFER_SIZE:
+        gate_limit -= (remaining_allowed_size - BUFFER_SIZE)
+    return gate_limit
+
+def generate_new_quality_gate_config(file_descriptor, metric_handler):
+    file_content = ""
+    current_gate = None
+    for line in file_descriptor.readlines():
+        if "static_quality_gate" in line:
+            current_gate = line.strip().replace(":","")
+            file_content += line
+        elif "max_on_wire_size" in line:
+            gate_limit = get_gate_new_limit_threshold(current_gate, "current_on_wire_size", "max_on_wire_size", metric_handler)
+            file_content += line.split(":")[0] + f': "{byte_to_string(gate_limit)} MiB"\n'
+        elif "max_on_disk_size" in line:
+            gate_limit = get_gate_new_limit_threshold(current_gate, "current_on_disk_size", "max_on_disk_size", metric_handler)
+            file_content += line.split(":")[0] + f': "{byte_to_string(gate_limit)} MiB"\n'
+        else:
+            file_content += line
+
+    return file_content
+
+def update_quality_gates_threshold(ctx, metric_handler):
+    with open("test/static/static_quality_gates.yml", "r") as f:
+        file_content = generate_new_quality_gate_config(f, metric_handler)
+
+    with open("test/static/static_quality_gates.yml", "w") as f:
+        f.write(file_content)
+
+    branch_name = f"static_quality_gates/threshold_update_{os.environ["CI_COMMIT_SHORT_SHA"]}"
+    ctx.run(f"git checkout -b {branch_name}")
+    ctx.run("git add -uv")
+    ctx.run("commit -m 'feat(gate): update static quality gates thresholds'")
+    ctx.run(f"git push --set-upstream origin {branch_name}")
+
