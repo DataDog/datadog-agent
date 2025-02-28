@@ -52,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -596,6 +597,9 @@ func (p *EBPFProbe) Start() error {
 
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
+
+	// start sysctl snapshot loop
+	go p.startSysCtlSnapshotLoop()
 
 	return p.eventStream.Start(&p.wg)
 }
@@ -1753,6 +1757,31 @@ func (p *EBPFProbe) Close() error {
 	close(p.newTCNetDevices)
 
 	return p.Resolvers.Close()
+}
+
+func (p *EBPFProbe) startSysCtlSnapshotLoop() {
+	ticker := time.NewTicker(p.config.RuntimeSecurity.SysCtlSnapshotPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+			// create the sysctl snapshot
+			event, err := sysctl.NewSnapshotEvent()
+			if err != nil {
+				seclog.Errorf("sysctl snapshot failed: %v", err)
+				continue
+			}
+
+			// send a sysctl snapshot event
+			rule := events.NewCustomRule(events.SysCtlSnapshotRuleID, events.SysCtlSnapshotRuleDesc)
+			customEvent := events.NewCustomEvent(model.CustomEventType, event)
+
+			p.probe.DispatchCustomEvent(rule, customEvent)
+			seclog.Tracef("sysctl snapshot sent !")
+		}
+	}
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
