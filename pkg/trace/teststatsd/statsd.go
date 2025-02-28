@@ -90,6 +90,16 @@ func (c *Client) Count(name string, value int64, tags []string, rate float64) er
 	return c.CountErr
 }
 
+// Decr implements the Statsd Decr interface
+func (c *Client) Decr(name string, tags []string, rate float64) error {
+	return c.Count(name, -1, tags, rate)
+}
+
+// Incr implements the Statsd Incr interface
+func (c *Client) Incr(name string, tags []string, rate float64) error {
+	return c.Count(name, 1, tags, rate)
+}
+
 // Histogram records a call to a Histogram operation and replies with HistogramErr
 func (c *Client) Histogram(name string, value float64, tags []string, rate float64) error {
 	c.mu.Lock()

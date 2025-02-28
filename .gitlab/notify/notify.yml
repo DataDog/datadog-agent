@@ -3,7 +3,7 @@
 # Contains jobs which send notifications depending on pipeline status.
 
 .notify_setup:
-  - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
+  - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
   - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
@@ -24,7 +24,7 @@ notify-on-tagged-success:
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
-    SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
+    SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     invoke notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
 
 notify:
@@ -38,6 +38,7 @@ notify:
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
     - !reference [.notify_setup]
+    - !reference [.setup_agent_github_app]
     - invoke -e notify.send-message -p $CI_PIPELINE_ID
     - invoke -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
@@ -118,7 +119,8 @@ notify_gitlab_ci_changes:
 notify_failure_summary_on_pipeline:
   extends: [.failure_summary_job, .notify-job]
   rules:
-    - if: $CI_PIPELINE_SOURCE != "push" && $CI_PIPELINE_SOURCE != "schedule"
+    - !reference [.on_scheduled_main]
+    - if: $CI_PIPELINE_SOURCE != "push" && $CI_PIPELINE_SOURCE != "api"
       when: never
     - !reference [.on_main_always]
   script:
@@ -129,9 +131,7 @@ notify_failure_summary_on_pipeline:
 notify_failure_summary_daily:
   extends: [.failure_summary_job, .notify-job]
   rules:
-    - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
-      when: never
-    - !reference [.on_deploy_nightly_repo_branch_always]
+    - !reference [.on_scheduled_main]
   script:
     - !reference [.notify_setup]
     - weekday="$(date --utc '+%A')"
@@ -153,10 +153,7 @@ close_failing_tests_stale_issues:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   rules:
-    # Daily
-    - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
-      when: never
-    - !reference [.on_deploy_nightly_repo_branch_always]
+    - !reference [.on_scheduled_main]
   needs: []
   tags: ["arch:arm64"]
   script:

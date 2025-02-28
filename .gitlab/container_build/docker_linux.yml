@@ -33,7 +33,7 @@
 # context
 .docker_build_artifact:
   before_script:
-    - mv $OMNIBUS_PACKAGE_DIR/*.xz $BUILD_CONTEXT
+    - ls $OMNIBUS_PACKAGE_DIR/*.xz | grep -v -- -dbg- | xargs -I '{}' mv '{}' $BUILD_CONTEXT/
 
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
@@ -169,19 +169,20 @@ docker_build_fips_agent7_arm64_jmx:
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
 
-# build agent7 UA image
+# Build agent7 OTel image
 docker_build_ot_agent7:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: datadog-ot-agent-7-x64
+    - job: datadog-agent-7-x64
+    - job: datadog-otel-agent-x64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta
-    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-amd64.tar.xz
+    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
 
 docker_build_ot_agent7_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -189,26 +190,27 @@ docker_build_ot_agent7_arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: datadog-ot-agent-7-arm64
+    - job: datadog-agent-7-arm64
+    - job: datadog-otel-agent-arm64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta
-    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-arm64.tar.xz
+    BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
-# build agent7 jmx image
 docker_build_ot_agent7_jmx:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: datadog-ot-agent-7-x64
+    - job: datadog-agent-7-x64
+    - job: datadog-otel-agent-x64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta-jmx
-    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-amd64.tar.xz
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
 
 docker_build_ot_agent7_jmx_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -216,12 +218,13 @@ docker_build_ot_agent7_jmx_arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: datadog-ot-agent-7-arm64
+    - job: datadog-agent-7-arm64
+    - job: datadog-otel-agent-arm64
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta-jmx
-    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-arm64.tar.xz
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
@@ -259,6 +262,46 @@ docker_build_cluster_agent_arm64:
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+
+docker_build_cluster_agent_fips_amd64:
+  extends: [.docker_build_job_definition_amd64]
+  rules: !reference [.on_tag_or_a7]
+  needs:
+    - job: cluster_agent_fips-build_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_arm64
+      artifacts: true
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
+    TAG_SUFFIX: -fips
+  before_script:
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
+    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
+    - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
+
+docker_build_cluster_agent_fips_arm64:
+  extends: [.docker_build_job_definition_arm64]
+  rules: !reference [.on_tag_or_a7]
+  needs:
+    - job: cluster_agent_fips-build_arm64
+      artifacts: true
+    - job: cws_instrumentation-build_amd64
+      artifacts: true
+    - job: cws_instrumentation-build_arm64
+      artifacts: true
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
+    TAG_SUFFIX: -fips
+  before_script:
+    - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $BUILD_CONTEXT/
+    - mv -vf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
+    - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $BUILD_CONTEXT/
+    - nm --defined-only ${BUILD_CONTEXT}/datadog-cluster-agent | grep boringssl_fips_self_test
 
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:

@@ -142,7 +142,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     _run_on_windows_dev_env(
         ctx,
         name,
-        ". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallTestingDeps \\$true -InstallDeps \\$true -Command {inv -e tidy}",
+        ". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallTestingDeps \\$true -InstallDeps \\$true -Command {.\\tasks\\winbuildscripts\\pre-go-build.ps1; inv -e tidy}",
     )
     # print the time taken to start the dev env
     elapsed_time = time.time() - start_time

@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/go-sqllexer v0.0.20
+	github.com/DataDog/go-sqllexer v0.1.1
 	github.com/outcaste-io/ristretto v0.2.3
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
@@ -20,7 +20,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
-	golang.org/x/net v0.34.0 // indirect
+	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -77,6 +77,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../comp/otelcol/otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../comp/otelcol/otlp/testutil
+	github.com/DataDog/datadog-agent/comp/otelcol/status/def => ../../comp/otelcol/status/def
+	github.com/DataDog/datadog-agent/comp/otelcol/status/impl => ../../comp/otelcol/status/impl
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../comp/serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../comp/trace/agent/def
@@ -95,8 +97,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../pkg/config/viperconfig
 	github.com/DataDog/datadog-agent/pkg/errors => ../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
+	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../pkg/linters/components/pkgconfigusage
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../pkg/logs/auditor
@@ -149,6 +153,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../pkg/util/prometheus
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../pkg/util/startstop

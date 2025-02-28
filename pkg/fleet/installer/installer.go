@@ -18,16 +18,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -35,7 +35,6 @@ import (
 const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
-	packageAPMLibraries     = "datadog-apm-libraries"
 	packageDatadogInstaller = "datadog-installer"
 )
 
@@ -94,16 +93,23 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	return &installerImpl{
+	i := &installerImpl{
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
-		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
-		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
+		packages:   repository.NewRepositories(paths.PackagesPath, packages.PreRemoveHooks),
+		configs:    repository.NewRepositories(paths.ConfigsPath, nil),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
-	}, nil
+	}
+
+	err = i.ensurePackagesAreConfigured(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("could not ensure packages are configured: %w", err)
+	}
+
+	return i, nil
 }
 
 // AvailableDiskSpace returns the available disk space.
@@ -222,19 +228,9 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	err = i.configurePackage(ctx, pkg.Name) // Config
+	err = i.initPackageConfig(ctx, pkg.Name) // Config
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
-	}
-	if pkg.Name == packageDatadogInstaller {
-		// We must handle the configuration of some packages that are not
-		// don't have an OCI. To properly configure their configuration repositories,
-		// we call configurePackage when setting up the installer; which is the only
-		// package that is always installed.
-		err = i.configurePackage(ctx, packageAPMLibraries)
-		if err != nil {
-			return fmt.Errorf("could not configure package: %w", err)
-		}
 	}
 	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
 	if err != nil {
@@ -672,11 +668,33 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
+func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err error) {
+	pkgList, err := i.packages.GetStates()
+	if err != nil {
+		return fmt.Errorf("could not get package states: %w", err)
+	}
+	for pkg := range pkgList {
+		err = i.initPackageConfig(ctx, pkg)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
 	// TODO: Windows support
 	if runtime.GOOS == "windows" {
+		return nil
+	}
+	state, err := i.configs.GetState(pkg)
+	if err != nil {
+		return fmt.Errorf("could not get config repository state: %w", err)
+	}
+	// If a config is already set, no need to initialize it
+	if state.Stable != "" {
 		return nil
 	}
 	tmpDir, err := i.configs.MkdirTemp()
@@ -693,11 +711,12 @@ func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err e
 
 var (
 	allowedConfigFiles = []string{
-		"datadog.yaml",
-		"security-agent.yaml",
-		"system-probe.yaml",
-		"application_monitoring.yaml",
-		"conf.d/*.yaml",
+		"/datadog.yaml",
+		"/security-agent.yaml",
+		"/system-probe.yaml",
+		"/application_monitoring.yaml",
+		"/conf.d/*.yaml",
+		"/conf.d/*.d/*.yaml",
 	}
 )
 
@@ -714,21 +733,36 @@ func configNameAllowed(file string) bool {
 	return false
 }
 
+type configFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}
+
 func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
-	var configs map[string]interface{}
-	err := json.Unmarshal(rawConfig, &configs)
+	var files []configFile
+	err := json.Unmarshal(rawConfig, &files)
 	if err != nil {
-		return fmt.Errorf("could not unmarshal config: %w", err)
+		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
-	for file, config := range configs {
-		if !configNameAllowed(file) {
+	for _, file := range files {
+		file.Path = filepath.Clean(file.Path)
+		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
-		serializedConfig, err := yaml.Marshal(config)
+		var c interface{}
+		err = json.Unmarshal(file.Contents, &c)
 		if err != nil {
-			return fmt.Errorf("could not marshal config: %w", err)
+			return fmt.Errorf("could not unmarshal config file contents: %w", err)
 		}
-		err = os.WriteFile(filepath.Join(dir, file), serializedConfig, 0644)
+		serialized, err := yaml.Marshal(c)
+		if err != nil {
+			return fmt.Errorf("could not serialize config file contents: %w", err)
+		}
+		err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
+		if err != nil {
+			return fmt.Errorf("could not create config file directory: %w", err)
+		}
+		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
 		if err != nil {
 			return fmt.Errorf("could not write config file: %w", err)
 		}
@@ -765,6 +799,7 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 	return nil
 }
 
+// ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
 	err := os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
@@ -773,6 +808,10 @@ func ensureRepositoriesExist() error {
 	err = os.MkdirAll(paths.ConfigsPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating configs directory: %w", err)
+	}
+	err = os.MkdirAll(paths.RootTmpDir, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating tmp directory: %w", err)
 	}
 	return nil
 }

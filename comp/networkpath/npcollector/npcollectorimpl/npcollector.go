@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 )
 
 const (
@@ -35,6 +37,7 @@ const (
 	reverseDNSLookupMetricPrefix        = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
+	netpathConnsSkippedMetricName       = networkPathCollectorMetricPrefix + "schedule.conns_skipped"
 )
 
 type npCollectorImpl struct {
@@ -155,14 +158,78 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	}
 }
 
+func doSubnetsContainIP(subnets []*net.IPNet, ip net.IP) bool {
+	for _, subnet := range subnets {
+		if subnet.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+	if conn == nil {
+		return false
+	}
+	if conn.IntraHost {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1) //nolint:errcheck
+		return false
+	}
+	if conn.Direction != model.ConnectionDirection_outgoing {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
+		return false
+	}
+	// only ipv4 is supported currently
+	if conn.Family != model.ConnectionFamily_v4 {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
+		return false
+	}
+	translatedDest := conn.Raddr.Ip
+	// prefer IP translation if it's available
+	if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
+		translatedDest = conn.IpTranslation.ReplDstIP
+	}
+	remoteIP := net.ParseIP(translatedDest)
+	if remoteIP.IsLoopback() {
+		// is this case possible, given that we already filter out IntraHost?
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_loopback"}, 1) //nolint:errcheck
+		return false
+	}
+	if doSubnetsContainIP(vpcSubnets, remoteIP) {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
+		return false
+	}
+	return true
+}
+
+func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
+	if !s.collectorConfigs.disableIntraVPCCollection {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	vpcSubnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
+	}
+
+	return vpcSubnets, nil
+}
+
 func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
+		return
+	}
+	vpcSubnets, err := s.getVPCSubnets()
+	if err != nil {
+		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
 		return
 	}
 	startTime := s.TimeNowFn()
 	s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1) //nolint:errcheck
 	for _, conn := range conns {
-		if !shouldScheduleNetworkPathForConn(conn) {
+		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue

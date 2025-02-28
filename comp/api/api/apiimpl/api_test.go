@@ -10,17 +10,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
 	// component dependencies
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -76,7 +74,7 @@ func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 		demultiplexerimpl.MockModule(),
 		fx.Supply(option.None[rcservice.Component]()),
 		fx.Supply(option.None[rcservicemrf.Component]()),
-		fetchonlyimpl.MockModule(),
+		createandfetchimpl.Module(),
 		fx.Supply(context.Background()),
 		taggermock.Module(),
 		fx.Provide(func(mock taggermock.Mock) tagger.Component {
@@ -124,21 +122,9 @@ func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
 }
 
 func TestStartBothServersWithObservability(t *testing.T) {
-	authToken, err := os.CreateTemp("", "auth_token")
-	require.NoError(t, err)
-	defer os.Remove(authToken.Name())
-
-	authTokenValue := strings.Repeat("a", 64)
-	_, err = io.WriteString(authToken, authTokenValue)
-	require.NoError(t, err)
-
-	err = authToken.Close()
-	require.NoError(t, err)
-
 	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port":             0,
-		"agent_ipc.port":       56789,
-		"auth_token_file_path": authToken.Name(),
+		"cmd_port":       0,
+		"agent_ipc.port": 56789,
 	}}
 
 	deps := getTestAPIServer(t, cfgOverride)

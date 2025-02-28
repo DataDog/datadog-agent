@@ -29,8 +29,8 @@ func MockModule() fxutil.Module {
 type MockFetchOnly struct{}
 
 // Get is a mock of the fetchonly Get function
-func (fc *MockFetchOnly) Get() (string, error) {
-	return "a string", nil
+func (fc *MockFetchOnly) Get() string {
+	return "a string"
 }
 
 // GetTLSClientConfig is a mock of the fetchonly GetTLSClientConfig function

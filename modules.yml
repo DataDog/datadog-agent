@@ -96,6 +96,8 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
+  comp/otelcol/status/def: default
+  comp/otelcol/status/impl: default
   comp/serializer/logscompression:
     used_by_otel: true
   comp/serializer/metricscompression:
@@ -159,8 +161,13 @@ modules:
     used_by_otel: true
   pkg/config/utils:
     used_by_otel: true
+  pkg/config/viperconfig:
+    used_by_otel: true
   pkg/errors: default
-  pkg/fips: default
+  pkg/fips:
+    used_by_otel: true
+  pkg/fleet/installer:
+    should_replace_internal_modules: false
   pkg/gohai: default
   pkg/linters/components/pkgconfigusage:
     independent: false
@@ -264,6 +271,7 @@ modules:
     used_by_otel: true
   pkg/util/pointer:
     used_by_otel: true
+  pkg/util/prometheus: default
   pkg/util/scrubber:
     used_by_otel: true
   pkg/util/sort:

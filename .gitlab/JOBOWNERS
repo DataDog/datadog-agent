@@ -36,6 +36,7 @@ golang_deps_commenter                @DataDog/ebpf-platform
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
 cluster_agent-build*                 @DataDog/container-integrations
+cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 build_serverless*                    @DataDog/serverless
 build_windows_container_entrypoint   @DataDog/windows-agent
@@ -54,6 +55,7 @@ agent_suse*                          @DataDog/agent-delivery
 windows-installer*                   @DataDog/windows-agent
 windows_*                            @DataDog/windows-agent
 powershell_script_signing            @DataDog/windows-agent
+datadog-otel-agent-*                 @DataDog/agent-delivery
 
 # Packaging
 agent_deb*                           @DataDog/agent-delivery
@@ -136,6 +138,7 @@ docker_image_build_otel       @DataDog/opentelemetry
 datadog_otel_components_ocb_build  @DataDog/opentelemetry
 agent_integration_tests       @DataDog/container-integrations
 docker_integration_tests      @DataDog/container-integrations
+trace_agent_integration_tests @DataDog/agent-apm
 
 # Functional test
 serverless_cold_start_performance-deb_x64      @DataDog/serverless

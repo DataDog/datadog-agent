@@ -88,6 +88,8 @@ const (
 	KubeAppPartOf = "kube_app_part_of"
 	// KubeAppManagedBy is the tag for the "app.kubernetes.io/managed-by" Kubernetes label
 	KubeAppManagedBy = "kube_app_managed_by"
+	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
+	KubeAutoscalerKind = "kube_autoscaler_kind"
 
 	// GPU related tags
 

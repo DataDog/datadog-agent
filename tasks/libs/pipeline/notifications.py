@@ -137,7 +137,7 @@ def get_pr_from_commit(commit_title: str, project_name: str) -> tuple[str, str] 
     project_name: the GitHub project from which the PR originates, in the "org/repo" format
     """
 
-    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
+    parsed_pr_id_found = re.search(r'.*#([0-9]+)', commit_title)
     if not parsed_pr_id_found:
         return None
 
@@ -146,14 +146,15 @@ def get_pr_from_commit(commit_title: str, project_name: str) -> tuple[str, str] 
     return parsed_pr_id, f"{GITHUB_BASE_URL}/{project_name}/pull/{parsed_pr_id}"
 
 
-def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCommit, header: str, state: str):
+def base_message(
+    project_name: str, pipeline: ProjectPipeline, commit: ProjectCommit, header: str, state: str, pr_pipeline_url: str
+) -> str:
     commit_title = commit.title
     pipeline_url = pipeline.web_url
     pipeline_id = pipeline.id
     commit_ref_name = pipeline.ref
-    commit_url_gitlab = commit.web_url
     commit_url_github = f"{GITHUB_BASE_URL}/{project_name}/commit/{commit.id}"
-    commit_short_sha = commit.id[-8:]
+    commit_short_sha = commit.id[:7]
     author = commit.author_name
     finish = datetime.fromisoformat(pipeline.finished_at) if pipeline.finished_at else datetime.now(timezone.utc)
     delta = finish - datetime.fromisoformat(pipeline.started_at)
@@ -167,9 +168,9 @@ def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCo
         enhanced_commit_title = enhanced_commit_title.replace(
             f"#{parsed_pr_id}", f"<{pr_url_github}/s|#{parsed_pr_id}>"
         )
-
+    pr_pipelline_link = f"(:gitlab:<{pr_pipeline_url}|pr pipeline>)" if pr_pipeline_url else ""
     return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state} {duration}.
-{enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
+{enhanced_commit_title} {pr_pipelline_link}(:github: <{commit_url_github}|{commit_short_sha}>) by {author}"""
 
 
 def warn_new_commits(release_managers, team, branch, next_rc):
@@ -183,5 +184,12 @@ def warn_new_commits(release_managers, team, branch, next_rc):
     message += f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate planned <{rc_schedule_link}|{rc_date.strftime('%Y-%m-%d %H:%M')}> UTC?\n"
     message += "Thanks in advance!\n"
     message += f"cc {' '.join(release_managers)}"
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     client.chat_postMessage(channel=f"#{team}", text=message)
+
+
+def warn_new_tags(message):
+    from slack_sdk import WebClient
+
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
+    client.chat_postMessage(channel="#agent-release-sync", text=message)

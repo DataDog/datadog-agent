@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"text/template"
@@ -30,7 +31,6 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
@@ -277,7 +277,6 @@ func TestConfigHostname(t *testing.T) {
 				return taggerComponent
 			}),
 			MockModule(),
-			fetchonlyimpl.MockModule(),
 		),
 			func(t testing.TB, app *fx.App) {
 				require.NotNil(t, app)
@@ -367,6 +366,9 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
+		if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+			t.Skip("TestConfigHostname/external is known to fail on the macOS Gitlab runners.")
+		}
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
@@ -401,7 +403,6 @@ func TestConfigHostname(t *testing.T) {
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
-			t.Skip("Skip flaky test while we explore fixes.")
 			bin := makeProgram(t, "host.name", 0)
 			defer os.Remove(bin)
 
@@ -572,6 +573,7 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
+	assert.False(t, cfg.OTLPReceiver.IgnoreMissingDatadogFields)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
 	noProxy := true
@@ -2370,7 +2372,6 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 		fx.Provide(func() corecomp.Component {
 			return coreConfig
 		}),
-		fetchonlyimpl.MockModule(),
 		MockModule(),
 	))
 	return c

@@ -12,35 +12,31 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/shirou/gopsutil/v4/disk"
 )
 
 const (
 	tempDirPrefix = "tmp-i-"
 )
 
-var (
-	fsDisk = filesystem.NewDisk()
-)
-
 // Repositories manages multiple repositories.
 type Repositories struct {
-	rootPath  string
-	locksPath string
+	rootPath       string
+	preRemoveHooks map[string]PreRemoveHook
 }
 
 // NewRepositories returns a new Repositories.
-func NewRepositories(rootPath, locksPath string) *Repositories {
+func NewRepositories(rootPath string, preRemoveHooks map[string]PreRemoveHook) *Repositories {
 	return &Repositories{
-		rootPath:  rootPath,
-		locksPath: locksPath,
+		rootPath:       rootPath,
+		preRemoveHooks: preRemoveHooks,
 	}
 }
 
 func (r *Repositories) newRepository(pkg string) *Repository {
 	return &Repository{
-		rootPath:  filepath.Join(r.rootPath, pkg),
-		locksPath: filepath.Join(r.locksPath, pkg),
+		rootPath:       filepath.Join(r.rootPath, pkg),
+		preRemoveHooks: r.preRemoveHooks,
 	}
 }
 
@@ -91,8 +87,8 @@ func (r *Repositories) Create(pkg string, version string, stableSourcePath strin
 // Delete deletes the repository for the given package name.
 func (r *Repositories) Delete(_ context.Context, pkg string) error {
 	repository := r.newRepository(pkg)
-	// TODO: locked packages will still be deleted
-	err := os.RemoveAll(repository.rootPath)
+
+	err := repository.Delete()
 	if err != nil {
 		return fmt.Errorf("could not delete repository for package %s: %w", pkg, err)
 	}
@@ -155,9 +151,9 @@ func (r *Repositories) AvailableDiskSpace() (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("could not stat root path %s: %w", r.rootPath, err)
 	}
-	s, err := fsDisk.GetUsage(r.rootPath)
+	usage, err := disk.Usage(r.rootPath)
 	if err != nil {
 		return 0, err
 	}
-	return s.Available, nil
+	return usage.Free, nil
 }

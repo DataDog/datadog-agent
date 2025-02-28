@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
+	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -263,17 +265,18 @@ func init() {
 	if envvar == "enable" {
 		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if envvar == "tee" {
-		viperConfig := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
+		viperConfig := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))      // nolint: forbidigo // legit use case
 		nodetreeConfig := nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
 	} else {
-		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+		datadog = viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
 
-	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	systemProbe = viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	// Configuration defaults
 	initConfig()
+
 	datadog.BuildSchema()
 }
 
@@ -367,6 +370,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("flare.profile_overhead_runtime", 10*time.Second)
 	config.BindEnvAndSetDefault("flare.rc_profiling.blocking_rate", 0)
 	config.BindEnvAndSetDefault("flare.rc_profiling.mutex_fraction", 0)
+
+	config.BindEnvAndSetDefault("flare.rc_streamlogs.duration", 60*time.Second)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -481,6 +486,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_burst_duration", "30s")
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
+	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -575,7 +581,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
 	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
-	config.BindEnvAndSetDefault("ec2_imdsv2_transition_payload_enabled", false)
+	config.BindEnvAndSetDefault("ec2_imdsv2_transition_payload_enabled", true)
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -713,6 +719,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.chunk_size", 35)                     // Maximum number of queries to batch when querying Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
 	config.BindEnvAndSetDefault("external_metrics_provider.num_workers", 2)                     // Number of workers spawned by controller (only when CRD is used)
+	config.BindEnvAndSetDefault("external_metrics_provider.max_parallel_queries", 10)           // Maximum number of parallel queries sent to Datadog simultaneously
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.support_hybrid_ignore_ad_tags", false) // TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
@@ -777,7 +784,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", false)                                   // allows injecting libraries for languages detected by automatic language detection feature
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 	config.BindEnv("admission_controller.auto_instrumentation.init_security_context")
@@ -837,6 +844,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1107,6 +1115,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
+	// used to override the acceptable duration for the agent to load or create auth artifacts (auth_token and IPC cert/key files)
+	config.BindEnvAndSetDefault("auth_init_timeout", 10*time.Second)
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
@@ -1637,6 +1647,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// SDS logs blocking mechanism
 	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
 	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
+
+	// Max size in MB to allow for integrations logs files
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
+
+	// Control how the stream-logs log file is managed
+	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
+
 }
 
 func vector(config pkgconfigmodel.Setup) {
@@ -2118,10 +2135,24 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	// port_range_start + 14: compliance
 	// port_range_start + 15: network devices netflow
 
+	// The `datadog-fips-agent` flavor is incompatible with the fips-proxy and we do not want to downgrade to http or
+	// route traffic through a proxy for the above products
+	fipsFlavor, err := pkgfips.Enabled()
+	if err != nil {
+		return err
+	}
+
+	if fipsFlavor {
+		log.Debug("FIPS mode is enabled in the agent. Ignoring fips-proxy settings")
+		return nil
+	}
+
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
 		return nil
 	}
+
+	log.Warnf("(Deprecated) fips-proxy support is deprecated and will be removed in version 7.65 of the agent. Please use the `datadog-fips-agent` instead.")
 
 	const (
 		proxyStats                 = 0

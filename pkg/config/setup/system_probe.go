@@ -43,6 +43,9 @@ const (
 	// defaultKernelHeadersDownloadDir is the default path for downloading kernel headers for runtime compilation
 	defaultKernelHeadersDownloadDir = "/var/tmp/datadog-agent/system-probe/kernel-headers"
 
+	// defaultBTFOutputDir is the default path for extracted BTF
+	defaultBTFOutputDir = "/var/tmp/datadog-agent/system-probe/btf"
+
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
 
@@ -81,7 +84,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
 	// those configs are used by the core agent path, but are not used by the system probe
-	cfg.SetKnown("sbom.container_image.enabled")
 	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan")
 
 	// Auto exit configuration
@@ -157,6 +159,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tracepoints"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_co_re"), true, "DD_ENABLE_CO_RE")
 	cfg.BindEnvAndSetDefault(join(spNS, "btf_path"), "", "DD_SYSTEM_PROBE_BTF_PATH")
+	cfg.BindEnvAndSetDefault(join(spNS, "btf_output_dir"), defaultBTFOutputDir, "DD_SYSTEM_PROBE_BTF_OUTPUT_DIR")
 	cfg.BindEnv(join(spNS, "enable_runtime_compiler"), "DD_ENABLE_RUNTIME_COMPILER")
 	// deprecated in favor of allow_prebuilt_fallback below
 	cfg.BindEnv(join(spNS, "allow_precompiled_fallback"), "DD_ALLOW_PRECOMPILED_FALLBACK")
@@ -387,7 +390,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.private_ip_ranges"), DefaultPrivateIPCIDRs)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.extra_private_ip_ranges"), []string{})
@@ -489,4 +492,6 @@ var DefaultPrivateIPCIDRs = []string{
 	"100.64.0.0/10",
 	// IETF RFC 4193
 	"fc00::/7",
+	// IPv6 loopback address
+	"::1/128",
 }

@@ -168,13 +168,8 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 }
 
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
-	authToken, err := i.authToken.Get()
-	if err != nil {
-		return nil, err
-	}
-
 	// Create a Bearer string by appending string access token
-	bearer := "Bearer " + authToken
+	bearer := "Bearer " + i.authToken.Get()
 
 	// Create a new request using http
 	req, err := http.NewRequest("GET", u.String(), nil)

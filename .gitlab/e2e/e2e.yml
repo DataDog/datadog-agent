@@ -11,8 +11,13 @@
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
-    - export AWS_PROFILE=agent-qa-ci
+    - |
+      # Assume role to fetch only once credentials and avoid rate limits
+      echo Assuming ddbuild-agent-ci role
+      roleoutput="$(aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession)"
+      export AWS_ACCESS_KEY_ID="$(echo "$roleoutput" | jq -r '.Credentials.AccessKeyId')"
+      export AWS_SECRET_ACCESS_KEY="$(echo "$roleoutput" | jq -r '.Credentials.SecretAccessKey')"
+      export AWS_SESSION_TOKEN="$(echo "$roleoutput" | jq -r '.Credentials.SessionToken')"
     # Now all `aws` commands target the agent-qa profile
     # TODO: ADXT-768: Create new secret with different ssh key for the different cloud providers
     # SSH Key retrieval for AWS
@@ -378,7 +383,6 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite

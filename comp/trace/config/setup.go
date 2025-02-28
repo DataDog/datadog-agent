@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -61,14 +60,14 @@ const (
 func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
-	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.At)
+	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(c, tagger, at)
+func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component) (*config.AgentConfig, error) {
+	cfg, err := prepareConfig(c, tagger)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -85,7 +84,7 @@ func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Componen
 	return cfg, validate(cfg, c)
 }
 
-func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoken.Component) (*config.AgentConfig, error) {
+func prepareConfig(c corecompcfg.Component, tagger tagger.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
@@ -115,7 +114,7 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, at authtoke
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress, at)
+		client, err := remote(c, ipcAddress)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -402,13 +401,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
-		AttributesTranslator:   attributesTranslator,
+		BindHost:                   c.ReceiverHost,
+		GRPCPort:                   grpcPort,
+		MaxRequestBytes:            c.MaxRequestBytes,
+		SpanNameRemappings:         pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:     core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
+		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:       attributesTranslator,
 	}
 
 	if core.IsSet("apm_config.install_id") {
