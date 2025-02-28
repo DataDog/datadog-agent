@@ -14,6 +14,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type metaPath struct {
@@ -81,6 +82,22 @@ func metaCustom(rawMeta json.RawMessage) ([]byte, error) {
 		return nil, fmt.Errorf("invalid meta: signed is missing")
 	}
 	return []byte(metaVersion.Signed.Custom), nil
+}
+
+func metaExpires(rawMeta json.RawMessage) (time.Time, error) {
+	var metaExpires struct {
+		Signed *struct {
+			Expires time.Time `json:"expires"`
+		} `json:"signed"`
+	}
+	err := json.Unmarshal(rawMeta, &metaExpires)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if metaExpires.Signed == nil {
+		return time.Time{}, fmt.Errorf("invalid meta: signed is missing")
+	}
+	return metaExpires.Signed.Expires, nil
 }
 
 func metaHash(rawMeta json.RawMessage) string {

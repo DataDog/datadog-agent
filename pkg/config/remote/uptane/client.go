@@ -289,6 +289,12 @@ func (c *Client) TargetsCustom() ([]byte, error) {
 	return c.directorLocalStore.GetMetaCustom(metaTargets)
 }
 
+func (c *Client) TimestampExpires() (time.Time, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.directorLocalStore.GetMetaExpires(metaTimestamp)
+}
+
 // DirectorRoot returns a director root
 func (c *Client) DirectorRoot(version uint64) ([]byte, error) {
 	c.Lock()

@@ -8,14 +8,16 @@ package uptane
 import (
 	"encoding/json"
 	fmt "fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 )
 
 var (
-	metaRoot     = "root.json"
-	metaTargets  = "targets.json"
-	metaSnapshot = "snapshot.json"
+	metaRoot      = "root.json"
+	metaTargets   = "targets.json"
+	metaSnapshot  = "snapshot.json"
+	metaTimestamp = "timestamp.json"
 )
 
 // localStore implements go-tuf's LocalStore
@@ -160,6 +162,19 @@ func (s *localStore) GetMetaCustom(metaName string) ([]byte, error) {
 		return nil, nil
 	}
 	return metaCustom(meta)
+}
+
+// GetMetaExpires returns the expiration of a particular meta
+func (s *localStore) GetMetaExpires(metaName string) (time.Time, error) {
+	metas, err := s.GetMeta()
+	if err != nil {
+		return time.Time{}, err
+	}
+	meta, found := metas[metaName]
+	if !found {
+		return time.Time{}, nil
+	}
+	return metaExpires(meta)
 }
 
 // Close commits all pending data to the stored database

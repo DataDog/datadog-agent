@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"testing"
 	"time"
 
@@ -138,6 +139,11 @@ func (m *mockUptane) TargetsCustom() ([]byte, error) {
 func (m *mockUptane) TUFVersionState() (uptane.TUFVersions, error) {
 	args := m.Called()
 	return args.Get(0).(uptane.TUFVersions), args.Error(1)
+}
+
+func (m *mockUptane) TimestampExpires() (time.Time, error) {
+	args := m.Called()
+	return args.Get(0).(time.Time), args.Error(1)
 }
 
 type mockRcTelemetryReporter struct {
@@ -404,6 +410,32 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	_, err = service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
+}
+
+func TestClientGetConfigsEmptiesCacheForExpiredSignature(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockCoreAgentUptane{}
+	clock := clock.NewMock()
+	service := newTestService(t, api, uptaneClient, clock)
+
+	client := &pbgo.Client{
+		Id: "testid",
+		State: &pbgo.ClientState{
+			RootVersion: 2,
+		},
+		IsAgent:     true,
+		ClientAgent: &pbgo.ClientAgent{},
+		Products: []string{
+			string(rdata.ProductAPMSampling),
+		},
+	}
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
+	uptaneClient.On("TimestampExpires").Return(time.Now().Add(-1*time.Hour), nil)
+
+	service.clients.seen(client)
+	newConfig, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	assert.NoError(t, err)
+	assert.Equal(t, state.ConfigStatusExpired, newConfig.ConfigStatus)
 }
 
 func TestService(t *testing.T) {

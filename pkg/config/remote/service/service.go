@@ -17,7 +17,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"github.com/DataDog/go-tuf/verify"
 	"net/url"
 	"path"
 	"strconv"
@@ -189,6 +188,7 @@ type uptaneClient interface {
 	TargetFiles(files []string) (map[string][]byte, error)
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
+	TimestampExpires() (time.Time, error)
 	TUFVersionState() (uptane.TUFVersions, error)
 }
 
@@ -689,7 +689,6 @@ func (s *CoreAgentService) refresh() error {
 		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
 		return err
 	}
-
 	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based
 	// on the contents of our update request
 	if s.refreshIntervalOverrideAllowed {
@@ -759,14 +758,10 @@ func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 	return value, nil
 }
 
-func isExpiredError(err error) bool {
-	var errExpired verify.ErrExpired
-	return errors.As(err, &errExpired)
-}
-
 func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse, error) {
+	log.Errorf("Flushing cache")
 	return &pbgo.ClientGetConfigsResponse{
-		Roots:         nil,
+		Roots:         nil, // can we return nil here?
 		Targets:       s.cachedTargets,
 		TargetFiles:   nil,
 		ClientConfigs: nil,
@@ -826,22 +821,26 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
+
+	expires, err := s.uptane.TimestampExpires()
+	if err != nil {
+		return nil, err
+	}
+	if expires.Before(time.Now()) {
+		log.Errorf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
+		return s.flushCacheResponse()
+	}
+
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
 	roots, err := s.getNewDirectorRoots(s.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
-		if isExpiredError(err) {
-			return s.flushCacheResponse()
-		}
 		return nil, err
 	}
 
 	directorTargets, err := s.uptane.Targets()
 	if err != nil {
-		if isExpiredError(err) {
-			return s.flushCacheResponse()
-		}
 		return nil, err
 	}
 	matchedClientConfigs, err := executeTracerPredicates(request.Client, directorTargets)
@@ -856,17 +855,11 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 
 	targetFiles, err := s.getTargetFiles(s.uptane, neededFiles)
 	if err != nil {
-		if isExpiredError(err) {
-			return s.flushCacheResponse()
-		}
 		return nil, err
 	}
 
 	targetsRaw, err := s.uptane.TargetsMeta()
 	if err != nil {
-		if isExpiredError(err) {
-			return s.flushCacheResponse()
-		}
 		return nil, err
 	}
 	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
