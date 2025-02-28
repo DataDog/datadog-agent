@@ -133,13 +133,20 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	}
 }
 
+/*
+The gRPC codes Google API checks for "CANCELLED". Sometimes we receive "Canceled" from upstream,
+sometimes "CANCELLED", which is why both spellings appear in the map.
+For multi-word codes, sometimes from upstream we receive them as one word, such as DeadlineExceeded.
+Google's API checks for strings with an underscore and in all caps, and would only recognize codes
+formatted like "ALREADY_EXISTS" or "DEADLINE_EXCEEDED"
+*/
 var grpcStatusMap = map[string]string{
-	"CANCELLED":          "1", // The gRPC codes Google API checks for "CANCELLED"
-	"CANCELED":           "1", // Sometimes we receive "Canceled" from upstream, sometimes "CANCELLED"
-	"INVALIDARGUMENT":    "3", // For these multi-word codes, sometimes from upstream we receive them as one word
-	"DEADLINEEXCEEDED":   "4",   // Ex: DeadlineExceeded
-	"NOTFOUND":           "5", // Whereas Google's API checks for strings with an underscore and in all caps
-	"ALREADYEXISTS":      "6",   // Ex: Google's API would only recognize "ALREADY_EXISTS"
+	"CANCELLED":          "1",
+	"CANCELED":           "1",
+	"INVALIDARGUMENT":    "3",
+	"DEADLINEEXCEEDED":   "4",
+	"NOTFOUND":           "5",
+	"ALREADYEXISTS":      "6",
 	"PERMISSIONDENIED":   "7",
 	"RESOURCEEXHAUSTED":  "8",
 	"FAILEDPRECONDITION": "9",
@@ -149,9 +156,9 @@ var grpcStatusMap = map[string]string{
 
 func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
 	// List of possible keys to check in order
-	metaKeys := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
+	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
-	for _, key := range metaKeys {
+	for _, key := range statusCodeFields {
 		if strC, exists := meta[key]; exists && strC != "" {
 			c, err := strconv.ParseUint(strC, 10, 32)
 			if err == nil {
@@ -172,7 +179,7 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 		}
 	}
 
-	for _, key := range metaKeys { // Check if gRPC status code is stored in metrics
+	for _, key := range statusCodeFields { // Check if gRPC status code is stored in metrics
 		if code, ok := metrics[key]; ok {
 			return strconv.FormatUint(uint64(code), 10)
 		}
