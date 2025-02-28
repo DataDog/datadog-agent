@@ -114,7 +114,6 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
-		RemotePolicies:       config.GetBool("remote_policies"),
 		Mirror:               config.GetString("installer.mirror"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
@@ -158,11 +157,9 @@ func (d *daemonImpl) GetState() (map[string]PackageState, error) {
 	}
 
 	var configStates map[string]repository.State
-	if d.env.RemotePolicies {
-		configStates, err = d.installer(d.env).ConfigStates()
-		if err != nil {
-			return nil, err
-		}
+	configStates, err = d.installer(d.env).ConfigStates()
+	if err != nil {
+		return nil, err
 	}
 
 	res := make(map[string]PackageState)
@@ -228,6 +225,10 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
+	return d.getPackage(pkg, version)
+}
+
+func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 	catalog := d.catalog
 	if len(d.catalogOverride.Packages) > 0 {
 		catalog = d.catalogOverride
@@ -556,7 +557,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			newEnv.InstallScript.APMInstrumentationEnabled = params.ApmInstrumentation
 		}
 
-		pkg, err := d.GetPackage(request.Package, params.Version)
+		pkg, err := d.getPackage(request.Package, params.Version)
 		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrPackageNotFound,

@@ -44,16 +44,17 @@ func NewClusterRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *Cluste
 
 	return &ClusterRoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      clusterRoleBindingName,
-			NodeType:                  orchestrator.K8sClusterRoleBinding,
-			Version:                   clusterRoleBindingVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 clusterRoleBindingName,
+			NodeType:                             orchestrator.K8sClusterRoleBinding,
+			Version:                              clusterRoleBindingVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleBindingHandlers)),
 	}

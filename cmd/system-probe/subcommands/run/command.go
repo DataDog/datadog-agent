@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -50,7 +51,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -59,9 +60,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -99,7 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 				fx.Supply(option.None[secrets.Component]()),
-				compstatsd.Module(),
+				statsd.Module(),
 				config.Module(),
 				telemetryimpl.Module(),
 				sysprobeconfigimpl.Module(),
@@ -146,6 +147,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				settingsimpl.Module(),
 				logscompressionfx.Module(),
+				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
+					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+				}),
 			)
 		},
 	}
@@ -155,7 +159,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, compression logscompression.Component) error {
+func run(log log.Component, _ config.Component, statsd ddgostatsd.ClientInterface, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component, compression logscompression.Component) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -178,7 +182,7 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 			stopCh <- nil
 		case <-signals.ErrorStopper:
 			_ = log.Critical("system-probe has encountered an error, shutting down...")
-			stopCh <- fmt.Errorf("shutting down because of an error")
+			stopCh <- errors.New("shutting down because of an error")
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
 			stopCh <- nil
@@ -241,7 +245,7 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ healthprobe.Component, settings settings.Component, compression logscompression.Component) error {
+		func(log log.Component, _ config.Component, statsd ddgostatsd.ClientInterface, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, _ healthprobe.Component, settings settings.Component, compression logscompression.Component) error {
 			defer StopSystemProbeWithDefaults()
 			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, tagger, settings, compression)
 			if err != nil {
@@ -274,7 +278,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		rcclientimpl.Module(),
 		config.Module(),
 		telemetryimpl.Module(),
-		compstatsd.Module(),
+		statsd.Module(),
 		sysprobeconfigimpl.Module(),
 		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
 			return healthprobe.Options{
@@ -315,6 +319,9 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		}),
 		settingsimpl.Module(),
 		logscompressionfx.Module(),
+		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
+			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+		}),
 	)
 }
 
@@ -324,7 +331,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component, compression logscompression.Component) error {
+func startSystemProbe(log log.Component, statsd ddgostatsd.ClientInterface, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component, compression logscompression.Component) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
@@ -355,10 +362,6 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 
 	setupInternalProfiling(settings, sysprobeconfig, configPrefix, log)
 
-	if err := processstatsd.Configure(cfg.StatsdHost, cfg.StatsdPort, statsd.CreateForHostPort); err != nil {
-		return log.Criticalf("error configuring statsd: %s", err)
-	}
-
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
@@ -384,7 +387,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 		}()
 	}
 
-	if err = api.StartServer(cfg, telemetry, wmeta, tagger, settings, compression); err != nil {
+	if err = api.StartServer(cfg, telemetry, wmeta, tagger, settings, compression, statsd); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil

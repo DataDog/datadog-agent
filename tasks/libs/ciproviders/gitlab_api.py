@@ -1043,7 +1043,7 @@ def get_preset_contexts(required_tests):
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
         ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
+        ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
@@ -1064,7 +1064,7 @@ def get_preset_contexts(required_tests):
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
         ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),
+        ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("RUN_ALL_BUILDS", ["false"]),
         ("RUN_E2E_TESTS", ["auto"]),
@@ -1083,6 +1083,7 @@ def get_preset_contexts(required_tests):
         ("RELEASE_VERSION_7", ["nightly-a7"]),
         ("BUCKET_BRANCH", ["dev"]),
         ("DEPLOY_AGENT", ["false"]),
+        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
         ("RUN_KITCHEN_TESTS", ["false"]),
         ("RUN_E2E_TESTS", ["off"]),
