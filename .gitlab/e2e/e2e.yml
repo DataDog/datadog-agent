@@ -796,8 +796,7 @@ celian:
   needs: []
   script:
     - echo Trying to assume role
-    # - aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession > /tmp/role.json
-    - aws sts assume-role --role-arn arn:aws:iam::669783387624:role/dd.gitlabRunner_datadogAgent --external-id ddbuild-agent-ci --role-session-name RoleSession > /tmp/role.json
+    - aws sts assume-role --role-arn arn:aws:iam::669783387624:role/ddbuild-agent-ci --external-id ddbuild-agent-ci --role-session-name RoleSession > /tmp/role.json
     - wc -c /tmp/role.json
     - set +e
     - |
