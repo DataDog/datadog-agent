@@ -401,13 +401,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
-		AttributesTranslator:   attributesTranslator,
+		BindHost:                   c.ReceiverHost,
+		GRPCPort:                   grpcPort,
+		MaxRequestBytes:            c.MaxRequestBytes,
+		SpanNameRemappings:         pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:     core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
+		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:       attributesTranslator,
 	}
 
 	if core.IsSet("apm_config.install_id") {

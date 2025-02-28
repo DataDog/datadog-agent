@@ -169,6 +169,7 @@ installer_suse_rpm-arm64:
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-rpm.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
+  retry: 2
 
 iot_agent_rpm-x64:
   extends: [.package_iot_rpm_common, .package_rpm_x86]

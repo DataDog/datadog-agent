@@ -580,12 +580,19 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	select {
 	// Wait for the semaphore to become available, allowing the handler to
 	// decode its payload.
-	// Afer the configured timeout, respond without ingesting the payload,
+	// After the configured timeout, respond without ingesting the payload,
 	// and sending the configured status.
 	case r.recvsem <- struct{}{}:
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
+		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
 		// this payload can not be accepted
 		io.Copy(io.Discard, req.Body) //nolint:errcheck
+		switch v {
+		case v01, v02, v03:
+			// do nothing
+		default:
+			w.Header().Set("Content-Type", "application/json")
+		}
 		if isHeaderTrue(header.SendRealHTTPStatus, req.Header.Get(header.SendRealHTTPStatus)) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		} else {

@@ -813,7 +813,7 @@ def get_go_module(path):
     while path != '/':
         go_mod_path = os.path.join(path, 'go.mod')
         if os.path.isfile(go_mod_path):
-            return os.path.relpath(path)
+            return normpath(os.path.relpath(path))
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
 
@@ -889,8 +889,7 @@ def check_otel_build(ctx):
 @task
 def check_otel_module_versions(ctx, fix=False):
     pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
-    # TODO(songy23): restore to OTEL_UPSTREAM_GO_MOD_PATH once otel v0.120.0 is brought to Agent.
-    r = requests.get("https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod")
+    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
     matches = re.findall(pattern, r.text, flags=re.MULTILINE)
     if len(matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")

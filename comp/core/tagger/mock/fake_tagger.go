@@ -174,8 +174,3 @@ func (f *FakeTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) 
 func (f *FakeTagger) ChecksCardinality() types.TagCardinality {
 	return types.LowCardinality
 }
-
-// DogstatsdCardinality noop
-func (f *FakeTagger) DogstatsdCardinality() types.TagCardinality {
-	return types.LowCardinality
-}

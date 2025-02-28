@@ -64,7 +64,7 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 		log.Info("enabling universal service monitoring (USM)")
 	}
 
-	t, err := tracer.NewTracer(ncfg, deps.Telemetry)
+	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 
 	return &networkTracer{tracer: t}, err
 }

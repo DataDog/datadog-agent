@@ -24,6 +24,15 @@ var (
 )
 
 type (
+	// RawConnWrapper is an interface that abstracts the raw socket
+	// connection for Windows
+	RawConnWrapper interface {
+		ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error)
+		SendRawPacket(destIP net.IP, destPort uint16, payload []byte) error
+		ReadFrom(b []byte) (*ipv4.Header, []byte, error)
+		Close()
+	}
+
 	// RawConn is a struct that encapsulates a raw socket
 	// on Windows that can be used to listen to traffic on a host
 	// or send raw packets from a host

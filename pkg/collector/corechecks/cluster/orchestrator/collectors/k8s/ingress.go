@@ -44,16 +44,17 @@ func NewIngressCollector(metadataAsTags utils.MetadataAsTags) *IngressCollector 
 
 	return &IngressCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      ingressName,
-			NodeType:                  orchestrator.K8sIngress,
-			Version:                   ingressVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 ingressName,
+			NodeType:                             orchestrator.K8sIngress,
+			Version:                              ingressVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),
 	}

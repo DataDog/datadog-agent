@@ -45,35 +45,23 @@ type PrioritySampler struct {
 	// This struct is shared with the agent API which sends the rates in http responses to spans post requests
 	rateByService *RateByService
 	catalog       *serviceKeyCatalog
-	exit          chan struct{}
 }
 
 // NewPrioritySampler returns an initialized Sampler
-func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig, statsd statsd.ClientInterface) *PrioritySampler {
+func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
 	s := &PrioritySampler{
 		agentEnv:      conf.DefaultEnv,
-		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}, statsd),
+		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS),
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(conf.MaxCatalogEntries),
-		exit:          make(chan struct{}),
 	}
 	return s
 }
 
-// Start runs and block on the Sampler main loop
-func (s *PrioritySampler) Start() {
-	go func() {
-		statsTicker := time.NewTicker(10 * time.Second)
-		defer statsTicker.Stop()
-		for {
-			select {
-			case <-statsTicker.C:
-				s.sampler.report()
-			case <-s.exit:
-				return
-			}
-		}
-	}()
+var _ AdditionalMetricsReporter = (*PrioritySampler)(nil)
+
+func (s *PrioritySampler) report(statsd statsd.ClientInterface) {
+	s.sampler.report(statsd, NamePriority)
 }
 
 // UpdateTargetTPS updates the target tps
@@ -91,11 +79,6 @@ func (s *PrioritySampler) updateRates() {
 	s.rateByService.SetAll(s.ratesByService())
 }
 
-// Stop stops the sampler main loop
-func (s *PrioritySampler) Stop() {
-	close(s.exit)
-}
-
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
 func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.Span, tracerEnv string, clientDroppedP0sWeight float64) bool {
 	// Extra safety, just in case one trace is empty
@@ -110,7 +93,6 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	sampled := samplingPriority.IsKeep()
 
 	serviceSignature := ServiceSignature{Name: root.Service, Env: toSamplerEnv(tracerEnv, s.agentEnv)}
-	s.sampler.metrics.record(sampled, newMetricsKey(serviceSignature.Name, serviceSignature.Env, &samplingPriority))
 
 	// Short-circuit and return without counting the trace in the sampling rate logic
 	// if its value has not been set automatically by the client lib.
