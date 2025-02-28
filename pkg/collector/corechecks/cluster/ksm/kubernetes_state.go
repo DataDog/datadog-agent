@@ -288,8 +288,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	maps.Copy(k.metricNamesMapper, customresources.GetCustomMetricNamesMapper(k.instance.CustomResource.Spec.Resources))
 
-	metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
-
 	// Retrieve cluster name
 	k.getClusterName()
 
@@ -303,19 +301,11 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	k.mergeLabelJoins(defaultLabelJoins())
 
-	k.processLabelJoins()
-	k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags)
-	k.processLabelsAsTags()
-
-	// We need to merge the user-defined annotations as tags with the default annotations first
-	mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), defaultAnnotationsAsTags())
-	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(mergedAnnotationsAsTags, k.instance.AnnotationsAsTags)
-	k.processAnnotationsAsTags()
-
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
 	// Retry configuration steps related to API Server in check executions if necessary
+	// TODO: extract init configuration attempt function into a struct method
 	err = k.initRetry.SetupRetrier(&retry.Config{
 		Name: fmt.Sprintf("%s_%s", CheckName, "configuration"),
 		AttemptMethod: func() error {
@@ -339,6 +329,22 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				if err != nil {
 					return err
 				}
+
+				err = apiserver.InitializeGlobalResourceTypeCache(apiServerClient.Cl.Discovery())
+				if err != nil {
+					return err
+				}
+
+				metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
+
+				k.processLabelJoins()
+				k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
+				k.processLabelsAsTags()
+
+				// We need to merge the user-defined annotations as tags with the default annotations first
+				mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
+				k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
+				k.processAnnotationsAsTags()
 
 				// Discover resources that are currently available
 				resources, err = discoverResources(apiServerClient.Cl.Discovery())
@@ -1027,7 +1033,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 }
 
 // mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
-func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceMap map[string]map[string]string) map[string]map[string]string {
+func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]string, shouldTransformResource bool) map[string]map[string]string {
 	if instanceMap == nil {
 		instanceMap = make(map[string]map[string]string)
 	}
@@ -1039,17 +1045,26 @@ func mergeLabelsOrAnnotationAsTags(extra map[string]map[string]string, instanceM
 	}
 
 	for resource, mapping := range extra {
-		// modify the resource name to the singular form of the resource
-		resource = toSingularResourceName(resource)
-		_, found := instanceMap[resource]
+		var singularName = resource
+		var err error
+		if shouldTransformResource {
+			// modify the resource name to the singular form of the resource
+			singularName, err = toSingularResourceName(resource)
+			if err != nil {
+				log.Errorf("failed to get singular resource name for %q: %v", resource, err)
+				continue
+			}
+		}
+
+		_, found := instanceMap[singularName]
 		if !found {
-			instanceMap[resource] = make(map[string]string)
-			instanceMap[resource] = mapping
+			instanceMap[singularName] = make(map[string]string)
+			instanceMap[singularName] = mapping
 			continue
 		}
 		for key, value := range mapping {
-			if _, found := instanceMap[resource][key]; !found {
-				instanceMap[resource][key] = value
+			if _, found := instanceMap[singularName][key]; !found {
+				instanceMap[singularName][key] = value
 			}
 		}
 	}
@@ -1185,8 +1200,9 @@ func toSnakeCase(s string) string {
 	return strings.ToLower(snake)
 }
 
-func toSingularResourceName(s string) string {
+func toSingularResourceName(resourceGroup string) (string, error) {
 	// Expected input in the form of: resourceTypePlural.apiGroup
-	resourceType := strings.Split(s, ".")[0]
-	return strings.TrimSuffix(resourceType, "s")
+	resourceType, group, _ := strings.Cut(resourceGroup, ".")
+	kind, err := apiserver.GetResourceKind(resourceType, group)
+	return strings.ToLower(kind), err
 }
