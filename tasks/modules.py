@@ -288,7 +288,9 @@ def remove_replace_rules(data: str) -> str:
 def update_go_mod(gomod_list, root):
     file = "go.mod"
     repo_name = "github.com/DataDog/datadog-agent/"
-    replace_comment = "// This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually\n\n"
+    replace_comment = (
+        "// This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually\n\n"
+    )
 
     gomod_file = os.path.join(root, file)
     print("Updating:", gomod_file)

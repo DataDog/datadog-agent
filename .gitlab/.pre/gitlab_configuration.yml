@@ -25,7 +25,7 @@ test_gitlab_compare_to:
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@$(cat .dda/version)" --break-system-packages
+    - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - dda self dep sync -f legacy-tasks
     - dda inv pipeline.compare-to-itself
 

@@ -23,7 +23,7 @@ jobs:
       # Dependencies are installed at runtime. Otherwise it would create a huge image see https://hub.docker.com/r/pytorch/pytorch/tags
       run: |
         pip install --upgrade pip
-        pip install --no-compile --no-cache-dir torch transformers "git+https://github.com/DataDog/datadog-agent-dev.git@$(cat .dda/version)"
+        pip install --no-compile --no-cache-dir torch transformers "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
         dda self dep sync -f legacy-tasks
     - name: Assign issue
       env:
