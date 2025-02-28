@@ -21,7 +21,4 @@ configure_make(
         "//deps/libxml2",
         "@xz//:lzma",
     ],
-    env = {
-        "LD": "",
-    },
 )
