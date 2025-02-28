@@ -162,6 +162,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	if analyzersDisabled(LanguagesAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeIndividualPkgs...)
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeExecutable)
 	}
 	if analyzersDisabled(SecretAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
@@ -179,7 +180,6 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
 	}
 	disabledAnalyzers = append(disabledAnalyzers,
-		analyzer.TypeExecutable,
 		analyzer.TypeRedHatContentManifestType,
 		analyzer.TypeRedHatDockerfileType,
 		analyzer.TypeSBOM,

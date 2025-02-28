@@ -2,10 +2,43 @@
 Release Notes
 =============
 
+.. _Release Notes_7.63.1:
+
+7.63.1
+======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
+
+.. _Release Notes_7.63.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-26
+
+- Please refer to the `7.63.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7631>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.63.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Publish image tags of the `datadog-fips-agent` build.
+
+
 .. _Release Notes_7.63.0:
 
 7.63.0
 ======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
 
 .. _Release Notes_7.63.0_Prelude:
 
@@ -86,7 +119,7 @@ Enhancement Notes
 Security Notes
 --------------
 
-- Update OpenSSL from 3.3.2 to 3.3.3 addressing CVE-2024-12797. 
+- Update OpenSSL from 3.3.2 to 3.3.3 addressing CVE-2024-12797.
 
 - On Windows, the named pipe \\.\pipe\dd_system_probe from system probe is now restricted to
   Local System, Administrators, and the ddagentuser.  Any other custom users are not supported.
@@ -99,16 +132,16 @@ Bug Fixes
 
 - Fixes some existing metric transformer unit tests by correcting their assertions.
 
-- Datadog span.Type and span.Resource attributes are set correctly for OTel spans 
-  processed via OTel Agent and Datadog Exporter when client span type is a database 
+- Datadog span.Type and span.Resource attributes are set correctly for OTel spans
+  processed via OTel Agent and Datadog Exporter when client span type is a database
   span.Type.
-  
-  span.Type logic update is limited to ReceiveResourceSpansV2 logic, set using 
+
+  span.Type logic update is limited to ReceiveResourceSpansV2 logic, set using
   `"enable_receive_resource_spans_v2"` in `DD_APM_FEATURES`
-  
-  span.Resource logic update is limited to OperationAndResourceNameV2 logic, set 
+
+  span.Resource logic update is limited to OperationAndResourceNameV2 logic, set
   using `"enable_operation_and_resource_name_logic_v2"` in `DD_APM_FEATURES`
-  
+
   Users should set a `span.type` attribute on their telemetry if they wish to
   override the default span type.
 
@@ -138,6 +171,11 @@ Bug Fixes
 7.62.3
 ======
 
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
+
 .. _Release Notes_7.62.3_Prelude:
 
 Prelude
@@ -152,6 +190,11 @@ Release on: 2025-02-14
 
 7.62.2
 ======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
 
 .. _Release Notes_7.62.2_Prelude:
 
@@ -197,6 +240,11 @@ Bug Fixes
 7.62.1
 ======
 
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
+
 .. _Release Notes_7.62.1_Prelude:
 
 Prelude
@@ -217,6 +265,11 @@ Bug Fixes
 
 7.62.0
 ======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
 
 .. _Release Notes_7.62.0_Prelude:
 
