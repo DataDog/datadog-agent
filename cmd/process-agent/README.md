@@ -24,7 +24,7 @@ Note that you must be in `$GOPATH/src/github.com/DataDog/datadog-agent`, NOT `~/
 To build the Process Agent run:
 
 ```
-deva inv -e process-agent.build
+dda inv -e process-agent.build
 ```
 
 You can now run the Agent on the command-line:

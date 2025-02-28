@@ -134,13 +134,13 @@ function Expand-ModCache() {
 function Install-Deps() {
     Write-Host "Installing python requirements"
     pip3.exe install datadog-agent-dev
-    deva self dep sync -f legacy-tasks
+    dda self dep sync -f legacy-tasks
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install python requirements"
         exit 1
     }
     Write-Host "Installing go dependencies"
-    deva inv -e deps
+    dda inv -e deps
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install dependencies"
         exit 1
@@ -149,7 +149,7 @@ function Install-Deps() {
 
 function Install-TestingDeps() {
     Write-Host "Installing testing dependencies"
-    deva inv -e install-tools
+    dda inv -e install-tools
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install testing dependencies"
         exit 1
@@ -307,7 +307,7 @@ function Invoke-BuildScript {
 
         # Expand modcache
         # TODO: Can these be moved inside the Install-Deps/Install-TestingDeps functions,
-        #       or is it important that they both be run before `deva inv deps` ?
+        #       or is it important that they both be run before `dda inv deps` ?
         if ($InstallDeps) {
             Expand-ModCache -modcache modcache
         }
@@ -324,7 +324,7 @@ function Invoke-BuildScript {
         }
 
         if ($CheckGoVersion) {
-            deva inv -e check-go-version
+            dda inv -e check-go-version
             if ($LASTEXITCODE -ne 0) {
                 Write-Error "Go version check failed"
                 exit 1

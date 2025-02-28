@@ -11,7 +11,7 @@ files requires three different grpc-related packages:
 
 From the repository root run the following:
 ```
-deva inv setup
+dda inv setup
 ```
 This should drop all required binaries in your `$GOPATH/bin`
 
@@ -24,7 +24,7 @@ elsewhere take precedence (`which` is your friend).
 From the repository root run the following:
 
 ```
-deva inv protobuf.generate
+dda inv protobuf.generate
 ```
 
 This command generates generate the protobuf golang definitions _and_ the

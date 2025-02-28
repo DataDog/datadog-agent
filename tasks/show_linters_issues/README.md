@@ -17,7 +17,7 @@ The version of `go` and `golangci-lint` can have a big impact on the output of t
 - Use `python >= 3.9.0`.
 - Install the requirements with `python3 -m pip install datadog-agent-dev`.
 - Clear you `golangci-lint` cache (`golangci-lint cache clean`) and your `go mod` cache (`go clean -modcache`).
-- Install the tools (`deva inv -e install-tools`) and the dependencies (`deva inv -e deps`).
+- Install the tools (`dda inv -e install-tools`) and the dependencies (`dda inv -e deps`).
 
 ## Fixing the `gosimple` linter
 
@@ -29,7 +29,7 @@ Already done in [#18884](https://github.com/DataDog/datadog-agent/pull/18884).
 Run the command
 
 ```bash
-deva inv -e show-linters-issues --filter-team "@DataDog/your-team" --filter-linters "revive"
+dda inv -e show-linters-issues --filter-team "@DataDog/your-team" --filter-linters "revive"
 ```
 
 Note: The linter is running every combination OS x Arch we're linting in the CI so it's normal for it to take a bit of time on the first run (should be faster after because some of it is cached).
@@ -39,7 +39,7 @@ Manually fix every lines in the command output create a PR with your fixes.
 ## Show the `revive` linter issues for your branch only
 
 ```bash
-deva inv -e show-linters-issues --filter-linters "revive" --from-commit-hash "main"
+dda inv -e show-linters-issues --filter-linters "revive" --from-commit-hash "main"
 ```
 
 

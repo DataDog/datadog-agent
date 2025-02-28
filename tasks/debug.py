@@ -12,8 +12,8 @@ def debug(_, wait=True, host='localhost', port=5678):
     """
     Launch debugger to debug in vs-code or other IDEs using debugpy.
 
-    Usage to debug `deva inv invoke-unit-tests.run`:
-    > deva inv debug invoke-unit-tests.run
+    Usage to debug `dda inv invoke-unit-tests.run`:
+    > dda inv debug invoke-unit-tests.run
     > # In vscode, launch the debugger with the configuration "Remote Debug Tasks"
     > # The debugger is attached !
     """
@@ -23,7 +23,7 @@ def debug(_, wait=True, host='localhost', port=5678):
 
     if not (Path(VSCODE_DIR) / VSCODE_LAUNCH_FILE).exists():
         print(
-            f"{color_message('warning:', Color.ORANGE)} {color_message('(For VS Code users)', Color.BLUE)} No launch.json file found, you should run `deva inv vscode.setup-launch` to have a debug configuration.",
+            f"{color_message('warning:', Color.ORANGE)} {color_message('(For VS Code users)', Color.BLUE)} No launch.json file found, you should run `dda inv vscode.setup-launch` to have a debug configuration.",
         )
 
     debugpy.listen((host, port))

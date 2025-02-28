@@ -292,7 +292,7 @@
 /omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
-# The following is managed by `deva inv lint-components` -- DO NOT EDIT
+# The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-runtimes
 /comp/agent @DataDog/agent-runtimes

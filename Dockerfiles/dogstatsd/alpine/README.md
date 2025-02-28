@@ -97,4 +97,4 @@ spec:
 
 ## How to build it
 
-You can use `deva inv dogstatsd.image-build` to build your own dogstatsd image
+You can use `dda inv dogstatsd.image-build` to build your own dogstatsd image

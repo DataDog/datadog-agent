@@ -610,7 +610,7 @@ def add_required_checks(_, branch: str, check: str, force: bool = False):
         - A fine-grained token needs the "Administration" repository permissions (write).
 
     Use it like this:
-    deva inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
+    dda inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
