@@ -17,7 +17,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.64.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.64.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.64.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
 )
 
 require (

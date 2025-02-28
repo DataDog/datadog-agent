@@ -613,7 +613,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.64.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/http v0.64.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/json v0.64.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.64.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.64.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.64.0-rc.6
