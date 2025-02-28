@@ -8,6 +8,7 @@ package submitterimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -22,6 +23,9 @@ func TestSubmitterLifecycle(t *testing.T) {
 		hostinfoimpl.MockModule(),
 		core.MockBundle(),
 		forwardersimpl.MockModule(),
+		fx.Provide(func() statsd.ClientInterface {
+			return &statsd.NoOpClient{}
+		}),
 		Module(),
 	))
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -69,6 +70,7 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		serviceExtractor:  serviceExtractor,
 		extractors:        []metadata.Extractor{serviceExtractor},
 		gpuSubscriber:     mockGpuSubscriber,
+		statsd:            &statsd.NoOpClient{},
 	}, probe
 }
 

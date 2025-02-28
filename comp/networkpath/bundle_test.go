@@ -8,6 +8,9 @@ package networkpath
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
@@ -21,5 +24,8 @@ func TestBundleDependencies(t *testing.T) {
 		eventplatformimpl.MockModule(),
 		rdnsquerier.MockModule(),
 		logscompression.MockModule(),
+		fx.Provide(func() statsd.ClientInterface {
+			return &statsd.NoOpClient{}
+		}),
 	)
 }
