@@ -42,9 +42,11 @@ func TestWindowsTestSuite(t *testing.T) {
 func (s *windowsTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	// Install chocolatey - https://chocolatey.org/install
-	s.Env().RemoteHost.MustExecute("Set-ExecutionPolicy Bypass -Scope CurrentUser -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
+	s.Env().RemoteHost.MustExecute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex")
+	// Start an antivirus scan to use as process for testing
+	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 	// Install diskspd for IO tests - https://learn.microsoft.com/en-us/azure/azure-local/manage/diskspd-overview
-	s.Env().RemoteHost.MustExecute("choco install -y diskspd")
+	s.Env().RemoteHost.MustExecute("C:\\ProgramData\\chocolatey\\bin\\choco.exe install -y diskspd")
 }
 
 func assertProcessCheck(t *testing.T, env *environments.Host) {
@@ -180,8 +182,8 @@ func runDiskSpd(t *testing.T, remoteHost *components.RemoteHost) error {
 	}
 
 	t.Cleanup(func() {
-		session.Close()
-		stdin.Close()
+		_ = session.Close()
+		_ = stdin.Close()
 	})
 	return nil
 }
