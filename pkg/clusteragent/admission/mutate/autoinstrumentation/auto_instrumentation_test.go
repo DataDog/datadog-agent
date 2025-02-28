@@ -875,7 +875,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:              "php (opt-in)",
+			name:              "php",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
