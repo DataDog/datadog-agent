@@ -910,13 +910,15 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 	}
 }
 
-var subnetSkippedStat = teststatsd.MetricsArgs{Name: "datadog.network_path.collector.skipped_because_subnet", Value: 1, Tags: nil, Rate: 1}
+var subnetSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_intra_vpc"}, Rate: 1}
 
 func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	tests := []struct {
 		name           string
 		conn           *model.Connection
+		vpcSubnets     []*net.IPNet
 		shouldSchedule bool
+		subnetSkipped  bool
 	}{
 		{
 			name: "should schedule",
@@ -978,21 +980,91 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			},
 			shouldSchedule: false,
 		},
+		// intra-vpc subnet skipping tests
+		{
+			name: "VPC: random subnet should schedule anyway",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: true,
+			subnetSkipped:  false,
+		},
+		{
+			name: "VPC: relevant subnet should skip",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
+		{
+			name: "VPC: shouldn't skip local address even if the subnet matches",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: true,
+			subnetSkipped:  false,
+		},
+		{
+			name: "VPC: translated clusterIP should get matched",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplDstPort: int32(80),
+					ReplDstIP:   "10.1.2.3",
+				},
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
+		{
+			name: "VPC: source translation existing shouldn't break subnet check",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplSrcPort: int32(30000),
+					ReplSrcIP:   "192.168.1.2",
+					// ReplDstIP is the empty string
+				},
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			agentConfigs := map[string]any{
-				"network_path.connections_monitoring.enabled": true,
+				"network_path.connections_monitoring.enabled":         true,
+				"network_path.collector.disable_intra_vpc_collection": true,
 			}
 			_, npCollector := newTestNpCollector(t, agentConfigs)
 
 			stats := &teststatsd.Client{}
 			npCollector.statsdClient = stats
 
-			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
+			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
 
-			assert.NotContains(t, stats.CountCalls, subnetSkippedStat)
+			if tt.subnetSkipped {
+				require.Contains(t, stats.CountCalls, subnetSkippedStat)
+			} else {
+				require.NotContains(t, stats.CountCalls, subnetSkippedStat)
+			}
 		})
 	}
 }
@@ -1007,7 +1079,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 	tests := []struct {
 		name           string
 		conn           *model.Connection
-		subnetsToSkip  []*net.IPNet
+		vpcSubnets     []*net.IPNet
 		shouldSchedule bool
 		subnetSkipped  bool
 	}{
@@ -1018,7 +1090,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			subnetsToSkip:  nil,
+			vpcSubnets:     nil,
 			shouldSchedule: true,
 			subnetSkipped:  false,
 		},
@@ -1030,41 +1102,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 				Direction: model.ConnectionDirection_incoming,
 				Family:    model.ConnectionFamily_v4,
 			},
-			subnetsToSkip:  nil,
+			vpcSubnets:     nil,
 			shouldSchedule: false,
-			subnetSkipped:  false,
-		},
-		{
-			name: "random subnet should schedule anyway",
-			conn: &model.Connection{
-				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
-				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
-				Direction: model.ConnectionDirection_outgoing,
-			},
-			subnetsToSkip:  []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
-			shouldSchedule: true,
-			subnetSkipped:  false,
-		},
-		{
-			name: "relevant subnet should skip",
-			conn: &model.Connection{
-				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
-				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
-				Direction: model.ConnectionDirection_outgoing,
-			},
-			subnetsToSkip:  []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
-			shouldSchedule: true,
-			subnetSkipped:  false,
-		},
-		{
-			name: "shouldn't skip local address even if the subnet matches",
-			conn: &model.Connection{
-				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
-				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
-				Direction: model.ConnectionDirection_outgoing,
-			},
-			subnetsToSkip:  []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
-			shouldSchedule: true,
 			subnetSkipped:  false,
 		},
 	}

@@ -184,13 +184,19 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
 		return false
 	}
-	remoteIP := net.ParseIP(conn.Raddr.Ip)
+	translatedDest := conn.Raddr.Ip
+	// prefer IP translation if it's available
+	if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
+		translatedDest = conn.IpTranslation.ReplDstIP
+	}
+	remoteIP := net.ParseIP(translatedDest)
 	if remoteIP.IsLoopback() {
 		// is this case possible, given that we already filter out IntraHost?
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_loopback"}, 1) //nolint:errcheck
 		return false
 	}
 	if doSubnetsContainIP(vpcSubnets, remoteIP) {
+		println("bruh", translatedDest)
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
 		return false
 	}
