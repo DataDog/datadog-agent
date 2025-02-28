@@ -117,7 +117,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_bprm_check"),
 				}},
 				kprobeOrFentry("setup_new_exec_interp"),
-				kprobeOrFentry("setup_new_exec_args_envs", withUID(SecurityAgentUID+"_a")),
+				kprobeOrFentry("setup_new_exec_args_envs"),
 				kprobeOrFentry("setup_arg_pages"),
 				kprobeOrFentry("mprotect_fixup"),
 				kprobeOrFentry("exit_itimers"),
