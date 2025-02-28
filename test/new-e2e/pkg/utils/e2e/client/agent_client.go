@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes"
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/stretchr/testify/assert"
@@ -76,6 +77,20 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(dockerAgentOutput.DockerManager.Host.OSFamily, options...)
 	ae := newAgentDockerExecutor(context, dockerAgentOutput)
+	commandRunner := newAgentCommandRunner(context.T(), ae)
+
+	if params.ShouldWaitForReady {
+		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
+			return nil, err
+		}
+	}
+
+	return commandRunner, nil
+}
+
+func NewK8sAgentClient(context common.Context, k8sAgentPod *kubernetes.KubernetesObjRefOutput, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
+	params := agentclientparams.NewParams(osComp.LinuxFamily, options...)
+	ae := newAgentK8sExecutor(context, k8sAgentPod, clusterClient)
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
