@@ -46,7 +46,7 @@ def setup(ctx, vscode=False):
         setup_functions.append(setup_vscode)
     else:
         print(
-            f'{color_message("warning:", Color.ORANGE)} Skipping vscode setup, run `deva inv setup --vscode` to setup vscode as well'
+            f'{color_message("warning:", Color.ORANGE)} Skipping vscode setup, run `dda inv setup --vscode` to setup vscode as well'
         )
 
     results = []
@@ -188,16 +188,16 @@ def pre_commit(ctx, interactive=True):
         if os.path.isfile(".pre-commit-config-devagent.yaml"):
             os.remove(".pre-commit-config-devagent.yaml")
 
-        # We use a custom version that use deva instead of deva inv directly, that requires the venv to be loaded
+        # We use a custom version that use deva instead of dda inv directly, that requires the venv to be loaded
         from pre_commit import update_pyapp_file
 
         config_file = update_pyapp_file()
-        if not shutil.which("deva"):
+        if not shutil.which("dda"):
             status = Status.WARN
             if shutil.which("devagent"):
-                message = "`devagent` has been renamed `deva`. Please, rename your binary, no need to download the new version."
+                message = "`devagent` has been renamed `dda`. Please, rename your binary, no need to download the new version."
             else:
-                message = "`deva` is not in your PATH"
+                message = "`dda` is not in your PATH"
     else:
         config_file = ".pre-commit-config.yaml"
 

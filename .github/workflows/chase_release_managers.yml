@@ -24,8 +24,8 @@ jobs:
       with:
         python-version-file: .python-version
         cache: "pip"
-    - name: Install deva
-      uses: ./.github/actions/install-deva
+    - name: Install dda
+      uses: ./.github/actions/install-dda
       with:
         features: legacy-tasks
     - name: Chase release managers
@@ -35,4 +35,4 @@ jobs:
         SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         VERSION: ${{ github.event.inputs.version }}
       run: |
-        deva inv -e release.chase-release-managers --version "$VERSION"
+        dda inv -e release.chase-release-managers --version "$VERSION"

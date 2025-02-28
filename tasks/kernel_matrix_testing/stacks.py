@@ -71,7 +71,7 @@ def vm_config_exists(stack: str):
 
 def create_stack(ctx: Context, stack: str | None = None):
     if not os.path.exists(f"{get_kmt_os().stacks_dir}"):
-        raise Exit("Kernel matrix testing environment not correctly setup. Run 'deva inv kmt.init'.")
+        raise Exit("Kernel matrix testing environment not correctly setup. Run 'dda inv kmt.init'.")
 
     stack = check_and_get_stack(stack)
 
@@ -187,10 +187,10 @@ def launch_stack(
 ):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'deva inv kmt.create-stack --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
     if not vm_config_exists(stack):
-        raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'deva inv kmt.gen-config --help'")
+        raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'dda inv kmt.gen-config --help'")
 
     stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     vm_config = f"{stack_dir}/{VMCONFIG}"
@@ -238,7 +238,7 @@ def launch_stack(
         local,
         provision,
     ]
-    ctx.run(f"{' '.join(env)} {prefix} deva inv -e system-probe.start-microvms {' '.join(args)}")
+    ctx.run(f"{' '.join(env)} {prefix} dda inv -e system-probe.start-microvms {' '.join(args)}")
 
     info(f"[+] Stack {stack} successfully setup")
 
@@ -263,7 +263,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
 
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} deva inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
+        f"{env_vars} {prefix} dda inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
     )
 
 
@@ -376,7 +376,7 @@ def destroy_stack_force(ctx: Context, stack: str):
 def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'deva inv kmt.create-stack --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
     info(f"[*] Destroying stack {stack}")
     if pulumi:
@@ -390,7 +390,7 @@ def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | 
 def pause_stack(stack: str | None = None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'deva inv kmt.create-stack --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
     conn.close()
@@ -399,7 +399,7 @@ def pause_stack(stack: str | None = None):
 def resume_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'deva inv kmt.create-stack --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
     conn.close()

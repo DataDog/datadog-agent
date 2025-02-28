@@ -29,8 +29,8 @@ jobs:
       with:
         python-version-file: .python-version
         cache: "pip"
-    - name: Install deva
-      uses: ./.github/actions/install-deva
+    - name: Install dda
+      uses: ./.github/actions/install-dda
       with:
         features: legacy-tasks
     - name: Create release schedule
@@ -40,4 +40,4 @@ jobs:
         INPUT_VERSION: ${{ github.event.inputs.version }}
         CUTOFF_DATE: ${{ github.event.inputs.cutoff_date }}
       run: |
-        deva inv -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "$CUTOFF_DATE"
+        dda inv -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "$CUTOFF_DATE"

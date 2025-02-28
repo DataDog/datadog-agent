@@ -26,8 +26,8 @@ jobs:
         with:
           go-version-file: .go-version
 
-      - name: Install deva
-        uses: ./.github/actions/install-deva
+      - name: Install dda
+        uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
 
@@ -35,8 +35,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          deva inv -e install-tools
-          deva inv -e collector.update
-          deva inv -e collector.generate
-          deva inv -e generate-licenses
-          deva inv -e collector.pull-request
+          dda inv -e install-tools
+          dda inv -e collector.update
+          dda inv -e collector.generate
+          dda inv -e generate-licenses
+          dda inv -e collector.pull-request

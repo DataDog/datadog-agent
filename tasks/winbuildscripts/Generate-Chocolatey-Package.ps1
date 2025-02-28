@@ -50,7 +50,7 @@ if ($InstallDeps) {
     $env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
     # Install dev tools, including invoke
     pip3 install datadog-agent-dev
-    deva self dep sync -f legacy-tasks
+    dda self dep sync -f legacy-tasks
 }
 
 $repoRoot = "C:\mnt"
@@ -58,7 +58,7 @@ $outputDirectory = "$repoRoot\build-out"
 if (![string]::IsNullOrEmpty($VersionOverride)) {
     $rawAgentVersion = $VersionOverride
 } else {
-    $rawAgentVersion = (deva inv agent.version --url-safe --major-version 7)
+    $rawAgentVersion = (dda inv agent.version --url-safe --major-version 7)
 }
 $copyright = "Datadog {0}" -f (Get-Date).Year
 
@@ -116,7 +116,7 @@ try {
             if ($rawAgentVersion -notmatch $env:CI_PIPELINE_ID) {
                 Write-Error "CI_PIPELINE_ID is not found in the agent version, aborting" -ErrorAction Continue
                 if ([string]::IsNullOrEmpty($env:BUCKET_BRANCH)) {
-                    # deva inv agent.version requires BUCKET_BRANCH to be set when including pipeline in version
+                    # dda inv agent.version requires BUCKET_BRANCH to be set when including pipeline in version
                     Write-Error "BUCKET_BRANCH is not set, if you are running this locally, set `$env:BUCKET_BRANCH='dev' or pass the -VersionOverride parameter" -ErrorAction Continue
                 }
                 exit 1

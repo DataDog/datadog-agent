@@ -116,12 +116,12 @@ The templates are written in [Jinja2](https://jinja.palletsprojects.com/en/3.0.x
 If a `*.go` file in `pkg/security` has been edited you will first need to generate the `*.json` files.
 Please run:
 ```sh
-deva inv -e security-agent.cws-go-generate
+dda inv -e security-agent.cws-go-generate
 # or only the specific file
 go generate ./path/to/the/touched/file
 ```
 
 To generate the final markdown files please run:
 ```sh
-deva inv -e security-agent.generate-cws-documentation
+dda inv -e security-agent.generate-cws-documentation
 ```

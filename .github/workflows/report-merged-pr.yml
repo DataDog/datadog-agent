@@ -29,10 +29,10 @@ jobs:
         with:
           python-version-file: .python-version
           cache: "pip"
-          cache-dependency-path: '.deva/version'
+          cache-dependency-path: '.dda/version'
 
-      - name: Install deva
-        uses: ./.github/actions/install-deva
+      - name: Install dda
+        uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
 
@@ -40,4 +40,4 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          deva inv -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"
+          dda inv -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

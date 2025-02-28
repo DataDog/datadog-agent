@@ -53,9 +53,9 @@
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@$(cat .deva/version)" --break-system-packages
-    - python3 -m deva self dep sync -f legacy-tasks
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@$(cat .dda/version)" --break-system-packages
+    - python3 -m dda self dep sync -f legacy-tasks
     - pyenv rehash
-    - deva inv -e rtloader.make
-    - deva inv -e rtloader.install
-    - deva inv -e install-tools
+    - dda inv -e rtloader.make
+    - dda inv -e rtloader.install
+    - dda inv -e install-tools
