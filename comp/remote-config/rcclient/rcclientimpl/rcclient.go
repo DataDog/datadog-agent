@@ -320,11 +320,6 @@ func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]sta
 }
 
 func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	keys := ""
-	for k := range updates {
-		keys += k + " "
-	}
-	pkglog.Errorf("Agent config received new config %s", keys)
 	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
 		return

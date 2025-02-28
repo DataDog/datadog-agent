@@ -483,7 +483,11 @@ func (c *Client) update() error {
 		return err
 	}
 	if response.ConfigStatus != state.ConfigStatusOk {
-		log.Errorf("Config status %v", response.ConfigStatus)
+		for _, productListeners := range c.listeners {
+			for _, listener := range productListeners {
+				listener.OnUpdate(make(map[string]state.RawConfig), c.state.UpdateApplyStatus)
+			}
+		}
 	}
 
 	changedProducts, err := c.applyUpdate(response)
