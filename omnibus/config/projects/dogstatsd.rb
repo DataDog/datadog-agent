@@ -16,7 +16,7 @@ if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
 else
   COMPRESSION_THREADS = 1
 end
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV['BUCKET_BRANCH'] != "nightly"
+if ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
