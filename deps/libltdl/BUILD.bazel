@@ -13,8 +13,5 @@ configure_make(
         ],
     }),
     visibility = ["//visibility:public"],
-    env = {
-        "LD": "",
-    }
 )
 

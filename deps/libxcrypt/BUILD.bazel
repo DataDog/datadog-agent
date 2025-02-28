@@ -10,10 +10,6 @@ configure_make(
         # https://github.com/besser82/libxcrypt/issues/181
         "--disable-symvers",
     ],
-    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
-    env = {
-        "LD": "",
-    },
     lib_source = "@libxcrypt//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [

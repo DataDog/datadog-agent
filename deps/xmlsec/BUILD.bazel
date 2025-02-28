@@ -23,7 +23,4 @@ configure_make(
         "//deps/openssl",
         "//deps/libltdl",
     ],
-    env = {
-        "LD": "",
-    },
 )

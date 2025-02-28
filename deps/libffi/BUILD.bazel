@@ -6,8 +6,6 @@ configure_make(
         "--disable-doc",
         "--disable-multi-os-directory",
     ],
-    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
-    env = {"LD": ""},
     lib_source = "@libffi//:all",
     out_shared_libs = select({
         "@platforms//os:linux": [

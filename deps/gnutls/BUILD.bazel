@@ -21,7 +21,4 @@ configure_make(
         "//deps/libtasn1",
         "//deps/nettle",
     ],
-    env = {
-        "LD": "",
-    },
 )

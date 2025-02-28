@@ -51,6 +51,5 @@ configure_make(
         "SQLITE_LIBS": "-L$$EXT_BUILD_DEPS/lib -lsqlite3",
         "LUA_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
         "LUA_LIBS": "-L$$EXT_BUILD_DEPS/lib -lliblua",
-        "LD": "",
     }
 )

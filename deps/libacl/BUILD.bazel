@@ -15,6 +15,4 @@ configure_make(
     deps = [
         "//deps/libattr",
     ],
-    # Workaround for https://github.com/bazel-contrib/rules_foreign_cc/issues/1160
-    env = {"LD": ""},
 )

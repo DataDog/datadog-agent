@@ -34,7 +34,6 @@ configure_make(
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
         "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib:$$EXT_BUILD_DEPS/libxcrypt/lib",
-        "LD": "",
     },
     install_prefix = "py_install",
     lib_source = "@python3//:all",
