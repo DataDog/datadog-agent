@@ -142,7 +142,7 @@ deploy_containers-a7-ot-rc:
           - ""
           - "-jmx"
 
-deploy_containers-a7-ot-rc:
+deploy_containers-a7-full-rc:
   extends: .deploy_containers-a7-full-base
   rules:
     !reference [.on_rc]
