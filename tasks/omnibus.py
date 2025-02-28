@@ -157,6 +157,7 @@ def get_omnibus_env(
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
     env_to_forward = [
+        'BUCKET_BRANCH',
         'PACKAGE_ARCH',
         'INSTALL_DIR',
         'DD_CC',
