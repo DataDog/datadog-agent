@@ -45,19 +45,19 @@ type LogsConfig struct {
 	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network
 	Path        string // File, Journald
 
-	Encoding     string   `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
-	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
-	TailingMode  string   `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
+	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
+	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
+	TailingMode  string           `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
 
 	//nolint:revive // TODO(AML) Fix revive linter
-	ConfigId           string   `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                            // Journald
-	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
-	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units" yaml:"exclude_units"`                // Journald
-	IncludeUserUnits   []string `mapstructure:"include_user_units" json:"include_user_units" yaml:"include_user_units"` // Journald
-	ExcludeUserUnits   []string `mapstructure:"exclude_user_units" json:"exclude_user_units" yaml:"exclude_user_units"` // Journald
-	IncludeMatches     []string `mapstructure:"include_matches" json:"include_matches" yaml:"include_matches"`          // Journald
-	ExcludeMatches     []string `mapstructure:"exclude_matches" json:"exclude_matches" yaml:"exclude_matches"`          // Journald
-	ContainerMode      bool     `mapstructure:"container_mode" json:"container_mode" yaml:"container_mode"`             // Journald
+	ConfigId           string           `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                            // Journald
+	IncludeSystemUnits StringSliceField `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
+	ExcludeSystemUnits StringSliceField `mapstructure:"exclude_units" json:"exclude_units" yaml:"exclude_units"`                // Journald
+	IncludeUserUnits   StringSliceField `mapstructure:"include_user_units" json:"include_user_units" yaml:"include_user_units"` // Journald
+	ExcludeUserUnits   StringSliceField `mapstructure:"exclude_user_units" json:"exclude_user_units" yaml:"exclude_user_units"` // Journald
+	IncludeMatches     StringSliceField `mapstructure:"include_matches" json:"include_matches" yaml:"include_matches"`          // Journald
+	ExcludeMatches     StringSliceField `mapstructure:"exclude_matches" json:"exclude_matches" yaml:"exclude_matches"`          // Journald
+	ContainerMode      bool             `mapstructure:"container_mode" json:"container_mode" yaml:"container_mode"`             // Journald
 
 	Image string // Docker
 	Label string // Docker
@@ -76,7 +76,7 @@ type LogsConfig struct {
 
 	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
 	// modified at runtime (as long as ChannelTagsMutex is held).
-	ChannelTags []string
+	ChannelTags StringSliceField
 
 	// ChannelTagsMutex guards ChannelTags.
 	ChannelTagsMutex sync.Mutex
@@ -84,7 +84,7 @@ type LogsConfig struct {
 	Service         string
 	Source          string
 	SourceCategory  string
-	Tags            TagsField
+	Tags            StringSliceField
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
@@ -94,14 +94,15 @@ type LogsConfig struct {
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
 }
 
-// TagsField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
-type TagsField []string
+// StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
+type StringSliceField []string
 
 // UnmarshalYAML is a custom unmarshalling function is needed for string array fields to split comma-separated values.
-func (t *TagsField) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (t *StringSliceField) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err == nil {
 		// note that we are intentionally avoiding the trimming of any spaces whilst splitting the string
+		str = strings.ReplaceAll(str, "\n", "")
 		*t = strings.Split(str, ",")
 		return nil
 	}

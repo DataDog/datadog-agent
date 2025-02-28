@@ -245,7 +245,7 @@ logs:
 			},
 		},
 		{
-			name: "Test 5: Parse journald with include_units",
+			name: "Test 5: Parse journald with include_units (string with newline)",
 			yaml: []byte(`
 logs:
   - type: journald
@@ -253,7 +253,7 @@ logs:
     source: custom_log
     service: random-logger
     include_units:
-      - random-logger.service
+      random-logger.service
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
@@ -275,9 +275,7 @@ logs:
     source: custom_log
     service: no-datadog
     exclude_units:
-      - datadog-agent.service
-      - datadog-agent-trace.service
-      - datadog-agent-process.service
+      datadog-agent.service,datadog-agent-trace.service,datadog-agent-process.service
 `),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
