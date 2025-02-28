@@ -9,6 +9,7 @@
 package model
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -217,4 +218,9 @@ type ChangePermissionEvent struct {
 // SetAncestorFields force the process cache entry to be valid
 func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, error) {
 	return true, nil
+}
+
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return fmt.Sprintf("%d/%s", pc.Pid)
 }

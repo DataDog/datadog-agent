@@ -11,6 +11,7 @@
 package model
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
 	"runtime"
@@ -184,6 +185,11 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 // IsContainer returns whether a cgroup maps to a container
 func (cg *CGroupContext) IsContainer() bool {
 	return cg.CGroupFlags.IsContainer()
+}
+
+// Hash returns a unique key for the entity
+func (cg *CGroupContext) Hash() string {
+	return string(cg.CGroupID)
 }
 
 // SyscallEvent contains common fields for all the event
@@ -375,6 +381,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 		pce.IsKworker = false
 	}
 	return true, nil
+}
+
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
 }
 
 // ExecEvent represents a exec event

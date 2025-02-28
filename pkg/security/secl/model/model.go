@@ -56,6 +56,11 @@ type ContainerContext struct {
 	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
+// Hash returns a unique key for the entity
+func (c *ContainerContext) Hash() string {
+	return string(c.ContainerID)
+}
+
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name           string                     `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
