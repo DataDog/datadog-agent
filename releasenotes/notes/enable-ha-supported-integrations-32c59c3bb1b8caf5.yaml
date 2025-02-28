@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Update HA Agent feature to work with HA Enabled integrations.
+    Allow integrations to self-declare as HA Supported.
