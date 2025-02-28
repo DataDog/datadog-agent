@@ -321,7 +321,6 @@ def tidy_all(ctx):
 @contextmanager
 def comment_out_godebug(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.23.6 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
     should_comment_out = running_go_version.startswith("go1.24")
 
