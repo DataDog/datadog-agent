@@ -15,29 +15,8 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_vfs_open",
+				EBPFFuncName: "hook_security_path_truncate",
 			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID + "_path_truncate",
-				EBPFFuncName: "hook_vfs_open",
-			},
-			HookFuncName: "security_path_truncate",
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID + "_vfs_truncate",
-				EBPFFuncName: "hook_vfs_open",
-			},
-			HookFuncName: "vfs_truncate",
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID + "_terminate_walk",
-				EBPFFuncName: "hook_vfs_open",
-			},
-			HookFuncName: "terminate_walk",
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -48,7 +27,19 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_vfs_truncate",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_do_truncate",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_vfs_open",
 			},
 		},
 		{
@@ -79,6 +70,12 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_filp_close",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_terminate_walk",
 			},
 		},
 	}
