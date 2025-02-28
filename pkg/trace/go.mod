@@ -6,9 +6,6 @@ go 1.23.0
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
-// Internal deps fix version
-replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
-
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0
