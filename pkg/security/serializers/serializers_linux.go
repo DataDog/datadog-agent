@@ -1098,14 +1098,14 @@ func newNetworkFlowMonitorSerializer(nm *model.NetworkFlowMonitorEvent, e *model
 
 func newSysCtlEventSerializer(sce *model.SysCtlEvent, _ *model.Event) *SysCtlEventSerializer {
 	return &SysCtlEventSerializer{
-		Action:                model.SysCtlAction(sce.Action).String(),
-		FilePosition:          sce.FilePosition,
-		Name:                  sce.Name,
-		NameTruncated:         sce.NameTruncated,
-		CurrentValue:          sce.CurrentValue,
-		CurrentValueTruncated: sce.CurrentValueTruncated,
-		NewValue:              sce.NewValue,
-		NewValueTruncated:     sce.NewValueTruncated,
+		Action:            model.SysCtlAction(sce.Action).String(),
+		FilePosition:      sce.FilePosition,
+		Name:              sce.Name,
+		NameTruncated:     sce.NameTruncated,
+		Value:             sce.Value,
+		ValueTruncated:    sce.ValueTruncated,
+		OldValue:          sce.OldValue,
+		OldValueTruncated: sce.OldValueTruncated,
 	}
 }
 

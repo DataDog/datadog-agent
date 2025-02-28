@@ -2,6 +2,7 @@
 #define _HELPERS_SYSCTL_H_
 
 #include "constants/custom.h"
+#include "helpers/approvers.h"
 #include "helpers/container.h"
 #include "helpers/process.h"
 
@@ -24,7 +25,7 @@ __attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
     evt->action = SYSCTL_UNKNOWN;
     evt->file_position = 0;
     evt->name_len = 0;
-    evt->current_value_len = 0;
+    evt->old_value_len = 0;
     evt->new_value_len = 0;
     evt->flags = 0;
     evt->sysctl_buffer[0] = 0;
@@ -57,6 +58,19 @@ __attribute__((always_inline)) void handle_cgroup_sysctl(struct bpf_sysctl *ctx)
     }
     evt->file_position = ctx->file_pos;
 
+    // check approvers
+    struct policy_t policy = fetch_policy(EVENT_SYSCTL);
+    struct syscall_cache_t syscall = {
+        .policy = policy,
+        .type = EVENT_SYSCTL,
+        .sysctl = {
+            .action = evt->action,
+        }
+    };
+    if (approve_syscall_with_tgid(evt->process.pid, &syscall, sysctl_approvers) == DISCARDED) {
+        return;
+    }
+
     // copy the name of the control parameter
     u32 cursor = 0;
     u32 ret = bpf_sysctl_get_name(ctx, &evt->sysctl_buffer[0], MAX_SYSCTL_OBJ_LEN - 2, 0);
@@ -74,20 +88,20 @@ __attribute__((always_inline)) void handle_cgroup_sysctl(struct bpf_sysctl *ctx)
     ret = bpf_sysctl_get_current_value(ctx, &evt->sysctl_buffer[cursor & (MAX_SYSCTL_OBJ_LEN-1)], MAX_SYSCTL_OBJ_LEN - 1);
     switch ((int)ret) {
     case -E2BIG:
-        evt->flags |= SYSCTL_CURRENT_VALUE_TRUNCATED;
-        evt->current_value_len = MAX_SYSCTL_OBJ_LEN;
+        evt->flags |= SYSCTL_OLD_VALUE_TRUNCATED;
+        evt->old_value_len = MAX_SYSCTL_OBJ_LEN;
         break;
     case -EINVAL:
-        evt->current_value_len = 1;
+        evt->old_value_len = 1;
         evt->sysctl_buffer[cursor & (MAX_SYSCTL_BUFFER_LEN - 1)] = 0;
         break;
     default:
-        evt->current_value_len = ret + 1;
+        evt->old_value_len = ret + 1;
         break;
     }
 
     // advance cursor in sysctl_buffer
-    cursor += evt->current_value_len;
+    cursor += evt->old_value_len;
 
     // copy the new value for the control parameter
     ret = bpf_sysctl_get_new_value(ctx, &evt->sysctl_buffer[cursor & (2*MAX_SYSCTL_OBJ_LEN - 1)], MAX_SYSCTL_OBJ_LEN - 1);

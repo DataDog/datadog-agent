@@ -956,12 +956,12 @@ func (it *FlowsIterator) Len(ctx *eval.Context) int {
 
 // SysCtlEvent is used to represent a system control parameter event
 type SysCtlEvent struct {
-	Action                uint32 `field:"action"`                  // SECLDoc[action] Definition:`Action performed on the system control parameter` Constants:`SysCtl Actions`
-	FilePosition          uint32 `field:"file_position"`           // SECLDoc[file_position] Definition:`Position in the sysctl control parameter file at which the action occurred`
-	Name                  string `field:"name"`                    // SECLDoc[name] Definition:`Name of the system control parameter`
-	NameTruncated         bool   `field:"name_truncated"`          // SECLDoc[name_truncated] Definition:`Indicates that the name field is truncated`
-	CurrentValue          string `field:"current_value"`           // SECLDoc[current_value] Definition:`Current value of the system control parameter`
-	CurrentValueTruncated bool   `field:"current_value_truncated"` // SECLDoc[current_value_truncated] Definition:`Indicates that the current value field is truncated`
-	NewValue              string `field:"new_value"`               // SECLDoc[new_value] Definition:`In case of Write accesses, new value for the system control parameter`
-	NewValueTruncated     bool   `field:"new_value_truncated"`     // SECLDoc[new_value_truncated] Definition:`Indicates that the new_value field is truncated`
+	Action            uint32 `field:"action"`              // SECLDoc[action] Definition:`Action performed on the system control parameter` Constants:`SysCtl Actions`
+	FilePosition      uint32 `field:"file_position"`       // SECLDoc[file_position] Definition:`Position in the sysctl control parameter file at which the action occurred`
+	Name              string `field:"name"`                // SECLDoc[name] Definition:`Name of the system control parameter`
+	NameTruncated     bool   `field:"name_truncated"`      // SECLDoc[name_truncated] Definition:`Indicates that the name field is truncated`
+	OldValue          string `field:"old_value"`           // SECLDoc[old_value] Definition:`Old value of the system control parameter`
+	OldValueTruncated bool   `field:"old_value_truncated"` // SECLDoc[old_value_truncated] Definition:`Indicates that the old value field is truncated`
+	Value             string `field:"value"`               // SECLDoc[value] Definition:`New and/or current value for the system control parameter depending on the action type`
+	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
 }

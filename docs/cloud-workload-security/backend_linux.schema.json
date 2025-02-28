@@ -1627,21 +1627,21 @@
           "type": "boolean",
           "description": "name_truncated indicates if the name field is truncated"
         },
-        "current_value": {
+        "value": {
           "type": "string",
-          "description": "current_value is the value of the system control parameter before the event"
+          "description": "value is the new and/or current value for the system control parameter depending on the action type"
         },
-        "current_value_truncated": {
+        "value_truncated": {
           "type": "boolean",
-          "description": "current_value_truncated indicates if the current_value field is truncated"
+          "description": "value_truncated indicates if the value field is truncated"
         },
-        "new_value": {
+        "old_value": {
           "type": "string",
-          "description": "new_value is the newly set value of the system control"
+          "description": "old_value is the old value of the system control parameter"
         },
-        "new_value_truncated": {
+        "old_value_truncated": {
           "type": "boolean",
-          "description": "new_value_truncated indicates if the new_value field is truncated"
+          "description": "old_value_truncated indicates if the old_value field is truncated"
         }
       },
       "additionalProperties": false,

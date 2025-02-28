@@ -1517,25 +1517,18 @@ func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.FilePosition = binary.NativeEndian.Uint32(data[4:8])
 
 	nameLen := int(binary.NativeEndian.Uint16(data[8:10]))
-	currentValueLen := int(binary.NativeEndian.Uint16(data[10:12]))
+	oldValueLen := int(binary.NativeEndian.Uint16(data[10:12]))
 	newValueLen := int(binary.NativeEndian.Uint16(data[12:14]))
 	flags := binary.NativeEndian.Uint16(data[14:16])
 
 	// handle truncated fields
-	switch {
-	case flags&(1<<0) > 0:
-		e.NameTruncated = true
-		fallthrough
-	case flags&(1<<1) > 0:
-		e.CurrentValueTruncated = true
-		fallthrough
-	case flags&(1<<2) > 0:
-		e.NewValueTruncated = true
-	}
+	e.NameTruncated = flags&(1<<0) > 0
+	e.OldValueTruncated = flags&(1<<1) > 0
+	e.ValueTruncated = flags&(1<<2) > 0
 	cursor += 16
 
 	// parse name and values
-	if nameLen+currentValueLen+newValueLen > len(data[cursor:]) {
+	if nameLen+oldValueLen+newValueLen > len(data[cursor:]) {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1547,18 +1540,25 @@ func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Name = strings.TrimSpace(e.Name)
 	cursor += nameLen
 
-	e.CurrentValue, err = UnmarshalString(data[cursor:cursor+currentValueLen], currentValueLen)
+	e.OldValue, err = UnmarshalString(data[cursor:cursor+oldValueLen], oldValueLen)
 	if err != nil {
 		return 0, err
 	}
-	e.CurrentValue = strings.TrimSpace(e.CurrentValue)
-	cursor += currentValueLen
+	e.OldValue = strings.TrimSpace(e.OldValue)
+	cursor += oldValueLen
 
-	e.NewValue, err = UnmarshalString(data[cursor:cursor+newValueLen], newValueLen)
-	if err != nil {
-		return 0, err
+	if e.Action == uint32(SysCtlReadAction) {
+		e.Value = e.OldValue
+	} else if e.Action == uint32(SysCtlWriteAction) {
+		e.Value, err = UnmarshalString(data[cursor:cursor+newValueLen], newValueLen)
+		if err != nil {
+			return 0, err
+		}
+		e.Value = strings.TrimSpace(e.Value)
 	}
-	e.NewValue = strings.TrimSpace(e.NewValue)
+
+	// make sure the cursor is incremented either way
 	cursor += newValueLen
+
 	return cursor, nil
 }

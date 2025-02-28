@@ -1750,13 +1750,13 @@ A sysctl parameter was read or modified
 | Property | Definition |
 | -------- | ------------- |
 | [`sysctl.action`](#sysctl-action-doc) | Action performed on the system control parameter |
-| [`sysctl.current_value`](#sysctl-current_value-doc) | Current value of the system control parameter |
-| [`sysctl.current_value_truncated`](#sysctl-current_value_truncated-doc) | Indicates that the current value field is truncated |
 | [`sysctl.file_position`](#sysctl-file_position-doc) | Position in the sysctl control parameter file at which the action occurred |
 | [`sysctl.name`](#sysctl-name-doc) | Name of the system control parameter |
 | [`sysctl.name_truncated`](#sysctl-name_truncated-doc) | Indicates that the name field is truncated |
-| [`sysctl.new_value`](#sysctl-new_value-doc) | In case of Write accesses, new value for the system control parameter |
-| [`sysctl.new_value_truncated`](#sysctl-new_value_truncated-doc) | Indicates that the new_value field is truncated |
+| [`sysctl.old_value`](#sysctl-old_value-doc) | Old value of the system control parameter |
+| [`sysctl.old_value_truncated`](#sysctl-old_value_truncated-doc) | Indicates that the old value field is truncated |
+| [`sysctl.value`](#sysctl-value-doc) | New and/or current value for the system control parameter depending on the action type |
+| [`sysctl.value_truncated`](#sysctl-value_truncated-doc) | Indicates that the value field is truncated |
 
 ### Event `unlink`
 
@@ -3431,20 +3431,6 @@ Constants: [SysCtl Actions](#sysctl-actions)
 
 
 
-### `sysctl.current_value` {#sysctl-current_value-doc}
-Type: string
-
-Definition: Current value of the system control parameter
-
-
-
-### `sysctl.current_value_truncated` {#sysctl-current_value_truncated-doc}
-Type: bool
-
-Definition: Indicates that the current value field is truncated
-
-
-
 ### `sysctl.file_position` {#sysctl-file_position-doc}
 Type: int
 
@@ -3466,17 +3452,31 @@ Definition: Indicates that the name field is truncated
 
 
 
-### `sysctl.new_value` {#sysctl-new_value-doc}
+### `sysctl.old_value` {#sysctl-old_value-doc}
 Type: string
 
-Definition: In case of Write accesses, new value for the system control parameter
+Definition: Old value of the system control parameter
 
 
 
-### `sysctl.new_value_truncated` {#sysctl-new_value_truncated-doc}
+### `sysctl.old_value_truncated` {#sysctl-old_value_truncated-doc}
 Type: bool
 
-Definition: Indicates that the new_value field is truncated
+Definition: Indicates that the old value field is truncated
+
+
+
+### `sysctl.value` {#sysctl-value-doc}
+Type: string
+
+Definition: New and/or current value for the system control parameter depending on the action type
+
+
+
+### `sysctl.value_truncated` {#sysctl-value_truncated-doc}
+Type: bool
+
+Definition: Indicates that the value field is truncated
 
 
 

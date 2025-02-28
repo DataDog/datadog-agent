@@ -17,21 +17,20 @@
                     "type": "object",
                     "required": [
                         "action",
-                        "current_value",
-                        "name",
-                        "new_value"
+                        "value",
+                        "name"
                     ],
                     "properties": {
                         "action": {
                             "type": "string"
                         },
-                        "current_value": {
+                        "value": {
                             "type": "string"
                         },
                         "name": {
                             "type": "string"
                         },
-                        "new_value": {
+                        "old_value": {
                             "type": "string"
                         }
                     }
