@@ -157,6 +157,9 @@ def get_omnibus_env(
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
     env_to_forward = [
+        # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+        'DEPLOY_AGENT',
+        # Forward the BUCKET_BRANCH variable to differentiate a nightly pipeline from a release pipeline
         'BUCKET_BRANCH',
         'PACKAGE_ARCH',
         'INSTALL_DIR',
@@ -166,11 +169,6 @@ def get_omnibus_env(
         'OMNIBUS_FORCE_PACKAGES',
         'OMNIBUS_PACKAGE_ARTIFACT_DIR',
     ]
-
-    if os.environ.get('DEPLOY_AGENT') == 'true':
-        # Forward the BUCKET_BRANCH variable so that we can use a higher compression level for deployed artifacts on specific pipelines
-        env_to_forward.append('BUCKET_BRANCH')
-
     for key in env_to_forward:
         if key in os.environ:
             env[key] = os.environ[key]
