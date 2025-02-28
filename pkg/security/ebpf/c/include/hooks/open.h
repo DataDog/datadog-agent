@@ -213,13 +213,9 @@ int hook_io_openat2(ctx_t *ctx) {
     return trace_io_openat(ctx);
 }
 
-int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval) {
- struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
-    if (!syscall || !syscall->open.dentry) {
-        return 0;
-    }
-
-    if (IS_UNHANDLED_ERROR(retval)) {
+// used by both tail call callback and directly for tracepoints
+int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache_t *syscall) {
+    if (IS_UNHANDLED_ERROR(syscall->retval)) {
         return 0;
     }
 
@@ -239,7 +235,7 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval) {
     }
 
     struct open_event_t event = {
-        .syscall.retval = retval,
+        .syscall.retval = syscall->retval,
         .syscall_ctx.id = syscall->ctx_id,
         .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
                        (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
@@ -261,53 +257,78 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval) {
     fill_span_context(&event.span);
 
     send_event(ctx, EVENT_OPEN, event);
+
+    return 0;
+}
+
+TAIL_CALL_TARGET("sys_open_ret_cb")
+int tail_call_target_sys_open_ret_cb(void *ctx) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall || !syscall->open.dentry) {
+        return 0;
+    }
+    return _sys_open_ret(ctx, syscall);
+}
+
+// get and set the retval then tail call so that only one program is used for all the syscall ret
+int __attribute__((always_inline)) sys_open_ret(void *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
+    if (!syscall) {
+        return 0;
+    }
+    syscall->retval = SYSCALL_PARMRET(ctx);
+
+    bpf_tail_call_compat(ctx, &open_ret_progs, 0);
+
     return 0;
 }
 
 HOOK_SYSCALL_EXIT(creat) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval);
+    return sys_open_ret(ctx);
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(open_by_handle_at) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval);
+    return sys_open_ret(ctx);
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(truncate) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval);
+    return sys_open_ret(ctx);
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval);
+    return sys_open_ret(ctx);
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(open) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval);
+    return sys_open_ret(ctx);
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(openat) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval);
+    return sys_open_ret(ctx);
 }
 
 HOOK_SYSCALL_EXIT(openat2) {
-    int retval = SYSCALL_PARMRET(ctx);
-    return sys_open_ret(ctx, retval);
+    return sys_open_ret(ctx);
 }
 
 SEC("tracepoint/handle_sys_open_exit")
 int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_open_ret(args, args->ret);
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall || !syscall->open.dentry) {
+        return 0;
+    }
+    syscall->retval = args->ret;
+    return _sys_open_ret(args, syscall);
 }
 
 HOOK_EXIT("io_openat2")
 int rethook_io_openat2(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx);
-    return sys_open_ret(ctx, retval);
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
+    if (!syscall || !syscall->open.dentry) {
+        return 0;
+    }
+    syscall->retval = CTX_PARMRET(ctx);
+    return _sys_open_ret(ctx, syscall);
 }
 
 HOOK_ENTRY("filp_close")

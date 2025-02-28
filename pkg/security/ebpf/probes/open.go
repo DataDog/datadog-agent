@@ -124,3 +124,15 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 	}, fentry, EntryAndExit)...)
 	return openProbes
 }
+
+func getOpenTailCallRoutes() []manager.TailCallRoute {
+	return []manager.TailCallRoute{
+		{
+			ProgArrayName: "open_ret_progs",
+			Key:           uint32(0),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tail_call_target_sys_open_ret_cb",
+			},
+		},
+	}
+}
