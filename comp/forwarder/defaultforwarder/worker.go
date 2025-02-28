@@ -253,23 +253,22 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	default:
 	}
 
-	ctx, cancel := context.WithCancel(w.workerCtx)
-	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
+	ctx := httptrace.WithClientTrace(w.workerCtx, transaction.GetClientTrace(w.log))
 
 	// Block here if we are already sending too many requests
-	err := w.acquireRequestSemaphore(w.workerCtx)
+	err := w.acquireRequestSemaphore(ctx)
 	if err != nil {
-		cancel()
 		w.requeue(t)
 		return err
 	}
 
 	w.requestWg.Add(1)
 	go func() {
-		defer cancel()
+		defer func() {
+			w.requestWg.Done()
+			w.releaseRequestSemaphore()
+		}()
 		w.process(ctx, t)
-		w.releaseRequestSemaphore()
-		defer w.requestWg.Done()
 	}()
 
 	return nil
