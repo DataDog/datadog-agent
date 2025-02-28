@@ -36,7 +36,7 @@ func NewKubeletListener(options ServiceListernerDeps) (ServiceListener, error) {
 
 	l := &KubeletListener{}
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource(workloadmeta.SourceAll).
+		SetSource(workloadmeta.SourceNodeOrchestrator).
 		AddKind(workloadmeta.KindKubernetesPod).
 		Build()
 
