@@ -133,7 +133,7 @@ function Expand-ModCache() {
 
 function Install-Deps() {
     Write-Host "Installing python requirements"
-    pip3.exe install datadog-agent-dev
+    pip3.exe install dda
     dda self dep sync -f legacy-tasks
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install python requirements"

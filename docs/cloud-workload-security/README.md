@@ -107,7 +107,7 @@ The templates are written in [Jinja2](https://jinja.palletsprojects.com/en/3.0.x
 
 - Golang (see `go.mod` for the minimal version supported)
 - Python, install dependencies with:
-	- `pip install datadog-agent-dev`
+	- `pip install dda`
 	- `pip install -r docs/cloud-workload-security/scripts/requirements-docs.txt`
 
 

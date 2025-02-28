@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
 # Install dev tools, including invoke
-pip3 install datadog-agent-dev
+pip3 install dda
 dda self dep sync -f legacy-tasks
 
 # Update the repo
