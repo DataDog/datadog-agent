@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Enables High Availability on SNMP, Cisco SD-WAN, and Network Path integrations.
+    Update HA Agent feature to work with HA Enabled integrations.
