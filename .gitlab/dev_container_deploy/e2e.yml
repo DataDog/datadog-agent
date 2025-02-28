@@ -107,7 +107,7 @@ qa_dca_fips:
     - docker_build_cluster_agent_fips_amd64
   variables:
     IMG_REGISTRIES: agent-qa
-    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-arm64
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips-arm64
     IMG_DESTINATIONS: cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-fips
 
 qa_dogstatsd:
