@@ -285,19 +285,27 @@ build do
         FileUtils.rm([libssl_match, libcrypto_match])
       end
     elsif windows_target?
+      dll_folder = File.join(install_dir, "embedded3", "DLLS")
       # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
       # We first need to copy some files around (we need the .lib files for building)
       copy File.join(install_dir, "embedded3", "lib", "libssl.dll.a"),
-           File.join(install_dir, "embedded3", "dlls", "libssl-3-x64.lib")
+           File.join(dll_folder, "libssl-3-x64.lib")
       copy File.join(install_dir, "embedded3", "lib", "libcrypto.dll.a"),
-           File.join(install_dir, "embedded3", "dlls", "libcrypto-3-x64.lib")
+           File.join(dll_folder, "libcrypto-3-x64.lib")
 
       command "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography cryptography==43.0.1",
               env: {
-                "OPENSSL_LIB_DIR" => File.join(install_dir, "embedded3", "DLLS"),
+                "OPENSSL_LIB_DIR" => dll_folder,
                 "OPENSSL_INCLUDE_DIR" => File.join(install_dir, "embedded3", "include"),
                 "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
               }
+      # Python extensions on windows require this to find their DLL dependencies,
+      # we abuse the `.pth` loading system to inject it
+      block "Inject dll path for Python extensions" do
+        File.open(File.join(install_dir, "embedded3", "lib", "site-packages", "add-dll-directory.pth"), "w") do |f|
+          f.puts 'import os; os.add_dll_directory(os.path.abspath(os.path.join(__file__, "..", "..", "DLLS")))'
+        end
+      end
     end
   end
 
