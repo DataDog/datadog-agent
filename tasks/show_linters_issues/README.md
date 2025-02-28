@@ -15,7 +15,7 @@ The version of `go` and `golangci-lint` can have a big impact on the output of t
 - Your `golangci-lint` version is identical to the CI's (look for `golangci-lint` in the `internal/tools/go.mod` file).
 - You did not install `go` using `brew` (`which go` path shouldn't contain `homebrew`). If it does, please install `go` for example using `gimme`.
 - Use `python >= 3.9.0`.
-- Install the requirements with `python3 -m pip install datadog-agent-dev`.
+- Install the requirements with `python3 -m pip install dda`.
 - Clear you `golangci-lint` cache (`golangci-lint cache clean`) and your `go mod` cache (`go clean -modcache`).
 - Install the tools (`dda inv -e install-tools`) and the dependencies (`dda inv -e deps`).
 

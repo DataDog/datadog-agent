@@ -88,7 +88,7 @@ After downloading the archive corresponding to your platform and architecture, e
 dda is available on PyPI and can be installed with [pip](https://github.com/pypa/pip).
 
 ```
-pip install datadog-agent-dev
+pip install dda
 ```
 
 !!! warning

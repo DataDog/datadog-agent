@@ -49,7 +49,7 @@ if ($InstallDeps) {
     # Install chocolatey
     $env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
     # Install dev tools, including invoke
-    pip3 install datadog-agent-dev
+    pip3 install dda
     dda self dep sync -f legacy-tasks
 }
 
