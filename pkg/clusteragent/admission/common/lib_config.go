@@ -19,8 +19,9 @@ type LibConfig struct {
 	Language string `yaml:"library_language" json:"library_language"`
 	Version  string `yaml:"library_version" json:"library_version"`
 
-	ServiceName *string `yaml:"service_name,omitempty" json:"service_name,omitempty"`
-	Env         *string `yaml:"env,omitempty" json:"env,omitempty"`
+	ServiceName    *string `yaml:"service_name,omitempty" json:"service_name,omitempty"`
+	Env            *string `yaml:"env,omitempty" json:"env,omitempty"`
+	ServiceVersion *string `yaml:"version,omitempty" json:"version,omitempty"`
 
 	Tracing        *bool `yaml:"tracing_enabled,omitempty" json:"tracing_enabled,omitempty"`
 	LogInjection   *bool `yaml:"log_injection_enabled,omitempty" json:"log_injection_enabled,omitempty"`
@@ -68,6 +69,12 @@ func (lc LibConfig) ToEnvs() []corev1.EnvVar {
 		envs = append(envs, corev1.EnvVar{
 			Name:  "DD_ENV",
 			Value: *lc.Env,
+		})
+	}
+	if lc.ServiceVersion != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_VERSION",
+			Value: *lc.ServiceVersion,
 		})
 	}
 	if val, defined := checkFormatVal(lc.Tracing); defined {
