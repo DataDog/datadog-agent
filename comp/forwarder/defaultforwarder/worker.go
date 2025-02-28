@@ -9,11 +9,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/sync/semaphore"
 	"net"
 	"net/http"
 	"net/http/httptrace"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -38,7 +40,6 @@ type Worker struct {
 	RequeueChan chan<- transaction.Transaction
 
 	resetConnectionChan   chan struct{}
-	stopChan              chan struct{}
 	stopped               chan struct{}
 	blockedList           *blockedEndpoints
 	pointSuccessfullySent PointSuccessfullySent
@@ -47,6 +48,9 @@ type Worker struct {
 
 	// The maximum number of HTTP requests we can have inflight at any one time.
 	maxConcurrentRequests *semaphore.Weighted
+	workerCtx             context.Context
+	cancel                context.CancelFunc
+	requestWg             sync.WaitGroup
 }
 
 // PointSuccessfullySent is called when sending successfully a point to the intake.
@@ -69,8 +73,11 @@ func NewWorker(
 ) *Worker {
 	var maxConcurrentRequestsSem *semaphore.Weighted
 	if maxConcurrentRequests > 0 {
+		fmt.Println("Creatin semafore wid", maxConcurrentRequests)
 		maxConcurrentRequestsSem = semaphore.NewWeighted(maxConcurrentRequests)
 	}
+
+	workerCtx, cancel := context.WithCancel(context.Background())
 
 	worker := &Worker{
 		config:                config,
@@ -79,13 +86,14 @@ func NewWorker(
 		LowPrio:               lowPrioChan,
 		RequeueChan:           requeueChan,
 		resetConnectionChan:   make(chan struct{}, 1),
-		stopChan:              make(chan struct{}),
 		stopped:               make(chan struct{}),
 		Client:                NewHTTPClient(config, log),
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
 		isLocal:               isLocal,
 		maxConcurrentRequests: maxConcurrentRequestsSem,
+		workerCtx:             workerCtx,
+		cancel:                cancel,
 	}
 	if isLocal {
 		worker.Client = newBearerAuthHTTPClient()
@@ -142,11 +150,15 @@ func newBearerAuthHTTPClient() *http.Client {
 
 // Stop stops the worker.
 func (w *Worker) Stop(purgeHighPrio bool) {
-	w.stopChan <- struct{}{}
+	// Cancel our context to kick out any transactions waiting
+	// on the maxConcurrentRequests semaphore.
+	w.cancel()
+
 	<-w.stopped
 
 	if purgeHighPrio {
-		// purging waiting transactions
+		// Need a new context to flush these high priority transactions.
+		w.workerCtx, w.cancel = context.WithCancel(context.Background())
 	L:
 		for {
 			select {
@@ -158,6 +170,8 @@ func (w *Worker) Stop(purgeHighPrio bool) {
 			}
 		}
 	}
+
+	w.requestWg.Wait()
 }
 
 // Start starts a Worker.
@@ -174,7 +188,7 @@ func (w *Worker) Start() {
 					continue
 				}
 				return
-			case <-w.stopChan:
+			case <-w.workerCtx.Done():
 				return
 			default:
 			}
@@ -188,7 +202,7 @@ func (w *Worker) Start() {
 				if w.callProcess(t) != nil {
 					return
 				}
-			case <-w.stopChan:
+			case <-w.workerCtx.Done():
 				return
 			}
 		}
@@ -210,10 +224,14 @@ func (w *Worker) ScheduleConnectionReset() {
 // This can be bypassed by configuring `forwarder_max_concurrent_requests = 0`.
 func (w *Worker) acquireRequestSemaphore(ctx context.Context) error {
 	if w.maxConcurrentRequests != nil {
-		err := w.maxConcurrentRequests.Acquire(ctx, 1)
-		if err != nil {
-			return err
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("Context is cancelled")
+		default:
 		}
+
+		err := w.maxConcurrentRequests.Acquire(ctx, 1)
+		return err
 	}
 
 	return nil
@@ -235,35 +253,24 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	default:
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(w.workerCtx)
 	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
 
 	// Block here if we are already sending too many requests
-	err := w.acquireRequestSemaphore(ctx)
+	err := w.acquireRequestSemaphore(w.workerCtx)
 	if err != nil {
 		cancel()
+		w.requeue(t)
 		return err
 	}
 
-	done := make(chan interface{})
+	w.requestWg.Add(1)
 	go func() {
 		defer cancel()
 		w.process(ctx, t)
 		w.releaseRequestSemaphore()
-		done <- nil
+		defer w.requestWg.Done()
 	}()
-
-	select {
-	case <-w.stopChan:
-		// cancel current Transaction if we need to stop the worker
-		cancel()
-		w.requeue(t)
-		<-done // We still need to wait for the process func to return
-		return fmt.Errorf("Worker was requested to stop")
-
-	default:
-		// Don't block
-	}
 
 	return nil
 }

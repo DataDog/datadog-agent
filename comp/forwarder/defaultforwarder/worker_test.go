@@ -10,6 +10,7 @@ package defaultforwarder
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -175,6 +176,113 @@ func TestWorkerResetConnections(t *testing.T) {
 	w.Stop(false)
 }
 
+func TestWorkerCancelsInFlight(t *testing.T) {
+	highPrio := make(chan transaction.Transaction, 1)
+	lowPrio := make(chan transaction.Transaction, 1)
+	requeue := make(chan transaction.Transaction, 1)
+
+	stop := make(chan struct{}, 1)
+
+	mockConfig := mock.New(t)
+
+	log := logmock.New(t)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, false, 1)
+
+	go func() {
+		w.Start()
+		<-stop
+		w.Stop(false)
+	}()
+
+	mockTransaction := newTestTransaction()
+	mockTransaction.shouldBlock = true
+	mockTransaction.On("Process", w.Client).Return(fmt.Errorf("Cancelled")).Times(1)
+	mockTransaction.On("GetTarget").Return("").Times(1)
+
+	highPrio <- mockTransaction
+	time.Sleep(time.Millisecond)
+	stop <- struct{}{}
+	time.Sleep(time.Millisecond)
+
+	select {
+	case requeued := <-requeue:
+		assert.Equal(t, mockTransaction, requeued)
+	default:
+		assert.Fail(t, "Transaction not requeued")
+	}
+}
+
+func TestWorkerCancelsWaitingTransactions(t *testing.T) {
+	highPrio := make(chan transaction.Transaction, 10)
+	lowPrio := make(chan transaction.Transaction, 10)
+	requeue := make(chan transaction.Transaction, 10)
+
+	stop := make(chan struct{}, 1)
+	stopped := make(chan struct{}, 1)
+
+	mockConfig := mock.New(t)
+
+	log := logmock.New(t)
+
+	// Configure the worker to have 3 maximum concurrent requests
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, false, 3)
+
+	go func() {
+		w.Start()
+		<-stop
+		w.Stop(true)
+		stopped <- struct{}{}
+	}()
+
+	// Create enough transactions that some will be waiting on the semaphore when we cancel.
+	transactions := make([]*testTransaction, 0)
+	for i := 0; i < 5; i += 1 {
+		mockTransaction := newTestTransaction()
+
+		// The first three transactions will block when sent to ensure they are currently holding
+		// the semaphore when we want to stop the server. When we cancel the semaphore, these should
+		// exit with an error.
+		if i <= 3 {
+			mockTransaction.shouldBlock = true
+			mockTransaction.On("Process", w.Client).Return(fmt.Errorf("Cancelled")).Times(1)
+		} else {
+			// The other transactions succeed.
+			mockTransaction.On("Process", w.Client).Return(nil).Times(1)
+		}
+
+		// Each transaction has a different target to ensure the block list doesn't prevent
+		// transactions being processed on too many errors for a target.
+		mockTransaction.On("GetTarget").Return("Target" + strconv.Itoa(i))
+
+		transactions = append(transactions, mockTransaction)
+		highPrio <- mockTransaction
+	}
+
+	time.Sleep(time.Millisecond * 10)
+	stop <- struct{}{}
+	time.Sleep(time.Millisecond * 10)
+
+	<-stopped
+
+	// The first three transactions get through the semaphore and are processed.
+	transactions[0].AssertNumberOfCalls(t, "Process", 1)
+	transactions[1].AssertNumberOfCalls(t, "Process", 1)
+	transactions[2].AssertNumberOfCalls(t, "Process", 1)
+	// The fourth transaction was waiting on the semaphore.
+	// The semaphore was cancelled so it gets requeued straight away.
+	transactions[3].AssertNumberOfCalls(t, "Process", 0)
+
+	// The final transaction is resent due to passing `purgeHighPrio=true` to
+	// the `Stop` function that will attempt to send anything waiting in the
+	// high priority queue.
+	fmt.Println("Checkin", transactions[4].GetEndpointName())
+	transactions[4].AssertNumberOfCalls(t, "Process", 1)
+
+	// 4 transactions get requeued, the first three that were cancelled inflight
+	// and the fourth one that was stuck waiting on the MaxRequests semaphore.
+	assert.Equal(t, 4, len(requeue))
+}
+
 func TestWorkerPurgeOnStop(t *testing.T) {
 	highPrio := make(chan transaction.Transaction, 1)
 	lowPrio := make(chan transaction.Transaction, 1)
@@ -182,10 +290,6 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, false, 1)
-	// making stopChan non blocking on insert and closing stopped channel
-	// to avoid blocking in the Stop method since we don't actually start
-	// the workder
-	w.stopChan = make(chan struct{}, 2)
 	close(w.stopped)
 
 	mockTransaction := newTestTransaction()
