@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fakediscovery "k8s.io/client-go/discovery/fake"
+	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
@@ -21,6 +24,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 type metricsExpected struct {
@@ -1429,9 +1433,9 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 	tests := []struct {
 		name                    string
-		shouldTransformResource bool
 		conf                    map[string]map[string]string
 		extra                   map[string]map[string]string
+		shouldTransformResource bool
 		expected                map[string]map[string]string
 	}{
 		{
@@ -1471,16 +1475,40 @@ func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 			expected: defaultAnnotationsAsTags(),
 		},
 		{
-			name:     "resource annotations as tags",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"foo": "bar"}},
-			extra:    map[string]map[string]string{"endpoints.v1": {"foo": "bar"}, "daemonsets.apps/v1": {"fizz": "buzz"}, "pods": {"common_key": "some_val", "another_key": "another_value"}, "deployments.apps": {"foo": "another_bar", "fizz": "buzz"}},
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val", "another_key": "another_value"}, "endpoint": {"foo": "bar"}, "daemonset": {"fizz": "buzz"}, "deployment": {"foo": "bar", "fizz": "buzz"}},
+			name:                    "resource annotations as tags",
+			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"foo": "bar"}},
+			extra:                   map[string]map[string]string{"endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}, "pods": {"common_key": "some_val", "another_key": "another_value"}, "deployments.apps": {"foo": "another_bar", "fizz": "buzz"}},
+			shouldTransformResource: true,
+			expected:                map[string]map[string]string{"pod": {"common_key": "in_val", "another_key": "another_value"}, "endpoint": {"foo": "bar"}, "daemonset": {"fizz": "buzz"}, "deployment": {"foo": "bar", "fizz": "buzz"}},
 		},
 	}
+
+	client := fakeclientset.NewClientset()
+	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
+	fakeDiscoveryClient.Resources = []*apiv1.APIResourceList{
+		{
+			GroupVersion: "",
+			APIResources: []apiv1.APIResource{
+				{Kind: "Endpoint", Name: "endpoints"},
+				{Kind: "Pod", Name: "pods"},
+			},
+		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []apiv1.APIResource{
+				{Kind: "Deployment", Name: "deployments"},
+				{Kind: "Daemonset", Name: "daemonsets"},
+			},
+		},
+	}
+
+	err := apiserver.InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
+	assert.NoError(t, err)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			annotationsAsTags := mergeLabelsOrAnnotationAsTags(tt.extra, tt.conf)
-			assert.True(t, reflect.DeepEqual(tt.expected, annotationsAsTags))
+			annotationsAsTags := mergeLabelsOrAnnotationAsTags(tt.extra, tt.conf, tt.shouldTransformResource)
+			assert.Truef(t, reflect.DeepEqual(tt.expected, annotationsAsTags), "expected %v, found %v", tt.expected, annotationsAsTags)
 		})
 	}
 }

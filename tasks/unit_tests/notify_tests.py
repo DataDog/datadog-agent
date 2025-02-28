@@ -33,6 +33,7 @@ def get_github_slack_map():
 
 class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('builtins.print')
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
@@ -54,6 +55,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('tasks.libs.notify.pipeline_status.get_failed_jobs')
@@ -209,6 +211,7 @@ class TestSendMessage(unittest.TestCase):
         self.assertNotIn("@DataDog/agent-delivery", owners)
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
@@ -233,6 +236,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch.dict('os.environ', {'DEPLOY_AGENT': 'true', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'hihan'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
@@ -258,6 +262,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
@@ -283,6 +288,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch.dict(
         'os.environ',
