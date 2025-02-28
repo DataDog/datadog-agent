@@ -272,14 +272,14 @@ type SysCtlEventSerializer struct {
 	Name string `json:"name,omitempty"`
 	// name_truncated indicates if the name field is truncated
 	NameTruncated bool `json:"name_truncated,omitempty"`
-	// current_value is the value of the system control parameter before the event
-	CurrentValue string `json:"current_value,omitempty"`
-	// current_value_truncated indicates if the current_value field is truncated
-	CurrentValueTruncated bool `json:"current_value_truncated,omitempty"`
-	// new_value is the newly set value of the system control
-	NewValue string `json:"new_value,omitempty"`
-	// new_value_truncated indicates if the new_value field is truncated
-	NewValueTruncated bool `json:"new_value_truncated,omitempty"`
+	// value is the new and/or current value for the system control parameter depending on the action type
+	Value string `json:"value,omitempty"`
+	// value_truncated indicates if the value field is truncated
+	ValueTruncated bool `json:"value_truncated,omitempty"`
+	// old_value is the old value of the system control parameter
+	OldValue string `json:"old_value,omitempty"`
+	// old_value_truncated indicates if the old_value field is truncated
+	OldValueTruncated bool `json:"old_value_truncated,omitempty"`
 }
 
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {

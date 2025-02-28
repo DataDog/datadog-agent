@@ -487,7 +487,7 @@ struct sysctl_event_t {
     u32 action;
     u32 file_position;
     u16 name_len;
-    u16 current_value_len;
+    u16 old_value_len;
     u16 new_value_len;
     u16 flags;
     char sysctl_buffer[MAX_SYSCTL_BUFFER_LEN];

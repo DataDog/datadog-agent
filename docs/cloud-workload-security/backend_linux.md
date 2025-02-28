@@ -1638,21 +1638,21 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "type": "boolean",
                     "description": "name_truncated indicates if the name field is truncated"
                 },
-                "current_value": {
+                "value": {
                     "type": "string",
-                    "description": "current_value is the value of the system control parameter before the event"
+                    "description": "value is the new and/or current value for the system control parameter depending on the action type"
                 },
-                "current_value_truncated": {
+                "value_truncated": {
                     "type": "boolean",
-                    "description": "current_value_truncated indicates if the current_value field is truncated"
+                    "description": "value_truncated indicates if the value field is truncated"
                 },
-                "new_value": {
+                "old_value": {
                     "type": "string",
-                    "description": "new_value is the newly set value of the system control"
+                    "description": "old_value is the old value of the system control parameter"
                 },
-                "new_value_truncated": {
+                "old_value_truncated": {
                     "type": "boolean",
-                    "description": "new_value_truncated indicates if the new_value field is truncated"
+                    "description": "old_value_truncated indicates if the old_value field is truncated"
                 }
             },
             "additionalProperties": false,
@@ -4415,21 +4415,21 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "boolean",
             "description": "name_truncated indicates if the name field is truncated"
         },
-        "current_value": {
+        "value": {
             "type": "string",
-            "description": "current_value is the value of the system control parameter before the event"
+            "description": "value is the new and/or current value for the system control parameter depending on the action type"
         },
-        "current_value_truncated": {
+        "value_truncated": {
             "type": "boolean",
-            "description": "current_value_truncated indicates if the current_value field is truncated"
+            "description": "value_truncated indicates if the value field is truncated"
         },
-        "new_value": {
+        "old_value": {
             "type": "string",
-            "description": "new_value is the newly set value of the system control"
+            "description": "old_value is the old value of the system control parameter"
         },
-        "new_value_truncated": {
+        "old_value_truncated": {
             "type": "boolean",
-            "description": "new_value_truncated indicates if the new_value field is truncated"
+            "description": "old_value_truncated indicates if the old_value field is truncated"
         }
     },
     "additionalProperties": false,
@@ -4445,10 +4445,10 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `file_position` | file_position is the position in the sysctl control parameter file at which the action occurred |
 | `name` | name is the name of the system control parameter |
 | `name_truncated` | name_truncated indicates if the name field is truncated |
-| `current_value` | current_value is the value of the system control parameter before the event |
-| `current_value_truncated` | current_value_truncated indicates if the current_value field is truncated |
-| `new_value` | new_value is the newly set value of the system control |
-| `new_value_truncated` | new_value_truncated indicates if the new_value field is truncated |
+| `value` | value is the new and/or current value for the system control parameter depending on the action type |
+| `value_truncated` | value_truncated indicates if the value field is truncated |
+| `old_value` | old_value is the old value of the system control parameter |
+| `old_value_truncated` | old_value_truncated indicates if the old_value field is truncated |
 
 
 ## `Syscall`

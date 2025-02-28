@@ -71,4 +71,5 @@ func init() {
 	allCapabilities["splice"] = spliceCapabilities
 	allCapabilities["chdir"] = mergeCapabilities(buildBasenameCapabilities("chdir", "file"), processCapabilities)
 	allCapabilities["bpf"] = bpfCapabilities
+	allCapabilities["sysctl"] = sysctlCapabilities
 }

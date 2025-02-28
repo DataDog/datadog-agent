@@ -188,4 +188,5 @@ func init() {
 	KFilterGetters["splice"] = spliceKFiltersGetter
 	KFilterGetters["chdir"] = fimKFiltersGetter(model.FileChdirEventType, []eval.Field{"file"})
 	KFilterGetters["bpf"] = bpfKFiltersGetter
+	KFilterGetters["sysctl"] = sysctlKFiltersGetter
 }

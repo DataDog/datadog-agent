@@ -163,14 +163,14 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(i
 			out.Name = string(in.String())
 		case "name_truncated":
 			out.NameTruncated = bool(in.Bool())
-		case "current_value":
-			out.CurrentValue = string(in.String())
-		case "current_value_truncated":
-			out.CurrentValueTruncated = bool(in.Bool())
-		case "new_value":
-			out.NewValue = string(in.String())
-		case "new_value_truncated":
-			out.NewValueTruncated = bool(in.Bool())
+		case "value":
+			out.Value = string(in.String())
+		case "value_truncated":
+			out.ValueTruncated = bool(in.Bool())
+		case "old_value":
+			out.OldValue = string(in.String())
+		case "old_value_truncated":
+			out.OldValueTruncated = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -221,45 +221,45 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(o
 		}
 		out.Bool(bool(in.NameTruncated))
 	}
-	if in.CurrentValue != "" {
-		const prefix string = ",\"current_value\":"
+	if in.Value != "" {
+		const prefix string = ",\"value\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.CurrentValue))
+		out.String(string(in.Value))
 	}
-	if in.CurrentValueTruncated {
-		const prefix string = ",\"current_value_truncated\":"
+	if in.ValueTruncated {
+		const prefix string = ",\"value_truncated\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Bool(bool(in.CurrentValueTruncated))
+		out.Bool(bool(in.ValueTruncated))
 	}
-	if in.NewValue != "" {
-		const prefix string = ",\"new_value\":"
+	if in.OldValue != "" {
+		const prefix string = ",\"old_value\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.NewValue))
+		out.String(string(in.OldValue))
 	}
-	if in.NewValueTruncated {
-		const prefix string = ",\"new_value_truncated\":"
+	if in.OldValueTruncated {
+		const prefix string = ",\"old_value_truncated\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Bool(bool(in.NewValueTruncated))
+		out.Bool(bool(in.OldValueTruncated))
 	}
 	out.RawByte('}')
 }
