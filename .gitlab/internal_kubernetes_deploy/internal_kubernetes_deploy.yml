@@ -90,8 +90,7 @@ celian-notify-slack:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   script:
-    # - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
-    - pip install setuptools==75.8.2
+    - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
     - python3 -m pip install -r tasks/requirements.txt -r tasks/libs/requirements-notifications.txt
-    # - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
+    - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - echo 'Works fine!'
