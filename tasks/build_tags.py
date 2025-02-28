@@ -85,7 +85,7 @@ AGENT_TAGS = {
     "podman",
     "python",
     "systemd",
-    "trivy",
+    # "trivy",
     "zk",
     "zlib",
     "zstd",
@@ -108,7 +108,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "orchestrator",
         "podman",
         "systemd",
-        "trivy",
+        # "trivy",
     }
 )
 
@@ -177,7 +177,7 @@ SYSTEM_PROBE_TAGS = {
     "netcgo",
     "npm",
     "pcap",
-    "trivy",
+    # "trivy",
     "zlib",
     "zstd",
 }
