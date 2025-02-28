@@ -77,6 +77,7 @@ func InspectWithDWARF(elfFile *safeelf.File, dwarfData *dwarf.Data, functions []
 		Functions:     functionsMetadata,
 		StructOffsets: structOffsets,
 	}, nil
+
 }
 
 func (d dwarfInspector) findFunctionsUsingDWARF(functions []string) (map[string]FunctionMetadata, error) {
