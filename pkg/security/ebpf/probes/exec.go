@@ -94,7 +94,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID + "_a",
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_setup_new_exec_args_envs",
 			},
 		},

@@ -83,7 +83,6 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
         return 0;
     }
 
-    //struct path *path = (struct path *)CTX_PARM1(ctx);
     struct dentry *dentry = get_path_dentry(path);
     if (!dentry || is_non_mountable_dentry(dentry)) {
         return 0;
