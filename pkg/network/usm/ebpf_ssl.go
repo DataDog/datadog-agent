@@ -866,15 +866,12 @@ var sslPidKeyMaps = []string{
 	"bio_new_socket_args",
 }
 
-// cleanupDeadPids clears maps of terminated processes.
+// cleanupDeadPids clears maps of terminated processes, is invoked when raw tracepoints unavailable.
 func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
-	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		// call maps cleaner if raw tracepoints are not supported
-		for _, mapName := range sslPidKeyMaps {
-			err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
-			if err != nil {
-				log.Debugf("SSL map %q cleanup error: %v", mapName, err)
-			}
+	for _, mapName := range sslPidKeyMaps {
+		err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
+		if err != nil {
+			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
 	}
 }
