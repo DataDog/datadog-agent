@@ -21,6 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/blacklist"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
@@ -38,6 +39,7 @@ const (
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
 	netpathConnsSkippedMetricName       = networkPathCollectorMetricPrefix + "schedule.conns_skipped"
+	netpathBlacklistAddedMetricName     = networkPathCollectorMetricPrefix + "blacklist_added"
 )
 
 type npCollectorImpl struct {
@@ -52,6 +54,10 @@ type npCollectorImpl struct {
 	// Counters
 	receivedPathtestCount    *atomic.Uint64
 	processedTracerouteCount *atomic.Uint64
+
+	// Blacklist of low-value pathtests
+	blacklistCache   *blacklist.Cache
+	blacklistScanner *blacklist.Scanner
 
 	// Pathtest store
 	pathtestStore          *pathteststore.Store
@@ -85,26 +91,17 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 }
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component) *npCollectorImpl {
-	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s reverse_dns_enabled=%t reverse_dns_timeout=%d)",
-		collectorConfigs.workers,
-		collectorConfigs.timeout,
-		collectorConfigs.maxTTL,
-		collectorConfigs.pathtestInputChanSize,
-		collectorConfigs.pathtestProcessingChanSize,
-		collectorConfigs.storeConfig.ContextsLimit,
-		collectorConfigs.storeConfig.TTL,
-		collectorConfigs.storeConfig.Interval,
-		collectorConfigs.storeConfig.MaxPerMinute,
-		collectorConfigs.flushInterval,
-		collectorConfigs.reverseDNSEnabled,
-		collectorConfigs.reverseDNSTimeout,
-	)
+	logger.Infof("New NpCollector: %+v", collectorConfigs)
 
 	return &npCollectorImpl{
 		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
 		rdnsquerier:      rdnsquerier,
 		logger:           logger,
+
+		// TODO this time.Now mock doesn't get set by npcollector tests currently.
+		blacklistCache:   blacklist.NewCache(collectorConfigs.blacklistCacheConfig, time.Now),
+		blacklistScanner: blacklist.NewScanner(collectorConfigs.blacklistScannerConfig),
 
 		// pathtestStore is set in start() after statsd.Client is configured
 		pathtestStore:          nil,
@@ -235,6 +232,11 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 			continue
 		}
 		pathtest := makePathtest(conn, dns)
+		if s.blacklistCache.Contains(pathtest.GetHash()) {
+			s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_blacklisted"}, 1) //nolint:errcheck
+			s.logger.Tracef("Skipped blacklisted pathtest: %+v", pathtest)
+			continue
+		}
 
 		err := s.scheduleOne(&pathtest)
 		if err != nil {
@@ -282,6 +284,9 @@ func (s *npCollectorImpl) start() error {
 	s.logger.Info("Start NpCollector")
 
 	s.initStatsdClient(statsd.Client)
+
+	go s.blacklistCache.CleanupTask(s.stopChan)
+	go s.blacklistCache.MetricsTask(s.stopChan, s.statsdClient)
 
 	go s.listenPathtests()
 	go s.flushLoop()
@@ -336,6 +341,16 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
+
+	if s.blacklistScanner.ShouldBlacklist(&path) {
+		s.logger.Tracef("Blacklisting path: %+v", ptest.Pathtest)
+		s.statsdClient.Incr(netpathBlacklistAddedMetricName, nil, 1) //nolint:errcheck
+		hash := ptest.Pathtest.GetHash()
+		s.blacklistCache.Add(hash)
+		s.pathtestStore.RemoveHash(hash)
+		// no need to do further processing since it's blacklisted
+		return
+	}
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)

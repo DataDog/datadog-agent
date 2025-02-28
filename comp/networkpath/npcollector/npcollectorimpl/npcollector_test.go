@@ -125,6 +125,18 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 				},
 			}
 		}
+		if cfg.DestHostname == "10.0.0.6" {
+			p = payload.NetworkPath{
+				PathtraceID: "pathtrace-id-333",
+				Protocol:    payload.ProtocolUDP,
+				Source:      payload.NetworkPathSource{Hostname: "abc"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.6", Port: 80},
+				Hops: []payload.NetworkPathHop{
+					{Reachable: false},
+					{Hostname: "hop_2", IPAddress: "10.0.0.6", Reachable: true},
+				},
+			}
+		}
 		return p, nil
 	}
 
@@ -209,6 +221,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		eventplatform.EventTypeNetworkPath,
 	).Return(nil).Times(1)
 
+	// third pathtest should not get uploaded because it gets blacklisted
+
 	// WHEN
 	conns := []*model.Connection{
 		{
@@ -223,14 +237,20 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Direction: model.ConnectionDirection_outgoing,
 			Type:      model.ConnectionType_udp,
 		},
+		{
+			Laddr:     &model.Addr{Ip: "10.0.0.5", Port: int32(30000), ContainerId: "testId3"},
+			Raddr:     &model.Addr{Ip: "10.0.0.6", Port: int32(80)},
+			Direction: model.ConnectionDirection_outgoing,
+			Type:      model.ConnectionType_udp,
+		},
 	}
 	npCollector.ScheduleConns(conns, make(map[string]*model.DNSEntry))
 
-	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
+	waitForProcessedPathtests(npCollector, 5*time.Second, 3)
 
 	// THEN
-	assert.Equal(t, uint64(2), npCollector.processedTracerouteCount.Load())
-	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
+	assert.Equal(t, uint64(3), npCollector.processedTracerouteCount.Load())
+	assert.Equal(t, uint64(3), npCollector.receivedPathtestCount.Load())
 
 	app.RequireStop()
 }

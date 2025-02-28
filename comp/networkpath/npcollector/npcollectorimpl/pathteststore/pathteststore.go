@@ -61,7 +61,7 @@ type Store struct {
 	logger       log.Component
 	statsdClient ddgostatsd.ClientInterface
 
-	contexts map[uint64]*PathtestContext
+	contexts map[common.PathtestHash]*PathtestContext
 
 	// mutex is needed to protect `contexts` since `Store.add()` and  `pathtestStore.flush()`
 	// are called by different routines.
@@ -108,7 +108,7 @@ func (c Config) rateLimiter() *rate.Limiter {
 // NewPathtestStore creates a new Store
 func NewPathtestStore(config Config, logger log.Component, statsdClient ddgostatsd.ClientInterface, timeNow func() time.Time) *Store {
 	return &Store{
-		contexts:      make(map[uint64]*PathtestContext),
+		contexts:      make(map[common.PathtestHash]*PathtestContext),
 		config:        config,
 		logger:        logger,
 		statsdClient:  statsdClient,
@@ -187,6 +187,14 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		return
 	}
 	pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
+}
+
+// RemoveHash deletes a pathtest from the store (used by the blacklist)
+func (f *Store) RemoveHash(hash common.PathtestHash) {
+	f.contextsMutex.Lock()
+	defer f.contextsMutex.Unlock()
+
+	delete(f.contexts, hash)
 }
 
 // GetContextsCount returns pathtest contexts count
