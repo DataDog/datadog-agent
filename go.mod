@@ -4,6 +4,12 @@ go 1.23.0
 
 toolchain go1.23.6
 
+// Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
+// This was causing errors with AWS Network Firewall
+// See https://github.com/DataDog/datadog-agent/issues/34323 for details.
+// This will be revisited once we update to 1.24.x
+godebug tlskyber=0
+
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
 // that retracts itself and the previous version.

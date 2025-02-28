@@ -13,9 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
 func TestFailedConnectionTelemetryMapLoads(t *testing.T) {
@@ -23,6 +21,5 @@ func TestFailedConnectionTelemetryMapLoads(t *testing.T) {
 	require.NoError(t, err, "could not load tracer")
 	t.Cleanup(tr.Stop)
 
-	_, err = maps.GetMap[int32, uint64](tr.(*ebpfTracer).m.Manager, probes.TCPFailureTelemetry)
-	require.NoError(t, err, "error loading tcp failure telemetry map")
+	require.NotNil(t, tr.(*ebpfTracer).tcpFailuresTelemetryMap, "error loading tcp failure telemetry map")
 }
