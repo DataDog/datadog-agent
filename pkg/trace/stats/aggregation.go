@@ -158,7 +158,7 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 				return strconv.FormatUint(c, 10)
 			}
 			commonPrefix := "StatusCode."
-			if strings.hasPrefix(strC, commonPrefix) {
+			if strings.HasPrefix(strC, commonPrefix) {
 				strC = strC[len(commonPrefix):]
 			}
 			strCUpper := strings.ToUpper(strC)
