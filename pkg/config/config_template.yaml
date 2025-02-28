@@ -1483,6 +1483,17 @@ api_key:
   #
   # trace_buffer: 0
 
+  ## @param receiver_timeout - integer - optional - default: 5
+  ## @env DD_APM_RECEIVER_TIMEOUT - integer - optional - default: 5
+  ##
+  ## WARNING: This config should generally not be changed unless directed to by Datadog Support for debugging purposes.
+  ## Issues that may present as timeouts are frequently due to resource constraints and increasing this value is unlikely
+  ## to help.
+  ##
+  ## Specifies the timeout in number of seconds for trace-agent endpoints.
+  #
+  # receiver_timeout: 5
+
   ## @param probabilistic_sampler - object - optional
   ## Enables and configures the Probabilistic Sampler, compatible with the
   ## OTel Probabilistic Sampler Processor ( https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor#probabilistic-sampling-processor )
