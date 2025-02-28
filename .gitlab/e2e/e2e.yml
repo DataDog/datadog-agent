@@ -71,7 +71,7 @@ new-e2e-containers:
   # TODO A: Restore rules
   # rules: !reference [.on_container_or_e2e_changes_or_manual]
   rules:
-    - always
+    - when: always
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
