@@ -231,6 +231,52 @@ build do
     delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/Cryptodome/SelfTest/"
   end
 
+  # Remove openssl copies from cryptography, and patch as necessary.
+  # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder
+  # to control FIPS initialization; this has surfaced as problems with `cryptography` specifically, because
+  # it's the only dependency that links to openssl needed to enable FIPS on the subset of integrations
+  # that we target.
+  # This is intended as a temporary kludge while we make a decision on how to handle the multiplicity
+  # of openssl copies in a more general way while keeping risk low.
+  if fips_mode?
+    if linux_target?
+      block "Patch cryptography's openssl linking" do
+        # We delete the libraries shipped with the wheel and replace references to those names
+        # in the binary that references it using patchelf
+        cryptography_folder = "#{install_dir}/embedded/lib/python#{python_version}/site-packages/cryptography"
+        so_to_patch = "#{cryptography_folder}/hazmat/bindings/_rust.abi3.so"
+        libssl_match = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")[0]
+        libcrypto_match = Dir.glob("#{cryptography_folder}.libs/libcrypto-*.so.3")[0]
+        shellout! "patchelf --replace-needed #{File.basename(libssl_match)} libssl.so.3 #{so_to_patch}"
+        shellout! "patchelf --replace-needed #{File.basename(libcrypto_match)} libcrypto.so.3 #{so_to_patch}"
+        shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
+        FileUtils.rm([libssl_match, libcrypto_match])
+      end
+    elsif windows_target?
+      dll_folder = File.join(install_dir, "embedded3", "DLLS")
+      # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
+      # We first need to copy some files around (we need the .lib files for building)
+      copy File.join(install_dir, "embedded3", "lib", "libssl.dll.a"),
+           File.join(dll_folder, "libssl-3-x64.lib")
+      copy File.join(install_dir, "embedded3", "lib", "libcrypto.dll.a"),
+           File.join(dll_folder, "libcrypto-3-x64.lib")
+
+      command "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography cryptography==43.0.1",
+              env: {
+                "OPENSSL_LIB_DIR" => dll_folder,
+                "OPENSSL_INCLUDE_DIR" => File.join(install_dir, "embedded3", "include"),
+                "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
+              }
+      # Python extensions on windows require this to find their DLL dependencies,
+      # we abuse the `.pth` loading system to inject it
+      block "Inject dll path for Python extensions" do
+        File.open(File.join(install_dir, "embedded3", "lib", "site-packages", "add-dll-directory.pth"), "w") do |f|
+          f.puts 'import os; os.add_dll_directory(os.path.abspath(os.path.join(__file__, "..", "..", "DLLS")))'
+        end
+      end
+    end
+  end
+
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
   # Used by the `datadog-agent integration` command to prevent downgrading a check to a version
   # older than the one shipped in the agent
