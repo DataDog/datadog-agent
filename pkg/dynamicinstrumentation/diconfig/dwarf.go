@@ -15,6 +15,7 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 
@@ -32,8 +33,7 @@ type seenTypeCounter struct {
 }
 
 func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
-	entryReader := dwarfData.Reader()
-	typeReader := dwarfData.Reader()
+	reader := dwarfData.Reader()
 	readingAFunction := false
 	var funcName string
 
@@ -42,18 +42,19 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 	}
 
 	var (
-		name       string
-		isReturn   bool
-		typeFields *ditypes.Parameter
-		entry      *dwarf.Entry
-		err        error
+		name     string
+		isReturn bool
+		entry    *dwarf.Entry
+		err      error
 	)
+
+	offsets := []dwarf.Offset{}
 	seenTypes := make(map[string]*seenTypeCounter)
 
 entryLoop:
 	for {
 
-		entry, err = entryReader.Next()
+		entry, err = reader.Next()
 		if err == io.EOF || entry == nil {
 			break
 		}
@@ -64,10 +65,13 @@ entryLoop:
 		}
 
 		if entry.Tag == dwarf.TagCompileUnit {
-			name, ok := entry.Val(dwarf.AttrName).(string)
+			_, ok := entry.Val(dwarf.AttrName).(string)
 			if !ok {
 				continue entryLoop
 			}
+
+			// Clone the string to allow for garbage collection.
+			name = strings.Clone(entry.Val(dwarf.AttrName).(string))
 			ranges, err := dwarfData.Ranges(entry)
 			if err != nil {
 				log.Infof("couldnt retrieve ranges for compile unit %s: %s", name, err)
@@ -81,7 +85,13 @@ entryLoop:
 			}
 			var files []*dwarf.LineFile
 			if cuLineReader != nil {
-				files = cuLineReader.Files()
+				for _, file := range cuLineReader.Files() {
+					files = append(files, &dwarf.LineFile{
+						Name:   strings.Clone(file.Name),
+						Mtime:  file.Mtime,
+						Length: file.Length,
+					})
+				}
 			}
 
 			for i := range ranges {
@@ -162,20 +172,18 @@ entryLoop:
 
 			// Collect information about the type of this ditypes.Parameter
 			if entry.Field[i].Attr == dwarf.AttrType {
-
-				typeReader.Seek(entry.Field[i].Val.(dwarf.Offset))
-				typeEntry, err := typeReader.Next()
-				if err != nil {
-					return nil, err
-				}
-
-				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
-				if err != nil {
-					return nil, fmt.Errorf("error while parsing debug information: %w", err)
-				}
-				clear(seenTypes)
+				offsets = append(offsets, entry.Field[i].Val.(dwarf.Offset))
 			}
 		}
+	}
+
+	// Expand the type data for each offset we collected during the entry iteration.
+	for _, offset := range offsets {
+		typeFields, err := expandTypeData(reader, offset, dwarfData, seenTypes)
+		if err != nil {
+			return nil, fmt.Errorf("error while parsing debug information: %w", err)
+		}
+		clear(seenTypes)
 
 		if typeFields != nil && !isReturn /* we ignore return values for now */ {
 			// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
@@ -196,11 +204,9 @@ entryLoop:
 	return &result, nil
 }
 
-func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) (*ditypes.Parameter, error) {
-	typeReader := dwarfData.Reader()
-
-	typeReader.Seek(offset)
-	typeEntry, err := typeReader.Next()
+func expandTypeData(reader *dwarf.Reader, offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) (*ditypes.Parameter, error) {
+	reader.Seek(offset)
+	typeEntry, err := reader.Next()
 	if err != nil || typeEntry == nil {
 		return nil, fmt.Errorf("could not get type entry: %w", err)
 	}
@@ -210,7 +216,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 	}
 
 	if typeEntry.Tag == dwarf.TagTypedef {
-		typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader)
+		typeEntry, err = resolveTypedefToRealType(typeEntry, reader)
 		if err != nil {
 			return nil, err
 		}
@@ -296,7 +302,7 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seen
 			return nil, err
 		}
 
-		elementFields, err = expandTypeData(arrayElementTypeEntry.Offset, dwarfData, seenTypes)
+		elementFields, err = expandTypeData(typeReader, arrayElementTypeEntry.Offset, dwarfData, seenTypes)
 		if err != nil {
 			return nil, err
 		}
@@ -395,7 +401,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[s
 
 				newStructField.Type, newStructField.TotalSize, newStructField.Kind = getTypeEntryBasicInfo(typeEntry)
 				if typeEntry.Tag != dwarf.TagBaseType {
-					field, err := expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
+					field, err := expandTypeData(typeReader, typeEntry.Offset, dwarfData, seenTypes)
 					if err != nil || field == nil {
 						return []*ditypes.Parameter{}, err
 					}
@@ -429,7 +435,7 @@ func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[
 				return nil, err
 			}
 
-			underlyingType, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
+			underlyingType, err = expandTypeData(typeReader, typeEntry.Offset, dwarfData, seenTypes)
 			if err != nil {
 				return nil, err
 			}
