@@ -13,8 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 )
 
 type agentK8sexecutor struct {
@@ -27,7 +25,7 @@ var _ agentCommandExecutor = &agentK8sexecutor{}
 const agentNamespace = "datadog"
 const podSelectorField = "app"
 
-func newAgentK8sExecutor(ctx common.Context, k8sAgentPod *kubernetes.KubernetesObjRefOutput, clusterClient *KubernetesClient) *agentK8sexecutor {
+func newAgentK8sExecutor(k8sAgentPod *kubernetes.KubernetesObjRefOutput, clusterClient *KubernetesClient) *agentK8sexecutor {
 	// Find the pod in the cluster
 	pods, err := clusterClient.K8sClient.CoreV1().Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector(podSelectorField, k8sAgentPod.LabelSelectors[podSelectorField]).String(),
