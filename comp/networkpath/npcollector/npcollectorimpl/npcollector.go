@@ -196,7 +196,6 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		return false
 	}
 	if doSubnetsContainIP(vpcSubnets, remoteIP) {
-		println("bruh", translatedDest)
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
 		return false
 	}
