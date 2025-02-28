@@ -6,7 +6,7 @@
 // Package gatewayusage provides the gateway usage component type.
 package gatewayusage
 
-// team: @DataDog/opentelemetry-agent
+// team: opentelemetry-agent
 
 // Component is the component type.
 type Component interface {
