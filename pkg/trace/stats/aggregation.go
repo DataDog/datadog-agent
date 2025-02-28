@@ -137,9 +137,9 @@ var grpcStatusMap = map[string]string{
 	"CANCELLED":          "1", // The gRPC codes Google API checks for "CANCELLED"
 	"CANCELED":           "1", // Sometimes we receive "Canceled" from upstream, sometimes "CANCELLED"
 	"INVALIDARGUMENT":    "3", // For these multi-word codes, sometimes from upstream we receive them as one word
-	"DEADLINEEXCEEDED":   "4", // Ex: DeadlineExceeded
+	"DEADLINEEXCEEDED":   "4",   // Ex: DeadlineExceeded
 	"NOTFOUND":           "5", // Whereas Google's API checks for strings with an underscore and in all caps
-	"ALREADYEXISTS":      "6", // Ex: Google's API would only recognize "ALREADY_EXISTS"
+	"ALREADYEXISTS":      "6",   // Ex: Google's API would only recognize "ALREADY_EXISTS"
 	"PERMISSIONDENIED":   "7",
 	"RESOURCEEXHAUSTED":  "8",
 	"FAILEDPRECONDITION": "9",
@@ -157,10 +157,10 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 			if err == nil {
 				return strconv.FormatUint(c, 10)
 			}
-			strC = strings.TrimPrefix(strC, "StatusCode.")
+			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
 			strCUpper := strings.ToUpper(strC)
-			if multiWordOrCanceled, exists := grpcStatusMap[strCUpper]; exists {
-				return multiWordOrCanceled
+			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+				return statusCode
 			}
 
 			// If not integer or canceled or multi-word, check for valid gRPC status string
