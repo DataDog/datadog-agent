@@ -126,7 +126,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	if err = agentConfigOwnership.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}
-	if err = file.EnsureSymlink(agentSymlink, "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent"); err != nil {
+	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 	// 4. Install the agent systemd units

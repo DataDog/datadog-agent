@@ -67,7 +67,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("error ensuring agent directories: %w", err)
 	}
-	if err = file.EnsureSymlink(installerSymlink, "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"); err != nil {
+	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", installerSymlink); err != nil {
 		return fmt.Errorf("error creating symlink /usr/bin/datadog-installer: %w", err)
 	}
 
