@@ -14,8 +14,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
-
-	"github.com/bmatcuk/doublestar/v4"
 )
 
 // Directory represents a desired state for a directory.
@@ -60,58 +58,48 @@ func (ds Directories) Ensure() error {
 	return nil
 }
 
-func getUserAndGroup(username string, group string) (uid, gid int, err error) {
-	ddAgentUser, err := user.Lookup(username)
-	if err != nil {
-		return -1, -1, fmt.Errorf("dd-agent user not found: %w", err)
-	}
-	ddAgentGroup, err := user.LookupGroup(group)
-	if err != nil {
-		return -1, -1, fmt.Errorf("dd-agent group not found: %w", err)
-	}
-	ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
-	if err != nil {
-		return -1, -1, fmt.Errorf("error converting dd-agent UID to int: %w", err)
-	}
-	ddAgentGID, err := strconv.Atoi(ddAgentGroup.Gid)
-	if err != nil {
-		return -1, -1, fmt.Errorf("error converting dd-agent GID to int: %w", err)
-	}
-	return ddAgentUID, ddAgentGID, nil
+// Permission represents the desired ownership and mode of a file.
+type Permission struct {
+	Path      string
+	Owner     string
+	Group     string
+	Mode      os.FileMode
+	Recursive bool
 }
 
-// Ownership represents the desired ownership of a file.
-type Ownership struct {
-	Pattern string
-	Owner   string
-	Group   string
-}
+// Permissions is a collection of Permission.
+type Permissions []Permission
 
-// Ownerships is a collection of ownerships.
-type Ownerships []Ownership
-
-// Ensure ensures that the file ownership is set to the desired state.
-func (o Ownership) Ensure(rootPath string) error {
-	uid, gid, err := getUserAndGroup(o.Owner, o.Group)
-	if err != nil {
-		return fmt.Errorf("error getting user and group IDs: %w", err)
-	}
-	matches, err := doublestar.Glob(os.DirFS(rootPath), o.Pattern, doublestar.WithFailOnIOErrors())
-	if err != nil {
-		return fmt.Errorf("error globbing pattern: %w", err)
-	}
-	for _, match := range matches {
-		err = os.Chown(filepath.Join(rootPath, match), uid, gid)
+// Ensure ensures that the file ownership and mode are set to the desired state.
+func (p Permission) Ensure(rootPath string) error {
+	rootFile := filepath.Join(rootPath, p.Path)
+	files := []string{rootFile}
+	var err error
+	if p.Recursive {
+		files, err = filesInDir(rootFile)
 		if err != nil {
-			return fmt.Errorf("error changing file ownership: %w", err)
+			return fmt.Errorf("error getting files in directory: %w", err)
+		}
+	}
+	for _, file := range files {
+		if p.Owner != "" && p.Group != "" {
+			if err := chown(file, p.Owner, p.Group); err != nil {
+				return err
+			}
+		}
+		if p.Mode != 0 {
+			err := os.Chmod(file, p.Mode)
+			if err != nil {
+				return fmt.Errorf("error changing file mode: %w", err)
+			}
 		}
 	}
 	return nil
 }
 
-// Ensure ensures that the file ownerships are set to the desired state.
-func (os Ownerships) Ensure(rootPath string) error {
-	for _, o := range os {
+// Ensure ensures that the file ownership and mode are set to the desired state.
+func (ps Permissions) Ensure(rootPath string) error {
+	for _, o := range ps {
 		if err := o.Ensure(rootPath); err != nil {
 			return err
 		}
@@ -128,4 +116,51 @@ func EnsureSymlink(source, target string) error {
 		return fmt.Errorf("error creating symlink: %w", err)
 	}
 	return nil
+}
+
+func getUserAndGroup(username, group string) (uid, gid int, err error) {
+	rawUID, err := user.Lookup(username)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error looking up user: %w", err)
+	}
+	rawGID, err := user.LookupGroup(group)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error looking up group: %w", err)
+	}
+	uid, err = strconv.Atoi(rawUID.Uid)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error converting UID to int: %w", err)
+	}
+	gid, err = strconv.Atoi(rawGID.Gid)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error converting GID to int: %w", err)
+	}
+	return uid, gid, nil
+}
+
+func chown(path string, username string, group string) (err error) {
+	uid, gid, err := getUserAndGroup(username, group)
+	if err != nil {
+		return fmt.Errorf("error getting user and group IDs: %w", err)
+	}
+	err = os.Chown(path, uid, gid)
+	if err != nil {
+		return fmt.Errorf("error changing file ownership: %w", err)
+	}
+	return nil
+}
+
+func filesInDir(dir string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(dir, func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("error walking path: %w", err)
+		}
+		files = append(files, filepath.Join(dir, path))
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
 }

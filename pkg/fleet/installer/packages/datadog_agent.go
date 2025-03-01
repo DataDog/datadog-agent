@@ -61,24 +61,22 @@ var (
 		{Path: "/var/log/datadog", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 	}
 
-	// agentConfigOwnership are the ownerships that are enforced on the agent configuration files
-	agentConfigOwnership = file.Ownerships{
-		{Pattern: "**/*", Owner: "dd-agent", Group: "dd-agent"},
-		{Pattern: "system-probe.yaml", Owner: "root", Group: "root"},
-		{Pattern: "security-agent.yaml", Owner: "root", Group: "root"},
-		{Pattern: "inject", Owner: "root", Group: "root"},
-		{Pattern: "inject/tracer.yaml", Owner: "root", Group: "root"},
-		{Pattern: "managed/**/*", Owner: "root", Group: "root"},
+	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
+	agentConfigPermissions = file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		{Path: "compliance.d", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		{Path: "runtime-security.d", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		{Path: "system-probe.yaml", Mode: 0440},
+		{Path: "security-agent.yaml", Mode: 0440},
 	}
 
-	// agentPackageOwnership are the ownerships that are enforced on the agent package files
-	agentPackageOwnership = file.Ownerships{
-		{Pattern: ".", Owner: "dd-agent", Group: "dd-agent"},
-		{Pattern: "**/*", Owner: "dd-agent", Group: "dd-agent"},
-		{Pattern: "embedded/bin/system-probe", Owner: "root", Group: "root"},
-		{Pattern: "embedded/bin/security-agent", Owner: "root", Group: "root"},
-		{Pattern: "embedded/share/system-probe/ebpf/**/*", Owner: "root", Group: "root"},
-		{Pattern: "embedded/share/system-probe/java/**/*", Owner: "root", Group: "root"},
+	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
+	agentPackagePermissions = file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
+		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
+		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
+		{Path: "embedded/share/system-probe/java", Owner: "root", Group: "root", Recursive: true},
 	}
 )
 
@@ -121,10 +119,10 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
-	if err = agentPackageOwnership.Ensure("/opt/datadog-packages/datadog-agent/stable"); err != nil {
+	if err = agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/stable"); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
 	}
-	if err = agentConfigOwnership.Ensure("/etc/datadog-agent"); err != nil {
+	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}
 	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink); err != nil {
@@ -210,7 +208,7 @@ func RemoveAgent(ctx context.Context) error {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	if err := agentPackageOwnership.Ensure("/opt/datadog-packages/datadog-agent/experiment"); err != nil {
+	if err := agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/experiment"); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
 	}
 	return systemd.StartUnit(ctx, agentExp, "--no-block")
