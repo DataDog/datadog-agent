@@ -107,3 +107,10 @@ const (
 	// ExecParseArgsEnvsKey is the key to the program that parses arguments and then environment variables
 	ExecParseArgsEnvsKey
 )
+
+const (
+	// FlushNetworkStatsExitKey is the key to the program that flushes network stats before resuming the normal exit event processing
+	FlushNetworkStatsExitKey uint32 = iota
+	// FlushNetworkStatsExecKey is the key to the program that flushes network stats before resuming the normal exec event processing
+	FlushNetworkStatsExecKey
+)

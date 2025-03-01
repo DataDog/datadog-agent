@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -45,6 +46,8 @@ func TestDiscoveryDocker(t *testing.T) {
 
 func (s *dockerDiscoveryTestSuite) TestServiceDiscoveryContainerID() {
 	t := s.T()
+
+	flake.Mark(t)
 
 	client := s.Env().FakeIntake.Client()
 	err := client.FlushServerAndResetAggregators()

@@ -10,4 +10,3 @@ invoke_unit_tests:
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
     - inv -e invoke-unit-tests.run
-

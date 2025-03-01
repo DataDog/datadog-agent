@@ -228,15 +228,20 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	}
 }
 
-// GetStats returns a map of Postgres stats.
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+// GetStats returns a map of Postgres stats and a callback to clean resources.
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.kernelTelemetry.Log()
 
+	stats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Postgres,
-		Stats: p.statskeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.Postgres,
+			Stats: stats,
+		}, func() {
+			for _, stat := range stats {
+				stat.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as postgres module is supported by all modes.
@@ -259,7 +264,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %s map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, 1024, InFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, protocols.DefaultMapCleanerBatchSize, InFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return

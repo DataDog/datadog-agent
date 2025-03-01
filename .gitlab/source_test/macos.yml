@@ -5,6 +5,8 @@ include:
 .tests_macos_gitlab:
   stage: source_test
   extends: .macos_gitlab
+  rules:
+    - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
   variables:
     TEST_OUTPUT_FILE: test_output.json

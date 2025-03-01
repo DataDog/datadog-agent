@@ -159,11 +159,15 @@ def get_omnibus_env(
     env_to_forward = [
         # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
         'DEPLOY_AGENT',
+        # Forward the BUCKET_BRANCH variable to differentiate a nightly pipeline from a release pipeline
+        'BUCKET_BRANCH',
         'PACKAGE_ARCH',
         'INSTALL_DIR',
         'DD_CC',
         'DD_CXX',
         'DD_CMAKE_TOOLCHAIN',
+        'OMNIBUS_FORCE_PACKAGES',
+        'OMNIBUS_PACKAGE_ARTIFACT_DIR',
     ]
     for key in env_to_forward:
         if key in os.environ:

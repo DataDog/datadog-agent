@@ -7,6 +7,7 @@ proxy:
     - https://my2.endpoint.eu
 use_dogstatsd: yes
 skip_ssl_validation: yes
+min_tls_version: "tlsv1.3"
 dogstatsd_port: 18125
 dogstatsd_non_local_traffic: yes
 log_level: info
@@ -81,6 +82,9 @@ apm_config:
       remove_paths_with_digits: true
     remove_stack_traces: true
     redis:
+      enabled: true
+      remove_all_args: true
+    valkey:
       enabled: true
       remove_all_args: true
     memcached:

@@ -24,7 +24,7 @@ type Module struct {
 }
 
 // NewModule creates a new dynamic instrumentation system probe module
-func NewModule(config *Config) (*Module, error) { //nolint:revive // TODO
+func NewModule(_ *Config) (*Module, error) {
 	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
 		RateLimitPerProbePerSecond: 1.0,
 		OfflineOptions: di.OfflineOptions{
@@ -66,7 +66,7 @@ func (m *Module) GetStats() map[string]interface{} {
 // Register creates a health check endpoint for the dynamic instrumentation module
 func (m *Module) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests,
-		func(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO
+		func(w http.ResponseWriter, _ *http.Request) {
 			stats := []string{}
 			utils.WriteAsJSON(w, stats)
 		}))

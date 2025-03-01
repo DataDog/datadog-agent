@@ -12,6 +12,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,9 +26,14 @@ type statsGenerator struct {
 	currGenerationKTime int64                          // currGenerationTime is the kernel time of the current stats generation.
 	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
 	sysCtx              *systemContext                 // sysCtx is the system context with global GPU-system data
+	telemetry           *statsGeneratorTelemetry       // telemetry contains the telemetry component for the stats generator
 }
 
-func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*StreamHandler) *statsGenerator {
+type statsGeneratorTelemetry struct {
+	aggregators telemetry.Gauge
+}
+
+func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*StreamHandler, tm telemetry.Component) *statsGenerator {
 	currKTime, _ := ddebpf.NowNanoseconds()
 	return &statsGenerator{
 		streamHandlers:      streamHandlers,
@@ -35,6 +41,14 @@ func newStatsGenerator(sysCtx *systemContext, streamHandlers map[streamKey]*Stre
 		lastGenerationKTime: currKTime,
 		currGenerationKTime: currKTime,
 		sysCtx:              sysCtx,
+		telemetry:           newStatsGeneratorTelemetry(tm),
+	}
+}
+
+func newStatsGeneratorTelemetry(tm telemetry.Component) *statsGeneratorTelemetry {
+	subsystem := gpuTelemetryModule + "__stats_generator"
+	return &statsGeneratorTelemetry{
+		aggregators: tm.NewGauge(subsystem, "aggregators", nil, "Number of active GPU stats aggregators"),
 	}
 }
 
@@ -81,6 +95,8 @@ func (g *statsGenerator) getStats(nowKtime int64) *model.GPUStats {
 		stats.Metrics = append(stats.Metrics, entry)
 	}
 
+	g.telemetry.aggregators.Set(float64(len(g.aggregators)))
+
 	g.lastGenerationKTime = g.currGenerationKTime
 
 	return stats
@@ -104,7 +120,12 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) (*aggregator, err
 			return nil, fmt.Errorf("Error getting number of GPU cores: %s", nvml.ErrorString(ret))
 		}
 
-		g.aggregators[aggKey] = newAggregator(uint64(maxThreads))
+		memUsage, ret := gpuDevice.GetMemoryInfo()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("Error getting memory info: %s", nvml.ErrorString(ret))
+		}
+
+		g.aggregators[aggKey] = newAggregator(uint64(maxThreads), memUsage.Total)
 	}
 
 	// Update the last check time and the measured interval, as these change between check runs
@@ -132,4 +153,6 @@ func (g *statsGenerator) cleanupFinishedAggregators() {
 			delete(g.aggregators, pid)
 		}
 	}
+
+	g.telemetry.aggregators.Set(float64(len(g.aggregators)))
 }

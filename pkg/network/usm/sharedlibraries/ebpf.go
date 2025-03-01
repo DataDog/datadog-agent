@@ -208,12 +208,11 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 
 	e.initializeProbes()
 	for _, identifier := range e.enabledProbes {
-		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{
-				ProbeIdentificationPair: identifier,
-				KProbeMaxActive:         maxActive,
-			},
-		)
+		probe := &manager.Probe{
+			ProbeIdentificationPair: identifier,
+			KProbeMaxActive:         maxActive,
+		}
+		mgr.Probes = append(mgr.Probes, probe)
 	}
 
 	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", &ebpftelemetry.ErrorsTelemetryModifier{})
@@ -313,6 +312,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		return fmt.Errorf("cannot start manager: %w", err)
 	}
 
+	ddebpf.AddNameMappings(e.Manager.Manager, "shared-libraries")
 	e.isInitialized = true
 	return nil
 }
@@ -587,6 +587,12 @@ func fexitSupported(funcName string) bool {
 		return false
 	}
 	defer l.Close()
+
+	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	if hasPotentialFentryDeadlock || (err != nil) {
+		// incase of error, let's be safe and assume the bug is present
+		return false
+	}
 
 	return true
 }

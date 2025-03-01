@@ -36,6 +36,11 @@ func TestMMapEvent(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("mmap", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, unix.MAP_SHARED|unix.MAP_ANON)
@@ -54,10 +59,6 @@ func TestMMapEvent(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMMapSchema(t, event)
@@ -81,6 +82,11 @@ func TestMMapApproverZero(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	test.WaitSignal(t, func() error {
 		data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_NONE, unix.MAP_SHARED|unix.MAP_ANON)
 		if err != nil {
@@ -98,10 +104,6 @@ func TestMMapApproverZero(t *testing.T) {
 		value, _ := event.GetFieldValue("event.async")
 		assert.Equal(t, value.(bool), false)
 
-		executable, err := os.Executable()
-		if err != nil {
-			t.Fatal(err)
-		}
 		assertFieldEqual(t, event, "process.file.path", executable)
 
 		test.validateMMapSchema(t, event)

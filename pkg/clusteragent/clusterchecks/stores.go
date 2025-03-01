@@ -40,6 +40,10 @@ func newClusterStore() *clusterStore {
 
 // reset empties the store and resets all states
 func (s *clusterStore) reset() {
+	for _, node := range s.nodes {
+		dispatchedConfigs.Delete(node.name, le.JoinLeaderValue)
+	}
+
 	s.active = false
 	s.digestToConfig = make(map[string]integration.Config)
 	s.digestToNode = make(map[string]string)

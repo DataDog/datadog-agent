@@ -41,7 +41,7 @@ from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
-from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
+from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
@@ -205,7 +205,9 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool, extra_flakes_config: str | None = None
+) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path
@@ -225,7 +227,10 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         if not test_washer:
             print("Test washer is always enabled in the CI, enforcing it")
 
-        tw = TestWasher()
+        flakes_configs = ["flakes.yaml"]
+        if extra_flakes_config is not None:
+            flakes_configs.append(extra_flakes_config)
+        tw = TestWasher(flakes_file_paths=flakes_configs)
         print(
             "Processing test results for known flakes. Learn more about flake marker and test washer at https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark"
         )
@@ -808,7 +813,7 @@ def get_go_module(path):
     while path != '/':
         go_mod_path = os.path.join(path, 'go.mod')
         if os.path.isfile(go_mod_path):
-            return os.path.relpath(path)
+            return normpath(os.path.relpath(path))
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
 
@@ -882,7 +887,7 @@ def check_otel_build(ctx):
 
 
 @task
-def check_otel_module_versions(ctx):
+def check_otel_module_versions(ctx, fix=False):
     pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
     matches = re.findall(pattern, r.text, flags=re.MULTILINE)
@@ -899,4 +904,14 @@ def check_otel_module_versions(ctx):
                 if len(matches) != 1:
                     raise Exit(f"{mod_file} does not match expected go directive format")
                 if matches[0] != upstream_version:
-                    raise Exit(f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}")
+                    if fix:
+                        update_file(
+                            True,
+                            mod_file,
+                            f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$",
+                            f"go {upstream_version}",
+                        )
+                    else:
+                        raise Exit(
+                            f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}"
+                        )

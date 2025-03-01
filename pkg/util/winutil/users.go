@@ -56,7 +56,7 @@ func IsUserAnAdmin() (bool, error) {
 		0, 0, 0, 0, 0, 0,
 		&administratorsGroup)
 	if err != nil {
-		return false, fmt.Errorf("could not get local system SID: %s", err)
+		return false, fmt.Errorf("could not get local system SID: %w", err)
 	}
 	defer windows.FreeSid(administratorsGroup)
 
@@ -64,7 +64,7 @@ func IsUserAnAdmin() (bool, error) {
 	var isAdmin bool
 	err = CheckTokenMembership(0, administratorsGroup, &isAdmin)
 	if err != nil {
-		return false, fmt.Errorf("could not check token membership: %s", err)
+		return false, fmt.Errorf("could not check token membership: %w", err)
 	}
 
 	return isAdmin, nil

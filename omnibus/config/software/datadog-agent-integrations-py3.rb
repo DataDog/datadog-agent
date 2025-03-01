@@ -56,6 +56,11 @@ agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
 
+site_packages_path = "#{install_dir}/embedded/lib/python#{python_version}/site-packages"
+if windows_target?
+  site_packages_path = "#{python_3_embedded}/Lib/site-packages"
+end
+
 build do
   # The dir for confs
   if osx_target?
@@ -172,6 +177,27 @@ build do
     end
 
     checks_to_install.each do |check|
+      # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
+      # whether or not this might switch back in the future is not guaranteed, so we check for both name
+      # with dashes and underscores
+      if !(installed_list.include?(check) || installed_list.include?(check.gsub('_', '-')))
+        if windows_target?
+          shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+        else
+          shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        end
+        shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+        if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
+          shellout! "inv -e agent.upload-integration-to-cache " \
+                    "--python 3 --bucket #{cache_bucket} " \
+                    "--branch #{cache_branch} " \
+                    "--integrations-dir #{windows_safe_path(project_dir)} " \
+                    "--build-dir #{wheel_build_dir} " \
+                    "--integration #{check}",
+                    :cwd => tasks_dir_in
+        end
+      end
+
       check_dir = File.join(project_dir, check)
       check_conf_dir = "#{conf_dir}/#{check}.d"
 
@@ -179,12 +205,15 @@ build do
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
       conf_files = ["conf.yaml.example", "conf.yaml.default", "metrics.yaml", "auto_conf.yaml"]
       conf_files.each do |filename|
-        src = windows_safe_path(check_dir,"datadog_checks", check, "data", filename)
+        src = windows_safe_path(check_dir, "datadog_checks", check, "data", filename)
         dest = check_conf_dir
         if File.exist?(src) and !File.exist?(windows_safe_path(dest, filename))
           FileUtils.mkdir_p(dest)
           FileUtils.cp_r(src, dest)
         end
+
+        # Drop the example files from the installed packages since they are copied in /etc/datadog-agent/conf.d and not used here
+        delete "#{site_packages_path}/datadog_checks/#{check}/data/#{filename}"
       end
 
       # Copy SNMP profiles
@@ -195,29 +224,6 @@ build do
           FileUtils.cp_r folder_path, "#{check_conf_dir}/"
         end
       end
-
-      # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
-      # whether or not this might switch back in the future is not guaranteed, so we check for both name
-      # with dashes and underscores
-      if installed_list.include?(check) || installed_list.include?(check.gsub('_', '-'))
-        next
-      end
-
-      if windows_target?
-        shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
-      else
-        shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => "#{project_dir}/#{check}"
-      end
-      shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
-      if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
-        shellout! "inv -e agent.upload-integration-to-cache " \
-                  "--python 3 --bucket #{cache_bucket} " \
-                  "--branch #{cache_branch} " \
-                  "--integrations-dir #{windows_safe_path(project_dir)} " \
-                  "--build-dir #{wheel_build_dir} " \
-                  "--integration #{check}",
-                  :cwd => tasks_dir_in
-      end
     end
   end
 
@@ -225,10 +231,66 @@ build do
   command "#{python} -m pip check"
 
   # Removing tests that don't need to be shipped in the embedded folder
-  if windows_target?
-    delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
-  else
-    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/Cryptodome/SelfTest/"
+  test_folders = [
+    '../idlelib/idle_test',
+    'bs4/tests',
+    'Cryptodome/SelfTest',
+    'gssapi/tests',
+    'keystoneauth1/tests',
+    'openstack/tests',
+    'os_service_types/tests',
+    'pbr/tests',
+    'pkg_resources/tests',
+    'psutil/tests',
+    'securesystemslib/_vendor/ed25519/test_data',
+    'setuptools/_distutils/tests',
+    'setuptools/tests',
+    'simplejson/tests',
+    'stevedore/tests',
+    'supervisor/tests',
+    'test', # cm-client
+    'vertica_python/tests',
+    'websocket/tests',
+  ]
+  test_folders.each do |test_folder|
+    delete "#{site_packages_path}/#{test_folder}/"
+  end
+
+  unless windows_target?
+    block "Remove .exe files" do
+      # setuptools come from supervisor and ddtrace
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/setuptools/*.exe"))
+    end
+  end
+
+  # Remove openssl copies from cryptography, and patch as necessary.
+  # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder
+  # to control FIPS initialization; this has surfaced as problems with `cryptography` specifically, because
+  # it's the only dependency that links to openssl needed to enable FIPS on the subset of integrations
+  # that we target.
+  # This is intended as a temporary kludge while we make a decision on how to handle the multiplicity
+  # of openssl copies in a more general way while keeping risk low.
+  if fips_mode?
+    block "Patch cryptography's openssl linking" do
+      if linux_target?
+        # We delete the libraries shipped with the wheel and replace references to those names
+        # in the binary that references it using patchelf
+        cryptography_folder = "#{site_packages_path}/cryptography"
+        so_to_patch = "#{cryptography_folder}/hazmat/bindings/_rust.abi3.so"
+        libssl_match = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")[0]
+        libcrypto_match = Dir.glob("#{cryptography_folder}.libs/libcrypto-*.so.3")[0]
+        shellout! "patchelf --replace-needed #{File.basename(libssl_match)} libssl.so.3 #{so_to_patch}"
+        shellout! "patchelf --replace-needed #{File.basename(libcrypto_match)} libcrypto.so.3 #{so_to_patch}"
+        shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
+        FileUtils.rm([libssl_match, libcrypto_match])
+      end
+    end
+  end
+
+  block "Remove type annotations files" do
+    # These are files containing Python type annotations which aren't used at runtime
+    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/*.pyi"))
+    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/py.typed"))
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent

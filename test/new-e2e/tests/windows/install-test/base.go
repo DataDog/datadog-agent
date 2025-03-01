@@ -260,7 +260,8 @@ func isCI() bool {
 	return os.Getenv("CI") != ""
 }
 
-func run[Env any](t *testing.T, s e2e.Suite[Env]) {
+// Run sets some options and runs an install test.
+func Run[Env any](t *testing.T, s e2e.Suite[Env]) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()

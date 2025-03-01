@@ -33,6 +33,7 @@ type Packet struct {
 	Contents   []byte     // Contents, might contain several messages
 	Buffer     []byte     // Underlying buffer for data read
 	Origin     string     // Origin container if identified
+	ProcessID  uint32     // ProcessID that sent the packet
 	ListenerID string     // Listener ID
 	Source     SourceType // Type of listener that produced the packet
 }

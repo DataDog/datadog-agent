@@ -108,11 +108,13 @@ func (f *ComposeConstantFetcher) fillConstantCacheIfNeeded() {
 			seclog.Errorf("failed to run constant fetcher: %v", err)
 		}
 
-		for _, req := range f.requests {
-			if req.value == ErrorSentinel {
-				if newValue, present := res[req.id]; present {
-					req.value = newValue
-					req.fetcherName = fetcher.String()
+		if len(res) != 0 {
+			for _, req := range f.requests {
+				if req.value == ErrorSentinel {
+					if newValue, present := res[req.id]; present {
+						req.value = newValue
+						req.fetcherName = fetcher.String()
+					}
 				}
 			}
 		}

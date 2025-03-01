@@ -128,7 +128,7 @@ func NewTaggerClient(params tagger.Params, cfg config.Component, wmeta workloadm
 	if params.UseFakeTagger {
 		defaultTagger = taggermock.New().Comp
 	} else {
-		defaultTagger, err = newLocalTagger(cfg, wmeta, telemetryStore)
+		defaultTagger, err = newLocalTagger(cfg, wmeta, log, telemetryStore)
 	}
 
 	if err != nil {
@@ -521,12 +521,6 @@ func (t *TaggerWrapper) generateContainerIDFromExternalData(e origindetection.Ex
 // this can still be overridden when calling get_tags in python checks.
 func (t *TaggerWrapper) ChecksCardinality() types.TagCardinality {
 	return t.checksCardinality
-}
-
-// DogstatsdCardinality defines the cardinality of tags we should send for metrics from
-// dogstatsd.
-func (t *TaggerWrapper) DogstatsdCardinality() types.TagCardinality {
-	return t.dogstatsdCardinality
 }
 
 // taggerCardinality converts tagger cardinality string to types.TagCardinality

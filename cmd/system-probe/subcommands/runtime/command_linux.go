@@ -21,7 +21,7 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
-		Short: "runtime Agent utility commands",
+		Short: "Runtime Security Agent (CWS) utility commands",
 	}
 
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)

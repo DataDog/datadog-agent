@@ -118,6 +118,8 @@ type NetworkContextSerializer struct {
 	Destination IPPortSerializer `json:"destination"`
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
+	// network_direction indicates if the packet was captured on ingress or egress
+	NetworkDirection string `json:"network_direction"`
 }
 
 // AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
@@ -221,6 +223,42 @@ type RawPacketSerializer struct {
 	*NetworkContextSerializer
 
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
+}
+
+// NetworkStatsSerializer defines a new network stats serializer
+// easyjson:json
+type NetworkStatsSerializer struct {
+	// data_size is the total count of bytes sent or received
+	DataSize uint64 `json:"data_size,omitempty"`
+	// packet_count is the total count of packets sent or received
+	PacketCount uint64 `json:"packet_count,omitempty"`
+}
+
+// FlowSerializer defines a new flow serializer
+// easyjson:json
+type FlowSerializer struct {
+	// l3_protocol is the layer 3 protocol name
+	L3Protocol string `json:"l3_protocol"`
+	// l4_protocol is the layer 4 protocol name
+	L4Protocol string `json:"l4_protocol"`
+	// source is the emitter of the network event
+	Source IPPortSerializer `json:"source"`
+	// destination is the receiver of the network event
+	Destination IPPortSerializer `json:"destination"`
+
+	// ingress holds the network statistics for ingress traffic
+	Ingress *NetworkStatsSerializer `json:"ingress,omitempty"`
+	// egress holds the network statistics for egress traffic
+	Egress *NetworkStatsSerializer `json:"egress,omitempty"`
+}
+
+// NetworkFlowMonitorSerializer defines a network monitor event serializer
+// easyjson:json
+type NetworkFlowMonitorSerializer struct {
+	// device is the network device on which the event was captured
+	Device *NetworkDeviceSerializer `json:"device,omitempty"`
+	// flows is the list of flows with network statistics that were captured
+	Flows []*FlowSerializer `json:"flows,omitempty"`
 }
 
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {

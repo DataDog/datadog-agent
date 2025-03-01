@@ -175,6 +175,8 @@ func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
 		`embedded3\python.exe`,
 		`embedded3\pythonw.exe`,
 		fmt.Sprintf(`embedded3\python%s.dll`, py3),
+		`embedded3\DLLs\libcrypto-3-x64.dll`,
+		`embedded3\DLLs\libssl-3-x64.dll`,
 	}
 	if ExpectPython2Installed(majorVersion) {
 		py2 := shortPythonVersion(common.ExpectedPythonVersion2)

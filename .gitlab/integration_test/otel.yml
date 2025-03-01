@@ -67,6 +67,7 @@ datadog_otel_components_ocb_build:
       - ocb-output.log
       - otelcol-custom.log
       - flare-info.log
+    when: always
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
@@ -81,3 +82,4 @@ datadog_otel_components_ocb_build:
     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
       when: never
     - when: always
+  timeout: 15 minutes

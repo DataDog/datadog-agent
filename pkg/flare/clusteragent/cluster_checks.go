@@ -75,7 +75,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	if len(cr.Dangling) > 0 {
 		fmt.Fprintf(w, "=== %s configurations ===\n", color.RedString("Unassigned"))
 		for _, c := range cr.Dangling {
-			flare.PrintConfig(w, c, checkName)
+			flare.PrintClusterCheckConfig(w, c, checkName)
 		}
 		fmt.Fprintln(w, "")
 	}
@@ -102,7 +102,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		}
 		fmt.Fprintf(w, "\n===== Checks on %s =====\n", color.HiMagentaString(node.Name))
 		for _, c := range node.Configs {
-			flare.PrintConfig(w, c, checkName)
+			flare.PrintClusterCheckConfig(w, c, checkName)
 		}
 	}
 
@@ -147,7 +147,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	// Print summary of pod-backed endpointschecks
 	fmt.Fprintf(w, "\n===== %d Pod-backed Endpoints-Checks scheduled =====\n", len(cr.Configs))
 	for _, c := range cr.Configs {
-		flare.PrintConfig(w, c, checkName)
+		flare.PrintClusterCheckConfig(w, c, checkName)
 	}
 
 	return nil

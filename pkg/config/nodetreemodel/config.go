@@ -17,8 +17,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/viper"
 	"go.uber.org/atomic"
+
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -102,7 +103,7 @@ type ntmConfig struct {
 
 	// configEnvVars is the set of env vars that are consulted for
 	// any given configuration key. Multiple env vars can be associated with one key
-	configEnvVars map[string]string
+	configEnvVars map[string][]string
 
 	// known keys are all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
@@ -333,13 +334,19 @@ func (c *ntmConfig) SetKnown(key string) {
 		panic("cannot SetKnown() once the config has been marked as ready for use")
 	}
 
-	c.addToKnownKeys(key)
+	c.addToSchema(key, model.SourceSchema)
 }
 
-// IsKnown returns whether a key is known
+// IsKnown returns whether a key is in the set of "known keys", which is a legacy feature from Viper
 func (c *ntmConfig) IsKnown(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
+	return c.isKnownKey(key)
+}
+
+// isKnownKey returns whether the key is known.
+// Must be called with the lock read-locked.
+func (c *ntmConfig) isKnownKey(key string) bool {
 	key = strings.ToLower(key)
 	_, found := c.knownKeys[key]
 	return found
@@ -349,9 +356,8 @@ func (c *ntmConfig) IsKnown(key string) bool {
 // Only a single warning will be logged per unknown key.
 //
 // Must be called with the lock read-locked.
-// The lock can be released and re-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	if c.IsKnown(key) {
+	if c.isKnownKey(key) {
 		return
 	}
 
@@ -387,19 +393,25 @@ func (c *ntmConfig) mergeAllLayers() error {
 	}
 
 	c.root = root
+	// recompile allSettings now that we have the full config
+	c.allSettings = c.computeAllSettings(c.schema, "")
 	return nil
 }
 
-func computeAllSettings(node InnerNode, path string) []string {
+func (c *ntmConfig) computeAllSettings(node InnerNode, path string) []string {
 	knownKeys := []string{}
 	for _, name := range node.ChildrenKeys() {
 		newPath := joinKey(path, name)
 
 		child, _ := node.GetChild(name)
-		if _, ok := child.(LeafNode); ok {
-			knownKeys = append(knownKeys, newPath)
+		if leaf, ok := child.(LeafNode); ok {
+			if leaf.Source() != model.SourceSchema {
+				knownKeys = append(knownKeys, newPath)
+			} else if c.leafAtPathFromNode(newPath, c.root) != missingLeaf {
+				knownKeys = append(knownKeys, newPath)
+			}
 		} else if inner, ok := child.(InnerNode); ok {
-			knownKeys = append(knownKeys, computeAllSettings(inner, newPath)...)
+			knownKeys = append(knownKeys, c.computeAllSettings(inner, newPath)...)
 		} else {
 			log.Errorf("unknown node type in the tree: %T", child)
 		}
@@ -417,7 +429,7 @@ func (c *ntmConfig) BuildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err.Error())
 	}
-	c.allSettings = computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings(c.schema, "")
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -447,9 +459,11 @@ func (c *ntmConfig) buildEnvVars() {
 		envkey := pair[0]
 		envval := pair[1]
 
-		if configKey, found := c.configEnvVars[envkey]; found {
-			if err := c.insertNodeFromString(root, configKey, envval); err != nil {
-				envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+		if configKeyList, found := c.configEnvVars[envkey]; found {
+			for _, configKey := range configKeyList {
+				if err := c.insertNodeFromString(root, configKey, envval); err != nil {
+					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+				}
 			}
 		}
 	}
@@ -572,6 +586,14 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 }
 
 func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
+	node := c.nodeAtPathFromNode(key, curr)
+	if leaf, ok := node.(LeafNode); ok {
+		return leaf
+	}
+	return missingLeaf
+}
+
+func (c *ntmConfig) nodeAtPathFromNode(key string, curr Node) Node {
 	pathParts := splitKey(key)
 	for _, part := range pathParts {
 		next, err := curr.GetChild(part)
@@ -580,10 +602,7 @@ func (c *ntmConfig) leafAtPathFromNode(key string, curr Node) LeafNode {
 		}
 		curr = next
 	}
-	if leaf, ok := curr.(LeafNode); ok {
-		return leaf
-	}
-	return missingLeaf
+	return curr
 }
 
 // GetNode returns a Node for the given key
@@ -635,7 +654,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 		if c.envKeyReplacer != nil {
 			envvar = c.envKeyReplacer.Replace(envvar)
 		}
-		c.configEnvVars[envvar] = key
+		c.configEnvVars[envvar] = append(c.configEnvVars[envvar], key)
 	}
 
 	c.addToSchema(key, model.SourceEnvVar)
@@ -653,7 +672,7 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 
 // UnmarshalKey unmarshals the data for the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper.DecoderConfigOption) error {
+func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -851,7 +870,7 @@ func (c *ntmConfig) Object() model.Reader {
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
-		configEnvVars:      map[string]string{},
+		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
 		allSettings:        []string{},
 		unknownKeys:        map[string]struct{}{},

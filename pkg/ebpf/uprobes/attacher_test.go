@@ -8,6 +8,7 @@
 package uprobes
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -61,6 +62,45 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 
 	err = ua.AttachPIDWithOptions(1, false)
 	require.ErrorIs(t, err, ErrInternalDDogProcessRejected)
+}
+
+func TestAttachPidReadsSharedLibraries(t *testing.T) {
+	exe := "foobar"
+	pid := uint32(1)
+	libname := "/target/libssl.so"
+	maps := fmt.Sprintf("08048000-08049000 r-xp 00000000 03:00 8312       %s", libname)
+	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
+	config := AttacherConfig{
+		ProcRoot: procRoot,
+		Rules: []*AttachRule{
+			{LibraryNameRegex: regexp.MustCompile(`libssl\.so`), Targets: AttachToSharedLibraries},
+			{Targets: AttachToExecutable},
+		},
+		SharedLibsLibset:      sharedlibraries.LibsetCrypto,
+		EnableDetailedLogging: true,
+	}
+
+	registry := &MockFileRegistry{}
+	// Force a failure on the Register call for the executable, to simulate a
+	// binary that doesn't have our desired functions to attach
+	registry.On("Register", exe, pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("cannot attach"))
+
+	// Expect a call to Register for the library
+	registry.On("Register", libname, pid, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+	require.True(t, ua.handlesExecutables())
+	require.True(t, ua.handlesLibraries())
+	ua.fileRegistry = registry
+
+	err = ua.AttachPIDWithOptions(pid, true)
+	require.Error(t, err)
+
+	// We should get calls to Register both with the executable and the library
+	// name, even though the executable returns an error
+	registry.AssertExpectations(t)
 }
 
 func TestAttachPidExcludesSelf(t *testing.T) {

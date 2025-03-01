@@ -12,8 +12,4 @@ func Clear() {
 	globalRegistry.Lock()
 	globalRegistry.metrics = nil
 	globalRegistry.Unlock()
-
-	telemetryDelta.mux.Lock()
-	telemetryDelta.stateByClientID = make(map[string]*clientState)
-	telemetryDelta.mux.Unlock()
 }

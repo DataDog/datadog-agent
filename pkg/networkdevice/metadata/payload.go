@@ -94,10 +94,21 @@ const (
 	ScanStatusError ScanStatus = "error"
 )
 
+// ScanType type for the different possible scan types manual or rc_triggered
+type ScanType string
+
+const (
+	// ManualScan represents a manual scan
+	ManualScan ScanType = "manual"
+	// RCTriggeredScan represents a rc triggered scan
+	RCTriggeredScan ScanType = "rc_triggered"
+)
+
 // ScanStatusMetadata contains scan status metadata
 type ScanStatusMetadata struct {
 	DeviceID   string     `json:"device_id"`
 	ScanStatus ScanStatus `json:"scan_status"`
+	ScanType   ScanType   `json:"scan_type,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata

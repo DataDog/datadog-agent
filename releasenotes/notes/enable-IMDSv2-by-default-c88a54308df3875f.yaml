@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Change ``ec2_imdsv2_transition_payload_enabled`` from ``false`` to ``true``.
+    Enable IMDSv2 by default for all EC2 instance hosts if IMDSv2 usage was not explicitly enabled.
+    Hostname display may change to the instance ID if it wasn't already set to the instance ID. Nonetheless, it should not affect the Agent behavior.
+

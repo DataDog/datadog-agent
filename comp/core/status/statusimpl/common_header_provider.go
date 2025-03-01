@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -74,6 +75,7 @@ func (h *headerProvider) data() map[string]interface{} {
 	data := maps.Clone(h.constdata)
 	data["time_nano"] = nowFunc().UnixNano()
 	data["config"] = populateConfig(h.config)
+	data["fips_status"] = populateFIPSStatus(h.config)
 	return data
 }
 
@@ -112,4 +114,12 @@ func populateConfig(config config.Component) map[string]string {
 	conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
 
 	return conf
+}
+
+func populateFIPSStatus(config config.Component) string {
+	fipsStatus := fips.Status()
+	if fipsStatus == "not available" && config.GetString("fips.enabled") == "true" {
+		return "proxy"
+	}
+	return fipsStatus
 }
