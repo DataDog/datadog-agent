@@ -8,27 +8,23 @@
 package postgres
 
 import (
-	"errors"
+	"github.com/DataDog/sketches-go/ddsketch"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // This file contains the structs used to store and combine the stats for the Postgres protocol.
 // The file does not have any build tag, so it can be used in any build as it is used by the tracer package.
 
-func (r *RequestStat) initSketch() error {
-	latencies := protocols.SketchesPool.Get()
-	if latencies == nil {
-		return errors.New("error recording postgres transaction latency: could not create new ddsketch")
-	}
-	r.Latencies = latencies
-	return nil
-}
+// relativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
+// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
+// will be between 99 and 101
+const relativeAccuracy = 0.01
 
-// Close cleans up the RequestStat
-func (r *RequestStat) Close() {
-	if r.Latencies != nil {
-		r.Latencies.Clear()
-		protocols.SketchesPool.Put(r.Latencies)
+func (r *RequestStat) initSketch() (err error) {
+	r.Latencies, err = ddsketch.NewDefaultDDSketch(relativeAccuracy)
+	if err != nil {
+		log.Debugf("error recording postgres transaction latency: could not create new ddsketch: %v", err)
 	}
+	return
 }

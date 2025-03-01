@@ -526,25 +526,17 @@ func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName s
 	}
 }
 
-func (e *ebpfProgram) getProtocolStats() (map[protocols.ProtocolType]interface{}, func()) {
+func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} {
 	ret := make(map[protocols.ProtocolType]interface{})
-	cleaners := make([]func(), 0)
 
 	for _, protocol := range e.enabledProtocols {
-		ps, cleaner := protocol.Instance.GetStats()
+		ps := protocol.Instance.GetStats()
 		if ps != nil {
 			ret[ps.Type] = ps.Stats
 		}
-		if cleaner != nil {
-			cleaners = append(cleaners, cleaner)
-		}
 	}
 
-	return ret, func() {
-		for _, c := range cleaners {
-			c()
-		}
-	}
+	return ret
 }
 
 // executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
