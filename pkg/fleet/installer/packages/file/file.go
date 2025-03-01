@@ -156,7 +156,7 @@ func filesInDir(dir string) ([]string, error) {
 		if err != nil {
 			return fmt.Errorf("error walking path: %w", err)
 		}
-		files = append(files, filepath.Join(dir, path))
+		files = append(files, path)
 		return nil
 	})
 	if err != nil {
