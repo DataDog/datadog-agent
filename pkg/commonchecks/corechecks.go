@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/noisyneighbor"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
@@ -80,6 +81,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
+	corecheckLoader.RegisterCheck(noisyneighbor.CheckName, noisyneighbor.Factory())
 	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry, store))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
