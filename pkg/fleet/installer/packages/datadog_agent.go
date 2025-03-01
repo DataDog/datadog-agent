@@ -73,6 +73,7 @@ var (
 
 	// agentPackageOwnership are the ownerships that are enforced on the agent package files
 	agentPackageOwnership = file.Ownerships{
+		{Pattern: ".", Owner: "dd-agent", Group: "dd-agent"},
 		{Pattern: "**/*", Owner: "dd-agent", Group: "dd-agent"},
 		{Pattern: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Pattern: "embedded/bin/security-agent", Owner: "root", Group: "root"},

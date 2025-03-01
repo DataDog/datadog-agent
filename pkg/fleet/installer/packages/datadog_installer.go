@@ -70,7 +70,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", installerSymlink); err != nil {
 		return fmt.Errorf("error creating symlink /usr/bin/datadog-installer: %w", err)
 	}
-
 	// 3. Install the installer systemd units
 	systemdRunning, err := systemd.IsRunning()
 	if err != nil {
