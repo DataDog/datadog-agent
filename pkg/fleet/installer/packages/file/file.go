@@ -9,6 +9,7 @@
 package file
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -72,6 +73,14 @@ type Permissions []Permission
 
 // Ensure ensures that the file ownership and mode are set to the desired state.
 func (p Permission) Ensure(rootPath string) error {
+	_, err := os.Stat(rootPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("error stating root path: %w", err)
+	}
+	// Resolve symlinks to ensure we're changing the permissions of the actual file and avoid issues with `filepath.Walk`.
 	rootFile, err := filepath.EvalSymlinks(filepath.Join(rootPath, p.Path))
 	if err != nil {
 		return fmt.Errorf("error resolving symlink: %w", err)
