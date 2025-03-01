@@ -10,6 +10,7 @@ package mount
 
 import (
 	"encoding/json"
+	"iter"
 	"path"
 	"slices"
 	"strings"
@@ -91,7 +92,7 @@ type Resolver struct {
 	cgroupsResolver *cgroup.Resolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
-	mounts          map[uint32]*model.Mount
+	mounts          *mountStorage
 	pidToMounts     map[uint32]map[uint32]*model.Mount
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
@@ -126,9 +127,9 @@ func (mr *Resolver) SyncCache(pid uint32) error {
 
 	// store the minimal mount ID found to use it as a reference
 	if pid == 1 {
-		for mountID := range mr.mounts {
-			if mr.minMountID == 0 || mr.minMountID > mountID {
-				mr.minMountID = mountID
+		for mount := range mr.mounts.allSeq() {
+			if mr.minMountID == 0 || mr.minMountID > mount.MountID {
+				mr.minMountID = mount.MountID
 			}
 		}
 	}
@@ -143,7 +144,7 @@ func (mr *Resolver) syncPid(pid uint32) error {
 	}
 
 	for _, mnt := range mnts {
-		if m, exists := mr.mounts[uint32(mnt.ID)]; exists {
+		if m, exists := mr.mounts.get(uint32(mnt.ID)); exists {
 			mr.updatePidMapping(m, pid)
 			continue
 		}
@@ -178,14 +179,14 @@ func (mr *Resolver) delete(mount *model.Mount) {
 
 	mr.deleteOne(mount, now)
 
-	openQueue := make([]uint32, 0, len(mr.mounts))
+	openQueue := make([]uint32, 0, mr.mounts.fastLen())
 	openQueue = append(openQueue, mount.MountID)
 
 	for len(openQueue) != 0 {
 		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
 		openQueue = rest
 
-		for _, child := range mr.mounts {
+		for child := range mr.mounts.allSeq() {
 			if child.ParentPathKey.MountID == curr {
 				openQueue = append(openQueue, child.MountID)
 				mr.deleteOne(child, now)
@@ -195,7 +196,7 @@ func (mr *Resolver) delete(mount *model.Mount) {
 }
 
 func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
-	delete(mr.mounts, curr.MountID)
+	mr.mounts.delete(curr.MountID)
 	for _, mounts := range mr.pidToMounts {
 		delete(mounts, curr.MountID)
 	}
@@ -208,7 +209,7 @@ func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
 }
 
 func (mr *Resolver) finalize(mount *model.Mount) {
-	delete(mr.mounts, mount.MountID)
+	mr.mounts.delete(mount.MountID)
 }
 
 // Delete a mount from the cache
@@ -216,7 +217,7 @@ func (mr *Resolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	if m, exists := mr.mounts[mountID]; exists {
+	if m, exists := mr.mounts.get(mountID); exists {
 		mr.delete(m)
 	} else {
 		return &ErrMountNotFound{MountID: mountID}
@@ -279,7 +280,7 @@ func (mr *Resolver) DelPid(pid uint32) {
 
 func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 	// umount the previous one if exists
-	if prev, ok := mr.mounts[m.MountID]; ok {
+	if prev, ok := mr.mounts.get(m.MountID); ok {
 		// put the prev entry and the all the children in the redemption list
 		mr.delete(prev)
 		// force a finalize on the entry itself as it will be overridden by the new one
@@ -299,7 +300,7 @@ func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 		mr.minMountID = m.MountID
 	}
 
-	mr.mounts[m.MountID] = m
+	mr.mounts.insert(m)
 
 	mr.updatePidMapping(m, pid)
 }
@@ -313,8 +314,7 @@ func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 }
 
 func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
-	mount := mr.mounts[mountID]
-	if mount != nil {
+	if mount, ok := mr.mounts.get(mountID); ok && mount != nil {
 		return mount
 	}
 
@@ -515,8 +515,7 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount = mr.mounts[mountID]
-	if mount != nil {
+	if mount, ok := mr.mounts.get(mountID); ok {
 		mr.procHitsStats.Inc()
 		return mount, model.MountSourceMountID, mount.Origin, nil
 	}
@@ -601,7 +600,7 @@ func (mr *Resolver) SendStats() error {
 		return err
 	}
 
-	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(len(mr.mounts)), []string{}, 1.0)
+	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(mr.mounts.slowLen()), []string{}, 1.0)
 }
 
 // ToJSON return a json version of the cache
@@ -613,7 +612,7 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	mr.lock.RLock()
 	defer mr.lock.RUnlock()
 
-	for _, mount := range mr.mounts {
+	for mount := range mr.mounts.allSeq() {
 		d, err := json.Marshal(mount)
 		if err == nil {
 			dump.Entries = append(dump.Entries, d)
@@ -623,6 +622,8 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	return json.Marshal(dump)
 }
 
+const mountStorageSplit = 2048
+
 // NewResolver instantiates a new mount resolver
 func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, opts ResolverOpts) (*Resolver, error) {
 	mr := &Resolver{
@@ -630,7 +631,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
-		mounts:          make(map[uint32]*model.Mount),
+		mounts:          newMountStorage(mountStorageSplit),
 		pidToMounts:     make(map[uint32]map[uint32]*model.Mount),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
@@ -654,4 +655,88 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	mr.fallbackLimiter = limiter
 
 	return mr, nil
+}
+
+type mountStorage struct {
+	split uint32
+	low   []*model.Mount
+	high  map[uint32]*model.Mount
+}
+
+func newMountStorage(split uint32) *mountStorage {
+	return &mountStorage{
+		split: split,
+		low:   make([]*model.Mount, split),
+		high:  make(map[uint32]*model.Mount, 0),
+	}
+}
+
+func newMountStorageFromMap(split uint32, mounts map[uint32]*model.Mount) *mountStorage {
+	ms := newMountStorage(split)
+	for id, m := range mounts {
+		if id != m.MountID {
+			panic("mountStorage: mount ID mismatch")
+		}
+
+		ms.insert(m)
+	}
+	return ms
+}
+
+func (ms *mountStorage) slowLen() int {
+	l := len(ms.high)
+	for _, m := range ms.low {
+		if m != nil {
+			l++
+		}
+	}
+	return l
+}
+
+func (ms *mountStorage) fastLen() int {
+	return int(ms.split) + len(ms.high)
+}
+
+func (ms *mountStorage) insert(m *model.Mount) {
+	if m.MountID < ms.split {
+		ms.low[m.MountID] = m
+	} else {
+		ms.high[m.MountID] = m
+	}
+}
+
+func (ms *mountStorage) get(mountID uint32) (*model.Mount, bool) {
+	if mountID < ms.split {
+		m := ms.low[mountID]
+		return m, m != nil
+	}
+
+	m, ok := ms.high[mountID]
+	return m, ok
+}
+
+func (ms *mountStorage) delete(mountID uint32) {
+	if mountID < ms.split {
+		ms.low[mountID] = nil
+	} else {
+		delete(ms.high, mountID)
+	}
+}
+
+func (ms *mountStorage) allSeq() iter.Seq[*model.Mount] {
+	return func(yield func(*model.Mount) bool) {
+		for _, m := range ms.low {
+			if m != nil {
+				if !yield(m) {
+					return
+				}
+			}
+		}
+
+		for _, m := range ms.high {
+			if !yield(m) {
+				return
+			}
+		}
+	}
 }

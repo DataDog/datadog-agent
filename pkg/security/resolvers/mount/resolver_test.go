@@ -476,7 +476,7 @@ func TestMountResolver(t *testing.T) {
 
 func TestMountGetParentPath(t *testing.T) {
 	mr := &Resolver{
-		mounts: map[uint32]*model.Mount{
+		mounts: newMountStorageFromMap(mountStorageSplit, map[uint32]*model.Mount{
 			1: {
 				MountID:       1,
 				MountPointStr: "/",
@@ -502,7 +502,7 @@ func TestMountGetParentPath(t *testing.T) {
 				},
 				MountPointStr: "/c",
 			},
-		},
+		}),
 	}
 
 	parentPath, _, _, err := mr.getMountPath(4, 44, 1)
@@ -512,7 +512,7 @@ func TestMountGetParentPath(t *testing.T) {
 
 func TestMountLoop(t *testing.T) {
 	mr := &Resolver{
-		mounts: map[uint32]*model.Mount{
+		mounts: newMountStorageFromMap(mountStorageSplit, map[uint32]*model.Mount{
 			1: {
 				MountID:       1,
 				MountPointStr: "/",
@@ -538,7 +538,7 @@ func TestMountLoop(t *testing.T) {
 				},
 				MountPointStr: "/c",
 			},
-		},
+		}),
 	}
 
 	parentPath, _, _, err := mr.getMountPath(3, 44, 1)
@@ -548,22 +548,22 @@ func TestMountLoop(t *testing.T) {
 
 func BenchmarkGetParentPath(b *testing.B) {
 	mr := &Resolver{
-		mounts: make(map[uint32]*model.Mount),
+		mounts: newMountStorage(mountStorageSplit),
 	}
 
-	mr.mounts[1] = &model.Mount{
+	mr.mounts.insert(&model.Mount{
 		MountID:       1,
 		MountPointStr: "/",
-	}
+	})
 
 	for i := uint32(1); i != 100; i++ {
-		mr.mounts[i+1] = &model.Mount{
+		mr.mounts.insert(&model.Mount{
 			MountID: i + 1,
 			ParentPathKey: model.PathKey{
 				MountID: i,
 			},
 			MountPointStr: fmt.Sprintf("/%d", i+1),
-		}
+		})
 	}
 
 	b.ResetTimer()
