@@ -183,24 +183,27 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
 		openQueue = rest
 
-		delete(mr.mounts, curr.MountID)
-		for _, mounts := range mr.pidToMounts {
-			delete(mounts, curr.MountID)
-		}
-
-		entry := redemptionEntry{
-			mount:      curr,
-			insertedAt: now,
-		}
-		mr.redemption.Add(curr.MountID, &entry)
+		mr.deleteOne(curr, now)
 
 		for _, child := range mr.mounts {
 			if child.ParentPathKey.MountID == curr.MountID {
 				openQueue = append(openQueue, child)
 			}
 		}
-
 	}
+}
+
+func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
+	delete(mr.mounts, curr.MountID)
+	for _, mounts := range mr.pidToMounts {
+		delete(mounts, curr.MountID)
+	}
+
+	entry := redemptionEntry{
+		mount:      curr,
+		insertedAt: now,
+	}
+	mr.redemption.Add(curr.MountID, &entry)
 }
 
 func (mr *Resolver) finalize(mount *model.Mount) {
