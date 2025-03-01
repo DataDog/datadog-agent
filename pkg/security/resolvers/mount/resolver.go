@@ -176,6 +176,8 @@ func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 func (mr *Resolver) delete(mount *model.Mount) {
 	now := time.Now()
 
+	mr.deleteOne(mount, now)
+
 	openQueue := make([]*model.Mount, 0, len(mr.mounts))
 	openQueue = append(openQueue, mount)
 
@@ -183,11 +185,10 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
 		openQueue = rest
 
-		mr.deleteOne(curr, now)
-
 		for _, child := range mr.mounts {
 			if child.ParentPathKey.MountID == curr.MountID {
 				openQueue = append(openQueue, child)
+				mr.deleteOne(child, now)
 			}
 		}
 	}
