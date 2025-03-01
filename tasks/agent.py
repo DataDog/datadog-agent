@@ -530,6 +530,12 @@ def hacky_dev_image_build(
         system_probe_build(ctx)
         copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
 
+    if system_probe:
+        from tasks.system_probe import build as system_probe_build
+
+        system_probe_build(ctx)
+        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
             f'''FROM ubuntu:latest AS src
