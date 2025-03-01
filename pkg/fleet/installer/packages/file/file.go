@@ -73,7 +73,8 @@ type Permissions []Permission
 
 // Ensure ensures that the file ownership and mode are set to the desired state.
 func (p Permission) Ensure(rootPath string) error {
-	_, err := os.Stat(rootPath)
+	rootFile := filepath.Join(rootPath, p.Path)
+	_, err := os.Stat(rootFile)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -81,7 +82,7 @@ func (p Permission) Ensure(rootPath string) error {
 		return fmt.Errorf("error stating root path: %w", err)
 	}
 	// Resolve symlinks to ensure we're changing the permissions of the actual file and avoid issues with `filepath.Walk`.
-	rootFile, err := filepath.EvalSymlinks(filepath.Join(rootPath, p.Path))
+	rootFile, err = filepath.EvalSymlinks(rootFile)
 	if err != nil {
 		return fmt.Errorf("error resolving symlink: %w", err)
 	}
