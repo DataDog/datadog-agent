@@ -184,6 +184,9 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		openQueue = rest
 
 		delete(mr.mounts, curr.MountID)
+		for _, mounts := range mr.pidToMounts {
+			delete(mounts, curr.MountID)
+		}
 
 		entry := redemptionEntry{
 			mount:      curr,
@@ -197,9 +200,6 @@ func (mr *Resolver) delete(mount *model.Mount) {
 			}
 		}
 
-		for _, mounts := range mr.pidToMounts {
-			delete(mounts, mount.MountID)
-		}
 	}
 }
 
