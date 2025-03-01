@@ -178,16 +178,16 @@ func (mr *Resolver) delete(mount *model.Mount) {
 
 	mr.deleteOne(mount, now)
 
-	openQueue := make([]*model.Mount, 0, len(mr.mounts))
-	openQueue = append(openQueue, mount)
+	openQueue := make([]uint32, 0, len(mr.mounts))
+	openQueue = append(openQueue, mount.MountID)
 
 	for len(openQueue) != 0 {
 		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
 		openQueue = rest
 
 		for _, child := range mr.mounts {
-			if child.ParentPathKey.MountID == curr.MountID {
-				openQueue = append(openQueue, child)
+			if child.ParentPathKey.MountID == curr {
+				openQueue = append(openQueue, child.MountID)
 				mr.deleteOne(child, now)
 			}
 		}
