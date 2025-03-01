@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -100,7 +101,7 @@ func (o Ownership) Ensure(rootPath string) error {
 		return fmt.Errorf("error globbing pattern: %w", err)
 	}
 	for _, match := range matches {
-		err = os.Chown(match, uid, gid)
+		err = os.Chown(filepath.Join(rootPath, match), uid, gid)
 		if err != nil {
 			return fmt.Errorf("error changing file ownership: %w", err)
 		}
