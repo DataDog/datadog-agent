@@ -98,6 +98,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(kubeletconfig.CheckName, kubeletconfig.Factory(store, cfg, tagger))
+	corecheckLoader.RegisterCheck(noisyneighbor.CheckName, noisyneighbor.Factory(tagger))
 	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry, store))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
