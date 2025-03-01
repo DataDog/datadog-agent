@@ -7,6 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3
 	github.com/Microsoft/go-winio v0.6.2
+	github.com/bmatcuk/doublestar/v4 v4.8.1
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/uuid v1.6.0
 	github.com/shirou/gopsutil/v4 v4.25.1
