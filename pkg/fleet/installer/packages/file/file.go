@@ -72,9 +72,11 @@ type Permissions []Permission
 
 // Ensure ensures that the file ownership and mode are set to the desired state.
 func (p Permission) Ensure(rootPath string) error {
-	rootFile := filepath.Join(rootPath, p.Path)
+	rootFile, err := filepath.EvalSymlinks(filepath.Join(rootPath, p.Path))
+	if err != nil {
+		return fmt.Errorf("error resolving symlink: %w", err)
+	}
 	files := []string{rootFile}
-	var err error
 	if p.Recursive {
 		files, err = filesInDir(rootFile)
 		if err != nil {
@@ -84,7 +86,7 @@ func (p Permission) Ensure(rootPath string) error {
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
 			if err := chown(file, p.Owner, p.Group); err != nil {
-				return err
+				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
 		if p.Mode != 0 {
