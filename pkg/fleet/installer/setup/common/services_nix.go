@@ -17,7 +17,7 @@ import (
 // an install script re-run; because the configuration may have changed.
 func (s *Setup) restartServices(pkgs []packageWithVersion) error {
 	if s.Config.DatadogYAML.RemoteUpdates {
-		if err := restartService("datadog-installer.service"); err != nil {
+		if err := restartService("datadog-agent-installer.service"); err != nil {
 			return err
 		}
 	}
