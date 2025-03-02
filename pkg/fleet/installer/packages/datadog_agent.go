@@ -64,10 +64,10 @@ var (
 	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
 	agentConfigPermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		{Path: "compliance.d", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		{Path: "runtime-security.d", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		{Path: "system-probe.yaml", Mode: 0440},
-		{Path: "security-agent.yaml", Mode: 0440},
+		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
+		{Path: "runtime-security.d", Owner: "root", Group: "root", Recursive: true},
+		{Path: "system-probe.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
+		{Path: "security-agent.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0440},
 	}
 
 	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
