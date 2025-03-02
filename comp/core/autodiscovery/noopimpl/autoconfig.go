@@ -79,6 +79,14 @@ func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {
 	return nil
 }
 
+func (n *noopAutoConfig) GetConfigErrors() map[string]string {
+	return map[string]string{}
+}
+
+func (n *noopAutoConfig) GetResolveWarnings() map[string][]string {
+	return map[string][]string{}
+}
+
 func (n *noopAutoConfig) Start() {}
 
 func (n *noopAutoConfig) Stop() {}

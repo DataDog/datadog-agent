@@ -99,12 +99,14 @@ type reconcilingConfigManager struct {
 	scheduledConfigs map[string]integration.Config
 
 	secretResolver secrets.Component
+
+	errorStats *errorStats
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, errorStats *errorStats) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -113,6 +115,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component) configManager
 		serviceResolutions: map[string]map[string]string{},
 		scheduledConfigs:   map[string]integration.Config{},
 		secretResolver:     secretResolver,
+		errorStats:         errorStats,
 	}
 }
 
@@ -368,16 +371,16 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
-		errorStats.setResolveWarning(tpl.Name, msg)
+		cm.errorStats.setResolveWarning(tpl.Name, msg)
 		return tpl, false
 	}
 	resolvedConfig, err := decryptConfig(config, cm.secretResolver)
 	if err != nil {
 		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
-		errorStats.setResolveWarning(tpl.Name, msg)
+		cm.errorStats.setResolveWarning(tpl.Name, msg)
 		return config, false
 	}
-	errorStats.removeResolveWarnings(tpl.Name)
+	cm.errorStats.removeResolveWarnings(tpl.Name)
 	return resolvedConfig, true
 }
 

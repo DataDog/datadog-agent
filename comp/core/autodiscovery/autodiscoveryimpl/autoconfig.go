@@ -87,6 +87,7 @@ type AutoConfig struct {
 	taggerComp               tagger.Component
 	logs                     logComp.Component
 	telemetryStore           *acTelemetry.Store
+	errorStats               *errorStats
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -191,7 +192,8 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
 func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component) *AutoConfig {
-	cfgMgr := newReconcilingConfigManager(secretResolver)
+	errorStats := newErrorStats()
+	cfgMgr := newReconcilingConfigManager(secretResolver, errorStats)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),
@@ -211,6 +213,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		taggerComp:               taggerComp,
 		logs:                     logs,
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
+		errorStats:               errorStats,
 	}
 	return ac
 }
@@ -281,8 +284,8 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 
 	response.Configs = configResponses
 
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
+	response.ResolveWarnings = ac.errorStats.getResolveWarnings()
+	response.ConfigErrors = ac.errorStats.getConfigErrors()
 
 	unresolved := ac.GetUnresolvedTemplates()
 	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
@@ -325,8 +328,8 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 
 	response.Configs = configResponses
 
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
+	response.ResolveWarnings = ac.errorStats.getResolveWarnings()
+	response.ConfigErrors = ac.errorStats.getConfigErrors()
 	response.Unresolved = ac.GetUnresolvedTemplates()
 
 	return response
@@ -403,7 +406,7 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 func (ac *AutoConfig) Start() {
 	listeners.RegisterListeners(ac.serviceListenerFactories)
 	providers.RegisterProviders(ac.providerCatalog)
-	setupAcErrors()
+	setupExpvarErrors(ac)
 	ac.started = true
 	// Start the service listener
 	go ac.serviceListening()
@@ -478,7 +481,7 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 		if fileConfPd, ok := cp.provider.(*providers.FileConfigProvider); ok {
 			// Grab any errors that occurred when reading the YAML file
 			for name, e := range fileConfPd.Errors {
-				errorStats.setConfigError(name, e)
+				ac.errorStats.setConfigError(name, e)
 			}
 		}
 	}
@@ -698,6 +701,16 @@ func (ac *AutoConfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) check
 // GetProviderCatalog returns all registered ConfigProviderFactory.
 func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFactory {
 	return ac.providerCatalog
+}
+
+// GetConfigErrors returns all errors that occurred when loading providers
+func (ac *AutoConfig) GetConfigErrors() map[string]string {
+	return ac.errorStats.getConfigErrors()
+}
+
+// GetResolveWarnings returns all the warnings that occurred during the resolve process.
+func (ac *AutoConfig) GetResolveWarnings() map[string][]string {
+	return ac.errorStats.getResolveWarnings()
 }
 
 // processNewService takes a service, tries to match it against templates and

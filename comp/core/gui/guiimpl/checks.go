@@ -57,7 +57,7 @@ func getFleetPoliciesPath() string {
 
 // Adds the specific handlers for /checks/ endpoints
 func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery.Component) {
-	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
+	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks(ac))).Methods("POST")
 	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheckHandler(collector, ac))).Methods("POST")
 	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnceHandler(ac))).Methods("POST")
 	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheckHandler(collector, ac))).Methods("POST")
@@ -72,15 +72,17 @@ func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery
 }
 
 // Sends a list of all the current running checks
-func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
-	html, e := renderRunningChecks()
-	if e != nil {
-		w.Write([]byte("Error generating status html: " + e.Error()))
-		return
-	}
+func sendRunningChecks(ac autodiscovery.Component) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		html, e := renderRunningChecks(ac)
+		if e != nil {
+			w.Write([]byte("Error generating status html: " + e.Error()))
+			return
+		}
 
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(html))
+	}
 }
 
 // Schedules a specific check
@@ -112,7 +114,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Compo
 	name := mux.Vars(r)["name"]
 	instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 	if len(instances) == 0 {
-		html, e := renderError(name)
+		html, e := renderError(name, ac)
 		if e != nil {
 			html = "Error generating html: " + e.Error()
 		}
