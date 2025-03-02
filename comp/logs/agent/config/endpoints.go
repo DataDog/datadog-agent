@@ -35,6 +35,7 @@ const (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
+	//
 	apiKeyGetter func() string
 	isReliable   bool
 	useSSL       bool
@@ -68,6 +69,29 @@ type unmarshalEndpoint struct {
 	UseSSL     *bool  `mapstructure:"use_ssl" json:"use_ssl"`
 
 	Endpoint `mapstructure:",squash"`
+}
+
+// EnableAPIKeyRefresh enables API key refresh for additional endpoints
+func EnableAPIKeyRefresh(logsConfig *LogsConfigKeys) {
+	logsConfig.config.OnUpdate(func(setting string, oldValue, newValue any) {
+		fmt.Println("TEST EnableAPIKeyRefresh setting is", setting)
+		fmt.Println("TEST EnableAPIKeyRefresh oldValue is", oldValue)
+		fmt.Println("TEST EnableAPIKeyRefresh newValue is ", newValue)
+		if setting != "logs_config.additional_endpoints" {
+			fmt.Println("Return ????", setting)
+			return
+		}
+
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			for _, ep := range logsConfig.getAdditionalEndpoints() {
+				if ep.GetAPIKey() == oldAPIKey {
+					ep.apiKeyGetter = func() string { return newAPIKey }
+				}
+			}
+		}
+	})
 }
 
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
@@ -118,6 +142,7 @@ func NewHTTPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 // key from the loaded data instead of 'api_key'/'logs_config.api_key'.
 
 func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys) []Endpoint {
+	EnableAPIKeyRefresh(l)
 	additionals := l.getAdditionalEndpoints()
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
@@ -150,8 +175,8 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys) []Endpoint {
 }
 
 func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) []Endpoint {
+	EnableAPIKeyRefresh(l)
 	additionals := l.getAdditionalEndpoints()
-
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for _, e := range additionals {
 		newE := NewEndpoint(e.APIKey, e.Host, e.Port, false)
@@ -193,6 +218,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 // GetAPIKey returns the latest API Key for the Endpoint, including when the configuration gets updated at runtime
 func (e *Endpoint) GetAPIKey() string {
+	//
 	return e.apiKeyGetter()
 }
 

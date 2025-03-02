@@ -140,6 +140,25 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
 }
 
+// EnableAPIKeyRefresh enables API key refresh for additional endpoints
+func EnableAPIKeyRefresh(logsConfig *LogsConfigKeys) {
+	logsConfig.config.OnUpdate(func(setting string, oldValue, newValue any) {
+		if setting != "api_key" {
+			return
+		}
+
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			for _, ep := range logsConfig.getAdditionalEndpoints() {
+				if ep.GetAPIKey() == oldAPIKey {
+					ep.apiKeyGetter = func() string { return newAPIKey }
+				}
+			}
+		}
+	})
+}
+
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
 	main := NewTCPEndpoint(logsConfig)
@@ -170,7 +189,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		}
 		main.useSSL = !logsConfig.devModeNoSSL()
 	}
-
+	EnableAPIKeyRefresh(logsConfig)
 	additionals := loadTCPAdditionalEndpoints(main, logsConfig)
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
@@ -228,7 +247,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.Port = port
 		main.useSSL = useSSL
 	}
-
+	EnableAPIKeyRefresh(logsConfig)
 	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin)
 
 	// Add in the MRF endpoint if MRF is enabled.
