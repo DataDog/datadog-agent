@@ -94,7 +94,8 @@ func (d *ServerlessDemultiplexer) Run() {
 // Stop stops the wrapped aggregator and the forwarder.
 func (d *ServerlessDemultiplexer) Stop(flush bool) {
 	if flush {
-		d.ForceFlushToSerializer(time.Now(), true)
+		forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
+		d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
 	}
 
 	d.statsdWorker.stop()
@@ -106,6 +107,10 @@ func (d *ServerlessDemultiplexer) Stop(flush bool) {
 
 // ForceFlushToSerializer flushes all data from the time sampler to the serializer.
 func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
+	d.forceFlushToSerializer(start, waitForSerializer, false)
+}
+
+func (d *ServerlessDemultiplexer) forceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
@@ -121,6 +126,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 					time:              start,
 					blockChan:         make(chan struct{}),
 					waitForSerializer: waitForSerializer,
+					forceFlushAll:     forceFlushAll,
 				},
 				sketchesSink: sketchesSink,
 				seriesSink:   seriesSink,
