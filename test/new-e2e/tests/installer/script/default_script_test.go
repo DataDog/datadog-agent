@@ -63,8 +63,8 @@ func (s *installScriptDefaultSuite) TestInstall() {
 
 	// Config files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0440, "root", "root")
-	state.AssertFileExists("/etc/datadog-agent/security-agent.yaml", 0440, "root", "root")
+	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0440, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/security-agent.yaml", 0440, "dd-agent", "dd-agent")
 	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-ruby") // Not in DD_APM_INSTRUMENTATION_LIBRARIES
 
 	// Units started
