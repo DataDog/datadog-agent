@@ -15,3 +15,4 @@ include:
   - .gitlab/source_test/notify.yml
   - .gitlab/source_test/protobuf.yml
   - .gitlab/source_test/tooling_unit_tests.yml
+  - .gitlab/source_test/codeql_scan.yml
