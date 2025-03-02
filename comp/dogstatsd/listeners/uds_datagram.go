@@ -87,9 +87,13 @@ func (l *UDSDatagramListener) Listen() {
 
 func (l *UDSDatagramListener) listen() {
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
-	_ = l.handleConnection(l.conn, func(conn netUnixConn) error {
+	err := l.handleConnection(l.conn, func(conn netUnixConn) error {
 		return conn.Close()
 	})
+	if err != nil {
+		log.Errorf("dogstatsd-uds: error handling connection: %v", err)
+	}
+
 }
 
 // Stop closes the UDS connection and stops listening
