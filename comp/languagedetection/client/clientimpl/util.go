@@ -11,6 +11,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels/proto"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
@@ -45,7 +46,7 @@ type podInfo struct {
 }
 
 func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
-	containersDetails, initContainersDetails := p.containerInfo.ToProto()
+	containersDetails, initContainersDetails := proto.ContainersLanguagesToProto(p.containerInfo)
 	return &pbgo.PodLanguageDetails{
 		Name:      podName,
 		Namespace: p.namespace,
