@@ -244,11 +244,13 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
-			var resourceName string
-			if transform.OperationAndResourceNameV2Enabled(o.conf) {
-				resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
-			} else {
-				resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
+			resourceName := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, transform.KeyDatadogResource)
+			if resourceName == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+				if transform.OperationAndResourceNameV2Enabled(o.conf) {
+					resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
+				} else {
+					resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
+				}
 			}
 			if _, exists := o.ignoreResNames[resourceName]; exists {
 				continue
@@ -259,7 +261,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf, nil)
+			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
 
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -302,10 +304,23 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
-	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+	if o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		hostname = ""
+	}
+	if incomingHostname := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogHost); incomingHostname != "" {
+		hostname = incomingHostname
+	}
+
+	containerID := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerID)
+	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		containerID = traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+	}
 
 	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	env := traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+	env := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogEnvironment)
+	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		env = traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:      hostname,
 		Chunks:        o.createChunks(tracesByID, priorityByID),
@@ -314,22 +329,30 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		LanguageName:  tagstats.Lang,
 		TracerVersion: tagstats.TracerVersion,
 	}
-	ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
-	payloadTags := flatten(ctags)
 
-	// Ppoulate container tags by calling ContainerTags tagger from configuration
-	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
-		appendTags(payloadTags, tags)
-	} else {
-		// we couldn't obtain any container tags
-		if src.Kind == source.AWSECSFargateKind {
-			// but we have some information from the source provider that we can add
-			appendTags(payloadTags, src.Tag())
+	var flattenedTags string
+	if incomingContainerTags := traceutil.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
+		flattenedTags = incomingContainerTags
+	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
+		ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
+		payloadTags := flatten(ctags)
+
+		// Populate container tags by calling ContainerTags tagger from configuration
+		if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
+			appendTags(payloadTags, tags)
+		} else {
+			// we couldn't obtain any container tags
+			if src.Kind == source.AWSECSFargateKind {
+				// but we have some information from the source provider that we can add
+				appendTags(payloadTags, src.Tag())
+			}
 		}
+		flattenedTags = payloadTags.String()
 	}
-	if payloadTags.Len() > 0 {
+
+	if len(flattenedTags) > 0 {
 		p.TracerPayload.Tags = map[string]string{
-			tagContainersTags: payloadTags.String(),
+			tagContainersTags: flattenedTags,
 		}
 	}
 
@@ -634,7 +657,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if msg := in.Status().Message(); msg != "" {
 		transform.SetMetaOTLP(span, semconv.OtelStatusDescription, msg)
 	}
-	transform.Status2Error(in.Status(), in.Events(), span)
+	span.Error = transform.Status2Error(in.Status(), in.Events(), span.Meta)
 	if transform.OperationAndResourceNameV2Enabled(o.conf) {
 		span.Name = traceutil.GetOTelOperationNameV2(in)
 	} else {
