@@ -13,9 +13,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // platformPrepareExperiment runs extra steps needed for the experiment on a specific platform
@@ -53,6 +55,16 @@ func (i *installerImpl) platformPrepareExperiment(pkg *oci.DownloadedPackage, re
 			err = i.packages.Create(pkg.Name, installedVersion, tmpDirStable)
 			if err != nil {
 				return fmt.Errorf("could not create repository: %w", err)
+			}
+
+			// store the package in the db
+			err = i.db.SetPackage(db.Package{
+				Name:             pkg.Name,
+				Version:          pkg.Version,
+				InstallerVersion: version.AgentVersion,
+			})
+			if err != nil {
+				return fmt.Errorf("could not store package installation in db: %w", err)
 			}
 		}
 

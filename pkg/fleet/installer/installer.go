@@ -476,6 +476,9 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if pkg.Name == packageDatadogInstaller {
 			continue
 		}
+		if pkg.Name == packageDatadogAgent {
+			continue
+		}
 		err := i.removePackage(ctx, pkg.Name)
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
@@ -489,9 +492,16 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.removePackage(ctx, packageDatadogInstaller)
+	err = i.removePackage(ctx, packageDatadogAgent)
 	if err != nil {
-		log.Warnf("could not remove installer: %v", err)
+		log.Warnf("could not remove agent: %v", err)
+	}
+	if runtime.GOOS != "windows" {
+		// on windows the installer package has been merged with the agent package
+		err = i.removePackage(ctx, packageDatadogInstaller)
+		if err != nil {
+			log.Warnf("could not remove installer: %v", err)
+		}
 	}
 
 	// Must close dependencies before removing the rest of the files,
