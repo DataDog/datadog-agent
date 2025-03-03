@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -22,17 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	kubeclient "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	kubecache "k8s.io/client-go/tools/cache"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
@@ -65,11 +58,11 @@ type KubeUtil struct {
 	waitOnMissingContainer time.Duration
 	podUnmarshaller        *podUnmarshaller
 	podResourcesClient     *PodResourcesClient
-	useAPIServer           bool
-	apiClient              *kubeclient.Clientset
-	nodeName               string
-	store                  kubecache.Store
-	controller             kubecache.Controller
+
+	useAPIServer bool
+	apiClient    *apiserver.APIClient
+	nodeName     string
+	apiPodCache  *podCache
 }
 
 func (ku *KubeUtil) init() error {
@@ -79,7 +72,9 @@ func (ku *KubeUtil) init() error {
 		return err
 	}
 
-	ku.kubeletClient, err = getKubeletClient(context.Background())
+	ctx := context.Background()
+
+	ku.kubeletClient, err = getKubeletClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -106,33 +101,24 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
-	if ku.useAPIServer {
-		ku.apiClient, err = newAPIClient()
+	if pkgconfigsetup.Datadog().GetBool("gke_autopilot") {
+		log.Infof("Running on GKE Autopilot, Pod List will be accessed through the Kubernetes API Server instead of the Kubelet")
+		ku.useAPIServer = true
+		ku.apiClient, err = apiserver.GetAPIClient()
 		if err != nil {
 			log.Errorf("failed to get API Server Client: %v", err)
 			return err
 		}
-		ku.nodeName, err = os.Hostname()
+		ku.nodeName, err = ku.GetNodename(ctx)
 		if err != nil {
-			log.Errorf("failed to get node hostname: %v", err)
+			log.Errorf("failed to get node name: %v", err)
 			return err
 		}
-		ku.initPodListWatch(context.Background())
+		ku.apiPodCache = newPodCache()
+		ku.initPodInformer()
 	}
 
 	return nil
-}
-
-func newAPIClient() (*kubeclient.Clientset, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
-	}
-	client, err := kubeclient.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create API client: %w", err)
-	}
-	return client, nil
 }
 
 // NewKubeUtil returns a new KubeUtil
@@ -146,10 +132,6 @@ func NewKubeUtil() *KubeUtil {
 	waitOnMissingContainer := pkgconfigsetup.Datadog().GetDuration("kubelet_wait_on_missing_container")
 	if waitOnMissingContainer > 0 {
 		ku.waitOnMissingContainer = waitOnMissingContainer * time.Second
-	}
-	if pkgconfigsetup.Datadog().GetBool("gke_autopilot") {
-		log.Infof("Running on GKE Autopilot, Pod List will be accessed through the Kubernetes API Server instead of the Kubelet")
-		ku.useAPIServer = true
 	}
 
 	return ku
@@ -218,6 +200,11 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
+	stats, err := ku.GetLocalStatsSummary(ctx)
+	if err == nil && stats.Node.NodeName != "" {
+		return stats.Node.NodeName, nil
+	}
+
 	pods, err := ku.GetLocalPodList(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
@@ -233,12 +220,16 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
 }
 
-func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
+func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*types.PodList, error) {
 	var ok bool
-	pods := PodList{}
+	pods := types.PodList{}
+
+	if ku.useAPIServer {
+		return ku.apiPodCache.getPodList(), nil
+	}
 
 	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
-		pods, ok = cached.(PodList)
+		pods, ok = cached.(types.PodList)
 		if !ok {
 			log.Errorf("Invalid pod list cache format, forcing a cache miss")
 		} else {
@@ -246,8 +237,7 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 		}
 	}
 
-	//data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
-	data, code, err := ku.queryPodList(ctx)
+	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
 	if err != nil {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
 	}
@@ -266,7 +256,7 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	}
 
 	// ensure we dont have nil pods
-	tmpSlice := make([]*Pod, 0, len(pods.Items))
+	tmpSlice := make([]*types.Pod, 0, len(pods.Items))
 	for _, pod := range pods.Items {
 		if pod != nil {
 			// Validate allocation size.
@@ -277,7 +267,7 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 					pod.Metadata.UID, len(pod.Status.Containers), len(pod.Status.InitContainers))
 				continue
 			}
-			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
+			allContainers := make([]types.ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
 			pod.Status.AllContainers = allContainers
@@ -292,101 +282,10 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	return &pods, nil
 }
 
-// initPodListWatch initializes a ListWatch for pods on the current node.
-func (ku *KubeUtil) initPodListWatch(ctx context.Context) {
-	// Ensure we only watch pods scheduled on this node
-	fieldSelector := fields.OneTermEqualSelector("spec.nodeName", ku.nodeName).String()
-
-	lw := &kubecache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			options.FieldSelector = fieldSelector
-			options.ResourceVersion = "0" // Fresh query from API server
-			return ku.apiClient.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
-		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			options.FieldSelector = fieldSelector
-			return ku.apiClient.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
-		},
-	}
-
-	// Create store & controller for tracking pods
-	ku.store, ku.controller = kubecache.NewInformer(
-		lw,
-		&v1.Pod{},
-		0, // No resync, only use Watch for updates
-		kubecache.ResourceEventHandlerFuncs{
-			AddFunc:    ku.handlePodAdd,
-			UpdateFunc: ku.handlePodUpdate,
-			DeleteFunc: ku.handlePodDelete,
-		},
-	)
-
-	// Run controller in a separate goroutine
-	go ku.controller.Run(ctx.Done())
-}
-
-func (ku *KubeUtil) handlePodAdd(obj interface{}) {
-	pod, ok := obj.(*v1.Pod)
-	if !ok {
-		log.Errorf("handlePodAdd: expected *v1.Pod but got %T", obj)
-		return
-	}
-	log.Infof("Pod added: %s/%s", pod.Namespace, pod.Name)
-	// You can add additional logic here if needed
-}
-
-func (ku *KubeUtil) handlePodUpdate(oldObj, newObj interface{}) {
-	newPod, ok := newObj.(*v1.Pod)
-	if !ok {
-		log.Errorf("handlePodUpdate: expected *v1.Pod but got %T", newObj)
-		return
-	}
-	log.Infof("Pod updated: %s/%s", newPod.Namespace, newPod.Name)
-	// You can compare oldObj and newObj if you need to track changes
-}
-
-func (ku *KubeUtil) handlePodDelete(obj interface{}) {
-	pod, ok := obj.(*v1.Pod)
-	if !ok {
-		log.Errorf("handlePodDelete: expected *v1.Pod but got %T", obj)
-		return
-	}
-	log.Infof("Pod deleted: %s/%s", pod.Namespace, pod.Name)
-}
-
-func (ku *KubeUtil) queryPodList(ctx context.Context) ([]byte, int, error) {
-	if ku.useAPIServer {
-		if ku.apiClient == nil {
-			return nil, 0, fmt.Errorf("API Server client is not initialized")
-		}
-		if ku.nodeName == "" {
-			return nil, 0, fmt.Errorf("node name is not set")
-		}
-
-		podList, err := ku.apiClient.CoreV1().Pods(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-			FieldSelector: fmt.Sprintf("spec.nodeName=%s", ku.nodeName),
-		})
-		if err != nil {
-			log.Errorf("failed to retrieve pods from API Server: %v", err)
-			return nil, http.StatusInternalServerError, err
-		}
-
-		data, err := json.Marshal(podList)
-		if err != nil {
-			log.Errorf("failed to marshal pod list: %v", err)
-			return nil, http.StatusInternalServerError, err
-		}
-
-		log.Debugf("Successfully queried API Server for pods on node %s", ku.nodeName)
-		return data, http.StatusOK, nil
-	}
-	return ku.QueryKubelet(ctx, kubeletPodPath)
-}
-
 // addContainerResourcesData modifies the given pod list, populating the
 // resources field of each container. If the pod resources API is not available,
 // this is a no-op.
-func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) error {
+func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*types.Pod) error {
 	if ku.podResourcesClient == nil {
 		return nil
 	}
@@ -404,7 +303,7 @@ func (ku *KubeUtil) addContainerResourcesData(ctx context.Context, pods []*Pod) 
 	return nil
 }
 
-func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[ContainerKey][]*podresourcesv1.ContainerDevices, pod *Pod, containers []ContainerStatus) {
+func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[ContainerKey][]*podresourcesv1.ContainerDevices, pod *types.Pod, containers []types.ContainerStatus) {
 	for i := range containers {
 		container := &containers[i] // take the pointer so that we can modify the original
 		key := ContainerKey{
@@ -420,7 +319,7 @@ func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[Contai
 		for _, device := range devices {
 			name := device.GetResourceName()
 			for _, id := range device.GetDeviceIds() {
-				container.AllocatedResources = append(container.AllocatedResources, ContainerAllocatedResource{
+				container.AllocatedResources = append(container.AllocatedResources, types.ContainerAllocatedResource{
 					Name: name,
 					ID:   id,
 				})
@@ -432,7 +331,7 @@ func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[Contai
 // GetLocalPodList returns the list of pods running on the node.
 // If kubernetes_pod_expiration_duration is set, old exited pods
 // will be filtered out to keep the podlist size down: see json.go
-func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
+func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*types.Pod, error) {
 	pods, err := ku.getLocalPodList(ctx)
 	if err != nil {
 		return nil, err
@@ -444,12 +343,12 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 // GetLocalPodListWithMetadata returns the list of pods running on the node,
 // along with metadata surrounding that list, such as the number of pods
 // which were expired and therefore removed from the list when it was generated.
-func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error) {
+func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*types.PodList, error) {
 	return ku.getLocalPodList(ctx)
 }
 
 // ForceGetLocalPodList reset podList cache and call GetLocalPodList
-func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) (*PodList, error) {
+func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) (*types.PodList, error) {
 	ResetCache()
 	return ku.GetLocalPodListWithMetadata(ctx)
 }
@@ -457,7 +356,7 @@ func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) (*PodList, error) 
 // GetPodForContainerID fetches the podList and returns the pod running
 // a given container on the node. Reset the cache if needed.
 // Returns a nil pointer if not found.
-func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string) (*Pod, error) {
+func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string) (*types.Pod, error) {
 	// Best case scenario
 	pods, err := ku.GetLocalPodListWithMetadata(ctx)
 	if err != nil {
@@ -511,7 +410,7 @@ func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string
 	}
 }
 
-func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) (*Pod, error) {
+func (ku *KubeUtil) searchPodForContainerID(podList []*types.Pod, containerID string) (*types.Pod, error) {
 	if containerID == "" {
 		return nil, fmt.Errorf("containerID is empty")
 	}
@@ -593,7 +492,7 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 }
 
 // IsPodReady return a bool if the Pod is ready
-func IsPodReady(pod *Pod) bool {
+func IsPodReady(pod *types.Pod) bool {
 	// static pods are always reported as Pending, so we make an exception there
 	if pod.Status.Phase == "Pending" && isPodStatic(pod) {
 		return true
@@ -616,7 +515,7 @@ func IsPodReady(pod *Pod) bool {
 
 // isPodStatic identifies whether a pod is static or not based on an annotation
 // Static pods can be sent to the kubelet from files or an http endpoint.
-func isPodStatic(pod *Pod) bool {
+func isPodStatic(pod *types.Pod) bool {
 	if source, ok := pod.Metadata.Annotations[configSourceAnnotation]; ok && (source == "file" || source == "http") {
 		return len(pod.Status.Containers) == 0
 	}

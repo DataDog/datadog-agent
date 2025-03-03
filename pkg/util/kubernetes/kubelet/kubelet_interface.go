@@ -11,6 +11,8 @@ import (
 	"context"
 
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 // KubeUtilInterface defines the interface for kubelet api
@@ -18,10 +20,10 @@ import (
 type KubeUtilInterface interface {
 	GetNodeInfo(ctx context.Context) (string, string, error)
 	GetNodename(ctx context.Context) (string, error)
-	GetLocalPodList(ctx context.Context) ([]*Pod, error)
-	GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error)
-	ForceGetLocalPodList(ctx context.Context) (*PodList, error)
-	GetPodForContainerID(ctx context.Context, containerID string) (*Pod, error)
+	GetLocalPodList(ctx context.Context) ([]*types.Pod, error)
+	GetLocalPodListWithMetadata(ctx context.Context) (*types.PodList, error)
+	ForceGetLocalPodList(ctx context.Context) (*types.PodList, error)
+	GetPodForContainerID(ctx context.Context, containerID string) (*types.Pod, error)
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)

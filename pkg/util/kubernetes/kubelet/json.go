@@ -14,6 +14,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 // jsoniterConfig mirrors jsoniter.ConfigFastest
@@ -57,11 +58,11 @@ func (pu *podUnmarshaller) unmarshal(data []byte, v interface{}) error {
 }
 
 func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
-	p := (*PodList)(ptr)
+	p := (*types.PodList)(ptr)
 	cutoffTime := pu.timeNowFunction().Add(-1 * pu.podExpirationDuration)
 
 	podCallback := func(iter *jsoniter.Iterator) bool {
-		pod := &Pod{}
+		pod := &types.Pod{}
 		iter.ReadVal(pod)
 
 		// Quick exit for running/pending containers

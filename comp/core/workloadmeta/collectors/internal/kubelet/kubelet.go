@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -107,7 +108,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+func parsePods(pods []*types.Pod) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
@@ -195,9 +196,9 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 }
 
 func parsePodContainers(
-	pod *kubelet.Pod,
-	containerSpecs []kubelet.ContainerSpec,
-	containerStatuses []kubelet.ContainerStatus,
+	pod *types.Pod,
+	containerSpecs []types.ContainerSpec,
+	containerStatuses []types.ContainerStatus,
 	parent *workloadmeta.EntityID,
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
@@ -342,14 +343,14 @@ func getGPUVendorsFromContainers(initContainerEvents, containerEvents []workload
 	return GPUVendors
 }
 
-func extractPodRuntimeClassName(spec *kubelet.Spec) string {
+func extractPodRuntimeClassName(spec *types.Spec) string {
 	if spec.RuntimeClassName == nil {
 		return ""
 	}
 	return *spec.RuntimeClassName
 }
 
-func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityContext {
+func extractPodSecurityContext(spec *types.Spec) *workloadmeta.PodSecurityContext {
 	if spec.SecurityContext == nil {
 		return nil
 	}
@@ -361,7 +362,7 @@ func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityCont
 	}
 }
 
-func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.ContainerSecurityContext {
+func extractContainerSecurityContext(spec *types.ContainerSpec) *workloadmeta.ContainerSecurityContext {
 	if spec.SecurityContext == nil {
 		return nil
 	}
@@ -401,7 +402,7 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 	}
 }
 
-func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
+func extractEnvFromSpec(envSpec []types.EnvVar) map[string]string {
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
 
@@ -427,13 +428,13 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
-func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
+func extractResources(spec *types.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
-	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
+	if cpuReq, found := spec.Resources.Requests[types.ResourceCPU]; found {
 		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
 	}
 
-	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
+	if memoryReq, found := spec.Resources.Requests[types.ResourceMemory]; found {
 		resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
 	}
 
@@ -455,7 +456,7 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	return resources
 }
 
-func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
+func findContainerSpec(name string, specs []types.ContainerSpec) *types.ContainerSpec {
 	for _, spec := range specs {
 		if spec.Name == name {
 			return &spec

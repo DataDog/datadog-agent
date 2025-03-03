@@ -11,6 +11,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 // ConvertKubeletPodToK8sPod converts a Pod to a Kubernetes Pod.
@@ -18,7 +20,7 @@ import (
 // library, so the result will not contain all the fields. That's OK, because
 // this function is only called from the KSM check, so we only need to convert
 // the fields that are used by the check.
-func ConvertKubeletPodToK8sPod(pod *Pod) *corev1.Pod {
+func ConvertKubeletPodToK8sPod(pod *kubelettypes.Pod) *corev1.Pod {
 	return &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Pod",
@@ -61,7 +63,7 @@ func ConvertKubeletPodToK8sPod(pod *Pod) *corev1.Pod {
 	}
 }
 
-func convertToK8sOwnerReferences(owners []PodOwner) []metav1.OwnerReference {
+func convertToK8sOwnerReferences(owners []kubelettypes.PodOwner) []metav1.OwnerReference {
 	if owners == nil {
 		return nil
 	}
@@ -77,7 +79,7 @@ func convertToK8sOwnerReferences(owners []PodOwner) []metav1.OwnerReference {
 	return k8sOwnerReferences
 }
 
-func convertToK8sContainers(containerSpecs []ContainerSpec) []corev1.Container {
+func convertToK8sContainers(containerSpecs []kubelettypes.ContainerSpec) []corev1.Container {
 	if containerSpecs == nil {
 		return nil
 	}
@@ -97,7 +99,7 @@ func convertToK8sContainers(containerSpecs []ContainerSpec) []corev1.Container {
 	return k8sContainers
 }
 
-func convertToK8sVolumes(volumeSpecs []VolumeSpec) []corev1.Volume {
+func convertToK8sVolumes(volumeSpecs []kubelettypes.VolumeSpec) []corev1.Volume {
 	if volumeSpecs == nil {
 		return nil
 	}
@@ -115,7 +117,7 @@ func convertToK8sVolumes(volumeSpecs []VolumeSpec) []corev1.Volume {
 	return k8sVolumes
 }
 
-func convertToK8sPodSecurityContext(podSecurityContextSpec *PodSecurityContextSpec) *corev1.PodSecurityContext {
+func convertToK8sPodSecurityContext(podSecurityContextSpec *kubelettypes.PodSecurityContextSpec) *corev1.PodSecurityContext {
 	if podSecurityContextSpec == nil {
 		return nil
 	}
@@ -131,7 +133,7 @@ func convertToK8sPodSecurityContext(podSecurityContextSpec *PodSecurityContextSp
 	}
 }
 
-func convertToK8sContainerPorts(containerPortSpecs []ContainerPortSpec) []corev1.ContainerPort {
+func convertToK8sContainerPorts(containerPortSpecs []kubelettypes.ContainerPortSpec) []corev1.ContainerPort {
 	if containerPortSpecs == nil {
 		return nil
 	}
@@ -148,7 +150,7 @@ func convertToK8sContainerPorts(containerPortSpecs []ContainerPortSpec) []corev1
 	return k8sPorts
 }
 
-func convertToK8sProbe(containerProbe *ContainerProbe) *corev1.Probe {
+func convertToK8sProbe(containerProbe *kubelettypes.ContainerProbe) *corev1.Probe {
 	if containerProbe == nil {
 		return nil
 	}
@@ -157,7 +159,7 @@ func convertToK8sProbe(containerProbe *ContainerProbe) *corev1.Probe {
 	}
 }
 
-func convertToK8sEnvVars(envVars []EnvVar) []corev1.EnvVar {
+func convertToK8sEnvVars(envVars []kubelettypes.EnvVar) []corev1.EnvVar {
 	if envVars == nil {
 		return nil
 	}
@@ -172,7 +174,7 @@ func convertToK8sEnvVars(envVars []EnvVar) []corev1.EnvVar {
 	return k8sEnvVars
 }
 
-func convertToK8sContainerSecurityContext(containerSecurityContextSpec *ContainerSecurityContextSpec) *corev1.SecurityContext {
+func convertToK8sContainerSecurityContext(containerSecurityContextSpec *kubelettypes.ContainerSecurityContextSpec) *corev1.SecurityContext {
 	if containerSecurityContextSpec == nil {
 		return nil
 	}
@@ -183,7 +185,7 @@ func convertToK8sContainerSecurityContext(containerSecurityContextSpec *Containe
 	}
 }
 
-func convertToK8sCapabilities(capabilities *CapabilitiesSpec) *corev1.Capabilities {
+func convertToK8sCapabilities(capabilities *kubelettypes.CapabilitiesSpec) *corev1.Capabilities {
 	if capabilities == nil {
 		return nil
 	}
@@ -201,7 +203,7 @@ func convertToK8sCapabilities(capabilities *CapabilitiesSpec) *corev1.Capabiliti
 	return res
 }
 
-func convertToK8sSeccompProfile(seccompProfileSpec *SeccompProfileSpec) *corev1.SeccompProfile {
+func convertToK8sSeccompProfile(seccompProfileSpec *kubelettypes.SeccompProfileSpec) *corev1.SeccompProfile {
 	if seccompProfileSpec == nil {
 		return nil
 	}
@@ -211,7 +213,7 @@ func convertToK8sSeccompProfile(seccompProfileSpec *SeccompProfileSpec) *corev1.
 	}
 }
 
-func convertToK8sResourceRequirements(containerResourcesSpec *ContainerResourcesSpec) corev1.ResourceRequirements {
+func convertToK8sResourceRequirements(containerResourcesSpec *kubelettypes.ContainerResourcesSpec) corev1.ResourceRequirements {
 	if containerResourcesSpec == nil {
 		return corev1.ResourceRequirements{}
 	}
@@ -221,7 +223,7 @@ func convertToK8sResourceRequirements(containerResourcesSpec *ContainerResources
 	}
 }
 
-func convertToK8sResourceList(resourceList ResourceList) corev1.ResourceList {
+func convertToK8sResourceList(resourceList kubelettypes.ResourceList) corev1.ResourceList {
 	k8sResourceList := make(corev1.ResourceList)
 	for k, v := range resourceList {
 		k8sResourceList[corev1.ResourceName(k)] = v
@@ -229,7 +231,7 @@ func convertToK8sResourceList(resourceList ResourceList) corev1.ResourceList {
 	return k8sResourceList
 }
 
-func convertToK8sPersistentVolumeClaim(persistentVolumeClaimSpec *PersistentVolumeClaimSpec) *corev1.PersistentVolumeClaimVolumeSource {
+func convertToK8sPersistentVolumeClaim(persistentVolumeClaimSpec *kubelettypes.PersistentVolumeClaimSpec) *corev1.PersistentVolumeClaimVolumeSource {
 	if persistentVolumeClaimSpec == nil {
 		return nil
 	}
@@ -239,7 +241,7 @@ func convertToK8sPersistentVolumeClaim(persistentVolumeClaimSpec *PersistentVolu
 	}
 }
 
-func convertToK8sEphemeralVolume(ephemeralSpec *EphemeralSpec) *corev1.EphemeralVolumeSource {
+func convertToK8sEphemeralVolume(ephemeralSpec *kubelettypes.EphemeralSpec) *corev1.EphemeralVolumeSource {
 	if ephemeralSpec == nil {
 		return nil
 	}
@@ -255,7 +257,7 @@ func convertToK8sEphemeralVolume(ephemeralSpec *EphemeralSpec) *corev1.Ephemeral
 	}
 }
 
-func convertToK8sContainerStatuses(containerStatuses []ContainerStatus) []corev1.ContainerStatus {
+func convertToK8sContainerStatuses(containerStatuses []kubelettypes.ContainerStatus) []corev1.ContainerStatus {
 	if containerStatuses == nil {
 		return nil
 	}
@@ -276,7 +278,7 @@ func convertToK8sContainerStatuses(containerStatuses []ContainerStatus) []corev1
 	return k8sStatuses
 }
 
-func convertToK8sContainerState(containerState ContainerState) corev1.ContainerState {
+func convertToK8sContainerState(containerState kubelettypes.ContainerState) corev1.ContainerState {
 	return corev1.ContainerState{
 		Waiting:    convertToK8sContainerStateWaiting(containerState.Waiting),
 		Running:    convertToK8sContainerStateRunning(containerState.Running),
@@ -284,7 +286,7 @@ func convertToK8sContainerState(containerState ContainerState) corev1.ContainerS
 	}
 }
 
-func convertToK8sContainerStateWaiting(containerStateWaiting *ContainerStateWaiting) *corev1.ContainerStateWaiting {
+func convertToK8sContainerStateWaiting(containerStateWaiting *kubelettypes.ContainerStateWaiting) *corev1.ContainerStateWaiting {
 	if containerStateWaiting == nil {
 		return nil
 	}
@@ -293,7 +295,7 @@ func convertToK8sContainerStateWaiting(containerStateWaiting *ContainerStateWait
 	}
 }
 
-func convertToK8sContainerStateRunning(containerStateRunning *ContainerStateRunning) *corev1.ContainerStateRunning {
+func convertToK8sContainerStateRunning(containerStateRunning *kubelettypes.ContainerStateRunning) *corev1.ContainerStateRunning {
 	if containerStateRunning == nil {
 		return nil
 	}
@@ -302,7 +304,7 @@ func convertToK8sContainerStateRunning(containerStateRunning *ContainerStateRunn
 	}
 }
 
-func convertToK8sContainerStateTerminated(containerStateTerminated *ContainerStateTerminated) *corev1.ContainerStateTerminated {
+func convertToK8sContainerStateTerminated(containerStateTerminated *kubelettypes.ContainerStateTerminated) *corev1.ContainerStateTerminated {
 	if containerStateTerminated == nil {
 		return nil
 	}
@@ -314,7 +316,7 @@ func convertToK8sContainerStateTerminated(containerStateTerminated *ContainerSta
 	}
 }
 
-func convertToK8sConditions(conditions []Conditions) []corev1.PodCondition {
+func convertToK8sConditions(conditions []kubelettypes.Conditions) []corev1.PodCondition {
 	if conditions == nil {
 		return nil
 	}
@@ -329,7 +331,7 @@ func convertToK8sConditions(conditions []Conditions) []corev1.PodCondition {
 	return k8sConditions
 }
 
-func convertToK8sPodTolerations(tolerations []Toleration) []corev1.Toleration {
+func convertToK8sPodTolerations(tolerations []kubelettypes.Toleration) []corev1.Toleration {
 	if tolerations == nil {
 		return nil
 	}

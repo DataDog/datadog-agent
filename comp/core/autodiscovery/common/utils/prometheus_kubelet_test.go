@@ -14,8 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-
+	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +23,7 @@ func TestConfigsForPod(t *testing.T) {
 		name    string
 		check   *types.PrometheusCheck
 		version int
-		pod     *kubelet.Pod
+		pod     *kubelettypes.Pod
 		want    []integration.Config
 		matched bool
 	}{
@@ -32,19 +31,19 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "nominal case v1",
 			check:   types.DefaultPrometheusCheck,
 			version: 1,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
@@ -67,19 +66,19 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "nominal case v2",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
@@ -110,19 +109,19 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 1,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
@@ -153,19 +152,19 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
@@ -188,19 +187,19 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "excluded",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "false"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
@@ -214,19 +213,19 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "no match",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"foo": "bar"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
@@ -240,13 +239,13 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "multi containers, match all",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr1",
 							ID:   "foo-ctr1-id",
@@ -256,7 +255,7 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr2-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr1",
 							ID:   "foo-ctr1-id",
@@ -295,13 +294,13 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr1",
 							ID:   "foo-ctr1-id",
@@ -311,7 +310,7 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr2-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr1",
 							ID:   "foo-ctr1-id",
@@ -338,19 +337,19 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "multi containers, match based on port",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name: "foo-pod",
 					Annotations: map[string]string{
 						"prometheus.io/scrape": "true",
 						"prometheus.io/port":   "8080",
 					},
 				},
-				Spec: kubelet.Spec{
-					Containers: []kubelet.ContainerSpec{
+				Spec: kubelettypes.Spec{
+					Containers: []kubelettypes.ContainerSpec{
 						{
 							Name: "foo-ctr1",
-							Ports: []kubelet.ContainerPortSpec{
+							Ports: []kubelettypes.ContainerPortSpec{
 								{
 									ContainerPort: 8080,
 								},
@@ -358,7 +357,7 @@ func TestConfigsForPod(t *testing.T) {
 						},
 						{
 							Name: "foo-ctr2",
-							Ports: []kubelet.ContainerPortSpec{
+							Ports: []kubelettypes.ContainerPortSpec{
 								{
 									ContainerPort: 8081,
 								},
@@ -366,8 +365,8 @@ func TestConfigsForPod(t *testing.T) {
 						},
 					},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr1",
 							ID:   "foo-ctr1-id",
@@ -377,7 +376,7 @@ func TestConfigsForPod(t *testing.T) {
 							ID:   "foo-ctr2-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr1",
 							ID:   "foo-ctr1-id",
@@ -408,19 +407,19 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
@@ -438,19 +437,19 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
@@ -481,19 +480,19 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
+			pod: &kubelettypes.Pod{
+				Metadata: kubelettypes.PodMetadata{
 					Name:        "foo-pod",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+				Status: kubelettypes.Status{
+					Containers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",
 						},
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					AllContainers: []kubelettypes.ContainerStatus{
 						{
 							Name: "foo-ctr",
 							ID:   "foo-ctr-id",

@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 func TestGetMeta(t *testing.T) {
@@ -39,18 +41,18 @@ process_cpu_seconds_total 127923.04
 	assert.Equal(t, "process_cpu_seconds_total 127923.04", metric)
 }
 
-func loadPodsFixture(path string) ([]*Pod, error) {
+func loadPodsFixture(path string) ([]*types.Pod, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var podList PodList
+	var podList types.PodList
 	err = json.Unmarshal(raw, &podList)
 	if err != nil {
 		return nil, err
 	}
 	for _, pod := range podList.Items {
-		allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
+		allContainers := make([]types.ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
 		allContainers = append(allContainers, pod.Status.InitContainers...)
 		allContainers = append(allContainers, pod.Status.Containers...)
 		pod.Status.AllContainers = allContainers

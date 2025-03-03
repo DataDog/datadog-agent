@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +31,7 @@ const (
 
 // podWatcher is an interface for a component that watches for changes in pods
 type podWatcher interface {
-	PullChanges(ctx context.Context) ([]*kubelet.Pod, error)
+	PullChanges(ctx context.Context) ([]*kubelettypes.Pod, error)
 	Expire() ([]string, error)
 }
 

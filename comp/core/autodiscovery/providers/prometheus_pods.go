@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 // PrometheusPodsConfigProvider implements the ConfigProvider interface for prometheus pods.
@@ -71,7 +72,7 @@ func (p *PrometheusPodsConfigProvider) IsUpToDate(ctx context.Context) (bool, er
 }
 
 // parsePodlist searches for pods that match the AD configuration
-func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []integration.Config {
+func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelettypes.Pod) []integration.Config {
 	var configs []integration.Config
 	for _, pod := range podlist {
 		for _, check := range p.checks {

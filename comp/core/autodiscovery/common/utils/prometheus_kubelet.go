@@ -14,12 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ConfigsForPod returns the openmetrics configurations for a given pod if it matches the AD configuration
-func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Config {
+func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelettypes.Pod) []integration.Config {
 	var configs []integration.Config
 	namespacedName := fmt.Sprintf("%s/%s", pod.Metadata.Namespace, pod.Metadata.Name)
 	if pc.IsExcluded(pod.Metadata.Annotations, namespacedName) {

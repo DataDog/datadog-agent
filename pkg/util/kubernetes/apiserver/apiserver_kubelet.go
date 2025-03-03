@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -22,7 +22,7 @@ import (
 // NodeMetadataMapping only fetch the endpoints from Kubernetes apiserver and add the metadataMapper of the
 // node to the cache
 // Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
-func (c *APIClient) NodeMetadataMapping(nodeName string, pods []*kubelet.Pod) error {
+func (c *APIClient) NodeMetadataMapping(nodeName string, pods []*types.Pod) error {
 	endpointList, err := c.Cl.CoreV1().Endpoints("").List(context.TODO(), metav1.ListOptions{TimeoutSeconds: pointer.Ptr(int64(c.defaultClientTimeout.Seconds())), ResourceVersion: "0"})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
@@ -45,7 +45,7 @@ func (c *APIClient) NodeMetadataMapping(nodeName string, pods []*kubelet.Pod) er
 }
 
 // processKubeServices adds services to the metadataMapper cache, pointer parameters must be non nil
-func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointList *v1.EndpointsList) {
+func processKubeServices(nodeList *v1.NodeList, pods []*types.Pod, endpointList *v1.EndpointsList) {
 	if nodeList.Items == nil || len(pods) == 0 || endpointList.Items == nil {
 		return
 	}

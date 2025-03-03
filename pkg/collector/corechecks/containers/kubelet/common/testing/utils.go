@@ -25,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 var (
@@ -169,7 +169,7 @@ func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUti
 	if err != nil {
 		return fmt.Errorf("unable to load pod list, Err: %w", err)
 	}
-	var pods *kubelet.PodList
+	var pods *types.PodList
 	err = json.Unmarshal(podList, &pods)
 	if err != nil {
 		return fmt.Errorf("unable to load pod list, Err: %w", err)
