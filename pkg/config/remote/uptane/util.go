@@ -52,7 +52,7 @@ func parseMetaPath(rawMetaPath string) (metaPath, error) {
 	}, nil
 }
 
-func metaVersion(rawMeta json.RawMessage) (uint64, error) {
+func unsafeMetaVersion(rawMeta json.RawMessage) (uint64, error) {
 	var metaVersion struct {
 		Signed *struct {
 			Version *uint64 `json:"version"`
@@ -68,7 +68,7 @@ func metaVersion(rawMeta json.RawMessage) (uint64, error) {
 	return *metaVersion.Signed.Version, nil
 }
 
-func metaCustom(rawMeta json.RawMessage) ([]byte, error) {
+func unsafeMetaCustom(rawMeta json.RawMessage) ([]byte, error) {
 	var metaVersion struct {
 		Signed *struct {
 			Custom json.RawMessage `json:"custom"`
@@ -84,7 +84,7 @@ func metaCustom(rawMeta json.RawMessage) ([]byte, error) {
 	return []byte(metaVersion.Signed.Custom), nil
 }
 
-func metaExpires(rawMeta json.RawMessage) (time.Time, error) {
+func unsafeMetaExpires(rawMeta json.RawMessage) (time.Time, error) {
 	var metaExpires struct {
 		Signed *struct {
 			Expires time.Time `json:"expires"`

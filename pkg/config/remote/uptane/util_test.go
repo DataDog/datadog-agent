@@ -76,14 +76,14 @@ func TestMetaFields(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			output, err := metaVersion(test.input)
+			output, err := unsafeMetaVersion(test.input)
 			if test.err {
 				assert.Error(tt, err)
 			} else {
 				assert.Equal(tt, test.version, output)
 				assert.NoError(tt, err)
 			}
-			tsOutput, err := metaExpires(test.input)
+			tsOutput, err := unsafeMetaExpires(test.input)
 			if test.err {
 				assert.Error(tt, err)
 			} else {
@@ -121,7 +121,7 @@ func TestMetaCustom(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			output, err := metaCustom(test.input)
+			output, err := unsafeMetaCustom(test.input)
 			if test.err {
 				assert.Error(tt, err)
 			} else {
