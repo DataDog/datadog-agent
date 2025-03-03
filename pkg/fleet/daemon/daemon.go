@@ -102,13 +102,10 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
 	}
-	// Eval symlinks for the directories but keep the original binary name. This is needed when the
-	// installer is bundled with the agent.
-	installerDir, err := filepath.EvalSymlinks(filepath.Dir(installerBin))
+	installerBin, err = filepath.EvalSymlinks(installerBin)
 	if err != nil {
 		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
 	}
-	installerBin = filepath.Join(installerDir, filepath.Base(installerBin))
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
