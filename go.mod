@@ -910,6 +910,7 @@ require (
 	honnef.co/go/tools v0.5.1 // indirect
 	k8s.io/kms v0.31.2 // indirect
 	k8s.io/sample-controller v0.31.2 // indirect
+	modernc.org/sqlite v1.36.0 // indirect
 	rsc.io/binaryregexp v0.2.0 // indirect
 )
 
