@@ -31,3 +31,11 @@ func TestCgoAlignment_CudaMemEvent(t *testing.T) {
 func TestCgoAlignment_CudaSetDeviceEvent(t *testing.T) {
 	ebpftest.TestCgoAlignment[CudaSetDeviceEvent](t)
 }
+
+func TestCgoAlignment_CudaEventKey(t *testing.T) {
+	ebpftest.TestCgoAlignment[CudaEventKey](t)
+}
+
+func TestCgoAlignment_CudaEventValue(t *testing.T) {
+	ebpftest.TestCgoAlignment[CudaEventValue](t)
+}

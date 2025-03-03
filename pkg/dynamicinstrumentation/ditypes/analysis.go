@@ -19,12 +19,12 @@ type TypeMap struct {
 
 	// FunctionsByPC places DWARF subprogram (function) entries in order by
 	// its low program counter which is necessary for resolving stack traces
-	FunctionsByPC []*LowPCEntry
+	FunctionsByPC []*FuncByPCEntry
 
 	// DeclaredFiles places DWARF compile unit entries in order by its
 	// low program counter which is necessary for resolving declared file
 	// for the sake of stack traces
-	DeclaredFiles []*LowPCEntry
+	DeclaredFiles []*DwarfFilesEntry
 }
 
 // Parameter represents a function parameter as read from DWARF info
@@ -77,7 +77,13 @@ func (s SpecialKind) String() string {
 }
 
 func (l LocationExpression) String() string {
-	return fmt.Sprintf("%s (%d, %d, %d)", l.Opcode.String(), l.Arg1, l.Arg2, l.Arg3)
+	return fmt.Sprintf("Opcode: %s Args: [%d, %d, %d] Label: %s Collection ID: %s\n",
+		l.Opcode.String(),
+		l.Arg1,
+		l.Arg2,
+		l.Arg3,
+		l.Label,
+		l.CollectionIdentifier)
 }
 
 // LocationExpressionOpcode uniquely identifies each location expression operation
@@ -124,6 +130,9 @@ const (
 	OpSetGlobalLimit
 	// OpJumpIfGreaterThanLimit represents an operation to jump if a value is greater than a limit
 	OpJumpIfGreaterThanLimit
+	// OpPopPointerAddress is a special opcode for a compound operation (combination of location expressions)
+	// that are used for popping the address when reading pointers
+	OpPopPointerAddress
 )
 
 func (op LocationExpressionOpcode) String() string {
@@ -177,6 +186,19 @@ func (op LocationExpressionOpcode) String() string {
 // duplicates the u64 element on the top of the BPF parameter stack.
 func CopyLocationExpression() LocationExpression {
 	return LocationExpression{Opcode: OpCopy}
+}
+
+// PopPointerAddressCompoundLocationExpression is a compound location
+// expression, meaning it's a combination of expressions with the
+// specific purpose of popping the address for pointer values
+func PopPointerAddressCompoundLocationExpression() LocationExpression {
+	return LocationExpression{
+		Opcode: OpPopPointerAddress,
+		IncludedExpressions: []LocationExpression{
+			CopyLocationExpression(),
+			PopLocationExpression(1, 8),
+		},
+	}
 }
 
 // DirectReadLocationExpression creates an expression which
@@ -368,6 +390,7 @@ type LocationExpression struct {
 	Arg3                 uint
 	CollectionIdentifier string
 	Label                string
+	IncludedExpressions  []LocationExpression
 }
 
 // Location represents where a particular datatype is found on probe entry
@@ -383,10 +406,10 @@ func (l Location) String() string {
 	return fmt.Sprintf("Location{InReg: %t, StackOffset: %d, Register: %d}", l.InReg, l.StackOffset, l.Register)
 }
 
-// LowPCEntry is a helper type used to sort DWARF entries by their low program counter
-type LowPCEntry struct {
+// DwarfFilesEntry represents the list of files used in a DWARF compile unit
+type DwarfFilesEntry struct {
 	LowPC uint64
-	Entry *dwarf.Entry
+	Files []*dwarf.LineFile
 }
 
 // BPFProgram represents a bpf program that's created for a single probe
@@ -400,13 +423,18 @@ type BPFProgram struct {
 //nolint:all
 func PrintLocationExpressions(expressions []LocationExpression) {
 	for i := range expressions {
-		fmt.Printf("%s %d %d %d %s %s\n",
-			expressions[i].Opcode.String(),
-			expressions[i].Arg1,
-			expressions[i].Arg2,
-			expressions[i].Arg3,
-			expressions[i].Label,
-			expressions[i].CollectionIdentifier,
-		)
+		fmt.Println(expressions[i].String())
 	}
 }
+
+// FuncByPCEntry represents useful data associated with a function entry in DWARF
+type FuncByPCEntry struct {
+	LowPC      uint64
+	Fn         string
+	FileNumber int64
+	Line       int64
+}
+
+// RemoteConfigCallback is the name of the function in dd-trace-go which we hook for retrieving
+// probe configurations
+const RemoteConfigCallback = "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration"

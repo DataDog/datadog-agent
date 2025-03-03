@@ -97,6 +97,9 @@ func TestBundleOneShot(t *testing.T) {
 		}}),
 		core.MockBundle(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
+		taggerfx.Module(tagger.Params{
+			UseFakeTagger: true,
+		}),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		rdnsquerier.MockModule(),

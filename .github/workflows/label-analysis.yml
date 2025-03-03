@@ -17,7 +17,7 @@ permissions: {}
 
 jobs:
   assign-team-label:
-    if: github.triggering_actor != 'dd-devflow[bot]'
+    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -121,7 +121,7 @@ jobs:
           inv -e github.check-qa-labels --labels "${LABELS[@]}"
 
   agenttelemetry-list-change-ack-check:
-    if: github.triggering_actor != 'dd-devflow[bot]'
+    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -157,5 +157,5 @@ jobs:
         run: pip install -r requirements.txt -r tasks/requirements.txt --break-system-packages
       - name: Ask for code reviews
         env:
-          SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: inv -e issue.ask-reviews -p ${{ github.event.pull_request.number }}

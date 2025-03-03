@@ -656,10 +656,20 @@ class TestModifyContent(unittest.TestCase):
 class TestUpdateGitlabConfig(unittest.TestCase):
     def test_old_images(self):
         self.assertEqual(
-            len(update_gitlab_config(".gitlab-ci.yml", tag="gru", images="", test=False, update=False)), 22
+            len(
+                update_gitlab_config(
+                    "tasks/unit_tests/testdata/variables.yml", tag="gru", images="", test=False, update=False
+                )
+            ),
+            22,
         )
 
     def test_multi_update(self):
         self.assertEqual(
-            len(update_gitlab_config(".gitlab-ci.yml", tag="gru", images="deb,rpm", test=False, update=False)), 11
+            len(
+                update_gitlab_config(
+                    "tasks/unit_tests/testdata/variables.yml", tag="gru", images="deb,rpm", test=False, update=False
+                )
+            ),
+            11,
         )

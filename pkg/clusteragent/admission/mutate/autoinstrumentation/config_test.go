@@ -75,7 +75,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						PodSelector: PodSelector{
+						PodSelector: &PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
@@ -87,7 +87,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: NamespaceSelector{
+						NamespaceSelector: &NamespaceSelector{
 							MatchNames: []string{"billing"},
 						},
 						TracerVersions: map[string]string{
@@ -123,7 +123,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				Targets: []Target{
 					{
 						Name: "Billing Service",
-						PodSelector: PodSelector{
+						PodSelector: &PodSelector{
 							MatchLabels: map[string]string{
 								"app": "billing-service",
 							},
@@ -135,7 +135,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 								},
 							},
 						},
-						NamespaceSelector: NamespaceSelector{
+						NamespaceSelector: &NamespaceSelector{
 							MatchLabels: map[string]string{
 								"app": "billing",
 							},
@@ -200,37 +200,193 @@ func TestNewInstrumentationConfig(t *testing.T) {
 }
 
 func TestTargetEnvVar(t *testing.T) {
-	expected := []Target{
+	tests := []struct {
+		name     string
+		expected []Target
+	}{
 		{
-			Name: "Billing Service",
-			PodSelector: PodSelector{
-				MatchLabels: map[string]string{
-					"app": "billing-service",
-				},
-				MatchExpressions: []SelectorMatchExpression{
-					{
-						Key:      "env",
-						Operator: "In",
-						Values:   []string{"prod"},
+			name: "valid target",
+			expected: []Target{
+				{
+					Name: "Billing Service",
+					PodSelector: &PodSelector{
+						MatchLabels: map[string]string{
+							"app": "billing-service",
+						},
+						MatchExpressions: []SelectorMatchExpression{
+							{
+								Key:      "env",
+								Operator: "In",
+								Values:   []string{"prod"},
+							},
+						},
+					},
+					NamespaceSelector: &NamespaceSelector{
+						MatchNames: []string{"billing"},
+					},
+					TracerVersions: map[string]string{
+						"java": "default",
 					},
 				},
 			},
-			NamespaceSelector: NamespaceSelector{
-				MatchNames: []string{"billing"},
-			},
-			TracerVersions: map[string]string{
-				"java": "default",
+		},
+		{
+			name: "target with many omitted fields",
+			expected: []Target{
+				{
+					Name: "Billing Service",
+					PodSelector: &PodSelector{
+						MatchLabels: map[string]string{
+							"app": "billing-service",
+						},
+					},
+				},
 			},
 		},
 	}
 
-	data, err := json.Marshal(expected)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
 
-	t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
+			t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
 
-	actual, err := NewInstrumentationConfig(configmock.New(t))
-	require.NoError(t, err)
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
 
-	require.Equal(t, expected, actual.Targets)
+			require.Equal(t, tt.expected, actual.Targets)
+		})
+	}
+}
+
+func TestGetPinnedLibraries(t *testing.T) {
+	tests := []struct {
+		name          string
+		libVersions   map[string]string
+		checkDefaults bool
+		expected      pinnedLibraries
+	}{
+		{
+			name:     "no pinned library versions",
+			expected: pinnedLibraries{areSetToDefaults: false},
+		},
+		{
+			name:          "no pinned library versions, checkDefaults",
+			checkDefaults: true,
+			expected:      pinnedLibraries{areSetToDefaults: false},
+		},
+		{
+			name:        "default libs, not checking defaults always false",
+			libVersions: defaultLibraries,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+			},
+		},
+		{
+			name:          "default libs",
+			libVersions:   defaultLibraries,
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name:          "default libs, one missing",
+			libVersions:   defaultLibrariesFor("java", "python", "js", "dotnet"),
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+				},
+			},
+		},
+		{
+			name: "explicitly default libs",
+			libVersions: map[string]string{
+				"java":   "default",
+				"python": "default",
+				"js":     "default",
+				"dotnet": "default",
+				"ruby":   "default",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name: "default libs (major versions)",
+			libVersions: map[string]string{
+				"java":   "v1",
+				"python": "v2",
+				"js":     "v5",
+				"dotnet": "v3",
+				"ruby":   "v2",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name: "default libs (major versions mismatch)",
+			libVersions: map[string]string{
+				"java":   "v1",
+				"python": "v2",
+				"js":     "v3",
+				"dotnet": "v3",
+				"ruby":   "v2",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					js.libInfo("", "registry/dd-lib-js-init:v3"),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults)
+			require.ElementsMatch(t, tt.expected.libs, pinned.libs, "libs match")
+			require.Equal(t, tt.expected.areSetToDefaults, pinned.areSetToDefaults, "areSetToDefaults match")
+		})
+	}
 }

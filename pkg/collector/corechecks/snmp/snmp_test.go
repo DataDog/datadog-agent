@@ -1032,10 +1032,10 @@ namespace: nsSubnet
 	err = checkSubnet.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfigSubnet, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:9d3f14dbaceba72d"), check1.ID())
-	assert.Equal(t, checkid.ID("snmp:default:2.2.2.2:9c51b342e7a4fdd5"), check2.ID())
-	assert.Equal(t, checkid.ID("snmp:ns3:3.3.3.3:7e1c698677986eca"), check3.ID())
-	assert.Equal(t, checkid.ID("snmp:nsSubnet:10.10.10.0/24:ae80a9e88fe6643e"), checkSubnet.ID())
+	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:7df466323f9d6575"), check1.ID())
+	assert.Equal(t, checkid.ID("snmp:default:2.2.2.2:157550abc671c535"), check2.ID())
+	assert.Equal(t, checkid.ID("snmp:ns3:3.3.3.3:efedf649ea1f0875"), check3.ID())
+	assert.Equal(t, checkid.ID("snmp:nsSubnet:10.10.10.0/24:d5201742549dd380"), checkSubnet.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 

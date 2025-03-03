@@ -2,10 +2,203 @@
 Release Notes
 =============
 
+.. _Release Notes_7.63.2:
+
+7.63.2
+======
+
+.. _Release Notes_7.63.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-28
+
+- Please refer to the `7.63.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7632>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.63.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Disable the X25519Kyber768Draft00 key exchange mechanism to avoid issues with
+  firewalls not supporting it, in particular AWS Network Firewall.
+
+
+.. _Release Notes_7.63.1:
+
+7.63.1
+======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
+
+.. _Release Notes_7.63.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-26
+
+- Please refer to the `7.63.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7631>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.63.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Publish image tags of the `datadog-fips-agent` build.
+
+
+.. _Release Notes_7.63.0:
+
+7.63.0
+======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
+
+.. _Release Notes_7.63.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-02-19
+
+- Please refer to the `7.63.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7630>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.63.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Bump the Python version to 3.12.8
+
+
+.. _Release Notes_7.63.0_New Features:
+
+New Features
+------------
+
+- Add support of CIS AlmaLinux 9 Benchmark in CSPM.
+
+
+.. _Release Notes_7.63.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds a kube_cronjob tag to kubernetes_state.job.duration metric.
+
+- Increase the Agent's default ecs_metadata_timeout from 500ms to 1000ms to avoid timeouts.
+
+- Enhanced the Containerd Check to use a cache for container image sizes,
+  reducing redundant API calls and improving performance.
+
+- Add ``apm_config.obfuscation.cache.max_size`` to set the maximum size of the
+  cache in bytes.
+
+- Add TCP diagnosis check for logs_config.force_use_tcp.
+
+- Added the Linux kernel's dmesg logs into the Agent flare. This information will appear in ``system-probe/dmesg.log``.
+
+- Begin collecting metrics from all internal Prometheus registries. Previously,
+  the default registry was ignored, resulting in the omission of the `point.sent`
+  and `point.dropped` metrics. This change ensures that all metrics are collected.
+
+- Agents are now built with Go ``1.23.5``.
+
+- Include Datadog Process Monitor (``ddprocmon``) service status in flare on Windows
+
+- Language detection adds support for detecting PHP.
+
+- When `apm.features.enable_receive_resource_spans_v2` is set, trace agent OTLPReceiver now maps HTTP attributes from OTLP conventions to DD conventions.
+  See the full list of attributes here: https://docs.datadoghq.com/opentelemetry/schema_semantics/semantic_mapping/?tab=datadogexporter#http
+
+- Adds initial Windows support for UDP probes in Network Path.
+
+- Updated Oracle check to lazily initialize the obfuscator. This should
+  improve performance each time the Oracle check runs and collects SQL
+  statements.
+
+- The Windows Agent MSI now shows the user an error message
+  if the provided password contains a semicolon.
+
+- APM: Introduce ``sql_obfuscation_mode`` parameter. The value ``obfuscate_and_normalize`` is recommended for DBM customers to enhance APM/DBM correlation.
+
+- APM: Adds span events as a top level payload field. Span events received this way will be altered according to rules defined by DD_APM_REPLACE_TAGS. Credit card obfuscation will also be applied to span event attributes.
+
+- APM: If apm_config.obfuscation.remove_stack_traces is enabled the trace agent will now also remove the value at span tag `exception.stacktrace` replacing it with a "?".
+
+
+.. _Release Notes_7.63.0_Security Notes:
+
+Security Notes
+--------------
+
+- Update OpenSSL from 3.3.2 to 3.3.3 addressing CVE-2024-12797.
+
+- On Windows, the named pipe \\.\pipe\dd_system_probe from system probe is now restricted to
+  Local System, Administrators, and the ddagentuser.  Any other custom users are not supported.
+
+
+.. _Release Notes_7.63.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes some existing metric transformer unit tests by correcting their assertions.
+
+- Datadog span.Type and span.Resource attributes are set correctly for OTel spans
+  processed via OTel Agent and Datadog Exporter when client span type is a database
+  span.Type.
+
+  span.Type logic update is limited to ReceiveResourceSpansV2 logic, set using
+  `"enable_receive_resource_spans_v2"` in `DD_APM_FEATURES`
+
+  span.Resource logic update is limited to OperationAndResourceNameV2 logic, set
+  using `"enable_operation_and_resource_name_logic_v2"` in `DD_APM_FEATURES`
+
+  Users should set a `span.type` attribute on their telemetry if they wish to
+  override the default span type.
+
+- Agent flare service status search for ``datadog`` services is now case insensitive on Windows
+
+- Fixed an issue where the "source" and "service" tags were incorrectly set to
+  "kubernetes" in logs when the Agent runs on ECS EC2.
+
+- Bypass sending blank logs configs to the integrations launcher to
+  prevent the launcher from sending JSON parse error logs.
+
+- Respect proxy config in symdb endpoint.
+
+- Fix IsUserAnAdmin call on Windows to use correct API.
+
+- Fixed a bug that occurs when reinstalling marketplace/extra integrations for a RPM package after an Agent upgrade.
+
+- Windows installer will not abort if the LanmanServer (Server) service is not running (regression introduced in 7.47.0).
+
+- Fix the removal of non-core integrations during Agent upgrades on Windows platforms.
+  To enable persisting non-core integration during install, set INSTALL_PYTHON_THIRD_PARTY_DEPS="1"
+  property during the installation of the MSI.
+
+
 .. _Release Notes_7.62.3:
 
 7.62.3
 ======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
 
 .. _Release Notes_7.62.3_Prelude:
 
@@ -21,6 +214,11 @@ Release on: 2025-02-14
 
 7.62.2
 ======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
 
 .. _Release Notes_7.62.2_Prelude:
 
@@ -66,6 +264,11 @@ Bug Fixes
 7.62.1
 ======
 
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
+
 .. _Release Notes_7.62.1_Prelude:
 
 Prelude
@@ -86,6 +289,11 @@ Bug Fixes
 
 7.62.0
 ======
+
+Known issues
+-------
+
+- This version contains a TLS change that can in some circumstances prevent the Agent from communicating with our backend through AWS Network Firewalls due to an `upstream issue <https://redmine.openinfosecfoundation.org/issues/7476>`_. If you are using this combination of systems, the recommendation at this time is to downgrade to Agent v7.61 or upgrade to v7.63.2 when it becomes available.
 
 .. _Release Notes_7.62.0_Prelude:
 

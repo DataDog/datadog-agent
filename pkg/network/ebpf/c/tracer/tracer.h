@@ -113,14 +113,12 @@ typedef struct {
 
 // Telemetry names
 typedef struct {
-    __u64 tcp_failed_connect;
     __u64 tcp_sent_miscounts;
     __u64 unbatched_tcp_close;
     __u64 unbatched_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
-    __u64 unsupported_tcp_failures;
     __u64 tcp_done_missing_pid;
     __u64 tcp_connect_failed_tuple;
     __u64 tcp_done_failed_tuple;
@@ -128,6 +126,7 @@ typedef struct {
     __u64 tcp_close_target_failures;
     __u64 tcp_done_connection_flush;
     __u64 tcp_close_connection_flush;
+    __u64 tcp_syn_retransmit;
 } telemetry_t;
 
 typedef struct {

@@ -17,6 +17,7 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
+    "bundle_installer",
     "clusterchecks",
     "consul",
     "containerd",
@@ -63,6 +64,7 @@ ALL_TAGS = {
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
+    "bundle_installer",
     "consul",
     "containerd",
     "no_dynamic_plugins",
@@ -92,6 +94,7 @@ AGENT_TAGS = {
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     {
+        "bundle_installer",
         "containerd",
         "no_dynamic_plugins",
         "cri",
@@ -169,7 +172,6 @@ SERVERLESS_TAGS = {"serverless", "otlp"}
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
-    "no_dynamic_plugins",
     "ec2",
     "linux_bpf",
     "netcgo",
