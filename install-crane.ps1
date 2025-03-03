@@ -12,15 +12,9 @@ function Add-ToPath() {
         }
     }
     if($Global){
-        if($TargetContainer){
-            $oldPath=[Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::User)
-            $target="$oldPath;$NewPath"
-            [Environment]::SetEnvironmentVariable("Path", $target, [System.EnvironmentVariableTarget]::User)
-        } else {
-            if ($GlobalEnvVariables.PathEntries -notcontains $NewPath){
-                $GlobalEnvVariables.PathEntries += $NewPath
-            }
-        }
+      $oldPath=[Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::User)
+      $target="$oldPath;$NewPath"
+        [Environment]::SetEnvironmentVariable("Path", $target, [System.EnvironmentVariableTarget]::User)
     }
 }
 
