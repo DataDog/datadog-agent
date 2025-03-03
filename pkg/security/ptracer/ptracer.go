@@ -578,13 +578,13 @@ func (ctx *CWSPtracerCtx) NewTracer() error {
 	}
 
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT)
+	signal.Notify(sigChan) // will catch all signals
 	go func() {
-		<-sigChan
-		os.Exit(0)
+		sig := <-sigChan
+		unixSig, _ := sig.(syscall.Signal)
+		// All signals will be forwarded to the tracee. This way, if a tracee have
+		// handlers for some of them it will continue to work as execpected.
+		syscall.Kill(pid, unixSig)
 	}()
 
 	// first process
