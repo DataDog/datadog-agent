@@ -13,12 +13,12 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -44,7 +44,6 @@ type GlobalParams struct {
 	ExtraConfFilePaths   []string
 	ConfigName           string
 	LoggerName           string
-	SettingsClient       func() (settings.Client, error)
 	FleetPoliciesDirPath string
 }
 
@@ -112,7 +111,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func showRuntimeConfiguration(_ log.Component, config config.Component, cliParams *cliParams) error {
+func showRuntimeConfiguration(_ log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
 	err := util.SetAuthToken(config)
 	if err != nil {
 		return err

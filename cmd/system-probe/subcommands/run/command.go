@@ -56,7 +56,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -121,9 +120,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Provide tagger module
 				remoteTaggerFx.Module(tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-						return func() (string, error) { return security.FetchAuthToken(c) }
-					},
 					RemoteFilter: taggerTypes.NewMatchAllFilter(),
 				}),
 				autoexitimpl.Module(),
@@ -295,9 +291,6 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		// Provide tagger module
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) { return security.FetchAuthToken(c) }
-			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
 		systemprobeloggerfx.Module(),

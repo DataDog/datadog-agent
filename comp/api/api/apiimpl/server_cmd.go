@@ -45,7 +45,7 @@ func (server *apiServer) startCMDServer(
 	}
 
 	// gRPC server
-	authInterceptor := grpcutil.AuthInterceptor(parseToken)
+	authInterceptor := grpcutil.StaticAuthInterceptor(server.authToken.Get())
 
 	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
@@ -99,8 +99,8 @@ func (server *apiServer) startCMDServer(
 	checkMux := gorilla.NewRouter()
 
 	// Validate token for every request
-	agentMux.Use(validateToken)
-	checkMux.Use(validateToken)
+	agentMux.Use(server.authToken.HTTPMiddleware)
+	checkMux.Use(server.authToken.HTTPMiddleware)
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(

@@ -100,39 +100,36 @@ type Options struct {
 
 var defaultOptions = Options{pollInterval: 5 * time.Second}
 
-// TokenFetcher defines the callback used to fetch a token
-type TokenFetcher func() (string, error)
-
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
 // datadog-agent's secure GRPC client
 type agentGRPCConfigFetcher struct {
-	authTokenFetcher func() (string, error)
-	fetchConfigs     fetchConfigs
+	authToken    string
+	fetchConfigs fetchConfigs
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authToken string) (ConfigFetcher, error) {
 	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
 	if err != nil {
 		return nil, err
 	}
 
 	return &agentGRPCConfigFetcher{
-		authTokenFetcher: authTokenFetcher,
-		fetchConfigs:     c.ClientGetConfigs,
+		authToken:    authToken,
+		fetchConfigs: c.ClientGetConfigs,
 	}, nil
 }
 
 // NewMRFAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent MRF client
-func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authToken string) (ConfigFetcher, error) {
 	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
 	if err != nil {
 		return nil, err
 	}
 
 	return &agentGRPCConfigFetcher{
-		authTokenFetcher: authTokenFetcher,
-		fetchConfigs:     c.ClientGetConfigsHA,
+		authToken:    authToken,
+		fetchConfigs: c.ClientGetConfigsHA,
 	}, nil
 }
 
@@ -148,16 +145,8 @@ func newAgentGRPCClient(ipcAddress string, cmdPort string) (pbgo.AgentSecureClie
 
 // ClientGetConfigs implements the ConfigFetcher interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-	// When communicating with the core service via grpc, the auth token is handled
-	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
-	// or that if it restarts that the auth token remains the same. Thus we need to do this every request.
-	token, err := g.authTokenFetcher()
-	if err != nil {
-		return nil, errors.Wrap(err, "could not acquire agent auth token")
-	}
-
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", g.authToken)},
 	}
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
@@ -171,8 +160,8 @@ func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error)
 }
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
-func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+func NewGRPCClient(ipcAddress string, cmdPort string, authToken string, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authToken)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +170,8 @@ func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetc
 }
 
 // NewUnverifiedMRFGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via gRPC
-func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authToken string, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authToken)
 	if err != nil {
 		return nil, err
 	}
@@ -192,8 +181,8 @@ func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetc
 }
 
 // NewUnverifiedGRPCClient creates a new client that does not perform any TUF verification
-func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authToken string, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authToken)
 	if err != nil {
 		return nil, err
 	}

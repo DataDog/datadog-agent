@@ -25,7 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -55,7 +56,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -190,7 +190,8 @@ func makeFlare(flareComp flare.Component,
 	cliParams *cliParams,
 	_ option.Option[workloadmeta.Component],
 	_ tagger.Component,
-	flareprofiler flareprofilerdef.Component) error {
+	flareprofiler flareprofilerdef.Component,
+	at authtoken.Component) error {
 	var (
 		profile flaretypes.ProfileData
 		err     error
@@ -260,7 +261,7 @@ func makeFlare(flareComp flare.Component,
 
 	if streamLogParams.Duration > 0 {
 		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+		err := streamlogs.StreamLogs(lc, config, at, &streamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
 		}
@@ -270,7 +271,7 @@ func makeFlare(flareComp flare.Component,
 	if cliParams.forceLocal {
 		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil)
 	} else {
-		filePath, err = requestArchive(flareComp, profile, cliParams.providerTimeout)
+		filePath, err = requestArchive(flareComp, at, profile, cliParams.providerTimeout)
 	}
 
 	if err != nil {
@@ -300,9 +301,8 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration) (string, error) {
+func requestArchive(flareComp flare.Component, auth authtoken.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
@@ -323,19 +323,13 @@ func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, pro
 
 	urlstr := url.String()
 
-	// Set session token
-	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
-		return createArchive(flareComp, pdata, providerTimeout, err)
-	}
-
 	p, err := json.Marshal(pdata)
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", err)))
 		return "", err
 	}
 
-	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
+	r, err := auth.GetClient().Post(urlstr, "application/json", bytes.NewBuffer(p))
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(string(r)))
