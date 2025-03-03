@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 )
 
-// team: opentelemetry opentelemetry-agent
+// team: opentelemetry-agent
 
 // Component specifies the interface implemented by the extension module.
 type Component interface {

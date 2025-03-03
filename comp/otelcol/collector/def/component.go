@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 )
 
-// team: opentelemetry opentelemetry-agent
+// team: opentelemetry-agent
 
 // Component specifies the interface implemented by the collector module.
 type Component interface {
