@@ -24,20 +24,12 @@ retract (
 // for more details.
 
 replace (
-	// prevent using reflect.Type.MethodByName with non-constant argument
-	github.com/Intevation/gval => github.com/pgimalac/gval v1.3.1-0.20241226144305-104364cd0aa3
-	// comment out a use of text/template
-	github.com/cheggaaa/pb/v3 => github.com/pgimalac/pb/v3 v3.1.6-0.20241226144746-8962a0214971
 	// avoid using reflect.Type.Method with non-constant argument
 	github.com/google/go-cmp => github.com/pgimalac/go-cmp v0.6.1-0.20241226143757-a715dfd9338b
 	// reflect2 has a type which wraps reflect.Type, which makes the linker consider that Method and MethodByName are reachable. This fix shadows both methods to make them explicitly unreachable.
 	github.com/modern-go/reflect2 => github.com/pgimalac/reflect2 v0.0.0-20241226135511-3c6e286be18b
 	// comment out uses of text/template
 	github.com/open-policy-agent/opa => github.com/pgimalac/opa v0.0.0-20241226172958-398772fbb5c0
-	// https://github.com/spf13/cobra/pull/1956
-	github.com/spf13/cobra => github.com/aarzilli/cobra v1.1.3-0.20241206153912-45cac892e43f
-	// comment out a use of text/template
-	github.com/xeipuuv/gojsonschema => github.com/pgimalac/gojsonschema v1.2.1-0.20241226211709-d63a0dde5719
 	// comment out a use of text/template
 	go.uber.org/dig => github.com/pgimalac/dig v1.18.1-0.20241226143044-f328231d7d7e
 )
