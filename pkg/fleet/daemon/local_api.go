@@ -92,13 +92,14 @@ func (l *localAPIImpl) handler() http.Handler {
 	return r
 }
 
-func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
+func (l *localAPIImpl) status(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var response StatusResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
-	packages, err := l.daemon.GetState()
+	ctx := r.Context()
+	packages, err := l.daemon.GetState(ctx)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}

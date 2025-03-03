@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package bootstrapper provides the installer bootstrapper component.
-package bootstrapper
+package bootstrap
 
 import (
 	"context"
@@ -14,17 +13,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 )
 
 // Bootstrap bootstraps the installer and uses it to install the default packages.
 func Bootstrap(ctx context.Context, env *env.Env) error {
 	version := "latest"
-	if env.DefaultPackagesVersionOverride[bootstrap.InstallerPackage] != "" {
-		version = env.DefaultPackagesVersionOverride[bootstrap.InstallerPackage]
+	if env.DefaultPackagesVersionOverride[InstallerPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[InstallerPackage]
 	}
-	installerURL := oci.PackageURL(env, bootstrap.InstallerPackage, version)
-	err := bootstrap.Install(ctx, env, installerURL)
+	installerURL := oci.PackageURL(env, InstallerPackage, version)
+	err := Install(ctx, env, installerURL)
 	if err != nil {
 		return fmt.Errorf("failed to bootstrap the installer: %w", err)
 	}

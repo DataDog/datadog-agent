@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package installer
+package commands
 
 import (
 	"syscall"
