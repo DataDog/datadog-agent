@@ -63,7 +63,7 @@ $craneUrl = "https://github.com/google/go-containerregistry/releases/download/v0
 $installPath = "C:\crane"
 
 # Download and extract Crane
-DownloadAndExpandTo -TargetDir $installPath -SourceURL $craneUrl -Sha256 "939c63961fc2e9d7f0cc2b6a1af9d17a5b2f6a37ffb63d96"
+DownloadAndExpandTo -TargetDir $installPath -SourceURL $craneUrl -Sha256 "939c63961fc2e9d7f0cc2b6a1af9d17a5b2f6a37ffb63d961b47f786aadb732b"
 
 # Add to system PATH
 Write-Host "Adding Crane to system PATH..."
