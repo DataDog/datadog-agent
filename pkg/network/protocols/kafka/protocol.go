@@ -246,7 +246,7 @@ func (p *protocol) Name() string {
 // ConfigureOptions add the necessary options for the kafka monitoring to work, to be used by the manager.
 // Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
 // option.
-func (p *protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
@@ -260,7 +260,7 @@ func (p *protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
 }
 
 // PreStart creates the kafka events consumer and starts it.
-func (p *protocol) PreStart(*manager.Manager) error {
+func (p *protocol) PreStart() error {
 	var err error
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStreamName,
@@ -278,13 +278,13 @@ func (p *protocol) PreStart(*manager.Manager) error {
 }
 
 // PostStart starts the map cleaner.
-func (p *protocol) PostStart(*manager.Manager) error {
+func (p *protocol) PostStart() error {
 	p.setUpKernelTelemetryCollection()
 	return p.setupInFlightMapCleaner()
 }
 
 // Stop stops the kafka events consumer and the map cleaner.
-func (p *protocol) Stop(*manager.Manager) {
+func (p *protocol) Stop() {
 	// inFlightMapCleaner handles nil receiver pointers.
 	p.inFlightMapCleaner.Stop()
 	if p.eventsConsumer != nil {

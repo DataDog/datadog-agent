@@ -125,7 +125,7 @@ func (p *protocol) Name() string {
 // - Set the `http_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
 //
 // We also configure the http event stream with the manager and its options.
-func (p *protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
@@ -135,7 +135,7 @@ func (p *protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
-func (p *protocol) PreStart(_ *manager.Manager) (err error) {
+func (p *protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		"http",
 		p.mgr,
@@ -151,14 +151,14 @@ func (p *protocol) PreStart(_ *manager.Manager) (err error) {
 	return
 }
 
-func (p *protocol) PostStart(_ *manager.Manager) error {
+func (p *protocol) PostStart() error {
 	// Setup map cleaner after manager start.
 	p.setupMapCleaner(p.mgr)
 
 	return nil
 }
 
-func (p *protocol) Stop(_ *manager.Manager) {
+func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 

@@ -154,7 +154,7 @@ func (p *protocol) Name() string {
 }
 
 // ConfigureOptions add the necessary options for the postgres monitoring to work, to be used by the manager.
-func (p *protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
@@ -165,7 +165,7 @@ func (p *protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
 }
 
 // PreStart runs setup required before starting the protocol.
-func (p *protocol) PreStart(*manager.Manager) (err error) {
+func (p *protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
 		p.mgr,
@@ -181,7 +181,7 @@ func (p *protocol) PreStart(*manager.Manager) (err error) {
 }
 
 // PostStart starts the map cleaner.
-func (p *protocol) PostStart(*manager.Manager) error {
+func (p *protocol) PostStart() error {
 	// Setup map cleaner after manager start.
 	p.setupMapCleaner()
 	p.startKernelTelemetry()
@@ -189,7 +189,7 @@ func (p *protocol) PostStart(*manager.Manager) error {
 }
 
 // Stop stops all resources associated with the protocol.
-func (p *protocol) Stop(*manager.Manager) {
+func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 

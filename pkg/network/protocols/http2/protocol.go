@@ -240,7 +240,7 @@ const (
 // - Set the `http2_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
 //
 // We also configure the http2 event stream with the manager and its options.
-func (p *Protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
+func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
@@ -276,7 +276,7 @@ func (p *Protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
 // PreStart is called before the start of the provided eBPF manager.
 // Additional initialisation steps, such as starting an event consumer,
 // should be performed here.
-func (p *Protocol) PreStart(_ *manager.Manager) (err error) {
+func (p *Protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
 		p.mgr,
@@ -299,7 +299,7 @@ func (p *Protocol) PreStart(_ *manager.Manager) (err error) {
 // PostStart is called after the start of the provided eBPF manager. Final
 // initialisation steps, such as setting up a map cleaner, should be
 // performed here.
-func (p *Protocol) PostStart(_ *manager.Manager) error {
+func (p *Protocol) PostStart() error {
 	// Setup map cleaner after manager start.
 	p.setupHTTP2InFlightMapCleaner()
 	p.updateKernelTelemetry()
@@ -349,7 +349,7 @@ func (p *Protocol) updateKernelTelemetry() {
 // steps, such as stopping events consumers, should be performed here.
 // Note that since this method is a cleanup method, it *should not* fail and
 // tries to cleanup resources as best as it can.
-func (p *Protocol) Stop(_ *manager.Manager) {
+func (p *Protocol) Stop() {
 	p.dynamicTable.stop()
 	// http2InFlightMapCleaner handles nil pointer receivers
 	p.http2InFlightMapCleaner.Stop()

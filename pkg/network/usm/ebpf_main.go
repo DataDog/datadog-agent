@@ -224,7 +224,7 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
+		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart() },
 		func(protocols.Protocol, *manager.Manager) {})
 
 	// No protocols could be enabled, abort.
@@ -238,8 +238,8 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "post-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
-		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
+		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart() },
+		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop() })
 
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
@@ -272,7 +272,7 @@ func (e *ebpfProgram) Close() error {
 		err = errors.Join(err, rb.Stop(manager.CleanAll))
 	}
 	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
-		protocol.Stop(m)
+		protocol.Stop()
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
@@ -425,7 +425,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
 	options.TailCallRouter = e.tailCallRouter
 	for _, p := range supported {
-		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
+		p.Instance.ConfigureOptions(&options)
 	}
 	if e.cfg.InternalTelemetryEnabled {
 		for _, pm := range e.PerfMaps {

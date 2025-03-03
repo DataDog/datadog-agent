@@ -486,7 +486,7 @@ func (o *sslProgram) Name() string {
 }
 
 // ConfigureOptions changes map attributes to the given options.
-func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
+func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -498,7 +498,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 }
 
 // PreStart is called before the start of the provided eBPF manager.
-func (o *sslProgram) PreStart(*manager.Manager) error {
+func (o *sslProgram) PreStart() error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
@@ -506,12 +506,12 @@ func (o *sslProgram) PreStart(*manager.Manager) error {
 }
 
 // PostStart is a no-op.
-func (o *sslProgram) PostStart(*manager.Manager) error {
+func (o *sslProgram) PostStart() error {
 	return nil
 }
 
 // Stop stops the program.
-func (o *sslProgram) Stop(*manager.Manager) {
+func (o *sslProgram) Stop() {
 	o.watcher.Stop()
 	o.istioMonitor.Stop()
 	o.nodeJSMonitor.Stop()
