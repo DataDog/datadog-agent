@@ -28,18 +28,17 @@ const iteration = 100
 const timeout = time.Minute
 
 const lockSuffix = ".lock"
-const authLoadedRegex = `successfully loaded the IPC auth primitives \(fingerprint: ([\d\w]{16})\)`
-const authCreatedRegex = "successfully created artifact"
+
+var requiredPattern = regexp.MustCompile(`successfully loaded the IPC auth primitives \(fingerprint: ([\d\w]{16})\)`)
+var extraPatterns = []*regexp.Regexp{regexp.MustCompile("successfully created artifact")}
 
 type authArtifactBase struct {
 	e2e.BaseSuite[environments.Host]
 	sync.Mutex
-	requiredPattern *regexp.Regexp
-	extraPatterns   []*regexp.Regexp
-	svcManager      svcmanager.ServiceManager
-	logFolder       string
-	authTokenPath   string
-	ipcCertPath     string
+	svcManager    svcmanager.ServiceManager
+	logFolder     string
+	authTokenPath string
+	ipcCertPath   string
 	// Per os specific
 	readLogCmdTmpl     string
 	removeFilesCmdTmpl string
@@ -61,15 +60,6 @@ func (a *authArtifactBase) TestServersideIPCCertUsage() {
 	var err error
 	a.logFolder, err = a.Env().RemoteHost.GetLogsFolder()
 	a.Require().NoError(err)
-
-	// Compile regexp pattern
-	signaturePattern, err := regexp.Compile(authLoadedRegex)
-	a.Require().NoError(err)
-	creationPattern, err := regexp.Compile(authCreatedRegex)
-	a.Require().NoError(err)
-
-	a.requiredPattern = signaturePattern
-	a.extraPatterns = []*regexp.Regexp{creationPattern}
 
 	for i := 0; i < iteration; i++ {
 		a.checkAuthStack()
@@ -144,18 +134,18 @@ func (a *authArtifactBase) checkAgentLogs(agentName string) string {
 		content, err := a.Env().RemoteHost.ReadFile(logLocation)
 		require.NoError(t, err)
 
-		for _, p := range a.extraPatterns {
+		for _, p := range extraPatterns {
 			if found := p.Find(content); len(found) > 0 {
-				a.T().Logf("found %s in %s", found, logLocation)
+				a.T().Logf("found \"%s\" in %s", found, logLocation)
 			}
 		}
 
-		if found := a.requiredPattern.Find(content); len(found) > 0 {
-			a.T().Logf("found %s in %s", found, logLocation)
+		if found := requiredPattern.Find(content); len(found) > 0 {
+			a.T().Logf("found \"%s\" in %s", found, logLocation)
 			result = string(found)
 		}
 
 		require.NotEmpty(t, result, "no required pattern found in %s", logLocation)
-	}, timeout, 1*time.Second, "waiting for %s to be found in %s", authLoadedRegex, logLocation)
+	}, timeout, 1*time.Second, "didn't found \"%s\" in %s", requiredPattern.String(), logLocation)
 	return result
 }
