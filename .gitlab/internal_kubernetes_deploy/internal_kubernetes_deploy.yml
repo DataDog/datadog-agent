@@ -93,7 +93,7 @@ celian-notify-slack:
     # - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
     - |
       echo Reinstalling setuptools
-      python3 -m pip install -U setuptools==75.8.2 || true
+      python3 -m pip install -U setuptools -c https://github.com/DataDog/datadog-agent-buildimages/raw/refs/heads/main/requirements/constraints.txt || true
     - python3 -m pip install -r tasks/requirements.txt -r tasks/libs/requirements-notifications.txt
     # - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     # - python3 -m pip freeze | grep setuptools
