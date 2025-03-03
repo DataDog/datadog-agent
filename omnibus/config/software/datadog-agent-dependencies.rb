@@ -44,5 +44,6 @@ if windows_target?
   if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     dependency 'datadog-windows-procmon-driver'
   end
+  dependency 'datadog-windows-dotnet-library'
 end
 
