@@ -584,7 +584,9 @@ func (ctx *CWSPtracerCtx) NewTracer() error {
 		unixSig, _ := sig.(syscall.Signal)
 		// All signals will be forwarded to the tracee. This way, if a tracee have
 		// handlers for some of them it will continue to work as execpected.
-		syscall.Kill(pid, unixSig)
+		if err := syscall.Kill(pid, unixSig); err != nil {
+			logger.Errorf("Kill to forward sig %v to process %d failed: %v\n", sig, pid, err)
+		}
 	}()
 
 	// first process
