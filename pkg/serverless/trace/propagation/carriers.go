@@ -316,12 +316,11 @@ func extractTraceContextFromLambdaRootStepFunctionContext(event events.LambdaRoo
 		return nil, err
 	}
 
-	traceID, err := strconv.ParseUint(event.TraceID, 10, 64)
+	tc.TraceID, err = strconv.ParseUint(event.TraceID, 10, 64)
 	if err != nil {
 		return nil, err
 	}
 
-	tc.TraceID = traceID
 	tc.TraceIDUpper64Hex = parseUpper64Bits(event.TraceTags)
 
 	return tc, nil
