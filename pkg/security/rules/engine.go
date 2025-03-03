@@ -377,12 +377,7 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-// GetSECLVariables returns the set of SECL variables along with theirs values
-func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
-	rs := e.GetRuleSet()
-	if rs == nil {
-		return nil
-	}
+func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
 	var seclVariables = make(map[string]*api.SECLVariableState)
 	for name, value := range rs.GetVariables() {
 		if strings.HasPrefix(name, "process.") {
@@ -410,8 +405,6 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					Value: scopedValue,
 				}
 			})
-		} else if strings.HasPrefix(name, "container.") {
-			continue // skip container variables for now
 		} else { // global variables
 			value, found := value.(eval.Variable).GetValue()
 			if !found {
