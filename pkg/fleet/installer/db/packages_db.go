@@ -9,7 +9,6 @@ package db
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"go.etcd.io/bbolt"
 )
@@ -31,27 +30,14 @@ type Package struct {
 	InstallerVersion string
 }
 
-// PackagesDB is a database that stores information about packages
+// PackagesDB is a database that stores information about packages.
+// It is opened by the installer binary
 type PackagesDB struct {
 	db *bbolt.DB
 }
 
-type options struct {
-	timeout time.Duration
-}
-
-// Option is a function that sets an option on a PackagesDB
-type Option func(*options)
-
-// WithTimeout sets the timeout for opening the database
-func WithTimeout(timeout time.Duration) Option {
-	return func(o *options) {
-		o.timeout = timeout
-	}
-}
-
 // New creates a new PackagesDB
-func New(dbPath string, opts ...Option) (*PackagesDB, error) {
+func NewPackagesDB(dbPath string, opts ...Option) (*PackagesDB, error) {
 	o := options{}
 	for _, opt := range opts {
 		opt(&o)

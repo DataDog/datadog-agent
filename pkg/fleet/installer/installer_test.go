@@ -41,7 +41,7 @@ type testPackageManager struct {
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
 	packages := repository.NewRepositories(rootPath, packages.PreRemoveHooks)
 	configs := repository.NewRepositories(t.TempDir(), nil)
-	db, err := db.New(filepath.Join(rootPath, "packages.db"))
+	db, err := db.NewPackagesDB(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	return &testPackageManager{
 		installerImpl{
