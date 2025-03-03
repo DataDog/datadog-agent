@@ -145,7 +145,7 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     # Generate PR to update static quality gates threshold on nightly pipelines
     bucket_branch = metric_handler.bucket_branch
     if bucket_branch:  # and bucket_branch == "nightly":
-        update_quality_gates_threshold(ctx, metric_handler)
+        update_quality_gates_threshold(ctx, metric_handler, github)
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler):
@@ -181,15 +181,18 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler):
     return file_content
 
 
-def update_quality_gates_threshold(ctx, metric_handler):
+def update_quality_gates_threshold(ctx, metric_handler, github):
     with open("test/static/static_quality_gates.yml") as f:
         file_content = generate_new_quality_gate_config(f, metric_handler)
 
-    with open("test/static/static_quality_gates.yml", "w") as f:
-        f.write(file_content)
-
     branch_name = f"static_quality_gates/threshold_update_{os.environ["CI_COMMIT_SHORT_SHA"]}"
-    ctx.run(f"git checkout -b {branch_name}")
-    ctx.run("git add -uv")
-    ctx.run("git commit -m 'feat(gate): update static quality gates thresholds'")
-    ctx.run(f"git push --set-upstream origin {branch_name}")
+    current_branch = github.repo.get_branch(os.environ["CI_COMMIT_BRANCH"])
+    github.repo.create_git_ref(ref=f'refs/heads/{branch_name}', sha=current_branch.commit.sha)
+    contents = github.repo.get_contents("test/static/static_quality_gates.yml", ref=branch_name)
+    github.repo.update_file(
+        "test/static/static_quality_gates.yml",
+        "feat(gate): update static quality gates thresholds",
+        file_content,
+        contents.sha,
+        branch=branch_name,
+    )
