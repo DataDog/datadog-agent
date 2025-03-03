@@ -1085,7 +1085,7 @@ func TestSampling(t *testing.T) {
 			SamplerMetrics:       sampler.NewMetrics(statsd),
 			conf:                 cfg,
 		}
-		a.SamplerMetrics.Add(a.NoPrioritySampler, a.ErrorsSampler, a.PrioritySampler, a.RareSampler)
+		a.SamplerMetrics.Add(a.NoPrioritySampler, a.ErrorsSampler, a.PrioritySampler, a.RareSampler, a.ProbabilisticSampler)
 		if ac.errorsSampled {
 			a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)
 		}
@@ -1135,6 +1135,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1154,6 +1156,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1173,6 +1177,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1192,6 +1198,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1211,6 +1219,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1230,6 +1240,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1249,6 +1261,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1268,6 +1282,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1287,6 +1303,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1306,6 +1324,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1325,6 +1345,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1344,6 +1366,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 				{
@@ -1358,6 +1382,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1377,6 +1403,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1399,6 +1427,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1418,6 +1448,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1437,6 +1469,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1456,6 +1490,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1475,6 +1511,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1494,6 +1532,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1513,6 +1553,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1532,6 +1574,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1551,6 +1595,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1570,6 +1616,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1589,6 +1637,8 @@ func TestSampling(t *testing.T) {
 						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 					},
 				},
 			},
@@ -1651,6 +1701,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
 				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -1661,6 +1713,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 		},
 		"userdrop-error-manual-dm-unsampled": {
@@ -1676,6 +1730,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
 				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -1686,6 +1742,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 		},
 		"userdrop-error-agent-dm-sampled": {
@@ -1701,6 +1759,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
 				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -1711,6 +1771,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 		},
 		"userkeep-error-no-dm-sampled": {
@@ -1726,6 +1788,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
 				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -1736,6 +1800,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 		},
 		"userkeep-error-agent-dm-sampled": {
@@ -1751,6 +1817,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
 				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -1761,6 +1829,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 		},
 		"autodrop-error-sampled": {
@@ -1776,6 +1846,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
 				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -1786,6 +1858,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 		},
 		"autodrop-not-sampled": {
@@ -1801,6 +1875,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
 				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -1811,6 +1887,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 		},
 		"autokeep-dm-sampled": {
@@ -1826,6 +1904,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
 				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -1836,6 +1916,8 @@ func TestSampleTrace(t *testing.T) {
 				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
 				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRulesEvaluations, int64(0), nil, gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricsProbabilisticSamplerSamplingRuleMatches, int64(0), nil, gomock.Any()).Times(0)
 			},
 		},
 	}
@@ -1846,15 +1928,16 @@ func TestSampleTrace(t *testing.T) {
 			statsd := mockStatsd.NewMockClientInterface(ctrl)
 			metrics := sampler.NewMetrics(statsd)
 			a := &Agent{
-				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-				PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-				RareSampler:       sampler.NewRareSampler(config.New()),
-				EventProcessor:    newEventProcessor(cfg, statsd),
-				SamplerMetrics:    metrics,
-				conf:              cfg,
+				NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg),
+				ErrorsSampler:        sampler.NewErrorsSampler(cfg),
+				PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+				RareSampler:          sampler.NewRareSampler(config.New()),
+				ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
+				EventProcessor:       newEventProcessor(cfg, statsd),
+				SamplerMetrics:       metrics,
+				conf:                 cfg,
 			}
-			a.SamplerMetrics.Add(a.NoPrioritySampler, a.ErrorsSampler, a.PrioritySampler, a.RareSampler)
+			a.SamplerMetrics.Add(a.NoPrioritySampler, a.ErrorsSampler, a.PrioritySampler, a.RareSampler, a.ProbabilisticSampler)
 			tt.expectStatsd(statsd)
 			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			metrics.Report()
