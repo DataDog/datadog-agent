@@ -28,69 +28,64 @@ var (
 	mockInstaller installer.Installer
 )
 
-// Cmd is the base command
-type Cmd struct {
-	// Span is the current span for the command
-	Span *telemetry.Span
-	// Ctx is the current context for the command
-	Ctx context.Context
-	// Env is the current environment for the command
-	Env *env.Env
-
-	t *telemetry.Telemetry
+type cmd struct {
+	t    *telemetry.Telemetry
+	span *telemetry.Span
+	ctx  context.Context
+	env  *env.Env
 }
 
-// NewCmd creates a new command
-func NewCmd(operation string) *Cmd {
+// newCmd creates a new command
+func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	setInstallerUmask(span)
-	return &Cmd{
+	return &cmd{
 		t:    t,
-		Ctx:  ctx,
-		Span: span,
-		Env:  env,
+		ctx:  ctx,
+		span: span,
+		env:  env,
 	}
 }
 
 // Stop stops the command
-func (c *Cmd) Stop(err error) {
-	c.Span.Finish(err)
+func (c *cmd) stop(err error) {
+	c.span.Finish(err)
 	if c.t != nil {
 		c.t.Stop()
 	}
 }
 
 type installerCmd struct {
-	*Cmd
+	*cmd
 	installer.Installer
 }
 
 func newInstallerCmd(operation string) (_ *installerCmd, err error) {
-	cmd := NewCmd(operation)
+	cmd := newCmd(operation)
 	defer func() {
 		if err != nil {
-			cmd.Stop(err)
+			cmd.stop(err)
 		}
 	}()
 	var i installer.Installer
 	if mockInstaller != nil {
 		i = mockInstaller
 	} else {
-		i, err = installer.NewInstaller(cmd.Env)
+		i, err = installer.NewInstaller(cmd.env)
 	}
 	if err != nil {
 		return nil, err
 	}
 	return &installerCmd{
 		Installer: i,
-		Cmd:       cmd,
+		cmd:       cmd,
 	}, nil
 }
 
 func (i *installerCmd) stop(err error) {
-	i.Cmd.Stop(err)
+	i.cmd.stop(err)
 	err = i.Installer.Close()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
@@ -137,34 +132,33 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 // RootCommands returns the root commands
 func RootCommands() []*cobra.Command {
 	return []*cobra.Command{
-		InstallCommand(),
-		SetupCommand(),
-		BootstrapCommand(),
-		RemoveCommand(),
-		InstallExperimentCommand(),
-		RemoveExperimentCommand(),
-		PromoteExperimentCommand(),
-		InstallConfigExperimentCommand(),
-		RemoveConfigExperimentCommand(),
-		PromoteConfigExperimentCommand(),
-		GarbageCollectCommand(),
-		PurgeCommand(),
-		IsInstalledCommand(),
-		ApmCommands(),
-		GetStateCommand(),
+		installCommand(),
+		setupCommand(),
+		bootstrapCommand(),
+		removeCommand(),
+		installExperimentCommand(),
+		removeExperimentCommand(),
+		promoteExperimentCommand(),
+		installConfigExperimentCommand(),
+		removeConfigExperimentCommand(),
+		promoteConfigExperimentCommand(),
+		garbageCollectCommand(),
+		purgeCommand(),
+		isInstalledCommand(),
+		apmCommands(),
+		getStateCommand(),
 	}
 }
 
 // UnprivilegedCommands returns the unprivileged commands
 func UnprivilegedCommands() []*cobra.Command {
 	return []*cobra.Command{
-		VersionCommand(),
-		DefaultPackagesCommand(),
+		versionCommand(),
+		defaultPackagesCommand(),
 	}
 }
 
-// VersionCommand is the command to print the version
-func VersionCommand() *cobra.Command {
+func versionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
 		Short:   "Print the version of the installer",
@@ -175,8 +169,7 @@ func VersionCommand() *cobra.Command {
 	}
 }
 
-// DefaultPackagesCommand is the commanf to list the default packages to install
-func DefaultPackagesCommand() *cobra.Command {
+func defaultPackagesCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "default-packages",
 		Short:   "Print the list of default packages to install",
@@ -189,28 +182,26 @@ func DefaultPackagesCommand() *cobra.Command {
 	}
 }
 
-// SetupCommand is the command to setup the installer
-func SetupCommand() *cobra.Command {
+func setupCommand() *cobra.Command {
 	flavor := ""
 	cmd := &cobra.Command{
 		Use:     "setup",
 		Hidden:  true,
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			cmd := NewCmd("setup")
-			defer func() { cmd.Stop(err) }()
+			cmd := newCmd("setup")
+			defer func() { cmd.stop(err) }()
 			if flavor == "" {
-				return setup.Agent7InstallScript(cmd.Ctx, cmd.Env)
+				return setup.Agent7InstallScript(cmd.ctx, cmd.env)
 			}
-			return setup.Setup(cmd.Ctx, cmd.Env, flavor)
+			return setup.Setup(cmd.ctx, cmd.env, flavor)
 		},
 	}
 	cmd.Flags().StringVar(&flavor, "flavor", "", "The setup flavor")
 	return cmd
 }
 
-// InstallCommand is the command to install a package
-func InstallCommand() *cobra.Command {
+func installCommand() *cobra.Command {
 	var installArgs []string
 	var forceInstall bool
 	cmd := &cobra.Command{
@@ -224,11 +215,11 @@ func InstallCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Span.SetTag("params.url", args[0])
+			i.span.SetTag("params.url", args[0])
 			if forceInstall {
-				return i.ForceInstall(i.Ctx, args[0], installArgs)
+				return i.ForceInstall(i.ctx, args[0], installArgs)
 			}
-			return i.Install(i.Ctx, args[0], installArgs)
+			return i.Install(i.ctx, args[0], installArgs)
 		},
 	}
 	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
@@ -236,8 +227,7 @@ func InstallCommand() *cobra.Command {
 	return cmd
 }
 
-// RemoveCommand is the command to remove a package
-func RemoveCommand() *cobra.Command {
+func removeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "remove <package>",
 		Short:   "Remove a package",
@@ -249,15 +239,14 @@ func RemoveCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Span.SetTag("params.package", args[0])
-			return i.Remove(i.Ctx, args[0])
+			i.span.SetTag("params.package", args[0])
+			return i.Remove(i.ctx, args[0])
 		},
 	}
 	return cmd
 }
 
-// PurgeCommand is the command to purge all packages installed with the installer
-func PurgeCommand() *cobra.Command {
+func purgeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "purge",
 		Short:   "Purge all packages installed with the installer",
@@ -269,15 +258,14 @@ func PurgeCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Purge(i.Ctx)
+			i.Purge(i.ctx)
 			return nil
 		},
 	}
 	return cmd
 }
 
-// InstallExperimentCommand is the command to install an experiment
-func InstallExperimentCommand() *cobra.Command {
+func installExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "install-experiment <url>",
 		Short:   "Install an experiment",
@@ -289,15 +277,14 @@ func InstallExperimentCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Span.SetTag("params.url", args[0])
-			return i.InstallExperiment(i.Ctx, args[0])
+			i.span.SetTag("params.url", args[0])
+			return i.InstallExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
 }
 
-// RemoveExperimentCommand is the command to remove an experiment
-func RemoveExperimentCommand() *cobra.Command {
+func removeExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "remove-experiment <package>",
 		Short:   "Remove an experiment",
@@ -309,15 +296,14 @@ func RemoveExperimentCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Span.SetTag("params.package", args[0])
-			return i.RemoveExperiment(i.Ctx, args[0])
+			i.span.SetTag("params.package", args[0])
+			return i.RemoveExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
 }
 
-// PromoteExperimentCommand is the command to promote an experiment
-func PromoteExperimentCommand() *cobra.Command {
+func promoteExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "promote-experiment <package>",
 		Short:   "Promote an experiment",
@@ -329,15 +315,14 @@ func PromoteExperimentCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Span.SetTag("params.package", args[0])
-			return i.PromoteExperiment(i.Ctx, args[0])
+			i.span.SetTag("params.package", args[0])
+			return i.PromoteExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
 }
 
-// InstallConfigExperimentCommand is the command to install a config experiment
-func InstallConfigExperimentCommand() *cobra.Command {
+func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "install-config-experiment <package> <version> <config>",
 		Short:   "Install a config experiment",
@@ -349,16 +334,15 @@ func InstallConfigExperimentCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Span.SetTag("params.package", args[0])
-			i.Span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.Ctx, args[0], args[1], []byte(args[2]))
+			i.span.SetTag("params.package", args[0])
+			i.span.SetTag("params.version", args[1])
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], []byte(args[2]))
 		},
 	}
 	return cmd
 }
 
-// RemoveConfigExperimentCommand is the command to remove a config experiment
-func RemoveConfigExperimentCommand() *cobra.Command {
+func removeConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "remove-config-experiment <package>",
 		Short:   "Remove a config experiment",
@@ -370,15 +354,14 @@ func RemoveConfigExperimentCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Span.SetTag("params.package", args[0])
-			return i.RemoveConfigExperiment(i.Ctx, args[0])
+			i.span.SetTag("params.package", args[0])
+			return i.RemoveConfigExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
 }
 
-// PromoteConfigExperimentCommand is the command to promote a config experiment
-func PromoteConfigExperimentCommand() *cobra.Command {
+func promoteConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "promote-config-experiment <package>",
 		Short:   "Promote a config experiment",
@@ -390,15 +373,14 @@ func PromoteConfigExperimentCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			i.Span.SetTag("params.package", args[0])
-			return i.PromoteConfigExperiment(i.Ctx, args[0])
+			i.span.SetTag("params.package", args[0])
+			return i.PromoteConfigExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd
 }
 
-// GarbageCollectCommand is the command to remove unused packages
-func GarbageCollectCommand() *cobra.Command {
+func garbageCollectCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "garbage-collect",
 		Short:   "Remove unused packages",
@@ -410,7 +392,7 @@ func GarbageCollectCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			return i.GarbageCollect(i.Ctx)
+			return i.GarbageCollect(i.ctx)
 		},
 	}
 	return cmd
@@ -421,8 +403,7 @@ const (
 	ReturnCodeIsInstalledFalse = 10
 )
 
-// IsInstalledCommand is the command to check if a package is installed
-func IsInstalledCommand() *cobra.Command {
+func isInstalledCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "is-installed <package>",
 		Short:   "Check if a package is installed",
@@ -434,7 +415,7 @@ func IsInstalledCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			installed, err := i.IsInstalled(i.Ctx, args[0])
+			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err
 			}
@@ -449,8 +430,7 @@ func IsInstalledCommand() *cobra.Command {
 	return cmd
 }
 
-// GetStateCommand is the command to get the package & config states
-func GetStateCommand() *cobra.Command {
+func getStateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden:  true,
 		Use:     "get-states",
@@ -462,11 +442,11 @@ func GetStateCommand() *cobra.Command {
 				return err
 			}
 			defer func() { i.stop(err) }()
-			states, err := i.States(i.Ctx)
+			states, err := i.States(i.ctx)
 			if err != nil {
 				return err
 			}
-			configStates, err := i.ConfigStates(i.Ctx)
+			configStates, err := i.ConfigStates(i.ctx)
 			if err != nil {
 				return err
 			}

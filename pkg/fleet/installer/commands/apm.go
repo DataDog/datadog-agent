@@ -10,7 +10,7 @@ import (
 )
 
 // ApmCommands are the APM installer daemon commands
-func ApmCommands() *cobra.Command {
+func apmCommands() *cobra.Command {
 	ctlCmd := &cobra.Command{
 		Use:     "apm [command]",
 		Short:   "Interact with the APM auto-injector",
@@ -30,12 +30,12 @@ func apmInstrumentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			if len(args) == 0 {
 				args = []string{"not_set"}
 			}
-			i.Span.SetTag("params.instrument", args[0])
-			return i.InstrumentAPMInjector(i.Ctx, args[0])
+			i.span.SetTag("params.instrument", args[0])
+			return i.InstrumentAPMInjector(i.ctx, args[0])
 		},
 	}
 	return cmd
@@ -51,12 +51,12 @@ func apmUninstrumentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			if len(args) == 0 {
 				args = []string{"not_set"}
 			}
-			i.Span.SetTag("params.instrument", args[0])
-			return i.UninstrumentAPMInjector(i.Ctx, args[0])
+			i.span.SetTag("params.instrument", args[0])
+			return i.UninstrumentAPMInjector(i.ctx, args[0])
 		},
 	}
 	return cmd

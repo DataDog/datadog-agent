@@ -44,38 +44,38 @@ const (
 )
 
 type bootstrapperCmd struct {
-	*Cmd
+	*cmd
 }
 
 func newBootstrapperCmd(operation string) *bootstrapperCmd {
-	cmd := NewCmd(operation)
-	cmd.Span.SetTag("env.DD_UPGRADE", os.Getenv(envUpgrade))
-	cmd.Span.SetTag("env.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
-	cmd.Span.SetTag("env.DD_SYSTEM_PROBE_ENSURE_CONFIG", os.Getenv(envSystemProbeEnsureConfig))
-	cmd.Span.SetTag("env.DD_RUNTIME_SECURITY_CONFIG_ENABLED", os.Getenv(envRuntimeSecurityConfigEnabled))
-	cmd.Span.SetTag("env.DD_COMPLIANCE_CONFIG_ENABLED", os.Getenv(envComplianceConfigEnabled))
-	cmd.Span.SetTag("env.DD_INSTALL_ONLY", os.Getenv(envInstallOnly))
-	cmd.Span.SetTag("env.DD_NO_AGENT_INSTALL", os.Getenv(envNoAgentInstall))
-	cmd.Span.SetTag("env.DD_APM_INSTRUMENTATION_LIBRARIES", os.Getenv(envAPMInstrumentationLibraries))
-	cmd.Span.SetTag("env.DD_APM_INSTRUMENTATION_LANGUAGES", os.Getenv(envAPMInstrumentationLanguages))
-	cmd.Span.SetTag("env.DD_APPSEC_ENABLED", os.Getenv(envAppSecEnabled))
-	cmd.Span.SetTag("env.DD_IAST_ENABLED", os.Getenv(envIASTEnabled))
-	cmd.Span.SetTag("env.DD_APM_INSTRUMENTATION_ENABLED", os.Getenv(envAPMInstrumentationEnabled))
-	cmd.Span.SetTag("env.DD_REPO_URL", os.Getenv(envRepoURL))
-	cmd.Span.SetTag("env.REPO_URL", os.Getenv(envRepoURLDeprecated))
-	cmd.Span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
-	cmd.Span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
-	cmd.Span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
-	cmd.Span.SetTag("env.DD_AGENT_DIST_CHANNEL", os.Getenv(envAgentDistChannel))
-	cmd.Span.SetTag("env.DD_REMOTE_UPDATES", os.Getenv(envRemoteUpdates))
-	cmd.Span.SetTag("env.HTTP_PROXY", redactURL(os.Getenv(envHTTPProxy)))
-	cmd.Span.SetTag("env.http_proxy", redactURL(os.Getenv(envhttpProxy)))
-	cmd.Span.SetTag("env.HTTPS_PROXY", redactURL(os.Getenv(envHTTPSProxy)))
-	cmd.Span.SetTag("env.https_proxy", redactURL(os.Getenv(envhttpsProxy)))
-	cmd.Span.SetTag("env.NO_PROXY", os.Getenv(envNoProxy))
-	cmd.Span.SetTag("env.no_proxy", os.Getenv(envnoProxy))
+	cmd := newCmd(operation)
+	cmd.span.SetTag("env.DD_UPGRADE", os.Getenv(envUpgrade))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
+	cmd.span.SetTag("env.DD_SYSTEM_PROBE_ENSURE_CONFIG", os.Getenv(envSystemProbeEnsureConfig))
+	cmd.span.SetTag("env.DD_RUNTIME_SECURITY_CONFIG_ENABLED", os.Getenv(envRuntimeSecurityConfigEnabled))
+	cmd.span.SetTag("env.DD_COMPLIANCE_CONFIG_ENABLED", os.Getenv(envComplianceConfigEnabled))
+	cmd.span.SetTag("env.DD_INSTALL_ONLY", os.Getenv(envInstallOnly))
+	cmd.span.SetTag("env.DD_NO_AGENT_INSTALL", os.Getenv(envNoAgentInstall))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_LIBRARIES", os.Getenv(envAPMInstrumentationLibraries))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_LANGUAGES", os.Getenv(envAPMInstrumentationLanguages))
+	cmd.span.SetTag("env.DD_APPSEC_ENABLED", os.Getenv(envAppSecEnabled))
+	cmd.span.SetTag("env.DD_IAST_ENABLED", os.Getenv(envIASTEnabled))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_ENABLED", os.Getenv(envAPMInstrumentationEnabled))
+	cmd.span.SetTag("env.DD_REPO_URL", os.Getenv(envRepoURL))
+	cmd.span.SetTag("env.REPO_URL", os.Getenv(envRepoURLDeprecated))
+	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
+	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
+	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
+	cmd.span.SetTag("env.DD_AGENT_DIST_CHANNEL", os.Getenv(envAgentDistChannel))
+	cmd.span.SetTag("env.DD_REMOTE_UPDATES", os.Getenv(envRemoteUpdates))
+	cmd.span.SetTag("env.HTTP_PROXY", redactURL(os.Getenv(envHTTPProxy)))
+	cmd.span.SetTag("env.http_proxy", redactURL(os.Getenv(envhttpProxy)))
+	cmd.span.SetTag("env.HTTPS_PROXY", redactURL(os.Getenv(envHTTPSProxy)))
+	cmd.span.SetTag("env.https_proxy", redactURL(os.Getenv(envhttpsProxy)))
+	cmd.span.SetTag("env.NO_PROXY", os.Getenv(envNoProxy))
+	cmd.span.SetTag("env.no_proxy", os.Getenv(envnoProxy))
 	return &bootstrapperCmd{
-		Cmd: cmd,
+		cmd: cmd,
 	}
 }
 
@@ -90,16 +90,15 @@ func redactURL(u string) string {
 	return url.Redacted()
 }
 
-// BootstrapCommand is the command to bootstrap the package with the first version
-func BootstrapCommand() *cobra.Command {
+func bootstrapCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "bootstrap",
 		Short:   "Bootstraps the package with the first version.",
-		GroupID: "bootstrap",
+		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			b := newBootstrapperCmd("bootstrap")
-			defer func() { b.Stop(err) }()
-			return bootstrap.Bootstrap(b.Ctx, b.Env)
+			defer func() { b.stop(err) }()
+			return bootstrap.Bootstrap(b.ctx, b.env)
 		},
 	}
 	return cmd
