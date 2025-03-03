@@ -1,4 +1,5 @@
 import os
+import random
 import traceback
 import typing
 
@@ -6,8 +7,9 @@ import yaml
 from invoke import task
 
 from tasks.github_tasks import pr_commenter
-from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.common.color import color_message
+from tasks.libs.releasing.version import next_final_version
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
 BUFFER_SIZE = 10000000
@@ -145,7 +147,8 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
     # Generate PR to update static quality gates threshold on nightly pipelines
     bucket_branch = metric_handler.bucket_branch
     if bucket_branch:  # and bucket_branch == "nightly":
-        update_quality_gates_threshold(ctx, metric_handler, github)
+        pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
+        notify_threshold_update(pr_url)
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler):
@@ -182,12 +185,16 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler):
 
 
 def update_quality_gates_threshold(ctx, metric_handler, github):
+    # Update quality gates threshold config
     with open("test/static/static_quality_gates.yml") as f:
         file_content = generate_new_quality_gate_config(f, metric_handler)
 
+    # Create new branch
     branch_name = f"static_quality_gates/threshold_update_{os.environ["CI_COMMIT_SHORT_SHA"]}"
     current_branch = github.repo.get_branch(os.environ["CI_COMMIT_BRANCH"])
     github.repo.create_git_ref(ref=f'refs/heads/{branch_name}', sha=current_branch.commit.sha)
+
+    # Update static_quality_gates.yml config file
     contents = github.repo.get_contents("test/static/static_quality_gates.yml", ref=branch_name)
     github.repo.update_file(
         "test/static/static_quality_gates.yml",
@@ -196,3 +203,19 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
         contents.sha,
         branch=branch_name,
     )
+
+    # Create pull request
+    milestone_version = next_final_version(ctx, "7", False)
+    return create_release_pr(
+        "[Nightly] Static quality gates threshold update", current_branch.name, branch_name, milestone_version
+    )
+
+
+def notify_threshold_update(pr_url):
+    from slack_sdk import WebClient
+
+    client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
+    emojis = client.emoji_list()
+    waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
+    message = f'Hello :{random.choice(waves)}:!\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nCould you please have a look?\nThanks in advance!'
+    client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
