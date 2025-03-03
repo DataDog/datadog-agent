@@ -59,7 +59,7 @@ def show_linters_issues(
     """
     This function displays the list of files that need fixing for a specific team and for specific linters.
 
-        Example: inv show-linters-issues --filter-team "@DataDog/agent-devx-infra" --filter-linters "revive" --platforms "linux,amd64" --platforms "linux,arm64"
+        Example: dda inv show-linters-issues --filter-team "@DataDog/agent-devx-infra" --filter-linters "revive" --platforms "linux,amd64" --platforms "linux,arm64"
 
         Parameters:
             team (str): keep only the files owned by a team. These are Github team names from the GITHUB_SLACK_MAP variable.
@@ -74,7 +74,7 @@ def show_linters_issues(
     check_if_team_exists(filter_team)
     golangci_lint_kwargs = f'"--new-from-rev {from_commit_hash} --print-issued-lines=false"'
 
-    command = f"inv linter.go --golangci-lint-kwargs {golangci_lint_kwargs} --headless-mode"
+    command = f"dda inv linter.go --golangci-lint-kwargs {golangci_lint_kwargs} --headless-mode"
 
     if build_tags:
         command += f" --build-tags \"{build_tags}\""

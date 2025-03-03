@@ -24,7 +24,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resource_in_stack,
     resume_domains,
 )
-from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info, warn
+from tasks.kernel_matrix_testing.tool import Exit, error, info, warn
 from tasks.kernel_matrix_testing.vars import VMCONFIG
 
 if TYPE_CHECKING:
@@ -71,7 +71,7 @@ def vm_config_exists(stack: str):
 
 def create_stack(ctx: Context, stack: str | None = None):
     if not os.path.exists(f"{get_kmt_os().stacks_dir}"):
-        raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
+        raise Exit("Kernel matrix testing environment not correctly setup. Run 'dda inv kmt.init'.")
 
     stack = check_and_get_stack(stack)
 
@@ -187,10 +187,10 @@ def launch_stack(
 ):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
     if not vm_config_exists(stack):
-        raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'inv kmt.gen-config --help'")
+        raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'dda inv kmt.gen-config --help'")
 
     stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     vm_config = f"{stack_dir}/{VMCONFIG}"
@@ -238,7 +238,7 @@ def launch_stack(
         local,
         provision,
     ]
-    ctx.run(f"{' '.join(env)} {prefix} inv -e system-probe.start-microvms {' '.join(args)}")
+    ctx.run(f"{' '.join(env)} {prefix} dda inv -e system-probe.start-microvms {' '.join(args)}")
 
     info(f"[+] Stack {stack} successfully setup")
 
@@ -263,7 +263,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
 
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
+        f"{env_vars} {prefix} dda inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
     )
 
 
@@ -336,9 +336,6 @@ def destroy_stack_force(ctx: Context, stack: str):
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
     if os.path.exists(vm_config) and local_vms_in_config(vm_config):
-        if libvirt is None:
-            raise NoLibvirt()
-
         conn = libvirt.open(get_kmt_os().libvirt_socket)
         if not conn:
             raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
@@ -379,7 +376,7 @@ def destroy_stack_force(ctx: Context, stack: str):
 def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
     info(f"[*] Destroying stack {stack}")
     if pulumi:
@@ -393,9 +390,7 @@ def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | 
 def pause_stack(stack: str | None = None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
-    if libvirt is None:
-        raise NoLibvirt()
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
     conn.close()
@@ -404,17 +399,13 @@ def pause_stack(stack: str | None = None):
 def resume_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
-    if libvirt is None:
-        raise NoLibvirt()
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
     conn.close()
 
 
 def read_libvirt_sock():
-    if libvirt is None:
-        raise NoLibvirt()
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
@@ -443,8 +434,6 @@ testPoolXML = """
 
 
 def write_libvirt_sock():
-    if libvirt is None:
-        raise NoLibvirt()
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")

@@ -154,7 +154,7 @@ def generate(ctx, do_mockgen=True):
     proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
     if any(proto_file.search(line) for line in git_status.split("\n")):
         raise Exit(
-            f"Generated files were not properly committed.\n{git_status}\nPlease run `inv protobuf.generate` and commit the changes.",
+            f"Generated files were not properly committed.\n{git_status}\nPlease run `dda inv protobuf.generate` and commit the changes.",
             code=1,
         )
 

@@ -100,7 +100,7 @@ def _verify_unknown_licenses(licenses, licenses_filename):
 
                 Consult the dependency's source, update
                 `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
-                `inv generate-licenses` to update {}."""
+                `dda inv generate-licenses` to update {}."""
             ).format(licenses_filename),
             code=1,
         )

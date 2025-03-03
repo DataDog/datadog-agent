@@ -162,8 +162,8 @@ def go(
         debug: prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
 
     Example invokation:
-        $ inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
-        $ inv linter.go --module=.
+        $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
+        $ dda inv linter.go --module=.
     """
 
     check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)

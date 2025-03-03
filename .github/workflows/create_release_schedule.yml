@@ -29,10 +29,10 @@ jobs:
       with:
         python-version-file: .python-version
         cache: "pip"
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements_release_tasks.txt
+    - name: Install dda
+      uses: ./.github/actions/install-dda
+      with:
+        features: legacy-tasks
     - name: Create release schedule
       env:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
@@ -40,4 +40,4 @@ jobs:
         INPUT_VERSION: ${{ github.event.inputs.version }}
         CUTOFF_DATE: ${{ github.event.inputs.cutoff_date }}
       run: |
-        inv -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "$CUTOFF_DATE"
+        dda inv -e release.create-schedule --version "$INPUT_VERSION" --cutoff-date "$CUTOFF_DATE"

@@ -10,14 +10,14 @@ lint_licenses:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - inv -e install-tools
-    - inv -e lint-licenses
+    - dda inv -e install-tools
+    - dda inv -e lint-licenses
   needs: ["go_tools_deps", "go_deps"]
 
 lint_shell:
   extends: .lint
   script:
-    - inv -e install-shellcheck
+    - dda inv -e install-shellcheck
     - shellcheck --version
     #Excludes:
     #SC2028: echo may not expand escape sequences. Use printf.
@@ -27,36 +27,36 @@ lint_shell:
 lint_filename:
   extends: .lint
   script:
-    - inv -e linter.filenames
+    - dda inv -e linter.filenames
 
 lint_copyrights:
   extends: .lint
   script:
-    - inv -e linter.copyrights
+    - dda inv -e linter.copyrights
 
 lint_codeowners:
   extends: .lint
   script:
-    - inv -e github.lint-codeowner
+    - dda inv -e github.lint-codeowner
 
 lint_components:
   extends: .lint
   script:
-    - inv -e lint-components lint-fxutil-oneshot-test
+    - dda inv -e lint-components lint-fxutil-oneshot-test
 
 
 lint_python:
   extends: .lint
   script:
-    - inv -e linter.python
+    - dda inv -e linter.python
 
 lint_update_go:
   extends: .lint
   script:
-    - inv -e linter.update-go
+    - dda inv -e linter.update-go
 
 validate_modules:
   extends: .lint
   script:
-    - inv -e modules.validate
-    - inv -e modules.validate-used-by-otel
+    - dda inv -e modules.validate
+    - dda inv -e modules.validate-used-by-otel

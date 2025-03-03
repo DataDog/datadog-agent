@@ -50,7 +50,7 @@ internal_kubernetes_deploy_experimental:
     BUNDLE_VERSION_OVERRIDE: "v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
         --variable OPTION_AUTOMATIC_ROLLOUT
         --variable EXPLICIT_WORKFLOWS
         --variable OPTION_PRE_SCRIPT
@@ -81,6 +81,7 @@ notify-slack:
   allow_failure: true
   script:
     - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
-    - python3 -m pip install -r tasks/requirements.txt -r tasks/libs/requirements-notifications.txt
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+    - dda self dep sync -f legacy-tasks -f legacy-notifications
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?
+    - dda inv pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?

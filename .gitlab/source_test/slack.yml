@@ -9,4 +9,4 @@ slack_teams_channels_check:
     - !reference [.except_mergequeue]
     - when: on_success
   script:
-    - inv -e notify.check-teams
+    - dda inv -e notify.check-teams

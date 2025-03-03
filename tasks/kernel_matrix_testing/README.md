@@ -38,22 +38,22 @@ This will download all the resources required to launch the VMs, and install all
 > This step should be done only once.
 
 ```bash
-inv -e kmt.init
+dda inv -e kmt.init
 ```
 
 > You may significantly speed up this part by only downloading specific VM images. Refer to [Listing possible VMs](#Listing Possible VMs) to see how to list available images and how to provide their names.
 
 ```bash
-inv -e kmt.init --images=ubuntu_22.04,debian_10
+dda inv -e kmt.init --images=ubuntu_22.04,debian_10
 ```
 
 > You may skip the downloading part if you are not setting up VMs locally.
 
 ```bash
-inv -e kmt.init --lite
+dda inv -e kmt.init --lite
 ```
 
-This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `inv -e kmt.config-ssh-key`. See more details below
+This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `dda inv -e kmt.config-ssh-key`. See more details below
 
 #### SSH key configuration
 
@@ -70,7 +70,7 @@ In all cases, you will be able to input a key name for AWS, in case the keypair 
 ### Create stack
 
 ```bash
-inv -e kmt.create-stack --stack=demo-stack
+dda inv -e kmt.create-stack --stack=demo-stack
 ```
 
 ### Configure stack
@@ -81,7 +81,7 @@ We will configure the stack to launch
 - Remote arm64 machine with amazon linux 2 kernel 4.14, amazon linux 2 kernel 5.10 VMs.
 
 ```bash
-inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro --stack=demo-stack
+dda inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro --stack=demo-stack
 ```
 
 We can also configure the stack to launch VMs locally, i.e. on developer's machine. The VMs will have the same architecture as the local host environment.
@@ -90,7 +90,7 @@ We can also configure the stack to launch VMs locally, i.e. on developer's machi
 - Local debian 9 VM.
 
 ```bash
-inv -e kmt.gen-config --vms=amzn5.10-local-distro,fedora38-local-distro,debian9-local-distro --stack=demo-stack
+dda inv -e kmt.gen-config --vms=amzn5.10-local-distro,fedora38-local-distro,debian9-local-distro --stack=demo-stack
 ```
 
 Refer to [Configuring the stack](#Configuring the stack) for more details on this command.
@@ -101,7 +101,7 @@ Refer to [Configuring the stack](#Configuring the stack) for more details on thi
 A common use case is to configure the stack to replicate the jobs that failed in a CI pipeline. This can be easily done by using the `--from-ci-pipeline` flag, using the ID of the pipeline that failed in Gitlab as the argument:
 
 ```bash
-inv -e kmt.gen-config --from-ci-pipeline=<pipeline-id> --use-local-if-possible --stack=demo-stack
+dda inv -e kmt.gen-config --from-ci-pipeline=<pipeline-id> --use-local-if-possible --stack=demo-stack
 ```
 
 The `--use-local-if-possible` flag will attempt to use local VMs if they are available, and only use remote VMs if the local ones are not available.
@@ -111,7 +111,7 @@ The `--use-local-if-possible` flag will attempt to use local VMs if they are ava
 This will bring up all the VMs previously configured.
 
 ```bash
-inv -e kmt.launch-stack --stack=demo-stack
+dda inv -e kmt.launch-stack --stack=demo-stack
 ```
 
 ### Connecting to VMs
@@ -121,7 +121,7 @@ inv -e kmt.launch-stack --stack=demo-stack
 You can generate a SSH config file to connect to the VMs using the following command:
 
 ```bash
-inv -e kmt.ssh-config > ~/.ssh/kmt_ssh_config
+dda inv -e kmt.ssh-config > ~/.ssh/kmt_ssh_config
 ```
 
 This will generate a file `kmt_ssh_config` in the `~/.ssh` directory, which you can include in your config by using the line `Include ~/.ssh/kmt_ssh_config` in your `~/.ssh/config` file. Then you can then connect to the VMs using the following command:
@@ -139,7 +139,7 @@ This is the recommended approach, as it automatically configures the proxy jumps
 You can connect manually to the VMs using the IP addresses printed by the following command:
 
 ```bash
-inv -e kmt.status --stack=demo-stack
+dda inv -e kmt.status --stack=demo-stack
 ```
 
 To connect to the VM first ssh to the remote machine, if required.
@@ -161,7 +161,7 @@ A useful command for tmux in these cases is `:set synchronize-panes on`, which w
 Tear down the stack
 
 ```bash
-inv -e kmt.destroy-stack --stack=demo-stack
+dda inv -e kmt.destroy-stack --stack=demo-stack
 ```
 
 This will attempt to manually teardown all resources. Primarily we care about cleaning the local libvirt environment and destroy remote ec2 instances.
@@ -171,13 +171,13 @@ This will attempt to manually teardown all resources. Primarily we care about cl
 ### Initializing environment
 
 ```bash
-inv -e kmt.init
+dda inv -e kmt.init
 ```
 
 If you only want to initialize the directory structure, you may do a 'lite' setup as follows:
 
 ```bash
-inv -e kmt.init --lite
+dda inv -e kmt.init --lite
 ```
 
 ### Updating resources
@@ -185,7 +185,7 @@ inv -e kmt.init --lite
 In order to update the resources for launching VMs run:
 
 ```bash
-inv -e kmt.update-resources
+dda inv -e kmt.update-resources
 ```
 
 Updating will first destroy all running stacks, and then use checksums to decide which packages need to be updated from S3.
@@ -196,7 +196,7 @@ If there is an error during update, original packages are restored from backup.
 A stack can be created as follows:
 
 ```bash
-inv -e kmt.create-stack [--stack=<name>]
+dda inv -e kmt.create-stack [--stack=<name>]
 ```
 
 The developer can provide a name to associate with the `stack`.
@@ -207,7 +207,7 @@ If no name is provided one is automatically generated from the current branch na
 Possible VMs can be listed with
 
 ```bash
-inv -e kmt.ls
+dda inv -e kmt.ls
 ```
 
 The arguments to this are:
@@ -245,39 +245,39 @@ The file can be incrementally generated. This means a user may generate a vmset 
 
 ```bash
 # Setup configuration file to launch jammy and focal locally. Initialize a new stack corresponding to the current branch
-inv -e kmt.gen-config  --vms=jammy-local-distro,focal-local-distro --init-stack
+dda inv -e kmt.gen-config  --vms=jammy-local-distro,focal-local-distro --init-stack
 # Launch this stack. Since we are launching local VMs, there is no need to specify ssh key.
-inv -e kmt.launch-stack
+dda inv -e kmt.launch-stack
 # Add amazon linux VMs to be launched locally
-inv -e kmt.gen-config  --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
+dda inv -e kmt.gen-config  --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
 # Launch the new VMs added. The previous VMs will keep running
-inv -e kmt.launch-stack
+dda inv -e kmt.launch-stack
 # Remove all VMs except amazon linux 2 4.14 locally
-inv -e kmt.gen-config  --new --vms=amazon4.14-local-distro
+dda inv -e kmt.gen-config  --new --vms=amazon4.14-local-distro
 # Apply this configuration
-inv -e kmt.launch-stack
+dda inv -e kmt.launch-stack
 ```
 
 #### Example 2
 
 ```bash
 # Setup configuration file to launch ubuntu VMs on remote x86_64 and arm64 machines
-inv -e kmt.gen-config  --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
+dda inv -e kmt.gen-config  --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
 # Name of the ssh key to use
-inv -e kmt.launch-stack
+dda inv -e kmt.launch-stack
 # Add amazon linux
-inv -e kmt.gen-config  --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
+dda inv -e kmt.gen-config  --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
 # Name of the ssh key to use
-inv -e kmt.launch-stack
+dda inv -e kmt.launch-stack
 ```
 
 #### Example 3
 
 ```bash
 # Configure custom kernels
-inv -e kmt.gen-config  --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
+dda inv -e kmt.gen-config  --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
 # Launch stack
-inv -e kmt.launch-stack
+dda inv -e kmt.launch-stack
 ```
 
 ### VMs List
@@ -321,17 +321,17 @@ All of the below resolve to [kernel 5.4, arm64, custom]
 If you are just launching local VMs you do not need to specify an ssh key
 
 ```bash
-inv -e kmt.launch-stack
+dda inv -e kmt.launch-stack
 ```
 
-If you are launching remote instances then the ssh key used to access the machine is required. This is usually configured with the `inv -e kmt.config-ssh-key` and does not need to be provided manually. However, you can provide a specific key for use with the `--ssh-key` argument. There are several possible values for this argument:
+If you are launching remote instances then the ssh key used to access the machine is required. This is usually configured with the `dda inv -e kmt.config-ssh-key` and does not need to be provided manually. However, you can provide a specific key for use with the `--ssh-key` argument. There are several possible values for this argument:
 
 - A path pointing the private key
 - The filename of a private key located in `~/.ssh`. For example, if you pass `--ssh-key=id_ed25519`, we will look for keys `~/.ssh/id_ed25519` or `~/.ssh/id_ed25519.pem`.
 - A key name (the third part of the public key file). We will look for public key files in `~/.ssh/*.pub` and in the current SSH agent and try to find one matching that name.
 
 ```bash
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+dda inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 ```
 
 If you are launching local VMs, you will be queried for your password. This is required since the program has to run some commands as root. However, we do not run the entire scenario with `sudo` to avoid broken permissions.
@@ -341,7 +341,7 @@ If you are launching local VMs, you will be queried for your password. This is r
 Prints information about the stack.
 
 ```bash
-inv -e kmt.status [--stack=<name>]
+dda inv -e kmt.status [--stack=<name>]
 ```
 
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.
@@ -352,19 +352,19 @@ KMT is intended to easily run the testsuite across a kernel/distribution matrix.
 Developers can easily run tests against VMs transparently using the provided invoke tasks.
 
 ```bash
-inv -e kmt.test --vms=<vms-list>
+dda inv -e kmt.test --vms=<vms-list>
 ```
 
 Similar to `system-probe.tests`, tests can be run against specific packages, and can also be filtered down to specific tests via a regex.
 
 ```bash
-inv -e kmt.test --vms=jammy-local-distro --packages=./pkg/network/tracer --run="TestTracerSuite/prebuilt/TestDNSStats/valid_domain"
+dda inv -e kmt.test --vms=jammy-local-distro --packages=./pkg/network/tracer --run="TestTracerSuite/prebuilt/TestDNSStats/valid_domain"
 ```
 
 Various other parameters are provided to control different aspects of running the test. Refer to the help for this invoke task for more information.
 
 ```bash
-inv --help=kmt.test
+dda inv --help=kmt.test
 ```
 
 ### Building system-probe
@@ -372,7 +372,7 @@ inv --help=kmt.test
 System probe can be built locally and shared with specified VMs.
 
 ```bash
-inv -e kmt.build --vms=<vms-list>
+dda inv -e kmt.build --vms=<vms-list>
 ```
 
 This command will share a [default configuration](./default-system-probe.yaml) for system-probe with all the VMs.
@@ -382,7 +382,7 @@ This command will share a [default configuration](./default-system-probe.yaml) f
 This is only relevant for VMs running in the local environment. This has no effect on VMs running on remote instances. Pausing the stack essentially stops the running VMs and frees their resources. However, the VM environment is left intact so that it may be brought up again.
 
 ```bash
-inv -e kmt.pause
+dda inv -e kmt.pause
 ```
 
 ### Resuming the stack
@@ -390,7 +390,7 @@ inv -e kmt.pause
 This resumes a previously paused stack. This is only applicable for VMs running locally.
 
 ```bash
-inv -e kmt.resume
+dda inv -e kmt.resume
 ```
 
 ## Interacting with the CI
@@ -406,7 +406,7 @@ To avoid having to copy and paste all the data from the CI to generate a list of
 To get a summary of the tests that were run in a CI pipeline, you can use the following command:
 
 ```bash
-inv -e kmt.explain-ci-failure <pipeline-id>
+dda inv -e kmt.explain-ci-failure <pipeline-id>
 ```
 
 This will show several tables, skipping the cases where all jobs/tests passed to avoid polluting the output.
@@ -441,9 +441,9 @@ An example of an alien VMs profile:
 
 To target these alien profiles use the `--alien-vms` flag to provide the path to this profile file.
 ```
-inv -e kmt.build --alien-vms=/tmp/alien.profile
+dda inv -e kmt.build --alien-vms=/tmp/alien.profile
 ```
 
 ```
-inv -e kmt.test --packages=./pkg/ebpf --run=TestLockRanges/Hashmap --alien-vms=./alien.profile
+dda inv -e kmt.test --packages=./pkg/ebpf --run=TestLockRanges/Hashmap --alien-vms=./alien.profile
 ```

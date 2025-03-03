@@ -67,16 +67,17 @@ RUN go version && \
 RUN python3 -m venv venv && \
     . venv/bin/activate && \
     pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install dda && \
+    dda self dep sync -f legacy-tasks
 
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent-${AGENT_VERSION}/comp/otelcol/collector-contrib/impl/manifest.yaml
 
 # Generate the files
-RUN . venv/bin/activate && invoke collector.generate
+RUN . venv/bin/activate && dda inv collector.generate
 
 # Build the OTel agent
-RUN . venv/bin/activate && invoke otel-agent.build
+RUN . venv/bin/activate && dda inv otel-agent.build
 
 # Use the final Datadog agent image
 FROM datadog/agent:${AGENT_VERSION}

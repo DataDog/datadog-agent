@@ -34,8 +34,8 @@ Below are quick details for a few primary scripts. There are other scripts in th
 The `Invoke-AgentPackages.ps1` script runs the complete omnibus build plus the MSI and OCI packages.
 
 Inner components to consider using instead
-- `inv agent.build`
-- `inv msi.build`
+- `dda inv agent.build`
+- `dda inv msi.build`
 
 #### Additional Parameters
 

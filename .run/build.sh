@@ -18,7 +18,7 @@ fi
 
 pushd "${AGENT_ROOT_DIRECTORY}"
 
-BUILD_COMMAND=${BUILD_COMMAND:-"invoke agent.build --build-exclude=systemd"}
+BUILD_COMMAND=${BUILD_COMMAND:-"dda inv agent.build --build-exclude=systemd"}
 echo "The following build command was given: ${BUILD_COMMAND}"
 
 DELVE=1 eval "${BUILD_COMMAND}"

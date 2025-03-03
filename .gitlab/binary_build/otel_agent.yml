@@ -7,7 +7,7 @@
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - inv -e otel-agent.build
+    - dda inv -e otel-agent.build
   needs: ["go_deps"]
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"

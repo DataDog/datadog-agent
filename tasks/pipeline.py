@@ -219,19 +219,19 @@ def run(
 
     Examples
     Run a pipeline on my-branch:
-      inv pipeline.run --git-ref my-branch
+      dda inv pipeline.run --git-ref my-branch
 
     Run a pipeline on the current branch:
-      inv pipeline.run --here
+      dda inv pipeline.run --here
 
     Run a pipeline without Kernel Matrix Tests on the current branch:
-      inv pipeline.run --here --no-kmt-tests
+      dda inv pipeline.run --here --no-kmt-tests
 
     Run a pipeline with e2e tets on the current branch:
-      inv pipeline.run --here --e2e-tests
+      dda inv pipeline.run --here --e2e-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      dda inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     repo = get_gitlab_repo()
@@ -320,9 +320,9 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     Use --project-name to specify a repo other than DataDog/datadog-agent (default)
 
     Examples:
-    inv pipeline.follow --git-ref my-branch
-    inv pipeline.follow --here
-    inv pipeline.follow --id 1234567
+    dda inv pipeline.follow --git-ref my-branch
+    dda inv pipeline.follow --here
+    dda inv pipeline.follow --id 1234567
     """
 
     repo = get_gitlab_repo(project_name)
@@ -375,9 +375,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
     Examples:
-    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
+    dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
 
-    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
+    dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
     if not os.environ.get('CI_JOB_TOKEN'):
@@ -716,7 +716,9 @@ def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
-    raise Exit(f"This invoke task is {color_message('deprecated', 'red')}, please use inv buildimages.update instead.")
+    raise Exit(
+        f"This invoke task is {color_message('deprecated', 'red')}, please use `dda inv buildimages.update` instead."
+    )
 
 
 @task(

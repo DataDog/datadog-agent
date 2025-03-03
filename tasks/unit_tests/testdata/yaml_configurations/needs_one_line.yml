@@ -8,7 +8,7 @@ nerd_tests:
   variables:
     FLAVORS: '--flavor base'
   script:
-    - inv -e need.do-i-really-need-to-test || true
+    - dda inv -e need.do-i-really-need-to-test || true
   artifacts:
     expire_in: 2 years
     when: always

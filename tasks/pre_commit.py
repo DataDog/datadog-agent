@@ -9,7 +9,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_staged_files
 
 DEFAULT_PRE_COMMIT_CONFIG = ".pre-commit-config.yaml"
-DEVA_PRE_COMMIT_CONFIG = ".pre-commit-config-deva.yaml"
+DDA_PRE_COMMIT_CONFIG = ".pre-commit-config-dda.yaml"
 
 
 def update_pyapp_file() -> str:
@@ -17,9 +17,9 @@ def update_pyapp_file() -> str:
         data = file.read()
         for cmd in ('invoke', 'inv'):
             data = data.replace(f"entry: '{cmd}", "entry: 'deva")
-    with open(DEVA_PRE_COMMIT_CONFIG, 'w') as file:
+    with open(DDA_PRE_COMMIT_CONFIG, 'w') as file:
         file.write(data)
-    return DEVA_PRE_COMMIT_CONFIG
+    return DDA_PRE_COMMIT_CONFIG
 
 
 @task

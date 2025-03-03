@@ -124,7 +124,7 @@ def setup(
     # onCreateCommond runs the install-tools and deps tasks only when the devcontainer is created and not each time
     # the container is started
     devcontainer["onCreateCommand"] = (
-        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke -e install-tools && invoke -e deps"
+        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && dda inv -e install-tools && dda inv -e deps"
     )
 
     devcontainer["containerEnv"] = {
@@ -190,12 +190,14 @@ def start(ctx, path="."):
     Start the devcontainer
     """
     if not file().exists():
-        print(color_message("No devcontainer settings found.  Run `invoke devcontainer.setup` first.", Color.RED))
+        print(color_message("No devcontainer settings found.  Run `dda inv devcontainer.setup` first.", Color.RED))
         raise Exit(code=1)
 
     if not is_installed("devcontainer"):
         print(
-            color_message("Devcontainer CLI is not installed.  Run `invoke install-devcontainer-cli` first.", Color.RED)
+            color_message(
+                "Devcontainer CLI is not installed.  Run `dda inv install-devcontainer-cli` first.", Color.RED
+            )
         )
         raise Exit(code=1)
 
@@ -209,7 +211,9 @@ def stop(ctx):
     """
     if not file().exists():
         print(
-            color_message("No devcontainer settings found. Run `inv devcontainer.setup` first and start it.", Color.RED)
+            color_message(
+                "No devcontainer settings found. Run `dda inv devcontainer.setup` first and start it.", Color.RED
+            )
         )
         raise Exit(code=1)
 

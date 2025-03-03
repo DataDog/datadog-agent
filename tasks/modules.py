@@ -155,7 +155,7 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
                 config.to_file()
             else:
                 raise Exit(
-                    f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `invoke modules.validate --fix-format` to fix it'
+                    f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `dda inv modules.validate --fix-format` to fix it'
                 )
 
     with open(base_dir / Configuration.FILE_NAME) as f:
@@ -281,7 +281,7 @@ def remove_replace_rules(data: str) -> str:
     data = re.sub("\tgithub.com/DataDog/datadog-agent/.+ => .+", '', data)
     data = re.sub("replace github.com/DataDog/datadog-agent/[^ ]+ => .+", '', data)
     data = re.sub(r"replace \(\s+\)", '', data)
-    data = re.sub(r"// This section was automatically added by 'invoke modules\..+", '', data)
+    data = re.sub(r"// This section was automatically added by 'dda inv modules\..+", '', data)
     return data
 
 
@@ -289,7 +289,7 @@ def update_go_mod(gomod_list, root):
     file = "go.mod"
     repo_name = "github.com/DataDog/datadog-agent/"
     replace_comment = (
-        "// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually\n\n"
+        "// This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually\n\n"
     )
 
     gomod_file = os.path.join(root, file)

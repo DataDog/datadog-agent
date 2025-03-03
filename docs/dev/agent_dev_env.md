@@ -91,7 +91,7 @@ Enable pre-commit        OK
 Setup completed successfully.
 ```
 
-If you want to uninstall `deva`, you can simply run the `./deva self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
+If you want to uninstall `deva`, you can simply run the `./dda self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
 
 ##### Manual Installation
 
