@@ -20,6 +20,7 @@ api_key:
 ## @param site - string - optional - default: datadoghq.com
 ## @env DD_SITE - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
+## The site parameter must be set to enable your agent with Remote Configuration.
 ## Set to 'datadoghq.eu' to send data to the EU site.
 ## Set to 'us3.datadoghq.com' to send data to the US3 site.
 ## Set to 'us5.datadoghq.com' to send data to the US5 site.
@@ -33,7 +34,7 @@ api_key:
 ## @env DD_URL - string - optional - default: https://app.datadoghq.com
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
-## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
+## setting defined in "site". It does not affect APM, Logs, Remote Configuration, or Live Process intake which have their
 ## own "*_dd_url" settings.
 ## If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
 #
@@ -1031,6 +1032,18 @@ api_key:
   ## The total combined usage all integrations logs files can use
   #
   # integrations_logs_total_usage: 100
+  
+  ## @param streaming - custom object - optional
+  ## This section allows you to configure streaming logs via remote config.
+  # streaming:
+    ## @param streamlogs_log_file - string - optional
+    ## @env DD_LOGS_CONFIG_STREAMING_STREAMLOGS_LOG_FILE - string - optional
+    ## Path to the file containing the streamlogs log file.
+    ## Default paths:
+    ##   * Windows: c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log
+    ##   * Unix: /opt/log/datadog/streamlogs_info/streamlogs.log
+    ##   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
+    # streamlogs_log_file: <path_to_streamlogs_log_file>
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -4480,6 +4493,15 @@ api_key:
       ## be overridden.
       #
       # sampling_percentage: 100
+
+    ## @param ignore_missing_datadog_fields - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS - boolean - optional - default: false
+    ## IgnoreMissingDatadogFields specifies whether to recompute DD span fields if the corresponding "datadog."
+    ## namespaced span attributes are missing. If true (default), incoming "datadog." namespaced
+    ## OTLP span attributes are used to construct the DD span. If these attributes are missing, they are recomputed from the other
+    ## OTLP semantic convention attributes. If it is false, a field is populated only if its associated "datadog."
+    ## OTLP span attribute exists; otherwise, the field is left empty.
+    #  ignore_missing_datadog_fields: false
 
   ## @param logs - custom object - optional
   ## Logs-specific configuration for OTLP ingest in the Datadog Agent.

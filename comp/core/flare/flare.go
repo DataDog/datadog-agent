@@ -132,6 +132,15 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		f.log.Infof("Unrecognized value passed via enable_profiling, creating flare without profiling enabled: %q", enableProfiling)
 	}
 
+	streamlogs, found := task.Config.TaskArgs["enable_streamlogs"]
+	if !found || streamlogs == "false" {
+		f.log.Debug("enable_streamlogs arg not found, creating flare without streamlogs enabled")
+	} else if streamlogs == "true" {
+		flareArgs.StreamLogsDuration = f.config.GetDuration("flare.rc_streamlogs.duration")
+	} else if streamlogs != "false" {
+		f.log.Infof("Unrecognized value passed via enable_streamlogs, creating flare without streamlogs enabled: %q", streamlogs)
+	}
+
 	filePath, err := f.CreateWithArgs(flareArgs, 0, nil)
 	if err != nil {
 		return true, err

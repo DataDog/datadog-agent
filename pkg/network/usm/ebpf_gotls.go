@@ -133,6 +133,7 @@ type goTLSProgram struct {
 var _ utils.Attacher = &goTLSProgram{}
 
 var goTLSSpec = &protocols.ProtocolSpec{
+	Factory: newGoTLS,
 	Maps: []*manager.Map{
 		{Name: offsetsDataMap},
 		{Name: goTLSReadArgsMap},
@@ -168,30 +169,29 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	},
 }
 
-func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
-	return func(c *config.Config) (protocols.Protocol, error) {
-		if !c.EnableGoTLSSupport {
-			return nil, nil
-		}
-
-		if !usmconfig.TLSSupported(c) {
-			return nil, errors.New("goTLS not supported by this platform")
-		}
-
-		if !c.EnableRuntimeCompiler && !c.EnableCORE {
-			return nil, errors.New("goTLS support requires runtime-compilation or CO-RE to be enabled")
-		}
-
-		return &goTLSProgram{
-			done:               make(chan struct{}),
-			cfg:                c,
-			manager:            m,
-			procRoot:           c.ProcRoot,
-			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
-			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
-			registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
-		}, nil
+func newGoTLS(c *config.Config) (protocols.Protocol, error) {
+	if !c.EnableGoTLSSupport {
+		return nil, nil
 	}
+
+	if !usmconfig.TLSSupported(c) {
+		log.Warn("goTLS not supported by this platform")
+		return nil, nil
+	}
+
+	if !c.EnableRuntimeCompiler && !c.EnableCORE {
+		log.Warn("goTLS support requires runtime-compilation or CO-RE to be enabled")
+		return nil, nil
+	}
+
+	return &goTLSProgram{
+		done:               make(chan struct{}),
+		cfg:                c,
+		procRoot:           c.ProcRoot,
+		binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
+		binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
+		registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
+	}, nil
 }
 
 // Name return the program's name.
@@ -214,6 +214,7 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 
 // PreStart launches the goTLS main goroutine to handle events.
 func (p *goTLSProgram) PreStart(m *manager.Manager) error {
+	p.manager = m
 	var err error
 
 	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)

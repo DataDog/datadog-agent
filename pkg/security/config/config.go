@@ -647,9 +647,9 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 }
 
 // GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
-func GetFamilyAddress(path string) (string, string) {
+func GetFamilyAddress(path string) string {
 	if strings.HasPrefix(path, "/") {
-		return "unix", path
+		return "unix"
 	}
-	return "tcp", path
+	return "tcp"
 }
