@@ -6,6 +6,16 @@
 // Package types provides types for the API package
 package types
 
+import "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+
+// CheckResponse represents the response of a check
+type CheckResponse struct {
+	Results  []*stats.Stats                    `json:"results"`
+	Errors   []string                          `json:"errors"`
+	Warnings []string                          `json:"warnings"`
+	Metadata map[string]map[string]interface{} `json:"metadata"`
+}
+
 // MemoryProfileConfig represents the configuration for memory profiling
 type MemoryProfileConfig struct {
 	Dir     string `json:"dir"`

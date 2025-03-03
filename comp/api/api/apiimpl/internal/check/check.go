@@ -100,7 +100,8 @@ func runChecks(_ option.Option[collector.Component], autodiscovery autodiscovery
 		}
 
 		if check.IsJMXConfig(c) {
-			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
+			setErrorsAndWarnings(w, []string{}, []string{"Please consider using the 'jmx' command instead of 'check jmx'"})
+			return
 		}
 	}
 	if checkRequest.ProfileConfig.Dir != "" {
@@ -176,15 +177,24 @@ func runChecks(_ option.Option[collector.Component], autodiscovery autodiscovery
 	}
 
 	var instancesData []*stats.Stats
-
+	result := types.CheckResponse{}
+	metadata := make(map[string]map[string]interface{})
+	// instanceMetadata := make(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(c, times, pause)
 
 		time.Sleep(time.Duration(delay) * time.Millisecond)
 
 		instancesData = append(instancesData, s)
+		metadata[string(c.ID())] = check.GetMetadata(c, false)
+		// instanceMetadata[c.String()] = c.GetInstanceMetadata()
 	}
-	instancesJSON, _ := json.Marshal(instancesData)
+	result.Results = instancesData
+	result.Metadata = metadata
+	// result.InstanceMetadata = instanceMetadata
+
+	instancesJSON, _ := json.Marshal(result)
+
 	w.Write(instancesJSON)
 }
 
@@ -204,9 +214,9 @@ func fetchCheckNameError(w http.ResponseWriter, checkName string) {
 			}
 		}
 	}
-	for check, warnings := range autodiscoveryimpl.GetResolveWarnings() {
+	for check, autoDiscoveryWarnings := range autodiscoveryimpl.GetResolveWarnings() {
 		if checkName == check {
-			for _, warning := range warnings {
+			for _, warning := range autoDiscoveryWarnings {
 				warnings = append(warnings, warning)
 			}
 		}
@@ -215,7 +225,11 @@ func fetchCheckNameError(w http.ResponseWriter, checkName string) {
 }
 
 func setErrorsAndWarnings(w http.ResponseWriter, errors []string, warnings []string) {
-	body, _ := json.Marshal(map[string][]string{"errors": errors, "warnings": warnings})
+	result := types.CheckResponse{
+		Errors:   errors,
+		Warnings: warnings,
+	}
+	body, _ := json.Marshal(result)
 	http.Error(w, string(body), 500)
 }
 
