@@ -87,8 +87,8 @@ func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	return args.Get(0).(Package), args.Error(1)
 }
 
-func (m *testDaemon) GetState() (map[string]PackageState, error) {
-	args := m.Called()
+func (m *testDaemon) GetState(ctx context.Context) (map[string]PackageState, error) {
+	args := m.Called(ctx)
 	return args.Get(0).(map[string]PackageState), args.Error(1)
 }
 
@@ -145,7 +145,7 @@ func TestAPIStatus(t *testing.T) {
 			},
 		},
 	}
-	api.i.On("GetState").Return(installerState, nil)
+	api.i.On("GetState", mock.Anything).Return(installerState, nil)
 	api.i.On("GetRemoteConfigState").Return(&pbgo.ClientUpdater{}, nil)
 	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
 

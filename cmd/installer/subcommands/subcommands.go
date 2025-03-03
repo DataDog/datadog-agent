@@ -10,9 +10,10 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/bootstrapper"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon"
-	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/installer"
 	"github.com/DataDog/datadog-agent/cmd/installer/user"
+	installer "github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
 	"github.com/spf13/cobra"
 )
 
@@ -21,9 +22,35 @@ import (
 func InstallerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		withDatadogAgent(daemon.Commands),
-		withRoot(installer.Commands),
-		installer.UnprivilegedCommands,
+		withRoot(installerCommands),
+		installerUnprivilegedCommands,
 	}
+}
+
+// installerCommands returns the installer subcommands.
+func installerCommands(_ *command.GlobalParams) []*cobra.Command {
+	return []*cobra.Command{
+		bootstrapper.BootstrapCommand(),
+		installer.InstallCommand(),
+		installer.SetupCommand(),
+		installer.RemoveCommand(),
+		installer.InstallExperimentCommand(),
+		installer.RemoveExperimentCommand(),
+		installer.PromoteExperimentCommand(),
+		installer.InstallConfigExperimentCommand(),
+		installer.RemoveConfigExperimentCommand(),
+		installer.PromoteConfigExperimentCommand(),
+		installer.GarbageCollectCommand(),
+		installer.PurgeCommand(),
+		installer.IsInstalledCommand(),
+		installer.ApmCommands(),
+		installer.GetStateCommand(nil),
+	}
+}
+
+// installerUnprivilegedCommands returns the unprivileged installer subcommands.
+func installerUnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
+	return []*cobra.Command{installer.VersionCommand(), installer.DefaultPackagesCommand()}
 }
 
 func withRoot(factory command.SubcommandFactory) command.SubcommandFactory {

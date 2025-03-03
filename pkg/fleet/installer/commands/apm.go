@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installer
+package commands
 
 import (
 	"github.com/spf13/cobra"
 )
 
-func apmCommands() *cobra.Command {
+// ApmCommands are the APM installer daemon commands
+func ApmCommands() *cobra.Command {
 	ctlCmd := &cobra.Command{
 		Use:     "apm [command]",
 		Short:   "Interact with the APM auto-injector",
@@ -33,8 +34,8 @@ func apmInstrumentCommand() *cobra.Command {
 			if len(args) == 0 {
 				args = []string{"not_set"}
 			}
-			i.span.SetTag("params.instrument", args[0])
-			return i.InstrumentAPMInjector(i.ctx, args[0])
+			i.Span.SetTag("params.instrument", args[0])
+			return i.InstrumentAPMInjector(i.Ctx, args[0])
 		},
 	}
 	return cmd
@@ -54,8 +55,8 @@ func apmUninstrumentCommand() *cobra.Command {
 			if len(args) == 0 {
 				args = []string{"not_set"}
 			}
-			i.span.SetTag("params.instrument", args[0])
-			return i.UninstrumentAPMInjector(i.ctx, args[0])
+			i.Span.SetTag("params.instrument", args[0])
+			return i.UninstrumentAPMInjector(i.Ctx, args[0])
 		},
 	}
 	return cmd
