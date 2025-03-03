@@ -102,9 +102,10 @@ type remoteTagger struct {
 
 // Options contains the options needed to configure the remote tagger.
 type Options struct {
-	Target       string
-	TokenFetcher func() (string, error)
-	Disabled     bool
+	Target           string
+	TokenFetcher     func() (string, error)
+	Disabled         bool
+	ContinueOnErrors bool
 }
 
 // NewComponent returns a remote tagger
@@ -139,8 +140,9 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 
 	remotetagger := &remoteTagger{
 		options: Options{
-			Target:       target,
-			TokenFetcher: params.RemoteTokenFetcher(cfg),
+			Target:           target,
+			TokenFetcher:     params.RemoteTokenFetcher(cfg),
+			ContinueOnErrors: params.ContinueOnErrors,
 		},
 		cfg:            cfg,
 		store:          newTagStore(telemetryStore),
@@ -220,6 +222,10 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 	}, expBackoff)
 	if err != nil {
 		t.log.Errorf("unable to fetch auth token after %d retries: %s", retries, err)
+		if t.options.ContinueOnErrors {
+			t.log.Info("remote tagger NOT initialized successfully, but execution will continue anyway")
+			return nil
+		}
 		return err
 	}
 
