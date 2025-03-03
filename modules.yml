@@ -17,6 +17,7 @@ modules:
   comp/api/authtoken: default
   comp/core/config:
     used_by_otel: true
+  comp/core/configsync: default
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:
