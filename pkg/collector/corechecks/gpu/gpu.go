@@ -303,9 +303,9 @@ func (c *Check) getDeviceTagsForKey(key model.StatsKey) []string {
 	if err != nil {
 		log.Errorf("Error collecting GPU tags for process %d: %s", key.PID, err)
 		return nil
-	} else {
-		return gpuTags
 	}
+
+	return gpuTags
 }
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
