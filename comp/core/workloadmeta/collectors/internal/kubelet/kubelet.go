@@ -11,6 +11,7 @@ package kubelet
 import (
 	"context"
 	stdErrors "errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -402,6 +403,11 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 }
 
 func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
+	// filter out env vars that have external sources (eg. ConfigMap, Secret, etc.)
+	envSpec = slices.DeleteFunc(envSpec, func(v kubelet.EnvVar) bool {
+		return v.ValueFrom != nil
+	})
+
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
 
@@ -416,9 +422,18 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 			continue
 		}
 
+		ok := true
 		runtimeVal := e.Value
 		if runtimeVal != "" {
-			runtimeVal = expansion.Expand(runtimeVal, mappingFunc)
+			runtimeVal, ok = expansion.Expand(runtimeVal, mappingFunc)
+		}
+
+		// Ignore environment variables that failed to expand
+		// This occurs when the env var references another env var
+		// that has its value sourced from an external source
+		// (eg. ConfigMap, Secret, DownwardAPI)
+		if !ok {
+			continue
 		}
 
 		env[e.Name] = runtimeVal
