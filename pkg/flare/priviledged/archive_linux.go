@@ -11,6 +11,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 )
 
+// GetLinuxDmesg returns the dmesg output from the system probe
 func GetLinuxDmesg() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(GetSystemProbeSocketPath())
 	url := sysprobeclient.DebugURL("/dmesg")
