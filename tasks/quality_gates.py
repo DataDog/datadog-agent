@@ -191,5 +191,5 @@ def update_quality_gates_threshold(ctx, metric_handler):
     branch_name = f"static_quality_gates/threshold_update_{os.environ["CI_COMMIT_SHORT_SHA"]}"
     ctx.run(f"git checkout -b {branch_name}")
     ctx.run("git add -uv")
-    ctx.run("commit -m 'feat(gate): update static quality gates thresholds'")
+    ctx.run("git commit -m 'feat(gate): update static quality gates thresholds'")
     ctx.run(f"git push --set-upstream origin {branch_name}")
