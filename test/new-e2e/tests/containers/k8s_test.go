@@ -504,6 +504,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^sub-team:contint$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -600,6 +602,8 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_cluster_name:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -810,6 +814,8 @@ func (suite *k8sSuite) TestKSM() {
 				`^org:agent-org$`,
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -830,6 +836,8 @@ func (suite *k8sSuite) TestKSM() {
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^kube_namespace:workload-redis$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 1,
@@ -851,6 +859,8 @@ func (suite *k8sSuite) TestKSM() {
 				`^cr_type:ddm$`,
 				`^ddm_namespace:workload-(?:nginx|redis)$`,
 				`^ddm_name:(?:nginx|redis)$`,
+				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
+				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
 		},
 	})
