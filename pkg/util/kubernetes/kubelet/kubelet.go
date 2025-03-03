@@ -62,7 +62,6 @@ type KubeUtil struct {
 	useAPIServer bool
 	apiClient    *apiserver.APIClient
 	nodeName     string
-	apiPodCache  *podCache
 }
 
 func (ku *KubeUtil) init() error {
@@ -106,16 +105,12 @@ func (ku *KubeUtil) init() error {
 		ku.useAPIServer = true
 		ku.apiClient, err = apiserver.GetAPIClient()
 		if err != nil {
-			log.Errorf("failed to get API Server Client: %v", err)
 			return err
 		}
 		ku.nodeName, err = ku.GetNodename(ctx)
 		if err != nil {
-			log.Errorf("failed to get node name: %v", err)
 			return err
 		}
-		ku.apiPodCache = newPodCache()
-		ku.initPodInformer()
 	}
 
 	return nil
@@ -224,10 +219,6 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*types.PodList, error)
 	var ok bool
 	pods := types.PodList{}
 
-	if ku.useAPIServer {
-		return ku.apiPodCache.getPodList(), nil
-	}
-
 	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
 		pods, ok = cached.(types.PodList)
 		if !ok {
@@ -237,7 +228,17 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*types.PodList, error)
 		}
 	}
 
-	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
+	var data []byte
+	var code int
+	var err error
+
+	if ku.useAPIServer {
+		data, err = ku.apiClient.QueryRawPodListFromNode(ctx, ku.nodeName)
+		code = http.StatusOK
+	} else {
+		data, code, err = ku.QueryKubelet(ctx, kubeletPodPath)
+	}
+
 	if err != nil {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
 	}

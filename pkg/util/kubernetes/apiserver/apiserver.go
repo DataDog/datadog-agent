@@ -73,6 +73,8 @@ const (
 	// This is mostly required for built-in controllers in Cluster Agent (ExternalMetrics, Autoscaling that can generate a high nunber of `Update` requests)
 	controllerClientQPSLimit = 150
 	controllerClientQPSBurst = 300
+
+	podPath = "/api/v1/pods"
 )
 
 // APIClient provides authenticated access to the
@@ -712,4 +714,20 @@ func GetKubeSecret(namespace string, name string) (map[string][]byte, error) {
 	}
 
 	return secret.Data, nil
+}
+
+func (c *APIClient) QueryRawPodListFromNode(ctx context.Context, nodeName string) ([]byte, error) {
+	fieldSelector := fmt.Sprintf("spec.nodeName=%s", nodeName)
+
+	response, err := c.Cl.CoreV1().RESTClient().
+		Get().
+		AbsPath(podPath).
+		Param("fieldSelector", fieldSelector). // Filters **before** querying
+		DoRaw(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch pods from API server: %w", err)
+	}
+
+	return response, nil
 }

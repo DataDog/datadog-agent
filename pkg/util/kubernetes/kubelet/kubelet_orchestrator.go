@@ -38,7 +38,17 @@ type KubeUtilInterface interface {
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet
 func (ku *KubeUtil) GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error) {
-	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
+	var data []byte
+	var code int
+	var err error
+
+	if ku.useAPIServer {
+		data, err = ku.apiClient.QueryRawPodListFromNode(ctx, ku.nodeName)
+		code = http.StatusOK
+	} else {
+		data, code, err = ku.QueryKubelet(ctx, kubeletPodPath)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletPodPath, err)
 	}
