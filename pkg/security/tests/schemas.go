@@ -232,6 +232,12 @@ func (tm *testModule) validateIMDSSchema(t *testing.T, event *model.Event) bool 
 }
 
 //nolint:deadcode,unused
+func (tm *testModule) validateSysctlSchema(t *testing.T, event *model.Event) bool {
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///sysctl.schema.json")
+}
+
+//nolint:deadcode,unused
 func (tm *testModule) validateAcceptSchema(t *testing.T, event *model.Event) bool {
 	if ebpfLessEnabled {
 		return true

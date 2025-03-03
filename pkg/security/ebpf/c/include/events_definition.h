@@ -478,4 +478,19 @@ struct network_flow_monitor_event_t {
     struct flow_stats_t flows[ACTIVE_FLOWS_MAX_SIZE];
 };
 
+struct sysctl_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+
+    u32 action;
+    u32 file_position;
+    u16 name_len;
+    u16 old_value_len;
+    u16 new_value_len;
+    u16 flags;
+    char sysctl_buffer[MAX_SYSCTL_BUFFER_LEN];
+};
+
 #endif
