@@ -278,7 +278,7 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID,
 		fmt.Sprintf("arch:%s", utils.RuntimeArch()),
 		fmt.Sprintf("origin:%s", c.probe.Origin()),
 	}
-	if err := c.statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
+	if err := c.statsdClient.Gauge(metrics.MetricSelfTest, 1.0, tags, 1.0); err != nil {
 		seclog.Errorf("failed to send self_test metric: %s", err)
 	}
 
