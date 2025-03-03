@@ -199,10 +199,7 @@ func (a *Agent) Run() {
 	// enough to keep the agent busy.
 	// Having more processor threads would not speed
 	// up processing, but just expand memory.
-	workers := runtime.GOMAXPROCS(0)
-	if workers < 1 {
-		workers = 1
-	}
+	workers := max(runtime.GOMAXPROCS(0), 1)
 
 	log.Infof("Processing Pipeline configured with %d workers", workers)
 	for i := 0; i < workers; i++ {

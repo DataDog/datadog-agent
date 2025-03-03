@@ -6,6 +6,7 @@
 package workloadmetaimpl
 
 import (
+	"maps"
 	"reflect"
 	"sort"
 
@@ -105,9 +106,7 @@ func (e *cachedEntity) copy() *cachedEntity {
 
 	copy(newEntity.sortedSources, e.sortedSources)
 
-	for source, entity := range e.sources {
-		newEntity.sources[source] = entity
-	}
+	maps.Copy(newEntity.sources, e.sources)
 
 	return newEntity
 }

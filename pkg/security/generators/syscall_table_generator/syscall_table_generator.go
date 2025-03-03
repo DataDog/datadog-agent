@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -243,10 +244,5 @@ func generateStringer(inputPath, outputPath string) error {
 }
 
 func containsStringSlice(slice []string, value string) bool {
-	for _, current := range slice {
-		if current == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, value)
 }

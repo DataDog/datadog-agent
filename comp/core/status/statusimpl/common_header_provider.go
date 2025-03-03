@@ -46,9 +46,7 @@ func (h *headerProvider) Name() string {
 }
 
 func (h *headerProvider) JSON(_ bool, stats map[string]interface{}) error {
-	for k, v := range h.data() {
-		stats[k] = v
-	}
+	maps.Copy(stats, h.data())
 
 	return nil
 }

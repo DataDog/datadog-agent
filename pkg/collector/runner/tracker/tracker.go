@@ -7,6 +7,7 @@
 package tracker
 
 import (
+	"maps"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -78,9 +79,7 @@ func (t *RunningChecksTracker) RunningChecks() map[checkid.ID]check.Check {
 	defer t.accessLock.RUnlock()
 
 	clone := make(map[checkid.ID]check.Check)
-	for key, val := range t.runningChecks {
-		clone[key] = val
-	}
+	maps.Copy(clone, t.runningChecks)
 
 	return clone
 }

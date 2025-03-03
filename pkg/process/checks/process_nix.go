@@ -78,12 +78,7 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 
 	// Calculates utilization split across all CPUs. A busy-loop process
 	// on a 2-CPU-core system would be reported as 50% instead of 100%.
-	overalPct := (deltaProc / deltaTime) * 100
-
-	// Sometimes we get values that don't make sense, so we clamp to 100%
-	if overalPct > 100 {
-		overalPct = 100
-	}
+	overalPct := min((deltaProc/deltaTime)*100, 100)
 
 	// In order to emulate top we multiply utilization by # of CPUs so a busy loop would be 100%.
 	pct := overalPct * numCPU

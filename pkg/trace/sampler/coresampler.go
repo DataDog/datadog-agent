@@ -73,10 +73,7 @@ func (s *Sampler) updateTargetTPS(targetTPS float64) {
 
 	s.muRates.Lock()
 	for sig, rate := range s.rates {
-		newRate := rate * ratio
-		if newRate > 1 {
-			newRate = 1
-		}
+		newRate := min(rate*ratio, 1)
 		s.rates[sig] = newRate
 	}
 	s.muRates.Unlock()

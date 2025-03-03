@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"sync"
@@ -184,9 +185,7 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 
 	res := map[string]interface{}{}
 	if instance, found := ic.data[instanceID]; found {
-		for name, value := range instance.metadata {
-			res[name] = value
-		}
+		maps.Copy(res, instance.metadata)
 	}
 	return res
 }
@@ -211,9 +210,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 				cm := check.GetMetadata(c, withConfigs)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
-					for key, val := range checkData.metadata {
-						cm[key] = val
-					}
+					maps.Copy(cm, checkData.metadata)
 				}
 
 				checkName := c.String()

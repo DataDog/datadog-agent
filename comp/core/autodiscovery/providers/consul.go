@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -287,12 +288,7 @@ func (p *ConsulConfigProvider) getJSONValue(ctx context.Context, key string) ([]
 func isTemplateField(key string) bool {
 	tplKeys := []string{instancePath, checkNamePath, initConfigPath}
 
-	for _, tpl := range tplKeys {
-		if key == tpl {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tplKeys, key)
 }
 
 // GetConfigErrors is not implemented for the ConsulConfigProvider

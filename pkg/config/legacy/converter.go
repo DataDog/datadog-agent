@@ -10,6 +10,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -393,12 +394,9 @@ func buildHistogramAggregates(agentConfig Config) []string {
 
 	for _, res := range result {
 		found := false
-		for _, val := range validValues {
-			if res == val {
-				histogramBuild = append(histogramBuild, res)
-				found = true
-				break
-			}
+		if slices.Contains(validValues, res) {
+			histogramBuild = append(histogramBuild, res)
+			found = true
 		}
 		if !found {
 			// print the value skipped because invalid value

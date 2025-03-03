@@ -9,6 +9,7 @@
 package mocksender
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -157,11 +158,8 @@ func eventLike(expectedEvent, actualEvent event.Event) bool {
 func expectedInActual(expected, actual []string) bool {
 	expectedCount := 0
 	for _, e := range expected {
-		for _, a := range actual {
-			if e == a {
-				expectedCount++
-				break
-			}
+		if slices.Contains(actual, e) {
+			expectedCount++
 		}
 	}
 	return len(expected) == expectedCount

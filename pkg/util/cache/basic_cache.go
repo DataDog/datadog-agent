@@ -6,6 +6,7 @@
 package cache
 
 import (
+	"maps"
 	"sync"
 	"time"
 )
@@ -75,9 +76,7 @@ func (b *BasicCache) Items() map[string]interface{} {
 
 	b.m.RLock()
 	defer b.m.RUnlock()
-	for k, v := range b.cache {
-		items[k] = v
-	}
+	maps.Copy(items, b.cache)
 
 	return items
 }

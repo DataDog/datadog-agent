@@ -10,6 +10,7 @@ package v1
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -67,9 +68,7 @@ func getCLCRunnerStats(w http.ResponseWriter, _ *http.Request, ac autodiscovery.
 func flattenCLCStats(stats status.CLCChecks) map[string]status.CLCStats {
 	flatened := make(map[string]status.CLCStats)
 	for _, checks := range stats.Checks {
-		for checkID, checkStats := range checks {
-			flatened[checkID] = checkStats
-		}
+		maps.Copy(flatened, checks)
 	}
 
 	return flatened
