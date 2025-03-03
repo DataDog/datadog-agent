@@ -205,7 +205,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     )
 
     # Create pull request
-    milestone_version = next_final_version(ctx, "7", False)
+    milestone_version = list(ctx.run("inv release.get-unreleased-release-branches", hide=True))[0].replace("x","0")
     return create_release_pr(
         "[Nightly] Static quality gates threshold update", current_branch.name, branch_name, milestone_version
     )
