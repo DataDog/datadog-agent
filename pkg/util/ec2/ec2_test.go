@@ -75,66 +75,6 @@ func TestIsDefaultHostnameForIntake(t *testing.T) {
 
 func TestGetInstanceID(t *testing.T) {
 	ctx := context.Background()
-	var expected string
-	var responseCode int
-	var lastRequest *http.Request
-
-	// Force refresh
-	token.ExpirationDate = time.Now()
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.Method {
-		case http.MethodPut:
-			// Should be a token request
-			io.WriteString(w, testIMDSToken)
-			w.WriteHeader(http.StatusOK)
-		case http.MethodGet:
-			// Should be a metadata request
-			t := r.Header.Get("X-aws-ec2-metadata-token")
-			if t != testIMDSToken {
-				w.WriteHeader(http.StatusUnauthorized)
-			}
-			io.WriteString(w, expected)
-			w.WriteHeader(responseCode)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-		lastRequest = r
-	}))
-	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
-	conf := configmock.New(t)
-	defer resetPackageVars()
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
-
-	// API successful, should return API result
-	responseCode = http.StatusOK
-	expected = "i-0123456789abcdef0"
-	val, err := GetInstanceID(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, expected, val)
-	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
-
-	// the internal cache is populated now, should return the cached value even if API errors out
-	responseCode = http.StatusInternalServerError
-	val, err = GetInstanceID(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, expected, val)
-	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
-
-	// the internal cache is populated, should refresh result if API call succeeds
-	responseCode = http.StatusOK
-	expected = "i-aaaaaaaaaaaaaaaaa"
-	val, err = GetInstanceID(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, expected, val)
-	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
-}
-
-func TestGetLegacyResolutionInstanceID(t *testing.T) {
-	ctx := context.Background()
 	expected := "i-0123456789abcdef0"
 	var responseCode int
 	var lastRequest *http.Request
