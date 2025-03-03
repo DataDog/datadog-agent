@@ -759,9 +759,8 @@ func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 }
 
 func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse, error) {
-	log.Errorf("Flushing cache")
 	return &pbgo.ClientGetConfigsResponse{
-		Roots:         nil, // can we return nil here?
+		Roots:         nil,
 		Targets:       s.cachedTargets,
 		TargetFiles:   nil,
 		ClientConfigs: nil,
