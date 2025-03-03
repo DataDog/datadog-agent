@@ -10,11 +10,11 @@ package atomicstats
 import (
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 	"sync"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"go.uber.org/atomic"
 )
 
@@ -282,8 +282,8 @@ func qualifiedTypeName(ty reflect.Type) string {
 }
 
 // from https://gist.github.com/stoewer/fbe273b711e6a06315d19552dd4d33e6
-var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
-var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
+var matchFirstCap = lazyregexp.New("(.)([A-Z][a-z]+)")
+var matchAllCap = lazyregexp.New("([a-z0-9])([A-Z])")
 
 func toSnakeCase(str string) string {
 	snake := matchFirstCap.ReplaceAllString(str, "${1}_${2}")

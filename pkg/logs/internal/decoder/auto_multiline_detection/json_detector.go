@@ -6,9 +6,9 @@
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
 package automultilinedetection
 
-import "regexp"
+import "github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 
-var jsonRegexp = regexp.MustCompile(`^\s*\{\s*["}]`)
+var jsonRegexp = lazyregexp.New(`^\s*\{\s*["}]`)
 
 // JSONDetector is a heuristic to detect JSON messages.
 type JSONDetector struct{}

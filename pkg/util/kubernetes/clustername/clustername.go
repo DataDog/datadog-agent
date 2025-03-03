@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,7 +37,7 @@ const (
 // * Must start with a letter.
 // * Must end with a number or a letter.
 // * Must be a valid FQDN (without trailing period)
-var validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
+var validClusterName = lazyregexp.New(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
 
 type clusterNameData struct {
 	clusterName string

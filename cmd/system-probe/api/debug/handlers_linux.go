@@ -16,15 +16,15 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"golang.org/x/sys/unix"
 )
 
-var klogRegexp = regexp.MustCompile(`<(\d+)>(.*)`)
+var klogRegexp = lazyregexp.New(`<(\d+)>(.*)`)
 
 var klogLevels = []string{
 	"emerg",

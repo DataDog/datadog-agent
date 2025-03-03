@@ -9,13 +9,13 @@ package kernel
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/cilium/ebpf/features"
 )
 
-var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+)(?:\.(\d+))?.*$`)
+var versionRegex = lazyregexp.New(`^(\d+)\.(\d+)(?:\.(\d+))?.*$`)
 
 // Version is a numerical representation of a kernel version
 type Version uint32
@@ -120,7 +120,7 @@ type UbuntuKernelVersion struct {
 	Flavor string
 }
 
-var ubuntuKernelVersionRegex = regexp.MustCompile(`^(\d+)\.(\d+)\.(0)-(\d+)-([[:lower:]-]+)$`)
+var ubuntuKernelVersionRegex = lazyregexp.New(`^(\d+)\.(\d+)\.(0)-(\d+)-([[:lower:]-]+)$`)
 
 // NewUbuntuKernelVersion parses the ubuntu release string and returns a structure with each extracted fields
 func NewUbuntuKernelVersion(unameRelease string) (*UbuntuKernelVersion, error) {

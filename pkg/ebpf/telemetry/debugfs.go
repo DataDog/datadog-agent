@@ -12,13 +12,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,7 +35,7 @@ type KprobeStats struct {
 }
 
 // event name format is p|r_<funcname>_<uid>_<pid>
-var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
+var eventRegexp = lazyregexp.New(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
 
 // GetProbeStats gathers stats about the # of kprobes triggered /missed by reading the kprobe_profile file
 func GetProbeStats() map[string]uint64 {

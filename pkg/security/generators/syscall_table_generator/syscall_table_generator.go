@@ -16,11 +16,11 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
 
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -114,7 +114,7 @@ func parseLinuxFile(url string, perLine func(string) (*syscallDefinition, error)
 	return syscalls, nil
 }
 
-var unistdDefinedRe = regexp.MustCompile(`#define __NR(3264)?_([0-9a-zA-Z_][0-9a-zA-Z_]*)\s+([0-9]+)`)
+var unistdDefinedRe = lazyregexp.New(`#define __NR(3264)?_([0-9a-zA-Z_][0-9a-zA-Z_]*)\s+([0-9]+)`)
 
 func parseUnistdTable(url string) ([]*syscallDefinition, error) {
 	return parseLinuxFile(url, func(line string) (*syscallDefinition, error) {
