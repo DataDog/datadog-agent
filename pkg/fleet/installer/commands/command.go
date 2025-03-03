@@ -52,6 +52,7 @@ func NewCmd(operation string) *Cmd {
 	}
 }
 
+// Stop stops the command
 func (c *Cmd) Stop(err error) {
 	c.Span.Finish(err)
 	if c.t != nil {
