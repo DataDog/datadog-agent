@@ -36,7 +36,7 @@ import (
 
 const (
 	gpuMetricsNs          = "gpu."
-	metricNameUtil        = gpuMetricsNs + "utilization"
+	metricNameCores       = gpuMetricsNs + "core.used"
 	metricNameMemory      = gpuMetricsNs + "memory.used"
 	metricNameMemoryPerc  = gpuMetricsNs + "memory.utilization"
 	metricNameDeviceTotal = gpuMetricsNs + "device.total"
@@ -186,9 +186,8 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
 		tags := c.getTagsForKey(key)
-		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
+		snd.Gauge(metricNameCores, metrics.UsedCores, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
-		snd.Gauge(metricNameMemoryPerc, metrics.Memory.CurrentBytesPercentage, "", tags)
 
 		c.activeMetrics[key] = true
 	}
@@ -200,7 +199,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		if !active {
 			tags := c.getTagsForKey(key)
 			snd.Gauge(metricNameMemory, 0, "", tags)
-			snd.Gauge(metricNameUtil, 0, "", tags)
+			snd.Gauge(metricNameCores, 0, "", tags)
 
 			delete(c.activeMetrics, key)
 		}

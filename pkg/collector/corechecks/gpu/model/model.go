@@ -16,17 +16,12 @@ type MemoryMetrics struct {
 	// While it's not reported to the backend, we leave it as it's useful for debugging
 	// and unit testing.
 	MaxBytes uint64 `json:"max_bytes"`
-
-	// CurrentBytesPercentage is the percentage of the current memory
-	// usage compared to the total memory available: CurrentBytesPercentage =
-	// CurrentBytes / Total Device Memory, so it's a value between 0 and 1.
-	CurrentBytesPercentage float64 `json:"current_bytes_percentage"`
 }
 
 // UtilizationMetrics contains the GPU stats for a given device and process
 type UtilizationMetrics struct {
-	UtilizationPercentage float64       `json:"utilization_percentage"`
-	Memory                MemoryMetrics `json:"memory"`
+	UsedCores float64       `json:"used_cores"`
+	Memory    MemoryMetrics `json:"memory"`
 }
 
 // StatsKey is the key used to identify a GPUStats object
