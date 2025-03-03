@@ -9,6 +9,7 @@ package taglist
 import (
 	"fmt"
 	"strings"
+	"unique"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -40,12 +41,14 @@ func addTags(target map[string]bool, name string, value string, splits map[strin
 	}
 	sep, ok := splits[name]
 	if !ok {
-		target[fmt.Sprintf("%s:%s", name, value)] = true
+		key := unique.Make(fmt.Sprintf("%s:%s", name, value))
+		target[key.Value()] = true
 		return
 	}
 
 	for _, elt := range strings.Split(value, sep) {
-		target[fmt.Sprintf("%s:%s", name, elt)] = true
+		key := unique.Make(fmt.Sprintf("%s:%s", name, elt))
+		target[key.Value()] = true
 	}
 }
 
