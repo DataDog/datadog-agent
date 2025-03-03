@@ -5,7 +5,11 @@
 
 package common
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+)
 
 const (
 	// DatadogInstallerPackage is the datadog installer package
@@ -52,10 +56,14 @@ var (
 	}
 )
 
-func resolvePackages(packages Packages) []packageWithVersion {
+func resolvePackages(env *env.Env, packages Packages) []packageWithVersion {
 	var resolved []packageWithVersion
 	for _, pkg := range order {
-		if p, ok := packages.install[pkg]; ok {
+		forceInstall := env.DefaultPackagesInstallOverride[pkg]
+		if p, ok := packages.install[pkg]; ok || forceInstall {
+			if env.DefaultPackagesVersionOverride[pkg] != "" {
+				p.version = env.DefaultPackagesVersionOverride[pkg]
+			}
 			resolved = append(resolved, p)
 		}
 	}
@@ -80,5 +88,15 @@ func (p *Packages) Install(pkg string, version string) {
 	p.install[pkg] = packageWithVersion{
 		name:    pkg,
 		version: version,
+	}
+}
+
+// InstallInstaller marks the installer package to be installed
+func (p *Packages) InstallInstaller() {
+	p.install[DatadogInstallerPackage] = packageWithVersion{
+		name: DatadogInstallerPackage,
+		// HACK: There is an assumption that the parrent install-*.sh script will set the version.
+		// We will fail if the version is not set.
+		version: "unset",
 	}
 }

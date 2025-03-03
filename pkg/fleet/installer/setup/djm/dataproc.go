@@ -7,10 +7,11 @@
 package djm
 
 import (
-	"cloud.google.com/go/compute/metadata"
 	"context"
 	"fmt"
 	"os"
+
+	"cloud.google.com/go/compute/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,6 +48,7 @@ var (
 func SetupDataproc(s *common.Setup) error {
 
 	metadataClient := metadata.NewClient(nil)
+	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, dataprocInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, dataprocJavaTracerVersion)

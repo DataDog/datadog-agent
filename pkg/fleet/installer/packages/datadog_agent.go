@@ -23,23 +23,26 @@ import (
 )
 
 const (
-	agentPackage      = "datadog-agent"
-	agentSymlink      = "/usr/bin/datadog-agent"
-	agentUnit         = "datadog-agent.service"
-	traceAgentUnit    = "datadog-agent-trace.service"
-	processAgentUnit  = "datadog-agent-process.service"
-	systemProbeUnit   = "datadog-agent-sysprobe.service"
-	securityAgentUnit = "datadog-agent-security.service"
-	agentExp          = "datadog-agent-exp.service"
-	traceAgentExp     = "datadog-agent-trace-exp.service"
-	processAgentExp   = "datadog-agent-process-exp.service"
-	systemProbeExp    = "datadog-agent-sysprobe-exp.service"
-	securityAgentExp  = "datadog-agent-security-exp.service"
+	agentPackage       = "datadog-agent"
+	agentSymlink       = "/usr/bin/datadog-agent"
+	agentUnit          = "datadog-agent.service"
+	installerAgentUnit = "datadog-agent-installer.service"
+	traceAgentUnit     = "datadog-agent-trace.service"
+	processAgentUnit   = "datadog-agent-process.service"
+	systemProbeUnit    = "datadog-agent-sysprobe.service"
+	securityAgentUnit  = "datadog-agent-security.service"
+	agentExp           = "datadog-agent-exp.service"
+	installerAgentExp  = "datadog-agent-installer-exp.service"
+	traceAgentExp      = "datadog-agent-trace-exp.service"
+	processAgentExp    = "datadog-agent-process-exp.service"
+	systemProbeExp     = "datadog-agent-sysprobe-exp.service"
+	securityAgentExp   = "datadog-agent-security-exp.service"
 )
 
 var (
 	stableUnits = []string{
 		agentUnit,
+		installerAgentUnit,
 		traceAgentUnit,
 		processAgentUnit,
 		systemProbeUnit,
@@ -47,6 +50,7 @@ var (
 	}
 	experimentalUnits = []string{
 		agentExp,
+		installerAgentExp,
 		traceAgentExp,
 		processAgentExp,
 		systemProbeExp,
