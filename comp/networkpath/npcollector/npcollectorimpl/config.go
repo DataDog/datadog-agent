@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/blacklist"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/discard"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 )
 
@@ -21,8 +21,7 @@ type collectorConfigs struct {
 	pathtestInputChanSize        int
 	pathtestProcessingChanSize   int
 	storeConfig                  pathteststore.Config
-	blacklistCacheConfig         blacklist.Config
-	blacklistScannerConfig       blacklist.ScannerConfig
+	discardScannerConfig         discard.ScannerConfig
 	flushInterval                time.Duration
 	reverseDNSEnabled            bool
 	reverseDNSTimeout            time.Duration
@@ -45,15 +44,10 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 			MaxPerMinute:     agentConfig.GetInt("network_path.collector.pathtest_max_per_minute"),
 			MaxBurstDuration: agentConfig.GetDuration("network_path.collector.pathtest_max_burst_duration"),
 		},
-		blacklistCacheConfig: blacklist.Config{
-			Capacity:      agentConfig.GetInt("network_path.collector.blacklist_cache.capacity"),
-			TTL:           agentConfig.GetDuration("network_path.collector.blacklist_cache.duration"),
-			CleanInterval: agentConfig.GetDuration("network_path.collector.blacklist_cache.clean_interval"),
-		},
-		blacklistScannerConfig: blacklist.ScannerConfig{
-			Enabled:            agentConfig.GetBool("network_path.collector.blacklist_scanner.enabled"),
-			MaxTTL:             agentConfig.GetInt("network_path.collector.blacklist_scanner.max_ttl"),
-			OnlyPrivateSubnets: agentConfig.GetBool("network_path.collector.blacklist_scanner.only_private_subnets"),
+		discardScannerConfig: discard.ScannerConfig{
+			Enabled:       agentConfig.GetBool("network_path.collector.discard_scanner.enabled"),
+			CacheCapacity: agentConfig.GetInt64("network_path.collector.discard_scanner.cache_capacity"),
+			CacheTTL:      agentConfig.GetDuration("network_path.collector.discard_scanner.cache_ttl"),
 		},
 		flushInterval:             agentConfig.GetDuration("network_path.collector.flush_interval"),
 		reverseDNSEnabled:         agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),

@@ -221,7 +221,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		eventplatform.EventTypeNetworkPath,
 	).Return(nil).Times(1)
 
-	// third pathtest should not get uploaded because it gets blacklisted
+	// third pathtest should not get uploaded because it gets discarded by the discard scanner
 
 	// WHEN
 	conns := []*model.Connection{

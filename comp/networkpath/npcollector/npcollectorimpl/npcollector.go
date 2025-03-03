@@ -21,8 +21,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/blacklist"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/discard"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -34,12 +34,12 @@ import (
 )
 
 const (
-	networkPathCollectorMetricPrefix    = "datadog.network_path.collector."
-	reverseDNSLookupMetricPrefix        = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
-	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
-	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
-	netpathConnsSkippedMetricName       = networkPathCollectorMetricPrefix + "schedule.conns_skipped"
-	netpathBlacklistAddedMetricName     = networkPathCollectorMetricPrefix + "blacklist_added"
+	networkPathCollectorMetricPrefix      = "datadog.network_path.collector."
+	reverseDNSLookupMetricPrefix          = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
+	reverseDNSLookupFailuresMetricName    = reverseDNSLookupMetricPrefix + "failures"
+	reverseDNSLookupSuccessesMetricName   = reverseDNSLookupMetricPrefix + "successes"
+	netpathConnsSkippedMetricName         = networkPathCollectorMetricPrefix + "schedule.conns_skipped"
+	netpathFoundDiscardablePathMetricName = networkPathCollectorMetricPrefix + "found_discardable_path"
 )
 
 type npCollectorImpl struct {
@@ -55,9 +55,8 @@ type npCollectorImpl struct {
 	receivedPathtestCount    *atomic.Uint64
 	processedTracerouteCount *atomic.Uint64
 
-	// Blacklist of low-value pathtests
-	blacklistCache   *blacklist.Cache
-	blacklistScanner *blacklist.Scanner
+	// Discard low-value pathtests instead of re-testing them and sending them to the backend
+	discardScanner *discard.Scanner
 
 	// Pathtest store
 	pathtestStore          *pathteststore.Store
@@ -99,9 +98,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		rdnsquerier:      rdnsquerier,
 		logger:           logger,
 
-		// TODO this time.Now mock doesn't get set by npcollector tests currently.
-		blacklistCache:   blacklist.NewCache(collectorConfigs.blacklistCacheConfig, time.Now),
-		blacklistScanner: blacklist.NewScanner(collectorConfigs.blacklistScannerConfig),
+		discardScanner: discard.NewScanner(collectorConfigs.discardScannerConfig),
 
 		// pathtestStore is set in start() after statsd.Client is configured
 		pathtestStore:          nil,
@@ -232,9 +229,9 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 			continue
 		}
 		pathtest := makePathtest(conn, dns)
-		if s.blacklistCache.Contains(pathtest.GetHash()) {
-			s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_blacklisted"}, 1) //nolint:errcheck
-			s.logger.Tracef("Skipped blacklisted pathtest: %+v", pathtest)
+		if s.discardScanner.IsKnownDiscardable(pathtest.GetHash()) {
+			s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_discardable"}, 1) //nolint:errcheck
+			s.logger.Tracef("Skipped discardable pathtest: %+v", pathtest)
 			continue
 		}
 
@@ -285,8 +282,8 @@ func (s *npCollectorImpl) start() error {
 
 	s.initStatsdClient(statsd.Client)
 
-	go s.blacklistCache.CleanupTask(s.stopChan)
-	go s.blacklistCache.MetricsTask(s.stopChan, s.statsdClient)
+	go s.discardScanner.CacheExpirationTask(s.stopChan)
+	go s.discardScanner.MetricsTask(s.stopChan, s.statsdClient)
 
 	go s.listenPathtests()
 	go s.flushLoop()
@@ -322,7 +319,26 @@ func (s *npCollectorImpl) listenPathtests() {
 	}
 }
 
-func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
+func (s *npCollectorImpl) processPathtest(ptest *pathteststore.PathtestContext) error {
+	path, err := s.runTracerouteForPath(ptest)
+	if err != nil {
+		return fmt.Errorf("failed to runTracerouteForPath: %w", err)
+	}
+
+	if s.discardScanner.ShouldDiscard(&path) {
+		s.logger.Tracef("Discarding path: %+v", ptest.Pathtest)
+		s.statsdClient.Incr(netpathFoundDiscardablePathMetricName, nil, 1) //nolint:errcheck
+		hash := ptest.Pathtest.GetHash()
+		s.discardScanner.MarkDiscardableHash(hash)
+		s.pathtestStore.RemoveHash(hash)
+		// no need to do further processing
+		return nil
+	}
+
+	return s.forwardNetworkPath(path)
+}
+
+func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) (payload.NetworkPath, error) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	cfg := config.Config{
@@ -335,37 +351,30 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)
 	if err != nil {
-		s.logger.Errorf("%s", err)
-		return
+		return payload.NetworkPath{}, err
 	}
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
 
-	if s.blacklistScanner.ShouldBlacklist(&path) {
-		s.logger.Tracef("Blacklisting path: %+v", ptest.Pathtest)
-		s.statsdClient.Incr(netpathBlacklistAddedMetricName, nil, 1) //nolint:errcheck
-		hash := ptest.Pathtest.GetHash()
-		s.blacklistCache.Add(hash)
-		s.pathtestStore.RemoveHash(hash)
-		// no need to do further processing since it's blacklisted
-		return
-	}
-
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
+	return path, nil
+}
 
+func (s *npCollectorImpl) forwardNetworkPath(path payload.NetworkPath) error {
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
-		s.logger.Errorf("json marshall error: %s", err)
-	} else {
-		s.logger.Debugf("network path event: %s", string(payloadBytes))
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
-		if err != nil {
-			s.logger.Errorf("failed to send event to epForwarder: %s", err)
-		}
+		return fmt.Errorf("json marshall error: %w", err)
 	}
+
+	s.logger.Debugf("network path event: %s", string(payloadBytes))
+	m := message.NewMessage(payloadBytes, nil, "", 0)
+	err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
+	if err != nil {
+		return fmt.Errorf("failed to send event to epForwarder: %w", err)
+	}
+	return nil
 }
 
 func runTraceroute(cfg config.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
@@ -538,7 +547,11 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			startTime := s.TimeNowFn()
 
-			s.runTracerouteForPath(pathtestCtx)
+			err := s.processPathtest(pathtestCtx)
+			if err != nil {
+				s.logger.Errorf("error processing pathtest: %s", err)
+			}
+
 			s.processedTracerouteCount.Inc()
 
 			checkInterval := pathtestCtx.LastFlushInterval()

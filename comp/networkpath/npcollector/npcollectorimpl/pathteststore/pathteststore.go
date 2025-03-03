@@ -189,7 +189,7 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
 }
 
-// RemoveHash deletes a pathtest from the store (used by the blacklist)
+// RemoveHash deletes a pathtest from the store
 func (f *Store) RemoveHash(hash common.PathtestHash) {
 	f.contextsMutex.Lock()
 	defer f.contextsMutex.Unlock()

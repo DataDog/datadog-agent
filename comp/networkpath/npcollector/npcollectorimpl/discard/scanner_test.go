@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package blacklist
+package discard
 
 import (
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/stretchr/testify/require"
 )
@@ -74,34 +76,22 @@ var unreachablePath = &payload.NetworkPath{
 }
 
 var baseConfig = ScannerConfig{
-	Enabled:            true,
-	MaxTTL:             2,
-	OnlyPrivateSubnets: true,
-}
-
-var longerConfig = ScannerConfig{
-	Enabled:            true,
-	MaxTTL:             3,
-	OnlyPrivateSubnets: true,
-}
-
-var publicConfig = ScannerConfig{
-	Enabled:            true,
-	MaxTTL:             2,
-	OnlyPrivateSubnets: false,
+	Enabled:       true,
+	CacheCapacity: 10,
+	CacheTTL:      2 * time.Hour,
 }
 
 var disabledConfig = ScannerConfig{
-	Enabled:            false,
-	MaxTTL:             2,
-	OnlyPrivateSubnets: false,
+	Enabled:       false,
+	CacheCapacity: 10,
+	CacheTTL:      2 * time.Hour,
 }
 
 func TestCombos(t *testing.T) {
 	type testCase struct {
-		config    ScannerConfig
-		path      *payload.NetworkPath
-		blacklist bool
+		config  ScannerConfig
+		path    *payload.NetworkPath
+		discard bool
 	}
 	testcases := []struct {
 		name     string
@@ -121,30 +111,22 @@ func TestCombos(t *testing.T) {
 			"bad path, 2 hops",
 			testCase{baseConfig, badPath2Hops, true},
 		},
-		// if intermediate hops are reachable, never blacklist
+		// if intermediate hops are reachable, never discard
 		{
 			"short path with reachable intermediate step, 2 hops",
 			testCase{baseConfig, shortPath2Hops, false},
 		},
-		// 3 hops is above MaxTTL so it doesn't get blacklisted
+		// 3 hops is above MaxTTL so it doesn't get discarded
 		{
 			"bad path, 3 hops (too long)",
 			testCase{baseConfig, badPath3Hops, false},
 		},
-		{
-			"bad path, 3 hops (longer config)",
-			testCase{longerConfig, badPath3Hops, true},
-		},
-		// public IPs don't get blacklisted by default
+		// public IPs don't get discarded by default
 		{
 			"bad path on public IP",
 			testCase{baseConfig, badPath1HopPublic, false},
 		},
-		{
-			"bad path on public IP, with public blacklisting enabled",
-			testCase{publicConfig, badPath1HopPublic, true},
-		},
-		// disabled scanner - nothing should get blacklisted
+		// disabled scanner - nothing should get discarded
 		{
 			"disabled scanner, good path",
 			testCase{disabledConfig, goodPath, false},
@@ -153,7 +135,7 @@ func TestCombos(t *testing.T) {
 			"disabled scanner, bad path",
 			testCase{disabledConfig, badPath1Hop, false},
 		},
-		// unreachable destinations are never blacklisted
+		// unreachable destinations are never discarded
 		{
 			"unreachable dest",
 			testCase{baseConfig, unreachablePath, false},
@@ -163,9 +145,27 @@ func TestCombos(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			scanner := NewScanner(tc.testCase.config)
-			shouldBlacklist := scanner.ShouldBlacklist(tc.testCase.path)
-			expected := tc.testCase.blacklist
-			require.Equal(t, expected, shouldBlacklist)
+			ShouldDiscard := scanner.ShouldDiscard(tc.testCase.path)
+			expected := tc.testCase.discard
+			require.Equal(t, expected, ShouldDiscard)
 		})
 	}
+}
+
+const (
+	hashA = common.PathtestHash(123)
+	hashB = common.PathtestHash(456)
+)
+
+func TestScannerCacheSanityCheck(t *testing.T) {
+	// the cache library is already tested, this just double checks we are calling it correctly
+	scanner := NewScanner(baseConfig)
+
+	require.False(t, scanner.IsKnownDiscardable(hashA))
+	require.False(t, scanner.IsKnownDiscardable(hashB))
+
+	scanner.MarkDiscardableHash(hashA)
+
+	require.True(t, scanner.IsKnownDiscardable(hashA))
+	require.False(t, scanner.IsKnownDiscardable(hashB))
 }
