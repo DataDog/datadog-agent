@@ -23,6 +23,17 @@ retract (
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
+replace (
+	// avoid using reflect.Type.Method with non-constant argument
+	github.com/google/go-cmp => github.com/pgimalac/go-cmp v0.6.1-0.20241226143757-a715dfd9338b
+	// reflect2 has a type which wraps reflect.Type, which makes the linker consider that Method and MethodByName are reachable. This fix shadows both methods to make them explicitly unreachable.
+	github.com/modern-go/reflect2 => github.com/pgimalac/reflect2 v0.0.0-20241226135511-3c6e286be18b
+	// comment out uses of text/template
+	github.com/open-policy-agent/opa => github.com/pgimalac/opa v0.0.0-20241226172958-398772fbb5c0
+	// comment out a use of text/template
+	go.uber.org/dig => github.com/pgimalac/dig v1.18.1-0.20241226143044-f328231d7d7e
+)
+
 // Internal deps fix version
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6

@@ -58,16 +58,16 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 var templatesFS embed.FS
 
 // ParseTemplate renders the text template with the data provided
-func ParseTemplate(w io.Writer, templateName string, stats interface{}) error {
+func ParseTemplate(_ io.Writer, templateName string, _ interface{}) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t, err := template.New(templateName).Funcs(fmap).Parse(string(tmpl))
+	_, err := template.New(templateName).Funcs(fmap).Parse(string(tmpl))
 	if err != nil {
 		return err
 	}
-	return t.Execute(w, stats)
+	return nil //t.Execute(w, stats)
 }
 
 func renderErrors(w io.Writer, errs []error) error {
