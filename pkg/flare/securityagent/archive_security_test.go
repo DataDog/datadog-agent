@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package flare
+package securityagent
 
 import (
 	"testing"
