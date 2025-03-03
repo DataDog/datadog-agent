@@ -666,6 +666,9 @@ func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 			require.NoError(t, err)
 			watcher.Start()
 			t.Cleanup(watcher.Stop)
+			// the counter may be retrieved from the global registry, it must be reset.
+			watcher.libMatches.Set(0)
+
 			// Overriding PID, to allow the watcher to watch the test process
 			watcher.thisPID = 0
 
@@ -678,7 +681,7 @@ func (s *SharedLibrarySuite) TestValidPathExistsInTheMemory() {
 			// to avoid race conditions.
 			for i := 0; i < 10; i++ {
 				time.Sleep(100 * time.Millisecond)
-				assert.Zero(t, watcher.libHits.Get())
+				// the 'watcher.libHits' counter is incremented before rule matching and may be > 0, do not check it.
 				assert.Zero(t, watcher.libMatches.Get())
 				assert.Zero(t, registerRecorder.CallsForPathID(dummyPathID))
 				assert.Zero(t, registerRecorder.CallsForPathID(soPathID))
