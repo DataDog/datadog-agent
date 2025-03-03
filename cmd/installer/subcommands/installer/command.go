@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
@@ -89,18 +91,21 @@ type cmd struct {
 	ctx  context.Context
 	span *telemetry.Span
 	env  *env.Env
+	stop context.CancelFunc
 }
 
 func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	setInstallerUmask(span)
 	return &cmd{
 		t:    t,
 		ctx:  ctx,
 		span: span,
 		env:  env,
+		stop: stop,
 	}
 }
 
@@ -109,6 +114,7 @@ func (c *cmd) Stop(err error) {
 	if c.t != nil {
 		c.t.Stop()
 	}
+	c.stop()
 }
 
 type installerCmd struct {
