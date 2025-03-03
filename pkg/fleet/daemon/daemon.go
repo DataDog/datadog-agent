@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -87,7 +88,8 @@ type daemonImpl struct {
 	configs         map[string]installerConfig
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
-	requestsState   map[string]requestState
+	requestsState   map[string]db.RequestState
+	db              *db.TasksDB
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -127,11 +129,16 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		IsCentos6:            env.DetectCentos6(),
 	}
 	installer := newInstaller(installerBin)
-	return newDaemon(rc, installer, env), nil
+	db, err := db.NewTasksDB("/tmp/tasks.db") // TODO use the installer temp dir
+	if err != nil {
+		return nil, fmt.Errorf("could not create tasks db: %w", err)
+	}
+	return newDaemon(rc, installer, env, db), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, tasksDB *db.TasksDB) *daemonImpl {
 	i := &daemonImpl{
+		db:              tasksDB,
 		env:             env,
 		rc:              rc,
 		installer:       installer,
@@ -140,7 +147,7 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		catalogOverride: catalog{},
 		configs:         make(map[string]installerConfig),
 		stopChan:        make(chan struct{}),
-		requestsState:   make(map[string]requestState),
+		requestsState:   make(map[string]db.RequestState),
 	}
 	i.refreshState(context.Background())
 	return i
@@ -662,17 +669,8 @@ type requestKey int
 
 var requestStateKey requestKey
 
-// requestState represents the state of a task.
-type requestState struct {
-	Package   string
-	ID        string
-	State     pbgo.TaskState
-	Err       error
-	ErrorCode installerErrors.InstallerErrorCode
-}
-
 func newRequestContext(request remoteAPIRequest) (*telemetry.Span, context.Context) {
-	ctx := context.WithValue(context.Background(), requestStateKey, &requestState{
+	ctx := context.WithValue(context.Background(), requestStateKey, &db.RequestState{
 		Package: request.Package,
 		ID:      request.ID,
 		State:   pbgo.TaskState_RUNNING,
@@ -680,13 +678,13 @@ func newRequestContext(request remoteAPIRequest) (*telemetry.Span, context.Conte
 	return telemetry.StartSpanFromIDs(ctx, "remote_request", request.TraceID, request.ParentSpanID)
 }
 
-func setRequestInvalid(ctx context.Context) {
-	state := ctx.Value(requestStateKey).(*requestState)
+func (d *daemonImpl) setRequestInvalid(ctx context.Context) {
+	state := ctx.Value(requestStateKey).(*db.RequestState)
 	state.State = pbgo.TaskState_INVALID_STATE
 }
 
-func setRequestDone(ctx context.Context, err error) {
-	state := ctx.Value(requestStateKey).(*requestState)
+func (d *daemonImpl) setRequestDone(ctx context.Context, err error) {
+	state := ctx.Value(requestStateKey).(*db.RequestState)
 	state.State = pbgo.TaskState_DONE
 	if err != nil {
 		state.State = pbgo.TaskState_ERROR
@@ -696,10 +694,25 @@ func setRequestDone(ctx context.Context, err error) {
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
-	request, ok := ctx.Value(requestStateKey).(*requestState)
+	request, ok := ctx.Value(requestStateKey).(*db.RequestState)
 	if ok {
 		d.requestsState[request.Package] = *request
+	} else {
+		lastRequestState, err := d.db.GetLastTask()
+		if err != nil {
+			log.Warnf("could not get last task: %v", err)
+		}
+		if lastRequestState != nil {
+			d.requestsState[lastRequestState.Package] = *lastRequestState
+		}
 	}
+	defer func() {
+		err := d.db.SetLastTask(request)
+		if err != nil {
+			log.Warnf("could not set last task: %v", err)
+		}
+	}()
+
 	state, err := d.installer(d.env).States()
 	if err != nil {
 		// TODO: we should report this error through RC in some way
