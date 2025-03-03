@@ -182,7 +182,7 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler):
 
 
 def update_quality_gates_threshold(ctx, metric_handler):
-    with open("test/static/static_quality_gates.yml", "r") as f:
+    with open("test/static/static_quality_gates.yml") as f:
         file_content = generate_new_quality_gate_config(f, metric_handler)
 
     with open("test/static/static_quality_gates.yml", "w") as f:
