@@ -112,8 +112,10 @@ func NewProvider(
 	)
 }
 
-// NewServerlessProvider returns a new Provider in serverless mode
-func NewServerlessProvider(
+// NewLegacyProvider Creates a pipeline setup that mirrors the legacy implementation of the senders.
+// There will be one worker created for each pipeline, and each worker will only be able to run one
+// operation at a time (unless overridden by DefaultBatchMaxConcurrentSend)
+func NewLegacyProvider(
 	numberOfPipelines int,
 	auditor auditor.Auditor,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
@@ -124,13 +126,21 @@ func NewServerlessProvider(
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
+	serverless bool,
 ) Provider {
-	senderDoneChan := make(chan *sync.WaitGroup)
-	flushWg := &sync.WaitGroup{}
-	serverless := true
-	workerCount := numberOfPipelines
+	var senderDoneChan chan *sync.WaitGroup
+	var flushWg *sync.WaitGroup
 	minSenderConcurrency := 1
+
+	if serverless {
+		senderDoneChan = make(chan *sync.WaitGroup)
+		flushWg = &sync.WaitGroup{}
+	} else if endpoints.BatchMaxConcurrentSend != pkgconfigsetup.DefaultBatchMaxConcurrentSend {
+		minSenderConcurrency = endpoints.BatchMaxConcurrentSend
+	}
+
 	maxSenderConcurrency := minSenderConcurrency
+	workerCount := numberOfPipelines
 
 	return newProvider(
 		numberOfPipelines,
