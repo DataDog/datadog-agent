@@ -171,12 +171,12 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler):
             gate_limit = get_gate_new_limit_threshold(
                 current_gate, "current_on_wire_size", "max_on_wire_size", metric_handler
             )
-            file_content += line.split(":")[0] + f': "{byte_to_string(gate_limit)} MiB"\n'
+            file_content += line.split(":")[0] + f': "{byte_to_string(gate_limit)}"\n'
         elif "max_on_disk_size" in line:
             gate_limit = get_gate_new_limit_threshold(
                 current_gate, "current_on_disk_size", "max_on_disk_size", metric_handler
             )
-            file_content += line.split(":")[0] + f': "{byte_to_string(gate_limit)} MiB"\n'
+            file_content += line.split(":")[0] + f': "{byte_to_string(gate_limit)}"\n'
         else:
             file_content += line
 
