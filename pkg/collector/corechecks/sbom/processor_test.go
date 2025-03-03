@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -644,10 +646,15 @@ func TestProcessEvents(t *testing.T) {
 				}
 			}
 
+			containerFilter, err := collectors.NewSBOMContainerFilter()
+			if err != nil {
+				t.Fatal(fmt.Errorf("failed to create container filter: %w", err))
+			}
+
 			p.processContainerImagesEvents(workloadmeta.EventBundle{
 				Events: test.inputEvents,
 				Ch:     make(chan struct{}),
-			})
+			}, containerFilter)
 
 			p.stop()
 
