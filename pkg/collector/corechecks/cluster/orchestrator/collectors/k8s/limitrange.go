@@ -44,16 +44,17 @@ func NewLimitRangeCollector(metadataAsTags utils.MetadataAsTags) *LimitRangeColl
 
 	return &LimitRangeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      limitRangeName,
-			NodeType:                  orchestrator.K8sLimitRange,
-			Version:                   limitRangeVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 limitRangeName,
+			NodeType:                             orchestrator.K8sLimitRange,
+			Version:                              limitRangeVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.LimitRangeHandlers)),
 	}

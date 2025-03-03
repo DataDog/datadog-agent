@@ -6,9 +6,6 @@ go 1.23.0
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
-// Internal deps fix version
-replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
-
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0
@@ -55,6 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
 	github.com/shirou/gopsutil/v4 v4.25.1
 	go.opentelemetry.io/collector/component/componenttest v0.120.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250212204824-5a70512c5d8b
 )
 
 require go.opentelemetry.io/collector/processor v0.120.0 // indirect
@@ -66,7 +64,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
-	github.com/DataDog/go-sqllexer v0.0.21 // indirect
+	github.com/DataDog/go-sqllexer v0.1.1 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -114,7 +112,6 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250212204824-5a70512c5d8b // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -177,6 +174,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../comp/otelcol/otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../comp/otelcol/otlp/testutil
+	github.com/DataDog/datadog-agent/comp/otelcol/status/def => ../../comp/otelcol/status/def
+	github.com/DataDog/datadog-agent/comp/otelcol/status/impl => ../../comp/otelcol/status/impl
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression => ../../comp/serializer/logscompression
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression => ../../comp/serializer/metricscompression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../comp/trace/agent/def
@@ -251,6 +250,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../pkg/util/prometheus
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../pkg/util/sort
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../pkg/util/startstop
