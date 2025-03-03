@@ -39,6 +39,7 @@ type protocol struct {
 	eventsConsumer *events.Consumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper    *StatsKeeper
+	mgr            *manager.Manager
 }
 
 // Spec is the protocol spec for the redis protocol.
@@ -73,7 +74,7 @@ var Spec = &protocols.ProtocolSpec{
 }
 
 // newRedisProtocol is the factory for the Redis protocol object
-func newRedisProtocol(_ *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
+func newRedisProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableRedisMonitoring {
 		return nil, nil
 	}
@@ -81,6 +82,7 @@ func newRedisProtocol(_ *manager.Manager, cfg *config.Config) (protocols.Protoco
 	return &protocol{
 		cfg:         cfg,
 		statskeeper: NewStatsKeeper(cfg),
+		mgr:         mgr,
 	}, nil
 }
 
@@ -91,19 +93,19 @@ func (p *protocol) Name() string {
 
 // ConfigureOptions add the necessary options for the redis monitoring
 // to work, to be used by the manager.
-func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(_ *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	utils.EnableOption(opts, "redis_monitoring_enabled")
-	events.Configure(p.cfg, eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart(*manager.Manager) (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
-		mgr,
+		p.mgr,
 		p.processRedis,
 	)
 
@@ -115,9 +117,9 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
-func (p *protocol) PostStart(mgr *manager.Manager) error {
+func (p *protocol) PostStart(*manager.Manager) error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
+	p.setupMapCleaner()
 
 	return nil
 }
@@ -167,8 +169,8 @@ func (p *protocol) processRedis(events []EbpfEvent) {
 	}
 }
 
-func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
-	redisInFlight, _, err := mgr.GetMap(inFlightMap)
+func (p *protocol) setupMapCleaner() {
+	redisInFlight, _, err := p.mgr.GetMap(inFlightMap)
 	if err != nil {
 		log.Errorf("error getting %s map: %s", inFlightMap, err)
 		return
