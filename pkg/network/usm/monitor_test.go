@@ -63,7 +63,7 @@ var (
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
-	failingStartupMock := func(_ *manager.Manager) error {
+	failingStartupMock := func() error {
 		return fmt.Errorf("mock error")
 	}
 
