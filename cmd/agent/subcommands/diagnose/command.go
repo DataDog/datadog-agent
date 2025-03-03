@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -34,7 +35,6 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -375,13 +375,8 @@ func cmdDiagnose(cliParams *cliParams,
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
-func printPayload(name payloadName, _ log.Component, config config.Component) error {
-	if err := util.SetAuthToken(config); err != nil {
-		fmt.Println(err)
-		return nil
-	}
-
-	c := util.GetClient(false)
+func printPayload(name payloadName, _ log.Component, config config.Component, auth authtoken.Component) error {
+	c := auth.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
@@ -389,7 +384,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
 		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, name)
 
-	r, err := util.DoGet(c, apiConfigURL, util.CloseConnection)
+	r, err := c.Get(apiConfigURL, authtoken.WithCloseConnection)
 	if err != nil {
 		return fmt.Errorf("Could not fetch metadata payload: %s", err)
 	}

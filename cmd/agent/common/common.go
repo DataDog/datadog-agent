@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -42,11 +42,10 @@ func GetVersion(w http.ResponseWriter, _ *http.Request) {
 }
 
 // NewSettingsClient returns a configured runtime settings client.
-func NewSettingsClient() (settings.Client, error) {
+func NewSettingsClient(client authtoken.SecureClient) (settings.Client, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
-	hc := util.GetClient(false)
-	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
+	return settingshttp.NewSecureClient(client, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", authtoken.WithLeaveConnectionOpen), nil
 }

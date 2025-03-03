@@ -25,6 +25,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -63,6 +64,7 @@ type Requires struct {
 	Log       log.Component
 	Params    tagger.RemoteParams
 	Telemetry coretelemetry.Component
+	At        authtoken.Component
 }
 
 // Provides contains the fields provided by the remote tagger constructor.
@@ -102,14 +104,13 @@ type remoteTagger struct {
 
 // Options contains the options needed to configure the remote tagger.
 type Options struct {
-	Target       string
-	TokenFetcher func() (string, error)
-	Disabled     bool
+	Target   string
+	Disabled bool
 }
 
 // NewComponent returns a remote tagger
 func NewComponent(req Requires) (Provides, error) {
-	remoteTagger, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry)
+	remoteTagger, err := newRemoteTagger(req.Params, req.Config, req.Log, req.Telemetry, req.At)
 
 	if err != nil {
 		return Provides{}, err
@@ -129,7 +130,7 @@ func NewComponent(req Requires) (Provides, error) {
 	}, nil
 }
 
-func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.Component, telemetryComp coretelemetry.Component) (*remoteTagger, error) {
+func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.Component, telemetryComp coretelemetry.Component, at authtoken.Component) (*remoteTagger, error) {
 	telemetryStore := telemetry.NewStore(telemetryComp)
 
 	target, err := params.RemoteTarget(cfg)
@@ -139,14 +140,14 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 
 	remotetagger := &remoteTagger{
 		options: Options{
-			Target:       target,
-			TokenFetcher: params.RemoteTokenFetcher(cfg),
+			Target: target,
 		},
 		cfg:            cfg,
 		store:          newTagStore(telemetryStore),
 		telemetryStore: telemetryStore,
 		filter:         params.RemoteFilter,
 		log:            log,
+		token:          at.Get(),
 	}
 
 	checkCard := cfg.GetString("checks_tag_cardinality")
@@ -197,33 +198,6 @@ func (t *remoteTagger) Start(ctx context.Context) error {
 
 	// Fetch the auth token
 	t.log.Debug("fetching auth token")
-
-	retries := 0
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 50 * time.Millisecond
-	expBackoff.MaxInterval = 500 * time.Millisecond
-	expBackoff.MaxElapsedTime = 5 * time.Second
-	err = backoff.Retry(func() error {
-		select {
-		case <-t.ctx.Done():
-			return &backoff.PermanentError{Err: errFetchAuthToken}
-		default:
-		}
-
-		t.token, err = t.options.TokenFetcher()
-		if err != nil {
-			retries++
-			t.log.Warnf("unable to fetch auth token, will possibly retry: %s", err)
-			return err
-		}
-		return nil
-	}, expBackoff)
-	if err != nil {
-		t.log.Errorf("unable to fetch auth token after %d retries: %s", retries, err)
-		return err
-	}
-
-	t.log.Debugf("auth token fetched after %d retries", retries)
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
@@ -319,11 +293,6 @@ func (t *remoteTagger) GenerateContainerIDFromOriginInfo(originInfo origindetect
 
 // queryContainerIDFromOriginInfo calls the local tagger to get the container ID from the Origin Info.
 func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
-	// Check the auth token
-	if t.token == "" {
-		return "", errors.New("RemoteTagger initialization failed: auth token is unset")
-	}
-
 	// Create the context with the auth token
 	queryCtx, queryCancel := context.WithTimeout(
 		metadata.NewOutgoingContext(t.ctx, metadata.MD{
@@ -569,17 +538,11 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 	expBackoff.MaxElapsedTime = maxElapsed
 
 	return backoff.Retry(func() error {
+		var err error
 		select {
 		case <-t.ctx.Done():
 			return &backoff.PermanentError{Err: errTaggerStreamNotStarted}
 		default:
-		}
-
-		var err error
-
-		// Check the auth token
-		if t.token == "" {
-			return errors.New("RemoteTagger initialization failed: auth token is unset")
 		}
 
 		t.streamCtx, t.streamCancel = context.WithCancel(

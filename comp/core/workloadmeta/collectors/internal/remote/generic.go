@@ -24,7 +24,6 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -81,7 +80,8 @@ type GenericCollector struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	Insecure bool // for testing
+	Insecure  bool // for testing
+	AuthToken string
 }
 
 // Start starts the generic collector
@@ -148,19 +148,14 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		token, err := security.FetchAuthToken(pkgconfigsetup.Datadog())
-		if err != nil {
-			err = fmt.Errorf("unable to fetch authentication token: %w", err)
-			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
-			return err
-		}
+		var err error
 
 		c.streamCtx, c.streamCancel = context.WithCancel(
 			metadata.NewOutgoingContext(
 				c.ctx,
 				metadata.MD{
 					"authorization": []string{
-						fmt.Sprintf("Bearer %s", token),
+						fmt.Sprintf("Bearer %s", c.AuthToken),
 					},
 				},
 			),

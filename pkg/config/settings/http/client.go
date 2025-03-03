@@ -14,6 +14,7 @@ import (
 	"html"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -21,6 +22,7 @@ import (
 
 type runtimeSettingsHTTPClient struct {
 	c                 *http.Client
+	secureClient      authtoken.SecureClient
 	baseURL           string
 	targetProcessName string
 	clientOptions     ClientOptions
@@ -28,11 +30,25 @@ type runtimeSettingsHTTPClient struct {
 
 // NewClient returns a client setup to interact with the standard runtime settings HTTP API
 func NewClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
-	return &runtimeSettingsHTTPClient{c, baseURL, targetProcessName, clientOptions}
+	return &runtimeSettingsHTTPClient{c, nil, baseURL, targetProcessName, clientOptions}
+}
+
+// NewClient returns a client setup to interact with the standard runtime settings HTTP API
+func NewSecureClient(c authtoken.SecureClient, baseURL string, targetProcessName string, clientOptions authtoken.RequestOption) settings.Client {
+	return &runtimeSettingsHTTPClient{nil, c, baseURL, targetProcessName, clientOptions}
 }
 
 func (rc *runtimeSettingsHTTPClient) doGet(url string, formatError bool) (string, error) {
-	r, err := util.DoGet(rc.c, url, rc.clientOptions.CloseConnection)
+	var r []byte
+	var err error
+	if rc.c != nil {
+		r, err = util.DoGet(rc.c, url, rc.clientOptions.CloseConnection)
+	} else if rc.secureClient != nil {
+		r, err = rc.secureClient.Get(url)
+	} else {
+		return "", fmt.Errorf("unable to get setting: none of both client are initialized")
+
+	}
 	if err != nil {
 		errMap := make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)

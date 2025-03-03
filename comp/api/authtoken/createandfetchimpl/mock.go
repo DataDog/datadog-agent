@@ -5,7 +5,7 @@
 
 //go:build test
 
-package fetchonlyimpl
+package createandfetchimpl
 
 import (
 	"crypto/tls"
@@ -14,6 +14,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokeninterface "github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -25,23 +26,23 @@ func MockModule() fxutil.Module {
 	)
 }
 
-// MockFetchOnly is a mock for fetch only authtoken
-type MockFetchOnly struct{}
+// MockAuthToken is a mock for fetch only authtoken
+type MockAuthToken struct{}
 
 // Get is a mock of the fetchonly Get function
-func (fc *MockFetchOnly) Get() string {
+func (fc *MockAuthToken) Get() string {
 	return "a string"
 }
 
 // GetTLSClientConfig is a mock of the fetchonly GetTLSClientConfig function
-func (fc *MockFetchOnly) GetTLSClientConfig() *tls.Config {
+func (fc *MockAuthToken) GetTLSClientConfig() *tls.Config {
 	return &tls.Config{
 		InsecureSkipVerify: true,
 	}
 }
 
 // GetTLSServerConfig is a mock of the fetchonly GetTLSServerConfig function
-func (fc *MockFetchOnly) GetTLSServerConfig() *tls.Config {
+func (fc *MockAuthToken) GetTLSServerConfig() *tls.Config {
 	// Starting a TLS httptest server to retrieve a localhost tlsCert
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	tlsConfig := ts.TLS.Clone()
@@ -50,7 +51,21 @@ func (fc *MockFetchOnly) GetTLSServerConfig() *tls.Config {
 	return tlsConfig
 }
 
+func (_ *MockAuthToken) HTTPMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+	})
+}
+
+type mockSecureClient struct {
+	http.Client
+}
+
+func (m *MockAuthToken) GetClient(_ ...authtoken.ClientOption) authtokeninterface.SecureClient {
+	return &secureClient{authToken: m.Get()}
+}
+
 // NewMock returns a new fetch only authtoken mock
 func newMock() authtokeninterface.Component {
-	return &MockFetchOnly{}
+	return &MockAuthToken{}
 }

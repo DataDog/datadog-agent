@@ -15,14 +15,13 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -62,10 +61,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{debugCommand}
 }
 
-func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
-	cfg := sysprobeconfig.SysProbeObject()
-	client := client.Get(cfg.SocketAddress)
-
+func debugRuntime(sysprobeconfig sysprobeconfig.Component, at authtoken.Component, cliParams *cliParams) error {
 	var path string
 	if len(cliParams.args) == 1 {
 		path = fmt.Sprintf("http://localhost/debug/%s", cliParams.args[0])
@@ -74,7 +70,7 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams)
 	}
 
 	// TODO rather than allowing arbitrary query params, use cobra flags
-	r, err := util.DoGet(client, path, util.CloseConnection)
+	r, err := at.GetClient().Get(path, authtoken.WithCloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)

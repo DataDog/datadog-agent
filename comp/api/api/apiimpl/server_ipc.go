@@ -24,7 +24,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	}
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
-	configEndpointMux.Use(validateToken)
+	configEndpointMux.Use(server.authToken.HTTPMiddleware)
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(

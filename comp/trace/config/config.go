@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -41,6 +42,7 @@ type Dependencies struct {
 	Params Params
 	Config coreconfig.Component
 	Tagger tagger.Component
+	At     authtoken.Component
 }
 
 // cfg implements the Component.
