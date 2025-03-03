@@ -234,10 +234,6 @@ const (
 	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
 )
 
-var (
-	buildKitProcessName = []byte("buildkitd")
-)
-
 // Template, will be modified during runtime.
 // The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
 // a dynamic initialization.
