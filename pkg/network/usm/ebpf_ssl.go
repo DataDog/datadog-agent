@@ -249,6 +249,7 @@ var (
 // The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
 // a dynamic initialization.
 var opensslSpec = &protocols.ProtocolSpec{
+	Factory: newSSLProgramProtocolFactory,
 	Maps: []*manager.Map{
 		{
 			Name: sslSockByCtxMap,
@@ -426,59 +427,57 @@ type sslProgram struct {
 	nodeJSMonitor *nodeJSMonitor
 }
 
-func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
-	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
-			return nil, nil
-		}
-
-		var (
-			watcher *sharedlibraries.Watcher
-			err     error
-		)
-
-		procRoot := kernel.ProcFSRoot()
-
-		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto,
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libssl.so`),
-					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
-					UnregisterCB: removeHooks(m, openSSLProbes),
-				},
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libcrypto.so`),
-					RegisterCB:   addHooks(m, procRoot, cryptoProbes),
-					UnregisterCB: removeHooks(m, cryptoProbes),
-				},
-				sharedlibraries.Rule{
-					Re:           regexp.MustCompile(`libgnutls.so`),
-					RegisterCB:   addHooks(m, procRoot, gnuTLSProbes),
-					UnregisterCB: removeHooks(m, gnuTLSProbes),
-				},
-			)
-			if err != nil {
-				return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
-			}
-		}
-
-		nodejs, err := newNodeJSMonitor(c, m)
-		if err != nil {
-			return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
-		}
-
-		istio, err := newIstioMonitor(c, m)
-		if err != nil {
-			return nil, fmt.Errorf("error initializing istio monitor: %w", err)
-		}
-
-		return &sslProgram{
-			cfg:           c,
-			watcher:       watcher,
-			istioMonitor:  istio,
-			nodeJSMonitor: nodejs,
-		}, nil
+func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
+	if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
+		return nil, nil
 	}
+
+	var (
+		watcher *sharedlibraries.Watcher
+		err     error
+	)
+
+	procRoot := kernel.ProcFSRoot()
+
+	if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
+		watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto,
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libssl.so`),
+				RegisterCB:   addHooks(m, procRoot, openSSLProbes),
+				UnregisterCB: removeHooks(m, openSSLProbes),
+			},
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libcrypto.so`),
+				RegisterCB:   addHooks(m, procRoot, cryptoProbes),
+				UnregisterCB: removeHooks(m, cryptoProbes),
+			},
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libgnutls.so`),
+				RegisterCB:   addHooks(m, procRoot, gnuTLSProbes),
+				UnregisterCB: removeHooks(m, gnuTLSProbes),
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
+		}
+	}
+
+	nodejs, err := newNodeJSMonitor(c, m)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
+	}
+
+	istio, err := newIstioMonitor(c, m)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing istio monitor: %w", err)
+	}
+
+	return &sslProgram{
+		cfg:           c,
+		watcher:       watcher,
+		istioMonitor:  istio,
+		nodeJSMonitor: nodejs,
+	}, nil
 }
 
 // Name return the program's name.
@@ -487,7 +486,7 @@ func (o *sslProgram) Name() string {
 }
 
 // ConfigureOptions changes map attributes to the given options.
-func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
+func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -499,7 +498,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 }
 
 // PreStart is called before the start of the provided eBPF manager.
-func (o *sslProgram) PreStart(*manager.Manager) error {
+func (o *sslProgram) PreStart() error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
@@ -507,12 +506,12 @@ func (o *sslProgram) PreStart(*manager.Manager) error {
 }
 
 // PostStart is a no-op.
-func (o *sslProgram) PostStart(*manager.Manager) error {
+func (o *sslProgram) PostStart() error {
 	return nil
 }
 
 // Stop stops the program.
-func (o *sslProgram) Stop(*manager.Manager) {
+func (o *sslProgram) Stop() {
 	o.watcher.Stop()
 	o.istioMonitor.Stop()
 	o.nodeJSMonitor.Stop()

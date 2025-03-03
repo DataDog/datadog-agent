@@ -47,11 +47,10 @@ const (
 )
 
 type client struct {
-	conn          net.Conn
-	probe         *EBPFLessProbe
-	nsID          uint64
-	containerID   containerutils.ContainerID
-	containerName string
+	conn        net.Conn
+	probe       *EBPFLessProbe
+	nsID        uint64
+	containerID containerutils.ContainerID
 }
 
 type clientMsg struct {
@@ -515,10 +514,7 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 
 // Start the probe
 func (p *EBPFLessProbe) Start() error {
-	family, address := config.GetFamilyAddress(p.config.RuntimeSecurity.EBPFLessSocket)
-	_ = family
-
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", address)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", p.config.RuntimeSecurity.EBPFLessSocket)
 	if err != nil {
 		return err
 	}
@@ -564,7 +560,7 @@ func (p *EBPFLessProbe) Start() error {
 				if msg.Type == ebpfless.MessageTypeGoodbye {
 					if msg.client.containerID != "" {
 						delete(p.containerContexts, msg.client.containerID)
-						seclog.Infof("tracing stopped for container ID [%s] (Name: [%s])", msg.client.containerID, msg.client.containerName)
+						seclog.Infof("tracing stopped for container ID [%s]", msg.client.containerID)
 					}
 					continue
 				}
