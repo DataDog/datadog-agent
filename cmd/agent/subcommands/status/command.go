@@ -17,12 +17,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -110,16 +110,16 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
+func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams, auth authtoken.Component) error {
 	if cliParams.list {
-		return redactError(requestSections(config))
+		return redactError(requestSections(auth.GetClient()))
 	}
 
 	if len(cliParams.args) < 1 {
-		return redactError(requestStatus(config, cliParams))
+		return redactError(requestStatus(cliParams, auth.GetClient()))
 	}
 
-	return componentStatusCmd(logger, config, cliParams)
+	return componentStatusCmd(logger, config, cliParams, auth.GetClient())
 }
 
 func setIpcURL(cliParams *cliParams) url.Values {
@@ -158,7 +158,7 @@ func renderResponse(res []byte, cliParams *cliParams) error {
 	return nil
 }
 
-func requestStatus(config config.Component, cliParams *cliParams) error {
+func requestStatus(cliParams *cliParams, client authtoken.SecureClient) error {
 
 	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n\n")
@@ -166,12 +166,12 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 
 	v := setIpcURL(cliParams)
 
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
+	endpoint, err := client.NewIPCEndpoint("/agent/status")
 	if err != nil {
 		return err
 	}
 
-	res, err := endpoint.DoGet(apiutil.WithValues(v))
+	res, err := endpoint.DoGet(authtoken.WithValues(v))
 	if err != nil {
 		return err
 	}
@@ -185,23 +185,23 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	return nil
 }
 
-func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams) error {
+func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams, client authtoken.SecureClient) error {
 	if len(cliParams.args) > 1 {
 		return fmt.Errorf("only one section must be specified")
 	}
 
-	return redactError(componentStatus(config, cliParams, cliParams.args[0]))
+	return redactError(componentStatus(config, cliParams, cliParams.args[0], client))
 }
 
-func componentStatus(config config.Component, cliParams *cliParams, component string) error {
+func componentStatus(config config.Component, cliParams *cliParams, component string, client authtoken.SecureClient) error {
 
 	v := setIpcURL(cliParams)
 
-	endpoint, err := apiutil.NewIPCEndpoint(config, fmt.Sprintf("/agent/%s/status", component))
+	endpoint, err := client.NewIPCEndpoint(fmt.Sprintf("/agent/%s/status", component))
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet(apiutil.WithValues(v))
+	res, err := endpoint.DoGet(authtoken.WithValues(v))
 	if err != nil {
 		return err
 	}
@@ -215,8 +215,8 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	return nil
 }
 
-func requestSections(config config.Component) error {
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status/sections")
+func requestSections(client authtoken.SecureClient) error {
+	endpoint, err := client.NewIPCEndpoint("/agent/status/sections")
 	if err != nil {
 		return err
 	}

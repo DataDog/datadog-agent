@@ -10,6 +10,7 @@ package fetchonlyimpl
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 
 	"go.uber.org/fx"
 
@@ -63,12 +64,12 @@ func (at *authToken) setToken() error {
 }
 
 // Get returns the session token
-func (at *authToken) Get() (string, error) {
+func (at *authToken) Get() string {
 	if err := at.setToken(); err != nil {
-		return "", err
+		return ""
 	}
 
-	return util.GetAuthToken(), nil
+	return util.GetAuthToken()
 }
 
 // GetTLSClientConfig return a TLS configuration with the IPC certificate for http.Client
@@ -87,4 +88,12 @@ func (at *authToken) GetTLSServerConfig() *tls.Config {
 	}
 
 	return util.GetTLSServerConfig()
+}
+
+func (at *authToken) HTTPMiddleware(next http.Handler) http.Handler {
+	return authtoken.NewHTTPMiddleware(at.log.Warnf, at.Get())(next)
+}
+
+func (at *authToken) GetClient(_ ...authtoken.ClientOption) authtoken.SecureClient {
+	return authtoken.NewClient(at.Get(), at.GetTLSClientConfig(), at.conf)
 }

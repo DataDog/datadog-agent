@@ -16,12 +16,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -60,8 +60,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{configCheckCommand}
 }
 
-func run(config config.Component, cliParams *cliParams, _ log.Component) error {
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/config-check")
+func run(config config.Component, cliParams *cliParams, _ log.Component, auth authtoken.Component) error {
+	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/config-check")
 	if err != nil {
 		return err
 	}

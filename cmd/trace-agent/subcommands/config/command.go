@@ -9,13 +9,15 @@ package config
 import (
 	"fmt"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 
 	"github.com/spf13/cobra"
 )
@@ -37,8 +39,8 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	}
 }
 
-func printConfig(config config.Component) error {
-	fullConfig, err := fetcher.TraceAgentConfig(config)
+func printConfig(config config.Component, at authtoken.Component) error {
+	fullConfig, err := fetcher.TraceAgentConfig(config, at.GetClient())
 	if err != nil {
 		return fmt.Errorf("error fetching trace-agent configuration: %s", err)
 	}

@@ -20,11 +20,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	cconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -81,8 +81,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{c}
 }
 
-func triggerDump(config cconfig.Component) (string, error) {
-	c := util.GetClient()
+func triggerDump(config cconfig.Component, auth authtoken.Component) (string, error) {
 	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
@@ -91,12 +90,7 @@ func triggerDump(config cconfig.Component) (string, error) {
 	port := config.GetInt("cmd_port")
 	url := fmt.Sprintf("https://%v:%v/agent/dogstatsd-contexts-dump", addr, port)
 
-	err = util.SetAuthToken(config)
-	if err != nil {
-		return "", err
-	}
-
-	body, err := util.DoPost(c, url, "", nil)
+	body, err := auth.GetClient().Post(url, "", nil)
 	if err != nil {
 		return "", err
 	}
@@ -109,8 +103,8 @@ func triggerDump(config cconfig.Component) (string, error) {
 	return path, nil
 }
 
-func dumpContexts(config cconfig.Component, _ log.Component) error {
-	path, err := triggerDump(config)
+func dumpContexts(config cconfig.Component, _ log.Component, auth authtoken.Component) error {
+	path, err := triggerDump(config, auth)
 	if err != nil {
 		return err
 	}
@@ -125,12 +119,12 @@ type metric struct {
 	tags  map[string]struct{}
 }
 
-func topContexts(config cconfig.Component, flags *topFlags, _ log.Component) error {
+func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, auth authtoken.Component) error {
 	var err error
 
 	path := flags.path
 	if path == "" {
-		path, err = triggerDump(config)
+		path, err = triggerDump(config, auth)
 		if err != nil {
 			return err
 		}

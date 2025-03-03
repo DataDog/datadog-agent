@@ -9,6 +9,7 @@ package createandfetchimpl
 
 import (
 	"crypto/tls"
+	"net/http"
 
 	"go.uber.org/fx"
 
@@ -27,7 +28,10 @@ func Module() fxutil.Module {
 	)
 }
 
-type authToken struct{}
+type authToken struct {
+	logger log.Component
+	conf   config.Component
+}
 
 var _ authtoken.Component = (*authToken)(nil)
 
@@ -44,12 +48,15 @@ func newAuthToken(deps dependencies) (authtoken.Component, error) {
 		return nil, err
 	}
 
-	return &authToken{}, nil
+	return &authToken{
+		logger: deps.Log,
+		conf:   deps.Conf,
+	}, nil
 }
 
 // Get returns the session token
-func (at *authToken) Get() (string, error) {
-	return util.GetAuthToken(), nil
+func (at *authToken) Get() string {
+	return util.GetAuthToken()
 }
 
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
@@ -60,4 +67,12 @@ func (at *authToken) GetTLSClientConfig() *tls.Config {
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Client
 func (at *authToken) GetTLSServerConfig() *tls.Config {
 	return util.GetTLSServerConfig()
+}
+
+func (at *authToken) HTTPMiddleware(next http.Handler) http.Handler {
+	return authtoken.NewHTTPMiddleware(at.logger.Warnf, at.Get())(next)
+}
+
+func (at *authToken) GetClient(_ ...authtoken.ClientOption) authtoken.SecureClient {
+	return authtoken.NewClient(at.Get(), at.GetTLSClientConfig(), at.conf)
 }

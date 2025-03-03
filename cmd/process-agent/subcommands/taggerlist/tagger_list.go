@@ -14,11 +14,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -49,6 +49,7 @@ type dependencies struct {
 
 	Config config.Component
 	Log    log.Component
+	At     authtoken.Component
 }
 
 func taggerList(deps dependencies) error {
@@ -59,11 +60,7 @@ func taggerList(deps dependencies) error {
 		return err
 	}
 
-	err = util.SetAuthToken(deps.Config)
-	if err != nil {
-		return err
-	}
-	return api.GetTaggerList(color.Output, taggerURL)
+	return api.GetTaggerList(deps.At.GetClient(), color.Output, taggerURL)
 }
 
 func getTaggerURL() (string, error) {

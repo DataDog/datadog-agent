@@ -6,6 +6,7 @@ toolchain go1.23.3
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
+	github.com/DataDog/datadog-agent/comp/api/authtoken v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -42,7 +43,6 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -346,7 +346,9 @@ func cmdDiagnose(cliParams *cliParams,
 	log log.Component,
 	tagger tagger.Component,
 	diagnoseComponent diagnose.Component,
-	config config.Component) error {
+	config config.Component,
+	at authtoken.Component,
+) error {
 
 	diagCfg := diagnose.Config{
 		Verbose: cliParams.verbose,
@@ -373,7 +375,7 @@ func cmdDiagnose(cliParams *cliParams,
 	var err error
 	var result *diagnose.Result
 	if !cliParams.runLocal {
-		result, err = requestDiagnosesFromAgentProcess(diagCfg)
+		result, err = requestDiagnosesFromAgentProcess(diagCfg, at)
 
 		if err != nil {
 			if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
@@ -401,13 +403,8 @@ func cmdDiagnose(cliParams *cliParams,
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
-func printPayload(name payloadName, _ log.Component, config config.Component) error {
-	if err := util.SetAuthToken(config); err != nil {
-		fmt.Println(err)
-		return nil
-	}
-
-	c := util.GetClient()
+func printPayload(name payloadName, _ log.Component, config config.Component, auth authtoken.Component) error {
+	c := auth.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
@@ -415,7 +412,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
 		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, name)
 
-	r, err := util.DoGet(c, apiConfigURL, util.CloseConnection)
+	r, err := c.Get(apiConfigURL, authtoken.WithCloseConnection)
 	if err != nil {
 		return fmt.Errorf("Could not fetch metadata payload: %s", err)
 	}
@@ -424,17 +421,11 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 	return nil
 }
 
-func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config) (*diagnose.Result, error) {
+func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, at authtoken.Component) (*diagnose.Result, error) {
 	// Get client to Agent's RPC call
-	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
-	}
-
-	// Make sure we have a session token (for privileged information)
-	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
-		return nil, fmt.Errorf("auth error: %w", err)
 	}
 
 	// Form call end-point
@@ -449,7 +440,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config) (*diagnose.Result
 
 	// Run diagnose code inside Agent process
 	var response []byte
-	response, err = util.DoPost(c, diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
+	response, err = at.GetClient().Post(diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
 	if err != nil {
 		if response != nil && string(response) != "" {
 			return nil, fmt.Errorf("error getting diagnoses from running agent: %s", strings.TrimSpace(string(response)))

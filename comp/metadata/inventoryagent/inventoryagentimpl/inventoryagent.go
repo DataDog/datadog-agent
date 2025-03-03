@@ -59,9 +59,11 @@ func Module() fxutil.Module {
 
 var (
 	// for testing
-	installinfoGet         = installinfo.Get
-	fetchSecurityConfig    = configFetcher.SecurityAgentConfig
-	fetchProcessConfig     = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
+	installinfoGet      = installinfo.Get
+	fetchSecurityConfig = configFetcher.SecurityAgentConfig
+	fetchProcessConfig  = func(cfg model.Reader, c authtoken.SecureClient) (string, error) {
+		return configFetcher.ProcessAgentConfig(cfg, c, true)
+	}
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
 	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 )
@@ -198,10 +200,10 @@ func (z *zeroConfigGetter) GetString(string) string { return "" }
 
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
 // configuration object on success and the local config upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader) (string, error)) configGetter {
+func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, c authtoken.SecureClient) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(localConf); err == nil {
+	if remoteConfig, err := configFetcher(localConf, ia.authToken.GetClient()); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
@@ -291,7 +293,9 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	if isSet {
 		// If we can fetch the configuration from the system-probe process, we use it. If not we fallback on the
 		// local instance.
-		sysProbeConf = ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig)
+		sysProbeConf = ia.getCorrectConfig("system-probe", localSysProbeConf, func(config model.Reader, _ authtoken.SecureClient) (string, error) {
+			return fetchSystemProbeConfig(config)
+		})
 	} else {
 		// If the system-probe configuration is not loaded we fallback on zero value for all metadata
 		sysProbeConf = &zeroConfigGetter{}

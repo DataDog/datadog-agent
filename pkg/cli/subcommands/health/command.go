@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -70,8 +71,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func requestHealth(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient()
+func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
@@ -94,7 +94,7 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)
 	defer cancel()
 
-	r, err := util.DoGetWithOptions(c, urlstr, &util.ReqOptions{Ctx: ctx, Conn: util.LeaveConnectionOpen})
+	r, err := at.GetClient().Get(urlstr, authtoken.WithContext(ctx), authtoken.WithCloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

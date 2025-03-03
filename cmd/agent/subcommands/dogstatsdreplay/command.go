@@ -21,11 +21,11 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -76,7 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliParams) error {
+func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliParams, auth authtoken.Component) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -91,14 +91,8 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
 
-	// TODO: refactor all the instantiation of the SecureAgentClient to a helper
-	token, err := security.FetchAuthToken(config)
-	if err != nil {
-		return fmt.Errorf("unable to fetch authentication token: %w", err)
-	}
-
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", auth.Get())},
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 

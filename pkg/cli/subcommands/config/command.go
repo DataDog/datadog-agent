@@ -13,12 +13,12 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -44,8 +44,8 @@ type GlobalParams struct {
 	ExtraConfFilePaths   []string
 	ConfigName           string
 	LoggerName           string
-	SettingsClient       func() (settings.Client, error)
 	FleetPoliciesDirPath string
+	SettingsURL          string
 }
 
 // MakeCommand returns a `config` command to be used by agent binaries.
@@ -112,16 +112,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func showRuntimeConfiguration(_ log.Component, config config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	c, err := cliParams.GlobalParams.SettingsClient()
-	if err != nil {
-		return err
-	}
+func showRuntimeConfiguration(_ log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
+	c := settingshttp.NewSecureClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
 
 	runtimeConfig, err := c.FullConfig()
 	if err != nil {
@@ -133,16 +125,8 @@ func showRuntimeConfiguration(_ log.Component, config config.Component, cliParam
 	return nil
 }
 
-func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	c, err := cliParams.GlobalParams.SettingsClient()
-	if err != nil {
-		return err
-	}
+func listRuntimeConfigurableValue(_ log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
+	c := settingshttp.NewSecureClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
 
 	settingsList, err := c.List()
 	if err != nil {
@@ -159,20 +143,12 @@ func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliP
 	return nil
 }
 
-func setConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
+func setConfigValue(_ log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	c, err := cliParams.GlobalParams.SettingsClient()
-	if err != nil {
-		return err
-	}
+	c := settingshttp.NewSecureClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
 
 	hidden, err := c.Set(cliParams.args[0], cliParams.args[1])
 	if err != nil {
@@ -188,20 +164,12 @@ func setConfigValue(_ log.Component, config config.Component, cliParams *cliPara
 	return nil
 }
 
-func getConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
+func getConfigValue(_ log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	c, err := cliParams.GlobalParams.SettingsClient()
-	if err != nil {
-		return err
-	}
+	c := settingshttp.NewSecureClient(at.GetClient(), cliParams.GlobalParams.SettingsURL, "agent")
 
 	resp, err := c.GetWithSources(cliParams.args[0])
 	if err != nil {
@@ -229,7 +197,7 @@ func getConfigValue(_ log.Component, config config.Component, cliParams *cliPara
 	return nil
 }
 
-func otelAgentCfg(_ log.Component, config config.Component, cliParams *cliParams) error {
+func otelAgentCfg(_ log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
 	if !config.GetBool("otelcollector.enabled") {
 		return errors.New("otel-agent is not enabled")
 	}
@@ -237,17 +205,9 @@ func otelAgentCfg(_ log.Component, config config.Component, cliParams *cliParams
 		return errors.New("otel-agent converter must be enabled to get otel-agent's runtime configs")
 	}
 
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
+	otelCollectorURL := config.GetString("otelcollector.extension_url")
 
-	c, err := cliParams.GlobalParams.SettingsClient()
-	if err != nil {
-		return err
-	}
-
-	resp, err := util.DoGet(c.HTTPClient(), config.GetString("otelcollector.extension_url"), util.CloseConnection)
+	resp, err := at.GetClient().Get(otelCollectorURL, authtoken.WithLeaveConnectionOpen)
 	if err != nil {
 		return err
 	}

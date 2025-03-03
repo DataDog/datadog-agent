@@ -20,6 +20,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -45,6 +46,7 @@ type dependencies struct {
 	Params    Params
 	Providers []*types.FlareFiller `group:"flare"`
 	WMeta     option.Option[workloadmeta.Component]
+	AuthToken authtoken.Component
 }
 
 type provides struct {
@@ -76,7 +78,7 @@ func newFlare(deps dependencies) provides {
 	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
 	f.providers = append(
 		f.providers,
-		pkgFlare.ExtraFlareProviders(deps.WMeta)...,
+		pkgFlare.ExtraFlareProviders(deps.WMeta, deps.AuthToken)...,
 	)
 	f.providers = append(
 		f.providers,

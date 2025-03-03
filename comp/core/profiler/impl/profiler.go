@@ -21,13 +21,13 @@ import (
 
 	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	profilercomp "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -38,6 +38,7 @@ type Requires struct {
 	SettingsComponent settings.Component
 	Config            config.Component
 	SysProbeConfig    sysprobeconfig.Component
+	AuthToken         authtoken.Component
 }
 
 // Provides defines the output of the profiler component
@@ -52,6 +53,7 @@ type profiler struct {
 	settingsComponent settings.Component
 	cfg               config.Component
 	sysProbeCfg       sysprobeconfig.Component
+	authToken         authtoken.Component
 }
 
 // ReadProfileData gathers and returns pprof server output for a variety of agent services.
@@ -66,7 +68,6 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 	type agentProfileCollector func(service string) error
 
 	pdata := flaretypes.ProfileData{}
-	c := util.GetClient()
 
 	type pprofGetter func(path string) ([]byte, error)
 	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {
@@ -79,7 +80,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 			endpoint.Scheme = "https"
 		}
 		return func(path string) ([]byte, error) {
-			return util.DoGet(c, endpoint.String()+path, util.LeaveConnectionOpen)
+			return p.authToken.GetClient().Get(endpoint.String() + path)
 		}
 	}
 

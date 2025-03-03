@@ -30,6 +30,7 @@ import (
 	securejoin "github.com/cyphar/filepath-securejoin"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -38,7 +39,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -85,6 +85,7 @@ type dependencies struct {
 	Status    status.Component
 	Collector collector.Component
 	Ac        autodiscovery.Component
+	At        authtoken.Component
 	Lc        fx.Lifecycle
 }
 
@@ -125,15 +126,8 @@ func newGui(deps dependencies) provides {
 	// Instantiate the gorilla/mux publicRouter
 	publicRouter := mux.NewRouter()
 
-	// Fetch the authentication token (persists across sessions)
-	authToken, e := security.FetchAuthToken(deps.Config)
-	if e != nil {
-		g.logger.Error("GUI server initialization failed (unable to get the AuthToken): ", e)
-		return p
-	}
-
 	sessionExpiration := deps.Config.GetDuration("GUI_session_expiration")
-	g.auth = newAuthenticator(authToken, sessionExpiration)
+	g.auth = newAuthenticator(deps.At.Get(), sessionExpiration)
 
 	// register the public routes
 	publicRouter.HandleFunc("/", renderIndexPage).Methods("GET")

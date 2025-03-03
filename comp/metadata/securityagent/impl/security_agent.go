@@ -61,9 +61,10 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type secagent struct {
 	util.InventoryPayload
 
-	log      log.Component
-	conf     config.Component
-	hostname string
+	log          log.Component
+	conf         config.Component
+	secureClient authtoken.SecureClient
+	hostname     string
 }
 
 // Requires defines the dependencies for the securityagent metadata component
@@ -87,9 +88,10 @@ type Provides struct {
 func NewComponent(deps Requires) Provides {
 	hname, _ := hostname.Get(context.Background())
 	sa := &secagent{
-		log:      deps.Log,
-		conf:     deps.Config,
-		hostname: hname,
+		log:          deps.Log,
+		conf:         deps.Config,
+		hostname:     hname,
+		secureClient: deps.AuthToken.GetClient(),
 	}
 	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
 
@@ -120,7 +122,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf)
+	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf, sa.secureClient)
 	if err != nil {
 		sa.log.Debugf("error fetching security-agent config layers: %s", err)
 		return metadata
@@ -154,7 +156,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		}
 	}
 
-	if str, err := fetchSecurityAgentConfig(sa.conf); err == nil {
+	if str, err := fetchSecurityAgentConfig(sa.conf, sa.secureClient); err == nil {
 		metadata["full_configuration"] = str
 	} else {
 		sa.log.Debugf("error fetching security-agent config: %s", err)

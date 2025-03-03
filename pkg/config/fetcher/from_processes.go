@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -17,7 +18,7 @@ import (
 )
 
 // SecurityAgentConfig fetch the configuration from the security-agent process by querying its HTTPS API
-func SecurityAgentConfig(config config.Reader) (string, error) {
+func SecurityAgentConfig(config config.Reader, client authtoken.SecureClient) (string, error) {
 	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
@@ -28,16 +29,15 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
 	}
 
-	c := util.GetClient()
-	c.Timeout = config.GetDuration("server_timeout") * time.Second
+	timeout := config.GetDuration("server_timeout") * time.Second
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
-	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
-	return client.FullConfig()
+	settingsClient := settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", authtoken.WithTimeout(timeout))
+	return settingsClient.FullConfig()
 }
 
 // SecurityAgentConfigBySource fetch all configuration layers from the security-agent process by querying its HTTPS API
-func SecurityAgentConfigBySource(config config.Reader) (string, error) {
+func SecurityAgentConfigBySource(config config.Reader, client authtoken.SecureClient) (string, error) {
 	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
@@ -48,16 +48,15 @@ func SecurityAgentConfigBySource(config config.Reader) (string, error) {
 		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
 	}
 
-	c := util.GetClient()
-	c.Timeout = config.GetDuration("server_timeout") * time.Second
+	timeout := config.GetDuration("server_timeout") * time.Second
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
-	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
-	return client.FullConfigBySource()
+	settingsClient := settingshttp.NewSecureClient(client, apiConfigURL, "security-agent", authtoken.WithTimeout(timeout))
+	return settingsClient.FullConfigBySource()
 }
 
 // TraceAgentConfig fetch the configuration from the trace-agent process by querying its HTTPS API
-func TraceAgentConfig(config config.Reader) (string, error) {
+func TraceAgentConfig(config config.Reader, client authtoken.SecureClient) (string, error) {
 	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
@@ -68,17 +67,16 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 		return "", fmt.Errorf("invalid apm_config.debug.port -- %d", port)
 	}
 
-	c := util.GetClient()
-	c.Timeout = config.GetDuration("server_timeout") * time.Second
+	timeout := config.GetDuration("server_timeout") * time.Second
 
 	ipcAddressWithPort := fmt.Sprintf("https://127.0.0.1:%d/config", port)
 
-	client := settingshttp.NewClient(c, ipcAddressWithPort, "trace-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
-	return client.FullConfig()
+	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "trace-agent", authtoken.WithTimeout(timeout))
+	return settingsClient.FullConfig()
 }
 
 // ProcessAgentConfig fetch the configuration from the process-agent process by querying its HTTPS API
-func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, error) {
+func ProcessAgentConfig(config config.Reader, client authtoken.SecureClient, getEntireConfig bool) (string, error) {
 	err := util.SetAuthToken(config)
 	if err != nil {
 		return "", err
@@ -99,10 +97,8 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 		ipcAddressWithPort += "/all"
 	}
 
-	c := util.GetClient()
-	c.Timeout = config.GetDuration("server_timeout") * time.Second
+	timeout := config.GetDuration("server_timeout") * time.Second
 
-	client := settingshttp.NewClient(c, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
-
-	return client.FullConfig()
+	settingsClient := settingshttp.NewSecureClient(client, ipcAddressWithPort, "process-agent", authtoken.WithTimeout(timeout))
+	return settingsClient.FullConfig()
 }

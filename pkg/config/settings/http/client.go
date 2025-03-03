@@ -12,27 +12,74 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
+type httpClient interface {
+	DoGet(url string) (body []byte, e error)
+	DoPost(url string, contentType string, body io.Reader) (resp []byte, e error)
+}
+
+type insecureHTTPClient struct {
+	c             *http.Client
+	clientOptions ClientOptions
+}
+
+func (c *insecureHTTPClient) DoGet(url string) (body []byte, e error) {
+	return util.DoGet(c.c, url, util.CloseConnection)
+}
+
+func (c *insecureHTTPClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
+	return util.DoPost(c.c, url, contentType, body)
+}
+
+type secureHTTPClient struct {
+	c             authtoken.SecureClient
+	clientOptions []authtoken.RequestOption
+}
+
+func (c *secureHTTPClient) DoGet(url string) (body []byte, e error) {
+	return c.c.Get(url, authtoken.WithLeaveConnectionOpen)
+}
+
+func (c *secureHTTPClient) DoPost(url string, contentType string, body io.Reader) (resp []byte, e error) {
+	return c.c.Post(url, contentType, body, authtoken.WithLeaveConnectionOpen)
+}
+
 type runtimeSettingsHTTPClient struct {
-	c                 *http.Client
+	c                 httpClient
 	baseURL           string
 	targetProcessName string
-	clientOptions     ClientOptions
 }
 
 // NewClient returns a client setup to interact with the standard runtime settings HTTP API
 func NewClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
-	return &runtimeSettingsHTTPClient{c, baseURL, targetProcessName, clientOptions}
+
+	innerClient := &insecureHTTPClient{c, clientOptions}
+
+	return &runtimeSettingsHTTPClient{innerClient, baseURL, targetProcessName}
+}
+
+// NewClient returns a client setup to interact with the standard runtime settings HTTP API
+func NewSecureClient(c authtoken.SecureClient, baseURL string, targetProcessName string, clientOptions ...authtoken.RequestOption) settings.Client {
+
+	innerClient := &secureHTTPClient{c, clientOptions}
+
+	return &runtimeSettingsHTTPClient{innerClient, baseURL, targetProcessName}
 }
 
 func (rc *runtimeSettingsHTTPClient) doGet(url string, formatError bool) (string, error) {
-	r, err := util.DoGet(rc.c, url, rc.clientOptions.CloseConnection)
+	var r []byte
+	var err error
+
+	r, err = rc.c.DoGet(url)
+
 	if err != nil {
 		errMap := make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -125,7 +172,7 @@ func (rc *runtimeSettingsHTTPClient) Set(key string, value string) (bool, error)
 	}
 
 	body := fmt.Sprintf("value=%s", html.EscapeString(value))
-	r, err := util.DoPost(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key), "application/x-www-form-urlencoded", bytes.NewBuffer([]byte(body)))
+	r, err := rc.c.DoPost(fmt.Sprintf("%s/%s", rc.baseURL, key), "application/x-www-form-urlencoded", bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		errMap := make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -141,8 +188,4 @@ func (rc *runtimeSettingsHTTPClient) Set(key string, value string) (bool, error)
 		hidden = setting.Hidden
 	}
 	return hidden, nil
-}
-
-func (rc *runtimeSettingsHTTPClient) HTTPClient() *http.Client {
-	return rc.c
 }

@@ -15,11 +15,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -54,21 +54,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{workloadListCommand}
 }
 
-func workloadList(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient()
-
-	// Set session token
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
+func workloadList(_ log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
 	url, err := workloadURL(config, cliParams.verboseList)
 	if err != nil {
 		return err
 	}
 
-	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
+	r, err := at.GetClient().Get(url, authtoken.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while getting the workload store information: %s\n", string(r))

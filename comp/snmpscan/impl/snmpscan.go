@@ -8,6 +8,7 @@ package snmpscanimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -24,6 +25,7 @@ type Requires struct {
 	Logger        log.Component
 	Config        config.Component
 	Demultiplexer demultiplexer.Component
+	AuthToken     authtoken.Component
 }
 
 // Provides defines the output of the snmpscan component
@@ -39,9 +41,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	scanner := snmpScannerImpl{
-		log:         reqs.Logger,
-		config:      reqs.Config,
-		epforwarder: forwarder,
+		log:          reqs.Logger,
+		config:       reqs.Config,
+		epforwarder:  forwarder,
+		secureClient: reqs.AuthToken.GetClient(),
 	}
 	provides := Provides{
 		Comp:       scanner,
@@ -51,9 +54,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 type snmpScannerImpl struct {
-	log         log.Component
-	config      config.Component
-	epforwarder eventplatform.Forwarder
+	log          log.Component
+	config       config.Component
+	epforwarder  eventplatform.Forwarder
+	secureClient authtoken.SecureClient
 }
 
 func (s snmpScannerImpl) handleAgentTask(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
@@ -72,7 +76,7 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 			ns = "default"
 		}
 	}
-	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config)
+	instance, err := snmpparse.GetParamsFromAgent(deviceIP, s.config, s.secureClient)
 	if err != nil {
 		return err
 	}

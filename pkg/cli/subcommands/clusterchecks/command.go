@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -118,18 +119,19 @@ func bundleParams(globalParams GlobalParams) core.BundleParams {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	if err := clusterAgentFlare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
+func run(_ log.Component, _ config.Component, cliParams *cliParams, at authtoken.Component) error {
+	secureClient := at.GetClient()
+
+	if err := clusterAgentFlare.GetClusterChecks(color.Output, cliParams.checkName, secureClient); err != nil {
 		return err
 	}
 
-	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName)
+	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName, secureClient)
 }
 
-func rebalance(_ log.Component, config config.Component, cliParams *cliParams) error {
+func rebalance(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
 
 	fmt.Println("Requesting a cluster check rebalance...")
-	c := util.GetClient()
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	// Set session token
@@ -148,7 +150,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams) e
 		return fmt.Errorf("error marshalling payload: %v", err)
 	}
 
-	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(postData))
+	r, err := at.GetClient().Post(urlstr, "application/json", bytes.NewBuffer(postData))
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
@@ -178,8 +180,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams) e
 	return nil
 }
 
-func isolate(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient()
+func isolate(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
 	if cliParams.checkID == "" {
 		return fmt.Errorf("checkID must be specified")
 	}
@@ -191,7 +192,7 @@ func isolate(_ log.Component, config config.Component, cliParams *cliParams) err
 		return err
 	}
 
-	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	r, err := at.GetClient().Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

@@ -108,7 +108,7 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.at.GetTLSClientConfig)
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.at.GetTLSClientConfig())
 		if err != nil {
 			return err
 		}

@@ -15,9 +15,9 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 )
@@ -126,18 +126,18 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 
 // GetConfigCheckSnmp returns each SNMPConfig for all running config checks, by querying the local agent.
 // If the agent isn't running or is unreachable, this will fail.
-func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
+func GetConfigCheckSnmp(conf config.Component, client authtoken.SecureClient) ([]SNMPConfig, error) {
 	// TODO: change the URL if the snmp check is a cluster check
 	// add /agent/config-check to cluster agent API
 	// Copy the code from comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go#writeConfigCheck
-	endpoint, err := apiutil.NewIPCEndpoint(conf, "/agent/config-check")
+	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
 	if err != nil {
 		return nil, err
 	}
 	urlValues := url.Values{}
 	urlValues.Set("raw", "true")
 
-	res, err := endpoint.DoGet(apiutil.WithValues(urlValues))
+	res, err := endpoint.DoGet(authtoken.WithValues(urlValues))
 	if err != nil {
 		return nil, err
 	}
@@ -205,8 +205,8 @@ func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
 }
 
 // GetParamsFromAgent returns the SNMPConfig for a specific IP address, by querying the local agent.
-func GetParamsFromAgent(deviceIP string, conf config.Component) (*SNMPConfig, error) {
-	snmpConfigList, err := GetConfigCheckSnmp(conf)
+func GetParamsFromAgent(deviceIP string, conf config.Component, client authtoken.SecureClient) (*SNMPConfig, error) {
+	snmpConfigList, err := GetConfigCheckSnmp(conf, client)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
 	}

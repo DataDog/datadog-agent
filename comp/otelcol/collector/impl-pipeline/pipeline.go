@@ -10,7 +10,6 @@ package pipelineimpl
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -75,7 +73,6 @@ type Provides struct {
 }
 
 type collectorImpl struct {
-	authToken      authtoken.Component
 	col            *otlp.Pipeline
 	config         config.Component
 	log            log.Component
@@ -83,7 +80,7 @@ type collectorImpl struct {
 	logsAgent      option.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
 	tagger         tagger.Component
-	client         *http.Client
+	client         authtoken.SecureClient
 	ctx            context.Context
 }
 
@@ -130,14 +127,9 @@ func (c *collectorImpl) Status() datatype.CollectorStatus {
 // NewComponent creates a new Component for this module and returns any errors on failure.
 func NewComponent(reqs Requires) (Provides, error) {
 
-	timeoutSeconds := reqs.Config.GetInt("otelcollector.extension_timeout")
-	if timeoutSeconds == 0 {
-		timeoutSeconds = defaultExtensionTimeout
-	}
-	client := apiutil.GetClientWithTimeout(time.Duration(timeoutSeconds) * time.Second)
+	client := reqs.Authtoken.GetClient()
 
 	collector := &collectorImpl{
-		authToken:      reqs.Authtoken,
 		config:         reqs.Config,
 		log:            reqs.Log,
 		serializer:     reqs.Serializer,

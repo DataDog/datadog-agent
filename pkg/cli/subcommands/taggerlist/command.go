@@ -11,11 +11,11 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -70,18 +70,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 }
 
-func taggerList(_ log.Component, config config.Component, _ *cliParams) error {
-	// Set session token
-	if err := util.SetAuthToken(config); err != nil {
-		return err
-	}
-
+func taggerList(_ log.Component, config config.Component, at authtoken.Component, _ *cliParams) error {
 	url, err := getTaggerURL(config)
 	if err != nil {
 		return err
 	}
 
-	return api.GetTaggerList(color.Output, url)
+	return api.GetTaggerList(at.GetClient(), color.Output, url)
 }
 
 func getTaggerURL(config config.Component) (string, error) {

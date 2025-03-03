@@ -42,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -157,11 +156,6 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				}, tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {
 						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-					},
-					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-						return func() (string, error) {
-							return security.FetchAuthToken(c)
-						}
 					},
 					RemoteFilter: taggerTypes.NewMatchAllFilter(),
 				}),

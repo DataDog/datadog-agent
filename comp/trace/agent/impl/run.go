@@ -15,7 +15,6 @@ import (
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -69,8 +68,8 @@ func runAgentSidekicks(ag component) error {
 	// the trace agent.
 	// pkg/config is not a go-module yet and pulls a large chunk of Agent code base with it. Using it within the
 	// trace-agent would largely increase the number of module pulled by OTEL when using the pkg/trace go-module.
-	ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
-	ag.Agent.DebugServer.AddRoute("/config/set", ag.config.SetHandler())
+	ag.Agent.DebugServer.AddRoute("/config", ag.at.HTTPMiddleware(ag.config.GetConfigHandler()))
+	ag.Agent.DebugServer.AddRoute("/config/set", ag.at.HTTPMiddleware(ag.config.SetHandler()))
 	// The below endpoint is deprecated and has been replaced with /config/set on the debug server.
 	// It will be removed in a future version.
 	api.AttachEndpoint(api.Endpoint{
@@ -85,11 +84,7 @@ func runAgentSidekicks(ag component) error {
 		// Adding a route to trigger a secrets refresh from the CLI.
 		// TODO - components: the secrets comp already export a route but it requires the API component which is not
 		// used by the trace agent. This should be removed once the trace-agent is fully componentize.
-		ag.Agent.DebugServer.AddRoute("/secret/refresh", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if apiutil.Validate(w, req) != nil {
-				return
-			}
-
+		ag.Agent.DebugServer.AddRoute("/secret/refresh", ag.at.HTTPMiddleware(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			res, err := secrets.Refresh()
 			if err != nil {
 				log.Errorf("error while refresing secrets: %s", err)
@@ -99,7 +94,7 @@ func runAgentSidekicks(ag component) error {
 				return
 			}
 			w.Write([]byte(res))
-		}))
+		})))
 	}
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
@@ -164,5 +159,5 @@ func newConfigFetcher(at authtoken.Component) (rc.ConfigFetcher, error) {
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), at.Get, at.GetTLSClientConfig)
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), at.Get(), at.GetTLSClientConfig())
 }

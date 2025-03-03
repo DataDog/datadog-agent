@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/api/version"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
@@ -159,11 +158,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(filePath))
 }
 
-func (a *Agent) refreshSecrets(w http.ResponseWriter, req *http.Request) {
-	if apiutil.Validate(w, req) != nil {
-		return
-	}
-
+func (a *Agent) refreshSecrets(w http.ResponseWriter, _ *http.Request) {
 	res, err := a.secrets.Refresh()
 	if err != nil {
 		log.Errorf("error while refresing secrets: %s", err)

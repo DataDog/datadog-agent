@@ -16,10 +16,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -75,19 +75,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliParams) error {
+func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliParams, auth authtoken.Component) error {
 	fmt.Printf("Starting a dogstatsd traffic capture session...\n\n")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	token, err := security.FetchAuthToken(config)
-	if err != nil {
-		return fmt.Errorf("unable to fetch authentication token: %w", err)
-	}
-
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", auth.Get())},
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 

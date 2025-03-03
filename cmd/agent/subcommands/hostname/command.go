@@ -17,10 +17,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -58,8 +58,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{getHostnameCommand}
 }
 
-func printHostname(_ log.Component, config config.Component, params *cliParams) error {
-	hname, err := getHostname(config, params)
+func printHostname(_ log.Component, config config.Component, params *cliParams, auth authtoken.Component) error {
+	hname, err := getHostname(config, params, auth)
 
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)
@@ -69,9 +69,9 @@ func printHostname(_ log.Component, config config.Component, params *cliParams) 
 	return nil
 }
 
-func getHostname(config config.Component, params *cliParams) (string, error) {
+func getHostname(config config.Component, params *cliParams, auth authtoken.Component) (string, error) {
 	if !params.forceLocal {
-		hname, err := getRemoteHostname(config)
+		hname, err := getRemoteHostname(config, auth)
 		if err == nil {
 			return hname, nil
 		}
@@ -83,8 +83,8 @@ func getHostname(config config.Component, params *cliParams) (string, error) {
 	return hostname.Get(context.Background())
 }
 
-func getRemoteHostname(config config.Component) (string, error) {
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/hostname")
+func getRemoteHostname(config config.Component, auth authtoken.Component) (string, error) {
+	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/hostname")
 	if err != nil {
 		return "", err
 	}

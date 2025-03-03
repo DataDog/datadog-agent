@@ -52,7 +52,7 @@ func makeConfigSync(t *testing.T) *configSync {
 		Log:       deps.Log,
 		Authtoken: deps.Authtoken,
 		url:       defaultURL,
-		client:    http.DefaultClient,
+		client:    deps.Authtoken.GetClient(),
 		ctx:       context.Background(),
 	}
 	return cs

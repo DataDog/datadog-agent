@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -61,8 +62,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	if err := clusterAgentFlare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose); err != nil {
+func run(_ log.Component, _ config.Component, cliParams *cliParams, authToken authtoken.Component) error {
+	if err := clusterAgentFlare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose, authToken.GetClient()); err != nil {
 		return fmt.Errorf("the agent ran into an error while checking config: %w", err)
 	}
 

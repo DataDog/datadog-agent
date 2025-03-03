@@ -15,11 +15,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -58,17 +58,16 @@ as well as which services are serving the pods. Or the deployment name for the p
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, at authtoken.Component, cliParams *cliParams) error {
 	nodeName := ""
 	if len(cliParams.args) > 0 {
 		nodeName = cliParams.args[0]
 	}
-	return getMetadataMap(nodeName) // if nodeName == "", call all.
+	return getMetadataMap(at, nodeName) // if nodeName == "", call all.
 }
 
-func getMetadataMap(nodeName string) error {
+func getMetadataMap(at authtoken.Component, nodeName string) error {
 	var e error
-	c := util.GetClient()
 	var urlstr string
 	if nodeName == "" {
 		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
@@ -76,13 +75,7 @@ func getMetadataMap(nodeName string) error {
 		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), nodeName)
 	}
 
-	// Set session token
-	e = util.SetAuthToken(pkgconfigsetup.Datadog())
-	if e != nil {
-		return e
-	}
-
-	r, e := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	r, e := at.GetClient().Get(urlstr, authtoken.WithLeaveConnectionOpen)
 	if e != nil {
 		fmt.Printf(`
 		Could not reach agent: %v

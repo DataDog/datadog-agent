@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	hostinfoComp "github.com/DataDog/datadog-agent/comp/process/hostinfo"
@@ -29,6 +30,7 @@ type dependencies struct {
 
 	Config config.Component
 	Logger log.Component
+	At     authtoken.Component
 }
 
 type hostinfo struct {
@@ -36,7 +38,7 @@ type hostinfo struct {
 }
 
 func newHostInfo(deps dependencies) (hostinfoComp.Component, error) {
-	hinfo, err := checks.CollectHostInfo(deps.Config)
+	hinfo, err := checks.CollectHostInfo(deps.Config, deps.At)
 	if err != nil {
 		_ = deps.Logger.Critical("Error collecting host details:", err)
 		return nil, fmt.Errorf("error collecting host details: %v", err)

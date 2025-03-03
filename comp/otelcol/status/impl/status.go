@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 
 	"gopkg.in/yaml.v3"
 
@@ -21,7 +20,6 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
@@ -42,8 +40,7 @@ type Provides struct {
 
 type statusProvider struct {
 	Config         config.Component
-	client         *http.Client
-	authToken      authtoken.Component
+	client         authtoken.SecureClient
 	receiverStatus map[string]interface{}
 	exporterStatus map[string]interface{}
 }
@@ -70,9 +67,8 @@ type prometheusRuntimeConfig struct {
 // NewComponent creates a new status component.
 func NewComponent(reqs Requires) Provides {
 	comp := statusProvider{
-		Config:    reqs.Config,
-		client:    apiutil.GetClient(),
-		authToken: reqs.Authtoken,
+		Config: reqs.Config,
+		client: reqs.Authtoken.GetClient(),
 		receiverStatus: map[string]interface{}{
 			"spans":           0.0,
 			"metrics":         0.0,
@@ -145,7 +141,7 @@ func getPrometheusURL(extensionResp ddflareextensiontypes.Response) (string, err
 }
 
 func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
-	resp, err := apiutil.DoGet(s.client, prometheusURL, apiutil.CloseConnection)
+	resp, err := s.client.Get(prometheusURL, authtoken.WithCloseConnection)
 	if err != nil {
 		return err
 	}
@@ -189,18 +185,7 @@ func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {
 func (s statusProvider) populateStatus() map[string]interface{} {
 	extensionURL := s.Config.GetString("otelcollector.extension_url")
 
-	auth, err := s.authToken.Get()
-	if err != nil {
-		return map[string]interface{}{
-			"url":   extensionURL,
-			"error": err.Error(),
-		}
-	}
-	options := apiutil.ReqOptions{
-		Conn:      apiutil.CloseConnection,
-		Authtoken: auth,
-	}
-	resp, err := apiutil.DoGetWithOptions(s.client, extensionURL, &options)
+	resp, err := s.client.Get(extensionURL, authtoken.WithCloseConnection)
 	if err != nil {
 		return map[string]interface{}{
 			"url":   extensionURL,

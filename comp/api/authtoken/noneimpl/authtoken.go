@@ -8,6 +8,7 @@ package noneimpl
 
 import (
 	"crypto/tls"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 )
@@ -23,8 +24,8 @@ func NewNoopAuthToken() authtoken.Component {
 }
 
 // Get returns the session token
-func (at *authToken) Get() (string, error) {
-	return "", nil
+func (at *authToken) Get() string {
+	return ""
 }
 
 // GetTLSClientConfig return a TLS configuration with the IPC certificate for http.Client
@@ -35,4 +36,15 @@ func (at *authToken) GetTLSClientConfig() *tls.Config {
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
 func (at *authToken) GetTLSServerConfig() *tls.Config {
 	return &tls.Config{}
+}
+
+func (at *authToken) HTTPMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Noop
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (at *authToken) GetClient(_ ...authtoken.ClientOption) authtoken.SecureClient {
+	return authtoken.NewClient(at.Get(), at.GetTLSClientConfig(), nil)
 }

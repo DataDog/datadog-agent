@@ -21,8 +21,8 @@ func remote(c corecompcfg.Component, ipcAddress string, at authtoken.Component) 
 	return rc.NewGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
-		at.Get,
-		at.GetTLSClientConfig,
+		at.Get(),
+		at.GetTLSClientConfig(),
 		rc.WithAgent(rcClientName, version.AgentVersion),
 		rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
 		rc.WithPollInterval(rcClientPollInterval),

@@ -8,7 +8,6 @@ package config
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	configcmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/config"
 
 	"github.com/spf13/cobra"
@@ -22,7 +21,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ExtraConfFilePaths: globalParams.ExtraConfFilePath,
 			ConfigName:         command.ConfigName,
 			LoggerName:         command.LoggerName,
-			SettingsClient:     common.NewSettingsClient,
 		}
 	})
 

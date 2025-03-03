@@ -14,10 +14,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -49,7 +49,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{launchCmd}
 }
 
-func launchGui(config config.Component, _ *cliParams, _ log.Component) error {
+func launchGui(config config.Component, _ *cliParams, _ log.Component, auth authtoken.Component) error {
 	guiPort := config.GetString("GUI_port")
 	if guiPort == "-1" {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
@@ -63,7 +63,7 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component) error {
 		return fmt.Errorf("GUI server host is not a local address: %s", err)
 	}
 
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/gui/intent")
+	endpoint, err := auth.GetClient().NewIPCEndpoint("/agent/gui/intent")
 	if err != nil {
 		return err
 	}

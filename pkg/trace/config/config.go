@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -507,9 +508,8 @@ type AgentConfig struct {
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
 
-	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
-	// Function will be nil if in an environment without an auth token
-	GetAgentAuthToken func() string `json:"-"`
+	// AgentIPC is the IPC component for the agent
+	AgentIPC authtoken.Component `json:"-"`
 
 	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
 	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.

@@ -11,37 +11,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"sync"
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 )
-
-// httpClients should be reused instead of created as needed. They keep cached TCP connections
-// that may leak otherwise
-var (
-	httpClient     *http.Client
-	clientInitOnce sync.Once
-)
-
-func client() *http.Client {
-	clientInitOnce.Do(func() {
-		httpClient = apiutil.GetClient()
-	})
-
-	return httpClient
-}
 
 type dependencies struct {
 	fx.In
 
-	Config config.Component
+	Config    config.Component
+	AuthToken authtoken.Component
 }
 
 type provides struct {
@@ -57,13 +40,15 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	Config config.Component
+	Config       config.Component
+	SecureClient authtoken.SecureClient
 }
 
 func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			Config: deps.Config,
+			Config:       deps.Config,
+			SecureClient: deps.AuthToken.GetClient(),
 		}),
 	}
 }
@@ -94,9 +79,8 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 func (s statusProvider) populateStatus() map[string]interface{} {
 	port := s.Config.GetInt("apm_config.debug.port")
 
-	c := client()
 	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := apiutil.DoGet(c, url, apiutil.CloseConnection)
+	resp, err := s.SecureClient.Get(url, authtoken.WithCloseConnection)
 	if err != nil {
 		return map[string]interface{}{
 			"port":  port,

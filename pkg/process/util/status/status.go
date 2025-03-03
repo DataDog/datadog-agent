@@ -9,31 +9,14 @@ package status
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"runtime"
-	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// httpClients should be reused instead of created as needed. They keep cached TCP connections
-// that may leak otherwise
-var (
-	httpClient     *http.Client
-	clientInitOnce sync.Once
-)
-
-func getHTTPClient() *http.Client {
-	clientInitOnce.Do(func() {
-		httpClient = apiutil.GetClient()
-	})
-
-	return httpClient
-}
 
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
@@ -140,9 +123,8 @@ func getCoreStatus(coreConfig pkgconfigmodel.Reader) (s CoreStatus) {
 	}
 }
 
-func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
-	client := getHTTPClient()
-	b, err := apiutil.DoGet(client, expVarURL, apiutil.CloseConnection)
+func getExpvars(expVarURL string, c authtoken.SecureClient) (s ProcessExpvars, err error) {
+	b, err := c.Get(expVarURL, authtoken.WithLeaveConnectionOpen)
 	if err != nil {
 		return s, ConnectionError{err}
 	}
@@ -152,9 +134,9 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string) (*Status, error) {
+func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, c authtoken.SecureClient) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig)
-	processExpVars, err := getExpvars(expVarURL)
+	processExpVars, err := getExpvars(expVarURL, c)
 	if err != nil {
 		return nil, err
 	}

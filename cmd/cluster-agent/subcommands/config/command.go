@@ -9,14 +9,8 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/config"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/spf13/cobra"
 )
@@ -25,23 +19,11 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := config.MakeCommand(func() config.GlobalParams {
 		return config.GlobalParams{
-			ConfFilePath:   globalParams.ConfFilePath,
-			ConfigName:     command.ConfigName,
-			LoggerName:     command.LoggerName,
-			SettingsClient: newSettingsClient,
+			ConfFilePath: globalParams.ConfFilePath,
+			ConfigName:   command.ConfigName,
+			LoggerName:   command.LoggerName,
 		}
 	})
 
 	return []*cobra.Command{cmd}
-}
-
-func newSettingsClient() (settings.Client, error) {
-	c := util.GetClient()
-
-	apiConfigURL := fmt.Sprintf(
-		"https://localhost:%v/config",
-		pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"),
-	)
-
-	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }

@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
@@ -53,6 +54,7 @@ type dependencies struct {
 	fx.In
 
 	Params Params
+	At     authtoken.Component
 }
 
 type client struct {
@@ -105,7 +107,8 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 				filter: deps.Params.Filter,
 				Config: pkgconfigsetup.Datadog(),
 			},
-			Catalog: workloadmeta.Remote,
+			Catalog:   workloadmeta.Remote,
+			AuthToken: deps.At.Get(),
 		},
 	}, nil
 }

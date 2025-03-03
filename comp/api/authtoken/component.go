@@ -9,7 +9,12 @@
 package authtoken
 
 import (
+	"context"
 	"crypto/tls"
+	"io"
+	"net/http"
+	"net/url"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -19,11 +24,59 @@ import (
 
 // team: agent-runtimes
 
+type ClientOption func(SecureClient) SecureClient
+type RequestOption func(req *http.Request, onEnding func(func())) *http.Request
+
+type SecureClient interface {
+	Do(req *http.Request, opts ...RequestOption) (resp []byte, err error)
+	Get(url string, opts ...RequestOption) (resp []byte, err error)
+	Head(url string, opts ...RequestOption) (resp []byte, err error)
+	Post(url string, contentType string, body io.Reader, opts ...RequestOption) (resp []byte, err error)
+	PostChunk(url string, contentType string, body io.Reader, onChunk func([]byte), opts ...RequestOption) (err error)
+	PostForm(url string, data url.Values, opts ...RequestOption) (resp []byte, err error)
+	NewIPCEndpoint(endpointPath string) (*IPCEndpoint, error)
+}
+
 // Component is the component type.
 type Component interface {
-	Get() (string, error)
+	Get() string
 	GetTLSClientConfig() *tls.Config
 	GetTLSServerConfig() *tls.Config
+	HTTPMiddleware(next http.Handler) http.Handler
+	GetClient(...ClientOption) SecureClient
+}
+
+func WithCloseConnection(req *http.Request, _ func(func())) *http.Request {
+	req.Close = true
+	return req
+}
+
+func WithLeaveConnectionOpen(req *http.Request, _ func(func())) *http.Request {
+	req.Close = false
+	return req
+}
+
+func WithContext(ctx context.Context) RequestOption {
+	return func(req *http.Request, _ func(func())) *http.Request {
+		req.WithContext(ctx)
+		return req
+	}
+}
+
+func WithTimeout(to time.Duration) RequestOption {
+	return func(req *http.Request, onEnding func(func())) *http.Request {
+		ctx, cncl := context.WithTimeout(context.Background(), to) // TODO IPC: handle call of WithContext and WithTimeout in the same time
+		req.WithContext(ctx)
+		onEnding(cncl)
+		return req
+	}
+}
+
+func WithValues(values url.Values) RequestOption {
+	return func(req *http.Request, _ func(func())) *http.Request {
+		req.URL.RawQuery = values.Encode()
+		return req
+	}
 }
 
 // NoneModule return a None optional type for authtoken.Component.

@@ -18,11 +18,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -63,11 +63,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{statusCmd}
 }
 
-func runStatus(_ log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
+func runStatus(_ log.Component, config config.Component, _ secrets.Component, at authtoken.Component, params *cliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
-	c := util.GetClient()
 
 	v := url.Values{}
 	if params.prettyPrintJSON || params.json {
@@ -83,13 +82,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 		RawQuery: v.Encode(),
 	}
 
-	// Set session token
-	e = util.SetAuthToken(config)
-	if e != nil {
-		return e
-	}
-
-	r, e := util.DoGet(c, url.String(), util.LeaveConnectionOpen)
+	r, e := at.GetClient().Get(url.String(), authtoken.WithLeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -22,12 +23,14 @@ import (
 type StatusProvider struct {
 	testServerURL string
 	config        config.Component
+	authtoken     authtoken.Component
 }
 
 // NewStatusProvider fetches the status
-func NewStatusProvider(Config config.Component) *StatusProvider {
+func NewStatusProvider(Config config.Component, Authtoken authtoken.Component) *StatusProvider {
 	return &StatusProvider{
-		config: Config,
+		config:    Config,
+		authtoken: Authtoken,
 	}
 }
 
@@ -74,7 +77,7 @@ func (s StatusProvider) populateStatus() map[string]interface{} {
 		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
 
-	agentStatus, err := processStatus.GetStatus(s.config, url)
+	agentStatus, err := processStatus.GetStatus(s.config, url, s.authtoken.GetClient())
 	if err != nil {
 		status["error"] = fmt.Sprintf("%v", err.Error())
 		return status

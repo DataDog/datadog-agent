@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -77,8 +78,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return workloadListCommand
 }
 
-func workloadList(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient()
+func workloadList(_ log.Component, config config.Component, cliParams *cliParams, at authtoken.Component) error {
 
 	// Set session token
 	err := util.SetAuthToken(config)
@@ -91,7 +91,7 @@ func workloadList(_ log.Component, config config.Component, cliParams *cliParams
 		return err
 	}
 
-	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
+	r, err := at.GetClient().Get(url, authtoken.WithCloseConnection)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while getting the workload store information: %s\n", string(r))

@@ -9,7 +9,6 @@ package configsyncimpl
 import (
 	"context"
 	"net"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -57,10 +55,11 @@ type configSync struct {
 	Authtoken authtoken.Component
 
 	url       *url.URL
-	client    *http.Client
+	client    authtoken.SecureClient
 	connected bool
 	ctx       context.Context
 	enabled   bool
+	timeout   time.Duration
 }
 
 // newComponent checks if the component was enabled as per the config and return a enable/disabled configsync
@@ -89,7 +88,7 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client := apiutil.GetClientWithTimeout(deps.SyncParams.Timeout)
+	client := deps.Authtoken.GetClient()
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	configSync := configSync{
@@ -100,6 +99,7 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 		client:    client,
 		ctx:       ctx,
 		enabled:   true,
+		timeout:   deps.SyncParams.Timeout,
 	}
 
 	if deps.SyncParams.OnInitSync {
