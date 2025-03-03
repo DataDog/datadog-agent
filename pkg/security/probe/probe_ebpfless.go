@@ -87,11 +87,6 @@ type EBPFLessProbe struct {
 	fileHasher *FileHasher
 }
 
-// GetProfileManager returns the Profile Managers
-func (p *EBPFLessProbe) GetProfileManager() interface{} {
-	return nil
-}
-
 func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	switch msg.Type {
 	case ebpfless.MessageTypeHello:

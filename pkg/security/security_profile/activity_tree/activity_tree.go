@@ -156,11 +156,12 @@ func (cs *cookieSelector) fillFromEntry(entry *model.ProcessCacheEntry) {
 type ActivityTree struct {
 	Stats *Stats
 
-	treeType          string
+	treeType  string
+	validator Owner
+
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
 
-	validator    Owner
 	pathsReducer *PathsReducer
 
 	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
@@ -187,6 +188,12 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
 	}
+}
+
+// SetType changes the type and owner of the ActivityTree
+func (at *ActivityTree) SetType(treeType string, validator Owner) {
+	at.treeType = treeType
+	at.validator = validator
 }
 
 // GetChildren returns the list of root ProcessNodes from the ActivityTree
