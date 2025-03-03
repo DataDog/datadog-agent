@@ -133,7 +133,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.NewEndpoint("", "fake:", 0, false)
+	endpoint := config.NewEndpoint("", "", "fake:", 0, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	agent := createAgent(suite, endpoints)
