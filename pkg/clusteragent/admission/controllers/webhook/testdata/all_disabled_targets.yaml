@@ -1,0 +1,14 @@
+---
+apm_config:
+  instrumentation:
+    enabled: false
+    targets:
+      - name: "Billing Service"
+        podSelector:
+          matchLabels:
+            app: "billing-service"
+admission_controller:
+  inject_config:
+    enabled: false
+  inject_tags:
+    enabled: false

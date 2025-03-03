@@ -860,7 +860,7 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 			continue
 		}
 
-		cgroupContext, err := adm.resolvers.ResolveCGroupContext(cgroupFile, event.Config.CGroupFlags)
+		cgroupContext, _, err := adm.resolvers.ResolveCGroupContext(cgroupFile, event.Config.CGroupFlags)
 		if err != nil {
 			seclog.Warnf("couldn't resolve cgroup context for (%v): %v", cgroupFile, err)
 			continue

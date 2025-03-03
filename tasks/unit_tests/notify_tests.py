@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -32,6 +33,7 @@ def get_github_slack_map():
 
 class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('builtins.print')
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
@@ -53,6 +55,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('tasks.libs.notify.pipeline_status.get_failed_jobs')
@@ -208,6 +211,7 @@ class TestSendMessage(unittest.TestCase):
         self.assertNotIn("@DataDog/agent-delivery", owners)
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
@@ -232,6 +236,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch.dict('os.environ', {'DEPLOY_AGENT': 'true', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'hihan'})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
@@ -257,6 +262,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch('builtins.print')
@@ -282,6 +288,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.assert_called()
 
     @patch('tasks.libs.pipeline.notifications.get_pr_from_commit', new=MagicMock(return_value=""))
+    @patch('tasks.libs.notify.pipeline_status.get_jobs_skipped_on_pr', new=MagicMock(return_value=([], "")))
     @patch('slack_sdk.WebClient', new=MagicMock())
     @patch.dict(
         'os.environ',
@@ -395,3 +402,21 @@ class TestJobOwners(unittest.TestCase):
                 ('@DataDog/team-everything', {'this_is_a_test', 'hello_world'}),
             ],
         )
+
+
+class TestFailureSummarySendNotifications(unittest.TestCase):
+    @patch.dict('os.environ', {'CI_PIPELINE_CREATED_AT': '2025-02-07T11:11:11.111Z'})
+    @patch('builtins.print')
+    def test_ignore_non_scheduled_conductor(self, print_mock):
+        notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
+        print_mock.assert_called_with(
+            "Failure summary notifications are only sent during the conductor scheduled pipeline, skipping",
+            file=sys.stderr,
+        )
+
+    @patch.dict('os.environ', {'CI_PIPELINE_CREATED_AT': '2025-02-07T06:11:11.111Z'})
+    @patch('tasks.notify.failure_summary', new=MagicMock())
+    @patch('builtins.print')
+    def test_sheduled_conductor(self, print_mock):
+        notify.failure_summary_send_notifications(MockContext(), daily_summary=True)
+        print_mock.assert_not_called()

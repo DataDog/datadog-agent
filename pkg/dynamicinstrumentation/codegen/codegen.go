@@ -128,9 +128,30 @@ func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpr
 		}
 		queue = append(queue, top.ParameterPieces...)
 		if len(top.LocationExpressions) > 0 {
-			collectedExpressions = append(top.LocationExpressions, collectedExpressions...)
+			expressions := []ditypes.LocationExpression{}
+			for i := range top.LocationExpressions {
+				expressions = append(expressions, collectSubLocationExpressions(top.LocationExpressions[i])...)
+			}
+			collectedExpressions = append(expressions, collectedExpressions...)
 			top.LocationExpressions = []ditypes.LocationExpression{}
 		}
+	}
+	return collectedExpressions
+}
+
+func collectSubLocationExpressions(location ditypes.LocationExpression) []ditypes.LocationExpression {
+	collectedExpressions := []ditypes.LocationExpression{}
+	queue := []ditypes.LocationExpression{location}
+	var top ditypes.LocationExpression
+
+	for len(queue) != 0 {
+		top = queue[0]
+		queue = queue[1:]
+		queue = append(queue, top.IncludedExpressions...)
+		if top.Opcode != ditypes.OpPopPointerAddress {
+			collectedExpressions = append(collectedExpressions, top)
+		}
+		top.IncludedExpressions = []ditypes.LocationExpression{}
 	}
 	return collectedExpressions
 }
@@ -203,6 +224,10 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not generate header text for underlying slice element type: %w", err)
 	}
+	if slice == nil || len(slice.ParameterPieces) == 0 || slice.ParameterPieces[1] == nil {
+		return fmt.Errorf("could not read slice length parameter")
+	}
+	excludePopPointerAddressExpressions(&slice.ParameterPieces[1].LocationExpressions)
 	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{slice.ParameterPieces[1]}, lenHeaderBuf)
 	if err != nil {
 		return err
@@ -241,6 +266,10 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not execute template for generating string header: %w", err)
 	}
+	if stringParam == nil || len(stringParam.ParameterPieces) == 0 || stringParam.ParameterPieces[1] == nil {
+		return fmt.Errorf("could not read string length parameter")
+	}
+	excludePopPointerAddressExpressions(&stringParam.ParameterPieces[1].LocationExpressions)
 	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{stringParam.ParameterPieces[1]}, out)
 	if err != nil {
 		return err
@@ -249,6 +278,19 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 		stringParam.ParameterPieces[1].LocationExpressions = []ditypes.LocationExpression{}
 	}
 	return nil
+}
+
+func excludePopPointerAddressExpressions(expressions *[]ditypes.LocationExpression) {
+	if expressions == nil {
+		return
+	}
+	filteredExpressions := []ditypes.LocationExpression{}
+	for i := range *expressions {
+		if (*expressions)[i].Opcode != ditypes.OpPopPointerAddress {
+			filteredExpressions = append(filteredExpressions, (*expressions)[i])
+		}
+	}
+	*expressions = filteredExpressions
 }
 
 type sliceHeaderWrapper struct {

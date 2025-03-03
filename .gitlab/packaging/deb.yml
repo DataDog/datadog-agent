@@ -90,7 +90,7 @@ ot_agent_deb-x64-a7:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-ot-agent-7-x64"]
+  needs: ["datadog-agent-7-x64", "datadog-otel-agent-x64"]
   variables:
     DD_PROJECT: "agent"
 
@@ -99,7 +99,7 @@ ot_agent_deb-arm64-a7:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-ot-agent-7-arm64"]
+  needs: ["datadog-agent-7-arm64", "datadog-otel-agent-arm64"]
   variables:
     DD_PROJECT: "agent"
 

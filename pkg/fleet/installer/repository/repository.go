@@ -7,14 +7,12 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
-
-	"github.com/DataDog/gopsutil/process"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,6 +26,11 @@ var (
 	errRepositoryNotCreated = errors.New("repository not created")
 )
 
+// PreRemoveHook are called before a package is removed.  It returns a boolean
+// indicating if the package files can be deleted safely and an error if an error happened
+// when running the hook.
+type PreRemoveHook func(context.Context, string) (bool, error)
+
 // Repository contains the stable and experimental package of a single artifact managed by the updater.
 //
 // On disk the repository is structured as follows:
@@ -37,13 +40,6 @@ var (
 // ├── stable -> 7.50.0 (symlink)
 // └── experiment -> 7.51.0 (symlink)
 //
-// and the locks directory (if any) is structured as follows:
-// .
-// ├── 7.50.0
-// │   └── 1234
-// ├── 7.51.0
-// │   └── 5678
-//
 // We voluntarily do not load the state of the repository in memory to avoid any bugs where
 // what's on disk and what's in memory are not in sync.
 // All the functions of the repository are "atomic" and ensure no invalid state can be reached
@@ -51,11 +47,8 @@ var (
 // It is possible to end up with garbage left on disk if an error happens during some operations. This
 // is cleaned up during the next operation.
 type Repository struct {
-	rootPath string
-
-	// locksPath is the path to the locks directory
-	// containing the PIDs of the processes using the packages.
-	locksPath string
+	rootPath       string
+	preRemoveHooks map[string]PreRemoveHook
 }
 
 // State is the state of the repository.
@@ -86,7 +79,7 @@ func (r *Repository) ExperimentFS() fs.FS {
 
 // GetState returns the state of the repository.
 func (r *Repository) GetState() (State, error) {
-	repository, err := readRepository(r.rootPath, r.locksPath)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if errors.Is(err, errRepositoryNotCreated) {
 		return State{}, nil
 	}
@@ -112,18 +105,18 @@ func (r *Repository) GetState() (State, error) {
 // 2. Create the root directory.
 // 3. Move the stable source to the repository.
 // 4. Create the stable link.
-func (r *Repository) Create(name string, stableSourcePath string) error {
+func (r *Repository) Create(ctx context.Context, name string, stableSourcePath string) error {
 	err := os.MkdirAll(r.rootPath, 0755)
 	if err != nil {
 		return fmt.Errorf("could not create packages root directory: %w", err)
 	}
 
-	repository, err := readRepository(r.rootPath, r.locksPath)
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
 
-	// Remove symlinks as we are bootstrapping
+	// Remove symlinks as we are (re)-installing the package
 	if repository.experiment.Exists() {
 		err = repository.experiment.Delete()
 		if err != nil {
@@ -137,23 +130,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		}
 	}
 
-	// Remove left-over locks paths
-	packageLocksPaths, err := os.ReadDir(r.locksPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("could not read locks directory: %w", err)
-	}
-	for _, pkg := range packageLocksPaths {
-		pkgRootPath := filepath.Join(r.rootPath, pkg.Name())
-		pkgLocksPath := filepath.Join(r.locksPath, pkg.Name())
-		if _, err := os.Stat(pkgRootPath); err != nil && errors.Is(err, os.ErrNotExist) {
-			err = os.RemoveAll(pkgLocksPath)
-			if err != nil {
-				log.Errorf("could not remove package %s locks directory, will retry at next startup: %v", pkgLocksPath, err)
-			}
-		}
-	}
-
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -169,17 +146,64 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	return nil
 }
 
+// Delete deletes the repository.
+//
+// 1. Remove the stable and experiment links.
+// 2. Cleanup the repository to remove all package versions after running the pre-remove hooks.
+// 3. Remove the root directory.
+func (r *Repository) Delete(ctx context.Context) error {
+	// Remove symlinks first so that cleanup will attempt to remove all package versions
+	repositoryFiles, err := readRepository(r.rootPath, r.preRemoveHooks)
+	if err != nil {
+		return err
+	}
+	if repositoryFiles.experiment.Exists() {
+		err = repositoryFiles.experiment.Delete()
+		if err != nil {
+			return fmt.Errorf("could not delete experiment link: %w", err)
+		}
+	}
+	if repositoryFiles.stable.Exists() {
+		err = repositoryFiles.stable.Delete()
+		if err != nil {
+			return fmt.Errorf("could not delete stable link: %w", err)
+		}
+	}
+
+	// Delete all package versions
+	err = r.Cleanup(ctx)
+	if err != nil {
+		return fmt.Errorf("could not cleanup repository for package %w", err)
+	}
+
+	files, err := os.ReadDir(r.rootPath)
+	if err != nil {
+		return fmt.Errorf("could not read root directory: %w", err)
+	}
+
+	if len(files) > 0 {
+		return fmt.Errorf("could not delete root directory, not empty after cleanup")
+	}
+
+	// Delete the repository directory
+	err = os.RemoveAll(r.rootPath)
+	if err != nil {
+		return fmt.Errorf("could not delete root directory for package %w", err)
+	}
+	return nil
+}
+
 // SetExperiment moves package files from the given source path to the repository and sets it as the experiment.
 //
 // 1. Cleanup the repository.
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
-func (r *Repository) SetExperiment(name string, sourcePath string) error {
-	repository, err := readRepository(r.rootPath, r.locksPath)
+func (r *Repository) SetExperiment(ctx context.Context, name string, sourcePath string) error {
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -201,12 +225,12 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 1. Cleanup the repository.
 // 2. Set the stable link to the experiment package. The experiment link stays in place.
 // 3. Cleanup the repository to remove the previous stable package.
-func (r *Repository) PromoteExperiment() error {
-	repository, err := readRepository(r.rootPath, r.locksPath)
+func (r *Repository) PromoteExperiment(ctx context.Context) error {
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -223,13 +247,7 @@ func (r *Repository) PromoteExperiment() error {
 	if err != nil {
 		return fmt.Errorf("could not set stable: %w", err)
 	}
-
-	// Read repository again to re-load the list of locked packages
-	repository, err = readRepository(r.rootPath, r.locksPath)
-	if err != nil {
-		return err
-	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -241,12 +259,12 @@ func (r *Repository) PromoteExperiment() error {
 // 1. Cleanup the repository.
 // 2. Sets the experiment link to the stable link.
 // 3. Cleanup the repository to remove the previous experiment package.
-func (r *Repository) DeleteExperiment() error {
-	repository, err := readRepository(r.rootPath, r.locksPath)
+func (r *Repository) DeleteExperiment(ctx context.Context) error {
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -260,13 +278,7 @@ func (r *Repository) DeleteExperiment() error {
 	if err != nil {
 		return fmt.Errorf("could not set experiment to stable: %w", err)
 	}
-
-	// Read repository again to re-load the list of locked packages
-	repository, err = readRepository(r.rootPath, r.locksPath)
-	if err != nil {
-		return err
-	}
-	err = repository.cleanup()
+	err = repository.cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
@@ -274,24 +286,23 @@ func (r *Repository) DeleteExperiment() error {
 }
 
 // Cleanup calls the cleanup function of the repository
-func (r *Repository) Cleanup() error {
-	repository, err := readRepository(r.rootPath, r.locksPath)
+func (r *Repository) Cleanup(ctx context.Context) error {
+	repository, err := readRepository(r.rootPath, r.preRemoveHooks)
 	if err != nil {
 		return err
 	}
-	return repository.cleanup()
+	return repository.cleanup(ctx)
 }
 
 type repositoryFiles struct {
 	rootPath       string
-	locksPath      string
-	lockedPackages map[string]bool
+	preRemoveHooks map[string]PreRemoveHook
 
 	stable     *link
 	experiment *link
 }
 
-func readRepository(rootPath string, locksPath string) (*repositoryFiles, error) {
+func readRepository(rootPath string, preRemoveHooks map[string]PreRemoveHook) (*repositoryFiles, error) {
 	stableLink, err := newLink(filepath.Join(rootPath, stableVersionLink))
 	if err != nil {
 		return nil, fmt.Errorf("could not load stable link: %w", err)
@@ -301,36 +312,16 @@ func readRepository(rootPath string, locksPath string) (*repositoryFiles, error)
 		return nil, fmt.Errorf("could not load experiment link: %w", err)
 	}
 
-	// List locked packages
-	packages, err := os.ReadDir(rootPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, errRepositoryNotCreated
-	}
-	if err != nil {
-		return nil, fmt.Errorf("could not read root directory: %w", err)
-	}
-	lockedPackages := map[string]bool{}
-	for _, pkg := range packages {
-		pkgLocksPath := filepath.Join(locksPath, pkg.Name())
-		isLocked, err := packageLocked(pkgLocksPath)
-		if err != nil {
-			log.Errorf("could not check if package version is in use: %v", err)
-			continue
-		}
-		lockedPackages[pkg.Name()] = isLocked
-	}
-
 	return &repositoryFiles{
 		rootPath:       rootPath,
-		locksPath:      locksPath,
-		lockedPackages: lockedPackages,
+		preRemoveHooks: preRemoveHooks,
 		stable:         stableLink,
 		experiment:     experimentLink,
 	}, nil
 }
 
 func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
+	path, err := movePackageFromSource(name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
 	}
@@ -344,7 +335,7 @@ func (r *repositoryFiles) setExperimentToStable() error {
 }
 
 func (r *repositoryFiles) setStable(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
+	path, err := movePackageFromSource(name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
 	}
@@ -352,20 +343,15 @@ func (r *repositoryFiles) setStable(name string, sourcePath string) error {
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
+func movePackageFromSource(packageName string, rootPath string, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", fmt.Errorf("invalid package name")
 	}
 	targetPath := filepath.Join(rootPath, packageName)
 	_, err := os.Stat(targetPath)
 	if err == nil {
-		// Check if we have long running processes using the package
-		// If yes, the GC left the package in place so we don't reinstall it, but
-		// we don't throw an error either.
-		// If not, the GC should have removed the packages so we error.
-		if lockedPackages[packageName] {
-			return targetPath, nil
-		}
+		// TODO: Do we want to differentiate between packages that cannot be deleted
+		// due to the pre-remove hook and other reasons?
 		return "", fmt.Errorf("target package already exists")
 	}
 	if !errors.Is(err, os.ErrNotExist) {
@@ -381,7 +367,7 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 	return targetPath, nil
 }
 
-func (r *repositoryFiles) cleanup() error {
+func (r *repositoryFiles) cleanup(ctx context.Context) error {
 	// migrate old repositories that are missing the experiment link
 	if r.stable.Exists() && !r.experiment.Exists() {
 		err := r.setExperimentToStable()
@@ -396,9 +382,9 @@ func (r *repositoryFiles) cleanup() error {
 		return fmt.Errorf("could not read root directory: %w", err)
 	}
 
-	// For each version, get the running PIDs. These PIDs are written by the injector.
-	// The injector is ran directly with the service as it's a LD_PRELOAD, and has access
-	// to the PIDs.
+	// for all versions that are not stable or experiment:
+	// - if no pre-remove hook is configured, delete the package
+	// - if a pre-remove hook is configured, run the hook and delete the package only if the hook returns true
 	for _, file := range files {
 		isLink := file.Name() == stableVersionLink || file.Name() == experimentVersionLink
 		isStable := r.stable.Exists() && r.stable.Target() == file.Name()
@@ -407,63 +393,27 @@ func (r *repositoryFiles) cleanup() error {
 			continue
 		}
 
-		if !r.lockedPackages[file.Name()] {
-			// Package isn't locked, remove it
-			pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
-			pkgLocksPath := filepath.Join(r.locksPath, file.Name())
-			log.Debugf("package %s isn't locked, removing it", pkgRepositoryPath)
-			if err := os.RemoveAll(pkgRepositoryPath); err != nil {
-				log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
+		pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
+		pkgName := filepath.Base(r.rootPath)
+
+		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
+			canDelete, err := pkgHook(ctx, pkgRepositoryPath)
+			if err != nil {
+				log.Errorf("Pre-remove hook for package %s returned an error: %v", pkgRepositoryPath, err)
 			}
-			if err := os.RemoveAll(pkgLocksPath); err != nil {
-				log.Errorf("could not remove package %s locks directory, will retry: %v", pkgLocksPath, err)
+			// if there is an error, the hook still decides if the package can be deleted
+			if !canDelete {
+				continue
 			}
+		}
+
+		log.Debugf("Removing package %s", pkgRepositoryPath)
+		if err := os.RemoveAll(pkgRepositoryPath); err != nil {
+			log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 		}
 	}
 
 	return nil
-}
-
-// packageLocked checks if the given package version is in use
-// by checking if there are PIDs corresponding to running processes
-// in the locks directory.
-func packageLocked(packagePIDsPath string) (bool, error) {
-	pids, err := os.ReadDir(packagePIDsPath)
-	if errors.Is(err, os.ErrNotExist) {
-		log.Debugf("package locks directory does not exist, no running PIDs")
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("could not read locks directory: %w", err)
-	}
-
-	// For each PID, check if it's running
-	for _, rawPID := range pids {
-		pid, err := strconv.ParseInt(rawPID.Name(), 10, 64)
-		if err != nil {
-			log.Errorf("could not parse PID: %v", err)
-			continue
-		}
-
-		processUsed, err := process.PidExists(int32(pid))
-		if err != nil {
-			log.Errorf("could not find process with PID %d: %v", pid, err)
-			continue
-		}
-
-		if processUsed {
-			return true, nil
-		}
-
-		// PIDs can be re-used, so if the process isn't running we remove the file
-		log.Debugf("process with PID %d is stopped, removing PID file", pid)
-		err = os.Remove(filepath.Join(packagePIDsPath, fmt.Sprint(pid)))
-		if err != nil {
-			log.Errorf("could not remove PID file: %v", err)
-		}
-	}
-
-	return false, nil
 }
 
 type link struct {
