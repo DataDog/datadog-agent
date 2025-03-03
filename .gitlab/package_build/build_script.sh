@@ -128,6 +128,11 @@ if [ "$1" = SETUP_RUNNER ]; then
     brew install DataDog/datadog-agent-macos-build/gimme@$GIMME_VERSION -f
     brew link --overwrite gimme@$GIMME_VERSION
 
+    # TODO A: Add it in the runner
+    echo Install extra packages
+    brew install binutils
+    brew install gmp
+
     exit
 fi
 
