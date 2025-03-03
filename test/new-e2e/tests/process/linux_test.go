@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type linuxTestSuite struct {
@@ -31,6 +34,7 @@ func TestLinuxTestSuite(t *testing.T) {
 
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
+		e2e.WithDevMode(),
 	}
 
 	e2e.Run(t, &linuxTestSuite{}, options...)
@@ -42,6 +46,38 @@ func (s *linuxTestSuite) SetupSuite() {
 	// Start a process and keep it running
 	s.Env().RemoteHost.MustExecute("sudo apt-get -y install stress")
 	s.Env().RemoteHost.MustExecute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
+}
+
+func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
+	t := s.T()
+	s.Env().RemoteHost.MkdirAll("/tmp/test-secret")
+
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
+	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+
+	s.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithAgentOptions(
+				agentparams.WithAgentConfig(processAgentRefreshStr),
+				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+				agentparams.WithSkipAPIKeyInConfig(),
+			),
+		),
+	)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
+		t.Logf("statusMap: %+v", statusMap)
+		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
+			// Original key is obfuscated to the last 5 characters
+			assert.Equal(collect, key, "23456")
+		}
+	}, 2*time.Minute, 10*time.Second)
+
+	// API key refresh
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
 }
 
 func (s *linuxTestSuite) TestProcessCheck() {
