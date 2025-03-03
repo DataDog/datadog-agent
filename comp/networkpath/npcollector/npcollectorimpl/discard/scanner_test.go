@@ -121,7 +121,7 @@ func TestCombos(t *testing.T) {
 			"bad path, 3 hops (too long)",
 			testCase{baseConfig, badPath3Hops, false},
 		},
-		// public IPs don't get discarded by default
+		// public IPs don't get discarded
 		{
 			"bad path on public IP",
 			testCase{baseConfig, badPath1HopPublic, false},
