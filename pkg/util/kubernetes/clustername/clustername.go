@@ -136,9 +136,8 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 				log.Infof("Putting cluster name %q in lowercase, became: %q", data.clusterName, lower)
 				data.clusterName = lower
 			}
+			data.initDone = true
 		}
-
-		data.initDone = true
 	}
 
 	return data.clusterName
