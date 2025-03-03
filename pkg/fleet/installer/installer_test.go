@@ -290,9 +290,7 @@ func TestNoOutsideImport(t *testing.T) {
 	// Define the unwanted import path
 	datadogAgentPrefix := "github.com/DataDog/datadog-agent/"
 	allowedPaths := []string{
-		"pkg/fleet/bootstrapper",
 		"pkg/fleet/installer",
-		"pkg/fleet/internal",
 		"pkg/version",  // TODO: cleanup & remove
 		"pkg/util/log", // TODO: cleanup & remove
 	}

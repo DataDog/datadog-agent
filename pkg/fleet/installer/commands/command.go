@@ -139,6 +139,7 @@ func RootCommands() []*cobra.Command {
 	return []*cobra.Command{
 		InstallCommand(),
 		SetupCommand(),
+		BootstrapCommand(),
 		RemoveCommand(),
 		InstallExperimentCommand(),
 		RemoveExperimentCommand(),

@@ -3,15 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package bootstrapper provides the installer bootstrapper commands.
-package bootstrapper
+package commands
 
 import (
 	"net/url"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
-	installer "github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/spf13/cobra"
 )
 
@@ -46,11 +44,11 @@ const (
 )
 
 type bootstrapperCmd struct {
-	*installer.Cmd
+	*Cmd
 }
 
 func newBootstrapperCmd(operation string) *bootstrapperCmd {
-	cmd := installer.NewCmd(operation)
+	cmd := NewCmd(operation)
 	cmd.Span.SetTag("env.DD_UPGRADE", os.Getenv(envUpgrade))
 	cmd.Span.SetTag("env.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
 	cmd.Span.SetTag("env.DD_SYSTEM_PROBE_ENSURE_CONFIG", os.Getenv(envSystemProbeEnsureConfig))
@@ -101,7 +99,7 @@ func BootstrapCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			b := newBootstrapperCmd("bootstrap")
 			defer func() { b.Stop(err) }()
-			return bootstrapper.Bootstrap(b.Ctx, b.Env)
+			return bootstrap.Bootstrap(b.Ctx, b.Env)
 		},
 	}
 	return cmd
