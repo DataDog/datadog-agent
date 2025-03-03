@@ -155,8 +155,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		connectionProtocolMap: connectionProtocolMap,
 	}
 
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr)
-
 	if err := program.initProtocols(c); err != nil {
 		return nil, err
 	}
@@ -226,8 +224,8 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
-		func(protocols.Protocol, *manager.Manager) {})
+		func(protocol protocols.Protocol) error { return protocol.PreStart() },
+		func(protocols.Protocol) {})
 
 	// No protocols could be enabled, abort.
 	if len(e.enabledProtocols) == 0 {
@@ -240,8 +238,8 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "post-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
-		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
+		func(protocol protocols.Protocol) error { return protocol.PostStart() },
+		func(protocol protocols.Protocol) { protocol.Stop() })
 
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
@@ -273,8 +271,8 @@ func (e *ebpfProgram) Close() error {
 	for _, rb := range e.RingBuffers {
 		err = errors.Join(err, rb.Stop(manager.CleanAll))
 	}
-	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
-		protocol.Stop(m)
+	stopProtocolWrapper := func(protocol protocols.Protocol) error {
+		protocol.Stop()
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
@@ -427,7 +425,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
 	options.TailCallRouter = e.tailCallRouter
 	for _, p := range supported {
-		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
+		p.Instance.ConfigureOptions(&options)
 	}
 	if e.cfg.InternalTelemetryEnabled {
 		for _, pm := range e.PerfMaps {
@@ -549,14 +547,14 @@ func (e *ebpfProgram) getProtocolStats() (map[protocols.ProtocolType]interface{}
 // executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
 // If the callback failed, then we call the error callback (`errorCb`). Eventually returning a list of protocols which
 // successfully executed the callback.
-func (e *ebpfProgram) executePerProtocol(protocolList []*protocols.ProtocolSpec, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, errorCb func(protocols.Protocol, *manager.Manager)) []*protocols.ProtocolSpec {
+func (e *ebpfProgram) executePerProtocol(protocolList []*protocols.ProtocolSpec, phaseName string, cb func(protocols.Protocol) error, errorCb func(protocols.Protocol)) []*protocols.ProtocolSpec {
 	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
 	// we'll keep in a temporary copy and return it at the end.
 	res := make([]*protocols.ProtocolSpec, 0)
 	for _, protocol := range protocolList {
-		if err := cb(protocol.Instance, e.Manager.Manager); err != nil {
+		if err := cb(protocol.Instance); err != nil {
 			if errorCb != nil {
-				errorCb(protocol.Instance, e.Manager.Manager)
+				errorCb(protocol.Instance)
 			}
 			log.Errorf("could not complete %q phase of %q monitoring: %s", phaseName, protocol.Instance.Name(), err)
 			continue
@@ -586,7 +584,7 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 	e.disabledProtocols = make([]*protocols.ProtocolSpec, 0)
 
 	for _, spec := range knownProtocols {
-		protocol, err := spec.Factory(c)
+		protocol, err := spec.Factory(e.Manager.Manager, c)
 		if err != nil {
 			return &errNotSupported{err}
 		}
