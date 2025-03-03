@@ -7,20 +7,16 @@ package defaultforwarder
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptrace"
 	"sync"
-	"time"
 
 	"golang.org/x/sync/semaphore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // Worker consumes Transaction (aka transactions) from the Forwarder and
@@ -39,7 +35,7 @@ type Worker struct {
 	// RequeueChan is the channel used to send failed transaction back to the Forwarder.
 	RequeueChan chan<- transaction.Transaction
 
-	resetConnectionChan   chan struct{}
+	resetConnectionChan   chan *http.Client
 	stopped               chan struct{}
 	blockedList           *blockedEndpoints
 	pointSuccessfullySent PointSuccessfullySent
@@ -68,7 +64,7 @@ func NewWorker(
 	requeueChan chan<- transaction.Transaction,
 	blocked *blockedEndpoints,
 	pointSuccessfullySent PointSuccessfullySent,
-	isLocal bool,
+	httpClient *http.Client,
 	maxConcurrentRequests int64,
 ) *Worker {
 	var maxConcurrentRequestsSem *semaphore.Weighted
@@ -85,67 +81,16 @@ func NewWorker(
 		HighPrio:              highPrioChan,
 		LowPrio:               lowPrioChan,
 		RequeueChan:           requeueChan,
-		resetConnectionChan:   make(chan struct{}, 1),
+		resetConnectionChan:   make(chan *http.Client, 1),
 		stopped:               make(chan struct{}),
-		Client:                NewHTTPClient(config, log),
+		Client:                httpClient,
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
-		isLocal:               isLocal,
 		maxConcurrentRequests: maxConcurrentRequestsSem,
 		workerCtx:             workerCtx,
 		cancel:                cancel,
 	}
-	if isLocal {
-		worker.Client = newBearerAuthHTTPClient()
-	}
 	return worker
-}
-
-// NewHTTPClient creates a new http.Client
-func NewHTTPClient(config config.Component, log log.Component) *http.Client {
-	var transport *http.Transport
-
-	transportConfig := config.Get("forwarder_http_protocol")
-
-	switch transportConfig {
-	case "http1":
-		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(1))
-	case "auto":
-		fallthrough
-	default:
-		if transportConfig != "auto" && log != nil {
-			// The diagnose package calls this function and doesn't have access to a logger,
-			// so we need to check if one is provided.
-			log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
-		}
-		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(1))
-	}
-
-	return &http.Client{
-		Timeout:   config.GetDuration("forwarder_timeout") * time.Second,
-		Transport: transport,
-	}
-}
-
-func newBearerAuthHTTPClient() *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   1 * time.Second,
-				KeepAlive: 20 * time.Second,
-			}).DialContext,
-			ForceAttemptHTTP2:     false,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-			TLSHandshakeTimeout:   5 * time.Second,
-			MaxConnsPerHost:       1,
-			MaxIdleConnsPerHost:   1,
-			IdleConnTimeout:       60 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-			ResponseHeaderTimeout: 3 * time.Second,
-		},
-		Timeout: 10 * time.Second,
-	}
 }
 
 // Stop stops the worker.
@@ -211,9 +156,9 @@ func (w *Worker) Start() {
 
 // ScheduleConnectionReset allows signaling the worker that all connections should
 // be recreated before sending the next transaction. Returns immediately.
-func (w *Worker) ScheduleConnectionReset() {
+func (w *Worker) ScheduleConnectionReset(client *http.Client) {
 	select {
-	case w.resetConnectionChan <- struct{}{}:
+	case w.resetConnectionChan <- client:
 	default:
 		// a reset is already planned, we can ignore this one
 	}
@@ -248,8 +193,8 @@ func (w *Worker) releaseRequestSemaphore() {
 func (w *Worker) callProcess(t transaction.Transaction) error {
 	// poll for connection reset events first
 	select {
-	case <-w.resetConnectionChan:
-		w.resetConnections()
+	case client := <-w.resetConnectionChan:
+		w.Client = client
 	default:
 	}
 
@@ -295,18 +240,5 @@ func (w *Worker) requeue(t transaction.Transaction) {
 	case w.RequeueChan <- t:
 	default:
 		w.log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
-	}
-}
-
-// resetConnections resets the connections by replacing the HTTP client used by
-// the worker, in order to create new connections when the next transactions are processed.
-// It must not be called while a transaction is being processed.
-func (w *Worker) resetConnections() {
-	w.log.Debug("Resetting worker's connections")
-	w.Client.CloseIdleConnections()
-	if w.isLocal {
-		w.Client = newBearerAuthHTTPClient()
-	} else {
-		w.Client = NewHTTPClient(w.config, w.log)
 	}
 }
