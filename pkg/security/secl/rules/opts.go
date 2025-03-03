@@ -13,6 +13,7 @@ import (
 )
 
 // VariableProvider is the interface implemented by SECL variable providers
+// (Should be named VariableValueProvider)
 type VariableProvider interface {
 	NewSECLVariable(name string, value interface{}, opts eval.VariableOpts) (eval.SECLVariable, error)
 }
@@ -81,18 +82,7 @@ func NewRuleOpts(eventTypeEnabled map[eval.EventType]bool) *Opts {
 	var ruleOpts Opts
 	ruleOpts.
 		WithEventTypeEnabled(eventTypeEnabled).
-		WithStateScopes(map[Scope]VariableProviderFactory{
-			"process": func() VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
-					return ctx.Event.(*model.Event).ProcessCacheEntry
-				})
-			},
-			"container": func() VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
-					return ctx.Event.(*model.Event).ContainerContext
-				})
-			},
-		})
+		WithStateScopes(getStateScopes())
 
 	return &ruleOpts
 }
