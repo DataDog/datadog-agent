@@ -56,7 +56,6 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
@@ -218,7 +217,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return demuxInstance.Serializer()
 				}),
 				metadatarunnerimpl.Module(),
-				resourcesimpl.Module(),
 				dcametadatafx.Module(),
 			)
 		},

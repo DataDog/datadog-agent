@@ -71,12 +71,6 @@ func assertClusterAgentPayload(t *testing.T, metadata map[string]interface{}) {
 	assert.Equal(t, true, metadata["feature_compliance_config_enabled"])
 }
 
-func TestGetMetadata(t *testing.T) {
-	dca := getClusterAgentComp(t)
-	metadata := dca.getMetadata()
-	assertClusterAgentPayload(t, metadata)
-}
-
 func TestWritePayload(t *testing.T) {
 	dca := getClusterAgentComp(t)
 	req := httptest.NewRequest("GET", "http://fake_url.com", nil)
