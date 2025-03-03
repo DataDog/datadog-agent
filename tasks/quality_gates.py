@@ -4,7 +4,6 @@ import traceback
 import typing
 
 import yaml
-import json
 from invoke import task
 
 from tasks.github_tasks import pr_commenter
@@ -205,7 +204,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     )
 
     # Create pull request
-    milestone_version = github.latest_unreleased_release_branches()[0].replace("x","0")
+    milestone_version = list(github.latest_unreleased_release_branches())[0].replace("x", "0")
     return create_release_pr(
         "[automated] Static quality gates threshold update", current_branch.name, branch_name, milestone_version
     )
