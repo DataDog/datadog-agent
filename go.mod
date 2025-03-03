@@ -4,6 +4,12 @@ go 1.23.0
 
 toolchain go1.23.6
 
+// Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
+// This was causing errors with AWS Network Firewall
+// See https://github.com/DataDog/datadog-agent/issues/34323 for details.
+// This will be revisited once we update to 1.24.x
+godebug tlskyber=0
+
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
 // that retracts itself and the previous version.
@@ -77,7 +83,7 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/cri-o/ocicni v0.4.3
-	github.com/cyphar/filepath-securejoin v0.3.6
+	github.com/cyphar/filepath-securejoin v0.4.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/docker/go-connections v0.5.0
@@ -219,7 +225,6 @@ require (
 	k8s.io/metrics v0.31.2
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/custom-metrics-apiserver v1.30.1-0.20241105195130-84dc8cfe2555
-
 )
 
 require (
@@ -414,7 +419,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/mod v0.23.0
-	golang.org/x/oauth2 v0.26.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/term v0.29.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 	google.golang.org/api v0.199.0 // indirect
@@ -606,7 +611,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.63.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.62.2
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v1.0.0
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.62.2
@@ -616,7 +621,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.63.0
 	github.com/DataDog/datadog-agent/pkg/version v0.63.0
 	github.com/DataDog/go-libddwaf/v3 v3.5.2
-	github.com/DataDog/go-sqllexer v0.0.21
+	github.com/DataDog/go-sqllexer v0.1.1
 	github.com/Datadog/dublin-traceroute v0.0.2
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.37.6
@@ -639,7 +644,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.4.1
 	github.com/rickar/props v1.0.0
-	github.com/sijms/go-ora/v2 v2.8.19
+	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/swaggest/jsonschema-go v0.3.70
 	github.com/valyala/fastjson v1.6.4
 	github.com/vibrantbyte/go-antpath v1.1.1
@@ -919,7 +924,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // Pull in replacements needed by upstream Trivy
 replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/lebauce/container-artifact
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250224140136-4a9fef618e60
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250228140618-161e65c03586
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 )
 

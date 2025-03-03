@@ -23,9 +23,9 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
-	_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
-	_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.CGroupContext)
-	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.CGroupContext)
+	_ = ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext)
+	_ = ev.FieldHandlers.ResolveCGroupManager(ev, ev.CGroupContext)
+	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, ev.CGroupContext)
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)

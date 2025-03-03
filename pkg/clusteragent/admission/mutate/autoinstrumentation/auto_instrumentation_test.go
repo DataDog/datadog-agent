@@ -38,11 +38,11 @@ const commonRegistry = "gcr.io/datadoghq"
 
 var (
 	defaultLibraries = map[string]string{
-		"java":   "v1.46",
-		"python": "v2.21",
-		"ruby":   "v2.10",
-		"dotnet": "v3.10",
-		"js":     "v5.37",
+		"java":   "v1",
+		"python": "v2",
+		"ruby":   "v2",
+		"dotnet": "v3",
+		"js":     "v5",
 	}
 
 	// TODO: Add new entry when a new language is supported
@@ -65,52 +65,6 @@ func defaultLibrariesFor(languages ...string) map[string]string {
 		out[l] = defaultLibraries[l]
 	}
 	return out
-}
-
-func TestDefaultLibVersions(t *testing.T) {
-	// N.B. This test uses js since there are many major versions.
-	tests := []struct {
-		in, out string
-	}{
-		{
-			in:  "v5",
-			out: defaultLibImageVersions[js],
-		},
-		{
-			in:  "5",
-			out: defaultLibImageVersions[js],
-		},
-		{
-			in:  "default",
-			out: defaultLibImageVersions[js],
-		},
-		{
-			in:  "v1",
-			out: "registry/dd-lib-js-init:v1",
-		},
-		{
-			in:  "v1.0",
-			out: "registry/dd-lib-js-init:v1.0",
-		},
-		{
-			in:  "5.0",
-			out: "registry/dd-lib-js-init:5.0",
-		},
-		{
-			in:  "v5.0",
-			out: "registry/dd-lib-js-init:v5.0",
-		},
-		{
-			in:  "latest",
-			out: "registry/dd-lib-js-init:latest",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%s->%s", tt.in, tt.out), func(t *testing.T) {
-			require.Equal(t, tt.out, js.libImageName("registry", tt.in))
-		})
-	}
 }
 
 func TestInjectAutoInstruConfigV2(t *testing.T) {
@@ -498,22 +452,25 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 }
 
 func TestExtractLibInfo(t *testing.T) {
-	var allLatestDefaultLibs []libInfo
-	for k, v := range defaultLibImageVersions {
-		allLatestDefaultLibs = append(allLatestDefaultLibs, libInfo{
-			lang:  k,
-			image: v,
-		})
+	// TODO: Add new entry when a new language is supported
+	allLatestDefaultLibs := []libInfo{
+		defaultLibInfo(java),
+		defaultLibInfo(js),
+		defaultLibInfo(python),
+		defaultLibInfo(dotnet),
+		defaultLibInfo(ruby),
 	}
 
 	var mockConfig model.Config
 	tests := []struct {
-		name                 string
-		pod                  *corev1.Pod
-		containerRegistry    string
-		expectedLibsToInject []libInfo
-		expectedPodEligible  *bool
-		setupConfig          func()
+		name                   string
+		pod                    *corev1.Pod
+		deployments            []common.MockDeployment
+		assertExtractedLibInfo func(*testing.T, extractedPodLibInfo)
+		containerRegistry      string
+		expectedLibsToInject   []libInfo
+		expectedPodEligible    *bool
+		setupConfig            func()
 	}{
 		{
 			name:              "java",
@@ -522,7 +479,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1.46",
+					image: "registry/dd-lib-java-init:v1",
 				},
 			},
 		},
@@ -533,7 +490,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1.46",
+					image: "registry/dd-lib-java-init:v1",
 				},
 			},
 		},
@@ -544,7 +501,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: fmt.Sprintf("%s/dd-lib-java-init:v1.46", commonRegistry),
+					image: fmt.Sprintf("%s/dd-lib-java-init:v1", commonRegistry),
 				},
 			},
 		},
@@ -606,7 +563,10 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				java.libInfo("", defaultLibImageVersions[java]),
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
 				{
 					lang:  "js",
 					image: "registry/dd-lib-js-init:v1",
@@ -635,7 +595,11 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				java.libInfo("java-app", defaultLibImageVersions[java]),
+				{
+					ctrName: "java-app",
+					lang:    "java",
+					image:   "registry/dd-lib-java-init:v1",
+				},
 				{
 					ctrName: "node-app",
 					lang:    "js",
@@ -762,7 +726,7 @@ func TestExtractLibInfo(t *testing.T) {
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "java",
-					image: "registry/dd-lib-java-init:v1.46",
+					image: "registry/dd-lib-java-init:v1",
 				},
 			},
 		},
@@ -800,10 +764,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: defaultLibImageVersions["java"],
-				},
+				defaultLibInfo(java),
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -834,7 +795,10 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				java.libInfo("", defaultLibImageVersions[java]),
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
 			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -843,13 +807,81 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
+			name: "pod with lang-detection deployment and default libs",
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []common.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			containerRegistry: "registry",
+			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
+				t.Helper()
+				require.Equal(t, &libInfoLanguageDetection{
+					libs: []libInfo{
+						python.defaultLibInfo("registry", "pod"),
+					},
+					injectionEnabled: true,
+				}, i.languageDetection)
+			},
+			expectedLibsToInject: []libInfo{
+				python.defaultLibInfo("registry", "pod"),
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", defaultLibraries)
+				mockConfig.SetWithoutSource("language_detection.enabled", true)
+				mockConfig.SetWithoutSource("language_detection.reporting.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)
+			},
+		},
+		{
+			name: "pod with lang-detection deployment and libs set",
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []common.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			containerRegistry: "registry",
+			assertExtractedLibInfo: func(t *testing.T, i extractedPodLibInfo) {
+				t.Helper()
+				require.Equal(t, &libInfoLanguageDetection{
+					libs:             []libInfo{python.defaultLibInfo("registry", "pod")},
+					injectionEnabled: true,
+				}, i.languageDetection)
+			},
+			expectedLibsToInject: []libInfo{
+				java.defaultLibInfo("registry", ""),
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", defaultLibrariesFor("java"))
+				mockConfig.SetWithoutSource("language_detection.enabled", true)
+				mockConfig.SetWithoutSource("language_detection.reporting.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)
+			},
+		},
+		{
 			name:              "php (opt-in)",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/php-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
-					lang:  php,
-					image: "registry/dd-lib-php-init:v1.6",
+					lang:  "php",
+					image: "registry/dd-lib-php-init:v1",
 				},
 			},
 		},
@@ -868,10 +900,7 @@ func TestExtractLibInfo(t *testing.T) {
 				mockConfig.SetWithoutSource(k, v)
 			}
 
-			wmeta := fxutil.Test[workloadmeta.Component](t,
-				core.MockBundle(),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			)
+			wmeta := common.FakeStoreWithDeployment(t, tt.deployments)
 			mockConfig = configmock.New(t)
 			for k, v := range overrides {
 				mockConfig.SetWithoutSource(k, v)
@@ -891,6 +920,9 @@ func TestExtractLibInfo(t *testing.T) {
 			}
 
 			extracted := mutator.extractLibInfo(tt.pod)
+			if tt.assertExtractedLibInfo != nil {
+				tt.assertExtractedLibInfo(t, extracted)
+			}
 			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
 		})
 	}

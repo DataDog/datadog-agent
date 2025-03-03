@@ -21,6 +21,8 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -67,7 +69,7 @@ type Tracer struct {
 }
 
 // NewTracer returns an initialized tracer struct
-func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, error) {
+func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.ClientInterface) (*Tracer, error) {
 	if err := driver.Start(); err != nil {
 		return nil, fmt.Errorf("error starting driver: %s", err)
 	}
@@ -75,7 +77,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
-		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
+		return nil, errors.New("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
 	} else if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}

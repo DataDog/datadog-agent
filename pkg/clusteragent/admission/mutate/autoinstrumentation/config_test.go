@@ -199,6 +199,103 @@ func TestNewInstrumentationConfig(t *testing.T) {
 	}
 }
 
+func TestLibVersionsEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected map[string]string
+	}{
+		{
+			name: "valid lib versions",
+			expected: map[string]string{
+				"python": "1",
+				"js":     "2",
+				"java":   "3",
+			},
+		},
+		{
+			name:     "empty",
+			expected: map[string]string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_LIB_VERSIONS", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.LibVersions)
+		})
+	}
+}
+
+func TestEnabledNamespacesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "valid namespaces",
+			expected: []string{"foo", "bar"},
+		},
+		{
+			name:     "empty",
+			expected: []string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.EnabledNamespaces)
+		})
+	}
+}
+
+func TestDisabledNamespacesEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected []string
+	}{
+		{
+			name:     "valid namespaces",
+			expected: []string{"default", "kube-system"},
+		},
+		{
+			name:     "empty",
+			expected: []string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.DisabledNamespaces)
+		})
+	}
+}
+
 func TestTargetEnvVar(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -256,6 +353,137 @@ func TestTargetEnvVar(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expected, actual.Targets)
+		})
+	}
+}
+
+func TestGetPinnedLibraries(t *testing.T) {
+	tests := []struct {
+		name          string
+		libVersions   map[string]string
+		checkDefaults bool
+		expected      pinnedLibraries
+	}{
+		{
+			name:     "no pinned library versions",
+			expected: pinnedLibraries{areSetToDefaults: false},
+		},
+		{
+			name:          "no pinned library versions, checkDefaults",
+			checkDefaults: true,
+			expected:      pinnedLibraries{areSetToDefaults: false},
+		},
+		{
+			name:        "default libs, not checking defaults always false",
+			libVersions: defaultLibraries,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+			},
+		},
+		{
+			name:          "default libs",
+			libVersions:   defaultLibraries,
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name:          "default libs, one missing",
+			libVersions:   defaultLibrariesFor("java", "python", "js", "dotnet"),
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+				},
+			},
+		},
+		{
+			name: "explicitly default libs",
+			libVersions: map[string]string{
+				"java":   "default",
+				"python": "default",
+				"js":     "default",
+				"dotnet": "default",
+				"ruby":   "default",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name: "default libs (major versions)",
+			libVersions: map[string]string{
+				"java":   "v1",
+				"python": "v2",
+				"js":     "v5",
+				"dotnet": "v3",
+				"ruby":   "v2",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					defaultLibInfo(js),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: true,
+			},
+		},
+		{
+			name: "default libs (major versions mismatch)",
+			libVersions: map[string]string{
+				"java":   "v1",
+				"python": "v2",
+				"js":     "v3",
+				"dotnet": "v3",
+				"ruby":   "v2",
+			},
+			checkDefaults: true,
+			expected: pinnedLibraries{
+				libs: []libInfo{
+					defaultLibInfo(java),
+					defaultLibInfo(python),
+					js.libInfo("", "registry/dd-lib-js-init:v3"),
+					defaultLibInfo(dotnet),
+					defaultLibInfo(ruby),
+				},
+				areSetToDefaults: false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pinned := getPinnedLibraries(tt.libVersions, "registry", tt.checkDefaults)
+			require.ElementsMatch(t, tt.expected.libs, pinned.libs, "libs match")
+			require.Equal(t, tt.expected.areSetToDefaults, pinned.areSetToDefaults, "areSetToDefaults match")
 		})
 	}
 }

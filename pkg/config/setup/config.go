@@ -371,6 +371,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("flare.rc_profiling.blocking_rate", 0)
 	config.BindEnvAndSetDefault("flare.rc_profiling.mutex_fraction", 0)
 
+	config.BindEnvAndSetDefault("flare.rc_streamlogs.duration", 60*time.Second)
+
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
 	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
@@ -484,6 +486,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_burst_duration", "30s")
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.enabled", true)
 	config.BindEnvAndSetDefault("network_path.collector.reverse_dns_enrichment.timeout", 5000)
+	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -1644,6 +1647,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// SDS logs blocking mechanism
 	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
 	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
+
+	// Max size in MB to allow for integrations logs files
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
+
+	// Control how the stream-logs log file is managed
+	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
+
 }
 
 func vector(config pkgconfigmodel.Setup) {
