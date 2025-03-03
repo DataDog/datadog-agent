@@ -1622,6 +1622,10 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "SysCtlEvent": {
             "properties": {
+                "proc": {
+                    "type": "object",
+                    "description": "Proc contains the /proc system control parameters and their values"
+                },
                 "action": {
                     "type": "string",
                     "description": "action performed on the system control parameter"
@@ -4399,6 +4403,10 @@ CSM Threats event for Linux systems have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
+        "proc": {
+            "type": "object",
+            "description": "Proc contains the /proc system control parameters and their values"
+        },
         "action": {
             "type": "string",
             "description": "action performed on the system control parameter"
@@ -4441,6 +4449,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
+| `proc` | Proc contains the /proc system control parameters and their values |
 | `action` | action performed on the system control parameter |
 | `file_position` | file_position is the position in the sysctl control parameter file at which the action occurred |
 | `name` | name is the name of the system control parameter |
