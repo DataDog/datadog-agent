@@ -515,10 +515,7 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 
 // Start the probe
 func (p *EBPFLessProbe) Start() error {
-	family, address := config.GetFamilyAddress(p.config.RuntimeSecurity.EBPFLessSocket)
-	_ = family
-
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", address)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", p.config.RuntimeSecurity.EBPFLessSocket)
 	if err != nil {
 		return err
 	}

@@ -78,7 +78,11 @@ func (w *FSWalker) WalkDirFunc(root string, fn walker.WalkFunc, opt walker.Optio
 		}
 
 		if !strings.HasPrefix(filePath, "/") {
-			filePath = root + "/" + filePath
+			if strings.HasSuffix(root, "/") {
+				filePath = root + filePath
+			} else {
+				filePath = root + "/" + filePath
+			}
 		}
 
 		relPath, err := filepath.Rel(root, filePath)
