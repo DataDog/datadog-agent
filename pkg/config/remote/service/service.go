@@ -765,7 +765,7 @@ func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse,
 		Targets:       targets,
 		TargetFiles:   nil,
 		ClientConfigs: nil,
-		ConfigStatus:  state.ConfigStatusExpired,
+		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED,
 	}, nil
 }
 
@@ -872,7 +872,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		Targets:       canonicalTargets,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
-		ConfigStatus:  state.ConfigStatusOk,
+		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED,
 	}, nil
 }
 
