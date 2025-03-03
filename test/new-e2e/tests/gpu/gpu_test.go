@@ -179,8 +179,6 @@ func (v *gpuBaseSuite[Env]) TestGPUSysprobeEndpointIsResponding() {
 }
 
 func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
-	flake.Mark(v.T())
-
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
