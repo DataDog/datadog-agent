@@ -714,7 +714,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, &event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -750,8 +750,8 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	entry.Process.ContainerID = ev.ContainerContext.ContainerID
 	entry.ContainerID = ev.ContainerContext.ContainerID
 
-	entry.Process.CGroup.Merge(&ev.CGroupContext)
-	entry.CGroup.Merge(&ev.CGroupContext)
+	entry.Process.CGroup.Merge(ev.CGroupContext)
+	entry.CGroup.Merge(ev.CGroupContext)
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -780,7 +780,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	}
 
 	// do the same with cgroup context
-	event.CGroupContext = event.ProcessCacheEntry.CGroup
+	event.CGroupContext = &event.ProcessCacheEntry.CGroup
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -809,9 +809,9 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 }
 
 func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
-	cgroupContext, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
+	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resorve cgroup for pid %d: %w", pid, err)
+		return nil, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
 	}
 	updated := p.Resolvers.ProcessResolver.UpdateProcessCGroupContext(pid, cgroupContext, newEntryCb)
 	if !updated {
@@ -908,6 +908,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
+			if cgroupContext.CGroupFlags.IsContainer() {
+				containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+				event.CgroupTracing.ContainerContext.ContainerID = containerID
+			}
+
+			event.CGroupContext = cgroupContext
 			p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 		return

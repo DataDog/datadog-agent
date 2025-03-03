@@ -512,6 +512,7 @@ func NewIntArrayVariable(size int, ttl time.Duration) *IntArrayVariable {
 // VariableScope is the interface to be implemented by scoped variable in order to be released
 type VariableScope interface {
 	AppendReleaseCallback(callback func())
+	Hash() string
 }
 
 // Scoper maps a variable to the entity its scoped to
@@ -566,7 +567,7 @@ type MutableSECLVariable interface {
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
 	scoper Scoper
-	vars   map[VariableScope]map[string]MutableSECLVariable
+	vars   map[string]map[string]MutableSECLVariable
 }
 
 // Len returns the length of the variable map
@@ -577,19 +578,22 @@ func (v *ScopedVariables) Len() int {
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
-		v := v.vars[v.scoper(ctx)]
+		scope := v.scoper(ctx)
+		key := scope.Hash()
+		v := v.vars[key]
 		return v[name]
 	}
 
 	setVariable := func(ctx *Context, value interface{}) error {
-		key := v.scoper(ctx)
-		if key == nil {
+		scope := v.scoper(ctx)
+		if scope == nil {
 			return fmt.Errorf("failed to scope variable '%s'", name)
 		}
 
+		key := scope.Hash()
 		vars := v.vars[key]
 		if vars == nil {
-			key.AppendReleaseCallback(func() {
+			scope.AppendReleaseCallback(func() {
 				v.ReleaseVariable(key)
 			})
 
@@ -655,7 +659,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 }
 
 // ReleaseVariable releases a scoped variable
-func (v *ScopedVariables) ReleaseVariable(key VariableScope) {
+func (v *ScopedVariables) ReleaseVariable(key string) {
 	delete(v.vars, key)
 }
 
@@ -663,6 +667,6 @@ func (v *ScopedVariables) ReleaseVariable(key VariableScope) {
 func NewScopedVariables(scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
 		scoper: scoper,
-		vars:   make(map[VariableScope]map[string]MutableSECLVariable),
+		vars:   make(map[string]map[string]MutableSECLVariable),
 	}
 }
