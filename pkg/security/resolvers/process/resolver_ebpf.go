@@ -1496,13 +1496,13 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // UpdateProcessCGroupContext updates the cgroup context and container ID of the process matching the provided PID
-func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
 	pce := p.resolve(pid, pid, 0, false, newEntryCb)
 	if pce == nil {
-		return false
+		return nil
 	}
 
 	pce.Process.CGroup = *cgroupContext
@@ -1512,7 +1512,7 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 		pce.ContainerID = containerID
 		pce.Process.ContainerID = containerID
 	}
-	return true
+	return pce
 }
 
 // NewEBPFResolver returns a new process resolver
