@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package ciscosdwan implements NDM Cisco SD-WAN corecheck
-package ciscosdwan
+// Package versa implements NDM Versa corecheck
+package versa
 
 import (
 	"time"
@@ -15,8 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/report"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/report"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -26,9 +27,10 @@ const (
 	defaultCheckInterval = 1 * time.Minute
 )
 
-// Configuration for the Cisco SD-WAN check
+// Configuration for the Versa check
 type checkCfg struct {
 	// add versa specific fields
+	Name                            string `yaml:"name"` // TODO: remove this field, only added it for testing
 	Namespace                       string `yaml:"namespace"`
 	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
 	MinCollectionInterval           int    `yaml:"min_collection_interval"`
@@ -49,20 +51,23 @@ type VersaCheck struct {
 	core.CheckBase
 	interval      time.Duration
 	config        checkCfg
-	metricsSender *report.SDWanSender
+	metricsSender *report.Sender
 }
 
 // Run executes the check
 func (v *VersaCheck) Run() error {
 
+	log.Infof("Running Versa check for instance: %s", v.config.Name)
+
 	// Commit
-	v.metricsSender.Commit()
+	//v.metricsSender.Commit()
 
 	return nil
 }
 
 // Configure the Versa check
 func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+
 	// Must be called before v.CommonConfigure
 	v.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
@@ -112,7 +117,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
 	}
 
-	v.metricsSender = report.NewSDWanSender(sender, v.config.Namespace)
+	v.metricsSender = report.NewSender(sender, v.config.Namespace)
 
 	return nil
 }
