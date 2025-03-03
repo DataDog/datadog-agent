@@ -415,19 +415,25 @@ func newHTTPPassthroughPipeline(
 
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(strconv.Itoa(pipelineID))
 
-	reliable := []client.Destination{}
-	for i, endpoint := range endpoints.GetReliableEndpoints() {
-		destMeta := client.NewDestinationMetadata(desc.eventType, pipelineMonitor.ID(), "reliable", strconv.Itoa(i))
-		reliable = append(reliable, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, destMeta, pkgconfigsetup.Datadog(), pipelineMonitor))
-	}
-	additionals := []client.Destination{}
-	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
-		destMeta := client.NewDestinationMetadata(desc.eventType, pipelineMonitor.ID(), "unreliable", strconv.Itoa(i))
-		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, destMeta, pkgconfigsetup.Datadog(), pipelineMonitor))
-	}
-	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
-	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+
+	a := auditor.NewNullAuditor()
+	senderImpl := sender.NewSender(
+		coreConfig,
+		a,
+		10,  // Buffer Size
+		nil, // senderDoneChan, required only for serverless
+		nil, // flushWg, required only for serverless
+		endpoints,
+		destinationsContext,
+		nil, // status, required only for tcp endpoint support
+		false,
+		desc.eventType,
+		desc.contentType,
+		sender.DefaultWorkerCount,
+		endpoints.BatchMaxConcurrentSend,
+		endpoints.BatchMaxConcurrentSend,
+	)
 
 	var encoder compressioncommon.Compressor
 	encoder = compressor.NewCompressor("none", 0)
@@ -437,10 +443,10 @@ func newHTTPPassthroughPipeline(
 
 	var strategy sender.Strategy
 	if desc.contentType == logshttp.ProtobufContentType {
-		strategy = sender.NewStreamStrategy(inputChan, senderInput, encoder)
+		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
 		strategy = sender.NewBatchStrategy(inputChan,
-			senderInput,
+			senderImpl.In(),
 			make(chan struct{}),
 			false,
 			nil,
@@ -453,11 +459,10 @@ func newHTTPPassthroughPipeline(
 			pipelineMonitor)
 	}
 
-	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil, pipelineMonitor),
+		sender:                senderImpl,
 		strategy:              strategy,
 		in:                    inputChan,
 		auditor:               a,
