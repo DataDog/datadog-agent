@@ -239,36 +239,32 @@ const (
 	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
 )
 
-var (
-	buildKitProcessName = []byte("buildkitd")
-
-	sharedLibrariesMaps = []*manager.Map{
-		{
-			Name: sslSockByCtxMap,
-		},
-		{
-			Name: "ssl_read_args",
-		},
-		{
-			Name: "ssl_read_ex_args",
-		},
-		{
-			Name: "ssl_write_args",
-		},
-		{
-			Name: "ssl_write_ex_args",
-		},
-		{
-			Name: "bio_new_socket_args",
-		},
-		{
-			Name: "fd_by_ssl_bio",
-		},
-		{
-			Name: sslCtxByPIDTGIDMap,
-		},
-	}
-)
+var sharedLibrariesMaps = []*manager.Map{
+	{
+		Name: sslSockByCtxMap,
+	},
+	{
+		Name: "ssl_read_args",
+	},
+	{
+		Name: "ssl_read_ex_args",
+	},
+	{
+		Name: "ssl_write_args",
+	},
+	{
+		Name: "ssl_write_ex_args",
+	},
+	{
+		Name: "bio_new_socket_args",
+	},
+	{
+		Name: "fd_by_ssl_bio",
+	},
+	{
+		Name: sslCtxByPIDTGIDMap,
+	},
+}
 
 // Template, will be modified during runtime.
 // The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
