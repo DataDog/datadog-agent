@@ -51,7 +51,7 @@ var (
 	tlmHistogramBuckets = telemetry.NewCounter("checks", "histogram_buckets",
 		[]string{"check_name"}, "Histogram buckets count")
 	tlmExecutionTime = telemetry.NewGauge("checks", "execution_time",
-		[]string{"check_name"}, "Check execution time")
+		[]string{"check_name", "check_loader"}, "Check execution time")
 	tlmCheckDelay = telemetry.NewGauge("checks",
 		"delay",
 		[]string{"check_name"},
@@ -100,6 +100,7 @@ type Stats struct {
 	CheckName         string
 	CheckVersion      string
 	CheckConfigSource string
+	CheckLoader       string
 	CheckID           checkid.ID
 	Interval          time.Duration
 	// LongRunning is true if the check is a long running check
@@ -129,6 +130,7 @@ type Stats struct {
 	UpdateTimestamp          int64     // latest update to this instance, unix timestamp in seconds
 	m                        sync.Mutex
 	Telemetry                bool // do we want telemetry on this Check
+	HASupported              bool
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -143,6 +145,10 @@ type StatsCheck interface {
 	Interval() time.Duration
 	// ConfigSource returns the configuration source of the check
 	ConfigSource() string
+	// Loader returns the name of the check loader
+	Loader() string
+	// IsHASupported returns if the check is HA enabled
+	IsHASupported() bool
 }
 
 // NewStats returns a new check stats instance
@@ -150,12 +156,14 @@ func NewStats(c StatsCheck) *Stats {
 	stats := Stats{
 		CheckID:                  c.ID(),
 		CheckName:                c.String(),
+		CheckLoader:              c.Loader(),
 		CheckVersion:             c.Version(),
 		CheckConfigSource:        c.ConfigSource(),
 		Interval:                 c.Interval(),
 		Telemetry:                utils.IsCheckTelemetryEnabled(c.String(), pkgconfigsetup.Datadog()),
 		EventPlatformEvents:      make(map[string]int64),
 		TotalEventPlatformEvents: make(map[string]int64),
+		HASupported:              c.IsHASupported(),
 	}
 
 	// We are interested in a check's run state values even when they are 0 so we
@@ -185,7 +193,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
 	cs.TotalRuns++
 	if cs.Telemetry {
-		tlmExecutionTime.Set(float64(tms), cs.CheckName)
+		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
 	}
 	var totalExecutionTime int64
 	ringSize := cs.TotalRuns
@@ -257,7 +265,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		cs.TotalEventPlatformEvents[k] = cs.TotalEventPlatformEvents[k] + v
 		cs.EventPlatformEvents[k] = v
 	}
-	if haagent != nil && haagent.Enabled() && haagent.IsHaIntegration(cs.CheckName) {
+	if haagent != nil && haagent.Enabled() && cs.HASupported {
 		tlmHaAgentIntegrationRuns.Inc(cs.CheckName, pkgconfigsetup.Datadog().GetString("config_id"))
 	}
 }

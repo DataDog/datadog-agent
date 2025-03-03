@@ -7,6 +7,8 @@
 package config
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	"go.uber.org/fx"
@@ -14,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -97,6 +100,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 	cmd.AddCommand(getCmd)
 	getCmd.Flags().BoolVarP(&cliParams.source, "source", "s", false, "print every source and its value")
+
+	otelCmd := &cobra.Command{
+		Use:   "otel-agent",
+		Short: "Otel-agent, prints out the read-only runtime configs of otel-agent if otel-agent is present and converter is enabled",
+		Long:  ``,
+		RunE:  oneShotRunE(otelAgentCfg),
+	}
+	cmd.AddCommand(otelCmd)
 
 	return cmd
 }
@@ -215,5 +226,35 @@ func getConfigValue(_ log.Component, config config.Component, cliParams *cliPara
 		}
 	}
 
+	return nil
+}
+
+func otelAgentCfg(_ log.Component, config config.Component, cliParams *cliParams) error {
+	if !config.GetBool("otelcollector.enabled") {
+		return errors.New("otel-agent is not enabled")
+	}
+	if !config.GetBool("otelcollector.converter.enabled") {
+		return errors.New("otel-agent converter must be enabled to get otel-agent's runtime configs")
+	}
+
+	err := util.SetAuthToken(config)
+	if err != nil {
+		return err
+	}
+
+	c, err := cliParams.GlobalParams.SettingsClient()
+	if err != nil {
+		return err
+	}
+
+	resp, err := util.DoGet(c.HTTPClient(), config.GetString("otelcollector.extension_url"), util.CloseConnection)
+	if err != nil {
+		return err
+	}
+	var extensionResp ddflareextensiontypes.Response
+	if err = json.Unmarshal(resp, &extensionResp); err != nil {
+		return err
+	}
+	fmt.Println(extensionResp.RuntimeConfig)
 	return nil
 }

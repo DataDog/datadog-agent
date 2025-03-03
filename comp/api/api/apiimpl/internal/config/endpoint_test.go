@@ -195,6 +195,7 @@ func TestConfigListEndpoint(t *testing.T) {
 				resp, err := server.Client().Get(server.URL + urlSuffix)
 				require.NoError(t, err)
 				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
 
 				data, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
@@ -212,7 +213,32 @@ func TestConfigListEndpoint(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestConfigEndpointJSONError(t *testing.T) {
+	// This test validate that the API can serialized map[interface{}]interface{} to JSON (ie: validate that we're
+	// using github.com/json-iterator/go rather than encoding/json
+
+	cfg, server, _ := getConfigServer(t, api.AuthorizedSet{"my.config": {}})
+	cfg.SetWithoutSource("my.config.value", []interface{}{
+		map[interface{}]interface{}{"a": "b", "c": "d"},
+	})
+	cfg.SetKnown("my.config.value")
+
+	for _, endpoint := range []string{"/", "/my.config"} {
+		resp, err := server.Client().Get(server.URL + endpoint)
+		require.NoError(t, err)
+
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var configValues map[string]interface{}
+		err = json.Unmarshal(data, &configValues)
+		require.NoError(t, err)
+	}
 }
 
 func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string, expectedStatus int) {

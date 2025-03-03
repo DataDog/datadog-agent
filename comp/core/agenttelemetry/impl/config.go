@@ -187,19 +187,11 @@ var defaultProfiles = `
   profiles:
   - name: checks
     metric:
-      exclude:
-        zero_metric: true
-        tags:
-          - check_name:cpu
-          - check_name:memory
-          - check_name:uptime
-          - check_name:network
-          - check_name:io
-          - check_name:file_handle
       metrics:
         - name: checks.execution_time
           aggregate_tags:
             - check_name
+            - check_loader
         - name: pymem.inuse
     schedule:
       start_after: 30
@@ -218,6 +210,10 @@ var defaultProfiles = `
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
         - name: logs.sender_latency
+        - name: logs.auto_multi_line_aggregator_flush
+          aggregate_tags:
+            - truncated
+            - line_type
         - name: point.sent
         - name: point.dropped
         - name: transactions.input_count

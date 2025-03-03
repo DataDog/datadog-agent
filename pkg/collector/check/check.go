@@ -29,6 +29,9 @@ type Check interface {
 	Cancel()
 	// String provides a printable version of the check name
 	String() string
+	// Loader returns the name of the check loader
+	// This is used in tags so should match the tag value format constraints (eg. lowercase, no spaces)
+	Loader() string
 	// Configure configures the check
 	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
 	// Interval returns the interval time for the check
@@ -51,6 +54,8 @@ type Check interface {
 	InstanceConfig() string
 	// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
 	GetDiagnoses() ([]diagnosis.Diagnosis, error)
+	// IsHASupported returns if the check is compatible with High Availability
+	IsHASupported() bool
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check

@@ -1,8 +1,12 @@
 import glob
 import os
+import re
 from pathlib import Path
 
-from invoke import Exit, task
+from invoke import Exit, UnexpectedExit, task
+
+from tasks.install_tasks import TOOL_LIST_PROTO
+from tasks.libs.common.check_tools_version import check_tools_installed
 
 PROTO_PKGS = {
     'model/v1': (False, False),
@@ -39,6 +43,7 @@ def generate(ctx, do_mockgen=True):
     We must build the packages one at a time due to protoc-gen-go limitations
     """
     # Key: path, Value: grpc_gateway, inject_tags
+    check_tools(ctx)
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
@@ -145,9 +150,30 @@ def generate(ctx, do_mockgen=True):
             ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
 
     # Check the generated files were properly committed
-    updates = ctx.run("git status -suno").stdout.strip()
-    if updates:
+    git_status = ctx.run("git status -suno", hide=True).stdout
+    proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb(\.gw)?\.go$")
+    if any(proto_file.search(line) for line in git_status.split("\n")):
         raise Exit(
-            "Generated files were not properly committed. Please run `inv protobuf.generate` and commit the changes.",
+            f"Generated files were not properly committed.\n{git_status}\nPlease run `inv protobuf.generate` and commit the changes.",
             code=1,
         )
+
+
+def check_tools(ctx):
+    """
+    Check if all the required dependencies are installed
+    """
+    tools = [tool.split("/")[-1] for tool in TOOL_LIST_PROTO]
+    if not check_tools_installed(tools):
+        raise Exit("Please install the required tools with `inv install-tools` before running this task.", code=1)
+    try:
+        current_version = ctx.run("protoc --version", hide=True).stdout.strip().removeprefix("libprotoc ")
+        with open(".protoc-version") as f:
+            expected_version = f.read().strip()
+        if current_version != expected_version:
+            raise Exit(
+                f"Expected protoc version {expected_version}, found {current_version}. Please run `inv install-protoc` before running this task.",
+                code=1,
+            )
+    except UnexpectedExit as e:
+        raise Exit("protoc is not installed. Please install it before running this task.", code=1) from e

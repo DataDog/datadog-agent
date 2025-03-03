@@ -43,7 +43,6 @@ func (s *installScriptDefaultSuite) TestInstall() {
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
 		"DD_SBOM_HOST_ENABLED=true",
-		"DD_REMOTE_POLICIES=false",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
@@ -64,8 +63,8 @@ func (s *installScriptDefaultSuite) TestInstall() {
 
 	// Config files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0640, "root", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/security-agent.yaml", 0640, "root", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0440, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/security-agent.yaml", 0440, "dd-agent", "dd-agent")
 	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-ruby") // Not in DD_APM_INSTRUMENTATION_LIBRARIES
 
 	// Units started
@@ -98,7 +97,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
 		"DD_SBOM_HOST_ENABLED=true",
-		"DD_REMOTE_POLICIES=true",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",

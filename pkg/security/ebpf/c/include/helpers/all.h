@@ -28,5 +28,6 @@
 #include "network/router.h"
 #include "network/dns.h"
 #include "network/imds.h"
+#include "network/flow.h"
 
 #endif

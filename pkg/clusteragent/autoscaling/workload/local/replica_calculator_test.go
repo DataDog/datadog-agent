@@ -14,10 +14,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -160,8 +162,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-1": {
-								*newEntityValue(time.Now().Unix(), 2e8),
-								*newEntityValue(time.Now().Unix()-15, 3e8),
+								*newEntityValue(testTime.Unix(), 2e8),
+								*newEntityValue(testTime.Unix()-15, 3e8),
 							},
 						},
 					},
@@ -201,8 +203,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2.5e8),
-								*newEntityValue(time.Now().Unix()-30, 3e8),
+								*newEntityValue(testTime.Unix()-15, 2.5e8),
+								*newEntityValue(testTime.Unix()-30, 3e8),
 							},
 						},
 					},
@@ -257,12 +259,12 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 3e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 3e8),
 							},
 							"container-name2": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 4e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 4e8),
 							},
 						},
 					},
@@ -329,8 +331,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 3e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 3e8),
 							},
 						},
 					},
@@ -338,8 +340,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name2": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 4e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 4e8),
 							},
 						},
 					},
@@ -407,8 +409,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 3e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 3e8),
 							},
 						},
 					},
@@ -429,12 +431,12 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -526,8 +528,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-1": {
-								*newEntityValue(time.Now().Unix(), 2e8),
-								*newEntityValue(time.Now().Unix()-15, 3e8),
+								*newEntityValue(testTime.Unix(), 2e8),
+								*newEntityValue(testTime.Unix()-15, 3e8),
 							},
 						},
 					},
@@ -567,8 +569,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 3e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 3e8),
 							},
 						},
 					},
@@ -623,12 +625,12 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 3e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 3e8),
 							},
 							"container-name2": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 4e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 4e8),
 							},
 						},
 					},
@@ -695,8 +697,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 3e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 3e8),
 							},
 						},
 					},
@@ -704,8 +706,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 4e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 4e8),
 							},
 						},
 					},
@@ -773,8 +775,8 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2e8),
-								*newEntityValue(time.Now().Unix()-30, 3e8),
+								*newEntityValue(testTime.Unix()-15, 2e8),
+								*newEntityValue(testTime.Unix()-30, 3e8),
 							},
 						},
 					},
@@ -795,12 +797,12 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerContainerResourceTargetType,
-				ContainerResource: &datadoghq.DatadogPodAutoscalerContainerResourceTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+				ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 					Container: "container-name1",
@@ -858,12 +860,12 @@ func TestCalculateReplicas(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(tt.targetUtilization),
 					},
 				},
@@ -945,8 +947,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-1": {
-								*newEntityValue(time.Now().Unix(), 2e8),
-								*newEntityValue(time.Now().Unix()-15, 3e8),
+								*newEntityValue(testTime.Unix(), 2e8),
+								*newEntityValue(testTime.Unix()-15, 3e8),
 							},
 						},
 					},
@@ -1055,8 +1057,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 1e8),
-								*newEntityValue(time.Now().Unix()-30, 1.23e8),
+								*newEntityValue(testTime.Unix()-15, 1e8),
+								*newEntityValue(testTime.Unix()-30, 1.23e8),
 							},
 							"container-name2": {
 								*newEntityValue(testTime.Unix()-15, 1.4e8),
@@ -1068,8 +1070,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 1e8),
-								*newEntityValue(time.Now().Unix()-30, 1.1e8),
+								*newEntityValue(testTime.Unix()-15, 1e8),
+								*newEntityValue(testTime.Unix()-30, 1.1e8),
 							},
 						},
 					},
@@ -1077,8 +1079,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name3",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 1.1e8),
-								*newEntityValue(time.Now().Unix()-30, 1.1e8),
+								*newEntityValue(testTime.Unix()-15, 1.1e8),
+								*newEntityValue(testTime.Unix()-30, 1.1e8),
 							},
 						},
 					},
@@ -1086,8 +1088,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name4",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 1.2e8),
-								*newEntityValue(time.Now().Unix()-30, 1.2e8),
+								*newEntityValue(testTime.Unix()-15, 1.2e8),
+								*newEntityValue(testTime.Unix()-30, 1.2e8),
 							},
 						},
 					},
@@ -1206,12 +1208,12 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2.4e8),
-								*newEntityValue(time.Now().Unix()-30, 2.3e8),
+								*newEntityValue(testTime.Unix()-15, 2.4e8),
+								*newEntityValue(testTime.Unix()-30, 2.3e8),
 							},
 							"container-name2": {
-								*newEntityValue(time.Now().Unix()-15, 2.44e8),
-								*newEntityValue(time.Now().Unix()-30, 2.3e8),
+								*newEntityValue(testTime.Unix()-15, 2.44e8),
+								*newEntityValue(testTime.Unix()-30, 2.3e8),
 							},
 						},
 					},
@@ -1219,8 +1221,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name2",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2.4e8),
-								*newEntityValue(time.Now().Unix()-30, 2.2e8),
+								*newEntityValue(testTime.Unix()-15, 2.4e8),
+								*newEntityValue(testTime.Unix()-30, 2.2e8),
 							},
 						},
 					},
@@ -1228,8 +1230,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name3",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2.3e8),
-								*newEntityValue(time.Now().Unix()-30, 2.4e8),
+								*newEntityValue(testTime.Unix()-15, 2.3e8),
+								*newEntityValue(testTime.Unix()-30, 2.4e8),
 							},
 						},
 					},
@@ -1237,8 +1239,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name4",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2.4e8),
-								*newEntityValue(time.Now().Unix()-30, 2.4e8),
+								*newEntityValue(testTime.Unix()-15, 2.4e8),
+								*newEntityValue(testTime.Unix()-30, 2.4e8),
 							},
 						},
 					},
@@ -1349,8 +1351,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2.4e8),
-								*newEntityValue(time.Now().Unix()-30, 2.3e8),
+								*newEntityValue(testTime.Unix()-15, 2.4e8),
+								*newEntityValue(testTime.Unix()-30, 2.3e8),
 							},
 						},
 					},
@@ -1358,8 +1360,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name3",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 2.4e8),
-								*newEntityValue(time.Now().Unix()-30, 2.3e8),
+								*newEntityValue(testTime.Unix()-15, 2.4e8),
+								*newEntityValue(testTime.Unix()-30, 2.3e8),
 							},
 						},
 					},
@@ -1470,8 +1472,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name1",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 0.7e8),
-								*newEntityValue(time.Now().Unix()-30, 0.5e8),
+								*newEntityValue(testTime.Unix()-15, 0.7e8),
+								*newEntityValue(testTime.Unix()-30, 0.5e8),
 							},
 						},
 					},
@@ -1479,8 +1481,8 @@ func TestRecommend(t *testing.T) {
 						PodName: "pod-name4",
 						ContainerValues: map[string][]loadstore.EntityValue{
 							"container-name1": {
-								*newEntityValue(time.Now().Unix()-15, 0.6e8),
-								*newEntityValue(time.Now().Unix()-30, 0.7e8),
+								*newEntityValue(testTime.Unix()-15, 0.6e8),
+								*newEntityValue(testTime.Unix()-30, 0.7e8),
 							},
 						},
 					},
@@ -1505,12 +1507,12 @@ func TestRecommend(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghq.DatadogPodAutoscalerTarget{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -1529,6 +1531,7 @@ func TestRecommend(t *testing.T) {
 }
 
 func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
+	testTime := time.Now()
 	deploymentName := "deploymentName"
 	ns := "default"
 
@@ -1548,9 +1551,9 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 	lStore := loadstore.GetWorkloadMetricStore(context.TODO())
 	entities := make(map[*loadstore.Entity]*loadstore.EntityValue)
 	entity := newEntity("container.cpu.usage", ns, deploymentName, "pod1", "container-name1")
-	entities[entity] = newEntityValue(time.Now().Unix()-30, 2.4e8)
+	entities[entity] = newEntityValue(testTime.Unix()-30, 2.4e8)
 	lStore.SetEntitiesValues(entities)
-	entities[entity] = newEntityValue(time.Now().Unix()-15, 2.45e8)
+	entities[entity] = newEntityValue(testTime.Unix()-15, 2.45e8)
 	lStore.SetEntitiesValues(entities)
 	queryResult := lStore.GetMetricsRaw("container.cpu.usage", ns, deploymentName, "")
 	assert.Len(t, queryResult.Results, 1)
@@ -1561,14 +1564,14 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 			Name:       deploymentName,
 			APIVersion: "apps/v1",
 		},
-		Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
-		Targets: []datadoghq.DatadogPodAutoscalerTarget{
+		Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
 			{
-				Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
-				PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
-					Value: datadoghq.DatadogPodAutoscalerTargetValue{
-						Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
@@ -1578,15 +1581,15 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 	dpa := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DatadogPodAutoscaler",
-			APIVersion: "datadoghq.com/v1alpha1",
+			APIVersion: "datadoghq.com/v1alpha2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
 			Namespace: ns,
 		},
 		Spec: dpaSpec,
-		Status: datadoghq.DatadogPodAutoscalerStatus{
-			Conditions: []datadoghq.DatadogPodAutoscalerCondition{},
+		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{},
 		},
 	}
 	dpai := model.NewPodAutoscalerInternal(dpa)

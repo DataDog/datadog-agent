@@ -89,6 +89,12 @@
                         "type": "string"
                     }
                 },
+                "product_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "actions": {
                     "type": "array",
                     "items": {
