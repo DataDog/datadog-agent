@@ -130,11 +130,22 @@ if [ "$1" = SETUP_RUNNER ]; then
 
     # TODO A: Add it in the runner
     echo Install extra packages
-    extrapackages=("binutils" "gmp")
+    # TODO: binutils?
+    extrapackages=()
     for pkg in "${extrapackages[@]}"; do
         echo Installing $pkg
         brew install $pkg -f
     done
+
+    echo Verifying gettext
+    echo brew uses gettext --installed
+    brew uses gettext --installed || true
+
+    echo brew list --formula --versions
+    brew list --formula --versions || true
+
+    echo grep gettext
+    brew list --formula --versions | grep gettext || true
 
     exit
 fi
