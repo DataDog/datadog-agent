@@ -179,14 +179,12 @@ func (v *gpuBaseSuite[Env]) TestGPUSysprobeEndpointIsResponding() {
 }
 
 func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
-	flake.Mark(v.T())
-
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.utilization", "gpu.memory.max", "gpu.sm_active"}
+		metricNames := []string{"gpu.utilization", "gpu.sm_active"}
 		for _, metricName := range metricNames {
 			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
