@@ -399,7 +399,7 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 					return
 				}
 
-				scopedValue := fmt.Sprintf("%v", value)
+				scopedValue := fmt.Sprintf("%+v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
 					Value: scopedValue,
@@ -410,8 +410,7 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 			if !found {
 				continue
 			}
-
-			scopedValue := fmt.Sprintf("%v", value)
+			scopedValue := fmt.Sprintf("%+v", value)
 			seclVariables[name] = &api.SECLVariableState{
 				Name:  name,
 				Value: scopedValue,
