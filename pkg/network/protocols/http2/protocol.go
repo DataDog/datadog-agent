@@ -204,7 +204,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
+func newHTTP2Protocol(_ *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTP2Monitoring {
 		return nil, nil
 	}

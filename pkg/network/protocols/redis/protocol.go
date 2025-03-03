@@ -73,7 +73,7 @@ var Spec = &protocols.ProtocolSpec{
 }
 
 // newRedisProtocol is the factory for the Redis protocol object
-func newRedisProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newRedisProtocol(_ *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableRedisMonitoring {
 		return nil, nil
 	}

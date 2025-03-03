@@ -155,8 +155,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		connectionProtocolMap: connectionProtocolMap,
 	}
 
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr)
-
 	if err := program.initProtocols(c); err != nil {
 		return nil, err
 	}
@@ -586,7 +584,7 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 	e.disabledProtocols = make([]*protocols.ProtocolSpec, 0)
 
 	for _, spec := range knownProtocols {
-		protocol, err := spec.Factory(c)
+		protocol, err := spec.Factory(e.Manager.Manager, c)
 		if err != nil {
 			return &errNotSupported{err}
 		}

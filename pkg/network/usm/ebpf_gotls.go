@@ -169,7 +169,7 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	},
 }
 
-func newGoTLS(c *config.Config) (protocols.Protocol, error) {
+func newGoTLS(_ *manager.Manager, c *config.Config) (protocols.Protocol, error) {
 	if !c.EnableGoTLSSupport {
 		return nil, nil
 	}

@@ -222,7 +222,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newKafkaProtocol(_ *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableKafkaMonitoring {
 		return nil, nil
 	}

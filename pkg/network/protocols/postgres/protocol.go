@@ -132,7 +132,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newPostgresProtocol(_ *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnablePostgresMonitoring {
 		return nil, nil
 	}
