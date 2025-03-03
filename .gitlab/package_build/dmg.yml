@@ -108,8 +108,7 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    - brew uses gettext --installed
-    - exit
+    - rm -rf ~/homebrew
     - |
       if ! [ -f ~/homebrew/bin/brew ]; then
         echo "WARNING: Homebrew not found, doing setup again"

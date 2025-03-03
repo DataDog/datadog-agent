@@ -131,7 +131,31 @@ if [ "$1" = SETUP_RUNNER ]; then
     # TODO A: Add it in the runner
     echo Install extra packages
     # TODO: binutils?
-    extrapackages=()
+    extrapackages=(
+        autoconf@2.72
+        ca-certificates@2025-02-25
+        cffi@1.17.1_1
+        coreutils@9.6
+        cryptography@44.0.1
+        gcc@14.2.0_1
+        gmp@6.3.0
+        isl@0.27
+        jq@1.7.1
+        libmpc@1.3.1
+        libssh2@1.11.1
+        libunistring@1.3
+        libyaml@0.2.5
+        lz4@1.10.0
+        m4@1.4.19
+        mpdecimal@4.0.0
+        mpfr@4.2.1
+        oniguruma@6.9.10
+        pcre2@10.44
+        pycparser@2.22_1
+        readline@8.2.13
+        xz@5.6.2
+        zstd@1.5.7
+    )
     for pkg in "${extrapackages[@]}"; do
         echo Installing $pkg
         brew install $pkg -f
