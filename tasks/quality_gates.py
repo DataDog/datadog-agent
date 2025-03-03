@@ -9,7 +9,6 @@ from invoke import task
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.common.color import color_message
-from tasks.libs.releasing.version import next_final_version
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
 BUFFER_SIZE = 10000000
@@ -205,7 +204,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     )
 
     # Create pull request
-    milestone_version = list(ctx.run("inv release.get-unreleased-release-branches", hide=True))[0].replace("x","0")
+    milestone_version = list(ctx.run("inv release.get-unreleased-release-branches", hide=True))[0].replace("x", "0")
     return create_release_pr(
         "[Nightly] Static quality gates threshold update", current_branch.name, branch_name, milestone_version
     )
