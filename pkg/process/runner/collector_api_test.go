@@ -424,7 +424,10 @@ func TestMultipleAPIKeys(t *testing.T) {
 
 	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
 
-	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
+	config := configmock.New(t)
+	config.SetWithoutSource("forwarder_max_concurrent_requests", 1)
+
+	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, config, func(_ *CheckRunner, ep *mockEndpoint) {
 		for _, expectedAPIKey := range apiKeys {
 			request := <-ep.Requests
 			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
