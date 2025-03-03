@@ -158,7 +158,7 @@ if [ "$1" = SETUP_RUNNER ]; then
     )
     for pkg in "${extrapackages[@]}"; do
         echo Installing $pkg
-        brew install $pkg -f
+        brew install $pkg -f || brew install "$(echo $pkg | cut -d@ -f1)" -f || echo "ERROR: Failed to install $pkg"
     done
 
     echo Verifying gettext
