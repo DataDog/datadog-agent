@@ -15,12 +15,21 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strings"
 
-	"github.com/go-delve/delve/pkg/dwarf/godwarf"
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 )
+
+func init() {
+	go func() {
+		fmt.Println(http.ListenAndServe("localhost:6069", nil))
+	}()
+}
 
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
 	return loadFunctionDefinitions(dwarfData, targetFunctions)
@@ -64,10 +73,11 @@ entryLoop:
 		}
 
 		if entry.Tag == dwarf.TagCompileUnit {
-			name, ok := entry.Val(dwarf.AttrName).(string)
+			_, ok := entry.Val(dwarf.AttrName).(string)
 			if !ok {
 				continue entryLoop
 			}
+			name = strings.Clone(entry.Val(dwarf.AttrName).(string))
 			ranges, err := dwarfData.Ranges(entry)
 			if err != nil {
 				log.Infof("couldnt retrieve ranges for compile unit %s: %s", name, err)
@@ -82,6 +92,19 @@ entryLoop:
 			var files []*dwarf.LineFile
 			if cuLineReader != nil {
 				files = cuLineReader.Files()
+			}
+
+			filesCopy := make([]*dwarf.LineFile, len(files))
+
+			for i := range files {
+				if files[i] == nil {
+					continue
+				}
+				filesCopy[i] = &dwarf.LineFile{
+					Name:   strings.Clone(files[i].Name),
+					Mtime:  files[i].Mtime,
+					Length: files[i].Length,
+				}
 			}
 
 			for i := range ranges {
@@ -100,7 +123,7 @@ entryLoop:
 			)
 			for _, field := range entry.Field {
 				if field.Attr == dwarf.AttrName {
-					fn = field.Val.(string)
+					fn = strings.Clone(field.Val.(string))
 				}
 				if field.Attr == dwarf.AttrDeclFile {
 					fileNumber = field.Val.(int64)
@@ -124,7 +147,7 @@ entryLoop:
 
 			for _, field := range entry.Field {
 				if field.Attr == dwarf.AttrName {
-					funcName = field.Val.(string)
+					funcName = strings.Clone(field.Val.(string))
 					if !targetFunctions[funcName] {
 						continue entryLoop
 					}
@@ -153,7 +176,7 @@ entryLoop:
 
 			// ditypes.Parameter name
 			if entry.Field[i].Attr == dwarf.AttrName {
-				name = entry.Field[i].Val.(string)
+				name = strings.Clone(entry.Field[i].Val.(string))
 			}
 
 			if entry.Field[i].Attr == dwarf.AttrVarParam {
@@ -369,7 +392,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[s
 
 			// Struct Field Name
 			if fieldEntry.Field[i].Attr == dwarf.AttrName {
-				newStructField.Name = fieldEntry.Field[i].Val.(string)
+				newStructField.Name = strings.Clone(fieldEntry.Field[i].Val.(string))
 			}
 
 			// Struct Field Type
@@ -455,7 +478,7 @@ func getTypeEntryBasicInfo(typeEntry *dwarf.Entry) (typeName string, typeSize in
 	}
 	for i := range typeEntry.Field {
 		if typeEntry.Field[i].Attr == dwarf.AttrName {
-			typeName = typeEntry.Field[i].Val.(string)
+			typeName = strings.Clone(typeEntry.Field[i].Val.(string))
 		}
 		if typeEntry.Field[i].Attr == dwarf.AttrByteSize {
 			typeSize = typeEntry.Field[i].Val.(int64)
@@ -592,7 +615,7 @@ func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
 			kind = uint(e.Field[f].Val.(int64))
 		}
 		if e.Field[f].Attr == dwarf.AttrName {
-			name = e.Field[f].Val.(string)
+			name = strings.Clone(e.Field[f].Val.(string))
 		}
 	}
 	if name == "unsafe.Pointer" {
