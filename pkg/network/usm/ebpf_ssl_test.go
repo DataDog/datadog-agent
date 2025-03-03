@@ -80,42 +80,41 @@ func TestSSLMapsCleaner(t *testing.T) {
 	// setup monitor
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
+	// test cleanup is faster without event stream, this test does not require event stream
 	cfg.EnableUSMEventStream = false
 
 	if !usmconfig.TLSSupported(cfg) {
 		t.Skip("SSL maps cleaner not supported for this platform")
 	}
-
+	// use the monitor and its eBPF manager to check and access SSL related maps
 	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 	require.NotNil(t, monitor)
 
-	t.Run("SSL maps cleaner", func(t *testing.T) {
-		cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-		cleanProtocolMaps(t, "bio_new_socket_args", monitor.ebpfProgram.Manager.Manager)
+	cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
+	cleanProtocolMaps(t, "bio_new_socket_args", monitor.ebpfProgram.Manager.Manager)
 
-		// find maps by names
-		maps := getMaps(t, monitor.ebpfProgram.Manager.Manager, sslPidKeyMaps)
-		require.Equal(t, len(maps), 6)
+	// find maps by names
+	maps := getMaps(t, monitor.ebpfProgram.Manager.Manager, sslPidKeyMaps)
+	require.Equal(t, len(maps), 6)
 
-		// add random pid to the maps
-		pid := 100
-		addPidEntryToMaps(t, maps, pid)
-		checkPidExistsInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, pid)
+	// add random pid to the maps
+	pid := 100
+	addPidEntryToMaps(t, maps, pid)
+	checkPidExistsInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, pid)
 
-		// verify that map is empty after cleaning up terminated processes
-		cleanDeadPidsInSslMaps(t, monitor.ebpfProgram.Manager.Manager)
-		checkPidNotFoundInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, pid)
+	// verify that map is empty after cleaning up terminated processes
+	cleanDeadPidsInSslMaps(t, monitor.ebpfProgram.Manager.Manager)
+	checkPidNotFoundInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, pid)
 
-		// start dummy program and add its pid to the map
-		cmd, cancel := startDummyProgram(t)
-		addPidEntryToMaps(t, maps, cmd.Process.Pid)
-		checkPidExistsInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, cmd.Process.Pid)
+	// start dummy program and add its pid to the map
+	cmd, cancel := startDummyProgram(t)
+	addPidEntryToMaps(t, maps, cmd.Process.Pid)
+	checkPidExistsInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, cmd.Process.Pid)
 
-		// verify exit of process cleans the map
-		cancel()
-		_ = cmd.Wait()
-		checkPidNotFoundInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, cmd.Process.Pid)
-	})
+	// verify exit of process cleans the map
+	cancel()
+	_ = cmd.Wait()
+	checkPidNotFoundInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, cmd.Process.Pid)
 }
 
 // getMaps returns eBPF maps searched by names.
@@ -157,7 +156,7 @@ func checkPidExistsInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf.M
 			return findKeyInMap(m, key)
 		}, 1*time.Second, 100*time.Millisecond)
 		if t.Failed() {
-			t.Logf("pid '%d' not found in the map '%s'", pid, mapInfo.Name)
+			t.Logf("pid '%d' not found in the map %q", pid, mapInfo.Name)
 			ebpftest.DumpMapsTestHelper(t, manager.DumpMaps, mapInfo.Name)
 			t.FailNow()
 		}
@@ -175,7 +174,7 @@ func checkPidNotFoundInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf
 		require.NoError(t, err)
 
 		if findKeyInMap(m, key) == true {
-			t.Logf("pid '%d' was found in the map '%s'", pid, mapInfo.Name)
+			t.Logf("pid '%d' was found in the map %q", pid, mapInfo.Name)
 			ebpftest.DumpMapsTestHelper(t, manager.DumpMaps, mapInfo.Name)
 			t.FailNow()
 		}

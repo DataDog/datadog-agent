@@ -451,11 +451,19 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 			watcher *sharedlibraries.Watcher
 			err     error
 		)
+		sslProgram := &sslProgram{
+			cfg:         c,
+			ebpfManager: m,
+		}
+		var cleanerCB func(map[uint32]struct{})
+		if features.HaveProgramType(ebpf.RawTracepoint) != nil {
+			cleanerCB = sslProgram.cleanupDeadPids
+		}
 
 		procRoot := kernel.ProcFSRoot()
 
 		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto,
+			watcher, err = sharedlibraries.NewWatcher(c, sharedlibraries.LibsetCrypto, cleanerCB,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
 					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
@@ -487,13 +495,11 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 			return nil, fmt.Errorf("error initializing istio monitor: %w", err)
 		}
 
-		return &sslProgram{
-			cfg:           c,
-			watcher:       watcher,
-			istioMonitor:  istio,
-			nodeJSMonitor: nodejs,
-			ebpfManager:   m,
-		}, nil
+		sslProgram.watcher = watcher
+		sslProgram.istioMonitor = istio
+		sslProgram.nodeJSMonitor = nodejs
+
+		return sslProgram, nil
 	}
 }
 
@@ -517,11 +523,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
-	var cleanerCB func(map[uint32]struct{})
-	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		cleanerCB = o.cleanupDeadPids
-	}
-	o.watcher.Start(cleanerCB)
+	o.watcher.Start()
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
@@ -896,7 +898,7 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 		}
 	}
 	for _, k := range keysToDelete {
-		_ = emap.Delete(&k)
+		_ = emap.Delete(unsafe.Pointer(&k))
 	}
 
 	return nil

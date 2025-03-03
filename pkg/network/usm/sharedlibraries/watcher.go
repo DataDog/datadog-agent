@@ -79,7 +79,7 @@ type Watcher struct {
 var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, error) {
+func NewWatcher(cfg *config.Config, libset Libset, mapsCleaner func(map[uint32]struct{}), rules ...Rule) (*Watcher, error) {
 	ebpfProgram := GetEBPFProgram(&cfg.Config)
 	err := ebpfProgram.InitWithLibsets(libset)
 	if err != nil {
@@ -99,6 +99,8 @@ func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, err
 
 		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
 		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
+
+		mapsCleaner: mapsCleaner,
 	}, nil
 }
 
@@ -210,11 +212,10 @@ func (w *Watcher) handleLibraryOpen(lib LibPath) {
 }
 
 // Start consuming shared-library events
-func (w *Watcher) Start(mapsCleaner func(map[uint32]struct{})) {
+func (w *Watcher) Start() {
 	if w == nil {
 		return
 	}
-	w.mapsCleaner = mapsCleaner
 
 	var err error
 	w.thisPID, err = kernel.RootNSPID()
