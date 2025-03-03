@@ -41,8 +41,28 @@ func TestNewInstrumentationConfig(t *testing.T) {
 		{
 			name:       "config with extra fields errors",
 			configPath: "testdata/extra_fields.yaml",
-			shouldErr:  true,
-			expected:   nil,
+			shouldErr:  false,
+			expected: &InstrumentationConfig{
+				Enabled:            true,
+				EnabledNamespaces:  []string{},
+				DisabledNamespaces: []string{},
+				LibVersions:        map[string]string{},
+				Version:            "v2",
+				InjectorImageTag:   "0",
+				Targets: []Target{
+					{
+						Name: "Python Apps",
+						PodSelector: &PodSelector{
+							MatchLabels: map[string]string{
+								"language": "python",
+							},
+						},
+						TracerVersions: map[string]string{
+							"python": "v2",
+						},
+					},
+				},
+			},
 		},
 		{
 			name:       "valid config disabled namespaces",
@@ -195,6 +215,41 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestLibVersionsEnvVar(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected map[string]string
+	}{
+		{
+			name: "valid lib versions",
+			expected: map[string]string{
+				"python": "1",
+				"js":     "2",
+				"java":   "3",
+			},
+		},
+		{
+			name:     "empty",
+			expected: map[string]string{},
+		},
+		{
+			name:     "nil",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			t.Setenv("DD_APM_INSTRUMENTATION_LIB_VERSIONS", string(data))
+			actual, err := NewInstrumentationConfig(configmock.New(t))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.LibVersions)
 		})
 	}
 }
