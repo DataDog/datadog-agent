@@ -43,6 +43,7 @@ import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
+	gatewayusagefx "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -139,6 +140,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
+		gatewayusagefx.Module(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),

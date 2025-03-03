@@ -11,6 +11,7 @@ import (
 	"context"
 	"testing"
 
+	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
 	exp "go.opentelemetry.io/collector/exporter"
@@ -36,7 +37,7 @@ func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensio
 func newFactory() exp.Factory {
 	return NewFactoryForAgent(&MockSerializer{}, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, nil)
+	}, nil, nil, gatewayusagemock.NewMock())
 }
 
 func TestNewFactory(t *testing.T) {

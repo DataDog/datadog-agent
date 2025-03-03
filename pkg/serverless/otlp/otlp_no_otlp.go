@@ -10,6 +10,7 @@ package otlp
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -17,7 +18,7 @@ import (
 type ServerlessOTLPAgent struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func NewServerlessOTLPAgent(serializer.MetricSerializer, tagger.Component) *ServerlessOTLPAgent {
+func NewServerlessOTLPAgent(serializer.MetricSerializer, tagger.Component, gatewayusage.Component) *ServerlessOTLPAgent {
 	return nil
 }
 
