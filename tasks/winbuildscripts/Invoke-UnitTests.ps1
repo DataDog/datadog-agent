@@ -35,11 +35,11 @@ Requires JUNIT_TAR environment variable to be set.
 
 #>
 param(
-    [bool] $BuildOutOfSource = $false,
+    [switch] $BuildOutOfSource = $false,
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
-    [bool] $UploadCoverage = $false,
-    [bool] $UploadTestResults = $false
+    [switch] $UploadCoverage = $false,
+    [switch] $UploadTestResults = $false
 )
 
 . "$PSScriptRoot\common.ps1"
