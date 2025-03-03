@@ -75,9 +75,6 @@ type Metadata struct {
 	ApplyStatus ApplyStatus
 }
 
-// ConfigStatus is the nature of the config update, e.g. valid or expired.
-type ConfigStatus int
-
 func newConfigMetadata(parsedPath configPath, tfm data.TargetFileMeta) (Metadata, error) {
 	var m Metadata
 	m.ID = parsedPath.ConfigID
