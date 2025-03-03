@@ -11,6 +11,7 @@ package sysctl
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"io/fs"
 	"os"
 	"path"
@@ -92,7 +93,7 @@ func (s *Snapshot) Snapshot() error {
 
 // snapshotProcSys recursively reads files in /proc/sys and builds a nested JSON structure.
 func (s *Snapshot) snapshotProcSys() error {
-	return filepath.Walk("/proc/sys", func(file string, info fs.FileInfo, err error) error {
+	return filepath.Walk(kernel.HostProc("/sys"), func(file string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -104,11 +105,11 @@ func (s *Snapshot) snapshotProcSys() error {
 
 		// Skip if mode doesn't allow reading
 		mode := info.Mode()
-		if mode&0400 == 0 && mode&0040 == 0 && mode&0004 == 0 {
+		if mode&0444 == 0 {
 			return nil
 		}
 
-		relPath, err := filepath.Rel("/proc", file)
+		relPath, err := filepath.Rel(kernel.ProcFSRoot(), file)
 		if err != nil {
 			return err
 		}
@@ -125,13 +126,13 @@ func (s *Snapshot) snapshotProcSys() error {
 
 // snapshotSys reads security relevant files from the /sys filesystem
 func (s *Snapshot) snapshotSys() error {
-	lockdownValue, err := readFileContent("/sys/kernel/security/lockdown")
+	lockdownValue, err := readFileContent(kernel.HostSys("/kernel/security/lockdown"))
 	if err != nil {
 		return err
 	}
 	s.InsertSnapshotEntry(s.Sys, "kernel/security/lockdown", lockdownValue)
 
-	lsmValue, err := readFileContent("/sys/kernel/security/lsm")
+	lsmValue, err := readFileContent(kernel.HostSys("/kernel/security/lsm"))
 	if err != nil {
 		return err
 	}

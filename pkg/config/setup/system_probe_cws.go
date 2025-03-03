@@ -119,7 +119,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
 
 	// CWS - SysCtl snapshot
-	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl_snapshot.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl_snapshot.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl_snapshot.period", "1h")
 
 	// CWS - UserSessions
