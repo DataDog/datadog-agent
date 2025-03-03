@@ -121,7 +121,7 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMa
 	var err error
 
 	if rs.evalOpts.MacroStore.Contains(pMacro.Def.ID) {
-		return nil, &ErrMacroLoad{Macro: pMacro, Err: ErrDefinitionIDConflict}
+		return nil, nil
 	}
 
 	var macro *eval.Macro
@@ -317,7 +317,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	}
 
 	if _, exists := rs.rules[pRule.Def.ID]; exists {
-		return "", &ErrRuleLoad{Rule: pRule, Err: ErrDefinitionIDConflict}
+		return "", nil
 	}
 
 	var tags []string
