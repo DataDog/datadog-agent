@@ -94,11 +94,7 @@ celian-notify-slack:
     - |
       echo Reinstalling setuptools
       setuptoolsversion=$(python3 -m pip freeze | grep setuptools | awk -F'==' '{print $2}') || exit $?; export setuptoolsversion
-      # python3 -m pip uninstall -y setuptools
-      # python3 -m pip install setuptools==${setuptoolsversion}
-      # conda deactivate
-      python3 -m pip install -U pip
-      # conda activate
+      python3 -m pip install -U pip setuptools==${setuptoolsversion} || true
     - python3 -m pip install -r tasks/requirements.txt -r tasks/libs/requirements-notifications.txt
     # - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     # - python3 -m pip freeze | grep setuptools
