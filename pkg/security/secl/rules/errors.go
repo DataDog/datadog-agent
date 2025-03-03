@@ -27,9 +27,6 @@ var (
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
 	ErrRuleWithoutEvent = errors.New("no event in the rule definition")
 
-	// ErrDefinitionIDConflict is returned when multiple rules use the same ID
-	ErrDefinitionIDConflict = errors.New("multiple definition with the same ID")
-
 	// ErrInternalIDConflict is returned when a user defined rule use an internal ID
 	ErrInternalIDConflict = errors.New("internal rule ID conflict")
 

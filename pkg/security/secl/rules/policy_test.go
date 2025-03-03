@@ -97,8 +97,8 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
-		t.Error("expected macro ID conflict")
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -173,8 +173,8 @@ func TestRuleMerge(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
-			t.Error("expected rule ID conflict")
+		if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+			t.Fatal(err)
 		}
 	})
 
@@ -693,9 +693,8 @@ func TestRuleErrorLoading(t *testing.T) {
 
 	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
-	assert.Len(t, err.Errors, 2)
-	assert.ErrorContains(t, err.Errors[0], "rule `testA` error: multiple definition with the same ID")
-	assert.ErrorContains(t, err.Errors[1], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
+	assert.Len(t, err.Errors, 1)
+	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
 
 	assert.Contains(t, rs.rules, "testA")
 	assert.NotContains(t, rs.rules, "testB")
