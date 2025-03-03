@@ -77,7 +77,7 @@ api_key: ENC[api_key]
 	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
 }
 
-func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeys() {
+func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
 	// Define the API keys before and after refresh
 	initialAPIKeys := map[string]string{
 		"api_key": "apikey1_initial",
