@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -218,14 +219,14 @@ func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config, log log.Component) {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "Diagnose suites ...\n")
 
-	sortedSuitesName, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getCheckNames(diagCfg), func(name string) string { return name })
+	sortedSuitesName, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getCheckNames(diagCfg, log), func(name string) string { return name })
 	if err != nil {
 		fmt.Fprintf(w, "Failed to get list of diagnose suites. Validate your command line options. Error: %s\n", err.Error())
 		return
@@ -315,7 +316,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.Diag
 // RunInCLIProcess run diagnoses in the CLI process.
 func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) (*diagnosis.DiagnoseResult, error) {
 	return RunDiagnose(diagCfg, func() []diagnosis.Suite {
-		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+		return buildSuites(diagCfg, deps.log, func() []diagnosis.Diagnosis {
 			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC, deps.tagger)
 		})
 	})
@@ -340,7 +341,7 @@ func RunDiagnose(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) (
 // RunInAgentProcess runs diagnoses in the Agent process.
 func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) (*diagnosis.DiagnoseResult, error) {
 	// Collect local diagnoses
-	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+	suites := buildSuites(diagCfg, deps.log, func() []diagnosis.Diagnosis {
 		return diagnoseChecksInAgentProcess(deps.collector)
 	})
 
@@ -421,6 +422,7 @@ type SuitesDepsInCLIProcess struct {
 	AC             autodiscovery.Component
 	logReceiver    integrations.Component
 	tagger         tagger.Component
+	log            log.Component
 }
 
 // NewSuitesDepsInCLIProcess returns a new instance of SuitesDepsInCLIProcess.
@@ -443,6 +445,7 @@ func NewSuitesDepsInCLIProcess(
 // SuitesDepsInAgentProcess stores the dependencies for the diagnose suites when running the Agent Process.
 type SuitesDepsInAgentProcess struct {
 	collector collector.Component
+	log       log.Component
 }
 
 // NewSuitesDepsInAgentProcess returns a new instance of SuitesDepsInAgentProcess.
@@ -475,8 +478,8 @@ func NewSuitesDeps(
 	}
 }
 
-func getCheckNames(diagCfg diagnosis.Config) []string {
-	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis { return nil })
+func getCheckNames(diagCfg diagnosis.Config, log log.Component) []string {
+	suites := buildSuites(diagCfg, log, func() []diagnosis.Diagnosis { return nil })
 	names := make([]string, len(suites))
 	for i, s := range suites {
 		names[i] = s.SuitName
@@ -484,10 +487,10 @@ func getCheckNames(diagCfg diagnosis.Config) []string {
 	return names
 }
 
-func buildSuites(diagCfg diagnosis.Config, checkDatadog func() []diagnosis.Diagnosis) []diagnosis.Suite {
+func buildSuites(diagCfg diagnosis.Config, log log.Component, checkDatadog func() []diagnosis.Diagnosis) []diagnosis.Suite {
 	return buildCustomSuites(
 		RegisterCheckDatadog(checkDatadog),
-		RegisterConnectivityDatadogCoreEndpoints(diagCfg),
+		RegisterConnectivityDatadogCoreEndpoints(diagCfg, log),
 		RegisterConnectivityAutodiscovery,
 		RegisterConnectivityDatadogEventPlatform,
 		RegisterPortConflict,
@@ -510,9 +513,9 @@ func RegisterCheckDatadog(checkDatadog func() []diagnosis.Diagnosis) func(catalo
 }
 
 // RegisterConnectivityDatadogCoreEndpoints registers the connectivity-datadog-core-endpoints diagnose suite.
-func RegisterConnectivityDatadogCoreEndpoints(diagCfg diagnosis.Config) func(catalog *diagnosis.Catalog) {
+func RegisterConnectivityDatadogCoreEndpoints(diagCfg diagnosis.Config, log log.Component) func(catalog *diagnosis.Catalog) {
 	return func(catalog *diagnosis.Catalog) {
-		catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
+		catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg, log) })
 	}
 }
 

@@ -158,8 +158,8 @@ func TestWorkerResetConnections(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Process", 1)
 
 	httpClientBefore := w.Client
-	newHttpClient := NewHTTPClient(mockConfig, 1, log)
-	w.ScheduleConnectionReset(newHttpClient)
+	newHTTPClient := NewHTTPClient(mockConfig, 1, log)
+	w.ScheduleConnectionReset(newHTTPClient)
 
 	// tricky to test here that "Process" is called with a new http client
 	mock2 := newTestTransactionWithoutClientAssert()
@@ -245,7 +245,7 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 
 	// Create enough transactions that some will be waiting on the semaphore when we cancel.
 	transactions := make([]*testTransaction, 0)
-	for i := 0; i < 5; i += 1 {
+	for i := 0; i < 5; i++ {
 		mockTransaction := newTestTransaction()
 
 		// The first three transactions will block when sent to ensure they are currently holding

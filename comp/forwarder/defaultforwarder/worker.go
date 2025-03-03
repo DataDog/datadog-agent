@@ -39,8 +39,6 @@ type Worker struct {
 	stopped               chan struct{}
 	blockedList           *blockedEndpoints
 	pointSuccessfullySent PointSuccessfullySent
-	// If the client is for cluster agent
-	isLocal bool
 
 	// The maximum number of HTTP requests we can have inflight at any one time.
 	maxConcurrentRequests *semaphore.Weighted

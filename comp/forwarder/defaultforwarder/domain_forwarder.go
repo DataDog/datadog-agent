@@ -285,7 +285,7 @@ func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Compone
 	case "auto":
 		fallthrough
 	default:
-		if transportConfig != "auto" && log != nil {
+		if transportConfig != "auto" {
 			// The diagnose package calls this function and doesn't have access to a logger,
 			// so we need to check if one is provided.
 			log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)

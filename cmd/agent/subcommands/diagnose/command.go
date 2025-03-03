@@ -321,7 +321,7 @@ func cmdDiagnose(cliParams *cliParams,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
-	_ log.Component,
+	log log.Component,
 	tagger tagger.Component,
 ) error {
 	diagCfg := diagnosis.Config{
@@ -335,7 +335,7 @@ func cmdDiagnose(cliParams *cliParams,
 
 	// Is it List command
 	if cliParams.listSuites {
-		diagnose.ListStdOut(w, diagCfg)
+		diagnose.ListStdOut(w, diagCfg, log)
 		return nil
 	}
 
