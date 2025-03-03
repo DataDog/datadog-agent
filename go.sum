@@ -174,8 +174,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0 h1:AdiclwuXhWbW
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0/go.mod h1:2wJmnlzc4t/VEn5xm0ilrz/XEf8LSoJ2Tf3PtRAKyDo=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
-github.com/DataDog/trivy v0.0.0-20250224140136-4a9fef618e60 h1:QyRvRKdNKZ/r1Zwpg9PQ1uKsigphZ88JeP9tOYHuQ6o=
-github.com/DataDog/trivy v0.0.0-20250224140136-4a9fef618e60/go.mod h1:zCHuFRGEXT0ScUddNuYX+p80t5XSJkTVYkUQd6I3/S0=
+github.com/DataDog/trivy v0.0.0-20250228140618-161e65c03586 h1:5zvOvZ5hjYRYjlDQ3Tjy103SZyP5gntMAGNl699nAoE=
+github.com/DataDog/trivy v0.0.0-20250228140618-161e65c03586/go.mod h1:zCHuFRGEXT0ScUddNuYX+p80t5XSJkTVYkUQd6I3/S0=
 github.com/DataDog/viper v1.14.0 h1:dIjTe/uJiah+QFqFZ+MXeqgmUvWhg37l37ZxFWxr3is=
 github.com/DataDog/viper v1.14.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1 h1:9hiwoIk8FOsXDkdcdgNJ48iYaPfn+/7bXEwAnnfKjTc=
@@ -507,8 +507,8 @@ github.com/csaf-poc/csaf_distribution/v3 v3.0.0 h1:ob9+Fmpff0YWgTP3dYaw7G2hKQ9ce
 github.com/csaf-poc/csaf_distribution/v3 v3.0.0/go.mod h1:uilCTiNKivq+6zrDvjtZaUeLk70oe21iwKivo6ILwlQ=
 github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 h1:2Dx4IHfC1yHWI12AxQDJM1QbRCDfk6M+blLzlZCXdrc=
 github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46/go.mod h1:uzvlm1mxhHkdfqitSA92i7Se+S9ksOn3a3qmv/kyOCw=
-github.com/cyphar/filepath-securejoin v0.3.6 h1:4d9N5ykBnSp5Xn2JkhocYDkOpURL/18CYMpo6xB9uWM=
-github.com/cyphar/filepath-securejoin v0.3.6/go.mod h1:Sdj7gXlvMcPZsbhwhQ33GguGLDGQL7h7bg04C/+u9jI=
+github.com/cyphar/filepath-securejoin v0.4.1 h1:JyxxyPEaktOD+GAnqIqTf9A8tHyAG22rowi7HkoSU1s=
+github.com/cyphar/filepath-securejoin v0.4.1/go.mod h1:Sdj7gXlvMcPZsbhwhQ33GguGLDGQL7h7bg04C/+u9jI=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
@@ -1614,8 +1614,8 @@ github.com/sigstore/sigstore v1.8.3 h1:G7LVXqL+ekgYtYdksBks9B38dPoIsbscjQJX/MGWk
 github.com/sigstore/sigstore v1.8.3/go.mod h1:mqbTEariiGA94cn6G3xnDiV6BD8eSLdL/eA7bvJ0fVs=
 github.com/sigstore/timestamp-authority v1.2.2 h1:X4qyutnCQqJ0apMewFyx+3t7Tws00JQ/JonBiu3QvLE=
 github.com/sigstore/timestamp-authority v1.2.2/go.mod h1:nEah4Eq4wpliDjlY342rXclGSO7Kb9hoRrl9tqLW13A=
-github.com/sijms/go-ora/v2 v2.8.19 h1:7LoKZatDYGi18mkpQTR/gQvG9yOdtc7hPAex96Bqisc=
-github.com/sijms/go-ora/v2 v2.8.19/go.mod h1:EHxlY6x7y9HAsdfumurRfTd+v8NrEOTR3Xl4FWlH6xk=
+github.com/sijms/go-ora/v2 v2.8.24 h1:TODRWjWGwJ1VlBOhbTLat+diTYe8HXq2soJeB+HMjnw=
+github.com/sijms/go-ora/v2 v2.8.24/go.mod h1:QgFInVi3ZWyqAiJwzBQA+nbKYKH77tdp1PYoCqhR2dU=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/sirupsen/logrus v1.6.0/go.mod h1:7uNnSEd1DgxDLC74fIahvMZmmYsHGZGEOFrfsX/uA88=
@@ -2271,8 +2271,8 @@ golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45/go.mod h1:gOpvHmFTYa4Iltr
 golang.org/x/oauth2 v0.0.0-20191202225959-858c2ad4c8b6/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
 golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
 golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
-golang.org/x/oauth2 v0.26.0 h1:afQXWNNaeC4nvZ0Ed9XvCCzXM6UHJG7iCg0W4fPqSBE=
-golang.org/x/oauth2 v0.26.0/go.mod h1:XYTD2NtWslqkgxebSiOHnXEap4TF09sJSc7H1sXbhtI=
+golang.org/x/oauth2 v0.27.0 h1:da9Vo7/tDv5RH/7nZDz1eMGS/q1Vv1N/7FCrBhI9I3M=
+golang.org/x/oauth2 v0.27.0/go.mod h1:onh5ek6nERTohokkhCD/y2cV4Do3fxFHFuAejCkRWT8=
 golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20181108010431-42b317875d0f/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=

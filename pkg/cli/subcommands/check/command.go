@@ -772,5 +772,6 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 // Ideally, the server wouldn't start up at all, but this workaround has been
 // in place for some time.
 func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
 }

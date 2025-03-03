@@ -77,6 +77,8 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		}
 
 		ext.configStore.set(string(envBytes), string(enhancedBytes))
+	} else {
+		ext.configStore.set("", string(enhancedBytes))
 	}
 
 	extensionConfs, err := conf.Sub("extensions")

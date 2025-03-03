@@ -10,16 +10,14 @@ package trivy
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"runtime"
 	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
@@ -36,9 +34,21 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
-	// This is required to load sqlite based RPM databases
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+// This is required to load sqlite based RPM databases
+func init() {
+	// mattn/go-sqlite3 is only registering the sqlite3 driver
+	// let's register the sqlite (no 3) driver as well
+	sql.Register("sqlite", &sqlite3.SQLiteDriver{})
+}
 
 const (
 	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
@@ -94,7 +104,14 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
-		WalkerOption:      walker.Option{},
+		WalkerOption: walker.Option{
+			ErrorCallback: func(_ string, err error) error {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
+					return nil
+				}
+				return err
+			},
+		},
 	}
 
 	option.WalkerOption.SkipDirs = trivyDefaultSkipDirs
@@ -155,6 +172,7 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	if analyzersDisabled(LanguagesAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLanguages...)
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeIndividualPkgs...)
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeExecutable)
 	}
 	if analyzersDisabled(SecretAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeSecret)
@@ -172,7 +190,6 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
 	}
 	disabledAnalyzers = append(disabledAnalyzers,
-		analyzer.TypeExecutable,
 		analyzer.TypeRedHatContentManifestType,
 		analyzer.TypeRedHatDockerfileType,
 		analyzer.TypeSBOM,

@@ -77,23 +77,19 @@ func (ownersLanguages *OwnersLanguages) String() string {
 	ownersLanguages.mutex.Lock()
 	defer ownersLanguages.mutex.Unlock()
 
-	state := ""
+	state := "["
 	for owner, langs := range ownersLanguages.containersLanguages {
-		state += fmt.Sprintf("===== %s/%s/%s ====\n", owner.Namespace, owner.Kind, owner.Name)
-		if langs.dirty {
-			state += "dirty\n"
-		} else {
-			state += "clean\n"
-		}
-
+		state += fmt.Sprintf("(%s/%s/%s, %v,[", owner.Namespace, owner.Kind, owner.Name, langs.dirty)
 		for container, languageSet := range langs.languages {
-			state += container.Name + ": "
+			state += container.Name + ": ("
 			for languagename := range languageSet {
 				state += fmt.Sprintf("%s,", languagename)
 			}
-			state += "\n"
+			state += "),"
 		}
+		state += "]),"
 	}
+	state += "]"
 	return state
 }
 
