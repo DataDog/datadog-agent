@@ -158,9 +158,6 @@ type CoreAgentService struct {
 	clients            *clients
 	cacheBypassClients cacheBypassClients
 
-	// Used to hold on to targets that need to be flushed in case the configs expire
-	cachedTargets []byte
-
 	// Used to report metrics on cache bypass requests
 	telemetryReporter RcTelemetryReporter
 
@@ -187,6 +184,7 @@ type uptaneClient interface {
 	TargetFile(path string) ([]byte, error)
 	TargetFiles(files []string) (map[string][]byte, error)
 	TargetsMeta() ([]byte, error)
+	UnsafeTargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
 	TimestampExpires() (time.Time, error)
 	TUFVersionState() (uptane.TUFVersions, error)
@@ -472,7 +470,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
-		cachedTargets:         nil,
 		telemetryReporter:     telemetryReporter,
 		agentVersion:          agentVersion,
 		stopOrgPoller:         make(chan struct{}),
@@ -759,9 +756,13 @@ func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 }
 
 func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse, error) {
+	targets, err := s.uptane.UnsafeTargetsMeta()
+	if err != nil {
+		return nil, err
+	}
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         nil,
-		Targets:       s.cachedTargets,
+		Targets:       targets,
 		TargetFiles:   nil,
 		ClientConfigs: nil,
 		ConfigStatus:  state.ConfigStatusExpired,
@@ -865,8 +866,6 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
-
-	s.cachedTargets = canonicalTargets
 
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
