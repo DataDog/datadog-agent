@@ -84,13 +84,15 @@ entryLoop:
 			var files []*dwarf.LineFile
 			if cuLineReader != nil {
 				for _, file := range cuLineReader.Files() {
-					if file != nil {
-						files = append(files, &dwarf.LineFile{
-							Name:   strings.Clone(file.Name),
-							Mtime:  file.Mtime,
-							Length: file.Length,
-						})
+					if file == nil {
+						continue
 					}
+
+					files = append(files, &dwarf.LineFile{
+						Name:   strings.Clone(file.Name),
+						Mtime:  file.Mtime,
+						Length: file.Length,
+					})
 				}
 			}
 
