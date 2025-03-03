@@ -30,15 +30,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
 	gpuMetricsNs          = "gpu."
-	metricNameUtil        = gpuMetricsNs + "utilization"
-	metricNameMemory      = gpuMetricsNs + "memory.used"
-	metricNameMemoryPerc  = gpuMetricsNs + "memory.utilization"
+	metricNameCores       = gpuMetricsNs + "core.usage"
+	metricNameCoreLimit   = gpuMetricsNs + "core.limit"
+	metricNameMemory      = gpuMetricsNs + "memory.usage"
+	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
 	metricNameDeviceTotal = gpuMetricsNs + "device.total"
 )
 
@@ -171,6 +173,14 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
+	sentMetrics := 0
+
+	// Always send telemetry metrics
+	defer func() {
+		c.telemetry.sysprobeMetricsSent.Add(float64(sentMetrics))
+		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
+	}()
+
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("cannot get data from system-probe: %w", err)
@@ -182,36 +192,92 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		c.activeMetrics[key] = false
 	}
 
+	activeEntitiesPerDevice := make(map[string]common.StringSet)
+
+	// Emit the usage metrics
 	for _, entry := range stats.Metrics {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
-		tags := c.getTagsForKey(key)
-		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
-		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
-		snd.Gauge(metricNameMemoryPerc, metrics.Memory.CurrentBytesPercentage, "", tags)
+
+		// Get the tags for this metric. We split it between "process" and "device" tags
+		// so that we can store which processes are using which devices. That way we will later
+		// be able to tag the limit metrics (GPU memory capacity, GPU core count) with the
+		// tags of the processes using them.
+		processTags := c.getProcessTagsForKey(key)
+		deviceTags := c.getDeviceTagsForKey(key)
+
+		// Add the process tags to the active entities for the device, using a set to avoid duplicates
+		if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
+			activeEntitiesPerDevice[key.DeviceUUID] = common.NewStringSet()
+		}
+
+		for _, t := range processTags {
+			activeEntitiesPerDevice[key.DeviceUUID].Add(t)
+		}
+
+		allTags := append(processTags, deviceTags...)
+
+		snd.Gauge(metricNameCores, metrics.UsedCores, "", allTags)
+		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", allTags)
+		sentMetrics += 2
 
 		c.activeMetrics[key] = true
 	}
 
-	c.telemetry.sysprobeMetricsSent.Add(float64(3 * len(stats.Metrics)))
-
 	// Remove the PIDs that we didn't see in this check
 	for key, active := range c.activeMetrics {
 		if !active {
-			tags := c.getTagsForKey(key)
+			tags := append(c.getProcessTagsForKey(key), c.getDeviceTagsForKey(key)...)
 			snd.Gauge(metricNameMemory, 0, "", tags)
-			snd.Gauge(metricNameUtil, 0, "", tags)
+			snd.Gauge(metricNameCores, 0, "", tags)
+			sentMetrics += 2
 
 			delete(c.activeMetrics, key)
 		}
 	}
 
-	c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
+	// Now, we report the limit metrics tagged with all the processes that are using them
+	// TODO: Use the device manager in the refactor to get the list of devices per uuid
+	devices, ret := c.nvmlLib.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
+	}
+
+	for i := 0; i < devices; i++ {
+		device, ret := c.nvmlLib.DeviceGetHandleByIndex(i)
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
+		}
+
+		uuid, ret := device.GetUUID()
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("failed to get device UUID: %s", nvml.ErrorString(ret))
+		}
+
+		numCores, ret := device.GetNumGpuCores()
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("failed to get number of GPU cores: %s", nvml.ErrorString(ret))
+		}
+
+		memoryInfo, ret := device.GetMemoryInfo()
+		if ret != nvml.SUCCESS {
+			return fmt.Errorf("failed to get memory info: %s", nvml.ErrorString(ret))
+		}
+
+		deviceTags := c.getDeviceTagsForKey(model.StatsKey{DeviceUUID: uuid})
+		activeProcessTags := activeEntitiesPerDevice[uuid].GetAll()
+
+		allTags := append(deviceTags, activeProcessTags...)
+
+		snd.Gauge(metricNameCoreLimit, float64(numCores), "", allTags)
+		snd.Gauge(metricNameMemoryLimit, float64(memoryInfo.Total), "", allTags)
+	}
 
 	return nil
 }
 
-func (c *Check) getTagsForKey(key model.StatsKey) []string {
+// getProcessTagsForKey returns the process-related tags (PID, containerID) for a given key.
+func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 	// PID is always added
 	tags := []string{
 		// Per-PID metrics are subject to change due to high cardinality
@@ -227,15 +293,19 @@ func (c *Check) getTagsForKey(key model.StatsKey) []string {
 		tags = append(tags, containerTags...)
 	}
 
+	return tags
+}
+
+// getDeviceTagsForKey returns the device-related tags (GPU UUID) for a given key.
+func (c *Check) getDeviceTagsForKey(key model.StatsKey) []string {
 	gpuEntityID := taggertypes.NewEntityID(taggertypes.GPU, key.DeviceUUID)
 	gpuTags, err := c.tagger.Tag(gpuEntityID, c.tagger.ChecksCardinality())
 	if err != nil {
 		log.Errorf("Error collecting GPU tags for process %d: %s", key.PID, err)
-	} else {
-		tags = append(tags, gpuTags...)
+		return nil
 	}
 
-	return tags
+	return gpuTags
 }
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
