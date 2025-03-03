@@ -202,8 +202,7 @@ void reset_check_mock() {
 import "C"
 
 func testRunCheck(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
@@ -235,8 +234,7 @@ func testRunCheck(t *testing.T) {
 }
 
 func testRunCheckWithRuntimeNotInitializedError(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
@@ -282,8 +280,7 @@ func testInitiCheckWithRuntimeNotInitialized(t *testing.T) {
 }
 
 func testCheckCancel(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
 		return
@@ -318,8 +315,7 @@ func testCheckCancel(t *testing.T) {
 }
 
 func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -353,13 +349,7 @@ func testCheckCancelWhenRuntimeUnloaded(t *testing.T) {
 }
 
 func testFinalizer(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() {
-		// We have to wrap this in locks otherwise the race detector complains
-		pyDestroyLock.Lock()
-		rtloader = nil
-		pyDestroyLock.Unlock()
-	}()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -397,13 +387,7 @@ func testFinalizer(t *testing.T) {
 }
 
 func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() {
-		// We have to wrap this in locks otherwise the race detector complains
-		pyDestroyLock.Lock()
-		rtloader = nil
-		pyDestroyLock.Unlock()
-	}()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -442,8 +426,7 @@ func testFinalizerWhenRuntimeUnloaded(t *testing.T) {
 }
 
 func testRunErrorNil(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -470,8 +453,7 @@ func testRunErrorNil(t *testing.T) {
 }
 
 func testRunErrorReturn(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {
@@ -499,8 +481,7 @@ func testRun(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	c, err := NewPythonFakeCheck(sender.GetSenderManager())
 	if !assert.Nil(t, err) {
@@ -532,8 +513,7 @@ func testRunSimple(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	c, err := NewPythonFakeCheck(sender.GetSenderManager())
 	if !assert.Nil(t, err) {
@@ -562,8 +542,7 @@ func testRunSimple(t *testing.T) {
 }
 
 func testConfigure(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	c, err := NewPythonFakeCheck(senderManager)
@@ -597,8 +576,7 @@ func testConfigure(t *testing.T) {
 }
 
 func testConfigureDeprecated(t *testing.T) {
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	c, err := NewPythonFakeCheck(senderManager)
@@ -636,8 +614,7 @@ func testConfigureDeprecated(t *testing.T) {
 func testGetDiagnoses(t *testing.T) {
 	C.reset_check_mock()
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
 
 	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
 	if !assert.Nil(t, err) {

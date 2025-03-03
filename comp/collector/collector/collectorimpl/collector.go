@@ -27,9 +27,9 @@ import (
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	pkgCollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
@@ -132,7 +132,9 @@ func newCollector(deps dependencies) *collectorImpl {
 		createdAt:          time.Now(),
 	}
 
-	pkgCollector.InitPython(common.GetPythonPaths()...)
+	if !deps.Config.GetBool("python_lazy_loading") {
+		python.InitPython(common.GetPythonPaths()...)
+	}
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: c.start,
