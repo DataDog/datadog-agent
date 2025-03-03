@@ -74,7 +74,7 @@ def build(
         os.remove(BIN_PATH)
 
     # TODO static option
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -trimpath -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
 
     args = {
