@@ -88,26 +88,39 @@ func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey1(k1 K1) bool {
 	return true
 }
 
-// RemoveKey2 remove the entry in the second layer
-func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey2(k1 K1, k2 K2) bool {
+// RemoveKey2 removes the entry in the second layer for the given K1 keys.
+// If no keys are provided, the function will try to remove the entry for all the keys.
+// Returns the total number of entries that were removed from the cache.
+func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey2(k2 K2, keys ...K1) int {
 	tll.Lock()
 	defer tll.Unlock()
 
-	l2LRU, exists := tll.cache.Peek(k1)
-	if !exists {
-		return false
-	}
-	if !l2LRU.Remove(k2) {
-		return false
+	k1Keys := keys
+	if len(k1Keys) == 0 {
+		k1Keys = tll.cache.Keys()
 	}
 
-	if l2LRU.Len() == 0 {
-		tll.cache.Remove(k1)
+	removed := 0
+	for _, k1 := range k1Keys {
+		l2LRU, exists := tll.cache.Peek(k1)
+		if !exists {
+			continue
+		}
+
+		if !l2LRU.Remove(k2) {
+			continue
+		}
+
+		if l2LRU.Len() == 0 {
+			tll.cache.Remove(k1)
+		}
+
+		removed++
 	}
 
-	tll.len.Dec()
+	tll.len.Sub(uint64(removed))
 
-	return true
+	return removed
 }
 
 // RemoveOldest removes the oldest element
@@ -166,6 +179,20 @@ func (tll *TwoLayersLRU[K1, K2, V]) Walk(cb func(k1 K1, k2 K2, v V)) {
 				if value, exists := l2LRU.Peek(k2); exists {
 					cb(k1, k2, value)
 				}
+			}
+		}
+	}
+}
+
+// WalkInner through all the keys of the inner LRU
+func (tll *TwoLayersLRU[K1, K2, V]) WalkInner(k1 K1, cb func(k2 K2, v V)) {
+	tll.RLock()
+	defer tll.RUnlock()
+
+	if l2LRU, exists := tll.cache.Peek(k1); exists {
+		for _, k2 := range l2LRU.Keys() {
+			if value, exists := l2LRU.Peek(k2); exists {
+				cb(k2, value)
 			}
 		}
 	}
