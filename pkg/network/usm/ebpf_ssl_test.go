@@ -95,7 +95,7 @@ func TestSSLMapsCleaner(t *testing.T) {
 
 	// find maps by names
 	maps := getMaps(t, monitor.ebpfProgram.Manager.Manager, sslPidKeyMaps)
-	require.Equal(t, len(maps), 6)
+	require.Equal(t, len(maps), len(sslPidKeyMaps))
 
 	// add random pid to the maps
 	pid := 100
