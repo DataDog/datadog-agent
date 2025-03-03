@@ -130,8 +130,11 @@ if [ "$1" = SETUP_RUNNER ]; then
 
     # TODO A: Add it in the runner
     echo Install extra packages
-    brew install binutils
-    brew install gmp
+    extrapackages=("binutils" "gmp")
+    for pkg in "${extrapackages[@]}"; do
+        echo Installing $pkg
+        brew install $pkg -f
+    done
 
     exit
 fi
