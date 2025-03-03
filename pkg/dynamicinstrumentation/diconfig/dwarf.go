@@ -83,19 +83,14 @@ entryLoop:
 			}
 			var files []*dwarf.LineFile
 			if cuLineReader != nil {
-				files = cuLineReader.Files()
-			}
-
-			filesCopy := make([]*dwarf.LineFile, len(files))
-
-			for i := range files {
-				if files[i] == nil {
-					continue
-				}
-				filesCopy[i] = &dwarf.LineFile{
-					Name:   strings.Clone(files[i].Name),
-					Mtime:  files[i].Mtime,
-					Length: files[i].Length,
+				for _, file := range cuLineReader.Files() {
+					if file != nil {
+						files = append(files, &dwarf.LineFile{
+							Name:   strings.Clone(file.Name),
+							Mtime:  file.Mtime,
+							Length: file.Length,
+						})
+					}
 				}
 			}
 
