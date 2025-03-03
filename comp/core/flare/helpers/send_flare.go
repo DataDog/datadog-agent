@@ -269,3 +269,9 @@ func GetFlareEndpoint(cfg config.Reader) string {
 	flareRoute, _ := configUtils.AddAgentVersionToDomain(configUtils.GetInfraEndpoint(cfg), "flare")
 	return flareRoute + datadogSupportURL
 }
+
+// SendFlare sends a flare and returns the message returned by the backend. This entry point is deprecated in favor of
+// the 'Send' method of the flare component.
+func SendFlare(cfg pkgconfigmodel.Reader, archivePath string, caseID string, email string, source FlareSource) (string, error) {
+	return SendTo(cfg, archivePath, caseID, email, cfg.GetString("api_key"), configUtils.GetInfraEndpoint(cfg), source)
+}

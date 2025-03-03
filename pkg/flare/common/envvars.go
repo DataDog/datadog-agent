@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package common
 
 import (
 	"bytes"
@@ -139,6 +139,24 @@ var allowedEnvvarNames = []string{
 	"CLUSTER_AGENT_DEPLOYMENT",
 }
 
+// GetEnvVars collects allowed envvars that can affect the agent's
+// behaviour while not being handled by viper, in addition to the envvars handled by viper
+func GetEnvVars() ([]byte, error) {
+	envvars := getAllowedEnvvars()
+
+	var b bytes.Buffer
+	if len(envvars) > 0 {
+		fmt.Fprintln(&b, "Found the following envvars:")
+		for _, envvar := range envvars {
+			fmt.Fprintln(&b, " - ", envvar)
+		}
+	} else {
+		fmt.Fprintln(&b, "Found no allowed envvar")
+	}
+
+	return b.Bytes(), nil
+}
+
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
 	allowed = append(allowed, pkgconfigsetup.Datadog().GetEnvVars()...)
@@ -159,22 +177,4 @@ func getAllowedEnvvars() []string {
 		}
 	}
 	return found
-}
-
-// GetEnvVars collects allowed envvars that can affect the agent's
-// behaviour while not being handled by viper, in addition to the envvars handled by viper
-func GetEnvVars() ([]byte, error) {
-	envvars := getAllowedEnvvars()
-
-	var b bytes.Buffer
-	if len(envvars) > 0 {
-		fmt.Fprintln(&b, "Found the following envvars:")
-		for _, envvar := range envvars {
-			fmt.Fprintln(&b, " - ", envvar)
-		}
-	} else {
-		fmt.Fprintln(&b, "Found no allowed envvar")
-	}
-
-	return b.Bytes(), nil
 }
