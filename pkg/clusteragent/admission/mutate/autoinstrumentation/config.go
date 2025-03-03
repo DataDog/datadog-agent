@@ -154,7 +154,7 @@ type InstrumentationConfig struct {
 	// LibVersions is a map of tracer libraries to inject with their versions. The key is the language and the value is
 	// the version of the library to inject. If empty, the auto instrumentation will inject all libraries. Full config
 	// key: apm_config.instrumentation.lib_versions
-	LibVersions map[string]string `mapstructure:"lib_versions" json:"lib_versions"`
+	LibVersions map[string]string `mapstructure:"-" json:"-"`
 	// Version is the version of the autoinstrumentation logic to use. We don't expose this option to the user, and V1
 	// is deprecated and slated for removal. Full config key: apm_config.instrumentation.version
 	Version string `mapstructure:"version" json:"version"`
@@ -170,8 +170,12 @@ type InstrumentationConfig struct {
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the
 // configuration is invalid.
 func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationConfig, error) {
-	cfg := &InstrumentationConfig{}
-	err := structure.UnmarshalKey(datadogConfig, "apm_config.instrumentation", cfg, structure.ErrorUnused)
+	cfg := &InstrumentationConfig{
+		// We bypass the default unmarshaling mechanism for LibVersions because the attempt to unmarshal it directly
+		// fails if the JSON is parsed as a "string".
+		LibVersions: datadogConfig.GetStringMapString("apm_config.instrumentation.lib_versions"),
+	}
+	err := structure.UnmarshalKey(datadogConfig, "apm_config.instrumentation", cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse apm_config.instrumentation: %w", err)
 	}
