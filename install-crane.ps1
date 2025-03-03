@@ -37,34 +37,33 @@ function Get-RemoteFile() {
     }
 }
 
+function DownloadAndExpandTo{
+    param(
+        [Parameter(Mandatory = $true)][string] $TargetDir,
+        [Parameter(Mandatory = $true)][string] $SourceURL,
+        [Parameter(Mandatory = $true)][string] $Sha256
+    )
+    $tmpOutFile = New-TemporaryFile
+
+    Get-RemoteFile -LocalFile $tmpOutFile -RemoteFile $SourceURL -VerifyHash $Sha256
+
+    If(!(Test-Path $TargetDir))
+    {
+        md $TargetDir
+    }
+
+    Start-Process "7z" -ArgumentList "x -o${TargetDir} $tmpOutFile" -Wait
+    Remove-Item $tmpOutFile
+}
+
+
 
 # Crane download URL and installation path
 $craneUrl = "https://github.com/google/go-containerregistry/releases/download/v0.20.3/go-containerregistry_Windows_x86_64.tar.gz"
 $installPath = "C:\crane"
-$archivePath = "$installPath\crane.tar.gz"
-$exePath = "$installPath\crane.exe"
 
-# Ensure installation directory exists
-if (!(Test-Path -Path $installPath)) {
-    New-Item -ItemType Directory -Path $installPath -Force | Out-Null
-}
-
-# Download Crane tar.gz file
-Write-Host "Downloading Crane..."
-Get-RemoteFile -RemoteFile $craneUrl -LocalFile $archivePath -VerifyHash "939c63961fc2e9d7f0cc2b6a1af9d17a5b2f6a37ffb63d961b47f786aadb732b"
-
-# Extract the tar.gz file
-Write-Host "Extracting Crane..."
-tar -xzf $archivePath -C $installPath
-
-# Rename extracted file if necessary
-$extractedExe = Get-ChildItem -Path $installPath -Filter "crane*.exe" | Select-Object -ExpandProperty FullName
-if ($extractedExe -and ($extractedExe -ne $exePath)) {
-    Rename-Item -Path $extractedExe -NewName "crane.exe" -Force
-}
-
-# Clean up archive file
-Remove-Item -Path $archivePath -Force
+# Download and extract Crane
+DownloadAndExpandTo -TargetDir $installPath -SourceURL $craneUrl -Sha256 "939c63961fc2e9d7f0cc2b6a1af9d17a5b2f6a37ffb63d96"
 
 # Add to system PATH
 Write-Host "Adding Crane to system PATH..."
@@ -74,5 +73,6 @@ Write-Host "Crane installed successfully in $installPath"
 Write-Host "You may need to restart your terminal for the PATH changes to take effect."
 
 # Verify installation
+$exePath = "$installPath\crane.exe"
 $craneVersion = & $exePath version
 Write-Host "Installed Crane version: $craneVersion"
