@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -87,7 +88,7 @@ type istioMonitor struct {
 }
 
 func newIstioMonitor(c *config.Config, mgr *manager.Manager) (*istioMonitor, error) {
-	if !c.EnableIstioMonitoring {
+	if !c.EnableIstioMonitoring || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 
