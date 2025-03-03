@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -141,6 +142,22 @@ func provideConfigDump(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
+func getVPCSubnetsForHost() ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	subnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	for _, subnet := range subnets {
+		buffer.WriteString(subnet.String() + "\n")
+	}
+	return buffer.Bytes(), nil
+}
+
 func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	addSystemProbePlatformSpecificEntries(fb)
 
@@ -148,6 +165,7 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 		_ = fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
 		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry)
 		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)
+		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "vpc_subnets.log"), getVPCSubnetsForHost)
 	} else {
 		// If system probe is disabled, we still want to include the system probe config file
 		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
@@ -161,10 +179,10 @@ func provideExtraFiles(fb flaretypes.FlareBuilder) error {
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?")) //nolint:errcheck
 	} else {
-		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)                      //nolint:errcheck
-		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)                   //nolint:errcheck
-		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList) //nolint:errcheck
+		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)    //nolint:errcheck
+		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList) //nolint:errcheck
 		if !pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
+			fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList) //nolint:errcheck
 			getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
 		}
 	}

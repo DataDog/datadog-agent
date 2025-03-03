@@ -14,11 +14,21 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+)
+
+// This is used to make sure `RemoteVersion` field in CRD .Spec reflect the working version of the CRD
+// It will allow the Cluster Agent to auto-upgrade previous versions of the CRD to the current one
+const (
+	// Current version is v1alpha2, add 1e9 for a new version
+	versionOffset uint64 = 1e9
 )
 
 type autoscalingSettingsProcessor struct {
@@ -42,17 +52,21 @@ func (p autoscalingSettingsProcessor) process(receivedTimestamp time.Time, confi
 
 	// Creating/Updating received PodAutoscalers
 	for _, settings := range settingsList.Settings {
-		if settings.Namespace == "" || settings.Name == "" || settings.Spec == nil {
+		// Resolve/Convert .spec to expected version
+		spec := extractConvertAutoscalerSpec(settings)
+
+		if settings.Namespace == "" || settings.Name == "" || spec == nil {
 			err = multierror.Append(err, fmt.Errorf("received invalid PodAutoscaler from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
 		}
 
+		podAutoscalerRemoteVersion := versionOffset + rawConfig.Metadata.Version
 		podAutoscalerID := autoscaling.BuildObjectID(settings.Namespace, settings.Name)
 		podAutoscaler, podAutoscalerFound := p.store.LockRead(podAutoscalerID, true)
 		// If the PodAutoscaler is not found, we need to create it
 		if !podAutoscalerFound {
-			podAutoscaler = model.NewPodAutoscalerFromSettings(settings.Namespace, settings.Name, settings.Spec, rawConfig.Metadata.Version, receivedTimestamp)
+			podAutoscaler = model.NewPodAutoscalerFromSettings(settings.Namespace, settings.Name, spec, podAutoscalerRemoteVersion, receivedTimestamp)
 		} else {
-			podAutoscaler.UpdateFromSettings(settings.Spec, rawConfig.Metadata.Version, receivedTimestamp)
+			podAutoscaler.UpdateFromSettings(spec, podAutoscalerRemoteVersion, receivedTimestamp)
 		}
 
 		p.store.UnlockSet(podAutoscalerID, podAutoscaler, configRetrieverStoreID)
@@ -72,7 +86,7 @@ func (p autoscalingSettingsProcessor) postProcess(errors []error) {
 
 	// Update the store to flag all PodAutoscalers owned by remote that were not processed
 	p.store.Update(func(pai model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
-		if pai.Spec() == nil || pai.Spec().Owner != v1alpha1.DatadogPodAutoscalerRemoteOwner {
+		if pai.Spec() == nil || pai.Spec().Owner != datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
 			return pai, false
 		}
 
@@ -86,4 +100,22 @@ func (p autoscalingSettingsProcessor) postProcess(errors []error) {
 
 		return pai, false
 	}, configRetrieverStoreID)
+}
+
+func extractConvertAutoscalerSpec(settings model.AutoscalingSettings) *datadoghq.DatadogPodAutoscalerSpec {
+	if settings.Specs != nil {
+		if settings.Specs.V1Alpha2 != nil {
+			return settings.Specs.V1Alpha2
+		}
+
+		if settings.Specs.V1Alpha1 != nil {
+			return pointer.Ptr(datadoghq.ConvertDatadogPodAutoscalerSpecFromV1Alpha1(*settings.Specs.V1Alpha1))
+		}
+	}
+
+	if settings.Spec != nil {
+		return pointer.Ptr(datadoghq.ConvertDatadogPodAutoscalerSpecFromV1Alpha1(*settings.Spec))
+	}
+
+	return nil
 }

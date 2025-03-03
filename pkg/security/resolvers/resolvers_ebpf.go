@@ -218,14 +218,14 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 }
 
 // ResolveCGroupContext resolves the cgroup context from a cgroup path key
-func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, error) {
+func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, bool, error) {
 	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
-		return cgroupContext, nil
+		return cgroupContext, true, nil
 	}
 
 	cgroup, err := r.DentryResolver.Resolve(pathKey, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
+		return nil, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
 	}
 
 	cgroupContext := &model.CGroupContext{
@@ -235,7 +235,7 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 		CGroupManager: containerutils.CGroupManager(cgroupFlags & containerutils.CGroupManagerMask).String(),
 	}
 
-	return cgroupContext, nil
+	return cgroupContext, false, nil
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.

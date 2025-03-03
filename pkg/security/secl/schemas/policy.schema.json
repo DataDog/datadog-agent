@@ -306,6 +306,12 @@
           },
           "type": "object"
         },
+        "product_tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "agent_version": {
           "type": "string"
         },
@@ -411,7 +417,8 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "container",
+            "cgroup"
           ]
         },
         "size": {

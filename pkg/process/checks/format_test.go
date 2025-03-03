@@ -135,6 +135,7 @@ Processes
     Lib:    600 B
     Data:   700 B
     Dirty:  800 B
+  Tags: 
   CPU: Total: 3% System: 2% User: 1%
   Threads: 100
   Nice: 2

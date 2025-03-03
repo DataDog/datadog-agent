@@ -24,13 +24,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+	delve "github.com/go-delve/delve/pkg/goversion"
 )
 
 type processTrackerCallback func(ditypes.DIProcs)
@@ -94,35 +94,48 @@ func (pt *ProcessTracker) handleProcessStop(pid uint32) {
 	pt.unregisterProcess(pid)
 }
 
+func remoteConfigCallback(_ delve.GoVersion, goarch string) ([]bininspect.ParameterMetadata, error) {
+	if goarch != "arm64" && goarch != "amd64" {
+		return nil, errors.New("invalid arch")
+	}
+	return []bininspect.ParameterMetadata{
+		{
+			TotalSize: 16,
+			Kind:      0x18,
+			Pieces: []bininspect.ParameterPiece{
+				{Size: 8, InReg: true, StackOffset: 0, Register: 0},
+				{Size: 8, InReg: true, StackOffset: 0, Register: 1},
+			},
+		},
+		{
+			TotalSize: 16,
+			Kind:      0x18,
+			Pieces: []bininspect.ParameterPiece{
+				{Size: 8, InReg: true, StackOffset: 0, Register: 2},
+				{Size: 8, InReg: true, StackOffset: 0, Register: 3},
+			},
+		},
+		{
+			TotalSize: 16,
+			Kind:      0x18,
+			Pieces: []bininspect.ParameterPiece{
+				{Size: 8, InReg: true, StackOffset: 0, Register: 4},
+				{Size: 8, InReg: true, StackOffset: 0, Register: 5},
+			},
+		}}, nil
+}
+
 func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
-	serviceName := getServiceName(pid)
-	if serviceName == "" {
+	// Avoid self-inspection.
+	if int(pid) == os.Getpid() {
+		return
+	}
+
+	serviceName, diEnabled := getEnvVars(pid)
+	if serviceName == "" || !diEnabled {
 		// if the expected env vars are not set we don't inspect the binary
 		return
 	}
-	log.Info("Found instrumentation candidate", serviceName)
-	// binPath, err := os.Readlink(exePath)
-	// if err != nil {
-	// 	// /proc could be slow to update so we retry a few times
-	// 	end := time.Now().Add(10 * time.Millisecond)
-	// 	for end.After(time.Now()) {
-	// 		binPath, err = os.Readlink(exePath)
-	// 		if err == nil {
-	// 			break
-	// 		}
-	// 		time.Sleep(time.Millisecond)
-	// 	}
-	// }
-	// if err != nil {
-	// 	// we can't access the binary path here (pid probably ended already)
-	// 	// there is not much we can do, and we don't want to flood the logs
-	// 	log.Infof("cannot follow link %s -> %s, %s", exePath, binPath, err)
-	// 	// in docker, following the symlink does not work, but we can open the file in /proc
-	// 	// if we can't follow the symlink we try to open /proc directly
-	// 	// TODO: validate this approach
-	// 	binPath = exePath
-	// }
-
 	// TODO: switch to using exePath for the demo, use conditional logic above moving forward
 	binPath := exePath
 	f, err := os.Open(exePath)
@@ -138,13 +151,14 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 		log.Infof("file %s could not be parsed as an ELF file: %s", binPath, err)
 		return
 	}
-
-	noFuncs := make(map[string]bininspect.FunctionConfiguration)
 	noStructs := make(map[bininspect.FieldIdentifier]bininspect.StructLookupFunction)
-	_, err = bininspect.InspectNewProcessBinary(elfFile, noFuncs, noStructs)
-	if errors.Is(err, binversion.ErrNotGoExe) {
-		return
+	var functionsConfig = map[string]bininspect.FunctionConfiguration{
+		ditypes.RemoteConfigCallback: {
+			IncludeReturnLocations: false,
+			ParamLookupFunction:    remoteConfigCallback,
+		},
 	}
+	_, err = bininspect.InspectNewProcessBinary(elfFile, functionsConfig, noStructs)
 	if err != nil {
 		log.Infof("error reading exe: %s", err)
 		return
@@ -160,6 +174,7 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 		Id_minor: unix.Minor(stat.Dev),
 		Ino:      stat.Ino,
 	}
+	log.Info("Found instrumentation candidate", serviceName)
 	pt.registerProcess(binID, pid, stat.Mtim, binPath, serviceName)
 }
 
@@ -185,14 +200,12 @@ func (pt *ProcessTracker) registerProcess(binID binaryID, pid pid, mTime syscall
 	pt.callback(state)
 }
 
-func getServiceName(pid uint32) string {
+func getEnvVars(pid uint32) (serviceName string, diEnabled bool) {
 	envVars, _, err := utils.EnvVars([]string{"DD"}, pid, sharedconsts.MaxArgsEnvsSize)
 	if err != nil {
-		return ""
+		return "", false
 	}
 
-	serviceName := ""
-	diEnabled := false
 	for _, envVar := range envVars {
 		parts := strings.SplitN(envVar, "=", 2)
 		if len(parts) == 2 && parts[0] == "DD_SERVICE" {
@@ -202,11 +215,7 @@ func getServiceName(pid uint32) string {
 			diEnabled = parts[1] == "true"
 		}
 	}
-
-	if !diEnabled {
-		return ""
-	}
-	return serviceName
+	return serviceName, diEnabled
 }
 
 func (pt *ProcessTracker) unregisterProcess(pid pid) {

@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 	"go4.org/intern"
@@ -106,8 +107,8 @@ type Tracer struct {
 }
 
 // NewTracer creates a Tracer
-func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Component) (*Tracer, error) {
-	tr, err := newTracer(config, telemetryComponent)
+func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (*Tracer, error) {
+	tr, err := newTracer(config, telemetryComponent, statsd)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +122,7 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
-func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component) (_ *Tracer, reterr error) {
+func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (_ *Tracer, reterr error) {
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -182,7 +183,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	}
 
 	tr.reverseDNS = newReverseDNS(cfg, telemetryComponent)
-	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
+	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, statsd)
 
 	// Set up the connection_protocol map cleaner if protocol classification is enabled
 	if cfg.ProtocolClassificationEnabled || usmconfig.IsUSMSupportedAndEnabled(cfg) {
@@ -432,7 +433,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats())
+	usmStats, cleaners := t.usmMonitor.GetProtocolStats()
+	defer cleaners()
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), usmStats)
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	var udpConns, tcpConns int
@@ -850,7 +853,7 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
+func newUSMMonitor(c *config.Config, tracer connection.Tracer, statsd statsd.ClientInterface) *usm.Monitor {
 	if !usmconfig.IsUSMSupportedAndEnabled(c) {
 		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
 		return nil
@@ -862,7 +865,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 		log.Warnf("couldn't get %q map: %s", probes.ConnectionProtocolMap, err)
 	}
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap, statsd)
 	if err != nil {
 		log.Errorf("usm initialization failed: %s", err)
 		return nil

@@ -214,6 +214,10 @@ func (c *CheckBase) ConfigSource() string {
 	return c.source
 }
 
+func (*CheckBase) Loader() string {
+	return GoCheckLoaderName
+}
+
 // InitConfig returns the init_config configuration for the check.
 func (c *CheckBase) InitConfig() string {
 	return c.initConfig
@@ -280,4 +284,9 @@ func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
 func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
+}
+
+// IsHASupported returns if the check is compatible with High Availability
+func (c *CheckBase) IsHASupported() bool {
+	return false
 }

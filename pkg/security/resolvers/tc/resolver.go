@@ -9,6 +9,7 @@
 package tc
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -131,6 +132,11 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		}
 
 		if err := m.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
+			linkNotFoundErr := &netlink.LinkNotFoundError{}
+			if errors.As(err, linkNotFoundErr) {
+				// return now since we won't be able to attach anything at all
+				return err
+			}
 			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
 		} else {
 			tcr.programs[progKey] = newProbe

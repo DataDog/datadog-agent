@@ -20,8 +20,8 @@ import (
 
 type MockCheck struct {
 	core.CheckBase
-	Name   string
-	Loader string
+	Name       string
+	LoaderName string
 }
 
 func (m MockCheck) Run() error {
@@ -29,8 +29,12 @@ func (m MockCheck) Run() error {
 	panic("implement me")
 }
 
+func (m MockCheck) Loader() string {
+	return m.LoaderName
+}
+
 func (m MockCheck) String() string {
-	return fmt.Sprintf("Loader: %s, Check: %s", m.Loader, m.Name)
+	return fmt.Sprintf("Loader: %s, Check: %s", m.LoaderName, m.Name)
 }
 
 type MockCoreLoader struct{}
@@ -41,7 +45,7 @@ func (l *MockCoreLoader) Name() string {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (l *MockCoreLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
-	mockCheck := MockCheck{Name: config.Name, Loader: l.Name()}
+	mockCheck := MockCheck{Name: config.Name, LoaderName: l.Name()}
 	return &mockCheck, nil
 }
 
@@ -53,23 +57,23 @@ func (l *MockPythonLoader) Name() string {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
-	mockCheck := MockCheck{Name: config.Name, Loader: l.Name()}
+	mockCheck := MockCheck{Name: config.Name, LoaderName: l.Name()}
 	return &mockCheck, nil
 }
 
 func TestAddLoader(t *testing.T) {
 	s := CheckScheduler{}
 	assert.Len(t, s.loaders, 0)
-	s.AddLoader(&MockCoreLoader{})
-	s.AddLoader(&MockCoreLoader{}) // noop
+	s.addLoader(&MockCoreLoader{})
+	s.addLoader(&MockCoreLoader{}) // noop
 	assert.Len(t, s.loaders, 1)
 }
 
 func TestGetChecksFromConfigs(t *testing.T) {
 	s := CheckScheduler{}
 	assert.Len(t, s.loaders, 0)
-	s.AddLoader(&MockCoreLoader{})
-	s.AddLoader(&MockPythonLoader{})
+	s.addLoader(&MockCoreLoader{})
+	s.addLoader(&MockPythonLoader{})
 
 	// test instance level loader selection
 	conf1 := integration.Config{

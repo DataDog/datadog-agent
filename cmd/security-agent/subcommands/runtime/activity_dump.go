@@ -779,7 +779,7 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	} else {
 		policyName = "workload_policy"
 	}
-	policy, err := rules.LoadPolicyFromDefinition(policyName, "workload", &policyDef, nil, nil)
+	policy, err := rules.LoadPolicyFromDefinition(policyName, "workload", rules.InternalPolicyType, &policyDef, nil, nil)
 
 	if err != nil {
 		return fmt.Errorf("error in generated ruleset's syntax: '%s'", err)

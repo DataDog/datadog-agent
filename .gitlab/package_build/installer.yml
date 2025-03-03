@@ -93,7 +93,7 @@ installer-install-scripts:
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_mod_tidy_check", "go_deps", "installer-amd64-oci", "installer-arm64-oci"]
   variables:
     KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: "16Gi"
@@ -104,10 +104,12 @@ installer-install-scripts:
     - VERSION="$(inv agent.version --url-safe)-1" || exit $?
     - echo "About to build for $VERSION"
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - inv -e installer.build-linux-script "default" "$VERSION"
-    - inv -e installer.build-linux-script "databricks" "$VERSION"
-    - inv -e installer.build-linux-script "emr" "$VERSION"
-    - inv -e installer.build-linux-script "dataproc" "$VERSION"
+    - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-amd64
+    - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*arm64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-arm64
+    - inv -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "install.sh"
+    - inv -e installer.build-linux-script "databricks" "$VERSION" "installer-amd64" "installer-arm64" "install-databricks.sh"
+    - inv -e installer.build-linux-script "emr" "$VERSION" "installer-amd64" "installer-arm64" "install-emr.sh"
+    - inv -e installer.build-linux-script "dataproc" "$VERSION" "installer-amd64" "installer-arm64" "install-dataproc.sh"
     - mv ./bin/installer/install*.sh $OMNIBUS_PACKAGE_DIR/
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:

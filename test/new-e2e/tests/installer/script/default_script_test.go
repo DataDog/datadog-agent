@@ -10,12 +10,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
 type installScriptDefaultSuite struct {
@@ -40,10 +41,10 @@ func (s *installScriptDefaultSuite) TestInstall() {
 		"DD_SITE=datadoghq.com",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:2,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_NETWORK_CONFIG_ENABLED=true", // necessary to get process-agent running
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
 		"DD_SBOM_HOST_ENABLED=true",
-		"DD_REMOTE_POLICIES=false",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
@@ -64,8 +65,8 @@ func (s *installScriptDefaultSuite) TestInstall() {
 
 	// Config files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0640, "root", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/security-agent.yaml", 0640, "root", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/system-probe.yaml", 0440, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/security-agent.yaml", 0440, "dd-agent", "dd-agent")
 	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-ruby") // Not in DD_APM_INSTRUMENTATION_LIBRARIES
 
 	// Units started
@@ -98,7 +99,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
 		"DD_SBOM_HOST_ENABLED=true",
-		"DD_REMOTE_POLICIES=true",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",

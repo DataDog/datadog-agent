@@ -1,14 +1,57 @@
 static_quality_gates:
   stage: functional_test
   rules:
-    - !reference [.except_main_or_release_branch]
+    - !reference [.not_on_release_branch_or_tagged_commit]
+    - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - job: agent_deb-x64-a7
       artifacts: true
+    - job: agent_deb-arm64-a7
+      artifacts: true
+    - job: agent_rpm-x64-a7
+      artifacts: true
+    - job: agent_rpm-arm64-a7
+      artifacts: true
+    - job: agent_suse-x64-a7
+      artifacts: true
+    - job: agent_suse-arm64-a7
+      artifacts: true
     - job: docker_build_agent7
+      artifacts: true
+    - job: docker_build_agent7_arm64
+      artifacts: true
+    - job: docker_build_agent7_jmx
+      artifacts: true
+    - job: docker_build_agent7_jmx_arm64
+      artifacts: true
+    - job: docker_build_cluster_agent_amd64
+      artifacts: true
+    - job: docker_build_cluster_agent_arm64
+      artifacts: true
+    - job: docker_build_dogstatsd_amd64
+      artifacts: true
+    - job: docker_build_dogstatsd_arm64
+      artifacts: true
+    - job: dogstatsd_deb-x64
+      artifacts: true
+    - job: dogstatsd_deb-arm64
+      artifacts: true
+    - job: dogstatsd_rpm-x64
+      artifacts: true
+    - job: dogstatsd_suse-x64
+      artifacts: true
+    - job: iot_agent_deb-x64
+      artifacts: true
+    - job: iot_agent_deb-arm64
+      artifacts: true
+    - job: iot_agent_rpm-x64
+      artifacts: true
+    - job: iot_agent_rpm-arm64
+      artifacts: true
+    - job: iot_agent_suse-x64
       artifacts: true
   # Static Quality Gates aren't enforced until Q1
   allow_failure: true

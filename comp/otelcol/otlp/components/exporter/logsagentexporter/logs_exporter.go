@@ -64,7 +64,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		}
 	}()
 
-	payloads := e.translator.MapLogs(ctx, ld)
+	payloads := e.translator.MapLogs(ctx, ld, nil)
 	for _, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead

@@ -182,6 +182,7 @@ type MapSpecEditorOpts struct {
 	SecurityProfileMaxCount   int
 	ReducedProcPidCacheSize   bool
 	NetworkFlowMonitorEnabled bool
+	NetworkSkStorageEnabled   bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -289,11 +290,20 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	if !kv.HasSKStorage() {
+	if kv.HasSKStorage() && opts.NetworkSkStorageEnabled {
+		// SK_Storage maps are enabled and available, delete fall back
+		editors["sock_meta"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+		}
+	} else {
 		// Edit each SK_Storage map and transform them to a basic hash maps so they can be loaded by older kernels.
 		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
 		// elimination will clean up the piece of code that work with them prior to running the verifier.
-		editors["sock_active_pid_route"] = manager.MapSpecEditor{
+		editors["sk_storage_meta"] = manager.MapSpecEditor{
 			Type:       ebpf.Hash,
 			KeySize:    1,
 			ValueSize:  1,

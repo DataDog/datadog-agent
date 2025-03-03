@@ -73,6 +73,14 @@ var metricOriginsMappings = map[otlpmetrics.OriginProductDetail]metrics.MetricSo
 
 var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
 
+// SerializerConsumer is a consumer that consumes OTLP metrics.
+type SerializerConsumer interface {
+	otlpmetrics.Consumer
+	Send(s serializer.MetricSerializer) error
+	addRuntimeTelemetryMetric(hostname string, languageTags []string)
+	addTelemetryMetric(hostname string)
+}
+
 type serializerConsumer struct {
 	enricher        tagenricher
 	extraTags       []string

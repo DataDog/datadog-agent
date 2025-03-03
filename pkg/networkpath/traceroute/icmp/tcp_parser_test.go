@@ -34,7 +34,7 @@ func TestTCPMatch(t *testing.T) {
 	dstPort := uint16(443)
 	seqNum := uint32(2549)
 	mockHeader := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
-	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
+	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
 	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
 	innerTCPLayer := testutils.CreateMockTCPLayer(srcPort, dstPort, seqNum, 12737, true, true, true)
 	icmpBytes := testutils.CreateMockICMPWithTCPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true)
@@ -111,7 +111,7 @@ func TestTCPMatch(t *testing.T) {
 
 func TestTCPParse(t *testing.T) {
 	ipv4Header := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
-	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
+	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
 	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
 	innerTCPLayer := testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
 

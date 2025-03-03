@@ -23,9 +23,10 @@ func TestVersion(t *testing.T) {
 		usesInjector   bool
 	}{
 		{
-			name:           "v1 is valid",
+			name:           "v1 is deprecated, defaults to v2",
 			version:        "v1",
-			expectsVersion: instrumentationV1,
+			expectsVersion: instrumentationV2,
+			usesInjector:   true,
 		},
 		{
 			name:           "v2 uses injector",
@@ -56,7 +57,5 @@ func TestVersion(t *testing.T) {
 				require.NotPanics(t, usesInjector)
 			}
 		})
-
 	}
-
 }

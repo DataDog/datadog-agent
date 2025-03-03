@@ -26,8 +26,8 @@ type Package struct {
 
 // PackagesList lists all known packages. Not all of them are installable
 var PackagesList = []Package{
-	{Name: "datadog-apm-inject", released: true, condition: apmInjectEnabled},
-	{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-inject", version: apmInjectVersion, released: true, condition: apmInjectEnabled},
+	{Name: "datadog-apm-library-java", version: apmJavaVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-dotnet", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
@@ -35,6 +35,16 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
+
+// Default versions pinned for CentOS 6
+// This is in place to make sure we don't break backward compatibility for the few
+// customers using SSI that are still using CentOS 6
+// No manual testing is done on CentOS 6, so we can't guarantee that the latest versions will continue working.
+// Before updating the pin, please make sure the pinned packages still work.
+var (
+	apmInjectCentos6Version = "0.30.0-1"
+	apmJavaCentos6Version   = "1.45.2-1"
+)
 
 var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-java":   "1",
@@ -87,17 +97,16 @@ func apmInjectEnabled(_ Package, e *env.Env) bool {
 }
 
 // apmLanguageEnabled returns true if the package should be installed
-// Note: the PHP tracer is in beta and isn't included in the "all" or default languages
 func apmLanguageEnabled(p Package, e *env.Env) bool {
 	if _, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
 		return true
 	}
-	if _, ok := e.ApmLibraries["all"]; ok && p.Name != "datadog-apm-library-php" {
+	if _, ok := e.ApmLibraries["all"]; ok {
 		return true
 	}
 	// If the ApmLibraries env is left empty but apm injection is
 	// enabled, we install all languages
-	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) && p.Name != "datadog-apm-library-php" {
+	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) {
 		return true
 	}
 	return false
@@ -121,6 +130,27 @@ func apmLanguageVersion(p Package, e *env.Env) string {
 		return versionTag + "-1"
 	}
 	return versionTag
+}
+
+func apmJavaVersion(p Package, e *env.Env) string {
+	if e.IsCentos6 {
+		apmLibVersion := e.ApmLibraries[packageToLanguage(p.Name)]
+		// If no version is set, or the customer specifies major version 1, return the pinned version
+		if apmLibVersion == "" || apmLibVersion == "1" {
+			return apmJavaCentos6Version
+		}
+	}
+	return apmLanguageVersion(p, e)
+}
+
+// apmInjectVersion returns the version of the apm-inject package to install
+// If centos6 is detected return the pin, otherwise alwasys return latest
+func apmInjectVersion(_p Package, e *env.Env) string {
+	version := "latest"
+	if e.IsCentos6 {
+		return apmInjectCentos6Version
+	}
+	return version
 }
 
 func packageToLanguage(packageName string) env.ApmLibLanguage {

@@ -34,7 +34,7 @@ func newTestDownloadServer(t *testing.T) *testDownloadServer {
 	s := fixtures.NewServer(t)
 	return &testDownloadServer{
 		Server: s,
-		m:      newTestMirrorServer(s),
+		m:      newTestMirrorServer(s.URL()),
 	}
 }
 

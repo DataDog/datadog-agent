@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,13 +26,14 @@ type Component interface {
 	// Create creates a new flare locally and returns the path to the flare file.
 	//
 	// If providerTimeout is 0 or negative, the timeout from the configuration will be used.
-	Create(pdata ProfileData, providerTimeout time.Duration, ipcError error) (string, error)
+	Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error) (string, error)
 	// Send sends a flare archive to Datadog.
 	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
 }
 
 // Module defines the fx options for this component.
 func Module(params Params) fxutil.Module {
+
 	return fxutil.Component(
 		fx.Provide(newFlare),
 		fx.Supply(params))

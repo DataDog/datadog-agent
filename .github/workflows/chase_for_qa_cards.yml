@@ -1,0 +1,38 @@
+name: "Chase teams for QA cards"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Full version of the release (e.g. 7.31.0)'
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  chase_for_qa_cards:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        ref: ${{ github.head_ref }}
+        persist-credentials: false
+    - name: Install python
+      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      with:
+        python-version-file: .python-version
+        cache: "pip"
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements_release_tasks.txt
+    - name: Chase for QA cards
+      env:
+        ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
+        ATLASSIAN_PASSWORD : ${{ secrets.ATLASSIAN_PASSWORD }}
+        SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+        VERSION: ${{ github.event.inputs.version }}
+      run: |
+        inv -e release.chase-for-qa-cards -v "$VERSION"

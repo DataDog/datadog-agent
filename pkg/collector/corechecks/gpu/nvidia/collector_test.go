@@ -11,11 +11,10 @@ import (
 	"errors"
 	"testing"
 
+	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
-
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 )
 
 func getBasicNvmlDeviceMock() nvml.Device {
@@ -48,7 +47,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ nvml.Interface, _ nvml.Device, _ []string) (Collector, error) {
+	factory := func(_ nvml.Device, _ []string) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -59,7 +58,8 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	nvmlMock := getBasicNvmlMock()
 	fakeTagger := taggerMock.SetupFakeTagger(t)
 	deps := &CollectorDependencies{NVML: nvmlMock, Tagger: fakeTagger}
-	collectors, err := buildCollectors(deps, map[string]subsystemBuilder{"ok": factory, "fail": factory})
+	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
+
 }

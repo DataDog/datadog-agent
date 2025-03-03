@@ -442,7 +442,7 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 			assert.Equal(c, originServicePrometheusReceiver, int(origin.OriginService))
 		}
 
-		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_datadog_trace_agent_trace_writer_spans")
+		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("datadog.trace_agent.trace_writer.bytes")
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traceAgentMetrics)
 		for _, m := range otelcolMetrics {

@@ -19,17 +19,22 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/nikos/types"
 	"golang.org/x/exp/maps"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+var headerTelemetry = struct {
+	success telemetry.Counter
+	error   telemetry.Counter
+}{
+	success: telemetry.NewCounter("ebpf__runtime_compilation__header_download", "success", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download successes"),
+	error:   telemetry.NewCounter("ebpf__runtime_compilation__header_download", "error", []string{"platform", "platform_version", "kernel", "arch", "result"}, "count of kernel header download errors"),
+}
 
 const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
 const kernelModulesPath = "/lib/modules/%s/build"
@@ -73,6 +78,7 @@ const (
 	headersNotFoundDownloadDisabled
 )
 
+// IsSuccess returns whether the headers were fetched successfully
 func (r headerFetchResult) IsSuccess() bool {
 	return customHeadersFound <= r && r <= downloadSuccess
 }
@@ -128,7 +134,7 @@ func initProvider(opts HeaderOptions) {
 // Any subsequent calls to GetKernelHeaders will return the result of the first call. This is because
 // kernel header downloading can be a resource intensive process, so we don't want to retry it an unlimited
 // number of times.
-func GetKernelHeaders(opts HeaderOptions, client statsd.ClientInterface) []string {
+func GetKernelHeaders(opts HeaderOptions) []string {
 	providerMu.Lock()
 	defer providerMu.Unlock()
 
@@ -149,9 +155,7 @@ func GetKernelHeaders(opts HeaderOptions, client statsd.ClientInterface) []strin
 	}
 
 	headers, result, err := HeaderProvider.getKernelHeaders(hv)
-	if client != nil {
-		submitTelemetry(result, client)
-	}
+	submitTelemetry(result)
 
 	HeaderProvider.kernelHeaders = headers
 	HeaderProvider.result = result
@@ -215,7 +219,7 @@ func (h *headerProvider) getKernelHeaders(hv Version) ([]string, headerFetchResu
 	log.Debugf("unable to find downloaded kernel headers: no valid headers found")
 
 	if !h.downloadEnabled {
-		return nil, headersNotFoundDownloadDisabled, fmt.Errorf("no valid matching kernel header directories found. To download kernel headers, set system_probe_config.enable_kernel_header_download to true")
+		return nil, headersNotFoundDownloadDisabled, errors.New("no valid matching kernel header directories found. To download kernel headers, set system_probe_config.enable_kernel_header_download to true")
 	}
 
 	return h.downloadHeaders(hv)
@@ -233,7 +237,7 @@ func (h *headerProvider) downloadHeaders(hv Version) ([]string, headerFetchResul
 	if dirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(h.headerDownloadDir), true); len(dirs) > 0 {
 		return dirs, downloadSuccess, nil
 	}
-	return nil, validationFailure, fmt.Errorf("downloaded headers are not valid")
+	return nil, validationFailure, errors.New("downloaded headers are not valid")
 }
 
 // validateHeaderDirs checks all the given directories and returns the directories containing kernel
@@ -357,7 +361,7 @@ func parseHeaderVersion(r io.Reader) (Version, error) {
 	if err := scanner.Err(); err != nil {
 		return 0, err
 	}
-	return 0, fmt.Errorf("no kernel version found")
+	return 0, errors.New("no kernel version found")
 }
 
 func getDefaultHeaderDirs() []string {
@@ -408,7 +412,7 @@ func getSysfsHeaderDirs(v Version) ([]string, error) {
 		}
 		defer func() { _ = unloadKHeadersModule() }()
 		if !sysfsHeadersExist() {
-			return nil, fmt.Errorf("unable to find sysfs kernel headers")
+			return nil, errors.New("unable to find sysfs kernel headers")
 		}
 	}
 
@@ -445,41 +449,43 @@ func unloadKHeadersModule() error {
 	return nil
 }
 
-func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
+func submitTelemetry(result headerFetchResult) {
 	if result == notAttempted {
 		return
 	}
 
-	var platform string
-	if target, err := types.NewTarget(); err == nil {
-		platform = strings.ToLower(target.Distro.Display)
-	} else {
-		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
-		platform, err = Platform()
-		if err != nil {
-			log.Warnf("failed to retrieve host platform information: %s", err)
-			return
-		}
+	platform, err := Platform()
+	if err != nil {
+		log.Warnf("failed to retrieve host platform information: %s", err)
+		return
+	}
+	platformVersion, err := PlatformVersion()
+	if err != nil {
+		log.Warnf("failed to get platform version: %s", err)
+		return
+	}
+	kernelVersion, err := Release()
+	if err != nil {
+		log.Warnf("failed to get kernel version: %s", err)
+		return
+	}
+	arch, err := Machine()
+	if err != nil {
+		log.Warnf("failed to get kernel architecture: %s", err)
+		return
 	}
 
 	tags := []string{
-		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("platform:%s", platform),
+		platform,
+		platformVersion,
+		kernelVersion,
+		arch,
+		kernelHeaderFetchResultName[int(result)],
 	}
 
-	var resultTag string
 	if result.IsSuccess() {
-		resultTag = "success"
+		headerTelemetry.success.Inc(tags...)
 	} else {
-		resultTag = "failure"
-	}
-
-	khdTags := append(tags,
-		fmt.Sprintf("result:%s", resultTag),
-		fmt.Sprintf("reason:%s", kernelHeaderFetchResultName[int(result)]),
-	)
-
-	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil && !errors.Is(err, statsd.ErrNoClient) {
-		log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
+		headerTelemetry.error.Inc(tags...)
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -68,6 +69,12 @@ func (c *ProcessAgentCheck) Version() string {
 // ConfigSource displays the command's source
 func (c *ProcessAgentCheck) ConfigSource() string {
 	return c.source
+}
+
+// Loader returns the check loader
+func (*ProcessAgentCheck) Loader() string {
+	// the process check is scheduled by the Go loader
+	return corechecks.GoCheckLoaderName
 }
 
 // InitConfig returns the init configuration
@@ -239,6 +246,11 @@ func (c *ProcessAgentCheck) GetSenderStats() (stats.SenderStats, error) {
 // GetDiagnoses returns the diagnoses of the check
 func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
+}
+
+// IsHASupported returns if the check is compatible with High Availability
+func (c *ProcessAgentCheck) IsHASupported() bool {
+	return false
 }
 
 // Factory creates a new check factory

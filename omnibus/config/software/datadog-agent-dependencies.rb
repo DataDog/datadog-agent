@@ -21,9 +21,6 @@ if linux_target?
   dependency 'sds'
 end
 
-# version manifest file
-dependency 'version-manifest'
-
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 

@@ -44,16 +44,17 @@ func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollec
 
 	return &DaemonSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      daemonSetName,
-			NodeType:                  orchestrator.K8sDaemonSet,
-			Version:                   daemonSetVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 daemonSetName,
+			NodeType:                             orchestrator.K8sDaemonSet,
+			Version:                              daemonSetVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
 	}

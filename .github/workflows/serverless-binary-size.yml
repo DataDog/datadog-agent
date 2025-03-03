@@ -43,7 +43,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
       - name: Previous binary size and dependencies
         id: previous
@@ -171,7 +171,7 @@ jobs:
           ./test/integration/serverless_perf/write_message.sh
 
       - name: Post comment
-        uses: marocchino/sticky-pull-request-comment@331f8f5b4215f0445d3c07b4967662a32a2d3e31 # v2.9.0
+        uses: marocchino/sticky-pull-request-comment@52423e01640425a022ef5fd42c6fb5f633a02728 # v2.9.1
         if: steps.should.outputs.should_run == 'true'
         with:
           header: serverless-binary-size

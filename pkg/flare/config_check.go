@@ -28,8 +28,8 @@ func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug
 		}
 	}
 
-	for _, c := range cr.Configs {
-		PrintConfig(w, c, "")
+	for _, configResponse := range cr.Configs {
+		PrintConfigWithInstanceIDs(w, configResponse.Config, configResponse.InstanceIDs, "")
 	}
 
 	if withDebug {
@@ -55,8 +55,62 @@ func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug
 	}
 }
 
-// PrintConfig prints a human-readable representation of a configuration with any secrets scrubbed.
-func PrintConfig(w io.Writer, c integration.Config, checkName string) {
+// PrintConfigWithInstanceIDs prints a human-readable representation of a configuration with any secrets scrubbed.
+// We provide the instanceIDs precomputed from the server as the config information is scrubbed
+func PrintConfigWithInstanceIDs(w io.Writer, c integration.Config, instanceIDs []string, checkName string) {
+	if checkName != "" && c.Name != checkName {
+		return
+	}
+	if !c.ClusterCheck {
+		fmt.Fprintf(w, "\n=== %s check ===\n", color.GreenString(c.Name))
+	} else {
+		fmt.Fprintf(w, "\n=== %s cluster check ===\n", color.GreenString(c.Name))
+	}
+
+	if c.Provider != "" {
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration provider"), color.CyanString(c.Provider))
+	} else {
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration provider"), color.RedString("Unknown provider"))
+	}
+	if c.Source != "" {
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.CyanString(c.Source))
+	} else {
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.RedString("Unknown configuration source"))
+	}
+	for idx, inst := range c.Instances {
+		ID := instanceIDs[idx]
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
+		fmt.Fprintln(w, string(inst))
+		fmt.Fprintln(w, "~")
+	}
+	if len(c.InitConfig) > 0 {
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Init Config"))
+		fmt.Fprintln(w, string(c.InitConfig))
+	}
+	if len(c.MetricConfig) > 0 {
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Metric Config"))
+		fmt.Fprintln(w, string(c.MetricConfig))
+	}
+	if len(c.LogsConfig) > 0 {
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Log Config"))
+		fmt.Fprintln(w, string(c.LogsConfig))
+	}
+	if c.IsTemplate() {
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Auto-discovery IDs"))
+		for _, id := range c.ADIdentifiers {
+			fmt.Fprintf(w, "* %s\n", color.CyanString(id))
+		}
+		printContainerExclusionRulesInfo(w, &c)
+	}
+	if c.NodeName != "" {
+		state := fmt.Sprintf("dispatched to %s", c.NodeName)
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("State"), color.CyanString(state))
+	}
+	fmt.Fprintln(w, "===")
+}
+
+// PrintClusterCheckConfig prints a human-readable representation of a configuration with any secrets scrubbed.
+func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string) {
 	if checkName != "" && c.Name != checkName {
 		return
 	}

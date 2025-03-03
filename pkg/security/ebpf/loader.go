@@ -11,11 +11,11 @@ package ebpf
 import (
 	"strings"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 // ProbeLoader defines an eBPF ProbeLoader
@@ -25,17 +25,15 @@ type ProbeLoader struct {
 	useSyscallWrapper bool
 	useRingBuffer     bool
 	useFentry         bool
-	statsdClient      statsd.ClientInterface
 }
 
 // NewProbeLoader returns a new Loader
-func NewProbeLoader(config *config.Config, useSyscallWrapper, useRingBuffer bool, useFentry bool, statsdClient statsd.ClientInterface) *ProbeLoader {
+func NewProbeLoader(config *config.Config, useSyscallWrapper, useRingBuffer bool, useFentry bool) *ProbeLoader {
 	return &ProbeLoader{
 		config:            config,
 		useSyscallWrapper: useSyscallWrapper,
 		useRingBuffer:     useRingBuffer,
 		useFentry:         useFentry,
-		statsdClient:      statsdClient,
 	}
 }
 
@@ -52,7 +50,7 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 	var err error
 	var runtimeCompiled bool
 	if l.config.RuntimeCompilationEnabled {
-		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.useFentry, l.useRingBuffer, l.statsdClient)
+		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.useFentry, l.useRingBuffer)
 		if err != nil {
 			seclog.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
 		} else {

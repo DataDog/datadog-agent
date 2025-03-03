@@ -74,7 +74,11 @@ func (r *Recommender) process(ctx context.Context) {
 		// Generate local recommendations
 		horizontalRecommendation, err := r.replicaCalculator.calculateHorizontalRecommendations(podAutoscaler, lStore)
 		r.updateAutoscalerAndUnlock(podAutoscaler.ID(), horizontalRecommendation, err)
-		log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscaler.ID())
+		if err != nil {
+			log.Debugf("Got error calculating horizontal recommendation for pod autoscaler %s: %v", podAutoscaler.ID(), err)
+		} else {
+			log.Debugf("Updated local fallback values for pod autoscaler %s", podAutoscaler.ID())
+		}
 	}
 }
 

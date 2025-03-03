@@ -30,6 +30,9 @@ func (c *StubCheck) Version() string { return "" }
 // ConfigSource returns the empty string
 func (c *StubCheck) ConfigSource() string { return "" }
 
+// Loader returns a stubbed loader name
+func (*StubCheck) Loader() string { return "stub" }
+
 // Stop is a noop
 func (c *StubCheck) Stop() {}
 
@@ -67,3 +70,6 @@ func (c *StubCheck) InstanceConfig() string { return "" }
 
 // GetDiagnoses returns the diagnoses of the check
 func (c *StubCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) { return nil, nil }
+
+// IsHASupported returns false
+func (c *StubCheck) IsHASupported() bool { return false }

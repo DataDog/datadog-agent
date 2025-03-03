@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type windowsRuntimeSecretSuite struct {
@@ -43,12 +43,12 @@ hostname: ENC[hostname]`
 		agentparams.WithAgentConfig(config),
 	}
 	if strings.Contains(wrapperDirectory, "ProgramData") {
-		agentParams = append(agentParams, secrets.WithWindowsSecretSetupScriptNoPerms(wrapperDirectory+"/wrapper.bat")...)
+		agentParams = append(agentParams, secretsutils.WithWindowsSetupScriptNoPerms(wrapperDirectory+"/wrapper.bat")...)
 	} else {
-		agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript(wrapperDirectory+"/wrapper.bat", false)...)
+		agentParams = append(agentParams, secretsutils.WithWindowsSetupScript(wrapperDirectory+"/wrapper.bat", false)...)
 	}
 
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, wrapperDirectory)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, wrapperDirectory)
 	secretClient.SetSecret("hostname", "e2e.test")
 
 	v.UpdateEnv(

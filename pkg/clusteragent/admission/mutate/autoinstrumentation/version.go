@@ -9,6 +9,8 @@ package autoinstrumentation
 
 import (
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type version int
@@ -22,7 +24,8 @@ const (
 func instrumentationVersion(v string) (version, error) {
 	switch v {
 	case "v1":
-		return instrumentationV1, nil
+		log.Warn("autoinstrumentation version=v1 is deprecated, defaulting to v2")
+		return instrumentationV2, nil
 	case "v2":
 		return instrumentationV2, nil
 	default:

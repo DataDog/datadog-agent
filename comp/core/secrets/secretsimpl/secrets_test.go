@@ -516,8 +516,6 @@ func TestResolve(t *testing.T) {
 }
 
 func TestResolveNestedWithSubscribe(t *testing.T) {
-	testConf := testConfNestedMultiple
-
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
@@ -548,7 +546,7 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 			assert.Fail(t, "unknown yaml path: %s", path)
 		}
 	})
-	_, err := resolver.Resolve(testConf, "test")
+	_, err := resolver.Resolve(testConfNestedMultiple, "test")
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, topLevelResolved, "'top_level' secret was not resolved or resolved multiple times")
@@ -559,8 +557,6 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 }
 
 func TestResolveCached(t *testing.T) {
-	testConf := testConfNested
-
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
@@ -578,7 +574,7 @@ func TestResolveCached(t *testing.T) {
 	resolver.SubscribeToChanges(func(handle, _ string, _ []string, _, _ any) {
 		totalResolved = append(totalResolved, handle)
 	})
-	_, err := resolver.Resolve(testConf, "test")
+	_, err := resolver.Resolve(testConfNested, "test")
 
 	// Resolve doesn't need to fetch because value is cached, but subscription is still called
 	require.NoError(t, err)
@@ -587,12 +583,9 @@ func TestResolveCached(t *testing.T) {
 }
 
 func TestResolveThenRefresh(t *testing.T) {
-	testConf := testConfNestedMultiple
-
 	// disable the allowlist for the test, let any secret changes happen
-	originalAllowlistPaths := allowlistPaths
-	allowlistPaths = nil
-	defer func() { allowlistPaths = originalAllowlistPaths }()
+	allowlistEnabled = false
+	defer func() { allowlistEnabled = true }()
 
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 	resolver := newEnabledSecretResolver(tel)
@@ -619,7 +612,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	}
 
 	// resolve the secrets the first time
-	_, err := resolver.Resolve(testConf, "test")
+	_, err := resolver.Resolve(testConfNestedMultiple, "test")
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -697,7 +690,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
 	// only allow api_key config setting to change
-	allowlistPaths = map[string]struct{}{"api_key": {}}
+	allowlistPaths = []string{"api_key"}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
 	_, err := resolver.Refresh()
@@ -705,7 +698,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	assert.Equal(t, changes, []string{})
 
 	// now allow the config setting under scrutiny to change
-	allowlistPaths = map[string]struct{}{"another/config/setting": {}}
+	allowlistPaths = []string{"setting"}
 
 	// Refresh sees the change to the handle
 	_, err = resolver.Refresh()
@@ -733,7 +726,7 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 
 	// set the allowlist so that only 1 of the settings matches, the 2nd does not
 	originalAllowlistPaths := allowlistPaths
-	allowlistPaths = map[string]struct{}{"instances/0/password": {}}
+	allowlistPaths = []string{"instances"}
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
 	// subscribe to changes made during Refresh, keep track of updated setting paths
@@ -761,7 +754,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	assert.NoError(t, err)
 
 	originalAllowlistPaths := allowlistPaths
-	allowlistPaths = map[string]struct{}{"another/config/setting": {}}
+	allowlistPaths = []string{"setting"}
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())

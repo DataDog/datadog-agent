@@ -310,20 +310,27 @@ func (o *Obfuscator) ObfuscateSQLStringForDBMS(in string, dbms string) (*Obfusca
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
 // and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
+	cacheKey := fmt.Sprintf("%v:%s", opts, in)
+	if v, ok := o.queryCache.Get(cacheKey); ok {
+		return v.(*ObfuscatedQuery), nil
+	}
+
+	var oq *ObfuscatedQuery
+	var err error
+
 	if opts.ObfuscationMode != "" {
 		// If obfuscation mode is specified, we will use go-sqllexer pkg
 		// to obfuscate (and normalize) the query.
-		return o.ObfuscateWithSQLLexer(in, opts)
+		oq, err = o.ObfuscateWithSQLLexer(in, opts)
+	} else {
+		oq, err = o.obfuscateSQLString(in, opts)
 	}
 
-	if v, ok := o.queryCache.Get(in); ok {
-		return v.(*ObfuscatedQuery), nil
-	}
-	oq, err := o.obfuscateSQLString(in, opts)
 	if err != nil {
 		return oq, err
 	}
-	o.queryCache.Set(in, oq, oq.Cost())
+
+	o.queryCache.Set(cacheKey, oq, oq.Cost())
 	return oq, nil
 }
 
@@ -472,11 +479,6 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		}, nil
 	}
 
-	// we only want to cache normalized queries
-	if v, ok := o.queryCache.Get(in); ok {
-		return v.(*ObfuscatedQuery), nil
-	}
-
 	// Obfuscate the query and normalize it.
 	normalizer := sqllexer.NewNormalizer(
 		sqllexer.WithCollectComments(opts.CollectComments),
@@ -517,8 +519,6 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 			Procedures: statementMetadata.Procedures,
 		},
 	}
-
-	o.queryCache.Set(in, oq, oq.Cost())
 
 	return oq, nil
 }

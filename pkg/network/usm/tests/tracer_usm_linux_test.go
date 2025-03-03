@@ -190,7 +190,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	cfg.BypassEnabled = true
-	tr, err := tracer.NewTracer(cfg, nil)
+	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -702,7 +702,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
 
-	tr, err := tracer.NewTracer(cfg, nil)
+	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 

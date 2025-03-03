@@ -44,16 +44,17 @@ func NewServiceCollector(metadataAsTags utils.MetadataAsTags) *ServiceCollector 
 
 	return &ServiceCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      serviceName,
-			NodeType:                  orchestrator.K8sService,
-			Version:                   serviceVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 serviceName,
+			NodeType:                             orchestrator.K8sService,
+			Version:                              serviceVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceHandlers)),
 	}

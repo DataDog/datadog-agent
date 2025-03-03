@@ -197,7 +197,7 @@ func getAutoConfig(schedulerController *scheduler.Controller, secretResolver sec
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
 	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
@@ -214,7 +214,7 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
 	assert.Len(suite.T(), ac.listeners, 0)
 
 	ml := &MockListener{}
@@ -252,7 +252,7 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 
 func (suite *AutoConfigTestSuite) TestStop() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
@@ -265,7 +265,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 
 func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
 
 	// Hack the retry delay to shorten the test run time
 	initialListenerCandidateIntl := listenerCandidateIntl
@@ -368,7 +368,7 @@ func TestResolveTemplate(t *testing.T) {
 	deps := createDeps(t)
 	ctx := context.Background()
 
-	msch := scheduler.NewController()
+	msch := scheduler.NewControllerAndStart()
 	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
 	msch.Register("mock", sch, false)
 
@@ -410,7 +410,7 @@ func TestRemoveTemplate(t *testing.T) {
 
 	mockResolver := MockSecretResolver{t, nil}
 
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 	// Add static config
 	c := integration.Config{
 		Name: "memory",
@@ -463,7 +463,7 @@ func TestDecryptConfig(t *testing.T) {
 		},
 	}}
 
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
 	tpl := integration.Config{
@@ -507,7 +507,7 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 			returnedError:  nil,
 		},
 	}}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 
 	tpl := integration.Config{
 		Provider:     names.ClusterChecks,
@@ -542,7 +542,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 	configName := "testConfig"
 
 	mockResolver := MockSecretResolver{t, nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
+	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 
 	tpl := integration.Config{
 		Provider:     names.ClusterChecks,
@@ -586,7 +586,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			out := responseRecorder.Body.Bytes()
 			err := json.Unmarshal(out, &result)
 			require.NoError(t, err)
-			assert.Equal(t, string(result.Configs[0].Instances[0]), tc.expectedResult)
+			assert.Equal(t, string(result.Configs[0].Config.Instances[0]), tc.expectedResult)
 		})
 	}
 }

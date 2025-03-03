@@ -8,6 +8,7 @@ package logsagentexporter
 
 import (
 	"context"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configretry"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
@@ -33,6 +35,7 @@ const (
 type Config struct {
 	OtelSource    string
 	LogSourceName string
+	QueueSettings exporterhelper.QueueConfig
 }
 
 type factory struct {
@@ -50,6 +53,7 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 			return &Config{
 				OtelSource:    otelSource,
 				LogSourceName: LogSourceName,
+				QueueSettings: exporterhelper.NewDefaultQueueConfig(),
 			}
 		},
 		exp.WithLogs(f.createLogsExporter, stability),
@@ -84,6 +88,9 @@ func (f *factory) createLogsExporter(
 		set,
 		c,
 		exporter.ConsumeLogs,
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0 * time.Second}),
+		exporterhelper.WithRetry(configretry.NewDefaultBackOffConfig()),
+		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithShutdown(func(context.Context) error {
 			cancel()
 			return nil

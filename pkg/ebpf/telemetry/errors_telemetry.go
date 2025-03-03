@@ -152,6 +152,8 @@ func (e *ebpfTelemetry) cleanup(maps []names.MapName, mn names.ModuleName, mapEr
 }
 
 func (e *ebpfTelemetry) setProbe(key telemetryKey, hash uint64) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
 	e.probeKeys[key] = hash
 }
 

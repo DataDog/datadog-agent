@@ -185,7 +185,9 @@ func (s *checkSender) sendMetricSample(
 ) {
 	tags = append(tags, s.checkTags...)
 
-	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+	}
 
 	if timestamp == 0 {
 		timestamp = timeNowNano()

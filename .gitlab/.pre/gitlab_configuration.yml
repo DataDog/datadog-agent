@@ -22,10 +22,9 @@ test_gitlab_compare_to:
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - !reference [.setup_agent_github_app]
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - pip install -r tasks/requirements.txt --break-system-packages
+    - python -m pip uninstall -y setuptools wheel
+    - python -m pip install setuptools wheel --break-system-packages
+    - python -m pip install -r tasks/requirements.txt --break-system-packages
     - inv pipeline.compare-to-itself
 
 # Computes and uploads the GitLab CI configuration diff as an artifact

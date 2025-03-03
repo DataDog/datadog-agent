@@ -9,11 +9,12 @@ package daemon
 
 import (
 	"context"
-	"github.com/Microsoft/go-winio"
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/Microsoft/go-winio"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 const (

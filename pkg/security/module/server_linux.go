@@ -191,8 +191,12 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 	if a.selfTester != nil {
 		apiStatus.SelfTests = a.selfTester.GetStatus()
 	}
-
 	apiStatus.PoliciesStatus = a.policiesStatus
+
+	seclVariables := a.GetSECLVariables()
+	for _, seclVariable := range seclVariables {
+		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
+	}
 
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {

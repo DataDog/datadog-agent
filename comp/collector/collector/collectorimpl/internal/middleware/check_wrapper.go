@@ -111,6 +111,11 @@ func (c *CheckWrapper) ConfigSource() string {
 	return c.inner.ConfigSource()
 }
 
+// Loader returns the name of the check loader
+func (c *CheckWrapper) Loader() string {
+	return c.inner.Loader()
+}
+
 // IsTelemetryEnabled implements Check#IsTelemetryEnabled
 func (c *CheckWrapper) IsTelemetryEnabled() bool {
 	return c.inner.IsTelemetryEnabled()
@@ -136,4 +141,9 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 		return nil, nil
 	}
 	return c.inner.GetDiagnoses()
+}
+
+// IsHASupported implements Check#IsHASupported
+func (c *CheckWrapper) IsHASupported() bool {
+	return c.inner.IsHASupported()
 }

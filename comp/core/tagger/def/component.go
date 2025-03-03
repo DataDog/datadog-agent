@@ -52,5 +52,4 @@ type Component interface {
 	ResetCaptureTagger()
 	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
 	ChecksCardinality() types.TagCardinality
-	DogstatsdCardinality() types.TagCardinality
 }

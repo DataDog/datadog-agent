@@ -1,0 +1,3 @@
+deprecations:
+  - |
+    ``DD_APM_INSTRUMENTATION_VERSION=v1`` has been deprecated and will default to ``v2``.

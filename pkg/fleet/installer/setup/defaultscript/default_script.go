@@ -51,7 +51,6 @@ var (
 		"DD_HOST_TAGS",
 		"DD_URL",
 		"DD_REMOTE_UPDATES",
-		"DD_REMOTE_POLICIES",
 		"DD_FIPS_MODE",
 		"DD_SYSTEM_PROBE_ENSURE_CONFIG",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED",
@@ -121,12 +120,8 @@ func setConfigSecurityProducts(s *common.Setup) {
 // setConfigInstallerDaemon sets the daemon in the configuration
 func setConfigInstallerDaemon(s *common.Setup) {
 	s.Config.DatadogYAML.RemoteUpdates = true
-	s.Config.DatadogYAML.RemotePolicies = true
 	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
 		s.Config.DatadogYAML.RemoteUpdates = false
-	}
-	if val, ok := os.LookupEnv("DD_REMOTE_POLICIES"); ok && strings.ToLower(val) == "false" {
-		s.Config.DatadogYAML.RemotePolicies = false
 	}
 }
 

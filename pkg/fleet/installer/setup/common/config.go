@@ -127,7 +127,6 @@ type DatadogConfig struct {
 	ProcessConfig        DatadogConfigProcessConfig `yaml:"process_config,omitempty"`
 	ExpectedTagsDuration string                     `yaml:"expected_tags_duration,omitempty"`
 	RemoteUpdates        bool                       `yaml:"remote_updates,omitempty"`
-	RemotePolicies       bool                       `yaml:"remote_policies,omitempty"`
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 }

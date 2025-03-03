@@ -12,6 +12,7 @@ type Service struct {
 	Name                       string   `json:"name"`
 	GeneratedName              string   `json:"generated_name"`
 	GeneratedNameSource        string   `json:"generated_name_source"`
+	AdditionalGeneratedNames   []string `json:"additional_generated_names"`
 	ContainerServiceName       string   `json:"container_service_name"`
 	ContainerServiceNameSource string   `json:"container_service_name_source"`
 	DDService                  string   `json:"dd_service"`
@@ -27,6 +28,10 @@ type Service struct {
 	CPUCores                   float64  `json:"cpu_cores"`
 	ContainerID                string   `json:"container_id"`
 	LastHeartbeat              int64    `json:"last_heartbeat"`
+	RxBytes                    uint64   `json:"rx_bytes"`
+	TxBytes                    uint64   `json:"tx_bytes"`
+	RxBps                      float64  `json:"rx_bps"`
+	TxBps                      float64  `json:"tx_bps"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.

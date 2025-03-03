@@ -23,7 +23,7 @@ To build the Agent you need:
  * Python 3.11+ along with development libraries for tooling. You will also need Python 2.7 if you are building the Agent with Python 2 support.
  * Python dependencies. You may install these with `pip install -r requirements.txt`
    This will also pull in [Invoke](http://www.pyinvoke.org) if not yet installed.
- * CMake version 3.12 or later and a C++ compiler
+ * CMake version 3.15 or later and a C++ compiler
 
 **Note:** you may want to use a python virtual environment to avoid polluting your
       system-wide python environment with the agent build/dev dependencies. You can

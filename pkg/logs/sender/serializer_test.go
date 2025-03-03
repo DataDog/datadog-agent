@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,15 +20,15 @@ func TestLineSerializer(t *testing.T) {
 
 	serializer := LineSerializer
 
-	payload = serializer.Serialize(messages)
+	payload = serializeToBytes(t, serializer, messages)
 	assert.Len(t, payload, 0)
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
-	payload = serializer.Serialize(messages)
+	payload = serializeToBytes(t, serializer, messages)
 	assert.Equal(t, []byte("a"), payload)
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0), message.NewMessage([]byte("b"), nil, "", 0)}
-	payload = serializer.Serialize(messages)
+	payload = serializeToBytes(t, serializer, messages)
 	assert.Equal(t, []byte("a\nb"), payload)
 }
 
@@ -37,14 +38,23 @@ func TestArraySerializer(t *testing.T) {
 
 	serializer := ArraySerializer
 
-	payload = serializer.Serialize(messages)
+	payload = serializeToBytes(t, serializer, messages)
 	assert.Equal(t, []byte("[]"), payload)
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0)}
-	payload = serializer.Serialize(messages)
+	payload = serializeToBytes(t, serializer, messages)
 	assert.Equal(t, []byte("[a]"), payload)
 
 	messages = []*message.Message{message.NewMessage([]byte("a"), nil, "", 0), message.NewMessage([]byte("b"), nil, "", 0)}
-	payload = serializer.Serialize(messages)
+	payload = serializeToBytes(t, serializer, messages)
 	assert.Equal(t, []byte("[a,b]"), payload)
+}
+
+func serializeToBytes(t *testing.T, s Serializer, messages []*message.Message) []byte {
+	t.Helper()
+
+	var payload bytes.Buffer
+	err := s.Serialize(messages, &payload)
+	assert.NoError(t, err)
+	return payload.Bytes()
 }

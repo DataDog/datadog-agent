@@ -282,7 +282,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	return value, nil
 }
 
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
@@ -290,11 +290,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	{{end}}
 
 	case "{{$Name}}":
-		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, nil
+		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", nil
 	{{end}}
 	}
 
-	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
 
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {

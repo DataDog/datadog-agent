@@ -375,9 +375,24 @@ type passthroughPipelineDesc struct {
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compressor logscompression.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
-	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+func newHTTPPassthroughPipeline(
+	coreConfig model.Reader,
+	eventPlatformReceiver eventplatformreceiver.Component,
+	compressor logscompression.Component,
+	desc passthroughPipelineDesc,
+	destinationsContext *client.DestinationsContext,
+	pipelineID int,
+) (p *passthroughPipeline, err error) {
+
+	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(
+		coreConfig,
+		configKeys,
+		desc.hostnameEndpointPrefix,
+		desc.intakeTrackType,
+		config.DefaultIntakeProtocol,
+		config.DefaultIntakeOrigin,
+	)
 	if err != nil {
 		return nil, err
 	}

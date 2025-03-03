@@ -59,6 +59,7 @@ from tasks import (
     security_agent,
     selinux,
     setup,
+    skaffold,
     system_probe,
     systray,
     testwasher,
@@ -212,6 +213,7 @@ ns.add_collection(owners)
 ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
+ns.add_collection(skaffold)
 ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)

@@ -4,14 +4,15 @@ receivers:
       config:
         scrape_configs:
           - job_name: 'datadog-agent'
-            scrape_interval: 10s
+            scrape_interval: 60s
             static_configs:
               - targets: ['localhost:1234']
     prometheus/dd-autoconfigured:
       config:
         scrape_configs:
-          - job_name: 'datadog-agent'
-            scrape_interval: 10s
+          - fallback_scrape_protocol: PrometheusText1.0.0
+            job_name: 'datadog-agent'
+            scrape_interval: 60s
             static_configs:
               - targets: ['localhost:1234']
 

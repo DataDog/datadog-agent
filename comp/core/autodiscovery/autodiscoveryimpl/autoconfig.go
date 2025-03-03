@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 	"sync"
@@ -46,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/cenkalti/backoff"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -94,13 +96,21 @@ type AutoConfig struct {
 	ranOnce *atomic.Bool
 }
 
+const (
+	// wmetaCheckInitialInterval is the initial interval to check if wmeta is ready
+	wmetaCheckInitialInterval = 20 * time.Millisecond
+	// wmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
+	wmetaCheckMaxInterval = 1 * time.Second
+	// wmetaCheckMaxElapsedTime is the maximum time to wait for wmeta being ready
+	wmetaCheckMaxElapsedTime = 10 * time.Second
+)
+
 type provides struct {
 	fx.Out
 
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
 	Endpoint       api.AgentEndpointProvider
-	EndpointRaw    api.AgentEndpointProvider
 	FlareProvider  flaretypes.Provider
 }
 
@@ -136,7 +146,36 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	schController := scheduler.NewController()
+	// Non-blocking start of the scheduler controller
+	go func() {
+		retries := 0
+		expBackoff := backoff.NewExponentialBackOff()
+		expBackoff.InitialInterval = wmetaCheckInitialInterval
+		expBackoff.MaxInterval = wmetaCheckMaxInterval
+		expBackoff.MaxElapsedTime = wmetaCheckMaxElapsedTime
+		err := backoff.Retry(func() error {
+			instance, found := deps.WMeta.Get()
+			if found {
+				if instance.IsInitialized() {
+					deps.Log.Infof("Workloadmeta collectors are ready, starting autodiscovery scheduler controller")
+					schController.Start()
+					return nil
+				}
+				retries++
+				deps.Log.Debugf("Workloadmeta collectors are not ready, will possibly retry")
+				return errors.New("workloadmeta not initialized")
+			}
+			schController.Start()
+			return nil
+		}, expBackoff)
+		if err != nil {
+			deps.Log.Errorf("Workloadmeta collectors are not ready after %d retries: %s, starting check scheduler controller anyway.", retries, err)
+			schController.Start()
+		}
+	}()
+
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.Start()
@@ -227,9 +266,20 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 
-	scrubbedConfigs := ac.scrubConfigs(configSlice)
+	configResponses := make([]integration.ConfigResponse, len(configSlice))
 
-	response.Configs = scrubbedConfigs
+	for i, config := range configSlice {
+		instanceIDs := make([]string, len(config.Instances))
+		for j, instance := range config.Instances {
+			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
+		}
+		configResponses[i] = integration.ConfigResponse{
+			Config:      ac.scrubConfig(config),
+			InstanceIDs: instanceIDs,
+		}
+	}
+
+	response.Configs = configResponses
 
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
@@ -238,7 +288,12 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
 
 	for ids, configs := range unresolved {
-		scrubbedUnresolved[ids] = ac.scrubConfigs(configs)
+		scrubbedConfigs := make([]integration.Config, len(configs))
+		for idx, config := range configs {
+			scrubbedConfigs[idx] = ac.scrubConfig(config)
+		}
+
+		scrubbedUnresolved[ids] = scrubbedConfigs
 	}
 
 	response.Unresolved = scrubbedUnresolved
@@ -255,7 +310,20 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 
-	response.Configs = configSlice
+	configResponses := make([]integration.ConfigResponse, len(configSlice))
+
+	for i, config := range configSlice {
+		instanceIDs := make([]string, len(config.Instances))
+		for j, instance := range config.Instances {
+			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
+		}
+		configResponses[i] = integration.ConfigResponse{
+			Config:      config,
+			InstanceIDs: instanceIDs,
+		}
+	}
+
+	response.Configs = configResponses
 
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
@@ -264,55 +332,50 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 	return response
 }
 
-func (ac *AutoConfig) scrubConfigs(configs []integration.Config) []integration.Config {
-	scrubbedConfigs := make([]integration.Config, len(configs))
-
-	for i, c := range configs {
-		scrubbedInstances := make([]integration.Data, len(c.Instances))
-		for instanceIndex, inst := range c.Instances {
-			subbedData, err := scrubData(inst)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from config: %s", err)
-				continue
-			}
-			scrubbedInstances[instanceIndex] = subbedData
+func (ac *AutoConfig) scrubConfig(config integration.Config) integration.Config {
+	scrubbedConfig := config
+	scrubbedInstances := make([]integration.Data, len(config.Instances))
+	for instanceIndex, inst := range config.Instances {
+		scrubbedData, err := scrubData(inst)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from config: %s", err)
+			continue
 		}
-		c.Instances = scrubbedInstances
+		scrubbedInstances[instanceIndex] = scrubbedData
+	}
+	scrubbedConfig.Instances = scrubbedInstances
 
-		if len(c.InitConfig) > 0 {
-			subbedData, err := scrubData(c.InitConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
-				c.InitConfig = []byte{}
-			} else {
-				c.InitConfig = subbedData
-			}
+	if len(config.InitConfig) > 0 {
+		scrubbedData, err := scrubData(config.InitConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
+			scrubbedConfig.InitConfig = []byte{}
+		} else {
+			scrubbedConfig.InitConfig = scrubbedData
 		}
-
-		if len(c.MetricConfig) > 0 {
-			subbedData, err := scrubData(c.MetricConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
-				c.MetricConfig = []byte{}
-			} else {
-				c.MetricConfig = subbedData
-			}
-		}
-
-		if len(c.LogsConfig) > 0 {
-			subbedData, err := scrubData(c.LogsConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
-				c.LogsConfig = []byte{}
-			} else {
-				c.LogsConfig = subbedData
-			}
-		}
-
-		scrubbedConfigs[i] = c
 	}
 
-	return scrubbedConfigs
+	if len(config.MetricConfig) > 0 {
+		scrubbedData, err := scrubData(config.MetricConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
+			scrubbedConfig.MetricConfig = []byte{}
+		} else {
+			scrubbedConfig.MetricConfig = scrubbedData
+		}
+	}
+
+	if len(config.LogsConfig) > 0 {
+		scrubbedData, err := scrubData(config.LogsConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
+			scrubbedConfig.LogsConfig = []byte{}
+		} else {
+			scrubbedConfig.LogsConfig = scrubbedData
+		}
+	}
+
+	return scrubbedConfig
 }
 
 func scrubData(data []byte) ([]byte, error) {

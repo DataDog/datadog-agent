@@ -154,7 +154,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -186,7 +186,7 @@ func initAgentDemultiplexer(log log.Component,
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), hostname)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
 		noAggWorker = newNoAggregationStreamWorker(
 			pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,

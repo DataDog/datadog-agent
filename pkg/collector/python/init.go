@@ -232,20 +232,8 @@ func init() {
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
-	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
-	// in integrations, which causes a 10MB memory increase.
-	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
-	// (https://github.com/pypa/setuptools/issues/3625),
-	// and Python 3.12 removes distutils from the standard library.
-	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
-	// which means we will get the memory increase again if integrations still use distutils.
-
-	// This must happen as early as possible in the process lifetime to avoid data race with
-	// `getenv`. Ideally before we start any goroutines that call native code or open network
-	// connections.
-	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
-		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
-	}
+	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
+	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -417,8 +405,21 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
-		initPymemTelemetry()
+	// Should we track python memory?
+	if pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
+		var interval time.Duration
+		if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
+			// detailed telemetry is enabled
+			interval = 1 * time.Second
+		} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
+			// default telemetry is enabled (emitted every 15 minute)
+			interval = 15 * time.Minute
+		}
+
+		// interval is 0 if telemetry is disabled
+		if interval > 0 {
+			initPymemTelemetry(interval)
+		}
 	}
 
 	// Set the PYTHONPATH if needed.
@@ -476,7 +477,7 @@ func GetRtLoader() *C.rtloader_t {
 	return rtloader
 }
 
-func initPymemTelemetry() {
+func initPymemTelemetry(d time.Duration) {
 	C.init_pymem_stats(rtloader)
 
 	// "alloc" for consistency with go memstats and mallochook metrics.
@@ -484,7 +485,7 @@ func initPymemTelemetry() {
 	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
 
 	go func() {
-		t := time.NewTicker(1 * time.Second)
+		t := time.NewTicker(d)
 		var prevAlloc C.size_t
 
 		for range t.C {

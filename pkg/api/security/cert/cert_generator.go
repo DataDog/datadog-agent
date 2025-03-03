@@ -47,29 +47,35 @@ func certTemplate() (*x509.Certificate, error) {
 	return &template, nil
 }
 
-func generateCertKeyPair() ([]byte, []byte, error) {
+// Certificate contains certificate and key pair (in PEM format) used to communicate between Agent processes
+type Certificate struct {
+	cert []byte
+	key  []byte
+}
+
+func generateCertKeyPair() (Certificate, error) {
 	rootCertTmpl, err := certTemplate()
 	if err != nil {
-		return nil, nil, err
+		return Certificate{}, err
 	}
 
 	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Unable to generate IPC private key: %v", err)
+		return Certificate{}, fmt.Errorf("Unable to generate IPC private key: %v", err)
 	}
 
 	certDER, err := x509.CreateCertificate(rand.Reader, rootCertTmpl, rootCertTmpl, &rootKey.PublicKey, rootKey)
 	if err != nil {
-		return nil, nil, err
+		return Certificate{}, err
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	rawKey, err := x509.MarshalECPrivateKey(rootKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Unable to marshall private key: %v", err)
+		return Certificate{}, fmt.Errorf("Unable to marshall private key: %v", err)
 	}
 
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: rawKey})
 
-	return certPEM, keyPEM, nil
+	return Certificate{certPEM, keyPEM}, nil
 }

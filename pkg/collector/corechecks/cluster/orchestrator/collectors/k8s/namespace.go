@@ -44,16 +44,17 @@ func NewNamespaceCollector(metadataAsTags utils.MetadataAsTags) *NamespaceCollec
 
 	return &NamespaceCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      namespaceName,
-			NodeType:                  orchestrator.K8sNamespace,
-			Version:                   namespaceVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 namespaceName,
+			NodeType:                             orchestrator.K8sNamespace,
+			Version:                              namespaceVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NamespaceHandlers)),
 	}

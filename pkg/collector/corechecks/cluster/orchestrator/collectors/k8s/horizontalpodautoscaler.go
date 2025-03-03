@@ -45,16 +45,17 @@ func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *H
 
 	return &HorizontalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      hpaName,
-			NodeType:                  orchestrator.K8sHorizontalPodAutoscaler,
-			Version:                   hpaVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 hpaName,
+			NodeType:                             orchestrator.K8sHorizontalPodAutoscaler,
+			Version:                              hpaVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),
 	}

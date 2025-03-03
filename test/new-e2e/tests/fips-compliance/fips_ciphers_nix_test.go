@@ -60,6 +60,6 @@ func (s *fipsServerLinuxSuite) SetupSuite() {
 	// supply workers to base fipsServerSuite
 	s.fipsServer = newFIPSServer(host, formattedComposeFiles)
 	s.generateTestTraffic = func() {
-		_ = host.MustExecute(fmt.Sprintf(`docker-compose -f %s exec agent sh -c "GOFIPS=1 DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local"`, formattedComposeFiles))
+		_ = host.MustExecute(fmt.Sprintf(`docker-compose -f %s exec agent sh -c "DD_DD_URL=https://dd-fips-server:443 agent diagnose --include connectivity-datadog-core-endpoints --local"`, formattedComposeFiles))
 	}
 }

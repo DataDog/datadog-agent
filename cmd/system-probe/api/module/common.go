@@ -9,11 +9,13 @@ package module
 import (
 	"errors"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/fx"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	"go.uber.org/fx"
 )
 
 // ErrNotEnabled is a special error type that should be returned by a Factory
@@ -35,4 +37,5 @@ type FactoryDependencies struct {
 	Tagger      tagger.Component
 	Telemetry   telemetry.Component
 	Compression logscompression.Component
+	Statsd      ddgostatsd.ClientInterface
 }

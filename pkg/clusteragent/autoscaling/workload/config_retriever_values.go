@@ -15,9 +15,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"github.com/hashicorp/go-multierror"
+
+	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -81,7 +82,7 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 		return fmt.Errorf("failed to parse scaling values for PodAutoscaler %s: %w", id, err)
 	}
 
-	podAutoscaler.UpdateFromValues(scalingValues)
+	podAutoscaler.UpdateFromMainValues(scalingValues)
 
 	// Emit telemetry for received values
 	// Target name cannot normally be empty, but we handle it just in case
@@ -147,7 +148,7 @@ func (p autoscalingValuesProcessor) postProcess(errors []error) {
 	p.store.Update(func(podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
 		if _, found := p.processed[podAutoscaler.ID()]; !found {
 			log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s", podAutoscaler.ID())
-			podAutoscaler.RemoveValues()
+			podAutoscaler.RemoveMainValues()
 			return podAutoscaler, true
 		}
 
@@ -170,9 +171,9 @@ func parseAutoscalingValues(timestamp time.Time, values *kubeAutoscaling.Workloa
 
 		var err error
 		if values.Horizontal.Manual != nil {
-			scalingValues.Horizontal, err = parseHorizontalScalingData(timestamp, values.Horizontal.Manual, datadoghq.DatadogPodAutoscalerManualValueSource)
+			scalingValues.Horizontal, err = parseHorizontalScalingData(timestamp, values.Horizontal.Manual, datadoghqcommon.DatadogPodAutoscalerManualValueSource)
 		} else if values.Horizontal.Auto != nil {
-			scalingValues.Horizontal, err = parseHorizontalScalingData(timestamp, values.Horizontal.Auto, datadoghq.DatadogPodAutoscalerAutoscalingValueSource)
+			scalingValues.Horizontal, err = parseHorizontalScalingData(timestamp, values.Horizontal.Auto, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
 		}
 
 		if err != nil {
@@ -187,9 +188,9 @@ func parseAutoscalingValues(timestamp time.Time, values *kubeAutoscaling.Workloa
 
 		var err error
 		if values.Vertical.Manual != nil {
-			scalingValues.Vertical, err = parseAutoscalingVerticalData(timestamp, values.Vertical.Manual, datadoghq.DatadogPodAutoscalerManualValueSource)
+			scalingValues.Vertical, err = parseAutoscalingVerticalData(timestamp, values.Vertical.Manual, datadoghqcommon.DatadogPodAutoscalerManualValueSource)
 		} else if values.Vertical.Auto != nil {
-			scalingValues.Vertical, err = parseAutoscalingVerticalData(timestamp, values.Vertical.Auto, datadoghq.DatadogPodAutoscalerAutoscalingValueSource)
+			scalingValues.Vertical, err = parseAutoscalingVerticalData(timestamp, values.Vertical.Auto, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
 		}
 
 		if err != nil {
@@ -200,7 +201,7 @@ func parseAutoscalingValues(timestamp time.Time, values *kubeAutoscaling.Workloa
 	return scalingValues, nil
 }
 
-func parseHorizontalScalingData(timestamp time.Time, data *kubeAutoscaling.WorkloadHorizontalData, source datadoghq.DatadogPodAutoscalerValueSource) (*model.HorizontalScalingValues, error) {
+func parseHorizontalScalingData(timestamp time.Time, data *kubeAutoscaling.WorkloadHorizontalData, source datadoghqcommon.DatadogPodAutoscalerValueSource) (*model.HorizontalScalingValues, error) {
 	horizontalValues := &model.HorizontalScalingValues{
 		Source: source,
 	}
@@ -222,7 +223,7 @@ func parseHorizontalScalingData(timestamp time.Time, data *kubeAutoscaling.Workl
 	return horizontalValues, nil
 }
 
-func parseAutoscalingVerticalData(timestamp time.Time, data *kubeAutoscaling.WorkloadVerticalData, source datadoghq.DatadogPodAutoscalerValueSource) (*model.VerticalScalingValues, error) {
+func parseAutoscalingVerticalData(timestamp time.Time, data *kubeAutoscaling.WorkloadVerticalData, source datadoghqcommon.DatadogPodAutoscalerValueSource) (*model.VerticalScalingValues, error) {
 	verticalValues := &model.VerticalScalingValues{
 		Source: source,
 	}
@@ -236,10 +237,10 @@ func parseAutoscalingVerticalData(timestamp time.Time, data *kubeAutoscaling.Wor
 	}
 
 	if containersNum := len(data.Resources); containersNum > 0 {
-		verticalValues.ContainerResources = make([]datadoghq.DatadogPodAutoscalerContainerResources, 0, containersNum)
+		verticalValues.ContainerResources = make([]datadoghqcommon.DatadogPodAutoscalerContainerResources, 0, containersNum)
 
 		for _, containerResources := range data.Resources {
-			convertedResources := datadoghq.DatadogPodAutoscalerContainerResources{
+			convertedResources := datadoghqcommon.DatadogPodAutoscalerContainerResources{
 				Name: containerResources.ContainerName,
 			}
 

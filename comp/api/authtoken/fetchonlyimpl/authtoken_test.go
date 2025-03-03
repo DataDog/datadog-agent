@@ -6,6 +6,7 @@
 package fetchonlyimpl
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -51,7 +52,7 @@ func TestGet(t *testing.T) {
 	assert.False(t, comp.tokenLoaded)
 
 	// generating IPC cert/key files
-	_, _, err = cert.CreateOrFetchAgentIPCCert(cfg)
+	_, _, err = cert.FetchOrCreateIPCCert(context.Background(), cfg)
 	require.NoError(t, err)
 
 	assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", comp.Get())

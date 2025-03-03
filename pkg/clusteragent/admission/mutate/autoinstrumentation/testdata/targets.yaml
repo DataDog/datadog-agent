@@ -19,3 +19,8 @@ apm_config:
           - "billing"
         ddTraceVersions:
           java: "default"
+        ddTraceConfigs:
+          - name: "DD_PROFILING_ENABLED"
+            value: "true"
+          - name: "DD_DATA_JOBS_ENABLED"
+            value: "true"

@@ -13,11 +13,11 @@ import (
 	"math"
 	"time"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"k8s.io/utils/clock"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
@@ -56,7 +56,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 
 	// Get current pods for the target
 	targetRef := dpai.Spec().TargetRef
-	targets := dpai.Spec().Targets
+	objectives := dpai.Spec().Objectives
 	targetGVK, targetErr := dpai.TargetGVK()
 	if targetErr != nil {
 		return nil, fmt.Errorf("Failed to get GVK for target: %s, %s", dpai.ID(), targetErr)
@@ -78,8 +78,8 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 
 	recommendedReplicas := model.HorizontalScalingValues{}
 
-	for _, target := range targets {
-		recSettings, err := newResourceRecommenderSettings(target)
+	for _, objective := range objectives {
+		recSettings, err := newResourceRecommenderSettings(objective)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to get resource recommender settings: %s", err)
 		}
@@ -105,7 +105,7 @@ func (r replicaCalculator) calculateHorizontalRecommendations(dpai model.PodAuto
 		if rec > recommendedReplicas.Replicas {
 			recommendedReplicas.Replicas = rec
 			recommendedReplicas.Timestamp = ts
-			recommendedReplicas.Source = datadoghq.DatadogPodAutoscalerLocalValueSource
+			recommendedReplicas.Source = datadoghqcommon.DatadogPodAutoscalerLocalValueSource
 		}
 	}
 

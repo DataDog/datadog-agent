@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -186,9 +187,9 @@ func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWin
 func (r *RemoteWindowsHostAssertions) HasARunningDatadogInstallerService() *RemoteWindowsHostAssertions {
 	r.suite.T().Helper()
 
-	r.HasAService("Datadog Installer").
+	r.HasAService(consts.ServiceName).
 		WithStatus("Running").
-		HasNamedPipe(`\\.\pipe\dd_installer`).
+		HasNamedPipe(consts.NamedPipe).
 		WithSecurity(
 			// Only accessible to Administrators and LocalSystem
 			common.NewProtectedSecurityInfo(

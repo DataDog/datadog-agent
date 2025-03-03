@@ -18,6 +18,21 @@ type ExporterConfig struct {
 	exporterhelper.QueueConfig   `mapstructure:",squash"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
+	// API defines the Datadog API configuration.
+	// It is useful for OSS OpenTelemetry Collector or to use
+	// the serializer exporter with the OCB.
+	API datadogconfig.APIConfig `mapstructure:"api"`
+
+	// HostProvider is the function to get the host name.
+	// OpenTelemetry Collector provides a override for this.
+	HostProvider SourceProviderFunc `mapstructure:"-"`
+
+	// ShutdownFunc is the function to call when the exporter is shutdown.
+	// OpenTelemetry Collector provides additional shutdown logic.
+	ShutdownFunc component.ShutdownFunc `mapstructure:"-"`
+
+	// HostMetadataConfig defines the host metadata related configuration.
+	HostMetadata datadogconfig.HostMetadataConfig `mapstructure:"host_metadata"`
 }
 
 var _ component.Config = (*ExporterConfig)(nil)

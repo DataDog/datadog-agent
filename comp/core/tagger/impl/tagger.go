@@ -486,7 +486,7 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 		// Generate container ID from External Data
 		generatedContainerID, err := t.generateContainerIDFromExternalData(originInfo.ExternalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
 		if err != nil {
-			t.log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
+			t.log.Tracef("Failed to generate container ID from %v: %s", originInfo.ExternalData, err)
 		}
 
 		// Accumulate tags for generated container ID
@@ -521,12 +521,6 @@ func (t *TaggerWrapper) generateContainerIDFromExternalData(e origindetection.Ex
 // this can still be overridden when calling get_tags in python checks.
 func (t *TaggerWrapper) ChecksCardinality() types.TagCardinality {
 	return t.checksCardinality
-}
-
-// DogstatsdCardinality defines the cardinality of tags we should send for metrics from
-// dogstatsd.
-func (t *TaggerWrapper) DogstatsdCardinality() types.TagCardinality {
-	return t.dogstatsdCardinality
 }
 
 // taggerCardinality converts tagger cardinality string to types.TagCardinality

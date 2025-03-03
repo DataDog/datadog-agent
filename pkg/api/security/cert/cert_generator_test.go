@@ -18,16 +18,16 @@ import (
 )
 
 func TestCertCommunication(t *testing.T) {
-	certPEM, keyPEM, err := generateCertKeyPair()
+	res, err := generateCertKeyPair()
 	assert.NoError(t, err)
 
 	// Load server certificate
-	serverCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	serverCert, err := tls.X509KeyPair(res.cert, res.key)
 	assert.NoError(t, err)
 
 	// Create a certificate pool with the generated certificate
 	certPool := x509.NewCertPool()
-	ok := certPool.AppendCertsFromPEM(certPEM)
+	ok := certPool.AppendCertsFromPEM(res.cert)
 	assert.True(t, ok)
 
 	// Create a TLS config for the server

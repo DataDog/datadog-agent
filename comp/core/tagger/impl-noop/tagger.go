@@ -98,10 +98,6 @@ func (n *noopTagger) ChecksCardinality() types.TagCardinality {
 	return types.LowCardinality
 }
 
-func (n *noopTagger) DogstatsdCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
-
 // NewComponent returns a new noop tagger component
 func NewComponent() tagger.Component {
 	return &noopTagger{}
