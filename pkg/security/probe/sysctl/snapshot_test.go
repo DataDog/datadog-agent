@@ -8,7 +8,7 @@
 package sysctl
 
 import (
-	"reflect"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -85,9 +85,7 @@ func TestSnapshotEvent_ToJSON(t *testing.T) {
 				t.Errorf("ToJSON() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(string(got), tt.want) {
-				t.Errorf("ToJSON() got = %v, want %v", string(got), tt.want)
-			}
+			assert.JSONEqf(t, tt.want, string(got), "ToJSON() error")
 		})
 	}
 }
@@ -247,10 +245,7 @@ func TestSnapshot_InsertSnapshotEntry(t *testing.T) {
 				t.Errorf("InsertSnapshotEntry - ToJSON error: %v", err)
 				return
 			}
-			if !reflect.DeepEqual(string(got), tt.output) {
-				t.Errorf("InsertSnapshotEntry got = %v, want %v", string(got), tt.output)
-			}
-
+			assert.JSONEqf(t, string(got), tt.output, "InsertSnapshotEntry error")
 		})
 	}
 }

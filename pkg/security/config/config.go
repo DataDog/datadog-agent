@@ -226,10 +226,14 @@ type RuntimeSecurityConfig struct {
 	// HashResolverReplace is used to apply specific hash to specific file path
 	HashResolverReplace map[string]string
 
+	// SysCtlEnabled defines if the sysctl event should be enabled
+	SysCtlEnabled bool
 	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
 	SysCtlSnapshotEnabled bool
 	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
 	SysCtlSnapshotPeriod time.Duration
+	// SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
+	SysCtlSnapshotIgnoredBaseNames []string
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
@@ -419,8 +423,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
 
 		// SysCtl config parameter
-		SysCtlSnapshotEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl_snapshot.enabled"),
-		SysCtlSnapshotPeriod:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl_snapshot.period"),
+		SysCtlEnabled:                  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlSnapshotEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
+		SysCtlSnapshotPeriod:           pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
+		SysCtlSnapshotIgnoredBaseNames: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
 
 		// security profiles
 		SecurityProfileEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),

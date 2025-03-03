@@ -17,18 +17,16 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 var (
-	ignoredBaseNames = []string{
-		"netdev_rss_key",
-		"stable_secret",
-	}
 	redactedContent = "******"
 )
 
 // readFileContent reads a file and processes its content based on the given rules.
-func readFileContent(file string) (string, error) {
+func readFileContent(file string, ignoredBaseNames []string) (string, error) {
 	if slices.Contains(ignoredBaseNames, path.Base(file)) {
 		return redactedContent, nil
 	}
@@ -47,11 +45,11 @@ type SnapshotEvent struct {
 }
 
 // NewSnapshotEvent returns a new sysctl snapshot event
-func NewSnapshotEvent() (*SnapshotEvent, error) {
+func NewSnapshotEvent(ignoredBaseNames []string) (*SnapshotEvent, error) {
 	se := &SnapshotEvent{
 		Sysctl: NewSnapshot(),
 	}
-	if err := se.Sysctl.Snapshot(); err != nil {
+	if err := se.Sysctl.Snapshot(ignoredBaseNames); err != nil {
 		return nil, err
 	}
 	return se, nil
@@ -79,20 +77,20 @@ func NewSnapshot() Snapshot {
 }
 
 // Snapshot runs the snapshot by going through the filesystem
-func (s *Snapshot) Snapshot() error {
-	if err := s.snapshotProcSys(); err != nil {
+func (s *Snapshot) Snapshot(ignoredBaseNames []string) error {
+	if err := s.snapshotProcSys(ignoredBaseNames); err != nil {
 		return fmt.Errorf("couldn't snapshot /proc/sys: %w", err)
 	}
 
-	if err := s.snapshotSys(); err != nil {
+	if err := s.snapshotSys(ignoredBaseNames); err != nil {
 		return fmt.Errorf("coudln't snapshot /sys: %w", err)
 	}
 	return nil
 }
 
 // snapshotProcSys recursively reads files in /proc/sys and builds a nested JSON structure.
-func (s *Snapshot) snapshotProcSys() error {
-	return filepath.Walk("/proc/sys", func(file string, info fs.FileInfo, err error) error {
+func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
+	return filepath.Walk(kernel.HostProc("/sys"), func(file string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -104,16 +102,16 @@ func (s *Snapshot) snapshotProcSys() error {
 
 		// Skip if mode doesn't allow reading
 		mode := info.Mode()
-		if mode&0400 == 0 && mode&0040 == 0 && mode&0004 == 0 {
+		if mode&0444 == 0 {
 			return nil
 		}
 
-		relPath, err := filepath.Rel("/proc", file)
+		relPath, err := filepath.Rel(kernel.ProcFSRoot(), file)
 		if err != nil {
 			return err
 		}
 
-		value, err := readFileContent(file)
+		value, err := readFileContent(file, ignoredBaseNames)
 		if err != nil {
 			return nil // Skip files that can't be read
 		}
@@ -124,18 +122,17 @@ func (s *Snapshot) snapshotProcSys() error {
 }
 
 // snapshotSys reads security relevant files from the /sys filesystem
-func (s *Snapshot) snapshotSys() error {
-	lockdownValue, err := readFileContent("/sys/kernel/security/lockdown")
-	if err != nil {
-		return err
+func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
+	for _, systemControl := range []string{
+		"/kernel/security/lockdown",
+		"/kernel/security/lsm",
+	} {
+		value, err := readFileContent(kernel.HostSys(systemControl), ignoredBaseNames)
+		if err != nil {
+			return err
+		}
+		s.InsertSnapshotEntry(s.Sys, systemControl, value)
 	}
-	s.InsertSnapshotEntry(s.Sys, "kernel/security/lockdown", lockdownValue)
-
-	lsmValue, err := readFileContent("/sys/kernel/security/lsm")
-	if err != nil {
-		return err
-	}
-	s.InsertSnapshotEntry(s.Sys, "kernel/security/lsm", lsmValue)
 	return nil
 }
 

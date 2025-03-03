@@ -118,9 +118,11 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
 
-	// CWS - SysCtl snapshot
-	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl_snapshot.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl_snapshot.period", "1h")
+	// CWS - SysCtl
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.period", "1h")
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.ignored_base_names", []string{"netdev_rss_key", "stable_secret"})
 
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
