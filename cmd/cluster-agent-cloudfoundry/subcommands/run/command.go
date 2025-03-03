@@ -57,7 +57,6 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -144,7 +143,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return demuxInstance.Serializer()
 				}),
 				metadatarunnerimpl.Module(),
-				resourcesimpl.Module(),
 				dcametadatafx.Module())
 		},
 	}

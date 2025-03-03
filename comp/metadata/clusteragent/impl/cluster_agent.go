@@ -78,6 +78,7 @@ type datadogclusteragent struct {
 	clustername  string
 	clusterid    string
 	clusteridErr string
+	metadata     map[string]interface{}
 }
 
 // Provides defines the output of the clusteragent metadata component
@@ -98,10 +99,12 @@ func NewComponent(deps Requires) Provides {
 		clustername:  clname,
 		clusterid:    clid,
 		clusteridErr: "",
+		metadata:     make(map[string]interface{}),
 	}
 	if clidErr != nil {
 		dca.clusteridErr = clidErr.Error()
 	}
+	dca.initMetadata()
 	dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, dca.getPayload, "datadog-cluster-agent.json")
 	return Provides{
 		Comp:             dca,
@@ -121,7 +124,7 @@ func (dca *datadogclusteragent) getPayload() marshaler.JSONMarshaler {
 	}
 }
 
-func (dca *datadogclusteragent) initMetadata(metadata map[string]interface{}) {
+func (dca *datadogclusteragent) initMetadata() {
 	tool := "undefined"
 	toolVersion := ""
 	installerVersion := ""
@@ -132,48 +135,51 @@ func (dca *datadogclusteragent) initMetadata(metadata map[string]interface{}) {
 		toolVersion = install.ToolVersion
 		installerVersion = install.InstallerVersion
 	}
-	metadata["cluster_id_error"] = dca.clusteridErr
-	metadata["install_method_tool"] = tool
-	metadata["install_method_tool_version"] = toolVersion
-	metadata["install_method_installer_version"] = installerVersion
-	metadata["agent_version"] = version.AgentVersion
-	metadata["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
-	metadata["flavor"] = flavor.GetFlavor()
+	dca.metadata["cluster_id_error"] = dca.clusteridErr
+	dca.metadata["install_method_tool"] = tool
+	dca.metadata["install_method_tool_version"] = toolVersion
+	dca.metadata["install_method_installer_version"] = installerVersion
+	dca.metadata["agent_version"] = version.AgentVersion
+	dca.metadata["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
+	dca.metadata["flavor"] = flavor.GetFlavor()
 }
 
-func (dca *datadogclusteragent) getAadmissionControllerConfig(metadata map[string]interface{}) {
-	metadata["feature_admission_controller_enabled"] = dca.conf.GetBool("admission_controller.enabled")
-	metadata["feature_admission_controller_inject_config_enabled"] = dca.conf.GetBool("admission_controller.inject_config.enabled")
-	metadata["feature_admission_controller_inject_tags_enabled"] = dca.conf.GetBool("admission_controller.inject_tags.enabled")
-	metadata["feature_apm_config_instrumentation_enabled"] = dca.conf.GetBool("apm_config.instrumentation.enabled")
-	metadata["feature_admission_controller_validation_enabled"] = dca.conf.GetBool("admission_controller.validation.enabled")
-	metadata["feature_admission_controller_mutation_enabled"] = dca.conf.GetBool("admission_controller.mutation.enabled")
-	metadata["feature_admission_controller_auto_instrumentation_enabled"] = dca.conf.GetBool("admission_controller.auto_instrumentation.enabled")
-	metadata["feature_admission_controller_cws_instrumentation_enabled"] = dca.conf.GetBool("admission_controller.cws_instrumentation.enabled")
-	metadata["feature_cluster_checks_enabled"] = dca.conf.GetBool("cluster_checks.enabled")
-	metadata["feature_autoscaling_workload_enabled"] = dca.conf.GetBool("autoscaling.workload.enabled")
-	metadata["feature_external_metrics_provider_enabled"] = dca.conf.GetBool("external_metrics_provider.enabled")
-	metadata["feature_external_metrics_provider_use_datadogmetric_crd"] = dca.conf.GetBool("external_metrics_provider.use_datadogmetric_crd")
-	metadata["feature_compliance_config_enabled"] = dca.conf.GetBool("compliance_config.enabled")
+func (dca *datadogclusteragent) getFeatureConfigs() {
+	dca.metadata["feature_admission_controller_enabled"] = dca.conf.GetBool("admission_controller.enabled")
+	dca.metadata["feature_admission_controller_inject_config_enabled"] = dca.conf.GetBool("admission_controller.inject_config.enabled")
+	dca.metadata["feature_admission_controller_inject_tags_enabled"] = dca.conf.GetBool("admission_controller.inject_tags.enabled")
+	dca.metadata["feature_apm_config_instrumentation_enabled"] = dca.conf.GetBool("apm_config.instrumentation.enabled")
+	dca.metadata["feature_admission_controller_validation_enabled"] = dca.conf.GetBool("admission_controller.validation.enabled")
+	dca.metadata["feature_admission_controller_mutation_enabled"] = dca.conf.GetBool("admission_controller.mutation.enabled")
+	dca.metadata["feature_admission_controller_auto_instrumentation_enabled"] = dca.conf.GetBool("admission_controller.auto_instrumentation.enabled")
+	dca.metadata["feature_admission_controller_cws_instrumentation_enabled"] = dca.conf.GetBool("admission_controller.cws_instrumentation.enabled")
+	dca.metadata["feature_cluster_checks_enabled"] = dca.conf.GetBool("cluster_checks.enabled")
+	dca.metadata["feature_autoscaling_workload_enabled"] = dca.conf.GetBool("autoscaling.workload.enabled")
+	dca.metadata["feature_external_metrics_provider_enabled"] = dca.conf.GetBool("external_metrics_provider.enabled")
+	dca.metadata["feature_external_metrics_provider_use_datadogmetric_crd"] = dca.conf.GetBool("external_metrics_provider.use_datadogmetric_crd")
+	dca.metadata["feature_compliance_config_enabled"] = dca.conf.GetBool("compliance_config.enabled")
 }
 
 func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
-	metadata := map[string]interface{}{}
-	dca.initMetadata(metadata)
-	metadata["leader_election"] = dca.conf.GetBool("leader_election")
-	metadata["is_leader"] = false
+	dca.metadata["leader_election"] = dca.conf.GetBool("leader_election")
+	dca.metadata["is_leader"] = false
 	if dca.conf.GetBool("leader_election") {
 		if leaderEngine, err := leaderelection.GetLeaderEngine(); err == nil {
-			metadata["is_leader"] = leaderEngine.IsLeader()
+			dca.metadata["is_leader"] = leaderEngine.IsLeader()
 		}
 	}
+	//Sending dca configuration can be disabled using `inventories_configuration_enabled`.
+	//By default, it is true and enabled.
+	if !dca.conf.GetBool("inventories_configuration_enabled") {
+		return dca.metadata
+	}
 	if str, err := fetchDatadogClusterAgentConfig(dca.conf); err == nil {
-		metadata["full_configuration"] = str
+		dca.metadata["full_configuration"] = str
 	} else {
 		dca.log.Debugf("error fetching datadog-cluster-agent config: %s", err)
 	}
-	dca.getAadmissionControllerConfig(metadata)
-	return metadata
+	dca.getFeatureConfigs()
+	return dca.metadata
 }
 
 func getClusterID() (string, error) {
