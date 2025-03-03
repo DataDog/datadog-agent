@@ -52,6 +52,7 @@ type PolicyRule struct {
 	Error      error
 	Policy     *Policy
 	ModifiedBy []*PolicyRule
+	UsedBy     []*Policy
 }
 
 func (r *PolicyRule) isAccepted() bool {

@@ -319,6 +319,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	if _, exists := rs.rules[pRule.Def.ID]; exists {
 		return "", nil
 	}
+	pRule.UsedBy = append(pRule.UsedBy, pRule.Policy)
 
 	var tags []string
 	for k, v := range pRule.Def.Tags {
@@ -798,6 +799,8 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 
 		for _, rule := range policy.GetAcceptedRules() {
 			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
+				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
+
 				if err := existingRule.MergeWith(rule); err != nil {
 					errs = multierror.Append(errs, err)
 				}
