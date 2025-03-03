@@ -95,9 +95,6 @@ echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USER" --password-stdin "
         environment=container_env,
         volumes={
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
-            '/proc': {'bind': '/host/proc', 'mode': 'ro'},
-            '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
-            scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'},
         },
     )
 
