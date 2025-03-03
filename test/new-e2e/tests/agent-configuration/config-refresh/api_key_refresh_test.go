@@ -6,6 +6,7 @@
 package configrefresh
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -147,6 +148,8 @@ additional_endpoints:
 	for _, updatedKey := range updatedAPIKeys {
 		lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
 		assert.NoError(v.T(), err)
-		assert.Equal(v.T(), lastAPIKey, updatedKey)
+		fmt.Println("WACKTEST1", updatedKey)
+		fmt.Println("WACKTEST2", lastAPIKey)
+		assert.Equal(v.T(), lastAPIKey, updatedAPIKeys["api_key"])
 	}
 }
