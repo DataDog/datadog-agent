@@ -301,13 +301,13 @@ func (p *Protocol) PreStart(_ *manager.Manager) (err error) {
 // performed here.
 func (p *Protocol) PostStart(_ *manager.Manager) error {
 	// Setup map cleaner after manager start.
-	p.setupHTTP2InFlightMapCleaner(p.mgr)
-	p.updateKernelTelemetry(p.mgr)
+	p.setupHTTP2InFlightMapCleaner()
+	p.updateKernelTelemetry()
 
 	return p.dynamicTable.postStart(p.mgr, p.cfg)
 }
 
-func (p *Protocol) updateKernelTelemetry(_ *manager.Manager) {
+func (p *Protocol) updateKernelTelemetry() {
 	mp, err := protocols.GetMap(p.mgr, TelemetryMap)
 	if err != nil {
 		log.Warn(err)
@@ -395,8 +395,8 @@ func (p *Protocol) processHTTP2(events []EbpfTx) {
 	}
 }
 
-func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
-	http2Map, _, err := mgr.GetMap(InFlightMap)
+func (p *Protocol) setupHTTP2InFlightMapCleaner() {
+	http2Map, _, err := p.mgr.GetMap(InFlightMap)
 	if err != nil {
 		log.Errorf("error getting %q map: %s", InFlightMap, err)
 		return
