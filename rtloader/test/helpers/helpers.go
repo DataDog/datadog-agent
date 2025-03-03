@@ -24,6 +24,7 @@ var (
 )
 
 // TestMemoryTracker is the method exposed to the RTLoader for memory tracking
+//
 //export TestMemoryTracker
 func TestMemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	switch op {
