@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -906,4 +908,224 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+var subnetSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_intra_vpc"}, Rate: 1}
+
+func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
+	tests := []struct {
+		name           string
+		conn           *model.Connection
+		vpcSubnets     []*net.IPNet
+		shouldSchedule bool
+		subnetSkipped  bool
+	}{
+		{
+			name: "should schedule",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name: "should not schedule incoming conn",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_incoming,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule conn with none direction",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_none,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule ipv6",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v6,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule for loopback",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule for intrahost",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+				IntraHost: true,
+			},
+			shouldSchedule: false,
+		},
+		// intra-vpc subnet skipping tests
+		{
+			name: "VPC: random subnet should schedule anyway",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: true,
+			subnetSkipped:  false,
+		},
+		{
+			name: "VPC: relevant subnet should skip",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
+		{
+			name: "VPC: shouldn't skip local address even if the subnet matches",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: true,
+			subnetSkipped:  false,
+		},
+		{
+			name: "VPC: translated clusterIP should get matched",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplDstPort: int32(80),
+					ReplDstIP:   "10.1.2.3",
+				},
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
+		{
+			name: "VPC: source translation existing shouldn't break subnet check",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplSrcPort: int32(30000),
+					ReplSrcIP:   "192.168.1.2",
+					// ReplDstIP is the empty string
+				},
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agentConfigs := map[string]any{
+				"network_path.connections_monitoring.enabled":         true,
+				"network_path.collector.disable_intra_vpc_collection": true,
+			}
+			_, npCollector := newTestNpCollector(t, agentConfigs)
+
+			stats := &teststatsd.Client{}
+			npCollector.statsdClient = stats
+
+			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
+
+			if tt.subnetSkipped {
+				require.Contains(t, stats.CountCalls, subnetSkippedStat)
+			} else {
+				require.NotContains(t, stats.CountCalls, subnetSkippedStat)
+			}
+		})
+	}
+}
+
+func mustParseCIDR(t *testing.T, cidr string) *net.IPNet {
+	_, ipNet, err := net.ParseCIDR(cidr)
+	assert.Nil(t, err)
+	return ipNet
+}
+
+func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T) {
+	tests := []struct {
+		name           string
+		conn           *model.Connection
+		vpcSubnets     []*net.IPNet
+		shouldSchedule bool
+		subnetSkipped  bool
+	}{
+		{
+			name: "should schedule",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     nil,
+			shouldSchedule: true,
+			subnetSkipped:  false,
+		},
+		{
+			name: "should not schedule incoming conn",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_incoming,
+				Family:    model.ConnectionFamily_v4,
+			},
+			vpcSubnets:     nil,
+			shouldSchedule: false,
+			subnetSkipped:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agentConfigs := map[string]any{
+				"network_path.connections_monitoring.enabled":         true,
+				"network_path.collector.disable_intra_vpc_collection": true,
+			}
+			_, npCollector := newTestNpCollector(t, agentConfigs)
+
+			stats := &teststatsd.Client{}
+			npCollector.statsdClient = stats
+
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
+
+			if tt.subnetSkipped {
+				require.Contains(t, stats.CountCalls, subnetSkippedStat)
+			} else {
+				require.NotContains(t, stats.CountCalls, subnetSkippedStat)
+			}
+		})
+	}
+
 }

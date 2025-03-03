@@ -36,11 +36,84 @@ func TestInitializeGlobalResourceTypeCache(t *testing.T) {
 				{Kind: "Pod", Name: "pods"},
 			},
 		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []v1.APIResource{
+				{Kind: "Deployment", Name: "deployments"},
+			},
+		},
 	}
 
 	err = InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
 	assert.NoError(t, err, "Re-initialization should not return an error")
 	assert.Equal(t, initialCache, resourceCache.kindGroupToType, "Cache should remain unchanged after re-initialization")
+}
+
+func TestGetResourceKind(t *testing.T) {
+	resetCache()
+
+	client := fakeclientset.NewClientset()
+	fakeDiscoveryClient := client.Discovery().(*fakediscovery.FakeDiscovery)
+	fakeDiscoveryClient.Resources = []*v1.APIResourceList{
+		{
+			GroupVersion: "v1",
+			APIResources: []v1.APIResource{
+				{Kind: "Pod", Name: "pods"},
+			},
+		},
+
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []v1.APIResource{
+				{Kind: "Deployment", Name: "deployments"},
+			},
+		},
+	}
+
+	err := InitializeGlobalResourceTypeCache(fakeDiscoveryClient)
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		resource string
+		group    string
+		want     string
+		wantErr  bool
+	}{
+		{
+			name:     "Cache hit for Pod/v1",
+			resource: "pods",
+			group:    "",
+			want:     "Pod",
+			wantErr:  false,
+		},
+		{
+			name:     "Cache hit for Deployment/apps",
+			resource: "deployments",
+			group:    "apps",
+			want:     "Deployment",
+			wantErr:  false,
+		},
+		{
+			name:     "Cache miss for unknown kind",
+			resource: "UnknownKind",
+			group:    "unknownGroup",
+			want:     "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetResourceKind(tt.resource, tt.group)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
 }
 
 func TestGetResourceType(t *testing.T) {
@@ -70,7 +143,7 @@ func TestGetResourceType(t *testing.T) {
 		{
 			name:    "Cache hit for Pod/v1",
 			kind:    "Pod",
-			group:   "v1",
+			group:   "",
 			want:    "pods",
 			wantErr: false,
 		},
@@ -180,10 +253,17 @@ func TestPrepopulateCache(t *testing.T) {
 				{Kind: "InvalidSubresource", Name: "invalidsubresource/notvalid"},
 			},
 		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []v1.APIResource{
+				{Kind: "Deployment", Name: "deployments"},
+			},
+		},
 	}
 
 	resourceCache = &ResourceTypeCache{
 		kindGroupToType: make(map[string]string),
+		typeGroupToKind: make(map[string]string),
 		discoveryClient: fakeDiscoveryClient,
 	}
 
@@ -193,6 +273,12 @@ func TestPrepopulateCache(t *testing.T) {
 	assert.Equal(t, "pods", resourceCache.kindGroupToType["Pod"])
 	assert.Equal(t, "secrets", resourceCache.kindGroupToType["Secret"])
 	assert.Equal(t, "configmaps", resourceCache.kindGroupToType["ConfigMap"])
+	assert.Equal(t, "deployments", resourceCache.kindGroupToType["Deployment/apps"])
+
+	assert.Equal(t, "Pod", resourceCache.typeGroupToKind["pods"])
+	assert.Equal(t, "Secret", resourceCache.typeGroupToKind["secrets"])
+	assert.Equal(t, "ConfigMap", resourceCache.typeGroupToKind["configmaps"])
+	assert.Equal(t, "Deployment", resourceCache.typeGroupToKind["deployments/apps"])
 }
 
 func TestCacheRefreshOnMiss(t *testing.T) {
@@ -208,7 +294,7 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 	assert.NoError(t, err, "Initial cache setup should not fail")
 
 	// Simulate a cache miss
-	_, err = resourceCache.getResourceType("Pod", "v1")
+	_, err = resourceCache.getResourceType("Pod", "")
 	assert.Error(t, err, "Cache miss should return an error before refresh")
 
 	// Update the discovery client with new API resources
@@ -222,7 +308,7 @@ func TestCacheRefreshOnMiss(t *testing.T) {
 	}
 
 	// The next call should trigger a refresh and succeed
-	got, err := resourceCache.getResourceType("Pod", "v1")
+	got, err := resourceCache.getResourceType("Pod", "")
 	assert.NoError(t, err, "After cache refresh, resource should be found")
 	assert.Equal(t, "pods", got, "Returned resource type should match")
 }

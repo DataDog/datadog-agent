@@ -17,14 +17,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
-	"github.com/DataDog/sketches-go/ddsketch"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	"github.com/DataDog/sketches-go/ddsketch"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgConfigModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -391,7 +392,7 @@ type MockStatsProcessor struct {
 }
 
 // ProcessStats implements the stats processor interface
-func (s *MockStatsProcessor) ProcessStats(in *pb.ClientStatsPayload, _, _ string) {
+func (s *MockStatsProcessor) ProcessStats(in *pb.ClientStatsPayload, _, _, _ string) {
 	s.In = append(s.In, in)
 }
 

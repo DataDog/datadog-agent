@@ -7,7 +7,7 @@ toolchain go1.23.6
 require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v1.0.0
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
 )
 
 require (
