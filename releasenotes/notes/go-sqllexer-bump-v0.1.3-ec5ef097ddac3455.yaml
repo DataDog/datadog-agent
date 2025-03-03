@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Upgraded github.com/DataDog/go-sqllexer to v0.1.2 to fix a bug that caused the lexer to panic when trimming identifier quotes.
+    Upgraded github.com/DataDog/go-sqllexer to v0.1.3 to fix a bug that caused the lexer to panic when trimming identifier quotes.
