@@ -378,6 +378,15 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 
 	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLengh()
 
+	if originInfo.LocalData.ProcessID != 0 {
+		var processIDResolutionError error
+		originInfo.ContainerIDFromSocket, processIDResolutionError = t.generateContainerIDFromProcessID(originInfo.LocalData, metrics.GetProvider(option.New(t.wmeta)).GetMetaCollector())
+		originInfo.ContainerIDFromSocket = types.NewEntityID(types.ContainerID, originInfo.ContainerIDFromSocket).String()
+		if processIDResolutionError != nil {
+			t.log.Tracef("Failed to resolve container ID from PID %d: %v", originInfo.LocalData.ProcessID, processIDResolutionError)
+		}
+	}
+
 	// Generate container ID from Inode
 	if originInfo.LocalData.ContainerID == "" {
 		var inodeResolutionError error
@@ -505,6 +514,11 @@ func (t *TaggerWrapper) EnrichTags(tb tagset.TagsAccumulator, originInfo taggert
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
 func (t *TaggerWrapper) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	return t.defaultTagger.GenerateContainerIDFromOriginInfo(originInfo)
+}
+
+// generateContainerIDFromProcessID generates a container ID from the CGroup ProcessID.
+func (t *TaggerWrapper) generateContainerIDFromProcessID(e origindetection.LocalData, metricsProvider provider.ContainerIDForPIDRetriever) (string, error) {
+	return metricsProvider.GetContainerIDForPID(int(e.ProcessID), time.Second)
 }
 
 // generateContainerIDFromInode generates a container ID from the CGroup inode.
