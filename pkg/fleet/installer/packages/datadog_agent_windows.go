@@ -44,6 +44,7 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 	return err
 }
 
+// GetCurrentAgentMSIProperties returns the MSI path and version of the currently installed Agent
 func GetCurrentAgentMSIProperties() (string, string, error) {
 	product, err := msi.FindProductCode("Datadog Agent")
 	if err != nil {
