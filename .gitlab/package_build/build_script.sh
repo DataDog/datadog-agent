@@ -51,7 +51,7 @@ if [ "$1" = SETUP_RUNNER ]; then
     # TODO A: Find a better way
     echo Setup env
     mkdir bin
-    binaries=("curl" "chmod" "cp" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee")
+    binaries=("curl" "chmod" "cp" "cut" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee")
     for binary in "${binaries[@]}"; do
         echo Using $binary
         ln -s "$(which $binary)" bin/$binary
@@ -69,6 +69,50 @@ if [ "$1" = SETUP_RUNNER ]; then
     # TODO A: Necessary?
     chmod -R go-w "$(brew --prefix)/share/zsh"
     brew tap DataDog/datadog-agent-macos-build
+
+    # TODO A: Add it in the runner
+    echo Install extra packages
+    # TODO: binutils?
+    extrapackages=(
+        autoconf@2.72
+        ca-certificates@2025-02-25
+        cffi@1.17.1_1
+        coreutils@9.6
+        cryptography@44.0.1
+        gcc@14.2.0_1
+        gmp@6.3.0
+        isl@0.27
+        jq@1.7.1
+        libmpc@1.3.1
+        libssh2@1.11.1
+        libunistring@1.3
+        libyaml@0.2.5
+        lz4@1.10.0
+        m4@1.4.19
+        mpdecimal@4.0.0
+        mpfr@4.2.1
+        oniguruma@6.9.10
+        pcre2@10.44
+        pycparser@2.22_1
+        readline@8.2.13
+        xz@5.6.2
+        zstd@1.5.7
+    )
+    for pkg in "${extrapackages[@]}"; do
+        echo Installing $pkg
+        brew install $pkg -f || brew install "$(echo $pkg | cut -d@ -f1)" -f || echo "ERROR: Failed to install $pkg"
+    done
+
+    echo Verifying gettext
+    echo brew uses gettext --installed
+    brew uses gettext --installed || true
+
+    echo brew list --formula --versions
+    brew list --formula --versions || true
+
+    echo grep gettext
+    brew list --formula --versions | grep gettext || true
+
 
     echo Install libffi
     brew install libffi -f
@@ -127,49 +171,6 @@ if [ "$1" = SETUP_RUNNER ]; then
     echo Install gimme
     brew install DataDog/datadog-agent-macos-build/gimme@$GIMME_VERSION -f
     brew link --overwrite gimme@$GIMME_VERSION
-
-    # TODO A: Add it in the runner
-    echo Install extra packages
-    # TODO: binutils?
-    extrapackages=(
-        autoconf@2.72
-        ca-certificates@2025-02-25
-        cffi@1.17.1_1
-        coreutils@9.6
-        cryptography@44.0.1
-        gcc@14.2.0_1
-        gmp@6.3.0
-        isl@0.27
-        jq@1.7.1
-        libmpc@1.3.1
-        libssh2@1.11.1
-        libunistring@1.3
-        libyaml@0.2.5
-        lz4@1.10.0
-        m4@1.4.19
-        mpdecimal@4.0.0
-        mpfr@4.2.1
-        oniguruma@6.9.10
-        pcre2@10.44
-        pycparser@2.22_1
-        readline@8.2.13
-        xz@5.6.2
-        zstd@1.5.7
-    )
-    for pkg in "${extrapackages[@]}"; do
-        echo Installing $pkg
-        brew install $pkg -f || brew install "$(echo $pkg | cut -d@ -f1)" -f || echo "ERROR: Failed to install $pkg"
-    done
-
-    echo Verifying gettext
-    echo brew uses gettext --installed
-    brew uses gettext --installed || true
-
-    echo brew list --formula --versions
-    brew list --formula --versions || true
-
-    echo grep gettext
-    brew list --formula --versions | grep gettext || true
 
     exit
 fi
