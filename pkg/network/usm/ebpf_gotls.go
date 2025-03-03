@@ -169,7 +169,7 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	},
 }
 
-func newGoTLS(_ *manager.Manager, c *config.Config) (protocols.Protocol, error) {
+func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
 	if !c.EnableGoTLSSupport {
 		return nil, nil
 	}
@@ -191,6 +191,7 @@ func newGoTLS(_ *manager.Manager, c *config.Config) (protocols.Protocol, error) 
 		binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
 		binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
 		registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
+		manager:            mgr,
 	}, nil
 }
 
@@ -213,11 +214,10 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 }
 
 // PreStart launches the goTLS main goroutine to handle events.
-func (p *goTLSProgram) PreStart(m *manager.Manager) error {
-	p.manager = m
+func (p *goTLSProgram) PreStart(*manager.Manager) error {
 	var err error
 
-	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
+	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
 		return fmt.Errorf("could not get offsets_data map: %s", err)
 	}
