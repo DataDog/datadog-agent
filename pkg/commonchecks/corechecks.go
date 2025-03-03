@@ -51,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winwlan"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
 )
@@ -93,6 +94,7 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(wincrashdetect.CheckName, wincrashdetect.Factory())
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
+	corecheckLoader.RegisterCheck(winwlan.CheckName, winwlan.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, tagger))
