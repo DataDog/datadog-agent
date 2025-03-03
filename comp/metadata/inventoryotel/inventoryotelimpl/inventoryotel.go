@@ -154,7 +154,7 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 
 	err := json.Unmarshal(body, &c)
 	if err != nil {
-		i.log.Errorf("Error unmarshaling the response:", err)
+		i.log.Error("Error unmarshaling the response:", err)
 		return nil, err
 	}
 
@@ -174,7 +174,7 @@ func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) 
 	// Create a new request using http
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		i.log.Errorf("Error building request: ", err)
+		i.log.Error("Error building request: ", err)
 		return nil, err
 	}
 
@@ -183,14 +183,14 @@ func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) 
 
 	resp, err := i.httpClient.Do(req)
 	if err != nil {
-		i.log.Errorf("Error on response: ", err)
+		i.log.Error("Error on response: ", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		i.log.Errorf("Error while reading the response bytes:", err)
+		i.log.Error("Error while reading the response bytes:", err)
 		return nil, err
 	}
 
@@ -200,7 +200,7 @@ func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) 
 func (i *inventoryotel) fetchDummyOtelConfig(_ *url.URL) (otelMetadata, error) {
 	dummy, err := dummyFS.ReadFile(path.Join("dummy_data", "response.json"))
 	if err != nil {
-		i.log.Errorf("Unable to read embedded dummy data:", err)
+		i.log.Error("Unable to read embedded dummy data:", err)
 		return nil, err
 	}
 
@@ -218,7 +218,7 @@ func (i *inventoryotel) fetchOtelAgentMetadata() {
 	}
 	data, err := i.f.getConfig()
 	if err != nil {
-		i.log.Errorf("Unable to fetch fresh inventory metadata: ", err)
+		i.log.Error("Unable to fetch fresh inventory metadata: ", err)
 		return
 	}
 

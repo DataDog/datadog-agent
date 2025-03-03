@@ -43,7 +43,7 @@ jobs:
                     golang.org/x/sys golang.org/x/term \
                     golang.org/x/text golang.org/x/time \
                     golang.org/x/xerrors golang.org/x/tools \
-                    golang.org/x/exp
+                    golang.org/x/exp golang.org/x/oauth2
           # run tidy twice because the first one doesn't always clean everything
           # depending on module order
           inv -e tidy
