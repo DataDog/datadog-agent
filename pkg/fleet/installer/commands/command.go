@@ -24,7 +24,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type installerGetter func(operation string) (*installerCmd, error)
+var (
+	mockInstaller installer.Installer
+)
 
 // Cmd is the base command
 type Cmd struct {
@@ -72,11 +74,15 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 			cmd.Stop(err)
 		}
 	}()
-	i, err := installer.NewInstaller(cmd.Env)
+	var i installer.Installer
+	if mockInstaller != nil {
+		i = mockInstaller
+	} else {
+		i, err = installer.NewInstaller(cmd.Env)
+	}
 	if err != nil {
 		return nil, err
 	}
-
 	return &installerCmd{
 		Installer: i,
 		Cmd:       cmd,
@@ -126,6 +132,34 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	}
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	return t
+}
+
+// RootCommands returns the root commands
+func RootCommands() []*cobra.Command {
+	return []*cobra.Command{
+		InstallCommand(),
+		SetupCommand(),
+		RemoveCommand(),
+		InstallExperimentCommand(),
+		RemoveExperimentCommand(),
+		PromoteExperimentCommand(),
+		InstallConfigExperimentCommand(),
+		RemoveConfigExperimentCommand(),
+		PromoteConfigExperimentCommand(),
+		GarbageCollectCommand(),
+		PurgeCommand(),
+		IsInstalledCommand(),
+		ApmCommands(),
+		GetStateCommand(),
+	}
+}
+
+// UnprivilegedCommands returns the unprivileged commands
+func UnprivilegedCommands() []*cobra.Command {
+	return []*cobra.Command{
+		VersionCommand(),
+		DefaultPackagesCommand(),
+	}
 }
 
 // VersionCommand is the command to print the version
@@ -415,19 +449,14 @@ func IsInstalledCommand() *cobra.Command {
 }
 
 // GetStateCommand is the command to get the package & config states
-func GetStateCommand(installerOverride installerGetter) *cobra.Command {
+func GetStateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden:  true,
 		Use:     "get-states",
 		Short:   "Get the package & config states",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			var i *installerCmd
-			if installerOverride != nil {
-				i, err = installerOverride("state")
-			} else {
-				i, err = newInstallerCmd("state")
-			}
+			i, err := newInstallerCmd("get_states")
 			if err != nil {
 				return err
 			}

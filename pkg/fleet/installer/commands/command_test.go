@@ -7,7 +7,6 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -20,41 +19,35 @@ import (
 )
 
 const (
-	testCmdEnvVar   = "DD_TEST_CMD_NAME"
-	getStateCommand = "GetState"
+	testCmdEnv = "DD_TEST_CMD"
 )
 
 func TestMain(m *testing.M) {
-	if testCmd, isSet := os.LookupEnv(testCmdEnvVar); isSet {
-		switch testCmd {
-		case getStateCommand:
-			os.Exit(runCmd(GetStateCommand(newInstallerCmdOverride)))
-		default:
-			panic(fmt.Sprintf("Undefined command %s", testCmd))
+	if _, isSet := os.LookupEnv(testCmdEnv); isSet {
+		mockInstaller = newInstallerMock()
+		cmd := &cobra.Command{
+			Use: "installer [command]",
 		}
-	}
-	os.Exit(m.Run())
-}
-
-func runCmd(cmd *cobra.Command) int {
-	err := cmd.Execute()
-	if err != nil {
-		return -1
-	}
-	return 0
-}
-
-func newInstallerCmdOverride(operation string) (_ *installerCmd, err error) {
-	cmd := NewCmd(operation)
-	defer func() {
+		cmd.AddGroup(
+			&cobra.Group{
+				ID:    "installer",
+				Title: "Installer Commands",
+			},
+			&cobra.Group{
+				ID:    "apm",
+				Title: "APM Commands",
+			},
+		)
+		cmd.AddCommand(RootCommands()...)
+		cmd.AddCommand(UnprivilegedCommands()...)
+		err := cmd.Execute()
 		if err != nil {
-			cmd.Stop(err)
+			panic(err)
 		}
-	}()
-	return &installerCmd{
-		Installer: newInstallerMock(),
-		Cmd:       cmd,
-	}, nil
+		return
+	}
+	os.Setenv(testCmdEnv, "true")
+	os.Exit(m.Run())
 }
 
 type installerMock struct{}
@@ -169,7 +162,6 @@ func TestStates(t *testing.T) {
 	env := &env.Env{
 		IsFromDaemon: true,
 	}
-	os.Setenv(testCmdEnvVar, getStateCommand)
 	installer := exec.NewInstallerExec(env, installerBinary)
 
 	res, err := installer.States(context.TODO())
@@ -191,7 +183,6 @@ func TestState(t *testing.T) {
 	env := &env.Env{
 		IsFromDaemon: true,
 	}
-	os.Setenv(testCmdEnvVar, getStateCommand)
 	installer := exec.NewInstallerExec(env, installerBinary)
 
 	res, err := installer.State(context.TODO(), "datadog-agent")
@@ -211,7 +202,6 @@ func TestConfigStates(t *testing.T) {
 	env := &env.Env{
 		IsFromDaemon: true,
 	}
-	os.Setenv("DD_TEST_CMD_NAME", getStateCommand)
 	installer := exec.NewInstallerExec(env, installerBinary)
 
 	res, err := installer.ConfigStates(context.TODO())
@@ -233,7 +223,6 @@ func TestConfigState(t *testing.T) {
 	env := &env.Env{
 		IsFromDaemon: true,
 	}
-	os.Setenv(testCmdEnvVar, getStateCommand)
 	installer := exec.NewInstallerExec(env, installerBinary)
 
 	res, err := installer.ConfigState(context.TODO(), "datadog-agent")
