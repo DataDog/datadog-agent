@@ -46,7 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.64.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-rc.6 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.64.0-rc.6 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.64.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.64.0-rc.6 // indirect
