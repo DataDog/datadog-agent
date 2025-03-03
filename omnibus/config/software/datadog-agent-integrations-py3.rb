@@ -271,8 +271,8 @@ build do
   # This is intended as a temporary kludge while we make a decision on how to handle the multiplicity
   # of openssl copies in a more general way while keeping risk low.
   if fips_mode?
-    block "Patch cryptography's openssl linking" do
-      if linux_target?
+    if linux_target?
+      block "Patch cryptography's openssl linking" do
         # We delete the libraries shipped with the wheel and replace references to those names
         # in the binary that references it using patchelf
         cryptography_folder = "#{site_packages_path}/cryptography"
@@ -283,6 +283,28 @@ build do
         shellout! "patchelf --replace-needed #{File.basename(libcrypto_match)} libcrypto.so.3 #{so_to_patch}"
         shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
         FileUtils.rm([libssl_match, libcrypto_match])
+      end
+    elsif windows_target?
+      dll_folder = File.join(install_dir, "embedded3", "DLLS")
+      # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
+      # We first need to copy some files around (we need the .lib files for building)
+      copy File.join(install_dir, "embedded3", "lib", "libssl.dll.a"),
+           File.join(dll_folder, "libssl-3-x64.lib")
+      copy File.join(install_dir, "embedded3", "lib", "libcrypto.dll.a"),
+           File.join(dll_folder, "libcrypto-3-x64.lib")
+
+      command "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography cryptography==43.0.1",
+              env: {
+                "OPENSSL_LIB_DIR" => dll_folder,
+                "OPENSSL_INCLUDE_DIR" => File.join(install_dir, "embedded3", "include"),
+                "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
+              }
+      # Python extensions on windows require this to find their DLL dependencies,
+      # we abuse the `.pth` loading system to inject it
+      block "Inject dll path for Python extensions" do
+        File.open(File.join(install_dir, "embedded3", "lib", "site-packages", "add-dll-directory.pth"), "w") do |f|
+          f.puts 'import os; os.add_dll_directory(os.path.abspath(os.path.join(__file__, "..", "..", "DLLS")))'
+        end
       end
     end
   end
