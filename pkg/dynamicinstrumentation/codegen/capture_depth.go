@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/kr/pretty"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
@@ -21,7 +23,7 @@ type captureDepthItem struct {
 }
 
 func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
-	// fmt.Println("Entry:", pretty.Sprint(params))
+	fmt.Println("Entry:", pretty.Sprint(params))
 	queue := []*captureDepthItem{}
 	for i := range params {
 		if params[i] == nil {
@@ -56,7 +58,6 @@ func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
 			if len(top.parameter.ParameterPieces) == 0 || top.parameter.ParameterPieces[0] == nil ||
 				len(top.parameter.ParameterPieces[0].ParameterPieces) == 0 ||
 				top.parameter.ParameterPieces[0].ParameterPieces[0] == nil {
-				fmt.Println("CONTINUING!!!!!!!!!")
 				continue
 			}
 			elementType := top.parameter.ParameterPieces[0].ParameterPieces[0]
@@ -64,10 +65,14 @@ func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
 			continue
 		}
 
+		if top.parameter.Kind == uint(reflect.Pointer) {
+			//TODO
+		}
+
 		for _, child := range top.parameter.ParameterPieces {
 			queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: child})
 		}
 	}
 
-	// fmt.Println("Exit:", pretty.Sprint(params))
+	fmt.Println("Exit:", pretty.Sprint(params))
 }
