@@ -1448,6 +1448,8 @@ github.com/pascaldekloe/goe v0.1.0 h1:cBOtyMzM9HTpWjXfbbunk26uA6nG3a8n06Wieeh0Mw
 github.com/pascaldekloe/goe v0.1.0/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
+github.com/paulcacheux/go-ora/v2 v2.0.0-20250227181812-8c92f03dd162 h1:f4Mw4aYYmO3KlBKWpafy5yHRU/ySpeMvjgOb71AeKpg=
+github.com/paulcacheux/go-ora/v2 v2.0.0-20250227181812-8c92f03dd162/go.mod h1:QgFInVi3ZWyqAiJwzBQA+nbKYKH77tdp1PYoCqhR2dU=
 github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f h1:y9Dz6t0aNsYtm0UrwTbu85LlsKN8GjnEhABMSrxEmvU=
 github.com/paulcacheux/iouring-go v0.0.0-20241115154236-2c7785c40a0f/go.mod h1:LEzdaZarZ5aqROlLIwJ4P7h3+4o71008fSy6wpaEB+s=
 github.com/pborman/uuid v0.0.0-20180122190007-c65b2f87fee3/go.mod h1:VyrYX9gd7irzKovcSS6BIIEwPRkP2Wm2m9ufcdFSJ34=
@@ -1614,8 +1616,6 @@ github.com/sigstore/sigstore v1.8.3 h1:G7LVXqL+ekgYtYdksBks9B38dPoIsbscjQJX/MGWk
 github.com/sigstore/sigstore v1.8.3/go.mod h1:mqbTEariiGA94cn6G3xnDiV6BD8eSLdL/eA7bvJ0fVs=
 github.com/sigstore/timestamp-authority v1.2.2 h1:X4qyutnCQqJ0apMewFyx+3t7Tws00JQ/JonBiu3QvLE=
 github.com/sigstore/timestamp-authority v1.2.2/go.mod h1:nEah4Eq4wpliDjlY342rXclGSO7Kb9hoRrl9tqLW13A=
-github.com/sijms/go-ora/v2 v2.8.19 h1:7LoKZatDYGi18mkpQTR/gQvG9yOdtc7hPAex96Bqisc=
-github.com/sijms/go-ora/v2 v2.8.19/go.mod h1:EHxlY6x7y9HAsdfumurRfTd+v8NrEOTR3Xl4FWlH6xk=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/sirupsen/logrus v1.6.0/go.mod h1:7uNnSEd1DgxDLC74fIahvMZmmYsHGZGEOFrfsX/uA88=

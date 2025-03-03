@@ -956,6 +956,8 @@ replace github.com/iceber/iouring-go => github.com/paulcacheux/iouring-go v0.0.0
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
 
+replace github.com/sijms/go-ora/v2 => github.com/paulcacheux/go-ora/v2 v2.0.0-20250227181812-8c92f03dd162
+
 // This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
 
 replace (
