@@ -46,7 +46,6 @@ type LifecycleProcessor struct {
 // inferred spans may contain a secondary inferred span in certain cases like SNS from SQS
 type RequestHandler struct {
 	executionInfo  *ExecutionStartInfo
-	event          interface{}
 	inferredSpans  [2]*inferredspan.InferredSpan
 	triggerTags    map[string]string
 	triggerMetrics map[string]float64
@@ -66,13 +65,6 @@ func (r *RequestHandler) GetMetaTag(tag string) (value string, exists bool) {
 // SetMetricsTag sets a metrics span tag. A metrics tag is a tag whose value type is float64.
 func (r *RequestHandler) SetMetricsTag(tag string, value float64) {
 	r.triggerMetrics[tag] = value
-}
-
-// Event returns the invocation event parsed by the LifecycleProcessor. It is nil if the event type is not supported
-// yet. The actual event type can be figured out thanks to a Go type switch on the event types of the package
-// github.com/aws/aws-lambda-go/events
-func (r *RequestHandler) Event() interface{} {
-	return r.event
 }
 
 // SetSamplingPriority sets the trace priority
@@ -230,13 +222,12 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 	case trigger.LegacyStepFunctionEvent:
-		var event events.StepFunctionEvent
+		var event events.StepFunctionEvent[events.StepFunctionPayload]
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
 			break
 		}
 		ev = event.Payload
-		lp.initFromStepFunctionPayload(event.Payload)
 	case trigger.StepFunctionEvent:
 		var eventPayload events.StepFunctionPayload
 		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
@@ -244,7 +235,34 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			break
 		}
 		ev = eventPayload
-		lp.initFromStepFunctionPayload(eventPayload)
+	case trigger.LegacyNestedStepFunctionEvent:
+		var event events.StepFunctionEvent[events.NestedStepFunctionPayload]
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = event.Payload
+	case trigger.NestedStepFunctionEvent:
+		var eventPayload events.NestedStepFunctionPayload
+		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = eventPayload
+	case trigger.LegacyLambdaRootStepFunctionEvent:
+		var event events.StepFunctionEvent[events.LambdaRootStepFunctionPayload]
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = event.Payload
+	case trigger.LambdaRootStepFunctionEvent:
+		var eventPayload events.LambdaRootStepFunctionPayload
+		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = eventPayload
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}
@@ -347,7 +365,6 @@ func (lp *LifecycleProcessor) newRequest(lambdaPayloadString []byte, startTime t
 	if lp.requestHandler == nil {
 		lp.requestHandler = &RequestHandler{}
 	}
-	lp.requestHandler.event = nil
 	lp.requestHandler.executionInfo = &ExecutionStartInfo{
 		requestPayload: lambdaPayloadString,
 		startTime:      startTime,

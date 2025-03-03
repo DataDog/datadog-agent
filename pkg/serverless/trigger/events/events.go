@@ -343,17 +343,74 @@ type LambdaFunctionURLRequestContextHTTPDescription struct {
 // StepFunctionEvent is the event you get when you instrument a legacy Stepfunction Lambda:Invoke task state
 // as recommended by https://docs.datadoghq.com/serverless/step_functions/installation?tab=custom
 // This isn't an "official" event, as a default StepFunction invocation will just contain {}
-type StepFunctionEvent struct {
-	Payload StepFunctionPayload
+type StepFunctionEvent[T any] struct {
+	Payload T
 }
 
 // StepFunctionPayload is the payload of a StepFunctionEvent. It's also a non-legacy version of the `StepFunctionEvent`.
 type StepFunctionPayload struct {
 	Execution struct {
-		ID string
+		ID           string
+		RedriveCount uint16
 	}
 	State struct {
 		Name        string
 		EnteredTime string
+		RetryCount  uint16
 	}
+}
+
+// NestedStepFunctionPayload contains a StepFunctionPayload but also has the Execution ID of the top-most Step Function in the trace
+type NestedStepFunctionPayload struct {
+	Payload           StepFunctionPayload
+	RootExecutionID   string
+	ServerlessVersion string
+}
+
+// LambdaRootStepFunctionPayload contains a StepFunctionPayload but also has the Trace ID of the top-most Lambda in the trace
+type LambdaRootStepFunctionPayload struct {
+	Payload           StepFunctionPayload
+	TraceID           string
+	TraceTags         string
+	ServerlessVersion string
+}
+
+// genericUnmarshal helps extract fields from _datadog.
+func genericUnmarshal(data []byte, fieldMap map[string]interface{}) error {
+	var aux struct {
+		Datadog map[string]json.RawMessage `json:"_datadog"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	for key, field := range fieldMap {
+		if val, exists := aux.Datadog[key]; exists {
+			if err := json.Unmarshal(val, field); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// UnmarshalJSON for NestedStepFunctionPayload.
+func (n *NestedStepFunctionPayload) UnmarshalJSON(data []byte) error {
+	return genericUnmarshal(data, map[string]interface{}{
+		"Execution":          &n.Payload.Execution,
+		"State":              &n.Payload.State,
+		"RootExecutionId":    &n.RootExecutionID,
+		"serverless-version": &n.ServerlessVersion,
+	})
+}
+
+// UnmarshalJSON for LambdaRootStepFunctionPayload.
+func (l *LambdaRootStepFunctionPayload) UnmarshalJSON(data []byte) error {
+	return genericUnmarshal(data, map[string]interface{}{
+		"Execution":          &l.Payload.Execution,
+		"State":              &l.Payload.State,
+		"x-datadog-trace-id": &l.TraceID,
+		"x-datadog-tags":     &l.TraceTags,
+		"serverless-version": &l.ServerlessVersion,
+	})
 }
