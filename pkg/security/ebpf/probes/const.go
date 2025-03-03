@@ -28,10 +28,8 @@ const (
 )
 
 const (
-	// DentryResolverOpenCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an open event
-	DentryResolverOpenCallbackKprobeKey uint32 = iota + 1
 	// DentryResolverSetAttrCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an setattr event
-	DentryResolverSetAttrCallbackKprobeKey
+	DentryResolverSetAttrCallbackKprobeKey = iota + 1
 	// DentryResolverMkdirCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an mkdir event
 	DentryResolverMkdirCallbackKprobeKey
 	// DentryResolverMountStageOneCallbackKprobeKey is the key to the callback program to execute after resolving the root dentry of a new mount
