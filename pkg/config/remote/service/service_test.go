@@ -502,6 +502,7 @@ func TestService(t *testing.T) {
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TargetsMeta").Return(targets, nil)
 	uptaneClient.On("TargetsCustom").Return(testTargetsCustom, nil)
+	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
 
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		"datadog/2/APM_SAMPLING/id/1": {},
