@@ -10,7 +10,6 @@ package trivy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -34,21 +33,12 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
-	"github.com/mattn/go-sqlite3"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
-
-// This is required to load sqlite based RPM databases
-func init() {
-	// mattn/go-sqlite3 is only registering the sqlite3 driver
-	// let's register the sqlite (no 3) driver as well
-	sql.Register("sqlite", &sqlite3.SQLiteDriver{})
-}
 
 const (
 	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
