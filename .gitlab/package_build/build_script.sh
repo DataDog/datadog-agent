@@ -57,6 +57,10 @@ if [ "$1" = SETUP_RUNNER ]; then
         ln -s "$(which $binary)" bin/$binary
     done
 
+    # TODO: Verify utility
+    sudo xcodebuild -license accept
+    sudo xcodes select 15.2
+
     echo Setup homebrew
     mkdir homebrew
     curl -L https://github.com/Homebrew/brew/tarball/$HOMEBREW_VERSION | tar xz --strip-components 1 -C homebrew
