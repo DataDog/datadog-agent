@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -198,7 +199,7 @@ type nodeJSMonitor struct {
 var _ protocols.Protocol = (*nodeJSMonitor)(nil)
 
 func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableNodeJSMonitoring {
+	if !c.EnableNodeJSMonitoring || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 
