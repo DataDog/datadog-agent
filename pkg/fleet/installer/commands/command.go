@@ -24,10 +24,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var (
-	mockInstaller installer.Installer
-)
-
 type cmd struct {
 	t    *telemetry.Telemetry
 	span *telemetry.Span
@@ -70,8 +66,8 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 		}
 	}()
 	var i installer.Installer
-	if mockInstaller != nil {
-		i = mockInstaller
+	if MockInstaller != nil {
+		i = MockInstaller
 	} else {
 		i, err = installer.NewInstaller(cmd.env)
 	}
