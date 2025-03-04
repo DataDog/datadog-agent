@@ -216,10 +216,16 @@ func (h *Host) AgentStableVersion() string {
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
 func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
-		_, err := h.remote.Execute("sudo datadog-installer is-installed " + pkg)
+		exists, err := h.remote.FileExists(fmt.Sprintf("/opt/datadog-packages/%s", pkg))
 		require.NoErrorf(
 			h.t,
 			err,
+			"package %s not installed by the installer (err)",
+			pkg,
+		)
+		require.Truef(
+			h.t,
+			exists,
 			"package %s not installed by the installer",
 			pkg,
 		)
