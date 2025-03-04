@@ -78,8 +78,7 @@ api_key: ENC[api_key]
 	// Assert that the fakeIntake has received the API Key
 	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
 	assert.NoError(v.T(), err)
-	fmt.Println("wack", lastAPIKey)
-	assert.Equal(v.T(), 1, 0)
+	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
@@ -145,6 +144,7 @@ additional_endpoints:
 
 	// Verify that the new API keys appear in status
 	status = v.Env().Agent.Client.Status()
+	fmt.Println("WACKTEST99", status)
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		assert.Contains(t, status.Content, "API key ending with _updated")
 	}, 1*time.Minute, 10*time.Second)
