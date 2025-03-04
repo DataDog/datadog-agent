@@ -32,11 +32,11 @@ static_quality_gate_dogstatsd_deb_arm64:
   max_on_disk_size: "45.81 MiB"
 
 static_quality_gate_dogstatsd_rpm_amd64:
-  max_on_wire_size: "19.33 MiB"
+  max_on_wire_size: "19.32 MiB"
   max_on_disk_size: "47.2 MiB"
 
 static_quality_gate_dogstatsd_suse_amd64:
-  max_on_wire_size: "19.33 MiB"
+  max_on_wire_size: "19.32 MiB"
   max_on_disk_size: "47.2 MiB"
 
 static_quality_gate_iot_agent_deb_amd64:
