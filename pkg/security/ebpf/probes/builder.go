@@ -53,9 +53,3 @@ func kretprobeOrFexit(funcName string, options ...psbOption) *manager.ProbeSelec
 		},
 	}
 }
-
-func withUID(uid string) psbOption {
-	return func(psb *probeSelectorBuilder) {
-		psb.uid = uid
-	}
-}

@@ -151,7 +151,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		compstatsd.Module(),
 
 		// Provide authtoken module
-		fetchonlyimpl.Module(),
+		fetchonlyimpl.Module(), // TODO IPC: replace by createandfetchimpl when the auth-token volume is mounted on processAgent container on Windows
 
 		// Provide configsync module
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
