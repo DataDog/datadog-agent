@@ -1,5 +1,6 @@
 using Datadog.AgentCustomActions;
 using System.Diagnostics.CodeAnalysis;
+using Datadog.CustomActions;
 using WixSharp;
 
 namespace WixSetup.Datadog_Agent
@@ -57,6 +58,8 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction OpenMsiLog { get; }
 
         public ManagedAction SendFlare { get; }
+
+        public ManagedAction InstallOciPackages { get; }
 
         public ManagedAction WriteInstallInfo { get; }
 
@@ -450,6 +453,21 @@ namespace WixSetup.Datadog_Agent
                 // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
+
+            InstallOciPackages = new CustomAction<CustomActions>(
+                new Id(nameof(InstallOciPackages)),
+                CustomActions.InstallOciPackages,
+                Return.asyncWait,
+                When.Before,
+                Step.StartServices,
+                Conditions.FirstInstall | Conditions.Upgrading
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties("INSTALLDIR=[INSTALLDIR]," +
+                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]" +
+                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),

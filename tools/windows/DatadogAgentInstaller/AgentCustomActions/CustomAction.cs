@@ -202,5 +202,11 @@ namespace Datadog.AgentCustomActions
         {
             return Datadog.CustomActions.InstallInfoCustomActions.WriteInstallInfo(session);
         }
+
+        [CustomAction]
+        public static ActionResult InstallOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.InstallPackages(sessions);
+        }
     }
 }
