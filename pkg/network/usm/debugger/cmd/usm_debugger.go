@@ -37,7 +37,7 @@ func main() {
 	cleanupFn := setupBytecode()
 	defer cleanupFn()
 
-	monitor, err := usm.NewMonitor(getConfiguration(), nil)
+	monitor, err := usm.NewMonitor(getConfiguration(), nil, nil)
 	checkError(err)
 
 	err = monitor.Start()

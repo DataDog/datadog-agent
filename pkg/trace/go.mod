@@ -6,9 +6,6 @@ go 1.23.0
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
-// Internal deps fix version
-replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
-
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0
@@ -67,7 +64,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
-	github.com/DataDog/go-sqllexer v0.1.1 // indirect
+	github.com/DataDog/go-sqllexer v0.1.3 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -132,6 +129,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/configsync => ../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../comp/core/hostname/hostnameinterface

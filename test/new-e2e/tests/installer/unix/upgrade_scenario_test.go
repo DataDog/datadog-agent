@@ -115,7 +115,6 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -131,7 +130,6 @@ func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -159,7 +157,6 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -183,7 +180,6 @@ func (s *upgradeScenarioSuite) TestExperimentFailure() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -209,7 +205,6 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -240,7 +235,6 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -260,7 +254,6 @@ func (s *upgradeScenarioSuite) TestDoubleExperiments() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -289,7 +282,6 @@ func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -315,7 +307,6 @@ func (s *upgradeScenarioSuite) TestInstallerSuccessful() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -331,7 +322,6 @@ func (s *upgradeScenarioSuite) TestInstallerBackendFailure() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -359,7 +349,6 @@ func (s *upgradeScenarioSuite) TestInstallerAgentFailure() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -419,7 +408,6 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -448,7 +436,6 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -491,13 +478,11 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnit).
-			Stopped(traceUnit).
-			Stopped(processUnit),
+			Stopped(traceUnit),
 		).
 		Unordered(host.SystemdEvents().
 			Starting(agentUnitXP).
 			Started(traceUnitXP).
-			Started(processUnitXP).
 			Started(securityUnitXP).
 			Started(probeUnitXP),
 		),
@@ -511,14 +496,12 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnitXP).
-			Stopped(processUnitXP).
 			Stopped(traceUnitXP).
 			Stopped(securityUnitXP).
 			Stopped(probeUnitXP),
 		).
 		Unordered(host.SystemdEvents().
 			Started(agentUnit).
-			Stopped(processUnit).
 			Stopped(traceUnit).
 			Started(securityUnit).
 			Started(probeUnit),
@@ -539,7 +522,6 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -575,7 +557,6 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -594,23 +575,19 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents(). // Stable stops
 						Stopped(agentUnit).
-						Stopped(processUnit).
 						Stopped(traceUnit),
 		).
 		Unordered(host.SystemdEvents(). // Experiment starts
 						Starting(agentUnitXP).
-						Started(processUnitXP).
 						Started(traceUnitXP),
 		).
 		Unordered(host.SystemdEvents(). // Experiment fails
 						Failed(agentUnitXP).
-						Stopped(processUnitXP).
 						Stopped(traceUnitXP),
 		).
 		Started(agentUnit). // Stable restarts
 		Unordered(host.SystemdEvents().
-			Started(traceUnit).
-			Started(processUnit),
+			Started(traceUnit),
 		),
 	)
 
@@ -655,7 +632,6 @@ func (s *upgradeScenarioSuite) TestRemoteInstallUninstall() {
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
-		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
@@ -787,13 +763,11 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStartExperiment(timestamp ho
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnit).
-			Stopped(traceUnit).
-			Stopped(processUnit),
+			Stopped(traceUnit),
 		).
 		Unordered(host.SystemdEvents().
 			Starting(agentUnitXP).
-			Started(traceUnitXP).
-			Started(processUnitXP),
+			Started(traceUnitXP),
 		),
 	)
 
@@ -808,12 +782,10 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentPromoteExperiment(timestamp 
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnitXP).
-			Stopped(processUnitXP).
 			Stopped(traceUnitXP),
 		).
 		Unordered(host.SystemdEvents().
 			Started(agentUnit).
-			Stopped(processUnit).
 			Stopped(traceUnit),
 		),
 	)
@@ -828,13 +800,11 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnitXP).
-			Stopped(processUnitXP).
 			Stopped(traceUnitXP),
 		).
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
-			Started(traceUnit).
-			Started(processUnit),
+			Started(traceUnit),
 		),
 	)
 
@@ -903,13 +873,11 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp h
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnit).
-			Stopped(traceUnit).
-			Stopped(processUnit),
+			Stopped(traceUnit),
 		).
 		Unordered(host.SystemdEvents().
 			Starting(agentUnitXP).
-			Started(traceUnitXP).
-			Started(processUnitXP),
+			Started(traceUnitXP),
 		),
 	)
 
@@ -924,12 +892,10 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigPromoteExperiment(timestamp
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnitXP).
-			Stopped(processUnitXP).
 			Stopped(traceUnitXP),
 		).
 		Unordered(host.SystemdEvents().
 			Started(agentUnit).
-			Stopped(processUnit).
 			Stopped(traceUnit),
 		),
 	)
@@ -944,13 +910,11 @@ func (s *upgradeScenarioSuite) assertSuccessfulConfigStopExperiment(timestamp ho
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
 			Stopped(agentUnitXP).
-			Stopped(processUnitXP).
 			Stopped(traceUnitXP),
 		).
 		Started(agentUnit).
 		Unordered(host.SystemdEvents().
-			Started(traceUnit).
-			Started(processUnit),
+			Started(traceUnit),
 		),
 	)
 

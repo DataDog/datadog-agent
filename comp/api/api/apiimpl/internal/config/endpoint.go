@@ -7,12 +7,13 @@
 package config
 
 import (
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"html"
 	"net/http"
 	"strings"
+
+	json "github.com/json-iterator/go"
 
 	gorilla "github.com/gorilla/mux"
 
@@ -71,7 +72,7 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
+	log.Debugf("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
 
 	var value interface{}
 	if path == "logs_config.additional_endpoints" {
@@ -88,7 +89,7 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
+	log.Debugf("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
 	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
 	for key := range c.authorizedConfigPaths {
 		if key == "logs_config.additional_endpoints" {
