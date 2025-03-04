@@ -246,7 +246,7 @@ func getDCAWorkloadList() ([]byte, error) {
 }
 
 func getClusterAgentMetadataPayload() ([]byte, error) {
-	c := util.GetClient(false)
+	c := util.GetClient()
 
 	// Set session token
 	err := util.SetAuthToken(pkgconfigsetup.Datadog())

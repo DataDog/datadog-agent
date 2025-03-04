@@ -119,7 +119,7 @@ func DatadogClusterAgentConfig(config config.Reader) (string, error) {
 		return "", fmt.Errorf("invalid cluster_agent.cmd_port -- %d", port)
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	ipcAddressWithPort := fmt.Sprintf("https://localhost:%d/config", port)
