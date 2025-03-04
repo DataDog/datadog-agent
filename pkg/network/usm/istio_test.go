@@ -130,9 +130,9 @@ func newIstioTestMonitor(t *testing.T, procRoot string) *istioMonitor {
 }
 
 func newIstioTestMonitorWithCFG(t *testing.T, cfg *config.Config) *istioMonitor {
-	monitor, err := newIstioMonitor(cfg, nil)
+	monitor, err := newIstioMonitor(nil, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, monitor)
 
-	return monitor
+	return monitor.(*istioMonitor)
 }
