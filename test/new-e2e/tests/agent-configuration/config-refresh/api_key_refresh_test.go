@@ -83,17 +83,20 @@ api_key: ENC[api_key]
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
 	// Define the API keys before and after refresh
+	oldEnding := "12345"
 	initialAPIKeys := map[string]string{
-		"api_key": "apikey1_initial",
-		"apikey2": "apikey2_initial",
-		"apikey3": "apikey3_initial",
-		"apikey4": "apikey4_initial",
+		"api_key": "key1old" + oldEnding,
+		"apikey2": "key2old" + oldEnding,
+		"apikey3": "key3old" + oldEnding,
+		"apikey4": "key4old" + oldEnding,
 	}
+
+	updatedEnding := "54321"
 	updatedAPIKeys := map[string]string{
-		"api_key": "apikey1_updated",
-		"apikey2": "apikey2_updated",
-		"apikey3": "apikey3_updated",
-		"apikey4": "apikey4_updated",
+		"api_key": "key1new" + updatedEnding,
+		"apikey2": "key2new" + updatedEnding,
+		"apikey3": "key3new" + updatedEnding,
+		"apikey4": "key4new" + updatedEnding,
 	}
 
 	// Define the agent config with additional endpoints
@@ -130,8 +133,8 @@ additional_endpoints:
 
 	// Verify initial API keys in status
 	status := v.Env().Agent.Client.Status()
-	assert.Contains(v.T(), status.Content, "API key ending with _initial")
-	assert.Contains(v.T(), status.Content, "API key ending with _initial")
+	assert.Contains(v.T(), status.Content, "API key ending with 12345")
+	assert.Contains(v.T(), status.Content, "API key ending with 12345")
 
 	// Update secrets in the backend
 	for key, value := range updatedAPIKeys {
@@ -144,14 +147,18 @@ additional_endpoints:
 
 	// Verify that the new API keys appear in status
 	status = v.Env().Agent.Client.Status()
-	fmt.Println("WACKTEST99", status)
+	fmt.Println("WACKTEST99", status, "WACKTEST77")
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assert.Contains(t, status.Content, "API key ending with _updated")
+		assert.Contains(t, status.Content, `https://app.datadoghq.com - API Keys ending with:
+      - 54321
+      - 54321
+  https://app.datadoghq.eu - API Key ending with:
+      - 54321`)
 	}, 1*time.Minute, 10*time.Second)
 
 	endpoints := []string{
-		"/testendpoint1",
-		"/api/v2/series",
+		"https://app.datadoghq.com",
+		"https://app.datadoghq.eu",
 	}
 
 	for _, endpoint := range endpoints {
