@@ -972,6 +972,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("evp_proxy_config.max_payload_size")
 	config.BindEnv("evp_proxy_config.receiver_timeout")
 
+	// trace-agent's ol_proxy
+	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
+	config.BindEnv("ol_proxy_config.dd_url")
+	config.BindEnv("ol_proxy_config.api_key")
+	config.BindEnv("ol_proxy_config.additional_endpoints")
+
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
