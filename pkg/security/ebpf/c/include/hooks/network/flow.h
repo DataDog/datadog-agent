@@ -5,6 +5,7 @@
 #include "constants/offsets/netns.h"
 #include "helpers/network/pid_resolver.h"
 #include "helpers/network/utils.h"
+#include "helpers/network/flow.h"
 
 HOOK_ENTRY("security_sk_classify_flow")
 int hook_security_sk_classify_flow(ctx_t *ctx) {
@@ -14,13 +15,32 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
     struct pid_route_entry_t value = {};
     union flowi_uli uli;
 
+    #if defined(DEBUG_NETWORK_FLOW)
+    char state = 0;
+    bpf_probe_read(&state, sizeof(state), (void *)&sk->sk_state);
+    bpf_printk("security_sk_classify_flow state:%u @:0x%p", state, sk);
+    #endif
+
     // There can be a missmatch between the family of the socket and the family of the flow.
     // The socket can be of AF_INET6, and yet the flow could be AF_INET.
     // See https://man7.org/linux/man-pages/man7/ipv6.7.html for more.
 
     // In our case, this means that we need to "guess" if the flow is AF_INET or AF_INET6 when the socket is AF_INET6.
     u16 flow_family = get_family_from_sock_common((void *)sk);
+    if (flow_family != AF_INET && flow_family != AF_INET6) {
+        // ignore these flows for now
+        return 0;
+    }
+
+    u64 id = bpf_get_current_pid_tgid();
+    if (id == 0) {
+        // we only care about packet sent from an actual task
+        return 0;
+    }
+
     u16 sk_port = get_skc_num_from_sock_common((void *)sk);
+    // add netns information
+    key.netns = get_netns_from_sock(sk);
     if (flow_family == AF_INET6) {
         // check if the source port of the flow matches with the bound port of the socket
         bpf_probe_read(&uli, sizeof(uli), (void *)fl + get_flowi6_uli_offset());
@@ -43,6 +63,15 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
 
         // if they don't match, return now, we don't know how to handle this flow
         if (sk_port != key.port) {
+            char state = 0;
+            bpf_probe_read(&state, sizeof(state), (void *)&sk->sk_state);
+
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    flow_with_no_matching_port state:%u @:0x%p", state, sk);
+            print_route(&key);
+            bpf_printk("|--> uli.port:%d sk_port:%d", key.port, sk_port);
+            #endif
+
             return 0;
         } else {
             // This is an AF_INET flow
@@ -51,48 +80,68 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
             // bpf_probe_read(&key.l4_protocol, 1, (void *)fl + get_flowi4_proto_offset());
         }
     }
-    if (flow_family != AF_INET && flow_family != AF_INET6) {
-        // ignore these flows for now
-        return 0;
-    }
 
-    // add netns information
-    key.netns = get_netns_from_sock(sk);
+    #if defined(DEBUG_NETWORK_FLOW)
+    print_route(&key);
+    #endif
 
-#if defined(DEBUG_NETWORK_FLOW)
-    bpf_printk("security_sk_classify_flow");
-    bpf_printk("       p:%d a:%lu a:%lu", key.port, key.addr[0], key.addr[1]);
-#endif
+    // check if the socket already has an active flow
+    struct sock_meta_t *meta = get_sock_meta(sk);
+    if (meta != NULL) {
+        if (meta->existing_route.port != 0 || meta->existing_route.addr[0] != 0 || meta->existing_route.addr[1] != 0) {
+            struct pid_route_t tmp_route = meta->existing_route;
 
-    if (is_sk_storage_supported()) {
-        // check if the socket already has an active flow
-        // This requires kernel v5.11+ (https://github.com/torvalds/linux/commit/8e4597c627fb48f361e2a5b012202cb1b6cbcd5e)
-        struct pid_route_t *existing_route = bpf_sk_storage_get(&sock_active_pid_route, sk, 0, BPF_SK_STORAGE_GET_F_CREATE);
-        if (existing_route != NULL) {
-            if (existing_route->port != 0 || existing_route->addr[0] != 0 || existing_route->addr[1] != 0) {
+            if (can_delete_route(&tmp_route, sk)) {
 
                 #if defined(DEBUG_NETWORK_FLOW)
-                bpf_printk("flushing previous entry p:%d a:%lu a:%lu ...", existing_route->port, existing_route->addr[0], existing_route->addr[1]);
+                bpf_printk("|    flushing previous route:");
+                print_route(&tmp_route);
                 #endif
 
-                // delete existing entry
-                bpf_map_delete_elem(&flow_pid, existing_route);
-                existing_route->addr[0] = 0;
-                existing_route->addr[1] = 0;
-                bpf_map_delete_elem(&flow_pid, existing_route);
+                bpf_map_delete_elem(&flow_pid, &tmp_route);
             }
 
-            // register the new one in the sock_active_pid_route map
-            *existing_route = key;
+            // check with an empty IP address
+            tmp_route.addr[0] = 0;
+            tmp_route.addr[1] = 0;
+
+            if (can_delete_route(&tmp_route, sk)) {
+                #if defined(DEBUG_NETWORK_FLOW)
+                bpf_printk("|    flushing previous empty route:");
+                print_route(&tmp_route);
+                #endif
+
+                bpf_map_delete_elem(&flow_pid, &tmp_route);
+            }
         }
+    } else {
+        #if defined(DEBUG_NETWORK_FLOW)
+        bpf_printk("|    no sock_meta entry !");
+        #endif
     }
 
     // Register service PID
     if (key.port != 0) {
-        u64 id = bpf_get_current_pid_tgid();
         u32 tid = (u32)id;
         value.pid = id >> 32;
         value.type = FLOW_CLASSIFICATION_ENTRY;
+        value.owner_sk = sk;
+
+        // check if there is already an entry for key, and if so, make sure we can override it
+        if (!can_delete_route(&key, sk)) {
+
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|--> skipped because of owner_sk");
+            #endif
+
+            // we don't want to override the existing entry
+            return 0;
+        }
+
+        if (meta != NULL) {
+            // register the new route in the sock_active_pid_route map
+            meta->existing_route = key;
+        }
 
         if (key.netns != 0) {
             bpf_map_update_elem(&netns_cache, &tid, &key.netns, BPF_ANY);
@@ -100,10 +149,10 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
 
         bpf_map_update_elem(&flow_pid, &key, &value, BPF_ANY);
 
-#if defined(DEBUG_NETWORK_FLOW)
-        bpf_printk("# registered (flow) pid:%d netns:%u", value.pid, key.netns);
-        bpf_printk("# p:%d a:%lu a:%lu", key.port, key.addr[0], key.addr[1]);
-#endif
+        #if defined(DEBUG_NETWORK_FLOW)
+        print_route_entry(&value);
+        bpf_printk("|--> new flow registered !", value.pid, key.netns);
+        #endif
     }
     return 0;
 }
@@ -160,18 +209,8 @@ __attribute__((always_inline)) void fill_pid_route_from_sflow(struct pid_route_t
 __attribute__((always_inline)) void flush_flow_pid_by_route(struct pid_route_t *route) {
     struct pid_route_entry_t *value = bpf_map_lookup_elem(&flow_pid, route);
     if (value != NULL) {
-        if (value->type == FLOW_CLASSIFICATION_ENTRY) {
+        if (value->type == PROCFS_ENTRY || value->owner_sk == 0) {
             bpf_map_delete_elem(&flow_pid, route);
-        }
-    } else {
-        // try with no IP
-        route->addr[0] = 0;
-        route->addr[1] = 0;
-        value = bpf_map_lookup_elem(&flow_pid, route);
-        if (value != NULL) {
-            if (value->type == FLOW_CLASSIFICATION_ENTRY) {
-                bpf_map_delete_elem(&flow_pid, route);
-            }
         }
     }
 }
@@ -235,32 +274,62 @@ int hook_nf_ct_delete(ctx_t *ctx) {
 __attribute__((always_inline)) int handle_sk_release(struct sock *sk) {
     struct pid_route_t route = {};
 
-    // copy netns
+    // register that this socket is closing
+    struct sock_meta_t *meta = peek_sock_meta(sk);
+    if (meta != NULL) {
+        #if defined(DEBUG_NETWORK_FLOW)
+        print_meta(meta);
+        #endif
+    }
+
+    // extract netns
     route.netns = get_netns_from_sock(sk);
     if (route.netns == 0) {
         return 0;
     }
 
-    // copy port
+    // extract port
     route.port = get_skc_num_from_sock_common((void *)sk);
 
-    // copy ipv4 / ipv6
+    // extract ipv4 / ipv6
     u16 family = get_family_from_sock_common((void *)sk);
+    char state = 0;
+    bpf_probe_read(&state, sizeof(state), (void *)&sk->sk_state);
     if (family == AF_INET6) {
         bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
 
-#if defined(DEBUG_NETWORK_FLOW)
-        bpf_printk("sk_release");
-        bpf_printk("    netns:%u", route.netns);
-        bpf_printk("    v6 p:%d a:%lu a:%lu", route.port, route.addr[0], route.addr[1]);
-#endif
+        #if defined(DEBUG_NETWORK_FLOW)
+        bpf_printk("|    sk_release_v6: state:%u @:0x%p", state, sk);
+        print_route(&route);
+        #endif
 
-        // clean up flow_pid entry
-        bpf_map_delete_elem(&flow_pid, &route);
+        if (can_delete_route(&route, sk)) {
+            // clean up flow_pid entry
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    deleted entry !");
+            #endif
+            bpf_map_delete_elem(&flow_pid, &route);
+        } else {
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    couldn't delete entry !");
+            #endif
+        }
+
         // also clean up empty entry if it exists
         route.addr[0] = 0;
         route.addr[1] = 0;
-        bpf_map_delete_elem(&flow_pid, &route);
+
+        if (can_delete_route(&route, sk)) {
+            // clean up flow_pid entry
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    deleted entry with 0-0 !");
+            #endif
+            bpf_map_delete_elem(&flow_pid, &route);
+        } else {
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    couldn't delete entry with 0-0 !");
+            #endif
+        }
 
         // We might be dealing with an AF_INET traffic over an AF_INET6 socket.
         // To be sure, clean AF_INET entries as well.
@@ -269,18 +338,69 @@ __attribute__((always_inline)) int handle_sk_release(struct sock *sk) {
     if (family == AF_INET) {
         bpf_probe_read(&route.addr, sizeof(sk->__sk_common.skc_rcv_saddr), &sk->__sk_common.skc_rcv_saddr);
 
-#if defined(DEBUG_NETWORK_FLOW)
-        bpf_printk("sk_release");
-        bpf_printk("    netns:%u", route.netns);
-        bpf_printk("    v4 p:%d a:%lu a:%lu", route.port, route.addr[0], route.addr[1]);
-#endif
+        #if defined(DEBUG_NETWORK_FLOW)
+        bpf_printk("|    sk_release_v4: state:%u @:0x%p", state, sk);
+        print_route(&route);
+        #endif
 
-        // clean up flow_pid entry
-        bpf_map_delete_elem(&flow_pid, &route);
+        if (can_delete_route(&route, sk)) {
+            // clean up flow_pid entry
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    deleted entry !");
+            #endif
+            bpf_map_delete_elem(&flow_pid, &route);
+        } else {
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    couldn't delete entry !");
+            #endif
+        }
+
         // also clean up empty entry if it exists
         route.addr[0] = 0;
         route.addr[1] = 0;
-        bpf_map_delete_elem(&flow_pid, &route);
+
+        if (can_delete_route(&route, sk)) {
+            // clean up flow_pid entry
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    deleted entry with 0-0 !");
+            #endif
+            bpf_map_delete_elem(&flow_pid, &route);
+        } else {
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    couldn't delete entry with 0-0 !");
+            #endif
+        }
+    }
+
+    // Make sure we also cleanup the entry stored in the socket attached metadata.
+    if (meta != NULL) {
+        struct pid_route_t tmp_route = meta->existing_route;
+        if (can_delete_route(&tmp_route, sk)) {
+            // clean up flow_pid entry
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    deleted sock_meta entry !");
+            #endif
+            bpf_map_delete_elem(&flow_pid, &tmp_route);
+        } else {
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    couldn't delete sock_meta entry !");
+            #endif
+        }
+
+        // also clean up empty entry if it exists
+        tmp_route.addr[0] = 0;
+        tmp_route.addr[1] = 0;
+
+        if (can_delete_route(&tmp_route, sk)) {
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    deleted sock_meta entry with 0-0 !");
+            #endif
+            bpf_map_delete_elem(&flow_pid, &tmp_route);
+        } else {
+            #if defined(DEBUG_NETWORK_FLOW)
+            bpf_printk("|    couldn't delete sock_meta entry with 0-0 !");
+            #endif
+        }
     }
 
     return 0;
@@ -290,10 +410,32 @@ __attribute__((always_inline)) int handle_sk_release(struct sock *sk) {
 HOOK_ENTRY("sk_common_release")
 int hook_sk_common_release(ctx_t *ctx) {
     struct sock *sk = (struct sock *)CTX_PARM1(ctx);
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("sk_common_release: @:0x%p", sk);
+    #endif
+
     if (sk == NULL) {
         return 0;
     }
-    return handle_sk_release(sk);
+    handle_sk_release(sk);
+    return 0;
+}
+
+// for externally-initiate socket cleanup (TCP RST for example)
+HOOK_ENTRY("inet_csk_destroy_sock")
+int hook_inet_csk_destroy_sock(ctx_t *ctx) {
+    struct sock *sk = (struct sock *)CTX_PARM1(ctx);
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("inet_csk_destroy_sock: @:0x%p", sk);
+    #endif
+
+    if (sk == NULL) {
+        return 0;
+    }
+    handle_sk_release(sk);
+    return 0;
 }
 
 // for user-space initiated socket shutdown
@@ -301,11 +443,17 @@ HOOK_ENTRY("inet_shutdown")
 int hook_inet_shutdown(ctx_t *ctx) {
     struct socket *socket = (struct socket *)CTX_PARM1(ctx);
     struct sock *sk = get_sock_from_socket(socket);
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("inet_shutdown: @:0x%p", sk);
+    #endif
+
     if (sk == NULL) {
         return 0;
     }
 
-    return handle_sk_release(sk);
+    handle_sk_release(sk);
+    return 0;
 }
 
 // for user space initiated socket termination
@@ -313,11 +461,54 @@ HOOK_ENTRY("inet_release")
 int hook_inet_release(ctx_t *ctx) {
     struct socket *socket = (struct socket *)CTX_PARM1(ctx);
     struct sock *sk = get_sock_from_socket(socket);
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("inet_release: @:0x%p", sk);
+    #endif
+
     if (sk == NULL) {
         return 0;
     }
 
-    return handle_sk_release(sk);
+    handle_sk_release(sk);
+    return 0;
+}
+
+// make sure we delete entries before the relevant port is removed from the socket
+// Note: this hook point can be called in the context of a kworker
+HOOK_ENTRY("inet_put_port")
+int hook_inet_put_port(ctx_t *ctx) {
+    struct sock *sk = (struct sock *)CTX_PARM1(ctx);
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("inet_put_port: @:0x%p", sk);
+    #endif
+
+    if (sk == NULL) {
+        return 0;
+    }
+    handle_sk_release(sk);
+    return 0;
+}
+
+// In case we don't have access to SK_STORAGE maps, we need to cleanup our internal socket metadata storage on socket
+// deletion.
+// Note: this hook point can be called in the context of a kworker
+HOOK_ENTRY("sk_destruct")
+int hook_sk_destruct(ctx_t *ctx) {
+    struct sock *sk = (struct sock *)CTX_PARM1(ctx);
+
+    #if defined(DEBUG_NETWORK_FLOW)
+    bpf_printk("__sk_destruct: @:0x%p", sk);
+    #endif
+
+    if (sk == NULL) {
+        return 0;
+    }
+
+    // delete internal storage
+    delete_sock_meta(sk);
+    return 0;
 }
 
 __attribute__((always_inline)) int handle_inet_bind(struct socket *sock) {
@@ -397,7 +588,29 @@ __attribute__((always_inline)) int handle_inet_bind_ret(int ret) {
     // Register service PID
     if (route.port > 0) {
         value.pid = id >> 32;
+        value.owner_sk = sk;
         bpf_map_update_elem(&flow_pid, &route, &value, BPF_ANY);
+
+        #if defined(DEBUG_NETWORK_FLOW)
+        bpf_printk("inet_bind: @:0x%p", sk);
+        print_route(&route);
+        print_route_entry(&value);
+        #endif
+
+        // check if the socket already has an active flow
+        struct sock_meta_t *meta = reset_sock_meta(sk);
+        if (meta != NULL) {
+            // register the new one in the sock_active_pid_route map
+            meta->existing_route = route;
+
+            #if defined(DEBUG_NETWORK_FLOW)
+            print_meta(meta);
+            #endif
+        }
+
+        #if defined(DEBUG_NETWORK_FLOW)
+        bpf_printk("|--> new BIND_ENTRY added !");
+        #endif
     }
     return 0;
 }

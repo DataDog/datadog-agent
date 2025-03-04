@@ -56,6 +56,11 @@ agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
 agent_requirements_in = 'agent_requirements.in'
 
+site_packages_path = "#{install_dir}/embedded/lib/python#{python_version}/site-packages"
+if windows_target?
+  site_packages_path = "#{python_3_embedded}/Lib/site-packages"
+end
+
 build do
   # The dir for confs
   if osx_target?
@@ -208,11 +213,7 @@ build do
         end
 
         # Drop the example files from the installed packages since they are copied in /etc/datadog-agent/conf.d and not used here
-        if windows_target?
-          delete "#{python_3_embedded}/Lib/site-packages/datadog_checks/#{check}/data/#{filename}"
-        else
-          delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/datadog_checks/#{check}/data/#{filename}"
-        end
+        delete "#{site_packages_path}/datadog_checks/#{check}/data/#{filename}"
       end
 
       # Copy SNMP profiles
@@ -252,17 +253,13 @@ build do
     'websocket/tests',
   ]
   test_folders.each do |test_folder|
-    if windows_target?
-      delete "#{python_3_embedded}/Lib/site-packages/#{test_folder}/"
-    else
-      delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/#{test_folder}/"
-    end
+    delete "#{site_packages_path}/#{test_folder}/"
   end
 
   unless windows_target?
-    block do
+    block "Remove .exe files" do
       # setuptools come from supervisor and ddtrace
-      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{python_version}/site-packages/setuptools/*.exe"))
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/setuptools/*.exe"))
     end
   end
 
@@ -274,11 +271,11 @@ build do
   # This is intended as a temporary kludge while we make a decision on how to handle the multiplicity
   # of openssl copies in a more general way while keeping risk low.
   if fips_mode?
-    block "Patch cryptography's openssl linking" do
-      if linux_target?
+    if linux_target?
+      block "Patch cryptography's openssl linking" do
         # We delete the libraries shipped with the wheel and replace references to those names
         # in the binary that references it using patchelf
-        cryptography_folder = "#{install_dir}/embedded/lib/python#{python_version}/site-packages/cryptography"
+        cryptography_folder = "#{site_packages_path}/cryptography"
         so_to_patch = "#{cryptography_folder}/hazmat/bindings/_rust.abi3.so"
         libssl_match = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")[0]
         libcrypto_match = Dir.glob("#{cryptography_folder}.libs/libcrypto-*.so.3")[0]
@@ -287,7 +284,35 @@ build do
         shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
         FileUtils.rm([libssl_match, libcrypto_match])
       end
+    elsif windows_target?
+      dll_folder = File.join(install_dir, "embedded3", "DLLS")
+      # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
+      # We first need to copy some files around (we need the .lib files for building)
+      copy File.join(install_dir, "embedded3", "lib", "libssl.dll.a"),
+           File.join(dll_folder, "libssl-3-x64.lib")
+      copy File.join(install_dir, "embedded3", "lib", "libcrypto.dll.a"),
+           File.join(dll_folder, "libcrypto-3-x64.lib")
+
+      command "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography cryptography==43.0.1",
+              env: {
+                "OPENSSL_LIB_DIR" => dll_folder,
+                "OPENSSL_INCLUDE_DIR" => File.join(install_dir, "embedded3", "include"),
+                "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
+              }
+      # Python extensions on windows require this to find their DLL dependencies,
+      # we abuse the `.pth` loading system to inject it
+      block "Inject dll path for Python extensions" do
+        File.open(File.join(install_dir, "embedded3", "lib", "site-packages", "add-dll-directory.pth"), "w") do |f|
+          f.puts 'import os; os.add_dll_directory(os.path.abspath(os.path.join(__file__, "..", "..", "DLLS")))'
+        end
+      end
     end
+  end
+
+  block "Remove type annotations files" do
+    # These are files containing Python type annotations which aren't used at runtime
+    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/*.pyi"))
+    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/py.typed"))
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent

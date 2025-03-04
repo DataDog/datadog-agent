@@ -44,6 +44,12 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
                 code=1,
             )
 
+    # Copy the configuration file
+    ctx.run(f"cp {LOCAL_DIRECTORY}/.git/config {WORKTREE_DIRECTORY}/.git/config", hide=True)
+    ctx.run(
+        f"git -C '{WORKTREE_DIRECTORY}' branch --set-upstream-to=origin/{branch or 'main'} {branch or 'main'}",
+        hide=True,
+    )
     # If the state is not clean, clean it
     if ctx.run(f"git -C '{WORKTREE_DIRECTORY}' status --porcelain", hide=True).stdout.strip():
         print(f'{color_message("Info", Color.BLUE)}: Cleaning worktree directory', file=sys.stderr)

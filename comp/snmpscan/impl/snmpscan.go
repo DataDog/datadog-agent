@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 )
 
@@ -75,6 +76,6 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 	if err != nil {
 		return err
 	}
-	return s.ScanDeviceAndSendData(instance, ns)
+	return s.ScanDeviceAndSendData(instance, ns, metadata.RCTriggeredScan)
 
 }

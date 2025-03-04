@@ -24,7 +24,6 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
-	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -100,10 +99,9 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey         string
-	Site           string
-	RemoteUpdates  bool
-	RemotePolicies bool
+	APIKey        string
+	Site          string
+	RemoteUpdates bool
 
 	Mirror                      string
 	RegistryOverride            string
@@ -169,10 +167,9 @@ func FromEnv() *Env {
 	}
 
 	return &Env{
-		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
-		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
+		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates: strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -222,9 +219,6 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
-	}
-	if e.RemotePolicies {
-		env = append(env, envRemotePolicies+"=true")
 	}
 	if e.Mirror != "" {
 		env = append(env, envMirror+"="+e.Mirror)

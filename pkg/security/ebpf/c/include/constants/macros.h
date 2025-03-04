@@ -3,7 +3,7 @@
 
 #define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
                                       : "=r"(var))
-#define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES &&retval != -EPERM
+#define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
 #define IS_ERR(ptr) ((unsigned long)(ptr) > (unsigned long)(-1000))
 #define IS_KTHREAD(ppid, pid) ppid == 2 || pid == 2
 #define NS_TO_SEC(x) (x) / 1000000000
