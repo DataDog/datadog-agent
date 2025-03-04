@@ -10,6 +10,7 @@ import (
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	clusteragentimpl "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component
@@ -19,5 +20,6 @@ func Module() fxutil.Module {
 			clusteragentimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[clusteragent.Component](),
+		fx.Invoke(func(_ clusteragent.Component) {}),
 	)
 }

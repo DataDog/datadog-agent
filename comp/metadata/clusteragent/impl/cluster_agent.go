@@ -105,7 +105,11 @@ func NewComponent(deps Requires) Provides {
 		dca.clusteridErr = clidErr.Error()
 	}
 	dca.initMetadata()
-	dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, dca.getPayload, "datadog-cluster-agent.json")
+	if deps.Config.GetBool("enable_cluster_agent_metadata_collection") {
+		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, dca.getPayload, "datadog-cluster-agent.json")
+	} else {
+		dca.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, nil, dca.getPayload, "datadog-cluster-agent.json")
+	}
 	return Provides{
 		Comp:             dca,
 		MetadataProvider: dca.MetadataProvider(),
@@ -153,11 +157,13 @@ func (dca *datadogclusteragent) getFeatureConfigs() {
 	dca.metadata["feature_admission_controller_mutation_enabled"] = dca.conf.GetBool("admission_controller.mutation.enabled")
 	dca.metadata["feature_admission_controller_auto_instrumentation_enabled"] = dca.conf.GetBool("admission_controller.auto_instrumentation.enabled")
 	dca.metadata["feature_admission_controller_cws_instrumentation_enabled"] = dca.conf.GetBool("admission_controller.cws_instrumentation.enabled")
-	dca.metadata["feature_cluster_checks_enabled"] = dca.conf.GetBool("cluster_checks.enabled")
 	dca.metadata["feature_autoscaling_workload_enabled"] = dca.conf.GetBool("autoscaling.workload.enabled")
 	dca.metadata["feature_external_metrics_provider_enabled"] = dca.conf.GetBool("external_metrics_provider.enabled")
 	dca.metadata["feature_external_metrics_provider_use_datadogmetric_crd"] = dca.conf.GetBool("external_metrics_provider.use_datadogmetric_crd")
 	dca.metadata["feature_compliance_config_enabled"] = dca.conf.GetBool("compliance_config.enabled")
+	dca.metadata["feature_cluster_checks_enabled"] = dca.conf.GetBool("cluster_checks.enabled")
+	dca.metadata["feature_cluster_checks_exclude_checks"] = dca.conf.GetStringSlice("cluster_checks.exclude_checks")
+	dca.metadata["feature_cluster_checks_advanced_dispatching_enabled"] = dca.conf.GetBool("cluster_checks.advanced_dispatching_enabled")
 }
 
 func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
