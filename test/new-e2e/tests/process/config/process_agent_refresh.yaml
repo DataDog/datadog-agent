@@ -1,6 +1,6 @@
 secret_backend_command: /tmp/test-secret/secret-resolver.py
 secret_backend_arguments:
-  - /tmp
+  - /tmp/test-secret
 api_key: ENC[api_key]
 log_level: debug
 

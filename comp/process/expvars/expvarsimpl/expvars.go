@@ -118,7 +118,7 @@ func InitProcessStatus(
 		_ = Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
 	languageDetectionEnabled := Config.GetBool("language_detection.enabled")
-	status.InitExpvars(Config, HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
+	status.InitExpvars(Config, HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps, Log)
 
 	return nil
 }

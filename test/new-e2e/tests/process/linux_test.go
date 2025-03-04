@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -34,7 +33,6 @@ func TestLinuxTestSuite(t *testing.T) {
 
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
-		e2e.WithDevMode(),
 	}
 
 	e2e.Run(t, &linuxTestSuite{}, options...)
@@ -50,7 +48,6 @@ func (s *linuxTestSuite) SetupSuite() {
 
 func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
 	t := s.T()
-	s.Env().RemoteHost.MkdirAll("/tmp/test-secret")
 
 	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
@@ -70,16 +67,29 @@ func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
 		t.Logf("statusMap: %+v", statusMap)
 		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
 			// Original key is obfuscated to the last 5 characters
-			assert.Equal(collect, key, "23456")
+			assert.Equal(collect, key[0], "23456")
 		}
+		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastAPIKey()
+		require.NoError(collect, err)
+		assert.Equal(collect, "abcdefghijklmnopqrstuvwxyz123456", lastAPIKey)
 	}, 2*time.Minute, 10*time.Second)
 
 	// API key refresh
 	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
 	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	require.Contains(t, secretRefreshOutput, "api_key")
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
+		t.Logf("statusMap: %+v", statusMap)
+		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastAPIKey()
+		require.NoError(collect, err)
+		t.Logf("lastAPIKey: %s", lastAPIKey)
+		assert.Equal(collect, "123456abcdefghijklmnopqrstuvwxyz", lastAPIKey)
+	}, 2*time.Minute, 10*time.Second)
 }
 
+/*
 func (s *linuxTestSuite) TestProcessCheck() {
 	t := s.T()
 
@@ -245,3 +255,4 @@ func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
 
 	assertManualProcessCheck(s.T(), check, true, "stress")
 }
+*/

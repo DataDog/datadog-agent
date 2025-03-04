@@ -22,6 +22,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -47,7 +48,7 @@ var (
 	infoPodQueueBytes         atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
-	infoEndpoints             interface{}
+	infoEndpoints             = expvar.Map{}
 
 	// WorkloadMetaExtractor stats
 	infoWlmExtractorCacheSize    atomic.Int64
@@ -210,6 +211,7 @@ func publishContainerID() interface{} {
 	return containerID
 }
 
+/*
 func publishEndpoints(eps []apicfg.Endpoint) func() interface{} {
 	return func() interface{} {
 		return getEndpointsInfo(eps)
@@ -231,7 +233,7 @@ func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
 	return endpointsInfo
 }
 
-/*
+
 func initEndpointsMap(eps []apicfg.Endpoint) {
 	infoEndpoints = make(map[string][]string)
 
@@ -269,23 +271,7 @@ func publishDropCheckPayloads() interface{} {
 }
 
 // InitExpvars initializes expvars
-func InitExpvars(config config.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
-	config.OnUpdate(func(setting string, oldValue, newValue any) {
-		if setting != "api_key" {
-			return
-		}
-		infoMutex.Lock()
-		defer infoMutex.Unlock()
-		oldAPIKey, ok1 := oldValue.(string)
-		newAPIKey, ok2 := newValue.(string)
-		if ok1 && ok2 {
-			for _, ep := range eps {
-				if ep.APIKey == oldAPIKey {
-					ep.APIKey = newAPIKey
-				}
-			}
-		}
-	})
+func InitExpvars(config config.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint, Log log.Component) {
 
 	infoOnce.Do(func() {
 		processExpvars := expvar.NewMap("process_agent")
@@ -294,6 +280,30 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("host", hostString)
 		pid := expvar.NewInt("pid")
 		pid.Set(int64(os.Getpid()))
+
+		infoEndpoints.Init()
+		for _, ep := range eps {
+			infoEndpoints.Set(ep.Endpoint.String(), expvar.NewString(ep.APIKey))
+		}
+		config.OnUpdate(func(setting string, oldValue, newValue any) {
+			if setting != "api_key" {
+				return
+			}
+			infoMutex.Lock()
+			defer infoMutex.Unlock()
+			Log.Info("Updating API key in expvars")
+			oldAPIKey, ok1 := oldValue.(string)
+			newAPIKey, ok2 := newValue.(string)
+			if ok1 && ok2 {
+				for _, ep := range eps {
+					if ep.APIKey == oldAPIKey {
+						ep.APIKey = newAPIKey
+						infoEndpoints.Set(ep.Endpoint.String(), expvar.NewString(newAPIKey))
+					}
+				}
+			}
+		})
+
 		processExpvars.Set("pid", pid)
 		processExpvars.Set("uptime", expvar.Func(publishUptime))
 		processExpvars.Set("uptime_nano", expvar.Func(publishUptimeNano))
@@ -314,7 +324,7 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("pod_queue_bytes", publishInt(&infoPodQueueBytes))
 		processExpvars.Set("container_id", expvar.Func(publishContainerID))
 		processExpvars.Set("enabled_checks", expvar.Func(publishEnabledChecks))
-		processExpvars.Set("endpoints", expvar.Func(publishEndpoints(eps)))
+		processExpvars.Set("endpoints", &infoEndpoints)
 		processExpvars.Set("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		processExpvars.Set("system_probe_process_module_enabled", publishBool(processModuleEnabled))
 		processExpvars.Set("language_detection_enabled", publishBool(languageDetectionEnabled))
