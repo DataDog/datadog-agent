@@ -126,7 +126,7 @@ new-agent_dmg-x64-a7:
       binaries=("sudo")
       for binary in "${binaries[@]}"; do
           echo Using $binary
-          ln -s "$(which $binary)" bin/$binary || true
+          ln -s "$(which $binary)" ~/bin/$binary || true
       done
 
     # - |
