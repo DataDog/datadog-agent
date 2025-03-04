@@ -91,6 +91,8 @@ var (
 	TlmUtilizationItems = telemetry.NewGauge("logs_component_utilization", "items", []string{"name", "instance"}, "Gauge of the number of items currently held in a component and it's bufferes")
 	// TlmUtilizationBytes is the capacity of a component by number of bytes
 	TlmUtilizationBytes = telemetry.NewGauge("logs_component_utilization", "bytes", []string{"name", "instance"}, "Gauge of the number of bytes currently held in a component and it's bufferes")
+
+	TlmConnectionsOpened = telemetry.NewCounter("logs", "connections_opened", nil, "Total amount of opened connections")
 )
 
 func init() {
