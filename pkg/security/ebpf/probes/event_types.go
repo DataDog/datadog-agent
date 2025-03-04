@@ -490,6 +490,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchdir", fentry, EntryAndExit)},
 		},
 
+		// List of probes required to capture network_flow_monitor events
 		"network_flow_monitor": {
 			// perf_event probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -499,6 +500,19 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 						EBPFFuncName: "network_stats_worker",
 					},
 				},
+			}},
+		},
+
+		// List of probes required to capture sysctl events
+		"sysctl": {
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						UID:          SecurityAgentUID,
+						EBPFFuncName: "cgroup_sysctl",
+					},
+				},
+				kprobeOrFentry("proc_sys_call_handler"),
 			}},
 		},
 	}

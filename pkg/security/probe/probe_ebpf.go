@@ -149,13 +149,15 @@ type EBPFProbe struct {
 	supportsBPFSendSignal bool
 	processKiller         *ProcessKiller
 
-	isRuntimeDiscarded bool
-	constantOffsets    map[string]uint64
-	runtimeCompiled    bool
-	useSyscallWrapper  bool
-	useFentry          bool
-	useRingBuffers     bool
-	useMmapableMaps    bool
+	isRuntimeDiscarded    bool
+	constantOffsets       map[string]uint64
+	runtimeCompiled       bool
+	useSyscallWrapper     bool
+	useFentry             bool
+	useRingBuffers        bool
+	useMmapableMaps       bool
+	cgroupSysctlSupported bool
+	cgroup2MountPath      string
 
 	// On demand
 	onDemandManager     *OnDemandProbesManager
@@ -207,6 +209,15 @@ func (p *EBPFProbe) selectRingBuffersMode() {
 	}
 
 	p.useRingBuffers = true
+}
+
+// initCgroup2MountPath initiatlizses p.cgroup2MountPath
+func (p *EBPFProbe) initCgroup2MountPath() {
+	var err error
+	p.cgroup2MountPath, err = utils.GetCgroup2MountPoint()
+	if err != nil {
+		seclog.Warnf("%v", err)
+	}
 }
 
 // GetUseFentry returns true if fentry is used
@@ -387,9 +398,7 @@ func (p *EBPFProbe) initEBPFManager() error {
 		return err
 	}
 
-	p.Manager.Probes = probes.AllProbes(p.useFentry)
-
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
+	p.Manager.Probes = probes.AllProbes(p.useFentry, p.cgroup2MountPath)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -1325,6 +1334,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode on-demand event for syscall event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.SysCtlEventType:
+		if _, err = event.SysCtl.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode sysctl event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	}
 
 	// resolve the container context
@@ -1505,6 +1519,8 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 		return p.probe.IsNetworkRawPacketEnabled()
 	case "network_flow_monitor":
 		return p.probe.IsNetworkFlowMonitorEnabled()
+	case "sysctl":
+		return p.cgroupSysctlSupported
 	}
 	return true
 }
@@ -2117,6 +2133,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 				return getFuncArgCount(prog)
 			},
 		},
+		manager.ConstantEditor{
+			Name:  "tracing_helpers_in_cgroup_sysctl",
+			Value: utils.BoolTouint64(p.kernelVersion.HasTracingHelpersInCgroupSysctlPrograms()),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
@@ -2202,6 +2222,10 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 
 		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
 	}
+
+	if !p.cgroupSysctlSupported {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetSysCtlProbeFunctionName())
+	}
 	return nil
 }
 
@@ -2225,6 +2249,7 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 			}
 		}
 	}
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 }
 
 // initManagerOptions initializes the eBPF manager options
@@ -2294,6 +2319,8 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	p.selectFentryMode()
 	p.selectRingBuffersMode()
 	p.useMmapableMaps = p.kernelVersion.HaveMmapableMaps()
+	p.initCgroup2MountPath()
+	p.cgroupSysctlSupported = len(p.cgroup2MountPath) > 0 && p.kernelVersion.HasCgroupSysctlSupportWithRingbuf()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
 

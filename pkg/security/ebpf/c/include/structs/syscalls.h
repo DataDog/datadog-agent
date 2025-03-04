@@ -238,6 +238,10 @@ struct syscall_cache_t {
         struct {
             u8 in_flight;
         } stat;
+
+        struct {
+            u32 action;
+        } sysctl;
     };
 };
 
