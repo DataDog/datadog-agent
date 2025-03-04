@@ -82,6 +82,7 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
         if (!wrapper) {
             return;
         }
+        barrier_var(wrapper); // prevent compiler from putting access before NULL check
         stack = &wrapper->stack;
     }
 
