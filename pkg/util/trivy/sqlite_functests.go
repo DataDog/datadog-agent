@@ -3,5 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package auth contains tests to check reliabity of agent authentication artifacts creation flow.
-package auth
+//go:build trivy && functionaltests
+
+// Package trivy holds the scan components
+package trivy
+
+import (
+	// used to read RPM database
+	// mattn/go-sqlite3 is currently not fully supported by our functional tests setup
+	_ "modernc.org/sqlite"
+)
