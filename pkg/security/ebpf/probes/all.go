@@ -350,6 +350,7 @@ func AllRingBuffers() []*manager.RingBuffer {
 func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonitorEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
+	routes = append(routes, getOpenTailCallRoutes()...)
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)

@@ -117,12 +117,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_bprm_check"),
 				}},
 				kprobeOrFentry("setup_new_exec_interp"),
-				kprobeOrFentry("setup_new_exec_args_envs", withUID(SecurityAgentUID+"_a")),
+				kprobeOrFentry("setup_new_exec_args_envs"),
 				kprobeOrFentry("setup_arg_pages"),
 				kprobeOrFentry("mprotect_fixup"),
 				kprobeOrFentry("exit_itimers"),
-				kprobeOrFentry("vfs_open"),
 				kprobeOrFentry("do_dentry_open"),
+				kprobeOrFentry("vfs_open"),
 				kprobeOrFentry("commit_creds"),
 				kprobeOrFentry("switch_task_namespaces"),
 				kprobeOrFentry("do_coredump"),
@@ -191,6 +191,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			}},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("filp_close"),
+			}},
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("terminate_walk"),
 			}},
 
 			// iouring
