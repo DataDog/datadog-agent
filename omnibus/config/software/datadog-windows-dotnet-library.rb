@@ -10,9 +10,9 @@ default_version "master"
 
 # this should only ever be included by a windows build.
 if ohai["platform"] == "windows"
-    oci_version = ENV['WINDOWS_DOTNETLIB_VERSION']
+    oci_version = ENV['WINDOWS_DOTNET_LIBRARY_VERSION']
     build do
-        command "crane pull --platform windows/amd64 --format oci install.datad0g.com/apm-library-dotnet-package:#{version} #{install_dir}/bin/agent/apm-library-dotnet-package"
+        command "crane pull --platform windows/amd64 --format oci install.datad0g.com/apm-library-dotnet-package:#{oci_version} #{install_dir}/bin/agent/apm-library-dotnet-package"
     end
 
 end
