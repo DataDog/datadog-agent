@@ -77,7 +77,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   stage: source_test
   rules:
     - when: on_success
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps"]
   artifacts:
     when: always
     paths:
@@ -85,8 +85,6 @@ prepare_sysprobe_ebpf_functional_tests_x64:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
     - inv -e kmt.prepare --ci --component="security-agent"
