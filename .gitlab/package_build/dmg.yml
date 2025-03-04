@@ -108,15 +108,6 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    # Testing xcode
-    - ls /Library/Developer/CommandLineTools
-    - ls /Library/Developer/CommandLineTools/usr/bin
-    - sudo xcodebuild -license accept
-    - sudo xcodes select 15.2
-
-    # TODO
-    - rm -rf ~/homebrew
-
     - |
       if ! [ -f ~/homebrew/bin/brew ] || ! [ -d ~/bin ]; then
         echo "WARNING: Homebrew not found, doing setup again"
@@ -126,19 +117,19 @@ new-agent_dmg-x64-a7:
         ~/bin/git --version
       fi
 
-    # # Backport to avoid doing the setup again
-    # - |
-    #   echo Setup env
-    #   (
-    #     cd ~
-    #     rm -rf bin
-    #     mkdir bin
-    #     binaries=("curl" "chmod" "cp" "cut" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee" "sudo" "xcodes" "sort" "uniq" "head")
-    #     for binary in "${binaries[@]}"; do
-    #         echo Using $binary
-    #         ln -s "$(which $binary)" bin/$binary || true
-    #     done
-    #   )
+    # Backport to avoid doing the setup again
+    - |
+      echo Setup env
+      (
+        cd ~
+        rm -rf bin
+        mkdir bin
+        binaries=("curl" "chmod" "cp" "cut" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee" "sudo" "xcodes" "xcodebuild" "sort" "uniq" "head")
+        for binary in "${binaries[@]}"; do
+            echo Using $binary
+            ln -s "$(which $binary)" bin/$binary || true
+        done
+      )
 
     # - |
     #   binaries="tmutil sed grep git tee"
