@@ -134,6 +134,9 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
+	if err = file.EnsureSymlink("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", installerSymlink); err != nil {
+		return fmt.Errorf("error creating symlink /usr/bin/datadog-installer: %w", err)
+	}
 	// 4. Install the agent systemd units
 	for _, unit := range stableUnits {
 		if err = systemd.WriteEmbeddedUnit(ctx, unit); err != nil {
