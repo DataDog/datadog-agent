@@ -117,6 +117,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_bprm_check"),
 				}},
 				kprobeOrFentry("setup_new_exec_interp"),
+				// kernels < 4.17 will rely on the tracefs events interface to attach kprobes, which requires event names to be unique
+				// because the setup_new_exec_interp and setup_new_exec_args_envs probes are attached to the same function, we rely on using a secondary uid for that purpose
 				kprobeOrFentry("setup_new_exec_args_envs", withUID(SecurityAgentUID+"_a")),
 				kprobeOrFentry("setup_arg_pages"),
 				kprobeOrFentry("mprotect_fixup"),
