@@ -229,7 +229,7 @@ func StartAgentExperiment(ctx context.Context) error {
 func StopAgentExperiment(ctx context.Context) error {
 	// detach from the command context as it will be cancelled by a SIGTERM
 	ctx = context.WithoutCancel(ctx)
-	return systemd.StartUnit(ctx, agentUnit)
+	return systemd.StartUnit(ctx, agentUnit, "--no-block")
 }
 
 // PromoteAgentExperiment promotes the agent experiment
