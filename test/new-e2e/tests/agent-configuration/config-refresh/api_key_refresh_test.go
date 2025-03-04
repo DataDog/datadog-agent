@@ -78,7 +78,8 @@ api_key: ENC[api_key]
 	// Assert that the fakeIntake has received the API Key
 	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
 	assert.NoError(v.T(), err)
-	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
+	fmt.Println("wack", lastAPIKey)
+	assert.Equal(v.T(), 1, 0)
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
