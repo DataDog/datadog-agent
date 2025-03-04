@@ -5,7 +5,7 @@
 
 //go:build kubelet && kubeapiserver
 
-package kubelet
+package types
 
 import (
 	"testing"
@@ -17,15 +17,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-
-	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 func TestConvertKubeletPodToK8sPod(t *testing.T) {
 	now := time.Now()
 
-	pod := &kubelettypes.Pod{
-		Metadata: kubelettypes.PodMetadata{
+	pod := &Pod{
+		Metadata: PodMetadata{
 			Name:              "test-pod",
 			UID:               "12345",
 			Namespace:         "default",
@@ -36,7 +34,7 @@ func TestConvertKubeletPodToK8sPod(t *testing.T) {
 			Labels: map[string]string{
 				"label-key": "label-value",
 			},
-			Owners: []kubelettypes.PodOwner{
+			Owners: []PodOwner{
 				{
 					Kind:       "ReplicaSet",
 					Name:       "rs1",
@@ -44,20 +42,20 @@ func TestConvertKubeletPodToK8sPod(t *testing.T) {
 				},
 			},
 		},
-		Spec: kubelettypes.Spec{
+		Spec: Spec{
 			HostNetwork: true,
 			NodeName:    "node1",
-			InitContainers: []kubelettypes.ContainerSpec{
+			InitContainers: []ContainerSpec{
 				{
 					Name:  "init-container",
 					Image: "init-image",
 				},
 			},
-			Containers: []kubelettypes.ContainerSpec{
+			Containers: []ContainerSpec{
 				{
 					Name:  "main-container",
 					Image: "main-image",
-					Ports: []kubelettypes.ContainerPortSpec{
+					Ports: []ContainerPortSpec{
 						{
 							ContainerPort: 7777,
 							HostPort:      8888,
@@ -65,55 +63,55 @@ func TestConvertKubeletPodToK8sPod(t *testing.T) {
 							Protocol:      "TCP",
 						},
 					},
-					ReadinessProbe: &kubelettypes.ContainerProbe{
+					ReadinessProbe: &ContainerProbe{
 						InitialDelaySeconds: 10,
 					},
-					Env: []kubelettypes.EnvVar{
+					Env: []EnvVar{
 						{
 							Name:  "SOME_ENV",
 							Value: "some_env_value",
 						},
 					},
-					SecurityContext: &kubelettypes.ContainerSecurityContextSpec{
-						Capabilities: &kubelettypes.CapabilitiesSpec{
+					SecurityContext: &ContainerSecurityContextSpec{
+						Capabilities: &CapabilitiesSpec{
 							Add:  []string{"CAP_SYS_ADMIN"},
 							Drop: []string{"CAP_NET_RAW"},
 						},
 						Privileged: ptr.To(true),
-						SeccompProfile: &kubelettypes.SeccompProfileSpec{
-							Type:             kubelettypes.SeccompProfileTypeRuntimeDefault,
+						SeccompProfile: &SeccompProfileSpec{
+							Type:             SeccompProfileTypeRuntimeDefault,
 							LocalhostProfile: ptr.To("localhost-profile"),
 						},
 					},
-					Resources: &kubelettypes.ContainerResourcesSpec{
-						Requests: kubelettypes.ResourceList{
+					Resources: &ContainerResourcesSpec{
+						Requests: ResourceList{
 							"cpu":    resource.MustParse("100m"),
 							"memory": resource.MustParse("200Mi"),
 						},
-						Limits: kubelettypes.ResourceList{
+						Limits: ResourceList{
 							"cpu":    resource.MustParse("200m"),
 							"memory": resource.MustParse("400Mi"),
 						},
 					},
 				},
 			},
-			Volumes: []kubelettypes.VolumeSpec{
+			Volumes: []VolumeSpec{
 				{
 					Name: "volume1",
-					PersistentVolumeClaim: &kubelettypes.PersistentVolumeClaimSpec{
+					PersistentVolumeClaim: &PersistentVolumeClaimSpec{
 						ClaimName: "some-claim",
 						ReadOnly:  true,
 					},
 				},
 			},
 			PriorityClassName: "high-priority",
-			SecurityContext: &kubelettypes.PodSecurityContextSpec{
+			SecurityContext: &PodSecurityContextSpec{
 				RunAsUser:  1000,
 				RunAsGroup: 2000,
 				FsGroup:    3000,
 			},
 			RuntimeClassName: ptr.To("runtime-class"),
-			Tolerations: []kubelettypes.Toleration{
+			Tolerations: []Toleration{
 				{
 					Key:      "key1",
 					Operator: "Exists",
@@ -121,30 +119,30 @@ func TestConvertKubeletPodToK8sPod(t *testing.T) {
 				},
 			},
 		},
-		Status: kubelettypes.Status{
+		Status: Status{
 			Phase:  "Running",
 			HostIP: "192.168.1.1",
 			PodIP:  "10.0.0.1",
-			Containers: []kubelettypes.ContainerStatus{
+			Containers: []ContainerStatus{
 				{
 					Name:  "main-container",
 					Image: "main-image",
 					Ready: true,
-					State: kubelettypes.ContainerState{
-						Running: &kubelettypes.ContainerStateRunning{
+					State: ContainerState{
+						Running: &ContainerStateRunning{
 							StartedAt: now,
 						},
 					},
 				},
 			},
-			InitContainers: []kubelettypes.ContainerStatus{
+			InitContainers: []ContainerStatus{
 				{
 					Name:  "init-container",
 					Image: "init-image",
 					Ready: true,
 				},
 			},
-			Conditions: []kubelettypes.Conditions{
+			Conditions: []Conditions{
 				{
 					Type:   "Ready",
 					Status: "True",

@@ -723,7 +723,7 @@ func (c *APIClient) QueryRawPodListFromNode(ctx context.Context, nodeName string
 	response, err := c.Cl.CoreV1().RESTClient().
 		Get().
 		AbsPath(podPath).
-		Param("fieldSelector", fieldSelector). // Filters **before** querying
+		Param("fieldSelector", fieldSelector).
 		DoRaw(ctx)
 
 	if err != nil {

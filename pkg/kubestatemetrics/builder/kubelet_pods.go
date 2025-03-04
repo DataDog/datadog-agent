@@ -113,7 +113,7 @@ func (kr *kubeletReflector) updateStores(ctx context.Context) error {
 			continue
 		}
 
-		kubePod := kubelet.ConvertKubeletPodToK8sPod(pod)
+		kubePod := kubelettypes.ConvertKubeletPodToK8sPod(pod)
 
 		for _, store := range kr.stores {
 			err := store.Add(kubePod)

@@ -18,7 +18,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
@@ -132,7 +131,7 @@ func TestUpdateStores_AddPods(t *testing.T) {
 				},
 			}
 
-			kubernetesPod := kubelet.ConvertKubeletPodToK8sPod(kubeletPod)
+			kubernetesPod := kubelettypes.ConvertKubeletPodToK8sPod(kubeletPod)
 
 			watcher.On("PullChanges", mock.Anything).Return([]*kubelettypes.Pod{kubeletPod}, nil)
 			watcher.On("Expire").Return([]string{}, nil)

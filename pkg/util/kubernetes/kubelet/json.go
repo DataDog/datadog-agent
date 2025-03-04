@@ -40,10 +40,10 @@ func newPodUnmarshaller() *podUnmarshaller {
 	}
 
 	if pu.podExpirationDuration > 0 {
-		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", pu.filteringDecoder)
+		jsoniter.RegisterTypeDecoderFunc("types.PodList", pu.filteringDecoder)
 	} else {
 		// Force-unregister for unit tests to pick up the right state
-		jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
+		jsoniter.RegisterTypeDecoder("types.PodList", nil)
 	}
 
 	// Build a new frozen config to invalidate type decoder cache

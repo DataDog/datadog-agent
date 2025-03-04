@@ -195,11 +195,13 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
-	stats, err := ku.GetLocalStatsSummary(ctx)
-	if err == nil && stats.Node.NodeName != "" {
-		return stats.Node.NodeName, nil
+	if ku.useAPIServer {
+		stats, err := ku.GetLocalStatsSummary(ctx)
+		if err == nil && stats.Node.NodeName != "" {
+			return stats.Node.NodeName, nil
+		}
+		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %v", kubeletStatsSummary, err)
 	}
-
 	pods, err := ku.GetLocalPodList(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
@@ -218,7 +220,6 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*types.PodList, error) {
 	var ok bool
 	pods := types.PodList{}
-
 	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
 		pods, ok = cached.(types.PodList)
 		if !ok {
@@ -233,11 +234,9 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*types.PodList, error)
 	var err error
 
 	if ku.useAPIServer {
-		fmt.Println("We entered nono land")
 		data, err = ku.apiClient.QueryRawPodListFromNode(ctx, ku.nodeName)
 		code = http.StatusOK
 	} else {
-		fmt.Printf("We entered the kubelet query! for %v\n", kubeletPodPath)
 		data, code, err = ku.QueryKubelet(ctx, kubeletPodPath)
 	}
 
