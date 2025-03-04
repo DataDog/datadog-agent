@@ -1,5 +1,8 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
+using System;
+using System.IO;
 
 namespace Datadog.CustomActions
 {
@@ -23,7 +26,7 @@ namespace Datadog.CustomActions
                 session.Log("Installing dotnet library");
                 session.Log($"installer executable path: {exePath}");
                 // TODO: Replace the version and read from disk
-                session.RunCommand(exePath, "install install.datad0g.com/apm-library-dotnet-package:3.12");
+                session.RunCommand(exePath, "install oci://install.datad0g.com/apm-library-dotnet-package:3.12");
                 // TODO: Should we use RollbackDataStore to store the rollback instructions
                 return ActionResult.Success;
             }
