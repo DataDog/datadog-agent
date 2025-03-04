@@ -29,12 +29,15 @@ type Pathtest struct {
 	Metadata          PathtestMetadata
 }
 
+// PathtestHash is a hash representing the key for a pathtest
+type PathtestHash uint64
+
 // GetHash returns the hash of the Pathtest
-func (p Pathtest) GetHash() uint64 {
+func (p Pathtest) GetHash() PathtestHash {
 	h := fnv.New64()
 	h.Write([]byte(p.Hostname))                  //nolint:errcheck
 	binary.Write(h, binary.LittleEndian, p.Port) //nolint:errcheck
 	h.Write([]byte(p.Protocol))                  //nolint:errcheck
 	h.Write([]byte(p.SourceContainerID))         //nolint:errcheck
-	return h.Sum64()
+	return PathtestHash(h.Sum64())
 }
