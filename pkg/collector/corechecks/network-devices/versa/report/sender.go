@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
-// VersaSender implements methods for sending Versa metrics and metadata
+// Sender implements methods for sending Versa metrics and metadata
 type Sender struct {
 	sender       sender.Sender
 	namespace    string
@@ -24,5 +24,6 @@ func NewSender(sender sender.Sender, namespace string) *Sender {
 		sender:       sender,
 		namespace:    namespace,
 		lastTimeSent: make(map[string]float64),
+		deviceTags:   make(map[string][]string),
 	}
 }
