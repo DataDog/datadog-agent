@@ -144,7 +144,6 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 
 	fakeTagger.LoadState(state)
 
-	log.Debugf("API: setting capture state tagger")
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")

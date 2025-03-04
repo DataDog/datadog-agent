@@ -104,12 +104,6 @@ func (f *FakeTagger) Stop() error {
 	return nil
 }
 
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the fake tagger
-func (f *FakeTagger) ReplayTagger() tagger.ReplayTagger {
-	return nil
-}
-
 // GetTaggerTelemetryStore returns tagger telemetry store
 // The fake tagger returns nil as it doesn't use telemetry
 func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
@@ -186,12 +180,6 @@ func (f *FakeTagger) GetEntityHash(types.EntityID, types.TagCardinality) string 
 func (f *FakeTagger) AgentTags(types.TagCardinality) ([]string, error) {
 	return []string{}, nil
 }
-
-// SetNewCaptureTagger noop
-func (f *FakeTagger) SetNewCaptureTagger(tagger.Component) {}
-
-// ResetCaptureTagger noop
-func (f *FakeTagger) ResetCaptureTagger() {}
 
 // EnrichTags noop
 func (f *FakeTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
