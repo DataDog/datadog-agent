@@ -485,19 +485,23 @@ func (o *sslProgram) Name() string {
 	return "openssl"
 }
 
-// ConfigureOptions changes map attributes to the given options.
-func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Config) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
+		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
+		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg"},
 	})
+}
+
+// ConfigureOptions changes map attributes to the given options.
+func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+	sharedLibrariesConfigureOptions(options, o.cfg)
 }
 
 // PreStart is called before the start of the provided eBPF manager.
