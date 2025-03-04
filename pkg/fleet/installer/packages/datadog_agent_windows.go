@@ -12,6 +12,11 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
+
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -20,7 +25,9 @@ import (
 )
 
 const (
-	datadogAgent = "datadog-agent"
+	datadogAgent     = "datadog-agent"
+	premoteEventName = "Global\\DatadogInstallerPremote"
+	stopEventName    = "Global\\DatadogInstallerStop"
 )
 
 // PrepareAgent prepares the machine to install the agent
@@ -88,37 +95,114 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 		_ = installAgentPackage("stable", nil, "restore_stable_agent.log")
 		return err
 	}
+
+	// now we start our watchdog to make sure the Agent is running
+	// and we can restore the stable Agent if it stops.
+	err = startWatchdog(ctx)
+	if err != nil {
+		log.Errorf("Watchdog failed: %s", err)
+		// we failed to start the watchdog, the Agent stopped, or we received a stop-experiment signal
+		// we need to restore the stable Agent
+		// to leave the system in a consistent state.
+		// remove the experiment Agent
+		err = removeAgentIfInstalled(ctx)
+		if err != nil {
+			// we failed to remove the experiment Agent
+			// we can't do much here
+			log.Errorf("Failed to remove experiment Agent: %s", err)
+			return fmt.Errorf("Failed to remove experiment Agent: %w", err)
+		}
+		// reinstall the stable Agent
+		_ = installAgentPackage("stable", nil, "restore_stable_agent.log")
+		return err
+	}
+
 	return nil
 }
 
-// StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
-func StopAgentExperiment(ctx context.Context) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "stop_experiment")
-	defer func() {
-		if err != nil {
-			log.Errorf("Failed to stop agent experiment: %s", err)
-		}
-		span.Finish(err)
-	}()
-
-	err = removeAgentIfInstalled(ctx)
+func startWatchdog(_ context.Context) error {
+	timeout := time.Now().Add(60 * time.Minute)
+	premoteEvent, stopEvent, err := createEvents()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create events: %w", err)
 	}
-
-	err = installAgentPackage("stable", nil, "stop_agent_experiment.log")
+	defer closeEvents(premoteEvent, stopEvent)
+	m, err := mgr.Connect()
 	if err != nil {
-		// if we cannot restore the stable Agent, the system is left without an Agent
-		return err
+		return fmt.Errorf("failed to connect to service manager: %w", err)
+	}
+	defer m.Disconnect()
+
+	instService, err := m.OpenService("Datadog Installer")
+	if err != nil {
+		return fmt.Errorf("could not access service: %w", err)
+	}
+	defer instService.Close()
+
+	dataDogService, err := m.OpenService("datadogagent")
+	if err != nil {
+		return fmt.Errorf("could not access service: %w", err)
+	}
+	defer dataDogService.Close()
+
+	for time.Now().Before(timeout) {
+		// check the Installer service
+		status, err := instService.Query()
+		if err != nil {
+			return fmt.Errorf("could not query service: %w", err)
+		}
+		if status.State != svc.Running {
+			// the service has died
+			// we need to restore the stable Agent
+			// return an error to signal the caller to restore the stable Agent
+			return fmt.Errorf("Agent is not running")
+		}
+
+		// check the Agent service
+		// TODO do we need to check the status of the agent service?
+		status, err = dataDogService.Query()
+		if err != nil {
+			return fmt.Errorf("could not query service: %w", err)
+		}
+		if status.State != svc.Running {
+			// the service has died
+			// we need to restore the stable Agent
+			// return an error to signal the caller to restore the stable Agent
+			return fmt.Errorf("Agent is not running")
+		}
+
+		// wait for the events to be singaled with a timeout
+		events, err := windows.WaitForMultipleObjects([]windows.Handle{premoteEvent, stopEvent}, false, 1000)
+		if err != nil {
+			return fmt.Errorf("could not wait for events: %w", err)
+		}
+		switch events {
+		case windows.WAIT_OBJECT_0:
+			// the premote event was signaled
+			// this means we are done with the experiment
+			// we can return
+			return nil
+		case windows.WAIT_OBJECT_0 + 1:
+			// the stop event was signaled
+			// this means we need to restore the stable Agent
+			// return an error to signal the caller to restore the stable Agent
+			return fmt.Errorf("stop event was signaled")
+		}
+
 	}
 
 	return nil
+
+}
+
+// StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
+func StopAgentExperiment(_ context.Context) (err error) {
+	return setStopEvent()
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(_ context.Context) error {
-	// noop
-	return nil
+	return setPremoteEvent()
 }
 
 // RemoveAgent stops and removes the agent
@@ -176,6 +260,56 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 		}
 	} else {
 		log.Debugf("Agent not installed")
+	}
+	return nil
+}
+
+func createEvents() (windows.Handle, windows.Handle, error) {
+	premoteEvent, err := windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(premoteEventName))
+	if err != nil {
+		return windows.Handle(0), windows.Handle(0), fmt.Errorf("Failed to create event: %w", err)
+	}
+
+	stopEvent, err := windows.CreateEvent(nil, 1, 0, windows.StringToUTF16Ptr(stopEventName))
+	if err != nil {
+		// close the premoteEvent
+		windows.CloseHandle(premoteEvent)
+		return windows.Handle(0), windows.Handle(0), fmt.Errorf("Failed to create event: %w", err)
+	}
+
+	return premoteEvent, stopEvent, err
+
+}
+
+func closeEvents(premoteEvent, stopEvent windows.Handle) {
+	windows.CloseHandle(premoteEvent)
+	windows.CloseHandle(stopEvent)
+}
+
+func setPremoteEvent() error {
+	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, windows.StringToUTF16Ptr(premoteEventName))
+	if err != nil {
+		return fmt.Errorf("Failed to open event: %w", err)
+	}
+	defer windows.CloseHandle(event)
+
+	err = windows.SetEvent(event)
+	if err != nil {
+		return fmt.Errorf("Failed to set event: %w", err)
+	}
+	return nil
+}
+
+func setStopEvent() error {
+	event, err := windows.OpenEvent(windows.EVENT_MODIFY_STATE, false, windows.StringToUTF16Ptr(stopEventName))
+	if err != nil {
+		return fmt.Errorf("Failed to open event: %w", err)
+	}
+	defer windows.CloseHandle(event)
+
+	err = windows.SetEvent(event)
+	if err != nil {
+		return fmt.Errorf("Failed to set event: %w", err)
 	}
 	return nil
 }

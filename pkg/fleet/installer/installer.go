@@ -634,6 +634,8 @@ func (i *installerImpl) Close() error {
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
+		// close so package can be updated as watchdog runs
+		i.db.Close()
 		return packages.StartAgentExperiment(ctx)
 	case packageDatadogInstaller:
 		return packages.StartInstallerExperiment(ctx)

@@ -13,6 +13,6 @@ import (
 )
 
 // platformPrepareExperiment runs extra steps needed for the experiment on a specific platform
-func (i *installerImpl) platformPrepareExperiment(pkg *oci.DownloadedPackage, repository *repository.Repository) error {
+func (i *installerImpl) platformPrepareExperiment(_ *oci.DownloadedPackage, _ *repository.Repository) error {
 	return nil
 }
