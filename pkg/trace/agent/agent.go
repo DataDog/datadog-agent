@@ -504,7 +504,7 @@ func (a *Agent) discardSpans(p *api.Payload) {
 	}
 }
 
-func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID string) *pb.ClientStatsPayload {
+func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) *pb.ClientStatsPayload {
 	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
@@ -524,6 +524,12 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	if in.Lang == "" {
 		in.Lang = lang
 	}
+	shouldObfuscate := obfuscationVersion == ""
+	if !shouldObfuscate {
+		if versionInt, err := strconv.Atoi(obfuscationVersion); err != nil && versionInt < obfuscate.Version {
+			log.Debug("Tracer is using older version of obfuscation %d", versionInt)
+		}
+	}
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {
@@ -531,7 +537,9 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 			if !a.Blacklister.AllowsStat(b) {
 				continue
 			}
-			a.obfuscateStatsGroup(b)
+			if shouldObfuscate {
+				a.obfuscateStatsGroup(b)
+			}
 			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
 			n++
@@ -560,8 +568,8 @@ func mergeDuplicates(s *pb.ClientStatsBucket) {
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
-	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID)
+func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) {
+	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID, obfuscationVersion)
 }
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept
