@@ -5,6 +5,7 @@ package simplelru
 
 import (
 	"errors"
+	"iter"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/internal"
 )
@@ -131,6 +132,17 @@ func (c *LRU[K, V]) Keys() []K {
 	return keys
 }
 
+// KeysIter returns an iterator of the keys in the cache, from oldest to newest.
+func (c *LRU[K, V]) KeysIter() iter.Seq[K] {
+	return func(yield func(K) bool) {
+		for ent := c.evictList.Back(); ent != nil; ent = ent.PrevEntry() {
+			if !yield(ent.Key) {
+				return
+			}
+		}
+	}
+}
+
 // Values returns a slice of the values in the cache, from oldest to newest.
 func (c *LRU[K, V]) Values() []V {
 	values := make([]V, len(c.items))
@@ -140,6 +152,17 @@ func (c *LRU[K, V]) Values() []V {
 		i++
 	}
 	return values
+}
+
+// ValuesIter returns an iterator of the values in the cache, from oldest to newest.
+func (c *LRU[K, V]) ValuesIter() iter.Seq[V] {
+	return func(yield func(V) bool) {
+		for ent := c.evictList.Back(); ent != nil; ent = ent.PrevEntry() {
+			if !yield(ent.Value) {
+				return
+			}
+		}
+	}
 }
 
 // Len returns the number of items in the cache.
