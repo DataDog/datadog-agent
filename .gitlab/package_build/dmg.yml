@@ -111,6 +111,7 @@ new-agent_dmg-x64-a7:
     # Testing xcode
     - ls /Library/Developer/CommandLineTools
     - ls /Library/Developer/CommandLineTools/usr/bin
+    - sudo xcodebuild -license accept
     - sudo xcodes select 15.2
 
     # TODO
@@ -350,6 +351,7 @@ new-agent_dmg-x64-a7:
     - echo Setting up custom homebrew env
     - export PATH="$HOME/bin:$HOME/homebrew/bin:$HOME/rust/rustup/bin:$HOME/rust/cargo/bin"
     - export PATH="/Library/Developer/CommandLineTools/usr/bin:$PATH"
+    - sudo xcodebuild -license accept
     - sudo xcodes select 15.2
     - ls ~/rust/rustup/bin || true
     - python3 --version
