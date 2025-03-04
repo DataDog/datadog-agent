@@ -12,8 +12,11 @@ namespace Datadog.CustomActions
         {
             try
             {
+                session.Log("Installing Oci Packages");
                 string instrumentationEnabled = session.Property("DD_APM_INSTRUMENTATION_ENABLED");
+                session.Log($"instrumentationEnabled: {instrumentationEnabled}");
                 string libraries = session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+                session.Log($"libraries: {libraries}");
                 if (libraries != "dotnet" || instrumentationEnabled != "iis")
                 {
                     session.Log("Skipping dotnet library installation");
