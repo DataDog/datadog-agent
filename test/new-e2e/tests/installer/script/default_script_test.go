@@ -71,7 +71,7 @@ func (s *installScriptDefaultSuite) TestInstall() {
 	// Units started
 	state.AssertUnitsRunning(
 		"datadog-agent.service",
-		"datadog-agent-installer.service",
+		// "datadog-agent-installer.service", FIXME: uncomment when an agent+installer is released
 		"datadog-agent-trace.service",
 		"datadog-agent-process.service",
 		"datadog-agent-sysprobe.service",
