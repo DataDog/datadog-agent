@@ -1,6 +1,6 @@
 # Package gates
 static_quality_gate_agent_deb_amd64:
-  max_on_wire_size: "201.77 MiB"
+  max_on_wire_size: "201.75 MiB"
   max_on_disk_size: "797.95 MiB"
 
 static_quality_gate_agent_deb_arm64:
