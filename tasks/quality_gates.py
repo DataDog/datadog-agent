@@ -145,7 +145,7 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
     # Generate PR to update static quality gates threshold on nightly pipelines
     bucket_branch = metric_handler.bucket_branch
-    if bucket_branch:  # and bucket_branch == "nightly":
+    if bucket_branch and bucket_branch == "nightly":
         pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
         notify_threshold_update(pr_url)
 
@@ -216,5 +216,5 @@ def notify_threshold_update(pr_url):
     client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     emojis = client.emoji_list()
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
-    message = f'Hello :{random.choice(waves)}:!\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
+    message = f'Hello :{random.choice(waves)}:\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
     client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
