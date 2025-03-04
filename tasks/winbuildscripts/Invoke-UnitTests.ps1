@@ -149,7 +149,7 @@ Invoke-BuildScript `
         & inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
         $localErr = $LASTEXITCODE
         if($localErr -ne 0){
-            Write-Host -ForegroundColor Red "coverage upload failed $err"
+            Write-Host -ForegroundColor Red "coverage upload failed $localErr"
         }
     }
     if ($UploadTestResults) {
@@ -162,7 +162,7 @@ Invoke-BuildScript `
         & inv -e junit-upload --tgz-path $Env:JUNIT_TAR
         $localErr = $LASTEXITCODE
         if($localErr -ne 0){
-            Write-Host -ForegroundColor Red "junit upload failed $err"
+            Write-Host -ForegroundColor Red "junit upload failed $localErr"
         }
     }
     
