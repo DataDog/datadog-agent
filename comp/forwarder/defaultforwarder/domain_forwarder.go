@@ -218,7 +218,7 @@ func (f *domainForwarder) Start() error {
 	// reset internal state to purge transactions from past starts
 	f.init()
 
-	maxConcurrentRequests := f.config.GetInt("forwarder_max_concurrent_requests")
+	maxConcurrentRequests := f.config.GetInt64("forwarder_max_concurrent_requests")
 
 	if f.isLocal {
 		f.Client = newBearerAuthHTTPClient(f.numberOfWorkers)
@@ -227,7 +227,7 @@ func (f *domainForwarder) Start() error {
 	}
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, int64(maxConcurrentRequests))
+		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, maxConcurrentRequests)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}

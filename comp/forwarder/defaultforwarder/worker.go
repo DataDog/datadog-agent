@@ -65,10 +65,9 @@ func NewWorker(
 	httpClient *http.Client,
 	maxConcurrentRequests int64,
 ) *Worker {
-	var maxConcurrentRequestsSem *semaphore.Weighted
-	if maxConcurrentRequests > 0 {
-		fmt.Println("Creatin semafore wid", maxConcurrentRequests)
-		maxConcurrentRequestsSem = semaphore.NewWeighted(maxConcurrentRequests)
+	if maxConcurrentRequests <= 0 {
+		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", maxConcurrentRequests)
+		maxConcurrentRequests = 1
 	}
 
 	workerCtx, cancel := context.WithCancel(context.Background())
@@ -84,7 +83,7 @@ func NewWorker(
 		Client:                httpClient,
 		blockedList:           blocked,
 		pointSuccessfullySent: pointSuccessfullySent,
-		maxConcurrentRequests: maxConcurrentRequestsSem,
+		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
 		workerCtx:             workerCtx,
 		cancel:                cancel,
 	}
@@ -166,24 +165,16 @@ func (w *Worker) ScheduleConnectionReset(client *http.Client) {
 // if we are already sending too many requests.
 // This can be bypassed by configuring `forwarder_max_concurrent_requests = 0`.
 func (w *Worker) acquireRequestSemaphore(ctx context.Context) error {
-	if w.maxConcurrentRequests != nil {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("Context is cancelled")
-		default:
-		}
-
-		err := w.maxConcurrentRequests.Acquire(ctx, 1)
-		return err
+	err := w.maxConcurrentRequests.Acquire(ctx, 1)
+	if err != nil {
+		return fmt.Errorf("unable to acquire request semaphore: %v", err)
 	}
 
 	return nil
 }
 
 func (w *Worker) releaseRequestSemaphore() {
-	if w.maxConcurrentRequests != nil {
-		w.maxConcurrentRequests.Release(1)
-	}
+	w.maxConcurrentRequests.Release(1)
 }
 
 // callProcess will process a transaction and cancel it if we need to stop the
