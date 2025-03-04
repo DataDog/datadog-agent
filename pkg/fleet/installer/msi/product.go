@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	installproperty_localpackage = "LocalPackage"
+	installPropertyLocalPackage = "LocalPackage"
 )
 
 var (
@@ -101,7 +101,7 @@ func processKey(rootPath, key, name string) (*Product, error) {
 
 // FindProductMSI returns the path to the MSI file for the given product code
 func FindProductMSI(productCode string) (string, error) {
-	return msiGetProductInfo(productCode, installproperty_localpackage)
+	return msiGetProductInfo(productCode, installPropertyLocalPackage)
 }
 
 // GetProductVersion returns the version of the product with the given product code
