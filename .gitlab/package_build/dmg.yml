@@ -112,24 +112,24 @@ new-agent_dmg-x64-a7:
       if ! [ -f ~/homebrew/bin/brew ] || ! [ -d ~/bin ] || ! [ -f ~/rust/rustup/bin/rustup ] || ! [ -f ~/rust/cargo/bin/cargo ]; then
         echo "WARNING: Homebrew not found, doing setup again"
         rm -rf ~/bin ~/homebrew ~/rust
-        bash .gitlab/package_build/build_script.sh SETUP_RUNNER
+        ( cd ~ && bash .gitlab/package_build/build_script.sh SETUP_RUNNER )
         ls ~
         ~/bin/git --version
       fi
 
     # Backport to avoid doing the setup again
-    - |
-      echo Setup env
-      (
-        cd ~
-        rm -rf bin
-        mkdir bin
-        binaries=("curl" "chmod" "cp" "cut" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee" "sudo" "xcodes" "xcodebuild" "sort" "uniq" "head")
-        for binary in "${binaries[@]}"; do
-            echo Using $binary
-            ln -s "$(which $binary)" bin/$binary || true
-        done
-      )
+    # - |
+    #   echo Setup env
+    #   (
+    #     cd ~
+    #     rm -rf bin
+    #     mkdir bin
+    #     binaries=("curl" "chmod" "cp" "cut" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee" "sudo" "xcodes" "xcodebuild" "sort" "uniq" "head")
+    #     for binary in "${binaries[@]}"; do
+    #         echo Using $binary
+    #         ln -s "$(which $binary)" bin/$binary || true
+    #     done
+    #   )
 
     # - |
     #   binaries="tmutil sed grep git tee"
