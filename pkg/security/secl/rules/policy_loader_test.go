@@ -1568,6 +1568,85 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 			},
 		},
 		{
+			name: "P0.DR disabled, P1.CR 1, enabled, P2 1, disabled => P1.CR",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       DefaultPolicyName,
+									source:     PolicyProviderTypeRC,
+									policyType: DefaultPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "exec.file.path == \"/etc/default/foo\"",
+												Disabled:   true,
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return testPoliciesToPolicies([]*testPolicyDef{
+								{
+									name:       "P1.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "exec.file.path == \"/etc/default/foo\"",
+												Disabled:   false,
+											},
+										},
+									},
+								},
+								{
+									name:       "P2.policy",
+									source:     PolicyProviderTypeRC,
+									policyType: CustomPolicyType,
+									def: PolicyDef{
+										Rules: []*RuleDefinition{
+											{
+												ID:         "rule_1",
+												Expression: "exec.file.path == \"/etc/default/foo\"",
+												Disabled:   true,
+											},
+										},
+									},
+								},
+							})
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, got map[eval.RuleID]*Rule, _ ...interface{}) bool {
+				expected := map[eval.RuleID]*Rule{
+					"rule_1": {
+						PolicyRule: &PolicyRule{
+							Def: &RuleDefinition{
+								ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\"",
+							},
+							Policy: &Policy{
+								Name:   "P1.policy",
+								Source: PolicyProviderTypeRC,
+								Type:   CustomPolicyType,
+							},
+							Accepted: true,
+						},
+					},
+				}
+				return checkOverrideResult(t, expected, got)
+			},
+		},
+		{
 			name: "P0.DR enabled, P1.CR 1 actionA, enabled, P2 1 actionB, disabled => P1.CR + 1 actionA",
 			fields: fields{
 				Providers: []PolicyProvider{
