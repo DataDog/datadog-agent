@@ -442,7 +442,7 @@ Package ddprofilingextension defines the otel agent ddprofilingextension compone
 
 ### [comp/otelcol/gatewayusage](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage)
 
-*Datadog Team*: @DataDog/opentelemetry-agent
+*Datadog Team*: opentelemetry-agent
 
 Package gatewayusage provides the gateway usage component type.
 
