@@ -164,10 +164,7 @@ func chown(path string, username string, group string) (err error) {
 func filesInDir(dir string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dir, func(path string, _ os.FileInfo, err error) error {
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return nil
-			}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("error walking path: %w", err)
 		}
 		files = append(files, path)
