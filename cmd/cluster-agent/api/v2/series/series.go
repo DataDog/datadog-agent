@@ -13,6 +13,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -28,6 +29,27 @@ const (
 	encodingZstd           = "zstd"
 	loadMetricsHandlerName = "load-metrics-handler"
 )
+
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 1000*1024) // 1000KB buffer
+	},
+}
+
+var metricPayloadPool = sync.Pool{
+	New: func() interface{} {
+		return &gogen.MetricPayload{}
+	},
+}
+
+type buffer struct {
+	buf *[]byte
+}
+
+func (b *buffer) Write(p []byte) (n int, err error) {
+	*b.buf = append(*b.buf, p...)
+	return len(p), nil
+}
 
 // InstallNodeMetricsEndpoints register handler for node metrics collection
 func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.Component) {
@@ -81,14 +103,19 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
-	payload, err := io.ReadAll(rc)
+	buf := bufferPool.Get().([]byte)
+	defer bufferPool.Put(buf[:0]) // Reset the buffer before putting it back
+	payload, err := io.ReadAll(io.TeeReader(rc, &buffer{buf: &buf}))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	metricPayload := &gogen.MetricPayload{}
+	metricPayload := metricPayloadPool.Get().(*gogen.MetricPayload)
+	defer metricPayloadPool.Put(metricPayload)
+
+	// Reset the metricPayload before using it
+	*metricPayload = gogen.MetricPayload{}
 	if err := metricPayload.Unmarshal(payload); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
