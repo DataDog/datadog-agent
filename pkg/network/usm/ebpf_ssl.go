@@ -243,14 +243,8 @@ const (
 
 var (
 	buildKitProcessName = []byte("buildkitd")
-)
 
-// Template, will be modified during runtime.
-// The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
-// a dynamic initialization.
-var opensslSpec = &protocols.ProtocolSpec{
-	Factory: newSSLProgramProtocolFactory,
-	Maps: []*manager.Map{
+	sharedLibrariesMaps = []*manager.Map{
 		{
 			Name: sslSockByCtxMap,
 		},
@@ -275,7 +269,15 @@ var opensslSpec = &protocols.ProtocolSpec{
 		{
 			Name: sslCtxByPIDTGIDMap,
 		},
-	},
+	}
+)
+
+// Template, will be modified during runtime.
+// The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
+// a dynamic initialization.
+var opensslSpec = &protocols.ProtocolSpec{
+	Factory: newSSLProgramProtocolFactory,
+	Maps:    sharedLibrariesMaps,
 	Probes: []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
