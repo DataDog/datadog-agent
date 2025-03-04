@@ -112,6 +112,8 @@ func (t *StringSliceField) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		for _, item := range raw {
 			if str, ok := item.(string); ok {
 				*t = append(*t, str)
+			} else {
+				return fmt.Errorf("cannot unmarshal %v into a string", item)
 			}
 		}
 		return nil

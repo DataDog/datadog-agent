@@ -64,12 +64,15 @@ foo:
 `, `
 - type: file
   path: /var/log/app.log
-  tags: a, b:c
+  tags: nil
 `, `
 `}
 
-	for _, format := range invalidFormats {
-		configs, _ := ParseYAML([]byte(format))
+	for i, format := range invalidFormats {
+		configs, err := ParseYAML([]byte(format))
+		if i == 1 {
+			assert.NotNil(t, err)
+		}
 		require.Equal(t, 0, len(configs))
 	}
 }
