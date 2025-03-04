@@ -113,7 +113,6 @@ new-agent_dmg-x64-a7:
     - ls /Library/Developer/CommandLineTools/usr/bin
     - sudo xcodes select 15.2
 
-
     - |
       if ! [ -f ~/homebrew/bin/brew ]; then
         echo "WARNING: Homebrew not found, doing setup again"
@@ -122,6 +121,14 @@ new-agent_dmg-x64-a7:
         ls ~
         ~/bin/git --version
       fi
+    # Backport to avoid doing the setup again
+    - |
+      binaries=("sudo")
+      for binary in "${binaries[@]}"; do
+          echo Using $binary
+          ln -s "$(which $binary)" bin/$binary || true
+      done
+
     # - |
     #   binaries="tmutil sed grep git tee"
     #   for binary in $binaries; do
