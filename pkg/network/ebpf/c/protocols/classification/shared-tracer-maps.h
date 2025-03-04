@@ -78,10 +78,11 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
     }
 
     if (!stack) {
-        stack = bpf_map_lookup_elem(&connection_protocol, normalized_tuple);
-        if (!stack) {
+        protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, normalized_tuple);
+        if (!wrapper) {
             return;
         }
+        stack = &wrapper->stack;
     }
 
     if (!(stack->flags&FLAG_USM_ENABLED) || !(stack->flags&FLAG_NPM_ENABLED)) {
