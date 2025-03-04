@@ -8,6 +8,7 @@
 # Run tests for eBPF code
 .tests_linux_ebpf:
   stage: source_test
+  extends: .unit_test_base
   needs: ["go_deps", "go_tools_deps"]
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
