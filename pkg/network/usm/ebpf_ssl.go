@@ -428,12 +428,11 @@ var opensslSpec = &protocols.ProtocolSpec{
 type sslProgram struct {
 	cfg           *config.Config
 	watcher       *sharedlibraries.Watcher
-	istioMonitor  *istioMonitor
 	nodeJSMonitor *nodeJSMonitor
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
+	if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableNodeJSMonitoring {
 		return nil, nil
 	}
 
@@ -472,15 +471,9 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
 	}
 
-	istio, err := newIstioMonitor(c, m)
-	if err != nil {
-		return nil, fmt.Errorf("error initializing istio monitor: %w", err)
-	}
-
 	return &sslProgram{
 		cfg:           c,
 		watcher:       watcher,
-		istioMonitor:  istio,
 		nodeJSMonitor: nodejs,
 	}, nil
 }
@@ -508,7 +501,6 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart() error {
 	o.watcher.Start()
-	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
 }
@@ -521,7 +513,6 @@ func (o *sslProgram) PostStart() error {
 // Stop stops the program.
 func (o *sslProgram) Stop() {
 	o.watcher.Stop()
-	o.istioMonitor.Stop()
 	o.nodeJSMonitor.Stop()
 }
 
