@@ -716,6 +716,7 @@ func GetKubeSecret(namespace string, name string) (map[string][]byte, error) {
 	return secret.Data, nil
 }
 
+// QueryRawPodListFromNode returns a raw list of pods running on a specific node.
 func (c *APIClient) QueryRawPodListFromNode(ctx context.Context, nodeName string) ([]byte, error) {
 	fieldSelector := fmt.Sprintf("spec.nodeName=%s", nodeName)
 

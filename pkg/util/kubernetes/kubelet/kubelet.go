@@ -196,10 +196,13 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	stats, err := ku.GetLocalStatsSummary(ctx)
+	fmt.Printf("StatsSummary: %v | error: %v\n", stats, err)
 	if err == nil && stats.Node.NodeName != "" {
+		fmt.Printf("Wrong spot!")
 		return stats.Node.NodeName, nil
 	}
 
+	fmt.Printf("About to query local pod list\n")
 	pods, err := ku.GetLocalPodList(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
@@ -232,12 +235,13 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*types.PodList, error)
 	var code int
 	var err error
 
-	if ku.useAPIServer {
+	/*if ku.useAPIServer {
 		data, err = ku.apiClient.QueryRawPodListFromNode(ctx, ku.nodeName)
 		code = http.StatusOK
 	} else {
 		data, code, err = ku.QueryKubelet(ctx, kubeletPodPath)
-	}
+	}*/
+	data, code, err = ku.QueryKubelet(ctx, kubeletPodPath)
 
 	if err != nil {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
