@@ -22,6 +22,7 @@ require (
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
