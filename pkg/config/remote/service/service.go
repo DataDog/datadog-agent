@@ -827,7 +827,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 	if expires.Before(time.Now()) {
-		log.Errorf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
+		log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
 		return s.flushCacheResponse()
 	}
 
@@ -872,7 +872,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		Targets:       canonicalTargets,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
-		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED,
+		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_OK,
 	}, nil
 }
 

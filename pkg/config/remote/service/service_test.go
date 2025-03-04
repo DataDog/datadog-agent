@@ -416,7 +416,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 }
 
-func TestClientGetConfigsEmptiesCacheForExpiredSignature(t *testing.T) {
+func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
@@ -568,6 +568,10 @@ func TestService(t *testing.T) {
 			"datadog/2/APM_SAMPLING/id/1",
 			"datadog/2/APM_SAMPLING/id/2",
 		},
+	)
+	assert.ElementsMatch(t,
+		configResponse.ConfigStatus,
+		pbgo.ConfigStatus_CONFIG_STATUS_OK,
 	)
 	err = service.refresh()
 	assert.NoError(t, err)
