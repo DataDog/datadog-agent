@@ -435,6 +435,7 @@ func TestClientGetConfigsEmptiesCacheForExpiredSignature(t *testing.T) {
 	}
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
 	uptaneClient.On("TimestampExpires").Return(time.Now().Add(-1*time.Hour), nil)
+	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
 
 	service.clients.seen(client)
 	newConfig, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
