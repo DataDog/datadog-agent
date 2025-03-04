@@ -6,10 +6,12 @@
 package aggregator
 
 import (
+	"os"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -23,6 +25,10 @@ func NewStatsdDirect(demux DemultiplexerWithAggregator) (ddgostatsd.ClientInterf
 		demux:            demux,
 		eventsChan:       eventsChan,
 		serviceCheckChan: serviceCheckChan,
+		origin: taggertypes.OriginInfo{
+			LocalData:     origindetection.LocalData{ProcessID: uint32(os.Getpid())},
+			ProductOrigin: origindetection.ProductOriginDogStatsD,
+		},
 	}, nil
 }
 
@@ -32,6 +38,7 @@ type statsdDirect struct {
 	demux            DemultiplexerWithAggregator
 	eventsChan       chan []*event.Event
 	serviceCheckChan chan []*servicecheck.ServiceCheck
+	origin           taggertypes.OriginInfo
 }
 
 func (s statsdDirect) Gauge(name string, value float64, tags []string, rate float64) error {
@@ -42,6 +49,7 @@ func (s statsdDirect) Gauge(name string, value float64, tags []string, rate floa
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
+		OriginInfo: s.origin,
 	})
 	return nil
 }
@@ -54,6 +62,7 @@ func (s statsdDirect) GaugeWithTimestamp(name string, value float64, tags []stri
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(timestamp.Unix()),
+		OriginInfo: s.origin,
 	})
 	return nil
 }
@@ -66,6 +75,7 @@ func (s statsdDirect) Count(name string, value int64, tags []string, rate float6
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
+		OriginInfo: s.origin,
 	})
 	return nil
 }
@@ -78,6 +88,7 @@ func (s statsdDirect) CountWithTimestamp(name string, value int64, tags []string
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(timestamp.Unix()),
+		OriginInfo: s.origin,
 	})
 	return nil
 }
@@ -90,6 +101,7 @@ func (s statsdDirect) Histogram(name string, value float64, tags []string, rate 
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
+		OriginInfo: s.origin,
 	})
 	return nil
 }
@@ -102,6 +114,7 @@ func (s statsdDirect) Distribution(name string, value float64, tags []string, ra
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
+		OriginInfo: s.origin,
 	})
 	return nil
 }
@@ -122,6 +135,7 @@ func (s statsdDirect) Set(name string, value string, tags []string, rate float64
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
+		OriginInfo: s.origin,
 	})
 	return nil
 }
@@ -138,6 +152,7 @@ func (s statsdDirect) TimeInMilliseconds(name string, value float64, tags []stri
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
+		OriginInfo: s.origin,
 	})
 	return nil
 }
@@ -156,15 +171,16 @@ func (s statsdDirect) Event(e *ddgostatsd.Event) error {
 		AggregationKey: e.AggregationKey,
 		SourceTypeName: e.SourceTypeName,
 		EventType:      "",
-		OriginInfo:     taggertypes.OriginInfo{},
+		OriginInfo:     s.origin,
 	}}
 	return nil
 }
 
 func (s statsdDirect) SimpleEvent(title, text string) error {
 	s.eventsChan <- []*event.Event{{
-		Title: title,
-		Text:  text,
+		Title:      title,
+		Text:       text,
+		OriginInfo: s.origin,
 	}}
 	return nil
 }
@@ -177,15 +193,16 @@ func (s statsdDirect) ServiceCheck(sc *ddgostatsd.ServiceCheck) error {
 		Status:     servicecheck.ServiceCheckStatus(sc.Status),
 		Message:    sc.Message,
 		Tags:       sc.Tags,
-		OriginInfo: taggertypes.OriginInfo{},
+		OriginInfo: s.origin,
 	}}
 	return nil
 }
 
 func (s statsdDirect) SimpleServiceCheck(name string, status ddgostatsd.ServiceCheckStatus) error {
 	s.serviceCheckChan <- []*servicecheck.ServiceCheck{{
-		CheckName: name,
-		Status:    servicecheck.ServiceCheckStatus(status),
+		CheckName:  name,
+		Status:     servicecheck.ServiceCheckStatus(status),
+		OriginInfo: s.origin,
 	}}
 	return nil
 }
