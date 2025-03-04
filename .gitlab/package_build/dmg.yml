@@ -108,7 +108,12 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    - rm -rf ~/homebrew
+    # Testing xcode
+    - ls /Library/Developer/CommandLineTools
+    - ls /Library/Developer/CommandLineTools/usr/bin
+    - sudo xcodes select 15.2
+
+
     - |
       if ! [ -f ~/homebrew/bin/brew ]; then
         echo "WARNING: Homebrew not found, doing setup again"
@@ -325,9 +330,10 @@ new-agent_dmg-x64-a7:
       echo "PATH: $PATH"
       which go
 
-
     - echo Setting up custom homebrew env
     - export PATH="$HOME/bin:$HOME/homebrew/bin:$HOME/rust/rustup/bin:$HOME/rust/cargo/bin"
+    - export PATH="/Library/Developer/CommandLineTools/usr/bin:$PATH"
+    - sudo xcodes select 15.2
     - ls ~/rust/rustup/bin || true
     - python3 --version
     - rustup --version || true
@@ -344,7 +350,9 @@ new-agent_dmg-x64-a7:
       eval "$(gimme $GO_VERSION)"
       go version || true
 
-    # Build
+    # +=========================+
+    # +--------- BUILD ---------+
+    # +=========================+
     - bash .gitlab/package_build/build_script.sh
     # TODO: Other things...
 
