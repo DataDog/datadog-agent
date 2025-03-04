@@ -85,7 +85,7 @@ func SetupEmr(s *common.Setup) error {
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
-	
+
 	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
 		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
 		DSMEnabled := common.InjectTracerConfigEnvVar{
