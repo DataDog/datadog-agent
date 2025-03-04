@@ -5,10 +5,17 @@
 
 //go:build !linux
 
-package flare
+package securityagent
 
 import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-func addSystemProbePlatformSpecificEntries(_ flaretypes.FlareBuilder) {}
+func addSecurityAgentPlatformSpecificEntries(_ flaretypes.FlareBuilder) {}
+
+// only used in tests when running on linux
+var linuxKernelSymbols = getLinuxKernelSymbols //nolint:unused
+
+func getLinuxKernelSymbols(_ flaretypes.FlareBuilder) error { //nolint:unused
+	return nil
+}
