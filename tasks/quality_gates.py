@@ -216,5 +216,5 @@ def notify_threshold_update(pr_url):
     client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     emojis = client.emoji_list()
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
-    message = f'Hello :{random.choice(waves)}:!\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nCould you please have a look?\nThanks in advance!'
+    message = f'Hello :{random.choice(waves)}:!\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
     client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
