@@ -68,7 +68,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.run_in_core_agent.enabled",
-			defaultValue: false,
+			defaultValue: runtime.GOOS == "linux",
 		},
 		{
 			key:          "process_config.queue_size",
@@ -141,6 +141,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 		{
 			key:          "process_config.language_detection.grpc_port",
 			defaultValue: DefaultProcessEntityStreamPort,
+		},
+		{
+			key:          "process_config.intervals.connections",
+			defaultValue: nil,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -457,6 +461,12 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_LANGUAGE_DETECTION_GRPC_PORT",
 			value:    "5431",
 			expected: 5431,
+		},
+		{
+			key:      "process_config.intervals.connections",
+			env:      "DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS",
+			value:    "10",
+			expected: "10",
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {

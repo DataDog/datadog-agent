@@ -27,6 +27,7 @@ func TestFixup(t *testing.T) {
 	assert.Equal(t, meta.Name, "unnamed-service")
 	assert.Equal(t, meta.DDService, "")
 
-	meta = fixupMetadata(usm.ServiceMetadata{Name: "foo", AdditionalNames: []string{"bar", "baz"}}, language.Go)
-	assert.Equal(t, meta.Name, "foo-bar-baz")
+	meta = fixupMetadata(usm.ServiceMetadata{Name: "foo", AdditionalNames: []string{"bAr", "  ", "*", "baz", "a"}}, language.Go)
+	assert.Equal(t, "foo", meta.Name)
+	assert.Equal(t, []string{"a", "bar", "baz"}, meta.AdditionalNames)
 }

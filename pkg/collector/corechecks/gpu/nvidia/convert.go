@@ -34,10 +34,10 @@ func readDoubleFromBuffer[T number](reader io.Reader) (float64, error) {
 	return float64(value), err
 }
 
-func metricValueToDouble(val nvml.FieldValue) (float64, error) {
-	reader := bytes.NewReader(val.Value[:])
+func metricValueToDouble(valueType nvml.ValueType, value [8]byte) (float64, error) {
+	reader := bytes.NewReader(value[:])
 
-	switch nvml.ValueType(val.ValueType) {
+	switch nvml.ValueType(valueType) {
 	case nvml.VALUE_TYPE_DOUBLE:
 		return readDoubleFromBuffer[float64](reader)
 	case nvml.VALUE_TYPE_UNSIGNED_INT:
@@ -51,5 +51,5 @@ func metricValueToDouble(val nvml.FieldValue) (float64, error) {
 		return readDoubleFromBuffer[int32](reader)
 	}
 
-	return 0, fmt.Errorf("unsupported value type %d", val.ValueType)
+	return 0, fmt.Errorf("unsupported value type %d", valueType)
 }

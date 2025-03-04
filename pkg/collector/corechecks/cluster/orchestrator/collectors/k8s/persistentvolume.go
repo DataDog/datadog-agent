@@ -44,16 +44,17 @@ func NewPersistentVolumeCollector(metadataAsTags utils.MetadataAsTags) *Persiste
 
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      persistentVolumeName,
-			NodeType:                  orchestrator.K8sPersistentVolume,
-			Version:                   persistentVolumeVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 persistentVolumeName,
+			NodeType:                             orchestrator.K8sPersistentVolume,
+			Version:                              persistentVolumeVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),
 	}

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -21,15 +22,14 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
@@ -95,8 +95,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 
 	app.RequireStart()
 
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	assert.True(t, npCollector.running)
 
@@ -230,17 +229,6 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
 	// THEN
-	calls := stats.GaugeCalls
-	tags := []string{
-		"collector:network_path_collector",
-		"destination_hostname:abc",
-		"destination_ip:10.0.0.4",
-		"destination_port:80",
-		"origin:network_traffic",
-		"protocol:UDP",
-	}
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.path.monitored", Value: 1, Tags: tags, Rate: 1})
-
 	assert.Equal(t, uint64(2), npCollector.processedTracerouteCount.Load())
 	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
 
@@ -255,8 +243,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	conns := []*model.Connection{
 		{
@@ -284,7 +271,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 
 	// THEN
 	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule_duration", Value: 60.0, Tags: nil, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.duration", Value: 60.0, Tags: nil, Rate: 1})
 }
 
 func compactJSON(metadataEvent []byte) []byte {
@@ -302,9 +289,9 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 
 	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 4, npCollector.workers)
-	assert.Equal(t, 100000, cap(npCollector.pathtestInputChan))
-	assert.Equal(t, 100000, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 100000, npCollector.collectorConfigs.pathtestContextsLimit)
+	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
+	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, 5000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
@@ -324,7 +311,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	assert.Equal(t, 2, npCollector.workers)
 	assert.Equal(t, 300, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 400, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 500, npCollector.collectorConfigs.pathtestContextsLimit)
+	assert.Equal(t, 500, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "ns1", npCollector.networkDevicesNamespace)
 }
 
@@ -514,7 +501,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			utillog.SetupLogger(l, "debug")
 
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			npCollector.initStatsdClient(stats)
 
 			npCollector.ScheduleConns(tt.conns, tt.dns)
 
@@ -538,13 +525,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			var scheduleDurationMetric teststatsd.MetricsArgs
 			calls := stats.GaugeCalls
 			for _, call := range calls {
-				if call.Name == "datadog.network_path.collector.schedule_duration" {
+				if call.Name == "datadog.network_path.collector.schedule.duration" {
 					scheduleDurationMetric = call
 				}
 			}
 			assert.Less(t, scheduleDurationMetric.Value, float64(5)) // we can't easily assert precise value, hence we are only asserting that it's a low value e.g. 5 seconds
 			scheduleDurationMetric.Value = 0                         // We need to reset the metric value to ease testing time duration
-			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule_duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
+			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule.duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
 
 			// Test using logs
 			for _, expectedLog := range tt.expectedLogs {
@@ -596,10 +583,10 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			flushStartTime: MockTimeNow(),
 			flushEndTime:   MockTimeNow().Add(500 * time.Millisecond),
 			notExpectedMetrics: []string{
-				"datadog.network_path.collector.flush_interval",
+				"datadog.network_path.collector.flush.interval",
 			},
 			expectedMetrics: []teststatsd.MetricsArgs{
-				{Name: "datadog.network_path.collector.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.duration", Value: 0.5, Tags: []string{}, Rate: 1},
 			},
 		},
 		{
@@ -609,8 +596,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			lastFlushTime:      MockTimeNow().Add(-2 * time.Minute),
 			notExpectedMetrics: []string{},
 			expectedMetrics: []teststatsd.MetricsArgs{
-				{Name: "datadog.network_path.collector.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
-				{Name: "datadog.network_path.collector.flush_interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush.interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
 			},
 		},
 	}
@@ -623,7 +610,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			_, npCollector := newTestNpCollector(t, agentConfigs)
 
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			npCollector.initStatsdClient(stats)
+
 			npCollector.TimeNowFn = func() time.Time {
 				return tt.flushEndTime
 			}
@@ -648,27 +636,35 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 }
 
 func Test_npCollectorImpl_flush(t *testing.T) {
+	mockNow := time.Now()
+	mockTimeNow := func() time.Time {
+		return mockNow
+	}
+
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              6,
 	}
 	_, npCollector := newTestNpCollector(t, agentConfigs)
+	npCollector.TimeNowFn = mockTimeNow
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
+
+	// simulate some time passing so that the PathTestStore rate limit has some budget to work with
+	mockNow = mockNow.Add(10 * time.Second)
 
 	// WHEN
 	npCollector.flush()
 
 	// THEN
-	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_processing_chan_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.GaugeCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.processing_chan_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, stats.CountCalls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.flush.pathtest_count", Value: 2, Tags: []string{}, Rate: 1})
 
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
@@ -684,7 +680,7 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 	defer npCollector.stop()
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	npCollector.initStatsdClient(stats)
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
 
@@ -693,7 +689,7 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 
 	// THEN
 	assert.Eventually(t, func() bool {
-		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush_interval"]
+		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush.interval"]
 		if calls == nil {
 			return false
 		}
@@ -702,51 +698,6 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 		}
 		return len(calls.Calls) >= 3
 	}, 3*time.Second, 10*time.Millisecond)
-}
-
-func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
-	// GIVEN
-	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.workers":              6,
-	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
-
-	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
-	path := payload.NetworkPath{
-		Origin:      payload.PathOriginNetworkTraffic,
-		Source:      payload.NetworkPathSource{Hostname: "abc"},
-		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
-		Protocol:    payload.ProtocolUDP,
-		Hops: []payload.NetworkPathHop{
-			{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-			{Hostname: "hop_2", IPAddress: "1.1.1.2"},
-		},
-	}
-	ptestCtx := &pathteststore.PathtestContext{
-		Pathtest: &common.Pathtest{Hostname: "10.0.0.2", Port: 80, Protocol: payload.ProtocolUDP},
-	}
-	ptestCtx.SetLastFlushInterval(2 * time.Minute)
-	npCollector.TimeNowFn = MockTimeNow
-	checkStartTime := MockTimeNow().Add(-3 * time.Second)
-
-	// WHEN
-	npCollector.sendTelemetry(path, checkStartTime, ptestCtx)
-
-	// THEN
-	calls := stats.GaugeCalls
-	tags := []string{
-		"collector:network_path_collector",
-		"destination_hostname:abc",
-		"destination_ip:10.0.0.2",
-		"destination_port:80",
-		"origin:network_traffic",
-		"protocol:UDP",
-	}
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_duration", Value: 3, Tags: tags, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_interval", Value: (2 * time.Minute).Seconds(), Tags: tags, Rate: 1})
 }
 
 func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
@@ -796,8 +747,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -848,8 +798,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	}
 	_, npCollector = newTestNpCollector(t, agentConfigs)
 
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -881,8 +830,7 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	// WHEN
 	path := payload.NetworkPath{
@@ -905,8 +853,7 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.initStatsdClient(stats)
 
 	tts := []struct {
 		description string
@@ -961,4 +908,224 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+var subnetSkippedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricName, Value: 1, Tags: []string{"reason:skip_intra_vpc"}, Rate: 1}
+
+func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
+	tests := []struct {
+		name           string
+		conn           *model.Connection
+		vpcSubnets     []*net.IPNet
+		shouldSchedule bool
+		subnetSkipped  bool
+	}{
+		{
+			name: "should schedule",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name: "should not schedule incoming conn",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_incoming,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule conn with none direction",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_none,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule ipv6",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v6,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule for loopback",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "should not schedule for intrahost",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+				IntraHost: true,
+			},
+			shouldSchedule: false,
+		},
+		// intra-vpc subnet skipping tests
+		{
+			name: "VPC: random subnet should schedule anyway",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: true,
+			subnetSkipped:  false,
+		},
+		{
+			name: "VPC: relevant subnet should skip",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
+		{
+			name: "VPC: shouldn't skip local address even if the subnet matches",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			shouldSchedule: true,
+			subnetSkipped:  false,
+		},
+		{
+			name: "VPC: translated clusterIP should get matched",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplDstPort: int32(80),
+					ReplDstIP:   "10.1.2.3",
+				},
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
+		{
+			name: "VPC: source translation existing shouldn't break subnet check",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				IpTranslation: &model.IPTranslation{
+					ReplSrcPort: int32(30000),
+					ReplSrcIP:   "192.168.1.2",
+					// ReplDstIP is the empty string
+				},
+			},
+			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			shouldSchedule: false,
+			subnetSkipped:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agentConfigs := map[string]any{
+				"network_path.connections_monitoring.enabled":         true,
+				"network_path.collector.disable_intra_vpc_collection": true,
+			}
+			_, npCollector := newTestNpCollector(t, agentConfigs)
+
+			stats := &teststatsd.Client{}
+			npCollector.statsdClient = stats
+
+			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
+
+			if tt.subnetSkipped {
+				require.Contains(t, stats.CountCalls, subnetSkippedStat)
+			} else {
+				require.NotContains(t, stats.CountCalls, subnetSkippedStat)
+			}
+		})
+	}
+}
+
+func mustParseCIDR(t *testing.T, cidr string) *net.IPNet {
+	_, ipNet, err := net.ParseCIDR(cidr)
+	assert.Nil(t, err)
+	return ipNet
+}
+
+func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T) {
+	tests := []struct {
+		name           string
+		conn           *model.Connection
+		vpcSubnets     []*net.IPNet
+		shouldSchedule bool
+		subnetSkipped  bool
+	}{
+		{
+			name: "should schedule",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			vpcSubnets:     nil,
+			shouldSchedule: true,
+			subnetSkipped:  false,
+		},
+		{
+			name: "should not schedule incoming conn",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_incoming,
+				Family:    model.ConnectionFamily_v4,
+			},
+			vpcSubnets:     nil,
+			shouldSchedule: false,
+			subnetSkipped:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agentConfigs := map[string]any{
+				"network_path.connections_monitoring.enabled":         true,
+				"network_path.collector.disable_intra_vpc_collection": true,
+			}
+			_, npCollector := newTestNpCollector(t, agentConfigs)
+
+			stats := &teststatsd.Client{}
+			npCollector.statsdClient = stats
+
+			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
+
+			if tt.subnetSkipped {
+				require.Contains(t, stats.CountCalls, subnetSkippedStat)
+			} else {
+				require.NotContains(t, stats.CountCalls, subnetSkippedStat)
+			}
+		})
+	}
+
 }

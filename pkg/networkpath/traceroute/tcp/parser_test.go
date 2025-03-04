@@ -59,9 +59,14 @@ func Test_parseTCP(t *testing.T) {
 			inHeader:    ipv4Header,
 			inPayload:   fullTCPPacket,
 			expected: &tcpResponse{
-				SrcIP:       srcIP,
-				DstIP:       dstIP,
-				TCPResponse: *encodedTCPLayer,
+				SrcIP:   srcIP,
+				DstIP:   dstIP,
+				SrcPort: uint16(encodedTCPLayer.SrcPort),
+				DstPort: uint16(encodedTCPLayer.DstPort),
+				SYN:     encodedTCPLayer.SYN,
+				ACK:     encodedTCPLayer.ACK,
+				RST:     encodedTCPLayer.RST,
+				AckNum:  encodedTCPLayer.Ack,
 			},
 			errMsg: "",
 		},
@@ -83,7 +88,12 @@ func Test_parseTCP(t *testing.T) {
 			assert.Equal(t, testutils.StructFieldCount(test.expected), testutils.StructFieldCount(actual))
 			assert.Truef(t, test.expected.SrcIP.Equal(actual.SrcIP), "mismatch source IPs: expected %s, got %s", test.expected.SrcIP.String(), actual.SrcIP.String())
 			assert.Truef(t, test.expected.DstIP.Equal(actual.DstIP), "mismatch dest IPs: expected %s, got %s", test.expected.DstIP.String(), actual.DstIP.String())
-			assert.Equal(t, test.expected.TCPResponse, actual.TCPResponse)
+			assert.Equal(t, test.expected.SrcPort, actual.SrcPort)
+			assert.Equal(t, test.expected.DstPort, actual.DstPort)
+			assert.Equal(t, test.expected.SYN, actual.SYN)
+			assert.Equal(t, test.expected.ACK, actual.ACK)
+			assert.Equal(t, test.expected.RST, actual.RST)
+			assert.Equal(t, test.expected.AckNum, actual.AckNum)
 		})
 	}
 }

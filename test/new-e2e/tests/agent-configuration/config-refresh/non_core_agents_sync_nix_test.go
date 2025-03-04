@@ -21,7 +21,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type configRefreshLinuxSuite struct {
@@ -42,7 +42,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, rootDir)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
 	secretClient.SetSecret("api_key", apiKey1)
 
 	// fill the config template
@@ -62,7 +62,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			secrets.WithUnixSecretSetupScript(secretResolverPath, true),
+			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config

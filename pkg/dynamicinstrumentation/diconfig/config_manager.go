@@ -127,11 +127,12 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 	svcConfigProbe := *configProbe
 	svcConfigProbe.ServiceName = procInfo.ServiceName
 	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
+
 	log.Infof("Installing config probe for service: %s", svcConfigProbe.ServiceName)
-	err = AnalyzeBinary(procInfo)
-	if err != nil {
-		return fmt.Errorf("could not analyze binary for config probe: %w", err)
+	procInfo.TypeMap = &ditypes.TypeMap{
+		Functions: make(map[string][]*ditypes.Parameter),
 	}
+	procInfo.TypeMap.Functions[ditypes.RemoteConfigCallback] = remoteConfigCallbackTypeMapEntry
 
 	err = codegen.GenerateBPFParamsCode(procInfo, configProbe)
 	if err != nil {
@@ -290,11 +291,11 @@ generateCompileAttach:
 func newConfigProbe() *ditypes.Probe {
 	return &ditypes.Probe{
 		ID:       ditypes.ConfigBPFProbeID,
-		FuncName: "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration",
+		FuncName: ditypes.RemoteConfigCallback,
 		InstrumentationInfo: &ditypes.InstrumentationInfo{
 			InstrumentationOptions: &ditypes.InstrumentationOptions{
-				ArgumentsMaxSize:  50000,
-				StringMaxSize:     10000,
+				ArgumentsMaxSize:  ConfigProbeArgumentsMaxSize,
+				StringMaxSize:     ConfigProbeStringMaxSize,
 				MaxFieldCount:     int(ditypes.MaxFieldCount),
 				MaxReferenceDepth: 8,
 				CaptureParameters: true,
@@ -303,3 +304,10 @@ func newConfigProbe() *ditypes.Probe {
 		RateLimiter: ratelimiter.NewSingleEventRateLimiter(0),
 	}
 }
+
+const (
+	// ConfigProbeArgumentsMaxSize is the maximum size of the raw argument buffer
+	ConfigProbeArgumentsMaxSize = 50000
+	// ConfigProbeStringMaxSize is the maximum allowed size of instrumented string parameters/fields
+	ConfigProbeStringMaxSize = 10000
+)

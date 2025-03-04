@@ -7,7 +7,10 @@ package cloudproviders
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
+	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -17,7 +20,8 @@ import (
 )
 
 const (
-	networkIDCacheKey = "networkID"
+	networkIDCacheKey         = "networkID"
+	vpcSubnetsForHostCacheKey = "vpcSubnetsForHost"
 )
 
 // GetNetworkID retrieves the network_id which can be used to improve network
@@ -50,6 +54,43 @@ func GetNetworkID(ctx context.Context) (string, error) {
 				return networkID, nil
 			}
 
-			return "", fmt.Errorf("could not detect network ID: %s", err)
+			return "", fmt.Errorf("could not detect network ID: %w", err)
 		})
+}
+
+func getVPCSubnetsForHostImpl(ctx context.Context) ([]string, error) {
+	subnets, ec2err := ec2.GetVPCSubnetsForHost(ctx)
+	if ec2err == nil {
+		return subnets, nil
+	}
+
+	// TODO support GCE, azure
+
+	return nil, fmt.Errorf("could not detect VPC subnets: %w", errors.Join(ec2err))
+}
+
+// use a global to allow easy mocking
+var getVPCSubnetsForHost = getVPCSubnetsForHostImpl
+
+// GetVPCSubnetsForHost gets all the subnets in the VPCs this host has network interfaces for
+func GetVPCSubnetsForHost(ctx context.Context) ([]*net.IPNet, error) {
+	return cache.GetWithExpiration[[]*net.IPNet](
+		vpcSubnetsForHostCacheKey,
+		func() ([]*net.IPNet, error) {
+			subnets, err := getVPCSubnetsForHost(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			var parsedSubnets []*net.IPNet
+			for _, subnet := range subnets {
+				_, ipnet, err := net.ParseCIDR(subnet)
+				if err != nil {
+					return nil, err
+				}
+				parsedSubnets = append(parsedSubnets, ipnet)
+			}
+
+			return parsedSubnets, nil
+		}, 15*time.Minute)
 }

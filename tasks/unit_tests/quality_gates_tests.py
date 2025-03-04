@@ -5,8 +5,8 @@ from unittest.mock import ANY, MagicMock, patch
 from invoke import Context, MockContext, Result
 
 from tasks.quality_gates import display_pr_comment
+from tasks.static_quality_gates.lib.docker_agent_lib import calculate_image_on_disk_size
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
-from tasks.static_quality_gates.static_quality_gate_docker_agent_amd64 import calculate_image_on_disk_size
 
 
 class TestQualityGatesPrMessage(unittest.TestCase):
@@ -38,7 +38,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         pr_commenter_mock.assert_called_with(
             ANY,
             title='Static quality checks ✅',
-            body='Please find below the results from static quality gates\n\n\n### Info\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|✅|gateA|10MiB|10MiB|10MiB|10MiB|\n|✅|gateB|10MiB|10MiB|10MiB|10MiB|\n',
+            body='Please find below the results from static quality gates\n\n\n<details>\n<summary>Successful checks</summary>\n\n### Info\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|✅|gateA|10MiB|10MiB|10MiB|10MiB|\n|✅|gateB|10MiB|10MiB|10MiB|10MiB|\n\n</details>\n',
         )
 
     @patch.dict(
@@ -100,7 +100,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         pr_commenter_mock.assert_called_with(
             ANY,
             title='Static quality checks ❌',
-            body='Please find below the results from static quality gates\n### Error\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|❌|gateA|10MiB|10MiB|10MiB|10MiB|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\n\n### Info\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|✅|gateB|10MiB|10MiB|10MiB|10MiB|\n',
+            body='Please find below the results from static quality gates\n### Error\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|❌|gateA|10MiB|10MiB|10MiB|10MiB|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\n\n<details>\n<summary>Successful checks</summary>\n\n### Info\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|✅|gateB|10MiB|10MiB|10MiB|10MiB|\n\n</details>\n',
         )
 
     @patch.dict(
@@ -149,12 +149,12 @@ class DynamicMockContext:
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
     def tearDown(self):
         try:
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_archive.tar.gz')
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/some_metadata.json')
         except OSError:
             pass
         try:
-            os.remove('rm ./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
+            os.remove('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
         except OSError:
             pass
 

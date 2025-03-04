@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    When there are no pinned library versions in the autoinstrumentation webhook,
+    use detected languages to omit unnecessary libraries.

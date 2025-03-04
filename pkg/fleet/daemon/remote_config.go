@@ -75,9 +75,14 @@ func (rc *remoteConfig) SetState(state *pbgo.ClientUpdater) {
 	rc.client.SetInstallerState(state)
 }
 
+type installerConfigFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}
+
 type installerConfig struct {
-	ID      string          `json:"id"`
-	Configs json.RawMessage `json:"configs"`
+	ID    string                `json:"id"`
+	Files []installerConfigFile `json:"files"`
 }
 
 type handleConfigsUpdate func(configs map[string]installerConfig) error
@@ -92,6 +97,33 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 				log.Errorf("could not unmarshal installer config: %s", err)
 				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 				return
+			}
+			// Backward compatibility with legacy installer configs.
+			var legacyConfigs struct {
+				Configs struct {
+					DatadogYAML       json.RawMessage `json:"datadog.yaml,omitempty"`
+					SecurityAgentYAML json.RawMessage `json:"security-agent.yaml,omitempty"`
+					SystemProbeYAML   json.RawMessage `json:"system-probe.yaml,omitempty"`
+					APMLibrariesYAML  json.RawMessage `json:"application_monitoring.yaml,omitempty"`
+				} `json:"configs"`
+			}
+			err = json.Unmarshal(config.Config, &legacyConfigs)
+			if err != nil {
+				log.Errorf("could not unmarshal legacy installer config: %s", err)
+				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+				return
+			}
+			if len(legacyConfigs.Configs.DatadogYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/datadog.yaml", Contents: legacyConfigs.Configs.DatadogYAML})
+			}
+			if len(legacyConfigs.Configs.SecurityAgentYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/security-agent.yaml", Contents: legacyConfigs.Configs.SecurityAgentYAML})
+			}
+			if len(legacyConfigs.Configs.SystemProbeYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/system-probe.yaml", Contents: legacyConfigs.Configs.SystemProbeYAML})
+			}
+			if len(legacyConfigs.Configs.APMLibrariesYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/application_monitoring.yaml", Contents: legacyConfigs.Configs.APMLibrariesYAML})
 			}
 			installerConfigs[installerConfig.ID] = installerConfig
 		}

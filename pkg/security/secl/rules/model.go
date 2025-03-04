@@ -32,14 +32,14 @@ type OverrideField = string
 const (
 	// OverrideAllFields used to override all the fields
 	OverrideAllFields OverrideField = "all"
-	// OverrideExpressionField used to override the expression
-	OverrideExpressionField OverrideField = "expression"
 	// OverrideActionFields used to override the actions
 	OverrideActionFields OverrideField = "actions"
 	// OverrideEveryField used to override the every field
 	OverrideEveryField OverrideField = "every"
 	// OverrideTagsField used to override the tags
 	OverrideTagsField OverrideField = "tags"
+	// OverrideProductTagsField used to override the product_tags field
+	OverrideProductTagsField OverrideField = "product_tags"
 )
 
 // OverrideOptions defines combine options
@@ -68,6 +68,7 @@ type RuleDefinition struct {
 	Expression             string                 `yaml:"expression" json:"expression,omitempty"`
 	Description            string                 `yaml:"description,omitempty" json:"description,omitempty"`
 	Tags                   map[string]string      `yaml:"tags,omitempty" json:"tags,omitempty"`
+	ProductTags            []string               `yaml:"product_tags,omitempty" json:"product_tags,omitempty"`
 	AgentVersionConstraint string                 `yaml:"agent_version,omitempty" json:"agent_version,omitempty"`
 	Filters                []string               `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Disabled               bool                   `yaml:"disabled,omitempty" json:"disabled,omitempty"`
@@ -137,7 +138,7 @@ type SetDefinition struct {
 	Value  interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
 	Field  string                 `yaml:"field" json:"field,omitempty" jsonschema:"oneof_required=SetWithField"`
 	Append bool                   `yaml:"append" json:"append,omitempty"`
-	Scope  Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	Scope  Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
 	Size   int                    `yaml:"size" json:"size,omitempty"`
 	TTL    *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
 }

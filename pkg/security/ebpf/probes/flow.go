@@ -27,6 +27,24 @@ func getFlowProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_inet_csk_destroy_sock",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_sk_destruct",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_inet_put_port",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_sk_common_release",
 			},
 		},

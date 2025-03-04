@@ -138,9 +138,9 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 		t.log.Debugf("Resolving container ID from PID: %d", originInfo.LocalData.ProcessID)
 		containerID, err = metaCollector.GetContainerIDForPID(int(originInfo.LocalData.ProcessID), pidCacheTTL)
 		if err != nil {
-			t.log.Errorf("Error resolving container ID from PID: %v", err)
+			t.log.Debugf("Error resolving container ID from PID: %v", err)
 		} else if containerID == "" {
-			t.log.Errorf("No container ID found for PID: %d", originInfo.LocalData.ProcessID)
+			t.log.Debugf("No container ID found for PID: %d", originInfo.LocalData.ProcessID)
 		} else {
 			return
 		}
@@ -151,9 +151,9 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 		t.log.Debugf("Resolving container ID from inode: %d", originInfo.LocalData.Inode)
 		containerID, err = metaCollector.GetContainerIDForInode(originInfo.LocalData.Inode, inodeCacheTTL)
 		if err != nil {
-			t.log.Errorf("Error resolving container ID from inode: %v", err)
+			t.log.Debugf("Error resolving container ID from inode: %v", err)
 		} else if containerID == "" {
-			t.log.Errorf("No container ID found for inode: %d", originInfo.LocalData.Inode)
+			t.log.Debugf("No container ID found for inode: %d", originInfo.LocalData.Inode)
 		} else {
 			return
 		}
@@ -164,9 +164,9 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 		t.log.Debugf("Resolving container ID from ExternalData: %+v", originInfo.ExternalData)
 		containerID, err = metaCollector.ContainerIDForPodUIDAndContName(originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init, externalDataCacheTTL)
 		if err != nil {
-			t.log.Errorf("Error resolving container ID from ExternalData: %v", err)
+			t.log.Debugf("Error resolving container ID from ExternalData: %v", err)
 		} else if containerID == "" {
-			t.log.Errorf("No container ID found for ExternalData: %+v", originInfo.ExternalData)
+			t.log.Debugf("No container ID found for ExternalData: %+v", originInfo.ExternalData)
 		} else {
 			return
 		}
@@ -216,12 +216,6 @@ func (t *localTagger) Subscribe(subscriptionID string, filter *types.Filter) (ty
 	return t.tagStore.Subscribe(subscriptionID, filter)
 }
 
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the local tagger
-func (t *localTagger) ReplayTagger() tagger.ReplayTagger {
-	return nil
-}
-
 // GetTaggerTelemetryStore returns tagger telemetry store
 func (t *localTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return t.telemetryStore
@@ -239,16 +233,8 @@ func (t *localTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 	return []string{}, nil
 }
 
-func (t *localTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (t *localTagger) ResetCaptureTagger() {}
-
 func (t *localTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
 
 func (t *localTagger) ChecksCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
-
-func (t *localTagger) DogstatsdCardinality() types.TagCardinality {
 	return types.LowCardinality
 }

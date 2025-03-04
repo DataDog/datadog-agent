@@ -142,16 +142,14 @@ Invoke-BuildScript `
         $TEST_WASHER_FLAG `
         $Env:EXTRA_OPTS
     $err = $LASTEXITCODE
-    If ($err -ne 0) {
-        exit $err
-    }
 
     if ($UploadCoverage) {
         # 1. Upload coverage reports to Codecov
         $Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN")
         & inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
-        if($LASTEXITCODE -ne 0){
-            Write-Host -ForegroundColor Red "coverage upload failed $err"
+        $localErr = $LASTEXITCODE
+        if($localErr -ne 0){
+            Write-Host -ForegroundColor Red "coverage upload failed $localErr"
         }
     }
     if ($UploadTestResults) {
@@ -162,9 +160,15 @@ Invoke-BuildScript `
         }
         $Env:DATADOG_API_KEY=$(Get-VaultSecret -parameterName "$Env:API_KEY_ORG2")
         & inv -e junit-upload --tgz-path $Env:JUNIT_TAR
-        if($LASTEXITCODE -ne 0){
-            Write-Host -ForegroundColor Red "junit upload failed $err"
+        $localErr = $LASTEXITCODE
+        if($localErr -ne 0){
+            Write-Host -ForegroundColor Red "junit upload failed $localErr"
         }
+    }
+    
+    If ($err -ne 0) {
+        Write-Host -ForegroundColor Red "Go test failed $err"
+        exit $err
     }
 
     Write-Host Test passed

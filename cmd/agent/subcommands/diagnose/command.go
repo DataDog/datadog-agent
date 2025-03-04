@@ -12,6 +12,9 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -37,8 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -188,6 +189,20 @@ This command print the inventory-agent metadata payload. This payload is used by
 		},
 	}
 
+	payloadHostGpuCmd := &cobra.Command{
+		Use:   "host-gpu",
+		Short: "[internal] Print the host-gpu agent metadata payload.",
+		Long: `
+This command print the host-gpu metadata payload. This payload is used by the 'host page' product.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("host-gpu")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	payloadInventoriesHostCmd := &cobra.Command{
 		Use:   "inventory-host",
 		Short: "[internal] Print the Inventory host metadata payload.",
@@ -303,6 +318,7 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
+	showPayloadCommand.AddCommand(payloadHostGpuCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)

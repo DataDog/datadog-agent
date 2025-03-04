@@ -10,4 +10,6 @@ package status
 
 // Component is the status interface.
 type Component interface {
+	// GetStatus returns the OTel Agent status in string form
+	GetStatus() (string, error)
 }
