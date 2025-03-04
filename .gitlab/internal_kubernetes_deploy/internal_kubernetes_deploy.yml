@@ -83,7 +83,7 @@ notify-slack:
     # NOTE: The following command is a workaround to avoid this error due to conda when installing requirements: "ModuleNotFoundError: No module named '_distutils_hack'"
     - |
       echo Upgrading setuptools
-      python3 -m pip install -U setuptools -c https://github.com/DataDog/datadog-agent-buildimages/raw/refs/heads/celian/setuptools/requirements/constraints.txt
+      python3 -m pip install -U setuptools -c https://github.com/DataDog/datadog-agent-buildimages/raw/refs/heads/main/requirements/constraints.txt
     - python3 -m pip install -r tasks/requirements.txt -r tasks/libs/requirements-notifications.txt
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?
