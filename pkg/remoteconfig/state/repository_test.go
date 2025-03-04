@@ -116,9 +116,9 @@ func TestUpdateFlushCache(t *testing.T) {
 
 	updatedProducts, err = r.Update(flushUpdate)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(updatedProducts), "An empty update shouldn't indicate any updated products")
-	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shoudldn't add any APM configs")
-	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "An empty update shouldn't add any CWSDD configs")
+	assert.Equal(t, 1, len(updatedProducts), "A flush update should update the existing config")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "A flush update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "A flush update should remove any CWSDD configs")
 
 	state, err := r.CurrentState()
 	assert.NoError(t, err)
@@ -141,9 +141,9 @@ func TestUpdateFlushCache(t *testing.T) {
 	// Now, flush the repo.
 	updatedProducts, err = r.Update(flushUpdate)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(updatedProducts), "An empty update shouldn't indicate any updated products")
-	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shoudldn't add any APM configs")
-	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "An empty update shouldn't add any CWSDD configs")
+	assert.Equal(t, 1, len(updatedProducts), "A flush update should update the existing config")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "A flush update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "A flush update should remove any CWSDD configs")
 
 	state, err = r.CurrentState()
 	assert.NoError(t, err)
