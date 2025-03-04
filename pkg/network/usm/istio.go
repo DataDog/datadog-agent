@@ -146,6 +146,9 @@ type istioMonitor struct {
 	processMonitor *monitor.ProcessMonitor
 }
 
+// Ensure istioMonitor implements the Protocol interface.
+var _ protocols.Protocol = (*istioMonitor)(nil)
+
 func newIstioMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
 	if !c.EnableIstioMonitoring || !usmconfig.TLSSupported(c) {
 		return nil, nil
