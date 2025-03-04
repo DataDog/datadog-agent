@@ -280,7 +280,6 @@ var opensslSpec = &protocols.ProtocolSpec{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe__tcp_sendmsg",
-				UID:          probeUID,
 			},
 		},
 		{
@@ -501,6 +500,9 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg"},
+	})
 }
 
 // PreStart is called before the start of the provided eBPF manager.
