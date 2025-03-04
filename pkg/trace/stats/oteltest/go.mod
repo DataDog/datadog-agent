@@ -11,14 +11,14 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
 	github.com/google/go-cmp v0.6.0
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/collector/component/componenttest v0.120.0
-	go.opentelemetry.io/collector/pdata v1.26.0
-	go.opentelemetry.io/collector/semconv v0.120.0
+	go.opentelemetry.io/collector/component/componenttest v0.121.0
+	go.opentelemetry.io/collector/pdata v1.27.0
+	go.opentelemetry.io/collector/semconv v0.121.0
 	go.opentelemetry.io/otel/metric v1.34.0
 	google.golang.org/protobuf v1.36.5
 )
 
-require go.opentelemetry.io/collector/component v0.120.0 // indirect
+require go.opentelemetry.io/collector/component v1.27.0 // indirect
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect
