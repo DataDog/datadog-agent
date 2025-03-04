@@ -646,6 +646,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	}, nil)
 	uptaneClient.On("TargetFiles", mock.MatchedBy(listsEqual([]string{"datadog/2/APM_SAMPLING/id/1", "datadog/2/APM_SAMPLING/id/2"}))).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
+	uptaneClient.On("TimestampExpires").Return(time.Now().Add(1*time.Hour), nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
 		TraceAgentEnv:                testEnv,
@@ -919,21 +920,11 @@ func TestConfigExpiration(t *testing.T) {
 		},
 	}
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
-	uptaneClient.On("TargetsMeta").Return([]byte(`{"signed": "testtargets"}`), nil)
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
-	uptaneClient.On("Targets").Return(data.TargetFiles{
-		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {Custom: customMeta(nil, 0)},
-		// must not be delivered - expiration date is 9/21/2022
-		"datadog/2/APM_SAMPLING/id/2": {Custom: customMeta(nil, 1663732800)},
-	},
-		nil,
-	)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
 		DirectorRoot:    1,
 		DirectorTargets: 5,
 	}, nil)
-	uptaneClient.On("TargetFiles", []string{"datadog/2/APM_SAMPLING/id/1"}).Return(map[string][]byte{"datadog/2/APM_SAMPLING/id/1": []byte(``), "datadog/2/APM_SAMPLING/id/2": []byte(``)}, nil)
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
@@ -954,15 +945,15 @@ func TestConfigExpiration(t *testing.T) {
 		OrgUuid:            "abcdef",
 		Tags:               getHostTags(),
 	}).Return(lastConfigResponse, nil)
+	uptaneClient.On("TimestampExpires").Return(time.Now().Add(-1*time.Hour), nil)
+	uptaneClient.On("UnsafeTargetsMeta").Return([]byte(`{"signed": "testtargets"}`), nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
 	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
 		configResponse.ClientConfigs,
-		[]string{
-			"datadog/2/APM_SAMPLING/id/1",
-		},
+		[]string{},
 	)
 	err = service.refresh()
 	assert.NoError(err)
