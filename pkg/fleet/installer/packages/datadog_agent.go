@@ -220,15 +220,21 @@ func StartAgentExperiment(ctx context.Context) error {
 	if err := agentPackagePermissions.Ensure("/opt/datadog-packages/datadog-agent/experiment"); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
 	}
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
 	return systemd.StartUnit(ctx, agentExp, "--no-block")
 }
 
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
 	return systemd.StartUnit(ctx, agentUnit)
 }
 
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
+	// detach from the command context as it will be cancelled by a SIGTERM
+	ctx = context.WithoutCancel(ctx)
 	return StopAgentExperiment(ctx)
 }
