@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/discard"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 )
 
@@ -20,6 +21,7 @@ type collectorConfigs struct {
 	pathtestInputChanSize        int
 	pathtestProcessingChanSize   int
 	storeConfig                  pathteststore.Config
+	discardScannerConfig         discard.ScannerConfig
 	flushInterval                time.Duration
 	reverseDNSEnabled            bool
 	reverseDNSTimeout            time.Duration
@@ -41,6 +43,11 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 			Interval:         agentConfig.GetDuration("network_path.collector.pathtest_interval"),
 			MaxPerMinute:     agentConfig.GetInt("network_path.collector.pathtest_max_per_minute"),
 			MaxBurstDuration: agentConfig.GetDuration("network_path.collector.pathtest_max_burst_duration"),
+		},
+		discardScannerConfig: discard.ScannerConfig{
+			Enabled:       agentConfig.GetBool("network_path.collector.discard_scanner.enabled"),
+			CacheCapacity: agentConfig.GetInt64("network_path.collector.discard_scanner.cache_capacity"),
+			CacheTTL:      agentConfig.GetDuration("network_path.collector.discard_scanner.cache_ttl"),
 		},
 		flushInterval:             agentConfig.GetDuration("network_path.collector.flush_interval"),
 		reverseDNSEnabled:         agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
