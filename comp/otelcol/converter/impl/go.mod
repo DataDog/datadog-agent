@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.120.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.121.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/confmap v1.27.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.27.0
@@ -17,7 +17,7 @@ require (
 
 )
 
-require github.com/DataDog/datadog-agent/pkg/trace v0.62.2 // indirect
+require github.com/DataDog/datadog-agent/pkg/trace v0.64.0-rc.3 // indirect
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
@@ -37,15 +37,15 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.62.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.64.0-rc.3 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -72,7 +72,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.1 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.2 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect

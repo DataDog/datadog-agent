@@ -9,7 +9,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/uuid v1.6.0
-	github.com/shirou/gopsutil/v4 v4.25.1
+	github.com/shirou/gopsutil/v4 v4.25.2
 	github.com/stretchr/testify v1.10.0
 	go.etcd.io/bbolt v1.3.11
 	go.uber.org/atomic v1.11.0

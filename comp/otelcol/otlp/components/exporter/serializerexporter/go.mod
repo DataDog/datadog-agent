@@ -4,15 +4,15 @@ go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
+	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.59.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-rc.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.26.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.26.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.120.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.121.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tinylib/msgp v1.2.5
 	go.opentelemetry.io/collector/component v1.27.0
@@ -61,17 +61,17 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.62.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.64.0-rc.3 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
@@ -151,7 +151,7 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250212204824-5a70512c5d8b // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250224174004-546df14abb99 // indirect
 	google.golang.org/grpc v1.70.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -163,7 +163,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.0.0-20250218170314-8625d1ac5ae7
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.26.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.120.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.121.0
 	go.opentelemetry.io/collector/component/componenttest v0.121.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.121.0
 )
@@ -171,7 +171,7 @@ require (
 require go.opentelemetry.io/collector/extension/extensionauth v0.121.0 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.62.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-rc.3 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.121.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.121.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.121.0 // indirect
@@ -193,7 +193,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.1 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/client v1.27.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.121.0 // indirect
