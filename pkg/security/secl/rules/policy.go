@@ -40,8 +40,6 @@ func (m *PolicyMacro) MergeWith(m2 *PolicyMacro) error {
 		m.Def.Values = append(m.Def.Values, m2.Def.Values...)
 	case OverridePolicy:
 		m.Def.Values = m2.Def.Values
-	default:
-		return &ErrMacroLoad{Macro: m2, Err: ErrDefinitionIDConflict}
 	}
 	return nil
 }
@@ -54,6 +52,7 @@ type PolicyRule struct {
 	Error      error
 	Policy     *Policy
 	ModifiedBy []*PolicyRule
+	UsedBy     []*Policy
 }
 
 func (r *PolicyRule) isAccepted() bool {
@@ -124,7 +123,7 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 		}
 	default:
 		if r.Def.Disabled == r2.Def.Disabled {
-			return &ErrRuleLoad{Rule: r2, Err: ErrDefinitionIDConflict}
+			return nil
 		}
 	}
 
