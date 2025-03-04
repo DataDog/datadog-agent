@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"runtime"
 	"slices"
 	"sync"
@@ -210,6 +211,20 @@ func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Compone
 		langScanner: langpkg.NewScanner(),
 		vulnClient:  vulnerability.NewClient(db.Config{}),
 	}, nil
+}
+
+// NewCollectorForCLI returns a new collector, should be used only for sbomgen CLI
+func NewCollectorForCLI() *Collector {
+	return &Collector{
+		config: collectorConfig{
+			maxCacheSize: math.MaxInt,
+		},
+		marshaler: cyclonedx.NewMarshaler(""),
+
+		osScanner:   ospkg.NewScanner(),
+		langScanner: langpkg.NewScanner(),
+		vulnClient:  vulnerability.NewClient(db.Config{}),
+	}
 }
 
 // GetGlobalCollector gets the global collector
