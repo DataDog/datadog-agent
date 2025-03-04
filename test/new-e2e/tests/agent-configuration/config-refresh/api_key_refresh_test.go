@@ -6,7 +6,11 @@
 package configrefresh
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,8 +78,7 @@ api_key: ENC[api_key]
 	// Assert that the fakeIntake has received the API Key
 	lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
 	assert.NoError(v.T(), err)
-	fmt.Println(lastAPIKey)
-	assert.Equal(v.T(), 1, 2)
+	assert.Equal(v.T(), lastAPIKey, secondAPIKey)
 }
 
 func (v *linuxAPIKeyRefreshSuite) TestIntakeRefreshAPIKeysAdditionalEndpoints() {
@@ -145,12 +148,38 @@ additional_endpoints:
 		assert.Contains(t, status.Content, "API key ending with _updated")
 	}, 1*time.Minute, 10*time.Second)
 
-	// Verify each updated API key in FakeIntake
-	for _, updatedKey := range updatedAPIKeys {
-		lastAPIKey, err := v.Env().FakeIntake.Client().GetLastAPIKey()
-		assert.NoError(v.T(), err)
-		fmt.Println("WACKTEST1", updatedKey)
-		fmt.Println("WACKTEST2", lastAPIKey)
-		assert.Equal(v.T(), lastAPIKey, updatedAPIKeys["api_key"])
+	endpoints := []string{
+		"/testendpoint1",
+		"/api/v2/series",
+	}
+
+	for _, endpoint := range endpoints {
+		url := fmt.Sprintf("%s/fakeintake/payloads/?endpoint=%s", v.Env().FakeIntake.Client().URL(), endpoint)
+
+		resp, err := http.Get(url) // Using http.Get() like GetLastAPIKey
+		require.NoError(v.T(), err, "Failed to fetch FakeIntake payloads for %s", endpoint)
+		defer resp.Body.Close()
+		require.Equal(v.T(), http.StatusOK, resp.StatusCode, "Unexpected response code from FakeIntake for %s", endpoint)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(v.T(), err, "Failed to read FakeIntake response body for %s", endpoint)
+
+		// Parse JSON response into a slice of payloads
+		var payloads []map[string]interface{}
+		err = json.Unmarshal(body, &payloads)
+		require.NoError(v.T(), err, "Failed to decode FakeIntake JSON response for %s", endpoint)
+
+		// Collect all API keys seen in payloads
+		foundAPIKeys := map[string]bool{}
+		for _, payload := range payloads {
+			if apiKey, exists := payload["api_key"].(string); exists {
+				foundAPIKeys[strings.TrimSpace(apiKey)] = true
+			}
+		}
+
+		// Ensure every updated API key is present in the FakeIntake history
+		for _, updatedKey := range updatedAPIKeys {
+			assert.True(v.T(), foundAPIKeys[updatedKey], "API Key %s not found in FakeIntake history", updatedKey)
+		}
 	}
 }
