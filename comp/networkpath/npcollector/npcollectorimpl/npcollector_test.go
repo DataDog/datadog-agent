@@ -1033,10 +1033,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
 			}
-			_, npCollector := newTestNpCollector(t, agentConfigs)
-
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
 
@@ -1093,10 +1091,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
 			}
-			_, npCollector := newTestNpCollector(t, agentConfigs)
-
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
 
