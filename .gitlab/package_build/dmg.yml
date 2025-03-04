@@ -117,7 +117,7 @@ new-agent_dmg-x64-a7:
     - rm -rf ~/homebrew
 
     - |
-      if ! [ -f ~/homebrew/bin/brew ] || ! ; then
+      if ! [ -f ~/homebrew/bin/brew ] || ! [ -d ~/bin ]; then
         echo "WARNING: Homebrew not found, doing setup again"
         rm -rf ~/bin ~/homebrew ~/rust
         bash .gitlab/package_build/build_script.sh SETUP_RUNNER
