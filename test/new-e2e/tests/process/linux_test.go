@@ -33,6 +33,7 @@ func TestLinuxTestSuite(t *testing.T) {
 
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
+		e2e.WithDevMode(),
 	}
 
 	e2e.Run(t, &linuxTestSuite{}, options...)
@@ -82,6 +83,10 @@ func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
 		t.Logf("statusMap: %+v", statusMap)
+		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
+			// Original key is obfuscated to the last 5 characters
+			assert.Equal(collect, key[0], "vwxyz")
+		}
 		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastAPIKey()
 		require.NoError(collect, err)
 		t.Logf("lastAPIKey: %s", lastAPIKey)
