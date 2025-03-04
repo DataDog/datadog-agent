@@ -22,8 +22,8 @@ Release on: 2025-03-04
 Bug Fixes
 ---------
 
-- Disable the X25519Kyber768Draft00 key exchange mechanism to avoid issues with
-  firewalls not supporting it, in particular AWS Network Firewall.
+- Fully disable the X25519Kyber768Draft00 key exchange mechanism to avoid issues with
+  firewalls not supporting multi-packet key exchanges, in particular AWS Network Firewall and Suricata.
 
 
 .. _Release Notes_7.63.2:
