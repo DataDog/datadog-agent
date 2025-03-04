@@ -51,7 +51,7 @@ if [ "$1" = SETUP_RUNNER ]; then
     # TODO A: Find a better way
     echo Setup env
     mkdir bin
-    binaries=("curl" "chmod" "cp" "cut" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee" "sudo")
+    binaries=("curl" "chmod" "cp" "cut" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee" "sudo" "xcodes")
     for binary in "${binaries[@]}"; do
         echo Using $binary
         ln -s "$(which $binary)" bin/$binary
