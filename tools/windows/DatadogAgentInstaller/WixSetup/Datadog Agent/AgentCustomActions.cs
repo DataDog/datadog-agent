@@ -454,16 +454,20 @@ namespace WixSetup.Datadog_Agent
             };
 
             InstallOciPackages = new CustomAction<CustomActions>(
-                new Id(nameof(InstallOciPackages)),
-                CustomActions.InstallOciPackages,
-                Return.asyncWait,
-                When.Before,
-                Step.StartServices,
-                Conditions.FirstInstall | Conditions.Upgrading
-            ) { Execute = Execute.deferred, Impersonate = false };
-                // .SetProperties("INSTALLDIR=[INSTALLDIR]," +
-                //             "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]" +
-                //             "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
+                    new Id(nameof(InstallOciPackages)),
+                    CustomActions.InstallOciPackages,
+                    Return.asyncWait,
+                    When.Before,
+                    Step.StartServices,
+                    Conditions.FirstInstall | Conditions.Upgrading
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("INSTALLDIR=[INSTALLDIR]," +
+                               "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]" +
+                               "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
