@@ -798,6 +798,8 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
+	github.com/onsi/ginkgo/v2 v2.21.0 // indirect
+	github.com/onsi/gomega v1.35.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.121.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.121.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.121.0 // indirect
@@ -970,6 +972,13 @@ replace github.com/iceber/iouring-go => github.com/paulcacheux/iouring-go v0.0.0
 
 // github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
 replace github.com/golang/mock => github.com/golang/mock v1.6.0
+
+// Remove once sigs.k8s.io/custom-metrics-apiserver upgrades to k8s.io/* v0.32+
+replace (
+	k8s.io/api => k8s.io/api v0.31.2
+	k8s.io/apimachinery => k8s.io/apimachinery v0.31.2
+	k8s.io/client-go => k8s.io/client-go v0.31.2
+)
 
 // This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually
 
