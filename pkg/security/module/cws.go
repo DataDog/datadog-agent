@@ -270,6 +270,10 @@ func (c *CWSConsumer) RunSelfTest(gRPC bool) (bool, error) {
 }
 
 func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+	if !c.config.SelfTestSendReport {
+		return
+	}
+
 	// send metric with number of success and fails
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
