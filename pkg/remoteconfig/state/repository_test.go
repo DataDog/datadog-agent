@@ -124,7 +124,7 @@ func TestUpdateFlushCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
-	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.TargetsVersion) // We do not go backwards for the targets.
 	assert.EqualValues(t, 1, state.RootsVersion)
 
 	// Do the same with the unverified repository, there should be no functional difference
@@ -149,7 +149,7 @@ func TestUpdateFlushCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(state.Configs))
 	assert.Equal(t, 0, len(state.CachedFiles))
-	assert.EqualValues(t, 1, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.TargetsVersion) // We do not go backwards for the targets.
 	assert.EqualValues(t, 1, state.RootsVersion)
 }
 

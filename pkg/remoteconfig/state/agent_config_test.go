@@ -11,7 +11,7 @@ import (
 )
 
 func TestMergeRCConfigWithEmptyData(t *testing.T) {
-	emptyUpdateStatus := func(cfgPath string, status ApplyStatus) {}
+	emptyUpdateStatus := func(_ string, _ ApplyStatus) {}
 
 	content, err := MergeRCAgentConfig(emptyUpdateStatus, make(map[string]RawConfig))
 	assert.NoError(t, err)
