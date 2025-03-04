@@ -121,13 +121,20 @@ new-agent_dmg-x64-a7:
         ls ~
         ~/bin/git --version
       fi
+
     # Backport to avoid doing the setup again
     - |
-      binaries=("sudo" "xcodes")
-      for binary in "${binaries[@]}"; do
-          echo Using $binary
-          ln -s "$(which $binary)" ~/bin/$binary || true
-      done
+      echo Setup env
+      (
+        cd ~
+        rm -rf bin
+        mkdir bin
+        binaries=("curl" "chmod" "cp" "cut" "date" "mkdir" "readlink" "dirname" "tar" "rm" "mv" "ls" "bash" "make" "xz" "true" "which" "vault" "du" "security" "touch" "cat" "basename" "go" "tr" "uname" "find" "tmutil" "sed" "grep" "git" "tee" "sudo" "xcodes" "sort" "uniq")
+        for binary in "${binaries[@]}"; do
+            echo Using $binary
+            ln -s "$(which $binary)" bin/$binary || true
+        done
+      )
 
     # - |
     #   binaries="tmutil sed grep git tee"
