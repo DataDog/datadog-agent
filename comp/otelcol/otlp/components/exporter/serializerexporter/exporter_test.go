@@ -15,6 +15,7 @@ import (
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
@@ -186,7 +187,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetrics(
 				ctx,
-				exportertest.NewNopSettings(),
+				exportertest.NewNopSettings(component.MustNewType(TypeStr)),
 				cfg,
 			)
 			require.NoError(t, err)
@@ -301,7 +302,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
-				exportertest.NewNopSettings(),
+				exportertest.NewNopSettings(component.MustNewType(TypeStr)),
 				cfg,
 			)
 			require.NoError(t, err)
@@ -352,7 +353,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
-		exportertest.NewNopSettings(),
+		exportertest.NewNopSettings(component.MustNewType(TypeStr)),
 		cfg,
 	)
 	require.NoError(t, err)
