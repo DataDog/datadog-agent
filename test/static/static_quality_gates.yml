@@ -4,7 +4,7 @@ static_quality_gate_agent_deb_amd64:
   max_on_disk_size: "797.95 MiB"
 
 static_quality_gate_agent_deb_arm64:
-  max_on_wire_size: "183.86 MiB"
+  max_on_wire_size: "182.66 MiB"
   max_on_disk_size: "789.31 MiB"
 
 static_quality_gate_agent_rpm_amd64:
