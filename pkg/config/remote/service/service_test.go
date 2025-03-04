@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"testing"
 	"time"
 
@@ -127,6 +126,11 @@ func (m *mockUptane) TargetFiles(files []string) (map[string][]byte, error) {
 }
 
 func (m *mockUptane) TargetsMeta() ([]byte, error) {
+	args := m.Called()
+	return args.Get(0).([]byte), args.Error(1)
+}
+
+func (m *mockUptane) UnsafeTargetsMeta() ([]byte, error) {
 	args := m.Called()
 	return args.Get(0).([]byte), args.Error(1)
 }
@@ -435,7 +439,7 @@ func TestClientGetConfigsEmptiesCacheForExpiredSignature(t *testing.T) {
 	service.clients.seen(client)
 	newConfig, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
-	assert.Equal(t, state.ConfigStatusExpired, newConfig.ConfigStatus)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
 }
 
 func TestService(t *testing.T) {
