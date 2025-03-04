@@ -55,15 +55,15 @@ func (s statsdDirect) Gauge(name string, value float64, tags []string, rate floa
 }
 
 func (s statsdDirect) GaugeWithTimestamp(name string, value float64, tags []string, rate float64, timestamp time.Time) error {
-	s.demux.AggregateSample(metrics.MetricSample{
+	s.demux.SendSamplesWithoutAggregation([]metrics.MetricSample{{
 		Name:       name,
 		Value:      value,
-		Mtype:      metrics.GaugeWithTimestampType,
+		Mtype:      metrics.GaugeType,
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(timestamp.Unix()),
 		OriginInfo: s.origin,
-	})
+	}})
 	return nil
 }
 
@@ -81,15 +81,15 @@ func (s statsdDirect) Count(name string, value int64, tags []string, rate float6
 }
 
 func (s statsdDirect) CountWithTimestamp(name string, value int64, tags []string, rate float64, timestamp time.Time) error {
-	s.demux.AggregateSample(metrics.MetricSample{
+	s.demux.SendSamplesWithoutAggregation([]metrics.MetricSample{{
 		Name:       name,
 		Value:      float64(value),
-		Mtype:      metrics.CountWithTimestampType,
+		Mtype:      metrics.CountType,
 		Tags:       tags,
 		SampleRate: rate,
 		Timestamp:  float64(timestamp.Unix()),
 		OriginInfo: s.origin,
-	})
+	}})
 	return nil
 }
 
