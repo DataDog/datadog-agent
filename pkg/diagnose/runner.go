@@ -382,10 +382,11 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
 	lastDot := false
+	idx := 0
 	for _, ds := range diagnoseResult.Diagnoses {
 		suiteAlreadyReported := false
 		for _, d := range ds.SuiteDiagnoses {
-
+			idx++
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
 				continue
@@ -394,7 +395,7 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.
 			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, d.Result.ToString(true), diagnoseResult.Summary.Total, d)
+			outputDiagnosis(w, diagCfg, d.Result.ToString(true), idx, d)
 		}
 	}
 

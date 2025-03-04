@@ -7,6 +7,7 @@ use (
 	comp/api/api/def
 	comp/api/authtoken
 	comp/core/config
+	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
@@ -52,6 +53,8 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
+	comp/otelcol/status/def
+	comp/otelcol/status/impl
 	comp/serializer/logscompression
 	comp/serializer/metricscompression
 	comp/trace/agent/def
@@ -133,6 +136,7 @@ use (
 	pkg/util/log/setup
 	pkg/util/option
 	pkg/util/pointer
+	pkg/util/prometheus
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop

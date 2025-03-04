@@ -18,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	fimage "github.com/aquasecurity/trivy/pkg/fanal/image"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dimage "github.com/docker/docker/api/types/image"
@@ -297,7 +296,12 @@ func (img *image) Name() string {
 }
 
 func (img *image) ID() (string, error) {
-	return fimage.ID(img)
+	// github.com/aquasecurity/trivy/pkg/fanal/image.ID(img)
+	h, err := img.ConfigName()
+	if err != nil {
+		return "", fmt.Errorf("unable to get the image ID: %w", err)
+	}
+	return h.String(), nil
 }
 
 func (img *image) Layers() ([]v1.Layer, error) {
