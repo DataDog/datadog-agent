@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_7.63.3:
+
+7.63.3
+======
+
+.. _Release Notes_7.63.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-03-04
+
+- Please refer to the `7.63.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7633>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.63.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fully disable the X25519Kyber768Draft00 key exchange mechanism to avoid issues with
+  firewalls not supporting multi-packet key exchanges, in particular AWS Network Firewall and Suricata.
+
+
 .. _Release Notes_7.63.2:
 
 7.63.2
