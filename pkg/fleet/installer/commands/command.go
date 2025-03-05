@@ -27,11 +27,11 @@ import (
 )
 
 type cmd struct {
-	t    *telemetry.Telemetry
-	span *telemetry.Span
-	ctx  context.Context
-	env  *env.Env
-	stop context.CancelFunc
+	t              *telemetry.Telemetry
+	span           *telemetry.Span
+	ctx            context.Context
+	env            *env.Env
+	stopSigHandler context.CancelFunc
 }
 
 // newCmd creates a new command
@@ -42,11 +42,11 @@ func newCmd(operation string) *cmd {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	setInstallerUmask(span)
 	return &cmd{
-		t:    t,
-		ctx:  ctx,
-		span: span,
-		env:  env,
-		stop: stop,
+		t:              t,
+		ctx:            ctx,
+		span:           span,
+		env:            env,
+		stopSigHandler: stop,
 	}
 }
 
@@ -56,7 +56,7 @@ func (c *cmd) stop(err error) {
 	if c.t != nil {
 		c.t.Stop()
 	}
-	c.stop()
+	c.stopSigHandler()
 }
 
 type installerCmd struct {
