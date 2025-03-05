@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -118,7 +118,7 @@ type GenericProvider struct {
 }
 
 // GetProvider returns the metrics provider singleton
-func GetProvider(wmeta optional.Option[workloadmeta.Component]) Provider {
+func GetProvider(wmeta option.Option[workloadmeta.Component]) Provider {
 	initMetricsProvider.Do(func() {
 		metricsProvider = newProvider(wmeta)
 	})
@@ -126,7 +126,7 @@ func GetProvider(wmeta optional.Option[workloadmeta.Component]) Provider {
 	return metricsProvider
 }
 
-func newProvider(wmeta optional.Option[workloadmeta.Component]) *GenericProvider {
+func newProvider(wmeta option.Option[workloadmeta.Component]) *GenericProvider {
 	provider := &GenericProvider{
 		cache:         NewCache(cacheGCInterval),
 		metaCollector: newMetaCollector(),

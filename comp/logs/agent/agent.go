@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -62,13 +62,13 @@ type dependencies struct {
 	Config         configComponent.Component
 	InventoryAgent inventoryagent.Component
 	Hostname       hostname.Component
-	WMeta          optional.Option[workloadmeta.Component]
+	WMeta          option.Option[workloadmeta.Component]
 }
 
 type provides struct {
 	fx.Out
 
-	Comp           optional.Option[Component]
+	Comp           option.Option[Component]
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
 }
@@ -94,7 +94,7 @@ type agent struct {
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 	flarecontroller           *flareController.FlareController
-	wmeta                     optional.Option[workloadmeta.Component]
+	wmeta                     option.Option[workloadmeta.Component]
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
@@ -125,7 +125,7 @@ func newLogsAgent(deps dependencies) provides {
 		})
 
 		return provides{
-			Comp:           optional.NewOption[Component](logsAgent),
+			Comp:           option.New[Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 		}
@@ -133,7 +133,7 @@ func newLogsAgent(deps dependencies) provides {
 
 	deps.Log.Info("logs-agent disabled")
 	return provides{
-		Comp:           optional.NewNoneOption[Component](),
+		Comp:           option.None[Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 	}
 }

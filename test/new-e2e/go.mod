@@ -10,7 +10,7 @@ toolchain go1.22.8
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
@@ -20,10 +20,10 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.2-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.2-rc.2
-	github.com/DataDog/datadog-agent/pkg/version v0.53.2-rc.2
-	github.com/DataDog/datadog-agent/test/fakeintake v0.53.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.2-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.2-rc.3
+	github.com/DataDog/datadog-agent/pkg/version v0.53.2-rc.3
+	github.com/DataDog/datadog-agent/test/fakeintake v0.53.2-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.19.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -31,7 +31,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20250220090629-13fc087677f0
+	github.com/DataDog/test-infra-definitions v0.0.0-20250224120713-fc57c00046a6
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -63,7 +63,7 @@ require (
 require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.53.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.53.2-rc.3
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -124,7 +124,7 @@ require (
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/glog v1.2.4 // indirect
+	github.com/golang/glog v1.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
@@ -239,8 +239,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/option v0.55.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.3
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.19.0
@@ -248,7 +248,6 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.0.0-20250102215417-1af8863cd8cd // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.38.1 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect

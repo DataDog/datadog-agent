@@ -76,7 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -172,8 +172,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
-				fx.Provide(func() optional.Option[logagent.Component] {
-					return optional.NewNoneOption[logagent.Component]()
+				fx.Provide(func() option.Option[logagent.Component] {
+					return option.None[logagent.Component]()
 
 				}),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -213,8 +213,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
 				fx.Provide(func() packagesigning.Component { return nil }),
-				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
-				fx.Provide(func() optional.Option[rcserviceha.Component] { return optional.NewNoneOption[rcserviceha.Component]() }),
+				fx.Provide(func() option.Option[rcservice.Component] { return option.None[rcservice.Component]() }),
+				fx.Provide(func() option.Option[rcserviceha.Component] { return option.None[rcserviceha.Component]() }),
 
 				getPlatformModules(),
 			)
@@ -268,7 +268,7 @@ func run(
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false

@@ -8,16 +8,18 @@ package apiimpl
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"time"
 
-	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
@@ -38,8 +40,8 @@ type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
 	taggerServer       *taggerserver.Server
 	workloadmetaServer *workloadmetaServer.Server
-	configService      optional.Option[rcservice.Component]
-	configServiceHA    optional.Option[rcserviceha.Component]
+	configService      option.Option[rcservice.Component]
+	configServiceHA    option.Option[rcserviceha.Component]
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
 }

@@ -17,6 +17,13 @@ import (
 	"strconv"
 	"strings"
 
+	yy "github.com/ghodss/yaml"
+	"github.com/swaggest/jsonschema-go"
+	"github.com/xeipuuv/gojsonschema"
+	"go.uber.org/fx"
+	"golang.org/x/sys/windows/registry"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -30,13 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	agentLog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	yy "github.com/ghodss/yaml"
-	"github.com/swaggest/jsonschema-go"
-	"github.com/xeipuuv/gojsonschema"
-	"go.uber.org/fx"
-	"golang.org/x/sys/windows/registry"
-	"gopkg.in/yaml.v2"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -55,7 +56,7 @@ type dependencies struct {
 
 	// Logs Agent component, used to send integration logs
 	// It is optional because the Logs Agent can be disabled
-	LogsComponent optional.Option[agent.Component]
+	LogsComponent option.Option[agent.Component]
 
 	// Datadog Agent logs component, used to log to the Agent logs
 	Log       log.Component
@@ -63,9 +64,9 @@ type dependencies struct {
 }
 
 type registryValueCfg struct {
-	Name         string                   `json:"name" yaml:"name" required:"true"` // The metric name of the registry value
-	DefaultValue optional.Option[float64] `json:"default_value" yaml:"default_value"`
-	Mappings     []map[string]float64     `json:"mapping" yaml:"mapping"`
+	Name         string                 `json:"name" yaml:"name" required:"true"` // The metric name of the registry value
+	DefaultValue option.Option[float64] `json:"default_value" yaml:"default_value"`
+	Mappings     []map[string]float64   `json:"mapping" yaml:"mapping"`
 }
 
 type registryKeyCfg struct {
@@ -76,12 +77,12 @@ type registryKeyCfg struct {
 // checkCfg is the config that is specific to each check instance
 type checkCfg struct {
 	RegistryKeys map[string]registryKeyCfg `json:"registry_keys" yaml:"registry_keys" nullable:"false" required:"true"`
-	SendOnStart  optional.Option[bool]     `json:"send_on_start" yaml:"send_on_start"`
+	SendOnStart  option.Option[bool]       `json:"send_on_start" yaml:"send_on_start"`
 }
 
 // checkInitCfg is the config that is common to all check instances
 type checkInitCfg struct {
-	SendOnStart optional.Option[bool] `yaml:"send_on_start"`
+	SendOnStart option.Option[bool] `yaml:"send_on_start"`
 }
 
 // registryKey is the in-memory representation of the key to monitor
@@ -110,9 +111,9 @@ type WindowsRegistryCheck struct {
 }
 
 func createOptionMapping[T any](reflector *jsonschema.Reflector, sourceType jsonschema.SimpleType) {
-	option := jsonschema.Schema{}
-	option.AddType(sourceType)
-	reflector.AddTypeMapping(optional.Option[T]{}, option)
+	optionValue := jsonschema.Schema{}
+	optionValue.AddType(sourceType)
+	reflector.AddTypeMapping(option.Option[T]{}, optionValue)
 }
 
 func createSchema() ([]byte, error) {
@@ -359,7 +360,7 @@ func (c *WindowsRegistryCheck) Run() error {
 func newWindowsRegistryComponent(deps dependencies) winregistry.Component {
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(checkName, optional.NewOption(func() check.Check {
+			core.RegisterCheck(checkName, option.New(func() check.Check {
 				integrationLogs, _ := deps.LogsComponent.Get()
 				return &WindowsRegistryCheck{
 					CheckBase:     core.NewCheckBase(checkName),

@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -37,7 +37,7 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, wmeta option.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newDockerCollector(cache, wmeta)
 		},
 	})
@@ -46,10 +46,10 @@ func init() {
 type dockerCollector struct {
 	du            *docker.DockerUtil
 	pidCache      *provider.Cache
-	metadataStore optional.Option[workloadmeta.Component]
+	metadataStore option.Option[workloadmeta.Component]
 }
 
-func newDockerCollector(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+func newDockerCollector(cache *provider.Cache, wmeta option.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
 	if !config.IsFeaturePresent(config.Docker) {

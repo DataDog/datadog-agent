@@ -4,3 +4,4 @@
 
 include:
   - .gitlab/integration_test/windows.yml
+  - .gitlab/integration_test/linux.yml

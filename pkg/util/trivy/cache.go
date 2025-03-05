@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
@@ -44,7 +44,7 @@ func defaultCacheDir() string {
 
 // NewCustomBoltCache returns a BoltDB cache using an LRU algorithm with a
 // maximum disk size and garbage collection of unused images with its custom cleaner.
-func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (CacheWithCleaner, error) {
+func NewCustomBoltCache(wmeta option.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (CacheWithCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = defaultCacheDir()
 	}
@@ -108,7 +108,7 @@ type ScannerCache struct {
 	cache *persistentCache
 
 	cachedKeysForEntity map[string][]string
-	wmeta               optional.Option[workloadmeta.Component]
+	wmeta               option.Option[workloadmeta.Component]
 }
 
 // clean removes entries of deleted images from the cache.
