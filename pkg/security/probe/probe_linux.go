@@ -72,7 +72,7 @@ func IsNetworkNotSupported(kv *kernel.Version) bool {
 
 // IsCgroupSysCtlNotSupported returns if the cgroup/sysctl program is supported
 func IsCgroupSysCtlNotSupported(kv *kernel.Version, cgroup2MountPath string) bool {
-	return len(cgroup2MountPath) > 0 && kv.HasCgroupSysctlSupportWithRingbuf()
+	return len(cgroup2MountPath) == 0 || !kv.HasCgroupSysctlSupportWithRingbuf()
 }
 
 // IsNetworkFlowMonitorNotSupported returns if the network flow monitor feature is supported
