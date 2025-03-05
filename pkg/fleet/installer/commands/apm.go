@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installer
+package commands
 
 import (
 	"github.com/spf13/cobra"
 )
 
+// ApmCommands are the APM installer daemon commands
 func apmCommands() *cobra.Command {
 	ctlCmd := &cobra.Command{
 		Use:     "apm [command]",
@@ -29,7 +30,7 @@ func apmInstrumentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			if len(args) == 0 {
 				args = []string{"not_set"}
 			}
@@ -50,7 +51,7 @@ func apmUninstrumentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() { i.stop(err) }()
 			if len(args) == 0 {
 				args = []string{"not_set"}
 			}

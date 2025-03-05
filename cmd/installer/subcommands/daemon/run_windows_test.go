@@ -8,18 +8,53 @@
 package daemon
 
 import (
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
-	"go.uber.org/fx"
-	"golang.org/x/sys/windows"
 	"os"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 type daemonTestSuite struct {
 	suite.Suite
+}
+
+const (
+	testCmdEnv = "DD_TEST_CMD"
+)
+
+func TestMain(m *testing.M) {
+	if _, isSet := os.LookupEnv(testCmdEnv); isSet {
+		commands.MockInstaller = commands.NewInstallerMock()
+		cmd := &cobra.Command{
+			Use: "installer [command]",
+		}
+		cmd.AddGroup(
+			&cobra.Group{
+				ID:    "installer",
+				Title: "Installer Commands",
+			},
+			&cobra.Group{
+				ID:    "apm",
+				Title: "APM Commands",
+			},
+		)
+		cmd.AddCommand(commands.RootCommands()...)
+		cmd.AddCommand(commands.UnprivilegedCommands()...)
+		err := cmd.Execute()
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+	os.Setenv(testCmdEnv, "true")
+	os.Exit(m.Run())
 }
 
 // TestDaemonSuite runs a suite of test for the DaemonApp on Windows.
@@ -62,11 +97,8 @@ func createConfigDir(t *testing.T) {
 			_ = os.RemoveAll("C:\\ProgramData\\Datadog Installer")
 		}
 	})
-	err := os.MkdirAll("C:\\ProgramData\\Datadog Installer", 0)
+	err := paths.CreateInstallerDataDir()
 	require.NoError(t, err)
-	owner, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
-	require.NoError(t, err)
-	err = windows.SetNamedSecurityInfo("C:\\ProgramData\\Datadog Installer", windows.SE_FILE_OBJECT,
-		windows.OWNER_SECURITY_INFORMATION, owner, nil, nil, nil)
+	err = paths.IsInstallerDataDirSecure()
 	require.NoError(t, err)
 }
