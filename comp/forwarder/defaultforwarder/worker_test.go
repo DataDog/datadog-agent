@@ -284,7 +284,6 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 	// The final transaction is resent due to passing `purgeHighPrio=true` to
 	// the `Stop` function that will attempt to send anything waiting in the
 	// high priority queue.
-	fmt.Println("Checkin", transactions[4].GetEndpointName())
 	transactions[4].AssertNumberOfCalls(t, "Process", 1)
 
 	// 4 transactions get requeued, the first three that were cancelled inflight
