@@ -251,6 +251,10 @@ echo Rust version
 rustup --version || true
 cargo --version || true
 
+# Xcode
+sudo xcodebuild -license accept
+sudo xcodes select 15.2
+
 echo "Full PATH: $PATH"
 set +x
 
