@@ -23,9 +23,9 @@ func TestApplyCaptureDepth(t *testing.T) {
 		expectedResult []*ditypes.Parameter
 	}{
 		{
-			name: "Slice of uint depth 1 (should include element, fully capturing slice)",
+			name: "Slice of uint depth 2 (should include element, fully capturing slice)",
 			parameters: []*ditypes.Parameter{
-				&ditypes.Parameter{
+				{
 					Name:             "u",
 					ID:               "",
 					Type:             "[]uint",
@@ -35,7 +35,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 					DoNotCapture:     false,
 					NotCaptureReason: 0x0,
 					ParameterPieces: []*ditypes.Parameter{
-						&ditypes.Parameter{
+						{
 							Name:                "array",
 							ID:                  "KTOAUD",
 							Type:                "*uint",
@@ -44,9 +44,9 @@ func TestApplyCaptureDepth(t *testing.T) {
 							LocationExpressions: nil,
 							FieldOffset:         0x0,
 							DoNotCapture:        false,
-							NotCaptureReason:    0x4,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
 							ParameterPieces: []*ditypes.Parameter{
-								&ditypes.Parameter{
+								{
 									Name:             "",
 									ID:               "",
 									Type:             "uint",
@@ -54,12 +54,12 @@ func TestApplyCaptureDepth(t *testing.T) {
 									Kind:             0x7,
 									FieldOffset:      0x0,
 									DoNotCapture:     false,
-									NotCaptureReason: 0x4,
+									NotCaptureReason: ditypes.CaptureDepthReached,
 									ParameterPieces:  nil,
 								},
 							},
 						},
-						&ditypes.Parameter{
+						{
 							Name:             "len",
 							ID:               "",
 							Type:             "int",
@@ -67,10 +67,10 @@ func TestApplyCaptureDepth(t *testing.T) {
 							Kind:             0x2,
 							FieldOffset:      0x8,
 							DoNotCapture:     false,
-							NotCaptureReason: 0x4,
+							NotCaptureReason: ditypes.CaptureDepthReached,
 							ParameterPieces:  nil,
 						},
-						&ditypes.Parameter{
+						{
 							Name:                "cap",
 							ID:                  "",
 							Type:                "int",
@@ -79,14 +79,14 @@ func TestApplyCaptureDepth(t *testing.T) {
 							LocationExpressions: nil,
 							FieldOffset:         0x10,
 							DoNotCapture:        false,
-							NotCaptureReason:    0x4,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
 							ParameterPieces:     nil,
 						},
 					},
 				},
 			},
 			expectedResult: []*ditypes.Parameter{
-				&ditypes.Parameter{
+				{
 					Name:             "u",
 					ID:               "",
 					Type:             "[]uint",
@@ -96,7 +96,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 					DoNotCapture:     false,
 					NotCaptureReason: 0x0,
 					ParameterPieces: []*ditypes.Parameter{
-						&ditypes.Parameter{
+						{
 							Name:                "array",
 							ID:                  "KTOAUD",
 							Type:                "*uint",
@@ -105,9 +105,9 @@ func TestApplyCaptureDepth(t *testing.T) {
 							LocationExpressions: nil,
 							FieldOffset:         0x0,
 							DoNotCapture:        false,
-							NotCaptureReason:    0x4,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
 							ParameterPieces: []*ditypes.Parameter{
-								&ditypes.Parameter{
+								{
 									Name:             "",
 									ID:               "",
 									Type:             "uint",
@@ -115,12 +115,12 @@ func TestApplyCaptureDepth(t *testing.T) {
 									Kind:             0x7,
 									FieldOffset:      0x0,
 									DoNotCapture:     false,
-									NotCaptureReason: 0x4,
+									NotCaptureReason: ditypes.CaptureDepthReached,
 									ParameterPieces:  nil,
 								},
 							},
 						},
-						&ditypes.Parameter{
+						{
 							Name:             "len",
 							ID:               "",
 							Type:             "int",
@@ -128,10 +128,10 @@ func TestApplyCaptureDepth(t *testing.T) {
 							Kind:             0x2,
 							FieldOffset:      0x8,
 							DoNotCapture:     false,
-							NotCaptureReason: 0x4,
+							NotCaptureReason: ditypes.CaptureDepthReached,
 							ParameterPieces:  nil,
 						},
-						&ditypes.Parameter{
+						{
 							Name:                "cap",
 							ID:                  "",
 							Type:                "int",
@@ -140,18 +140,18 @@ func TestApplyCaptureDepth(t *testing.T) {
 							LocationExpressions: nil,
 							FieldOffset:         0x10,
 							DoNotCapture:        false,
-							NotCaptureReason:    0x4,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
 							ParameterPieces:     nil,
 						},
 					},
 				},
 			},
-			targetDepth: 1,
+			targetDepth: 2,
 		},
 		{
 			name: "Slice of uint depth 0 (shouldn't capture slice at all)",
 			parameters: []*ditypes.Parameter{
-				&ditypes.Parameter{
+				{
 					Name:             "u",
 					ID:               "",
 					Type:             "[]uint",
@@ -161,7 +161,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 					DoNotCapture:     false,
 					NotCaptureReason: 0x0,
 					ParameterPieces: []*ditypes.Parameter{
-						&ditypes.Parameter{
+						{
 							Name:                "array",
 							ID:                  "KTOAUD",
 							Type:                "*uint",
@@ -170,9 +170,9 @@ func TestApplyCaptureDepth(t *testing.T) {
 							LocationExpressions: nil,
 							FieldOffset:         0x0,
 							DoNotCapture:        false,
-							NotCaptureReason:    0x4,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
 							ParameterPieces: []*ditypes.Parameter{
-								&ditypes.Parameter{
+								{
 									Name:             "actual uint",
 									ID:               "",
 									Type:             "uint",
@@ -180,12 +180,12 @@ func TestApplyCaptureDepth(t *testing.T) {
 									Kind:             0x7,
 									FieldOffset:      0x0,
 									DoNotCapture:     false,
-									NotCaptureReason: 0x4,
+									NotCaptureReason: ditypes.CaptureDepthReached,
 									ParameterPieces:  nil,
 								},
 							},
 						},
-						&ditypes.Parameter{
+						{
 							Name:             "len",
 							ID:               "",
 							Type:             "int",
@@ -193,10 +193,10 @@ func TestApplyCaptureDepth(t *testing.T) {
 							Kind:             0x2,
 							FieldOffset:      0x8,
 							DoNotCapture:     false,
-							NotCaptureReason: 0x4,
+							NotCaptureReason: ditypes.CaptureDepthReached,
 							ParameterPieces:  nil,
 						},
-						&ditypes.Parameter{
+						{
 							Name:                "cap",
 							ID:                  "",
 							Type:                "int",
@@ -205,14 +205,14 @@ func TestApplyCaptureDepth(t *testing.T) {
 							LocationExpressions: nil,
 							FieldOffset:         0x10,
 							DoNotCapture:        false,
-							NotCaptureReason:    0x4,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
 							ParameterPieces:     nil,
 						},
 					},
 				},
 			},
 			expectedResult: []*ditypes.Parameter{
-				&ditypes.Parameter{
+				{
 					Name:             "u",
 					ID:               "",
 					Type:             "[]uint",
@@ -220,9 +220,9 @@ func TestApplyCaptureDepth(t *testing.T) {
 					Kind:             0x17,
 					FieldOffset:      0x0,
 					DoNotCapture:     true,
-					NotCaptureReason: 0x4,
+					NotCaptureReason: ditypes.CaptureDepthReached,
 					ParameterPieces: []*ditypes.Parameter{
-						&ditypes.Parameter{
+						{
 							Name:                "array",
 							ID:                  "KTOAUD",
 							Type:                "*uint",
@@ -231,9 +231,9 @@ func TestApplyCaptureDepth(t *testing.T) {
 							LocationExpressions: nil,
 							FieldOffset:         0x0,
 							DoNotCapture:        false,
-							NotCaptureReason:    0x4,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
 							ParameterPieces: []*ditypes.Parameter{
-								&ditypes.Parameter{
+								{
 									Name:             "actual uint",
 									ID:               "",
 									Type:             "uint",
@@ -241,12 +241,12 @@ func TestApplyCaptureDepth(t *testing.T) {
 									Kind:             0x7,
 									FieldOffset:      0x0,
 									DoNotCapture:     true,
-									NotCaptureReason: 0x4,
+									NotCaptureReason: ditypes.CaptureDepthReached,
 									ParameterPieces:  nil,
 								},
 							},
 						},
-						&ditypes.Parameter{
+						{
 							Name:             "len",
 							ID:               "",
 							Type:             "int",
@@ -254,10 +254,10 @@ func TestApplyCaptureDepth(t *testing.T) {
 							Kind:             0x2,
 							FieldOffset:      0x8,
 							DoNotCapture:     false,
-							NotCaptureReason: 0x4,
+							NotCaptureReason: ditypes.CaptureDepthReached,
 							ParameterPieces:  nil,
 						},
-						&ditypes.Parameter{
+						{
 							Name:                "cap",
 							ID:                  "",
 							Type:                "int",
@@ -266,7 +266,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 							LocationExpressions: nil,
 							FieldOffset:         0x10,
 							DoNotCapture:        false,
-							NotCaptureReason:    0x4,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
 							ParameterPieces:     nil,
 						},
 					},
@@ -277,19 +277,19 @@ func TestApplyCaptureDepth(t *testing.T) {
 		{
 			name: "Capture Depth Larger Than Tree Depth",
 			parameters: []*ditypes.Parameter{
-				&ditypes.Parameter{
+				{
 					Name:                "x",
 					ID:                  "",
 					Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.aStruct",
 					TotalSize:           4,
 					Kind:                0x19,
-					Location:            (*ditypes.Location)(nil),
+					Location:            nil,
 					LocationExpressions: nil,
 					FieldOffset:         0x0,
 					DoNotCapture:        false,
 					NotCaptureReason:    0x0,
 					ParameterPieces: []*ditypes.Parameter{
-						&ditypes.Parameter{
+						{
 							Name:             "aBool",
 							ID:               "",
 							Type:             "bool",
@@ -301,18 +301,18 @@ func TestApplyCaptureDepth(t *testing.T) {
 							NotCaptureReason: 0x0,
 							ParameterPieces:  nil,
 						},
-						&ditypes.Parameter{
+						{
 							Name:             "aString",
 							ID:               "",
 							Type:             "string",
 							TotalSize:        16,
 							Kind:             0x18,
-							Location:         (*ditypes.Location)(nil),
+							Location:         nil,
 							FieldOffset:      0x8,
 							DoNotCapture:     false,
 							NotCaptureReason: 0x0,
 							ParameterPieces: []*ditypes.Parameter{
-								&ditypes.Parameter{
+								{
 									Name:                "str",
 									ID:                  "SHJWBK",
 									Type:                "*uint8",
@@ -324,13 +324,13 @@ func TestApplyCaptureDepth(t *testing.T) {
 									DoNotCapture:        false,
 									NotCaptureReason:    0x0,
 									ParameterPieces: []*ditypes.Parameter{
-										&ditypes.Parameter{
+										{
 											Name:                "",
 											ID:                  "",
 											Type:                "uint8",
 											TotalSize:           1,
 											Kind:                0x8,
-											Location:            (*ditypes.Location)(nil),
+											Location:            nil,
 											LocationExpressions: nil,
 											FieldOffset:         0x0,
 											DoNotCapture:        false,
@@ -339,7 +339,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 										},
 									},
 								},
-								&ditypes.Parameter{
+								{
 									Name:             "len",
 									ID:               "",
 									Type:             "int",
@@ -353,7 +353,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 								},
 							},
 						},
-						&ditypes.Parameter{
+						{
 							Name:             "aNumber",
 							ID:               "",
 							Type:             "int",
@@ -365,19 +365,19 @@ func TestApplyCaptureDepth(t *testing.T) {
 							NotCaptureReason: 0x0,
 							ParameterPieces:  nil,
 						},
-						&ditypes.Parameter{
+						{
 							Name:                "nested",
 							ID:                  "",
 							Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
 							TotalSize:           2,
 							Kind:                0x19,
-							Location:            (*ditypes.Location)(nil),
+							Location:            nil,
 							LocationExpressions: nil,
 							FieldOffset:         0x20,
 							DoNotCapture:        false,
 							NotCaptureReason:    0x0,
 							ParameterPieces: []*ditypes.Parameter{
-								&ditypes.Parameter{
+								{
 									Name:             "anotherInt",
 									ID:               "",
 									Type:             "int",
@@ -389,18 +389,18 @@ func TestApplyCaptureDepth(t *testing.T) {
 									NotCaptureReason: 0x0,
 									ParameterPieces:  nil,
 								},
-								&ditypes.Parameter{
+								{
 									Name:             "anotherString",
 									ID:               "",
 									Type:             "string",
 									TotalSize:        16,
 									Kind:             0x18,
-									Location:         (*ditypes.Location)(nil),
+									Location:         nil,
 									FieldOffset:      0x8,
 									DoNotCapture:     false,
 									NotCaptureReason: 0x0,
 									ParameterPieces: []*ditypes.Parameter{
-										&ditypes.Parameter{
+										{
 											Name:                "str",
 											ID:                  "XKDYLV",
 											Type:                "*uint8",
@@ -412,13 +412,13 @@ func TestApplyCaptureDepth(t *testing.T) {
 											DoNotCapture:        false,
 											NotCaptureReason:    0x0,
 											ParameterPieces: []*ditypes.Parameter{
-												&ditypes.Parameter{
+												{
 													Name:                "",
 													ID:                  "",
 													Type:                "uint8",
 													TotalSize:           1,
 													Kind:                0x8,
-													Location:            (*ditypes.Location)(nil),
+													Location:            nil,
 													LocationExpressions: nil,
 													FieldOffset:         0x0,
 													DoNotCapture:        false,
@@ -427,7 +427,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 												},
 											},
 										},
-										&ditypes.Parameter{
+										{
 											Name:             "len",
 											ID:               "",
 											Type:             "int",
@@ -447,19 +447,19 @@ func TestApplyCaptureDepth(t *testing.T) {
 				},
 			},
 			expectedResult: []*ditypes.Parameter{
-				&ditypes.Parameter{
+				{
 					Name:                "x",
 					ID:                  "",
 					Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.aStruct",
 					TotalSize:           4,
 					Kind:                0x19,
-					Location:            (*ditypes.Location)(nil),
+					Location:            nil,
 					LocationExpressions: nil,
 					FieldOffset:         0x0,
 					DoNotCapture:        false,
 					NotCaptureReason:    0x0,
 					ParameterPieces: []*ditypes.Parameter{
-						&ditypes.Parameter{
+						{
 							Name:             "aBool",
 							ID:               "",
 							Type:             "bool",
@@ -471,18 +471,18 @@ func TestApplyCaptureDepth(t *testing.T) {
 							NotCaptureReason: 0x0,
 							ParameterPieces:  nil,
 						},
-						&ditypes.Parameter{
+						{
 							Name:             "aString",
 							ID:               "",
 							Type:             "string",
 							TotalSize:        16,
 							Kind:             0x18,
-							Location:         (*ditypes.Location)(nil),
+							Location:         nil,
 							FieldOffset:      0x8,
 							DoNotCapture:     false,
 							NotCaptureReason: 0x0,
 							ParameterPieces: []*ditypes.Parameter{
-								&ditypes.Parameter{
+								{
 									Name:                "str",
 									ID:                  "SHJWBK",
 									Type:                "*uint8",
@@ -494,13 +494,13 @@ func TestApplyCaptureDepth(t *testing.T) {
 									DoNotCapture:        false,
 									NotCaptureReason:    0x0,
 									ParameterPieces: []*ditypes.Parameter{
-										&ditypes.Parameter{
+										{
 											Name:                "",
 											ID:                  "",
 											Type:                "uint8",
 											TotalSize:           1,
 											Kind:                0x8,
-											Location:            (*ditypes.Location)(nil),
+											Location:            nil,
 											LocationExpressions: nil,
 											FieldOffset:         0x0,
 											DoNotCapture:        false,
@@ -509,7 +509,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 										},
 									},
 								},
-								&ditypes.Parameter{
+								{
 									Name:             "len",
 									ID:               "",
 									Type:             "int",
@@ -523,7 +523,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 								},
 							},
 						},
-						&ditypes.Parameter{
+						{
 							Name:             "aNumber",
 							ID:               "",
 							Type:             "int",
@@ -535,19 +535,19 @@ func TestApplyCaptureDepth(t *testing.T) {
 							NotCaptureReason: 0x0,
 							ParameterPieces:  nil,
 						},
-						&ditypes.Parameter{
+						{
 							Name:                "nested",
 							ID:                  "",
 							Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct",
 							TotalSize:           2,
 							Kind:                0x19,
-							Location:            (*ditypes.Location)(nil),
+							Location:            nil,
 							LocationExpressions: nil,
 							FieldOffset:         0x20,
 							DoNotCapture:        false,
 							NotCaptureReason:    0x0,
 							ParameterPieces: []*ditypes.Parameter{
-								&ditypes.Parameter{
+								{
 									Name:             "anotherInt",
 									ID:               "",
 									Type:             "int",
@@ -559,18 +559,18 @@ func TestApplyCaptureDepth(t *testing.T) {
 									NotCaptureReason: 0x0,
 									ParameterPieces:  nil,
 								},
-								&ditypes.Parameter{
+								{
 									Name:             "anotherString",
 									ID:               "",
 									Type:             "string",
 									TotalSize:        16,
 									Kind:             0x18,
-									Location:         (*ditypes.Location)(nil),
+									Location:         nil,
 									FieldOffset:      0x8,
 									DoNotCapture:     false,
 									NotCaptureReason: 0x0,
 									ParameterPieces: []*ditypes.Parameter{
-										&ditypes.Parameter{
+										{
 											Name:                "str",
 											ID:                  "XKDYLV",
 											Type:                "*uint8",
@@ -582,13 +582,13 @@ func TestApplyCaptureDepth(t *testing.T) {
 											DoNotCapture:        false,
 											NotCaptureReason:    0x0,
 											ParameterPieces: []*ditypes.Parameter{
-												&ditypes.Parameter{
+												{
 													Name:                "",
 													ID:                  "",
 													Type:                "uint8",
 													TotalSize:           1,
 													Kind:                0x8,
-													Location:            (*ditypes.Location)(nil),
+													Location:            nil,
 													LocationExpressions: nil,
 													FieldOffset:         0x0,
 													DoNotCapture:        false,
@@ -597,7 +597,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 												},
 											},
 										},
-										&ditypes.Parameter{
+										{
 											Name:             "len",
 											ID:               "",
 											Type:             "int",
@@ -658,7 +658,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 					LocationExpressions: nil,
 					FieldOffset:         0x0,
 					DoNotCapture:        true,
-					NotCaptureReason:    0x0,
+					NotCaptureReason:    ditypes.CaptureDepthReached,
 					ParameterPieces: []*ditypes.Parameter{
 						{
 							Name:             "",
@@ -668,7 +668,7 @@ func TestApplyCaptureDepth(t *testing.T) {
 							Kind:             0x1,
 							FieldOffset:      0x0,
 							DoNotCapture:     true,
-							NotCaptureReason: 0x0,
+							NotCaptureReason: ditypes.CaptureDepthReached,
 							ParameterPieces:  nil,
 						},
 					},
@@ -676,31 +676,774 @@ func TestApplyCaptureDepth(t *testing.T) {
 			},
 			targetDepth: 0,
 		},
-
-		// {
-		// 	name:           "Capture Depth All Get Cut Off",
-		// 	parameters:     []*ditypes.Parameter{},
-		// 	expectedResult: []*ditypes.Parameter{},
-		// 	targetDepth:    1,
-		// },
-		// {
-		// 	name:           "Capture Depth One Leaf Cut Off",
-		// 	parameters:     []*ditypes.Parameter{},
-		// 	expectedResult: []*ditypes.Parameter{},
-		// 	targetDepth:    1,
-		// },
-		// {
-		// 	name:           "Nils",
-		// 	parameters:     []*ditypes.Parameter{},
-		// 	expectedResult: []*ditypes.Parameter{},
-		// 	targetDepth:    2,
-		// },
-		// {
-		// 	name:           "Empties",
-		// 	parameters:     []*ditypes.Parameter{},
-		// 	expectedResult: []*ditypes.Parameter{},
-		// 	targetDepth:    2,
-		// },
+		{
+			name: "Struct Pointer, capture all",
+			parameters: []*ditypes.Parameter{
+				{
+					Name:                "x",
+					ID:                  "",
+					Type:                "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+					TotalSize:           8,
+					Kind:                0x16,
+					Location:            &ditypes.Location{InReg: true, StackOffset: 0, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					DoNotCapture:        false,
+					NotCaptureReason:    0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:                "",
+							ID:                  "",
+							Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+							TotalSize:           3,
+							Kind:                0x19,
+							LocationExpressions: nil,
+							FieldOffset:         0x0,
+							DoNotCapture:        false,
+							NotCaptureReason:    0x0,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "aBool",
+									ID:               "",
+									Type:             "bool",
+									TotalSize:        1,
+									Kind:             0x1,
+									FieldOffset:      0x0,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+								{
+									Name:             "aInt",
+									ID:               "",
+									Type:             "int",
+									TotalSize:        8,
+									Kind:             0x2,
+									FieldOffset:      0x8,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+								{
+									Name:             "aInt16",
+									ID:               "",
+									Type:             "int16",
+									TotalSize:        2,
+									Kind:             0x4,
+									FieldOffset:      0x10,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: []*ditypes.Parameter{
+				{
+					Name:                "x",
+					ID:                  "",
+					Type:                "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+					TotalSize:           8,
+					Kind:                0x16,
+					Location:            &ditypes.Location{InReg: true, StackOffset: 0, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					DoNotCapture:        false,
+					NotCaptureReason:    0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:                "",
+							ID:                  "",
+							Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+							TotalSize:           3,
+							Kind:                0x19,
+							LocationExpressions: nil,
+							FieldOffset:         0x0,
+							DoNotCapture:        false,
+							NotCaptureReason:    0x0,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "aBool",
+									ID:               "",
+									Type:             "bool",
+									TotalSize:        1,
+									Kind:             0x1,
+									FieldOffset:      0x0,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+								{
+									Name:             "aInt",
+									ID:               "",
+									Type:             "int",
+									TotalSize:        8,
+									Kind:             0x2,
+									FieldOffset:      0x8,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+								{
+									Name:             "aInt16",
+									ID:               "",
+									Type:             "int16",
+									TotalSize:        2,
+									Kind:             0x4,
+									FieldOffset:      0x10,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+							},
+						},
+					},
+				},
+			},
+			targetDepth: 1,
+		},
+		{
+			name: "Struct Pointer, dont capture",
+			parameters: []*ditypes.Parameter{
+				{
+					Name:                "x",
+					ID:                  "",
+					Type:                "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+					TotalSize:           8,
+					Kind:                0x16,
+					Location:            &ditypes.Location{InReg: true, StackOffset: 0, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					DoNotCapture:        false,
+					NotCaptureReason:    0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:                "",
+							ID:                  "",
+							Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+							TotalSize:           3,
+							Kind:                0x19,
+							LocationExpressions: nil,
+							FieldOffset:         0x0,
+							DoNotCapture:        false,
+							NotCaptureReason:    0x0,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "aBool",
+									ID:               "",
+									Type:             "bool",
+									TotalSize:        1,
+									Kind:             0x1,
+									FieldOffset:      0x0,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+								{
+									Name:             "aInt",
+									ID:               "",
+									Type:             "int",
+									TotalSize:        8,
+									Kind:             0x2,
+									FieldOffset:      0x8,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+								{
+									Name:             "aInt16",
+									ID:               "",
+									Type:             "int16",
+									TotalSize:        2,
+									Kind:             0x4,
+									FieldOffset:      0x10,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces:  nil,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: []*ditypes.Parameter{
+				{
+					Name:                "x",
+					ID:                  "",
+					Type:                "*github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+					TotalSize:           8,
+					Kind:                0x16,
+					Location:            &ditypes.Location{InReg: true, StackOffset: 0, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					DoNotCapture:        true,
+					NotCaptureReason:    ditypes.CaptureDepthReached,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:                "",
+							ID:                  "",
+							Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nStruct",
+							TotalSize:           3,
+							Kind:                0x19,
+							LocationExpressions: nil,
+							FieldOffset:         0x0,
+							DoNotCapture:        true,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "aBool",
+									ID:               "",
+									Type:             "bool",
+									TotalSize:        1,
+									Kind:             0x1,
+									FieldOffset:      0x0,
+									DoNotCapture:     true,
+									NotCaptureReason: ditypes.CaptureDepthReached,
+									ParameterPieces:  nil,
+								},
+								{
+									Name:             "aInt",
+									ID:               "",
+									Type:             "int",
+									TotalSize:        8,
+									Kind:             0x2,
+									FieldOffset:      0x8,
+									DoNotCapture:     true,
+									NotCaptureReason: ditypes.CaptureDepthReached,
+									ParameterPieces:  nil,
+								},
+								{
+									Name:             "aInt16",
+									ID:               "",
+									Type:             "int16",
+									TotalSize:        2,
+									Kind:             0x4,
+									FieldOffset:      0x10,
+									DoNotCapture:     true,
+									NotCaptureReason: ditypes.CaptureDepthReached,
+									ParameterPieces:  nil,
+								},
+							},
+						},
+					},
+				},
+			},
+			targetDepth: 0,
+		},
+		{
+			name: "struct with int and string pointer - capture all",
+			parameters: []*ditypes.Parameter{
+				{
+					Name:                "z",
+					ID:                  "",
+					Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.spws",
+					TotalSize:           2,
+					Kind:                0x19,
+					Location:            nil,
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					DoNotCapture:        false,
+					NotCaptureReason:    0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "a",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							Kind:             0x2,
+							Location:         &ditypes.Location{InReg: true, StackOffset: 0, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+						{
+							Name:                "x",
+							ID:                  "HVXBYS",
+							Type:                "*string",
+							TotalSize:           8,
+							Kind:                0x16,
+							Location:            &ditypes.Location{InReg: true, StackOffset: 0, Register: 1, NeedsDereference: false, PointerOffset: 0x0},
+							LocationExpressions: nil,
+							FieldOffset:         0x8,
+							DoNotCapture:        false,
+							NotCaptureReason:    0x0,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "",
+									ID:               "",
+									Type:             "string",
+									TotalSize:        16,
+									Kind:             0x18,
+									FieldOffset:      0x0,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces: []*ditypes.Parameter{
+										{
+											Name:             "str",
+											ID:               "YCXUAP",
+											Type:             "*uint8",
+											TotalSize:        8,
+											Kind:             0x16,
+											FieldOffset:      0x0,
+											DoNotCapture:     false,
+											NotCaptureReason: 0x0,
+											ParameterPieces: []*ditypes.Parameter{
+												{
+													Name:             "",
+													ID:               "",
+													Type:             "uint8",
+													TotalSize:        1,
+													Kind:             0x8,
+													FieldOffset:      0x0,
+													DoNotCapture:     false,
+													NotCaptureReason: 0x0,
+													ParameterPieces:  nil,
+												},
+											},
+										},
+										{
+											Name:             "len",
+											ID:               "",
+											Type:             "int",
+											TotalSize:        8,
+											Kind:             0x2,
+											FieldOffset:      0x8,
+											DoNotCapture:     false,
+											NotCaptureReason: 0x0,
+											ParameterPieces:  nil,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: []*ditypes.Parameter{
+				{
+					Name:                "z",
+					ID:                  "",
+					Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.spws",
+					TotalSize:           2,
+					Kind:                0x19,
+					Location:            nil,
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					DoNotCapture:        false,
+					NotCaptureReason:    0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "a",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							Kind:             0x2,
+							Location:         &ditypes.Location{InReg: true, StackOffset: 0, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+						{
+							Name:                "x",
+							ID:                  "HVXBYS",
+							Type:                "*string",
+							TotalSize:           8,
+							Kind:                0x16,
+							Location:            &ditypes.Location{InReg: true, StackOffset: 0, Register: 1, NeedsDereference: false, PointerOffset: 0x0},
+							LocationExpressions: nil,
+							FieldOffset:         0x8,
+							DoNotCapture:        false,
+							NotCaptureReason:    0x0,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "",
+									ID:               "",
+									Type:             "string",
+									TotalSize:        16,
+									Kind:             0x18,
+									FieldOffset:      0x0,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces: []*ditypes.Parameter{
+										{
+											Name:             "str",
+											ID:               "YCXUAP",
+											Type:             "*uint8",
+											TotalSize:        8,
+											Kind:             0x16,
+											FieldOffset:      0x0,
+											DoNotCapture:     false,
+											NotCaptureReason: 0x0,
+											ParameterPieces: []*ditypes.Parameter{
+												{
+													Name:             "",
+													ID:               "",
+													Type:             "uint8",
+													TotalSize:        1,
+													Kind:             0x8,
+													FieldOffset:      0x0,
+													DoNotCapture:     false,
+													NotCaptureReason: 0x0,
+													ParameterPieces:  nil,
+												},
+											},
+										},
+										{
+											Name:             "len",
+											ID:               "",
+											Type:             "int",
+											TotalSize:        8,
+											Kind:             0x2,
+											FieldOffset:      0x8,
+											DoNotCapture:     false,
+											NotCaptureReason: 0x0,
+											ParameterPieces:  nil,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			targetDepth: 1,
+		},
+		{
+			name: "struct with int and string pointer - capture none",
+			parameters: []*ditypes.Parameter{
+				{
+					Name:                "z",
+					ID:                  "",
+					Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.spws",
+					TotalSize:           2,
+					Kind:                0x19,
+					Location:            nil,
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					DoNotCapture:        false,
+					NotCaptureReason:    0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "a",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							Kind:             0x2,
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+						{
+							Name:                "x",
+							ID:                  "HVXBYS",
+							Type:                "*string",
+							TotalSize:           8,
+							Kind:                0x16,
+							LocationExpressions: nil,
+							FieldOffset:         0x8,
+							DoNotCapture:        false,
+							NotCaptureReason:    0x0,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "",
+									ID:               "",
+									Type:             "string",
+									TotalSize:        16,
+									Kind:             0x18,
+									FieldOffset:      0x0,
+									DoNotCapture:     false,
+									NotCaptureReason: 0x0,
+									ParameterPieces: []*ditypes.Parameter{
+										{
+											Name:             "str",
+											ID:               "YCXUAP",
+											Type:             "*uint8",
+											TotalSize:        8,
+											Kind:             0x16,
+											FieldOffset:      0x0,
+											DoNotCapture:     false,
+											NotCaptureReason: 0x0,
+											ParameterPieces: []*ditypes.Parameter{
+												{
+													Name:             "",
+													ID:               "",
+													Type:             "uint8",
+													TotalSize:        1,
+													Kind:             0x8,
+													FieldOffset:      0x0,
+													DoNotCapture:     false,
+													NotCaptureReason: 0x0,
+													ParameterPieces:  nil,
+												},
+											},
+										},
+										{
+											Name:             "len",
+											ID:               "",
+											Type:             "int",
+											TotalSize:        8,
+											Kind:             0x2,
+											FieldOffset:      0x8,
+											DoNotCapture:     false,
+											NotCaptureReason: 0x0,
+											ParameterPieces:  nil,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: []*ditypes.Parameter{
+				{
+					Name:                "z",
+					ID:                  "",
+					Type:                "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.spws",
+					TotalSize:           2,
+					Kind:                0x19,
+					Location:            nil,
+					LocationExpressions: nil,
+					FieldOffset:         0x0,
+					DoNotCapture:        true,
+					NotCaptureReason:    ditypes.CaptureDepthReached,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "a",
+							ID:               "",
+							Type:             "int",
+							TotalSize:        8,
+							Kind:             0x2,
+							FieldOffset:      0x0,
+							DoNotCapture:     true,
+							NotCaptureReason: ditypes.CaptureDepthReached,
+							ParameterPieces:  nil,
+						},
+						{
+							Name:                "x",
+							ID:                  "HVXBYS",
+							Type:                "*string",
+							TotalSize:           8,
+							Kind:                0x16,
+							LocationExpressions: nil,
+							FieldOffset:         0x8,
+							DoNotCapture:        true,
+							NotCaptureReason:    ditypes.CaptureDepthReached,
+							ParameterPieces: []*ditypes.Parameter{
+								{
+									Name:             "",
+									ID:               "",
+									Type:             "string",
+									TotalSize:        16,
+									Kind:             0x18,
+									FieldOffset:      0x0,
+									DoNotCapture:     true,
+									NotCaptureReason: ditypes.CaptureDepthReached,
+									ParameterPieces: []*ditypes.Parameter{
+										{
+											Name:             "str",
+											ID:               "YCXUAP",
+											Type:             "*uint8",
+											TotalSize:        8,
+											Kind:             0x16,
+											FieldOffset:      0x0,
+											DoNotCapture:     true,
+											NotCaptureReason: ditypes.CaptureDepthReached,
+											ParameterPieces: []*ditypes.Parameter{
+												{
+													Name:             "",
+													ID:               "",
+													Type:             "uint8",
+													TotalSize:        1,
+													Kind:             0x8,
+													FieldOffset:      0x0,
+													DoNotCapture:     true,
+													NotCaptureReason: ditypes.CaptureDepthReached,
+													ParameterPieces:  nil,
+												},
+											},
+										},
+										{
+											Name:             "len",
+											ID:               "",
+											Type:             "int",
+											TotalSize:        8,
+											Kind:             0x2,
+											FieldOffset:      0x8,
+											DoNotCapture:     true,
+											NotCaptureReason: ditypes.CaptureDepthReached,
+											ParameterPieces:  nil,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			targetDepth: 0,
+		},
+		{
+			name: "Uint array",
+			parameters: []*ditypes.Parameter{
+				{
+					Name:             "x",
+					ID:               "",
+					Type:             "[2]uint",
+					TotalSize:        2,
+					Kind:             0x11,
+					Location:         &ditypes.Location{InReg: false, StackOffset: 16, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					FieldOffset:      0x0,
+					DoNotCapture:     false,
+					NotCaptureReason: 0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "[2]uint[0]",
+							ID:               "",
+							Type:             "uint",
+							TotalSize:        8,
+							Kind:             0x7,
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+						{
+							Name:             "[2]uint[1]",
+							ID:               "",
+							Type:             "uint",
+							TotalSize:        8,
+							Kind:             0x7,
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+					},
+				},
+			},
+			expectedResult: []*ditypes.Parameter{
+				{
+					Name:             "x",
+					ID:               "",
+					Type:             "[2]uint",
+					TotalSize:        2,
+					Kind:             0x11,
+					Location:         &ditypes.Location{InReg: false, StackOffset: 16, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					FieldOffset:      0x0,
+					DoNotCapture:     false,
+					NotCaptureReason: 0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "[2]uint[0]",
+							ID:               "",
+							Type:             "uint",
+							TotalSize:        8,
+							Kind:             0x7,
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+						{
+							Name:             "[2]uint[1]",
+							ID:               "",
+							Type:             "uint",
+							TotalSize:        8,
+							Kind:             0x7,
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+					},
+				},
+			},
+			targetDepth: 1,
+		},
+		{
+			name: "Uint array dont capture",
+			parameters: []*ditypes.Parameter{
+				{
+					Name:             "x",
+					ID:               "",
+					Type:             "[2]uint",
+					TotalSize:        2,
+					Kind:             0x11,
+					Location:         &ditypes.Location{InReg: false, StackOffset: 16, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					FieldOffset:      0x0,
+					DoNotCapture:     false,
+					NotCaptureReason: 0x0,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "[2]uint[0]",
+							ID:               "",
+							Type:             "uint",
+							TotalSize:        8,
+							Kind:             0x7,
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+						{
+							Name:             "[2]uint[1]",
+							ID:               "",
+							Type:             "uint",
+							TotalSize:        8,
+							Kind:             0x7,
+							FieldOffset:      0x0,
+							DoNotCapture:     false,
+							NotCaptureReason: 0x0,
+							ParameterPieces:  nil,
+						},
+					},
+				},
+			},
+			expectedResult: []*ditypes.Parameter{
+				{
+					Name:             "x",
+					ID:               "",
+					Type:             "[2]uint",
+					TotalSize:        2,
+					Kind:             0x11,
+					Location:         &ditypes.Location{InReg: false, StackOffset: 16, Register: 0, NeedsDereference: false, PointerOffset: 0x0},
+					FieldOffset:      0x0,
+					DoNotCapture:     true,
+					NotCaptureReason: ditypes.CaptureDepthReached,
+					ParameterPieces: []*ditypes.Parameter{
+						{
+							Name:             "[2]uint[0]",
+							ID:               "",
+							Type:             "uint",
+							TotalSize:        8,
+							Kind:             0x7,
+							FieldOffset:      0x0,
+							DoNotCapture:     true,
+							NotCaptureReason: ditypes.CaptureDepthReached,
+							ParameterPieces:  nil,
+						},
+						{
+							Name:             "[2]uint[1]",
+							ID:               "",
+							Type:             "uint",
+							TotalSize:        8,
+							Kind:             0x7,
+							FieldOffset:      0x0,
+							DoNotCapture:     true,
+							NotCaptureReason: ditypes.CaptureDepthReached,
+							ParameterPieces:  nil,
+						},
+					},
+				},
+			},
+			targetDepth: 0,
+		},
 	}
 
 	for _, test := range tests {
