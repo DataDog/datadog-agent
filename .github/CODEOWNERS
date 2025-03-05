@@ -292,7 +292,7 @@
 /omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
-# The following is managed by `inv lint-components` -- DO NOT EDIT
+# The following is managed by `dda inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-runtimes
 /comp/agent @DataDog/agent-runtimes
@@ -379,6 +379,9 @@
 /pkg/serverless/                        @DataDog/serverless @Datadog/serverless-aws
 /pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-configuration
+/pkg/status/health                      @DataDog/agent-runtimes
+/pkg/status/collector                   @DataDog/agent-metric-pipelines
+/pkg/status/clusteragent                @DataDog/container-platform
 /pkg/telemetry/                         @DataDog/agent-runtimes
 /pkg/telemetry/stat_gauge_wrapper.go    @DataDog/ebpf-platform
 /pkg/telemetry/stat_counter_wrapper.go  @DataDog/ebpf-platform

@@ -30,10 +30,12 @@ jobs:
         with:
           python-version-file: .python-version
           cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+          cache-dependency-path: '.dda/version'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Check code review complexity
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"
+        run: dda inv -e github.assign-codereview-label --pr-id="$PR_NUMBER"

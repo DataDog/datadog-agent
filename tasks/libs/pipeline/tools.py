@@ -136,7 +136,7 @@ def trigger_agent_pipeline(
     """
 
     ref = ref or get_default_branch()
-    args = {}
+    args = {"TRIGGERED_PIPELINE": "true"}
 
     if deploy:
         args["DEPLOY_AGENT"] = "true"

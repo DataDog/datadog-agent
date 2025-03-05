@@ -52,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -149,15 +150,14 @@ type EBPFProbe struct {
 	supportsBPFSendSignal bool
 	processKiller         *ProcessKiller
 
-	isRuntimeDiscarded    bool
-	constantOffsets       map[string]uint64
-	runtimeCompiled       bool
-	useSyscallWrapper     bool
-	useFentry             bool
-	useRingBuffers        bool
-	useMmapableMaps       bool
-	cgroupSysctlSupported bool
-	cgroup2MountPath      string
+	isRuntimeDiscarded bool
+	constantOffsets    map[string]uint64
+	runtimeCompiled    bool
+	useSyscallWrapper  bool
+	useFentry          bool
+	useRingBuffers     bool
+	useMmapableMaps    bool
+	cgroup2MountPath   string
 
 	// On demand
 	onDemandManager     *OnDemandProbesManager
@@ -271,6 +271,10 @@ func (p *EBPFProbe) selectFentryMode() {
 	p.useFentry = true
 }
 
+func (p *EBPFProbe) isCgroupSysCtlNotSupported() bool {
+	return IsCgroupSysCtlNotSupported(p.kernelVersion, p.cgroup2MountPath)
+}
+
 func (p *EBPFProbe) isNetworkNotSupported() bool {
 	return IsNetworkNotSupported(p.kernelVersion)
 }
@@ -309,8 +313,13 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.NetworkFlowMonitorEnabled && p.isNetworkFlowMonitorNotSupported() {
-		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
+		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support for the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
 		p.config.Probe.NetworkFlowMonitorEnabled = false
+	}
+
+	if p.config.RuntimeSecurity.SysCtlEnabled && p.isCgroupSysCtlNotSupported() {
+		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
+		p.config.RuntimeSecurity.SysCtlEnabled = false
 	}
 
 	return nil
@@ -596,6 +605,11 @@ func (p *EBPFProbe) Start() error {
 
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
+
+	if p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+		// start sysctl snapshot loop
+		go p.startSysCtlSnapshotLoop()
+	}
 
 	return p.eventStream.Start(&p.wg)
 }
@@ -1520,7 +1534,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	case "network_flow_monitor":
 		return p.probe.IsNetworkFlowMonitorEnabled()
 	case "sysctl":
-		return p.cgroupSysctlSupported
+		return p.probe.IsSysctlEventEnabled()
 	}
 	return true
 }
@@ -1753,6 +1767,31 @@ func (p *EBPFProbe) Close() error {
 	close(p.newTCNetDevices)
 
 	return p.Resolvers.Close()
+}
+
+func (p *EBPFProbe) startSysCtlSnapshotLoop() {
+	ticker := time.NewTicker(p.config.RuntimeSecurity.SysCtlSnapshotPeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-ticker.C:
+			// create the sysctl snapshot
+			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames)
+			if err != nil {
+				seclog.Errorf("sysctl snapshot failed: %v", err)
+				continue
+			}
+
+			// send a sysctl snapshot event
+			rule := events.NewCustomRule(events.SysCtlSnapshotRuleID, events.SysCtlSnapshotRuleDesc)
+			customEvent := events.NewCustomEvent(model.CustomEventType, event)
+
+			p.probe.DispatchCustomEvent(rule, customEvent)
+			seclog.Tracef("sysctl snapshot sent !")
+		}
+	}
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -2223,7 +2262,7 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
 	}
 
-	if !p.cgroupSysctlSupported {
+	if !p.config.RuntimeSecurity.SysCtlEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetSysCtlProbeFunctionName())
 	}
 	return nil
@@ -2304,6 +2343,8 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		return nil, err
 	}
 
+	p.initCgroup2MountPath()
+
 	if err := p.sanityChecks(); err != nil {
 		return nil, err
 	}
@@ -2319,8 +2360,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	p.selectFentryMode()
 	p.selectRingBuffersMode()
 	p.useMmapableMaps = p.kernelVersion.HaveMmapableMaps()
-	p.initCgroup2MountPath()
-	p.cgroupSysctlSupported = len(p.cgroup2MountPath) > 0 && p.kernelVersion.HasCgroupSysctlSupportWithRingbuf()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers)
 

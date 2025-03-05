@@ -10,8 +10,8 @@ create_release_qa_cards:
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
     # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is 
+    # In particular, --break-system-packages command line option is
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
     - pip install ddqa --break-system-packages
-    - inv release.create-qa-cards -t ${CI_COMMIT_REF_NAME}
+    - dda inv release.create-qa-cards -t ${CI_COMMIT_REF_NAME}
   allow_failure: true
