@@ -194,9 +194,6 @@ func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator 
 func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		if !lang.isEnabledByDefault() {
-			continue
-		}
 		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
 	}
 

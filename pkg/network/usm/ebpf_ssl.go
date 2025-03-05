@@ -247,14 +247,8 @@ const (
 
 var (
 	buildKitProcessName = []byte("buildkitd")
-)
 
-// Template, will be modified during runtime.
-// The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
-// a dynamic initialization.
-var opensslSpec = &protocols.ProtocolSpec{
-	Factory: newSSLProgramProtocolFactory,
-	Maps: []*manager.Map{
+	sharedLibrariesMaps = []*manager.Map{
 		{
 			Name: sslSockByCtxMap,
 		},
@@ -279,8 +273,21 @@ var opensslSpec = &protocols.ProtocolSpec{
 		{
 			Name: sslCtxByPIDTGIDMap,
 		},
-	},
+	}
+)
+
+// Template, will be modified during runtime.
+// The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
+// a dynamic initialization.
+var opensslSpec = &protocols.ProtocolSpec{
+	Factory: newSSLProgramProtocolFactory,
+	Maps:    sharedLibrariesMaps,
 	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe__tcp_sendmsg",
+			},
+		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: sslReadExProbe,
@@ -437,13 +444,12 @@ var opensslSpec = &protocols.ProtocolSpec{
 type sslProgram struct {
 	cfg           *config.Config
 	watcher       *sharedlibraries.Watcher
-	istioMonitor  *istioMonitor
 	nodeJSMonitor *nodeJSMonitor
 	ebpfManager   *manager.Manager
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
+	if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableNodeJSMonitoring {
 		return nil, nil
 	}
 
@@ -488,14 +494,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 	if err != nil {
 		return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
 	}
-
-	istio, err := newIstioMonitor(c, m)
-	if err != nil {
-		return nil, fmt.Errorf("error initializing istio monitor: %w", err)
-	}
-
 	sslProgram.watcher = watcher
-	sslProgram.istioMonitor = istio
 	sslProgram.nodeJSMonitor = nodejs
 
 	return sslProgram, nil
@@ -506,23 +505,29 @@ func (o *sslProgram) Name() string {
 	return "openssl"
 }
 
-// ConfigureOptions changes map attributes to the given options.
-func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Config) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
+		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
+		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg"},
+	})
+}
+
+// ConfigureOptions changes map attributes to the given options.
+func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+	sharedLibrariesConfigureOptions(options, o.cfg)
 	o.addProcessExitProbe(options)
 }
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart() error {
 	o.watcher.Start()
-	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
 }
@@ -535,7 +540,6 @@ func (o *sslProgram) PostStart() error {
 // Stop stops the program.
 func (o *sslProgram) Stop() {
 	o.watcher.Stop()
-	o.istioMonitor.Stop()
 	o.nodeJSMonitor.Stop()
 }
 

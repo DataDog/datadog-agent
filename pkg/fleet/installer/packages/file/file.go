@@ -95,13 +95,12 @@ func (p Permission) Ensure(rootPath string) error {
 	}
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
-			if err := chown(file, p.Owner, p.Group); err != nil {
+			if err := chown(file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
 		if p.Mode != 0 {
-			err := os.Chmod(file, p.Mode)
-			if err != nil {
+			if err := os.Chmod(file, p.Mode); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file mode: %w", err)
 			}
 		}
@@ -165,7 +164,7 @@ func chown(path string, username string, group string) (err error) {
 func filesInDir(dir string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dir, func(path string, _ os.FileInfo, err error) error {
-		if err != nil {
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("error walking path: %w", err)
 		}
 		files = append(files, path)

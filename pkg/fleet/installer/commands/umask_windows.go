@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package installer
+package commands
 
 import "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
