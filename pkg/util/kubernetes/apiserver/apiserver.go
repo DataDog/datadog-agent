@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver || kubelet
+//go:build kubeapiserver
 
 // Package apiserver provides an API client for the Kubernetes API server.
 package apiserver
