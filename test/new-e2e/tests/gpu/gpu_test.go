@@ -100,7 +100,7 @@ func TestGPUK8sSuite(t *testing.T) {
 
 	provisioner := gpuK8sProvisioner(provParams)
 
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioner)}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioner), e2e.WithSkipDeleteOnFailure()}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
