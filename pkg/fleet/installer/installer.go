@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -52,6 +53,7 @@ type Installer interface {
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
+	SetupInstaller(ctx context.Context, path string) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
 
@@ -174,6 +176,96 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	})
 }
 
+// SetupInstaller with given path sets up the installer/agent package.
+func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	_, err := i.db.GetPackage(packageDatadogAgent)
+	if err == nil {
+		// need to remove the agent before installing the installer
+		err = i.db.DeletePackage(packageDatadogAgent)
+		if err != nil {
+			return fmt.Errorf("could not remove agent: %w", err)
+		}
+
+		// remove the agent from the repository
+		err = i.packages.Delete(ctx, packageDatadogAgent)
+		if err != nil {
+			return fmt.Errorf("could not delete agent repository: %w", err)
+		}
+	} else if !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package: %w", err)
+	}
+
+	// setup the installer
+
+	// if windows we need to copy the MSI to temp directory
+	if runtime.GOOS == "windows" {
+		// copy the MSI to the temp directory
+		tmpDir, err := i.packages.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("could not create temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tmpDir)
+		err = copyFile(path, filepath.Join(tmpDir, filepath.Base(path)))
+		if err != nil {
+			return fmt.Errorf("could not copy installer: %w", err)
+		}
+		path = tmpDir
+	}
+
+	// create the installer package
+	err = i.packages.Create(packageDatadogAgent, version.AgentVersion, path)
+	if err != nil {
+		return fmt.Errorf("could not create installer repository: %w", err)
+	}
+
+	// add to the db
+	err = i.db.SetPackage(db.Package{
+		Name:             packageDatadogAgent,
+		Version:          version.AgentVersion,
+		InstallerVersion: version.AgentVersion,
+	})
+	if err != nil {
+		return fmt.Errorf("could not store package installation in db: %w", err)
+	}
+
+	return nil
+
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	// Open the source file
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("could not open source file: %w", err)
+	}
+	defer sourceFile.Close()
+
+	// Create the destination file
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("could not create destination file: %w", err)
+	}
+	defer destinationFile.Close()
+
+	// Copy the contents from source to destination
+	_, err = io.Copy(destinationFile, sourceFile)
+	if err != nil {
+		return fmt.Errorf("could not copy file: %w", err)
+	}
+
+	// Flush the destination file to ensure all data is written
+	err = destinationFile.Sync()
+	if err != nil {
+		return fmt.Errorf("could not flush destination file: %w", err)
+	}
+
+	return nil
+}
+
 func (i *installerImpl) doInstall(ctx context.Context, url string, args []string, shouldInstallPredicate func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
@@ -294,16 +386,6 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 	repository := i.packages.Get(pkg.Name)
-
-	err = i.platformPrepareExperiment(pkg, repository)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not prepare experiment: %w", err),
-		)
-	}
-
-	// call platform specific install experiment
 	err = i.preparePackage(ctx, pkg.Name, nil)
 	if err != nil {
 		return installerErrors.Wrap(

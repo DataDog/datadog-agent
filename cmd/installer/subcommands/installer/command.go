@@ -14,6 +14,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
@@ -21,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -64,6 +65,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		bootstrapCommand(),
 		installCommand(),
+		setupInstallerCommand(),
 		setupCommand(),
 		removeCommand(),
 		installExperimentCommand(),
@@ -305,6 +307,25 @@ func installCommand() *cobra.Command {
 	}
 	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
 	cmd.Flags().BoolVar(&forceInstall, "force", false, "Install packages, even if they are already up-to-date.")
+	return cmd
+}
+
+func setupInstallerCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "setup-installer <stablePath>",
+		Short:   "Sets up the installer package",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("setup_installer")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.stablePath", args[0])
+			return i.SetupInstaller(i.ctx, args[0])
+		},
+	}
 	return cmd
 }
 

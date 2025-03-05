@@ -18,6 +18,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction PatchInstaller { get; set; }
 
+        public ManagedAction SetupInstaller { get; set; }
+
         public ManagedAction EnsureGeneratedFilesRemoved { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -297,6 +299,20 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], INSTALL_PYTHON_THIRD_PARTY_DEPS=[INSTALL_PYTHON_THIRD_PARTY_DEPS]");
 
+            SetupInstaller = new CustomAction<CustomActions>(
+                    new Id(nameof(SetupInstaller)),
+                    CustomActions.SetupInstaller,
+                    Return.check,
+                    When.After,
+                    Step.InstallServices,
+                    Conditions.FirstInstall | Conditions.Upgrading
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], OriginalDatabase=[OriginalDatabase]");
 
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(

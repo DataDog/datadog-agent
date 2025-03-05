@@ -36,18 +36,9 @@ func PrepareAgent(_ context.Context) error {
 }
 
 // SetupAgent installs and starts the agent
-// this should no longer be called in as there is no longer a bootstrap process
-func SetupAgent(ctx context.Context, args []string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "setup_agent")
-	defer func() {
-		// Don't log error here, or it will appear twice in the output
-		// since installerImpl.Install will also print the error.
-		span.Finish(err)
-	}()
-	// Make sure there are no Agent already installed
-	_ = removeAgentIfInstalled(ctx)
-	err = installAgentPackage("stable", args, "setup_agent.log")
-	return err
+// This will get called within the MSI installer and should no-op
+func SetupAgent(_ context.Context, _ []string) (err error) {
+	return nil
 }
 
 // GetCurrentAgentMSIProperties returns the MSI path and version of the currently installed Agent
@@ -226,6 +217,8 @@ func installAgentPackage(target string, args []string, logFileName string) error
 		return err
 	}
 	logFile := path.Join(tempDir, logFileName)
+
+	args = append(args, "FLEET_INSTALL=1")
 
 	cmd, err := msi.Cmd(
 		msi.Install(),

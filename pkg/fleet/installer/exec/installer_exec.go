@@ -72,6 +72,13 @@ func (i *InstallerExec) Install(ctx context.Context, url string, args []string) 
 	return cmd.Run()
 }
 
+// SetupInstaller runs the setup command.
+func (i *InstallerExec) SetupInstaller(ctx context.Context, path string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "setup-installer", path)
+	defer func() { cmd.span.Finish(nil) }()
+	return cmd.Run()
+}
+
 // ForceInstall installs a package, even if it's already installed.
 func (i *InstallerExec) ForceInstall(ctx context.Context, url string, args []string) (err error) {
 	var cmdLineArgs = []string{url, "--force"}
