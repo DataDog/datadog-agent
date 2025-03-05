@@ -73,7 +73,7 @@ func (m *mockAPI) UpdatePARJWT(jwt string) {
 	m.Called(jwt)
 }
 
-func (m *mockAPI) UpdateApiKey(apiKey string) {
+func (m *mockAPI) UpdateAPIKey(apiKey string) {
 	m.Called(apiKey)
 }
 
@@ -775,7 +775,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 func TestWithApiKeyUpdate(t *testing.T) {
 	api := &mockAPI{}
 	updatedKey := "notUpdated"
-	api.On("UpdateApiKey", mock.Anything).Run(func(args mock.Arguments) {
+	api.On("UpdateAPIKey", mock.Anything).Run(func(args mock.Arguments) {
 		updatedKey = args.Get(0).(string)
 	})
 	cfg := configmock.New(t)

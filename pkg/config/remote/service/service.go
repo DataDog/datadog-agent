@@ -922,7 +922,7 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
 
 		newKey, ok := newvalue.(string)
 		if ok {
-			s.api.UpdateApiKey(newKey)
+			s.api.UpdateAPIKey(newKey)
 		}
 	}
 }
