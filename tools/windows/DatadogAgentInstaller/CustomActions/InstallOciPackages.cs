@@ -37,7 +37,7 @@ namespace Datadog.CustomActions
 
         private string PackageUrl(string language, string version)
         {
-            if (site == "datad0g.com")
+            if (_site == "datad0g.com")
             {
                 return $"oci://install.datad0g.com/{OciImageName(language)}:{version}";
             }
@@ -62,15 +62,15 @@ namespace Datadog.CustomActions
         {
             try
             {
-                session.Log("Installing Oci Packages");
-                string instrumentationEnabled = session.Property("DD_APM_INSTRUMENTATION_ENABLED");
-                session.Log($"instrumentationEnabled: {instrumentationEnabled}");
+                _session.Log("Installing Oci Packages");
+                string instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
+                _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
                 if (instrumentationEnabled != "iis")
                 {
-                    session.Log("Only DD_APM_INSTRUMENTATION_ENABLED=iis is supported");
+                    _session.Log("Only DD_APM_INSTRUMENTATION_ENABLED=iis is supported");
                     return ActionResult.Failure;
                 }
-                string librariesRaw = session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+                string librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 var libraries = librariesRaw.Split(",");
                 foreach (var library in libraries)
                 {
@@ -100,7 +100,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception ex)
             {
-                session.Log("Error while installing dotnet library: " + ex.Message);
+                _session.Log("Error while installing dotnet library: " + ex.Message);
                 return ActionResult.Failure;
             }
         }
