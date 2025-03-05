@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -52,7 +52,7 @@ type CollectorMetadata struct {
 // CollectorFactory allows to register a factory to dynamically create Collector at startup
 type CollectorFactory struct {
 	ID          string
-	Constructor func(*Cache, optional.Option[workloadmeta.Component]) (CollectorMetadata, error)
+	Constructor func(*Cache, option.Option[workloadmeta.Component]) (CollectorMetadata, error)
 }
 
 // GenericProvider offers an interface to retrieve a metrics collector
@@ -77,7 +77,7 @@ func newCollectorRegistry() *collectorRegistry {
 }
 
 // catalogUpdatedCallback : blocking call in the retryCollectors() function (background goroutine)
-func (cr *collectorRegistry) run(c context.Context, cache *Cache, wmeta optional.Option[workloadmeta.Component], catalogUpdatedCallback func(CollectorCatalog)) {
+func (cr *collectorRegistry) run(c context.Context, cache *Cache, wmeta option.Option[workloadmeta.Component], catalogUpdatedCallback func(CollectorCatalog)) {
 	cr.discoveryOnce.Do(func() {
 		cr.catalogUpdatedCallback = catalogUpdatedCallback
 
@@ -89,7 +89,7 @@ func (cr *collectorRegistry) run(c context.Context, cache *Cache, wmeta optional
 	})
 }
 
-func (cr *collectorRegistry) collectorDiscovery(c context.Context, cache *Cache, wmeta optional.Option[workloadmeta.Component]) {
+func (cr *collectorRegistry) collectorDiscovery(c context.Context, cache *Cache, wmeta option.Option[workloadmeta.Component]) {
 	ticker := time.NewTicker(minRetryInterval)
 	for {
 		select {
@@ -114,7 +114,7 @@ func (cr *collectorRegistry) registerCollector(collectorFactory CollectorFactory
 }
 
 // retryCollectors is not thread safe on purpose. It's only called by a single goroutine from `cr.run`
-func (cr *collectorRegistry) retryCollectors(cache *Cache, wmeta optional.Option[workloadmeta.Component]) int {
+func (cr *collectorRegistry) retryCollectors(cache *Cache, wmeta option.Option[workloadmeta.Component]) int {
 	cr.registeredCollectorsLock.Lock()
 	defer cr.registeredCollectorsLock.Unlock()
 

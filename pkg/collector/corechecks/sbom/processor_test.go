@@ -34,7 +34,7 @@ import (
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -597,7 +597,7 @@ func TestProcessEvents(t *testing.T) {
 	defer os.RemoveAll(cacheDir)
 	cfg.SetWithoutSource("sbom.cache_directory", cacheDir)
 	cfg.SetWithoutSource("sbom.container_image.enabled", true)
-	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
+	wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),

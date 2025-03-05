@@ -18,7 +18,7 @@ import (
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var (
@@ -38,7 +38,7 @@ type dependencies struct {
 
 	Log          log.Component
 	Config       config.Component
-	RemoteConfig optional.Option[rcservice.Component]
+	RemoteConfig option.Option[rcservice.Component]
 }
 
 func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercomp.Component, error) {
