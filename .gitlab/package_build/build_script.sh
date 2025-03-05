@@ -1,5 +1,32 @@
 #!/bin/bash -e
 
+
+setup_xcode()
+{
+    echo "=== Setup XCode ==="
+    # TODO: 15.2 not 14.2
+    # TODO: Verify utility
+    sudo xcodes select 14.2
+    sudo xcodebuild -license accept
+    sudo xcodebuild -runFirstLaunch
+    # sudo xcodes runtimes install 14.2 || true
+    echo "=== Ls SDKs ==="
+    ls /Library/Developer/CommandLineTools/SDKs || true
+    echo "=== Ls SDKs 14.2 ==="
+    ls /Library/Developer/CommandLineTools/SDKs/MacOSX14.2.sdk || true
+    echo "=== SDK settings ==="
+    cat /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/SDKSettings.json || true
+    echo "=== Path ==="
+    # TODO: Is /Applications/Xcode-15.2.0.app/Contents/Developer
+    find "$(xcode-select -p)" || true
+    xcode-select -p || true
+    ls "$(xcode-select -p)" || true
+    echo "=== Some other debug ==="
+    echo Trying install
+    xcode-select --install || true
+    echo END DEBUG
+}
+
 # TODO A: Remove, this is from the runner
 if [ "$1" = SETUP_RUNNER ]; then
     set -euo pipefail
@@ -55,22 +82,7 @@ if [ "$1" = SETUP_RUNNER ]; then
         ln -s "$(which $binary)" bin/$binary
     done
 
-    # TODO: Verify utility
-    sudo xcodes select 15.2
-    sudo xcodebuild -license accept
-    sudo xcodebuild -runFirstLaunch
-    sudo xcodes runtimes install 15.2 || true
-    echo "=== Ls SDKs ==="
-    ls /Library/Developer/CommandLineTools/SDKs || true
-    echo "=== Ls SDKs 15.2 ==="
-    ls /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk || true
-    echo "=== SDK settings ==="
-    cat /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/SDKSettings.json || true
-    echo "=== Some other debug ==="
-    xcode-select -p || true
-    echo Trying install
-    xcode-select --install || true
-    echo END DEBUG
+    setup_xcode
 
     echo Setup homebrew
     mkdir homebrew
@@ -265,8 +277,11 @@ rustup --version || true
 cargo --version || true
 
 # Xcode
-sudo xcodebuild -license accept
-sudo xcodes select 15.2
+# sudo xcodebuild -license accept
+# # TODO A: sudo xcodes select 15.2
+# sudo xcodes select 14.2
+
+setup_xcode
 
 echo "Full PATH: $PATH"
 set +x
