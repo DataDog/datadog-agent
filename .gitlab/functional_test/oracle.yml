@@ -19,4 +19,4 @@ oracle:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv oracle.test
+    - dda inv oracle.test
