@@ -12,6 +12,7 @@ from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
 class MockMetricHandler:
     def __init__(self, metrics):
         self.metrics = metrics
+        self.total_size_saved = 0
 
 
 class TestQualityGatesConfigUpdate(unittest.TestCase):

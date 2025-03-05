@@ -158,7 +158,9 @@ def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_hand
     remaining_allowed_size = max_curr_size - curr_size
     gate_limit = max_curr_size
     if remaining_allowed_size > BUFFER_SIZE:
-        gate_limit -= remaining_allowed_size - BUFFER_SIZE
+        saved_amount = remaining_allowed_size - BUFFER_SIZE
+        gate_limit -= saved_amount
+        metric_handler.total_size_saved += saved_amount
     return gate_limit
 
 
@@ -178,6 +180,9 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     # Update quality gates threshold config
     with open("test/static/static_quality_gates.yml") as f:
         file_content = generate_new_quality_gate_config(f, metric_handler)
+
+    if metric_handler.total_size_saved == 0:
+        return
 
     # Create new branch
     branch_name = f"static_quality_gates/threshold_update_{os.environ["CI_COMMIT_SHORT_SHA"]}"

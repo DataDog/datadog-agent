@@ -92,6 +92,7 @@ class GateMetricHandler:
         self.metadata = {}
         self.git_ref = git_ref
         self.bucket_branch = bucket_branch
+        self.total_size_saved = 0
 
     def get_formatted_metric(self, gate_name, metric_name):
         return byte_to_string(self.metrics[gate_name][metric_name])
