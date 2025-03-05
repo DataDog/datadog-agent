@@ -7,7 +7,7 @@ import yaml
 from invoke import task
 
 from tasks.github_tasks import pr_commenter
-from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
+from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
@@ -206,8 +206,12 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
 
     # Create pull request
     milestone_version = list(github.latest_unreleased_release_branches())[0].name.replace("x", "0")
-    return create_release_pr(
-        "[automated] Static quality gates threshold update", current_branch.name, branch_name, milestone_version
+    return create_datadog_agent_pr(
+        "[automated] Static quality gates threshold update",
+        current_branch.name,
+        branch_name,
+        milestone_version,
+        ["team/agent-delivery", "qa/skip-qa", "changelog/no-changelog"],
     )
 
 
