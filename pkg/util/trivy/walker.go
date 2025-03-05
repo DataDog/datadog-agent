@@ -149,11 +149,6 @@ func (w *FSWalker) onError(wrapped fs.WalkDirFunc, opt walker.Option) fs.WalkDir
 // fileOpener returns a function opening a file.
 func fileOpener(filePath string) func() (xio.ReadSeekCloserAt, error) {
 	return func() (xio.ReadSeekCloserAt, error) {
-		f, err := os.Open(filePath)
-		if err != nil {
-			return nil, err
-		}
-
-		return f, nil
+		return os.Open(filePath)
 	}
 }
