@@ -351,6 +351,7 @@ func (c *Client) Subscribe(product string, cb func(update map[string]state.RawCo
 	c.SubscribeAll(product, NewUpdateListener(cb))
 }
 
+// SubscribeIgnoreExpiration subscribes to config updates of a product, but ignores the case when signatures have expired.
 func (c *Client) SubscribeIgnoreExpiration(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	c.SubscribeAll(product, NewUpdateListenerIgnoreExpiration(cb))
 }
