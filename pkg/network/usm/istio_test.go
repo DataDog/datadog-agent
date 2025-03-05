@@ -8,7 +8,6 @@
 package usm
 
 import (
-	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
