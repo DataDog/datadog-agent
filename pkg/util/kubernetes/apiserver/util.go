@@ -70,6 +70,11 @@ type syncInformerResult struct {
 func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) map[InformerName]error {
 	resultChan := make(chan syncInformerResult)
 	errors := make(map[InformerName]error, len(informers))
+
+	if len(informers) == 0 {
+		return errors
+	}
+
 	timeoutConfig := pkgconfigsetup.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
