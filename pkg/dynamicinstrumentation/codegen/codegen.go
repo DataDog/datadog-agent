@@ -77,32 +77,32 @@ func generateHeaderText(param *ditypes.Parameter, out io.Writer) error {
 	} else if reflect.Kind(param.Kind) == reflect.String {
 		return generateStringHeader(param, out)
 	}
-	template, err := resolveHeaderTemplate(param)
+	_, err := resolveHeaderTemplate(param)
 	if err != nil {
 		return err
 	}
-	err = template.Execute(out, param)
-	if err != nil {
-		return err
-	}
+	// err = template.Execute(out, param)
+	// if err != nil {
+	// 	return err
+	// }
 	if len(param.ParameterPieces) != 0 {
 		return generateHeadersText(param.ParameterPieces, out)
 	}
 	return nil
 }
 
-func generateParametersTextViaLocationExpressions(params []*ditypes.Parameter, out io.Writer) error {
+func generateParametersTextViaLocationExpressions(params []*ditypes.Parameter, _ io.Writer) error {
 	for i := range params {
 		collectedExpressions := collectLocationExpressions(params[i])
 		for _, locationExpression := range collectedExpressions {
-			template, err := resolveLocationExpressionTemplate(locationExpression)
+			_, err := resolveLocationExpressionTemplate(locationExpression)
 			if err != nil {
 				return err
 			}
-			err = template.Execute(out, locationExpression)
-			if err != nil {
-				return fmt.Errorf("could not execute template for generating location expression: %w", err)
-			}
+			// err = template.Execute(out, locationExpression)
+			// if err != nil {
+			// 	return fmt.Errorf("could not execute template for generating location expression: %w", err)
+			// }
 		}
 	}
 	return nil
@@ -201,7 +201,7 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 	}
 }
 
-func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
+func generateSliceHeader(slice *ditypes.Parameter, _ io.Writer) error {
 	// Slices are defined with an "array" pointer as piece 0, which is a pointer to the actual
 	// type, which is defined as piece 0 under that.
 
@@ -233,20 +233,20 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 		return err
 	}
 	slice.ParameterPieces[1].LocationExpressions = []ditypes.LocationExpression{}
-	w := sliceHeaderWrapper{
+	_ = sliceHeaderWrapper{
 		Parameter:           slice,
 		SliceTypeHeaderText: lenHeaderBuf.String() + typeHeaderBuf.String(),
 	}
 
-	sliceTemplate, err := resolveHeaderTemplate(slice)
+	_, err = resolveHeaderTemplate(slice)
 	if err != nil {
 		return fmt.Errorf("could not resolve header for slice type: %w", err)
 	}
 
-	err = sliceTemplate.Execute(out, w)
-	if err != nil {
-		return fmt.Errorf("could not execute template for generating slice header: %w", err)
-	}
+	// err = sliceTemplate.Execute(out, w)
+	// if err != nil {
+	// 	return fmt.Errorf("could not execute template for generating slice header: %w", err)
+	// }
 
 	return nil
 }
@@ -258,14 +258,14 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	if len(stringParam.ParameterPieces) != 2 {
 		return fmt.Errorf("invalid string parameter when generating header code (pieces len %d)", len(stringParam.ParameterPieces))
 	}
-	stringHeaderTemplate, err := resolveHeaderTemplate(stringParam)
+	_, err := resolveHeaderTemplate(stringParam)
 	if err != nil {
 		return err
 	}
-	err = stringHeaderTemplate.Execute(out, stringParam)
-	if err != nil {
-		return fmt.Errorf("could not execute template for generating string header: %w", err)
-	}
+	// err = stringHeaderTemplate.Execute(out, stringParam)
+	// if err != nil {
+	// 	return fmt.Errorf("could not execute template for generating string header: %w", err)
+	// }
 	if stringParam == nil || len(stringParam.ParameterPieces) == 0 || stringParam.ParameterPieces[1] == nil {
 		return fmt.Errorf("could not read string length parameter")
 	}

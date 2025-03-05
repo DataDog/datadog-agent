@@ -9,7 +9,10 @@ import (
 	_ "embed"
 	"fmt"
 	"html/template"
-	"os"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -20,9 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 func statusCommand(global *command.GlobalParams) *cobra.Command {
@@ -66,17 +66,17 @@ var functions = template.FuncMap{
 }
 
 func status(client localapiclient.Component) error {
-	tmpl, err := template.New("status").Funcs(functions).Parse(string(statusTmpl))
+	_, err := template.New("status").Funcs(functions).Parse(string(statusTmpl))
 	if err != nil {
 		return fmt.Errorf("error parsing status template: %w", err)
 	}
-	status, err := client.Status()
+	_, err = client.Status()
 	if err != nil {
 		return fmt.Errorf("error getting status: %w", err)
 	}
-	err = tmpl.Execute(os.Stdout, status)
-	if err != nil {
-		return fmt.Errorf("error executing status template: %w", err)
-	}
+	// err = tmpl.Execute(os.Stdout, status)
+	// if err != nil {
+	// 	return fmt.Errorf("error executing status template: %w", err)
+	// }
 	return nil
 }
