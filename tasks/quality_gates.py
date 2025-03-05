@@ -9,6 +9,7 @@ from invoke import task
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import is_conductor_scheduled_pipeline
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
 BUFFER_SIZE = 10000000
@@ -145,7 +146,7 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
         display_pr_comment(ctx, final_state == "success", gate_states, metric_handler)
     # Generate PR to update static quality gates threshold once per day (scheduled main pipeline by conductor)
     DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
-    if DDR_WORKFLOW_ID and branch == "main":
+    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
         pr_url = update_quality_gates_threshold(ctx, metric_handler, github)
         notify_threshold_update(pr_url)
 
