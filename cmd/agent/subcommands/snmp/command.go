@@ -27,6 +27,7 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
@@ -288,7 +289,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	deviceID := namespace + ":" + connParams.IPAddress
 	// Start the scan
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
-	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace)
+	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, metadata.ManualScan)
 	if err != nil {
 		fmt.Printf("Unable to perform device scan for device %s : %e", deviceID, err)
 	}

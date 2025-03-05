@@ -62,7 +62,7 @@
       {{- range $variable := $variables }}
         - {{ $variable.Name }}: {{ $variable.Value }}
       {{- end }}
-    {{- end }}
+    {{ end }}
   {{- end }}
   {{- if not .seclScopedVariables }}
       No variable found

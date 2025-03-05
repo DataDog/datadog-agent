@@ -163,7 +163,7 @@ func FuzzConsistentWithOtel(f *testing.F) {
 	hashSeed := uint32(555666)
 	samplingPercent := float32(50)
 	pspFactory := probabilisticsamplerprocessor.NewFactory()
-	cfg := processortest.NewNopSettings()
+	cfg := processortest.NewNopSettings(pspFactory.Type())
 	pspCfg := &probabilisticsamplerprocessor.Config{
 		SamplingPercentage: samplingPercent,
 		HashSeed:           hashSeed,

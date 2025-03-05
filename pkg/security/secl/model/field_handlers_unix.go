@@ -23,9 +23,9 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
-	_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
-	_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.CGroupContext)
-	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.CGroupContext)
+	_ = ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext)
+	_ = ev.FieldHandlers.ResolveCGroupManager(ev, ev.CGroupContext)
+	_ = ev.FieldHandlers.ResolveCGroupVersion(ev, ev.CGroupContext)
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
@@ -1101,6 +1101,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File)
 		}
+	case "sysctl":
 	case "unlink":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Unlink.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Unlink.File.FileFields)

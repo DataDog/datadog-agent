@@ -12,6 +12,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -22,7 +24,7 @@ import (
 type Tracer struct{}
 
 // NewTracer is not implemented on this OS for Tracer
-func NewTracer(_ *config.Config, _ telemetry.Component) (*Tracer, error) {
+func NewTracer(_ *config.Config, _ telemetry.Component, _ statsd.ClientInterface) (*Tracer, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

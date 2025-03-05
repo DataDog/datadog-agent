@@ -38,6 +38,7 @@ notify:
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
     - !reference [.notify_setup]
+    - !reference [.setup_agent_github_app]
     - invoke -e notify.send-message -p $CI_PIPELINE_ID
     - invoke -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 

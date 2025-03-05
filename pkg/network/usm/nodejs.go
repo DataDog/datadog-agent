@@ -9,16 +9,21 @@ package usm
 
 import (
 	"fmt"
+	"io"
 	"strings"
+
+	"github.com/cilium/ebpf"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -106,15 +111,96 @@ var (
 	}
 )
 
+var nodejsSpec = &protocols.ProtocolSpec{
+	Factory: newNodeJSMonitor,
+	Maps:    sharedLibrariesMaps,
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe__tcp_sendmsg",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslDoHandshakeProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslDoHandshakeRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslSetBioProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslSetFDProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: bioNewSocketProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: bioNewSocketRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslReadProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: nodejsSslReadRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: nodejsSslReadExRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslWriteProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: nodejsSslWriteRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: nodejsSslWriteExRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslShutdownProbe,
+			},
+		},
+	},
+}
+
 // nodeJSMonitor essentially scans for Node processes and attaches SSL uprobes
 // to them.
 type nodeJSMonitor struct {
+	cfg            *config.Config
 	attacher       *uprobes.UprobeAttacher
 	processMonitor *monitor.ProcessMonitor
 }
 
-func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, error) {
-	if !c.EnableNodeJSMonitoring {
+// Ensuring nodeJSMonitor implements the protocols.Protocol interface.
+var _ protocols.Protocol = (*nodeJSMonitor)(nil)
+
+func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
+	if !c.EnableNodeJSMonitoring || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 
@@ -137,22 +223,28 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, e
 	}
 
 	return &nodeJSMonitor{
+		cfg:            c,
 		attacher:       attacher,
 		processMonitor: procMon,
 	}, nil
 }
 
-// Start the nodeJSMonitor
-func (m *nodeJSMonitor) Start() {
-	if m == nil {
-		return
-	}
+// ConfigureOptions changes map attributes to the given options.
+func (m *nodeJSMonitor) ConfigureOptions(options *manager.Options) {
+	sharedLibrariesConfigureOptions(options, m.cfg)
+}
 
+// PreStart is called before the start of the provided eBPF manager.
+func (m *nodeJSMonitor) PreStart() error {
 	if err := m.attacher.Start(); err != nil {
-		log.Errorf("cannot start nodeJS attacher: %s", err)
-	} else {
-		log.Info("Node JS TLS monitoring enabled")
+		return fmt.Errorf("cannot start nodeJS attacher: %w", err)
 	}
+	return nil
+}
+
+// PostStart is called after the start of the provided eBPF manager.
+func (*nodeJSMonitor) PostStart() error {
+	return nil
 }
 
 // Stop the nodeJSMonitor.
@@ -172,4 +264,22 @@ func isNodeJSBinary(_ string, procInfo *uprobes.ProcInfo) bool {
 		return false
 	}
 	return strings.Contains(exe, nodeJSPath)
+}
+
+// DumpMaps is a no-op.
+func (*nodeJSMonitor) DumpMaps(io.Writer, string, *ebpf.Map) {}
+
+// Name return the program's name.
+func (*nodeJSMonitor) Name() string {
+	return nodeJsAttacherName
+}
+
+// GetStats is a no-op.
+func (*nodeJSMonitor) GetStats() (*protocols.ProtocolStats, func()) {
+	return nil, nil
+}
+
+// IsBuildModeSupported returns always true, as tls module is supported by all modes.
+func (*nodeJSMonitor) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

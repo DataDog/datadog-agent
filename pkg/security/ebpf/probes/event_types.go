@@ -117,12 +117,14 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_bprm_check"),
 				}},
 				kprobeOrFentry("setup_new_exec_interp"),
+				// kernels < 4.17 will rely on the tracefs events interface to attach kprobes, which requires event names to be unique
+				// because the setup_new_exec_interp and setup_new_exec_args_envs probes are attached to the same function, we rely on using a secondary uid for that purpose
 				kprobeOrFentry("setup_new_exec_args_envs", withUID(SecurityAgentUID+"_a")),
 				kprobeOrFentry("setup_arg_pages"),
 				kprobeOrFentry("mprotect_fixup"),
 				kprobeOrFentry("exit_itimers"),
-				kprobeOrFentry("vfs_open"),
 				kprobeOrFentry("do_dentry_open"),
+				kprobeOrFentry("vfs_open"),
 				kprobeOrFentry("commit_creds"),
 				kprobeOrFentry("switch_task_namespaces"),
 				kprobeOrFentry("do_coredump"),
@@ -191,6 +193,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			}},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("filp_close"),
+			}},
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("terminate_walk"),
 			}},
 
 			// iouring
@@ -487,6 +492,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchdir", fentry, EntryAndExit)},
 		},
 
+		// List of probes required to capture network_flow_monitor events
 		"network_flow_monitor": {
 			// perf_event probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -496,6 +502,19 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 						EBPFFuncName: "network_stats_worker",
 					},
 				},
+			}},
+		},
+
+		// List of probes required to capture sysctl events
+		"sysctl": {
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						UID:          SecurityAgentUID,
+						EBPFFuncName: "cgroup_sysctl",
+					},
+				},
+				kprobeOrFentry("proc_sys_call_handler"),
 			}},
 		},
 	}

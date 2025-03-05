@@ -70,6 +70,11 @@ func IsNetworkNotSupported(kv *kernel.Version) bool {
 	return kv.IsRH7Kernel() || kv.IsOracleUEKKernel()
 }
 
+// IsCgroupSysCtlNotSupported returns if the cgroup/sysctl program is supported
+func IsCgroupSysCtlNotSupported(kv *kernel.Version, cgroup2MountPath string) bool {
+	return len(cgroup2MountPath) == 0 || !kv.HasCgroupSysctlSupportWithRingbuf()
+}
+
 // IsNetworkFlowMonitorNotSupported returns if the network flow monitor feature is supported
 func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
 	return IsNetworkNotSupported(kv) || !kv.IsMapValuesToMapHelpersAllowed() || !kv.HasBPFForEachMapElemHelper()

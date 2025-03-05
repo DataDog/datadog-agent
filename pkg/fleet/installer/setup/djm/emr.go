@@ -86,6 +86,15 @@ func SetupEmr(s *common.Setup) error {
 	s.Config.DatadogYAML.DJM.Enabled = true
 	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigEmr
 
+	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
+		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
+		DSMEnabled := common.InjectTracerConfigEnvVar{
+			Key:   "DD_DATA_STREAMS_ENABLED",
+			Value: "true",
+		}
+		s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = append(tracerEnvConfigEmr, DSMEnabled)
+	}
+
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
 	isMaster, clusterName, err := setupCommonEmrHostTags(s)
@@ -100,7 +109,6 @@ func SetupEmr(s *common.Setup) error {
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
 		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true\n")
 		enableEmrLogs(s)
-
 	} else {
 		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true\n")
 	}

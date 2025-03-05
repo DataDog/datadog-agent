@@ -23,6 +23,7 @@ type collectorConfigs struct {
 	flushInterval                time.Duration
 	reverseDNSEnabled            bool
 	reverseDNSTimeout            time.Duration
+	disableIntraVPCCollection    bool
 	networkDevicesNamespace      string
 }
 
@@ -41,10 +42,11 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 			MaxPerMinute:     agentConfig.GetInt("network_path.collector.pathtest_max_per_minute"),
 			MaxBurstDuration: agentConfig.GetDuration("network_path.collector.pathtest_max_burst_duration"),
 		},
-		flushInterval:           agentConfig.GetDuration("network_path.collector.flush_interval"),
-		reverseDNSEnabled:       agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
-		reverseDNSTimeout:       agentConfig.GetDuration("network_path.collector.reverse_dns_enrichment.timeout") * time.Millisecond,
-		networkDevicesNamespace: agentConfig.GetString("network_devices.namespace"),
+		flushInterval:             agentConfig.GetDuration("network_path.collector.flush_interval"),
+		reverseDNSEnabled:         agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
+		reverseDNSTimeout:         agentConfig.GetDuration("network_path.collector.reverse_dns_enrichment.timeout") * time.Millisecond,
+		disableIntraVPCCollection: agentConfig.GetBool("network_path.collector.disable_intra_vpc_collection"),
+		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
 }
 

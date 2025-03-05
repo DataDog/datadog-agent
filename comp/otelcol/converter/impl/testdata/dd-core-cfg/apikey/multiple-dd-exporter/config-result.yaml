@@ -25,18 +25,9 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
-  ddprofiling/1:
-    api:
-      key: ggggg77777
-      site: datadoghq.com
-  ddprofiling/2:
-    api: 
-      key: ggggg77777
-      site: datadoghq.com
-
 
 service:
-  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined, ddprofiling/1, ddprofiling/2]
+  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
   pipelines:
     traces:
       receivers: [otlp]

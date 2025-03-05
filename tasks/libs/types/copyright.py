@@ -51,6 +51,7 @@ PATH_EXCLUSION_REGEX = [
     '/internal/third_party/client-go/',
     '/internal/third_party/golang/',
     '/internal/third_party/kubernetes/',
+    '/pkg/security/utils/lru/',
     '/pkg/collector/corechecks/cluster/ksm/customresources/utils.go',
 ]
 

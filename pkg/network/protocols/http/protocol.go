@@ -35,6 +35,7 @@ type protocol struct {
 	statkeeper     *StatKeeper
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	eventsConsumer *events.Consumer[EbpfEvent]
+	mgr            *manager.Manager
 }
 
 const (
@@ -91,7 +92,7 @@ var Spec = &protocols.ProtocolSpec{
 }
 
 // newHTTPProtocol returns a new HTTP protocol.
-func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTPMonitoring {
 		return nil, nil
 	}
@@ -110,6 +111,7 @@ func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	return &protocol{
 		cfg:       cfg,
 		telemetry: telemetry,
+		mgr:       mgr,
 	}, nil
 }
 
@@ -123,20 +125,20 @@ func (p *protocol) Name() string {
 // - Set the `http_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
 //
 // We also configure the http event stream with the manager and its options.
-func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	utils.EnableOption(opts, "http_monitoring_enabled")
 	// Configure event stream
-	events.Configure(p.cfg, eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		"http",
-		mgr,
+		p.mgr,
 		p.processHTTP,
 	)
 	if err != nil {
@@ -149,14 +151,14 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
-func (p *protocol) PostStart(mgr *manager.Manager) error {
+func (p *protocol) PostStart() error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
+	p.setupMapCleaner(p.mgr)
 
 	return nil
 }
 
-func (p *protocol) Stop(_ *manager.Manager) {
+func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 

@@ -8,6 +8,7 @@ package uptane
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/DataDog/go-tuf/data"
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ func serializeTestMeta(meta interface{}) json.RawMessage {
 	return serializedSignedMeta
 }
 
-func TestMetaVersion(t *testing.T) {
+func TestMetaFields(t *testing.T) {
 	root := data.NewRoot()
 	root.Version = 1
 	timestamp := data.NewTimestamp()
@@ -60,25 +61,33 @@ func TestMetaVersion(t *testing.T) {
 	targets.Version = 4
 
 	tests := []struct {
-		name   string
-		input  json.RawMessage
-		err    bool
-		output uint64
+		name      string
+		input     json.RawMessage
+		err       bool
+		version   uint64
+		timestamp time.Time
 	}{
-		{name: "root", input: serializeTestMeta(root), err: false, output: 1},
-		{name: "timestamp", input: serializeTestMeta(timestamp), err: false, output: 2},
-		{name: "snapshot", input: serializeTestMeta(snapshot), err: false, output: 3},
-		{name: "targets", input: serializeTestMeta(targets), err: false, output: 4},
-		{name: "invalid", input: json.RawMessage(`{}`), err: true, output: 0},
-		{name: "invalid2", input: json.RawMessage(``), err: true, output: 0},
+		{name: "root", input: serializeTestMeta(root), err: false, version: 1, timestamp: root.Expires},
+		{name: "timestamp", input: serializeTestMeta(timestamp), err: false, version: 2, timestamp: timestamp.Expires},
+		{name: "snapshot", input: serializeTestMeta(snapshot), err: false, version: 3, timestamp: snapshot.Expires},
+		{name: "targets", input: serializeTestMeta(targets), err: false, version: 4, timestamp: targets.Expires},
+		{name: "invalid", input: json.RawMessage(`{}`), err: true, version: 0, timestamp: time.Time{}},
+		{name: "invalid2", input: json.RawMessage(``), err: true, version: 0, timestamp: time.Time{}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			output, err := metaVersion(test.input)
+			output, err := unsafeMetaVersion(test.input)
 			if test.err {
 				assert.Error(tt, err)
 			} else {
-				assert.Equal(tt, test.output, output)
+				assert.Equal(tt, test.version, output)
+				assert.NoError(tt, err)
+			}
+			tsOutput, err := unsafeMetaExpires(test.input)
+			if test.err {
+				assert.Error(tt, err)
+			} else {
+				assert.Equal(tt, test.timestamp, tsOutput)
 				assert.NoError(tt, err)
 			}
 		})
@@ -112,7 +121,7 @@ func TestMetaCustom(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			output, err := metaCustom(test.input)
+			output, err := unsafeMetaCustom(test.input)
 			if test.err {
 				assert.Error(tt, err)
 			} else {

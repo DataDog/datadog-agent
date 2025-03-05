@@ -102,11 +102,17 @@ func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Inter
 
 // ShouldMutatePod implements the common.MutationFilter interface for the auto-instrumentation injector.
 func (m *NamespaceMutator) ShouldMutatePod(pod *corev1.Pod) bool {
+	if !m.config.Instrumentation.Enabled {
+		return false
+	}
 	return m.filter.ShouldMutatePod(pod)
 }
 
 // IsNamespaceEligible implements the common.MutationFilter interface for the auto-instrumentation injector.
 func (m *NamespaceMutator) IsNamespaceEligible(ns string) bool {
+	if !m.config.Instrumentation.Enabled {
+		return false
+	}
 	return m.filter.IsNamespaceEligible(ns)
 }
 

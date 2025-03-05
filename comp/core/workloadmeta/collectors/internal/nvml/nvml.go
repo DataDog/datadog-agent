@@ -170,14 +170,22 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device nvml.
 		gpuDeviceInfo.ComputeCapability.Minor = minor
 	}
 
-	devAttr, ret := device.GetAttributes()
+	totalCores, ret := device.GetNumGpuCores()
 	if ret != nvml.SUCCESS {
 		if logLimiter.ShouldLog() {
-			log.Warnf("failed to get device attributes for device index %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
+			log.Warnf("failed to get total number of cores for the device %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
 		}
 	} else {
-		gpuDeviceInfo.SMCount = int(devAttr.MultiprocessorCount)
-		gpuDeviceInfo.TotalMemoryMB = devAttr.MemorySizeMB
+		gpuDeviceInfo.TotalCores = totalCores
+	}
+
+	totalMemory, ret := device.GetMemoryInfo()
+	if ret != nvml.SUCCESS {
+		if logLimiter.ShouldLog() {
+			log.Warnf("failed to get total available memory for the device %d: %v", gpuDeviceInfo.Index, nvml.ErrorString(ret))
+		}
+	} else {
+		gpuDeviceInfo.TotalMemory = totalMemory.Total
 	}
 
 	memBusWidth, ret := device.GetMemoryBusWidth()

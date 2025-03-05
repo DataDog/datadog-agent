@@ -2,11 +2,18 @@ go 1.23.5
 
 toolchain go1.23.6
 
+// Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
+// This was causing errors with AWS Network Firewall
+// See https://github.com/DataDog/datadog-agent/issues/34323 for details.
+// This will be revisited once we update to 1.24.x
+godebug tlskyber=0
+
 use (
 	.
 	comp/api/api/def
 	comp/api/authtoken
 	comp/core/config
+	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface

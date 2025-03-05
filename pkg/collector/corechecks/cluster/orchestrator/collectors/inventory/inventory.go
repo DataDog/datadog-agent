@@ -55,6 +55,7 @@ func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, t
 			k8sCollectors.NewStatefulSetCollectorVersions(metadataAsTags),
 			k8sCollectors.NewStorageClassCollectorVersions(metadataAsTags),
 			k8sCollectors.NewUnassignedPodCollectorVersions(cfg, store, tagger, metadataAsTags),
+			k8sCollectors.NewTerminatedPodCollectorVersions(cfg, store, tagger, metadataAsTags),
 			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(metadataAsTags),
 		},
 	}

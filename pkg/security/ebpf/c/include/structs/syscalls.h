@@ -36,6 +36,7 @@ struct syscall_cache_t {
     u8 async;
     u32 ctx_id;
     struct dentry_resolver_input_t resolver;
+    s64 retval;
 
     union {
         struct {
@@ -237,6 +238,10 @@ struct syscall_cache_t {
         struct {
             u8 in_flight;
         } stat;
+
+        struct {
+            u32 action;
+        } sysctl;
     };
 };
 

@@ -68,7 +68,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.run_in_core_agent.enabled",
-			defaultValue: false,
+			defaultValue: runtime.GOOS == "linux",
 		},
 		{
 			key:          "process_config.queue_size",

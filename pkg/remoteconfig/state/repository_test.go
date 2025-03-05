@@ -78,6 +78,81 @@ func TestEmptyUpdateZeroTypes(t *testing.T) {
 	assert.Nil(t, state.OpaqueBackendState)
 }
 
+// TestUpdateFlushCache makes sure a properly initialized update with targets and no configs results in an empty config.
+// We use this to dump the current state of the repo on expiry.
+func TestUpdateFlushCache(t *testing.T) {
+	ta := newTestArtifacts()
+
+	// first, set up the repo so that we can flush it.
+	file := newCWSDDFile()
+	path, _, data := addCWSDDFile("test", 1, file, ta.targets)
+	b := signTargets(ta.key, ta.targets)
+
+	update := Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	}
+
+	r := ta.repository
+
+	updatedProducts, err := r.Update(update)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(updatedProducts))
+	assert.Contains(t, updatedProducts, ProductCWSDD)
+
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
+	// Do not test the rest of the repo, for now we just want to verify that the update went through
+
+	// Now, flush the repo.
+	flushUpdate := Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   make(map[string][]byte),
+		ClientConfigs: make([]string, 0),
+	}
+
+	updatedProducts, err = r.Update(flushUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(updatedProducts), "A flush update should update the existing config")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "A flush update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "A flush update should remove any CWSDD configs")
+
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion) // We do not go backwards for the targets.
+	assert.EqualValues(t, 1, state.RootsVersion)
+
+	// Do the same with the unverified repository, there should be no functional difference
+	r = ta.unverifiedRepository
+	updatedProducts, err = r.Update(update)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(updatedProducts))
+	assert.Contains(t, updatedProducts, ProductCWSDD)
+
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
+	// Do not test the rest of the repo, for now we just want to verify that the update went through
+
+	// Now, flush the repo.
+	updatedProducts, err = r.Update(flushUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(updatedProducts), "A flush update should update the existing config")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "A flush update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "A flush update should remove any CWSDD configs")
+
+	state, err = r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.Configs))
+	assert.Equal(t, 0, len(state.CachedFiles))
+	assert.EqualValues(t, 1, state.TargetsVersion) // We do not go backwards for the targets.
+	assert.EqualValues(t, 1, state.RootsVersion)
+}
+
 // TestEmptyUpdateNilTypes makes sure that a completely uninitialized `Update` field won't
 // cause an error, crash the Update process, and also results in unchanged state.
 func TestEmptyUpdateNilTypes(t *testing.T) {

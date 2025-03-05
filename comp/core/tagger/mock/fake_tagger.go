@@ -7,6 +7,7 @@ package mock
 
 import (
 	"context"
+	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Mock implements mock-specific methods for the tagger component.
@@ -26,6 +28,9 @@ type Mock interface {
 
 	// SetGlobalTags allows to set tags in store for the global entity
 	SetGlobalTags(low, orch, high, std []string)
+
+	// LoadState loads the state for the tagger from the supplied map.
+	LoadState(state []types.Entity)
 }
 
 // FakeTagger is a fake implementation of the tagger interface
@@ -66,6 +71,27 @@ func (f *FakeTagger) SetGlobalTags(low, orch, high, std []string) {
 	f.SetTags(types.GetGlobalEntityID(), "static", low, orch, high, std)
 }
 
+// LoadState loads the state for the tagger from the supplied map.
+func (f *FakeTagger) LoadState(state []types.Entity) {
+	if state == nil {
+		return
+	}
+
+	for _, entity := range state {
+		f.store.ProcessTagInfo([]*types.TagInfo{{
+			Source:               "replay",
+			EntityID:             entity.ID,
+			HighCardTags:         entity.HighCardinalityTags,
+			OrchestratorCardTags: entity.OrchestratorCardinalityTags,
+			LowCardTags:          entity.LowCardinalityTags,
+			StandardTags:         entity.StandardTags,
+			ExpiryDate:           time.Time{},
+		}})
+	}
+
+	log.Debugf("Loaded %v elements into tag store", len(state))
+}
+
 // Tagger interface
 
 // Start not implemented in fake tagger
@@ -75,12 +101,6 @@ func (f *FakeTagger) Start(_ context.Context) error {
 
 // Stop not implemented in fake tagger
 func (f *FakeTagger) Stop() error {
-	return nil
-}
-
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the fake tagger
-func (f *FakeTagger) ReplayTagger() tagger.ReplayTagger {
 	return nil
 }
 
@@ -160,12 +180,6 @@ func (f *FakeTagger) GetEntityHash(types.EntityID, types.TagCardinality) string 
 func (f *FakeTagger) AgentTags(types.TagCardinality) ([]string, error) {
 	return []string{}, nil
 }
-
-// SetNewCaptureTagger noop
-func (f *FakeTagger) SetNewCaptureTagger(tagger.Component) {}
-
-// ResetCaptureTagger noop
-func (f *FakeTagger) ResetCaptureTagger() {}
 
 // EnrichTags noop
 func (f *FakeTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}

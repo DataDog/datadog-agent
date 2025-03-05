@@ -183,7 +183,9 @@ type uptaneClient interface {
 	TargetFile(path string) ([]byte, error)
 	TargetFiles(files []string) (map[string][]byte, error)
 	TargetsMeta() ([]byte, error)
+	UnsafeTargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
+	TimestampExpires() (time.Time, error)
 	TUFVersionState() (uptane.TUFVersions, error)
 }
 
@@ -683,7 +685,6 @@ func (s *CoreAgentService) refresh() error {
 		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
 		return err
 	}
-
 	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based
 	// on the contents of our update request
 	if s.refreshIntervalOverrideAllowed {
@@ -753,6 +754,20 @@ func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 	return value, nil
 }
 
+func (s *CoreAgentService) flushCacheResponse() (*pbgo.ClientGetConfigsResponse, error) {
+	targets, err := s.uptane.UnsafeTargetsMeta()
+	if err != nil {
+		return nil, err
+	}
+	return &pbgo.ClientGetConfigsResponse{
+		Roots:         nil,
+		Targets:       targets,
+		TargetFiles:   nil,
+		ClientConfigs: nil,
+		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED,
+	}, nil
+}
+
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 //
 //nolint:revive // TODO(RC) Fix revive linter
@@ -805,6 +820,16 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
+
+	expires, err := s.uptane.TimestampExpires()
+	if err != nil {
+		return nil, err
+	}
+	if expires.Before(time.Now()) {
+		log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
+		return s.flushCacheResponse()
+	}
+
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
@@ -846,6 +871,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		Targets:       canonicalTargets,
 		TargetFiles:   targetFiles,
 		ClientConfigs: matchedClientConfigs,
+		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_OK,
 	}, nil
 }
 

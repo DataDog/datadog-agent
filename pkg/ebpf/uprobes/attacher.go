@@ -409,7 +409,7 @@ func (ua *UprobeAttacher) handlesLibraries() bool {
 	return result
 }
 
-// handlesLibraries returns whether the attacher has rules configured to attach to executables directly
+// handlesExecutables returns whether the attacher has rules configured to attach to executables directly
 // It caches the result to avoid recalculating it every time we are attaching to a PID.
 func (ua *UprobeAttacher) handlesExecutables() bool {
 	if ua.handlesExecutablesCached != nil {

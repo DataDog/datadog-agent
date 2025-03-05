@@ -63,7 +63,7 @@ var (
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
-	failingStartupMock := func(_ *manager.Manager) error {
+	failingStartupMock := func() error {
 		return fmt.Errorf("mock error")
 	}
 
@@ -83,7 +83,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 			cfg := utils.NewUSMEmptyConfig()
 			cfg.EnableHTTPMonitoring = true
 
-			monitor, err := NewMonitor(cfg, nil)
+			monitor, err := NewMonitor(cfg, nil, nil)
 			skipIfNotSupported(t, err)
 			require.NoError(t, err)
 			t.Cleanup(monitor.Stop)
@@ -480,7 +480,7 @@ func TestEmptyConfig(t *testing.T) {
 
 	// The monitor should not start, and not return an error when no protocols
 	// are enabled.
-	monitor, err := NewMonitor(cfg, nil)
+	monitor, err := NewMonitor(cfg, nil, nil)
 	require.Nil(t, monitor)
 	require.NoError(t, err)
 }

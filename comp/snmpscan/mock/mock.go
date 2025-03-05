@@ -43,6 +43,6 @@ func (m mock) RunSnmpWalk(_ *gosnmp.GoSNMP, _ string) error {
 func (m mock) SendPayload(_ metadata.NetworkDevicesMetadata) error {
 	return nil
 }
-func (m mock) ScanDeviceAndSendData(_ *snmpparse.SNMPConfig, _ string) error {
+func (m mock) ScanDeviceAndSendData(_ *snmpparse.SNMPConfig, _ string, _ metadata.ScanType) error {
 	return nil
 }

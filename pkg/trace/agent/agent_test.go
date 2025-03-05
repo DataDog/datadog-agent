@@ -23,10 +23,11 @@ import (
 	"testing"
 	"time"
 
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -2478,6 +2479,7 @@ func TestConvertStats(t *testing.T) {
 		lang          string
 		tracerVersion string
 		containerID   string
+		obfVersion    string
 		out           *pb.ClientStatsPayload
 	}{
 		{
@@ -2543,6 +2545,56 @@ func TestConvertStats(t *testing.T) {
 								Service:        "redis_service",
 								Name:           "name_2",
 								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:       "pre-obfuscated",
+			obfVersion: strconv.Itoa(obfuscate.Version + 1),
+			in: &pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			containerID:   "abc123",
+			out: &pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				ContainerID:   "",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET k v",
 								HTTPStatusCode: 200,
 								Type:           "redis",
 							},
@@ -2713,7 +2765,7 @@ func TestConvertStats(t *testing.T) {
 				conf:           cfg,
 			}
 
-			out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion, testCase.containerID)
+			out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion, testCase.containerID, testCase.obfVersion)
 			assert.Equal(t, testCase.out, out)
 		})
 	}

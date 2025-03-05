@@ -21,7 +21,6 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
 		return
 	}
 	addAPIKeySite(conf, coreCfg, "exporters", "datadog")
-	addAPIKeySite(conf, coreCfg, "extensions", "ddprofiling")
 	addEnv(conf, coreCfg)
 }
 

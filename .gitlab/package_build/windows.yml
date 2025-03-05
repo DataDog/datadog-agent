@@ -40,6 +40,7 @@
       -e AGENT_FLAVOR=${AGENT_FLAVOR}
       -e OMNIBUS_SOFTWARE_VERSION="${OMNIBUS_SOFTWARE_VERSION}"
       -e OMNIBUS_RUBY_VERSION="${OMNIBUS_RUBY_VERSION}"
+      -e PYTHONUTF8=1
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

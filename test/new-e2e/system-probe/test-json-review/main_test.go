@@ -28,19 +28,23 @@ const flakeTestData = `{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","
 {"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testname","Output":"=== RUN   testname\n"}
 {"Time":"2024-06-14T22:24:53.156271614Z","Action":"output","Package":"a/b/c","Test":"testname","Output":"    file_test.go:10: flakytest: this is a known flaky test\n"}
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testname","Elapsed":26.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Elapsed":26.25}
 `
 
 const failedTestData = `{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testname"}
 {"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testname","Output":"=== RUN   testname\n"}
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testname","Elapsed":26.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Elapsed":26.25}
 `
 
 const rerunTestData = `{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testname"}
 {"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testname","Output":"=== RUN   testname\n"}
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testname","Elapsed":26.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Elapsed":26.25}
 {"Time":"2024-06-14T22:27:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testname"}
 {"Time":"2024-06-14T22:27:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testname","Output":"=== RUN   testname\n"}
 {"Time":"2024-06-14T22:28:02.039003529Z","Action":"pass","Package":"a/b/c","Test":"testname","Elapsed":26.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"pass","Package":"a/b/c","Elapsed":26.25}
 `
 
 const onlyParentOfFlakeFailed = `{"Time":"2024-06-14T22:24:52.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent"}
@@ -49,6 +53,7 @@ const onlyParentOfFlakeFailed = `{"Time":"2024-06-14T22:24:52.156240262Z","Actio
 {"Time":"2024-06-14T22:24:53.156271614Z","Action":"output","Package":"a/b/c","Test":"testparent/testname","Output":"    file_test.go:10: flakytest: this is a known flaky test\n"}
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"pass","Package":"a/b/c","Test":"testparent/testname","Elapsed":26.25}
 {"Time":"2024-06-14T22:26:03.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent","Elapsed":28.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Elapsed":26.25}
 `
 
 const flakyFailWithParentFail = `{"Time":"2024-06-14T22:24:52.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent"}
@@ -57,6 +62,7 @@ const flakyFailWithParentFail = `{"Time":"2024-06-14T22:24:52.156240262Z","Actio
 {"Time":"2024-06-14T22:24:53.156271614Z","Action":"output","Package":"a/b/c","Test":"testparent/testname","Output":"    file_test.go:10: flakytest: this is a known flaky test\n"}
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent/testname","Elapsed":26.25}
 {"Time":"2024-06-14T22:26:03.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent","Elapsed":28.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Elapsed":26.25}
 `
 const parentWithFlakyAndNormalFail = `{"Time":"2024-06-14T22:24:52.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent"}
 {"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent/testname"}
@@ -67,6 +73,15 @@ const parentWithFlakyAndNormalFail = `{"Time":"2024-06-14T22:24:52.156240262Z","
 {"Time":"2024-06-14T22:24:55.156263319Z","Action":"output","Package":"a/b/c","Test":"testparent/testname2","Output":"=== RUN   testparent/testname2\n"}
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent/testname2","Elapsed":26.25}
 {"Time":"2024-06-14T22:26:03.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent","Elapsed":28.25}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Elapsed":26.25}
+`
+
+const packageFailGlibcError = `{"Time":"2025-03-04T11:09:29.073111111Z","Action":"start","Package":"pkg/security"}
+{"Time":"2025-03-04T11:09:29.073856561Z","Action":"output","Package":"pkg/security","Output":"/opt/kmt-ramfs/security-agent-tests/pkg/security/testsuite: /lib64/libc.so.6: version GLIBC_2.28 not found (required by /opt/kmt-ramfs/security-agent-tests/pkg/security/testsuite)\n"}
+{"Time":"2025-03-04T11:09:29.073915303Z","Action":"fail","Package":"pkg/security","Elapsed":0.001}
+{"Time":"2025-03-04T11:09:29.123090011Z","Action":"start","Package":"pkg/security"}
+{"Time":"2025-03-04T11:09:29.123688408Z","Action":"output","Package":"pkg/security","Output":"/opt/kmt-ramfs/security-agent-tests/pkg/security/testsuite: /lib64/libc.so.6: version GLIBC_2.28 not found (required by /opt/kmt-ramfs/security-agent-tests/pkg/security/testsuite)\n"}
+{"Time":"2025-03-04T11:09:29.123790519Z","Action":"fail","Package":"pkg/security","Elapsed":0.001}
 `
 
 func TestFlakeInOutput(t *testing.T) {
@@ -124,5 +139,16 @@ func TestParentOfFlakeAndFailIsFailed(t *testing.T) {
 
 	assert.Equal(t, failStr, out.Failed)
 	assert.Equal(t, flakyChild, out.Flaky)
+	assert.Empty(t, out.ReRuns)
+}
+
+func TestPackageRunFail(t *testing.T) {
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(packageFailGlibcError)), nil, nil)
+	require.NoError(t, err)
+
+	failStr := fmt.Sprintf(failFormatTest, "pkg/security", "")
+
+	assert.Equal(t, failStr, out.Failed)
+	assert.Empty(t, out.Flaky)
 	assert.Empty(t, out.ReRuns)
 }

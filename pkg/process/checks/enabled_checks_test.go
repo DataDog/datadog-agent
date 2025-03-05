@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -19,7 +20,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
-	"github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
+	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -37,12 +38,12 @@ func assertNotContainsCheck(t *testing.T, checks []string, name string) {
 	assert.NotContains(t, checks, name)
 }
 
-func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig pkgconfigmodel.ReaderWriter, wmeta workloadmeta.Component, gpuSubscriber gpusubscriber.Component, npCollector npcollector.Component) []string {
+func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig pkgconfigmodel.ReaderWriter, wmeta workloadmeta.Component, gpuSubscriber gpusubscriber.Component, npCollector npcollector.Component, statsd statsd.ClientInterface) []string {
 	sysprobeConfigStruct, err := sysconfig.New("", "")
 	require.NoError(t, err)
 
 	var enabledChecks []string
-	for _, check := range All(cfg, sysprobeYamlConfig, sysprobeConfigStruct, wmeta, gpuSubscriber, npCollector) {
+	for _, check := range All(cfg, sysprobeYamlConfig, sysprobeConfigStruct, wmeta, gpuSubscriber, npCollector, statsd) {
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check.Name())
 		}
@@ -57,7 +58,7 @@ func TestProcessDiscovery(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		cfg, sysprobeCfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, sysprobeCfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, sysprobeCfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 
@@ -65,7 +66,7 @@ func TestProcessDiscovery(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", false)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 
@@ -74,7 +75,7 @@ func TestProcessDiscovery(t *testing.T) {
 		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 }
@@ -84,7 +85,7 @@ func TestProcessCheck(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 
@@ -92,7 +93,7 @@ func TestProcessCheck(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 }
@@ -108,7 +109,7 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg.SetWithoutSource("system_probe_config.enabled", true)
 		flavor.SetFlavor("process_agent")
 
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		if runtime.GOOS == "darwin" {
 			assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 		} else {
@@ -120,7 +121,7 @@ func TestConnectionsCheck(t *testing.T) {
 		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		scfg.SetWithoutSource("network_config.enabled", false)
 
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.GpuSubscriber, deps.NpCollector, deps.Statsd)
 		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
 }
@@ -130,6 +131,7 @@ type ProcessCheckDeps struct {
 	WMeta         workloadmeta.Component
 	NpCollector   npcollector.Component
 	GpuSubscriber gpusubscriber.Component
+	Statsd        statsd.ClientInterface
 }
 
 func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
@@ -138,5 +140,8 @@ func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
 		core.MockBundle(),
 		gpusubscriberfxmock.MockModule(),
 		npcollectorimpl.MockModule(),
+		fx.Provide(func() statsd.ClientInterface {
+			return &statsd.NoOpClient{}
+		}),
 	)
 }

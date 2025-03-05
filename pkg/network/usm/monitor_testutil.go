@@ -35,9 +35,9 @@ type protocolMock struct {
 type protocolMockSpec struct {
 	// These functions can be set to change the behavior of those methods. If
 	// not set, the methods from the base protocol will be called.
-	preStartFn  func(*manager.Manager) error
-	postStartFn func(*manager.Manager) error
-	stopFn      func(*manager.Manager)
+	preStartFn  func() error
+	postStartFn func() error
+	stopFn      func()
 }
 
 // Name return the program's name.
@@ -46,29 +46,29 @@ func (p *protocolMock) Name() string {
 }
 
 // ConfigureOptions changes map attributes to the given options.
-func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Options) {
-	p.inner.ConfigureOptions(m, opts)
+func (p *protocolMock) ConfigureOptions(opts *manager.Options) {
+	p.inner.ConfigureOptions(opts)
 }
 
-func (p *protocolMock) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocolMock) PreStart() (err error) {
 	if p.spec.preStartFn != nil {
-		return p.spec.preStartFn(mgr)
+		return p.spec.preStartFn()
 	}
-	return p.inner.PreStart(mgr)
+	return p.inner.PreStart()
 }
 
-func (p *protocolMock) PostStart(mgr *manager.Manager) error {
+func (p *protocolMock) PostStart() error {
 	if p.spec.postStartFn != nil {
-		return p.spec.postStartFn(mgr)
+		return p.spec.postStartFn()
 	}
-	return p.inner.PostStart(mgr)
+	return p.inner.PostStart()
 }
 
-func (p *protocolMock) Stop(mgr *manager.Manager) {
+func (p *protocolMock) Stop() {
 	if p.spec.stopFn != nil {
-		p.Stop(mgr)
+		p.Stop()
 	} else {
-		p.inner.Stop(mgr)
+		p.inner.Stop()
 	}
 }
 
@@ -92,8 +92,8 @@ func patchProtocolMock(t *testing.T, spec protocolMockSpec) {
 		knownProtocols[0] = p
 	})
 
-	p.Factory = func(c *config.Config) (protocols.Protocol, error) {
-		inner, err := innerFactory(c)
+	p.Factory = func(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
+		inner, err := innerFactory(m, c)
 		if err != nil {
 			return nil, err
 		}

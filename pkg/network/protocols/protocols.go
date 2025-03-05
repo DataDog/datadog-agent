@@ -34,23 +34,23 @@ type Protocol interface {
 	// ConfigureOptions configures the provided Manager and Options structs with
 	// additional options necessary for the program to work, such as options
 	// depending on configuration values.
-	ConfigureOptions(*manager.Manager, *manager.Options)
+	ConfigureOptions(*manager.Options)
 
 	// PreStart is called before the start of the provided eBPF manager.
 	// Additional initialisation steps, such as starting an event consumer,
 	// should be performed here.
-	PreStart(*manager.Manager) error
+	PreStart() error
 
 	// PostStart is called after the start of the provided eBPF manager. Final
 	// initialisation steps, such as setting up a map cleaner, should be
 	// performed here.
-	PostStart(*manager.Manager) error
+	PostStart() error
 
 	// Stop is called before the provided eBPF manager is stopped.  Cleanup
 	// steps, such as stopping events consumers, should be performed here.
 	// Note that since this method is a cleanup method, it *should not* fail and
 	// tries to cleanup resources as best as it can.
-	Stop(*manager.Manager)
+	Stop()
 
 	// DumpMaps dumps the content of the map represented by mapName &
 	// currentMap, if it used by the eBPF program, to output.
@@ -77,7 +77,7 @@ type ProtocolStats struct {
 }
 
 // ProtocolFactory is a function that creates a Protocol.
-type ProtocolFactory func(*config.Config) (Protocol, error)
+type ProtocolFactory func(*manager.Manager, *config.Config) (Protocol, error)
 
 // ProtocolSpec represents a protocol specification.
 type ProtocolSpec struct {

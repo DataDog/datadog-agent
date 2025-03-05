@@ -56,15 +56,6 @@ int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
     return 0;
 };
 
-SEC("kprobe/tcp_sendmsg")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
-    log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
-    // map connection tuple during SSL_do_handshake(ctx)
-    map_ssl_ctx_to_sock(sk);
-
-    return 0;
-}
-
 // GO TLS PROBES
 
 // func (c *Conn) Write(b []byte) (int, error)

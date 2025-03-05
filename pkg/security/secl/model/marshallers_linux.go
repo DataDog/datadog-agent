@@ -82,13 +82,16 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 
 	written := ContainerIDLen + 8
 
-	toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
-	if err != nil {
-		return 0, err
-	}
+	// process without cgroup should be mainly pid 1
+	if !e.CGroup.CGroupFile.IsNull() {
+		toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
+		if err != nil {
+			return 0, err
+		}
 
-	copy(data[written:written+len(toAdd)], toAdd)
-	written += len(toAdd)
+		copy(data[written:written+len(toAdd)], toAdd)
+		written += len(toAdd)
+	}
 
 	added, err := MarshalBinary(data[written:], &e.FileEvent)
 	if err != nil {

@@ -250,12 +250,6 @@ func (t *remoteTagger) Stop() error {
 	return nil
 }
 
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the remote tagger
-func (t *remoteTagger) ReplayTagger() tagger.ReplayTagger {
-	return nil
-}
-
 // GetTaggerTelemetryStore returns tagger telemetry store
 func (t *remoteTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return t.telemetryStore
@@ -436,10 +430,6 @@ func (t *remoteTagger) AgentTags(_ types.TagCardinality) ([]string, error) {
 func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
-
-func (t *remoteTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (t *remoteTagger) ResetCaptureTagger() {}
 
 // EnrichTags enriches the tags with the global tags.
 // Agents running the remote tagger don't have the ability to enrich tags based

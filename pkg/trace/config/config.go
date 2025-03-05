@@ -81,6 +81,13 @@ type OTLP struct {
 
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *attributes.Translator `mapstructure:"-"`
+
+	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
+	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
+	// OTLP span attributes to construct the DD span, and if they are missing, we will recompute them from the other
+	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
+	// OTLP span attribute exists, otherwise we will leave it empty.
+	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data

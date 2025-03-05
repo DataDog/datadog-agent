@@ -9,10 +9,33 @@
 package model
 
 import (
+	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
+
+// NewEvent returns a new Event
+func (m *Model) NewEvent() eval.Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+	}
+}
+
+// NewFakeEvent returns a new event using the default field handlers
+func NewFakeEvent() *Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			FieldHandlers:    &FakeFieldHandlers{},
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+	}
+}
 
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
@@ -56,6 +79,14 @@ type Event struct {
 	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_key;delete" event:"delete_key"`    // [7.52] [Registry] A registry key was deleted
 
 	ChangePermission ChangePermissionEvent `field:"change_permission" event:"change_permission" ` // [7.55] [Registry] A permission change was made
+}
+
+var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+
+// Zero the event
+func (e *Event) Zero() {
+	*e = eventZero
+	*e.BaseEvent.ContainerContext = containerContextZero
 }
 
 // FileEvent is the common file event type
@@ -187,4 +218,9 @@ type ChangePermissionEvent struct {
 // SetAncestorFields force the process cache entry to be valid
 func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, error) {
 	return true, nil
+}
+
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return strconv.Itoa(int(pc.Pid))
 }

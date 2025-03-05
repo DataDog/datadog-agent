@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"runtime"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
@@ -31,7 +32,7 @@ import (
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component, compression logscompression.Component) error {
+func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta workloadmeta.Component, tagger tagger.Component, settings settings.Component, compression logscompression.Component, statsd ddgostatsd.ClientInterface) error {
 	conn, err := server.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return err
@@ -39,7 +40,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 
 	mux := gorilla.NewRouter()
 
-	err = module.Register(cfg, mux, modules.All, wmeta, tagger, telemetry, compression)
+	err = module.Register(cfg, mux, modules.All, wmeta, tagger, telemetry, compression, statsd)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}

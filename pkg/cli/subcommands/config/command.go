@@ -8,9 +8,8 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
-	"strings"
 
 	"go.uber.org/fx"
 
@@ -102,6 +101,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.AddCommand(getCmd)
 	getCmd.Flags().BoolVarP(&cliParams.source, "source", "s", false, "print every source and its value")
 
+	otelCmd := &cobra.Command{
+		Use:   "otel-agent",
+		Short: "Otel-agent, prints out the read-only runtime configs of otel-agent if otel-agent is present and converter is enabled",
+		Long:  ``,
+		RunE:  oneShotRunE(otelAgentCfg),
+	}
+	cmd.AddCommand(otelCmd)
+
 	return cmd
 }
 
@@ -121,46 +128,9 @@ func showRuntimeConfiguration(_ log.Component, config config.Component, cliParam
 		return err
 	}
 
-	if config.GetBool("otelcollector.enabled") && config.GetBool("otelcollector.converter.enabled") {
-		runtimeConfig, err = insertOTelCollectorConfig(config.GetString("otelcollector.extension_url"), runtimeConfig, c.HTTPClient())
-		if err != nil {
-			return err
-		}
-	}
-
 	fmt.Println(runtimeConfig)
 
 	return nil
-}
-
-func insertOTelCollectorConfig(extensionURL string, runtimeConfig string, httpClient *http.Client) (string, error) {
-	resp, err := util.DoGet(httpClient, extensionURL, util.CloseConnection)
-	if err != nil {
-		return runtimeConfig, err
-	}
-	var extensionResp ddflareextensiontypes.Response
-	if err = json.Unmarshal(resp, &extensionResp); err != nil {
-		return runtimeConfig, err
-	}
-	otelRuntimeCfg := extensionResp.RuntimeConfig
-	var sb strings.Builder
-	for _, cfg := range strings.Split(runtimeConfig, "\n") {
-		sb.WriteString(cfg)
-		sb.WriteString("\n")
-		if cfg == "otelcollector:" {
-			sb.WriteString("  config:")
-			sb.WriteString("\n")
-			for _, otcfg := range strings.Split(otelRuntimeCfg, "\n") {
-				if otcfg == "" {
-					continue
-				}
-				sb.WriteString("    ")
-				sb.WriteString(otcfg)
-				sb.WriteString("\n")
-			}
-		}
-	}
-	return sb.String(), nil
 }
 
 func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliParams *cliParams) error {
@@ -256,5 +226,35 @@ func getConfigValue(_ log.Component, config config.Component, cliParams *cliPara
 		}
 	}
 
+	return nil
+}
+
+func otelAgentCfg(_ log.Component, config config.Component, cliParams *cliParams) error {
+	if !config.GetBool("otelcollector.enabled") {
+		return errors.New("otel-agent is not enabled")
+	}
+	if !config.GetBool("otelcollector.converter.enabled") {
+		return errors.New("otel-agent converter must be enabled to get otel-agent's runtime configs")
+	}
+
+	err := util.SetAuthToken(config)
+	if err != nil {
+		return err
+	}
+
+	c, err := cliParams.GlobalParams.SettingsClient()
+	if err != nil {
+		return err
+	}
+
+	resp, err := util.DoGet(c.HTTPClient(), config.GetString("otelcollector.extension_url"), util.CloseConnection)
+	if err != nil {
+		return err
+	}
+	var extensionResp ddflareextensiontypes.Response
+	if err = json.Unmarshal(resp, &extensionResp); err != nil {
+		return err
+	}
+	fmt.Println(extensionResp.RuntimeConfig)
 	return nil
 }

@@ -321,12 +321,13 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 			continue
 		}
 
-		policyName := rule.Policy.Name
-		if policyState, exists = mp[policyName]; !exists {
-			policyState = PolicyStateFromRule(rule.PolicyRule)
-			mp[policyName] = policyState
+		for _, policy := range rule.UsedBy {
+			if policyState, exists = mp[policy.Name]; !exists {
+				policyState = PolicyStateFromRule(rule.PolicyRule)
+				mp[policy.Name] = policyState
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 		}
-		policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 	}
 
 	// rules ignored due to errors

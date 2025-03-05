@@ -133,6 +133,7 @@ type goTLSProgram struct {
 var _ utils.Attacher = &goTLSProgram{}
 
 var goTLSSpec = &protocols.ProtocolSpec{
+	Factory: newGoTLS,
 	Maps: []*manager.Map{
 		{Name: offsetsDataMap},
 		{Name: goTLSReadArgsMap},
@@ -168,30 +169,30 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	},
 }
 
-func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
-	return func(c *config.Config) (protocols.Protocol, error) {
-		if !c.EnableGoTLSSupport {
-			return nil, nil
-		}
-
-		if !usmconfig.TLSSupported(c) {
-			return nil, errors.New("goTLS not supported by this platform")
-		}
-
-		if !c.EnableRuntimeCompiler && !c.EnableCORE {
-			return nil, errors.New("goTLS support requires runtime-compilation or CO-RE to be enabled")
-		}
-
-		return &goTLSProgram{
-			done:               make(chan struct{}),
-			cfg:                c,
-			manager:            m,
-			procRoot:           c.ProcRoot,
-			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
-			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
-			registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
-		}, nil
+func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
+	if !c.EnableGoTLSSupport {
+		return nil, nil
 	}
+
+	if !usmconfig.TLSSupported(c) {
+		log.Warn("goTLS not supported by this platform")
+		return nil, nil
+	}
+
+	if !c.EnableRuntimeCompiler && !c.EnableCORE {
+		log.Warn("goTLS support requires runtime-compilation or CO-RE to be enabled")
+		return nil, nil
+	}
+
+	return &goTLSProgram{
+		done:               make(chan struct{}),
+		cfg:                c,
+		procRoot:           c.ProcRoot,
+		binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
+		binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
+		registry:           utils.NewFileRegistry(consts.USMModuleName, "go-tls"),
+		manager:            mgr,
+	}, nil
 }
 
 // Name return the program's name.
@@ -205,7 +206,7 @@ func (*goTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
 }
 
 // ConfigureOptions changes map attributes to the given options.
-func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
+func (p *goTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -213,10 +214,10 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 }
 
 // PreStart launches the goTLS main goroutine to handle events.
-func (p *goTLSProgram) PreStart(m *manager.Manager) error {
+func (p *goTLSProgram) PreStart() error {
 	var err error
 
-	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
+	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
 		return fmt.Errorf("could not get offsets_data map: %s", err)
 	}
@@ -276,7 +277,7 @@ func (p *goTLSProgram) sync() {
 }
 
 // PostStart registers the goTLS program to the attacher list.
-func (p *goTLSProgram) PostStart(*manager.Manager) error {
+func (p *goTLSProgram) PostStart() error {
 	utils.AddAttacher(consts.USMModuleName, p.Name(), p)
 	return nil
 }
@@ -290,7 +291,7 @@ func (p *goTLSProgram) GetStats() (*protocols.ProtocolStats, func()) {
 }
 
 // Stop terminates goTLS main goroutine.
-func (p *goTLSProgram) Stop(*manager.Manager) {
+func (p *goTLSProgram) Stop() {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()

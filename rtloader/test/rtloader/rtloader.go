@@ -12,15 +12,17 @@ package testrtloader
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"unsafe"
 
+	yaml "gopkg.in/yaml.v2"
+
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -34,7 +36,7 @@ func setUp() error {
 
 	rtloader = (*C.rtloader_t)(common.GetRtLoader())
 	if rtloader == nil {
-		return fmt.Errorf("make failed")
+		return errors.New("make failed")
 	}
 
 	var err error
@@ -86,7 +88,7 @@ func runString(code string) (string, error) {
 	runtime.UnlockOSThread()
 
 	if !ret {
-		return "", fmt.Errorf("`run_simple_string` errored")
+		return "", errors.New("`run_simple_string` errored")
 	}
 
 	output, err := os.ReadFile(tmpfile.Name())
@@ -95,7 +97,7 @@ func runString(code string) (string, error) {
 
 func fetchError() error {
 	if C.has_error(rtloader) == 1 {
-		return fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return errors.New(C.GoString(C.get_error(rtloader)))
 	}
 	return nil
 }
@@ -149,7 +151,7 @@ func getFakeCheck() (string, error) {
 
 	ret := C.get_class(rtloader, classStr, &module, &class)
 	if ret != 1 || module == nil || class == nil {
-		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return "", errors.New(C.GoString(C.get_error(rtloader)))
 	}
 
 	// version
@@ -158,7 +160,7 @@ func getFakeCheck() (string, error) {
 
 	ret = C.get_attr_string(rtloader, module, verStr, &version)
 	if ret != 1 || version == nil {
-		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return "", errors.New(C.GoString(C.get_error(rtloader)))
 	}
 	defer C._free(unsafe.Pointer(version))
 
@@ -174,7 +176,7 @@ func getFakeCheck() (string, error) {
 
 	ret = C.get_check(rtloader, class, emptyStr, configStr, checkIDStr, classStr, &check)
 	if ret != 1 || check == nil {
-		return "", fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return "", errors.New(C.GoString(C.get_error(rtloader)))
 	}
 
 	C.release_gil(rtloader, state)
@@ -367,12 +369,12 @@ func getFakeModuleWithBool() (bool, error) {
 
 	ret := C.get_class(rtloader, moduleStr, &module, &class)
 	if ret != 1 || module == nil || class == nil {
-		return false, fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return false, errors.New(C.GoString(C.get_error(rtloader)))
 	}
 
 	ret = C.get_attr_bool(rtloader, module, attributeStr, &value)
 	if ret != 1 {
-		return false, fmt.Errorf(C.GoString(C.get_error(rtloader)))
+		return false, errors.New(C.GoString(C.get_error(rtloader)))
 	}
 
 	return value == C.bool(true), nil

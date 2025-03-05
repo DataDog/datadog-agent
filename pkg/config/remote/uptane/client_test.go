@@ -65,6 +65,8 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, meta.RootsDirector("datadoghq.com", cfg.GetString("remote_configuration.director_root")).Version(), clientState.DirectorRootVersion())
 	_, err = client1.TargetsMeta()
 	assert.Error(t, err)
+	_, err = client1.UnsafeTargetsMeta() // fails on the empty targets meta.
+	assert.Error(t, err)
 
 	// Testing state for a simple valid repository
 	err = client1.Update(testRepository1.toUpdate())
@@ -78,6 +80,9 @@ func TestClientState(t *testing.T) {
 	targets1, err := client1.TargetsMeta()
 	assert.NoError(t, err)
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
+	targets1u, err := client1.UnsafeTargetsMeta()
+	assert.NoError(t, err)
+	assert.Equal(t, targets1, targets1u)
 
 	// Testing state is maintained between runs
 	client2, err := newTestClient(db, cfg)
@@ -91,6 +96,10 @@ func TestClientState(t *testing.T) {
 	targets1, err = client2.TargetsMeta()
 	assert.NoError(t, err)
 	assert.Equal(t, string(testRepository1.directorTargets), string(targets1))
+	targets1u, err = client1.UnsafeTargetsMeta()
+	assert.NoError(t, err)
+	assert.Equal(t, targets1, targets1u)
+
 }
 
 func TestClientFullState(t *testing.T) {

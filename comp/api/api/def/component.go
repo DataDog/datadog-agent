@@ -58,6 +58,7 @@ var AuthorizedConfigPathsCore = buildAuthorizedSet(
 
 	"logs_config.additional_endpoints",
 	"apm_config.additional_endpoints",
+	"apm_config.profiling_additional_endpoints",
 	"database_monitoring.samples.additional_endpoints",
 	"database_monitoring.metrics.additional_endpoints",
 	"database_monitoring.activity.additional_endpoints",
