@@ -51,10 +51,16 @@ type Repository struct {
 	preRemoveHooks map[string]PreRemoveHook
 }
 
+// PackageStates contains the state all installed packages
+type PackageStates struct {
+	States       map[string]State `json:"states"`
+	ConfigStates map[string]State `json:"config_states"`
+}
+
 // State is the state of the repository.
 type State struct {
-	Stable     string
-	Experiment string
+	Stable     string `json:"stable"`
+	Experiment string `json:"experiment"`
 }
 
 // HasStable returns true if the repository has a stable package.
