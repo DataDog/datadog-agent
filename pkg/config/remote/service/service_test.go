@@ -790,12 +790,17 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
-
 	service.api = api
+
+	originalApiKey, err := getMetadataFromDB(service.db)
+	assert.NoError(t, err)
 
 	cfg.SetWithoutSource("api_key", "updated")
 
 	assert.Equal(t, "updated", updatedKey)
+	newApiKey, err := getMetadataFromDB(service.db)
+	assert.NoError(t, err)
+	assert.NotEqual(t, originalApiKey, newApiKey)
 }
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {

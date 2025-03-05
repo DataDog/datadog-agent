@@ -477,7 +477,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		disableConfigPollLoop: options.disableConfigPollLoop,
 	}
 
-	cfg.OnUpdate(cas.apiKeyUpdateCallback())
+	cfg.OnUpdate(cas.apiKeyUpdateCallback(dbPath))
 
 	return cas, nil
 }
@@ -911,7 +911,7 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	return filteredList, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
+func (s *CoreAgentService) apiKeyUpdateCallback(dbPath string) func(string, any, any) {
 	return func(setting string, _, newvalue any) {
 		s.Lock()
 		defer s.Unlock()
@@ -923,6 +923,13 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
 		newKey, ok := newvalue.(string)
 		if ok {
 			s.api.UpdateAPIKey(newKey)
+		}
+		apiKeyHash := hashAPIKey(newKey)
+		db, err := recreate(dbPath, s.agentVersion, apiKeyHash)
+		if err != nil {
+			log.Errorf("Could not flush db", err)
+		} else {
+			s.db = db
 		}
 	}
 }
