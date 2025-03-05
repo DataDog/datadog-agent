@@ -57,12 +57,10 @@ type KubeUtil struct {
 	podResourcesClient     *PodResourcesClient
 
 	useAPIServer bool
-	nodeName     string
 }
 
 func (ku *KubeUtil) init() error {
 	var err error
-
 	ku.kubeletClient, err = getKubeletClient(context.Background())
 	if err != nil {
 		return err
@@ -90,14 +88,12 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("gke_autopilot") {
+	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
 		ku.useAPIServer = true
-		ku.nodeName, err = ku.GetNodename(context.Background())
+		ku.kubeletClient.config.nodeName, err = ku.GetNodename(context.Background())
 		if err != nil {
 			return err
 		}
-		ku.kubeletClient.config.nodeName = ku.nodeName
-		log.Infof("Set client nodename to %s", ku.kubeletClient.config.nodeName)
 	}
 
 	return nil
@@ -183,9 +179,6 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	if ku.useAPIServer {
-		if ku.nodeName != "" {
-			return ku.nodeName, nil
-		}
 		stats, err := ku.GetLocalStatsSummary(ctx)
 		if err == nil && stats.Node.NodeName != "" {
 			return stats.Node.NodeName, nil
@@ -210,6 +203,7 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	var ok bool
 	pods := PodList{}
+
 	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
 		pods, ok = cached.(PodList)
 		if !ok {
@@ -220,7 +214,6 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	}
 
 	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
-
 	if err != nil {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
 	}

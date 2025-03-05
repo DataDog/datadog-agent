@@ -48,7 +48,6 @@ type kubeletClientConfig struct {
 	useAPIServer  bool
 	apiServerHost string
 	nodeName      string
-	envNodeName   string
 }
 
 type kubeletClient struct {
@@ -135,7 +134,6 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 
 	// Redirect pod list requests to the API server when `useAPIServer` is enabled
 	if kc.config.useAPIServer && path == kubeletPodPath {
-		log.Infof("querying for pods on node: %s. EnvNodeName is: %s", kc.config.nodeName, kc.config.envNodeName)
 		fullURL = fmt.Sprintf("%s/api/v1/pods?fieldSelector=spec.nodeName=%s",
 			kc.config.apiServerHost, url.QueryEscape(kc.config.nodeName))
 	} else {
@@ -181,7 +179,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 	kubeletTimeout := 30 * time.Second
 	kubeletProxyEnabled := pkgconfigsetup.Datadog().GetBool("eks_fargate")
-	kubeletAPIServerEnabled := pkgconfigsetup.Datadog().GetBool("gke_autopilot")
+	kubeletUseAPIServer := pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server")
 	kubeletHost := pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_host")
 	kubeletHTTPSPort := pkgconfigsetup.Datadog().GetInt("kubernetes_https_kubelet_port")
 	kubeletHTTPPort := pkgconfigsetup.Datadog().GetInt("kubernetes_http_kubelet_port")
@@ -215,9 +213,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		tokenPath:      kubeletTokenPath,
 	}
 
-	if kubeletAPIServerEnabled {
-		log.Infof("Running on GKE Autopilot, using API server for pod list queries")
-
+	if kubeletUseAPIServer {
 		apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
 		apiServerPort := os.Getenv("KUBERNETES_SERVICE_PORT")
 		if apiServerHost == "" || apiServerPort == "" {
@@ -226,7 +222,8 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 		clientConfig.useAPIServer = true
 		clientConfig.apiServerHost = fmt.Sprintf("https://%s:%s", apiServerHost, apiServerPort)
-		clientConfig.envNodeName = kubeletNodeName.(string)
+
+		log.Infof("kubeletUseApiServer set to true, pod list queries will be sent to the apiserver at: %s/api/v1/pods", clientConfig.apiServerHost)
 	}
 
 	// Kubelet is unavailable, proxying calls through the APIServer (for instance EKS Fargate)

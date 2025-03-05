@@ -59,13 +59,21 @@ func newDummyKubelet(podListJSONPath string) (*dummyKubelet, error) {
 	return kubelet, err
 }
 
-func newDummyKubeletWithStats(statsSummaryJSONPath string) (*dummyKubelet, error) {
+func newDummyKubeletWithStats(podListJSONPath string, statsSummaryJSONPath string) (*dummyKubelet, error) {
 	kubelet := &dummyKubelet{Requests: make(chan *http.Request, 3)}
-	if statsSummaryJSONPath == "" {
-		return kubelet, nil
+	if podListJSONPath != "" {
+		err := kubelet.loadPodList(podListJSONPath)
+		if err != nil {
+			return nil, err
+		}
 	}
-	err := kubelet.loadStatsSummary(statsSummaryJSONPath)
-	return kubelet, err
+	if statsSummaryJSONPath != "" {
+		err := kubelet.loadStatsSummary(statsSummaryJSONPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return kubelet, nil
 }
 
 func (d *dummyKubelet) loadPodList(podListJSONPath string) error {
@@ -343,7 +351,7 @@ func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
 
-	kubelet, err := newDummyKubeletWithStats("./testdata/stats_summary.json")
+	kubelet, err := newDummyKubeletWithStats("", "./testdata/stats_summary.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	require.Nil(suite.T(), err)
@@ -354,9 +362,12 @@ func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
 	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
 	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+	mockConfig.SetWithoutSource("gke_autopilot", true)
+
+	os.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+	os.Setenv("KUBERNETES_SERVICE_PORT", "443")
 
 	kubeutil := suite.getCustomKubeUtil()
-	kubeutil.(*KubeUtil).useAPIServer = true
 	kubelet.dropRequests() // Throwing away first GETs
 
 	hostname, err := kubeutil.GetNodename(ctx)
@@ -370,6 +381,9 @@ func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	case <-time.After(2 * time.Second):
 		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
+
+	os.Unsetenv("KUBERNETES_SERVICE_HOST")
+	os.Unsetenv("KUBERNETES_SERVICE_PORT")
 }
 
 func (suite *KubeletTestSuite) TestGetNodename() {
