@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -34,7 +34,7 @@ func TestReportClusterQuotas(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "test-cluster-name")
 	defer pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", prevClusterName)
 
-	tagger := mock.SetupFakeTagger(t)
+	tagger := taggerfxmock.SetupFakeTagger(t)
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")

@@ -33,6 +33,7 @@ import (
 
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -265,7 +266,7 @@ func TestConfigHostname(t *testing.T) {
 			fallbackHostnameFunc = os.Hostname
 		}()
 
-		taggerComponent := taggermock.SetupFakeTagger(t)
+		taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 		fxutil.TestStart(t, fx.Options(
 			corecomp.MockModule(),
@@ -2362,7 +2363,7 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 
 	taggerComponent := fxutil.Test[taggermock.Mock](t,
 		fx.Replace(coreConfig),
-		taggermock.Module(),
+		taggerfxmock.Module(),
 	)
 
 	c := fxutil.Test[Component](t, fx.Options(

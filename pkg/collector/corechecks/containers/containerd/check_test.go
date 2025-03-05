@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -56,7 +56,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 		// Should never been called as we are in the Docker check
 		generic.CreateContainerMeta("docker", "cID101"),
 	}
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	containersStats := map[string]mock.ContainerEntry{
 		"cID100": mock.GetFullSampleContainerEntry(),

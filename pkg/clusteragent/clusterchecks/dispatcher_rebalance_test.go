@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -1378,7 +1378,7 @@ func TestRebalance(t *testing.T) {
 				checkMetricSamplesWeight = originalMetricSamplesWeight
 			}()
 
-			fakeTagger := mock.SetupFakeTagger(t)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			dispatcher := newDispatcher(fakeTagger)
 
 			// prepare store
@@ -1435,7 +1435,7 @@ func TestMoveCheck(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			fakeTagger := mock.SetupFakeTagger(t)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			dispatcher := newDispatcher(fakeTagger)
 
 			// setup check id
@@ -1480,7 +1480,7 @@ func TestCalculateAvg(t *testing.T) {
 		checkMetricSamplesWeight = originalMetricSamplesWeight
 	}()
 
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
 	// The busyness of this node is 3 (1 + 2)
@@ -1522,7 +1522,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	//   other tests specific for the checksDistribution struct that test more
 	//   complex scenarios.
 
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
 	testDispatcher.store.active = true

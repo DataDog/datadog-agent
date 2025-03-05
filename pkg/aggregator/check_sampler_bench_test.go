@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -47,7 +47,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
-	taggerComponent := mock.SetupFakeTagger(b)
+	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	forwarderOpts := forwarder.NewOptionsWithResolvers(pkgconfigsetup.Datadog(), deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
@@ -77,7 +77,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 }
 
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
-	taggerComponent := mock.SetupFakeTagger(b)
+	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}

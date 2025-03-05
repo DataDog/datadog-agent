@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -128,7 +128,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 		},
 	}
 
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	for _, ev := range incomingEvents {
 		fakeTagger.SetTags(
@@ -163,7 +163,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			expectedEvents: []event.Event{
 				{
 					Title: "pokemon/bagon 1 copy 1 disable on test-host",
-					Text: fmt.Sprintf(`%s 
+					Text: fmt.Sprintf(`%s
 pokemon/bagon 1 copy 1 disable on test-host
 %s
 %s
@@ -185,7 +185,7 @@ pokemon/bagon 1 copy 1 disable on test-host
 				},
 				{
 					Title: "pokemon/squirtle 1 start on test-host",
-					Text: fmt.Sprintf(`%s 
+					Text: fmt.Sprintf(`%s
 pokemon/squirtle 1 start on test-host
 %s
 %s
@@ -216,7 +216,7 @@ pokemon/squirtle 1 start on test-host
 			expectedEvents: []event.Event{
 				{
 					Title: "pokemon/squirtle 1 exec_create on test-host",
-					Text: fmt.Sprintf(`%s 
+					Text: fmt.Sprintf(`%s
 pokemon/squirtle 1 exec_create on test-host
 %s
 %s
@@ -235,7 +235,7 @@ pokemon/squirtle 1 exec_create on test-host
 				},
 				{
 					Title: "pokemon/azurill 1 top on test-host",
-					Text: fmt.Sprintf(`%s 
+					Text: fmt.Sprintf(`%s
 pokemon/azurill 1 top on test-host
 %s
 %s
