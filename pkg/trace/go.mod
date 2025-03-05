@@ -50,7 +50,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
-	github.com/shirou/gopsutil/v4 v4.25.1
+	github.com/shirou/gopsutil/v4 v4.25.2
 	go.opentelemetry.io/collector/component/componenttest v0.121.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250224174004-546df14abb99
 )
