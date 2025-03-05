@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
-
-// Package trivy holds the scan components
-package trivy
+// Package walker holds the trivy walkers
+package walker
 
 import (
 	"errors"
