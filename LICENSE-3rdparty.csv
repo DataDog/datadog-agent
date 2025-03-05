@@ -288,7 +288,6 @@ core,github.com/NVIDIA/go-nvml/pkg/dl,Apache-2.0,Copyright 2023 NVIDIA CORPORATI
 core,github.com/NVIDIA/go-nvml/pkg/nvml,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
 core,github.com/NVIDIA/go-nvml/pkg/nvml/mock,Apache-2.0,Copyright 2023 NVIDIA CORPORATION
 core,github.com/NYTimes/gziphandler,Apache-2.0,Copyright 2016-2017 The New York Times Company
-core,github.com/OneOfOne/xxhash,Apache-2.0,Copyright (c) 2014 Ahmed W. (OneOfOne)
 core,github.com/ProtonMail/go-crypto/bitcurves,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/brainpool,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/eax,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1366,15 +1365,9 @@ core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSa
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
 core,github.com/oliveagle/jsonpath,MIT,Copyright (c) 2015 oliver
 core,github.com/open-policy-agent/opa/ast,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/ast/internal/scanner,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/ast/internal/tokens,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/ast/json,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/ast/location,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/config,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/format,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/hooks,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/cidr/merge,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/compiler,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -1426,33 +1419,48 @@ core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,Copyright 
 core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/wasm/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/ir,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/keys,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/loader,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/loader/extension,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/loader/filter,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/logging,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/metrics,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/plugins,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/plugins/rest,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/rego,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/resolver,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/resolver/wasm,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/schemas,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/storage,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/storage/inmem,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/storage/internal/errors,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/storage/internal/ptr,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/topdown,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/topdown/copypropagation,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/topdown/print,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/tracing,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/util/decoding,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/ast,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/ast/internal/scanner,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/ast/internal/tokens,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/ast/json,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/ast/location,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/config,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/format,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/hooks,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/ir,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/keys,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/loader,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/loader/extension,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/loader/filter,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/logging,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/metrics,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/plugins,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/plugins/rest,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/rego,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/resolver,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/resolver/wasm,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/schemas,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/storage,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/storage/inmem,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/storage/internal/errors,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/storage/internal/ptr,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/topdown,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/topdown/builtins,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/topdown/cache,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/topdown/copypropagation,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/topdown/print,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/tracing,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/util/decoding,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/v1/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector,Apache-2.0,Copyright The OpenTelemetry Authors
