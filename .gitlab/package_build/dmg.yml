@@ -112,7 +112,8 @@ new-agent_dmg-x64-a7:
       if ! [ -f ~/homebrew/bin/brew ] || ! [ -d ~/bin ] || ! [ -f ~/rust/rustup/bin/rustup ] || ! [ -f ~/rust/cargo/bin/cargo ]; then
         echo "WARNING: Homebrew not found, doing setup again"
         rm -rf ~/bin ~/homebrew ~/rust
-        ( cd ~ && bash .gitlab/package_build/build_script.sh SETUP_RUNNER )
+        export BUILD_SCRIPT="$PWD/.gitlab/package_build/build_script.sh"
+        ( cd ~ && bash "$BUILD_SCRIPT" SETUP_RUNNER )
         ls ~
         ~/bin/git --version
       fi
