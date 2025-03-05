@@ -428,13 +428,12 @@ var opensslSpec = &protocols.ProtocolSpec{
 }
 
 type sslProgram struct {
-	cfg           *config.Config
-	watcher       *sharedlibraries.Watcher
-	nodeJSMonitor *nodeJSMonitor
+	cfg     *config.Config
+	watcher *sharedlibraries.Watcher
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableNodeJSMonitoring {
+	if !c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 
@@ -468,15 +467,9 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		}
 	}
 
-	nodejs, err := newNodeJSMonitor(c, m)
-	if err != nil {
-		return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
-	}
-
 	return &sslProgram{
-		cfg:           c,
-		watcher:       watcher,
-		nodeJSMonitor: nodejs,
+		cfg:     c,
+		watcher: watcher,
 	}, nil
 }
 
@@ -507,7 +500,6 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart() error {
 	o.watcher.Start()
-	o.nodeJSMonitor.Start()
 	return nil
 }
 
@@ -519,7 +511,6 @@ func (o *sslProgram) PostStart() error {
 // Stop stops the program.
 func (o *sslProgram) Stop() {
 	o.watcher.Stop()
-	o.nodeJSMonitor.Stop()
 }
 
 // DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
