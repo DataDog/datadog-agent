@@ -725,6 +725,7 @@ workflow:
   - pkg/collector/corechecks/servicediscovery/module/*
   - pkg/ebpf/**/*
   - pkg/network/**/*
+  - pkg/security/ebpf/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
   - pkg/dynamicinstrumentation/**/*
