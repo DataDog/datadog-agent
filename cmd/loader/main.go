@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 
 	"golang.org/x/sys/unix"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // The agent loader starts the trace-agent process when required,
@@ -70,6 +72,10 @@ func main() {
 	// 	execOrExit(os.Environ())
 	// }
 
+	if err := setupProfiling(cfg); err != nil {
+		log.Warnf("Failed to setup profiling: %v", err)
+	}
+
 	listeners, err := getListeners(cfg)
 	if err != nil {
 		log.Warnf("Failed to pre-load the trace-agent: %v", err)
@@ -110,6 +116,8 @@ func main() {
 }
 
 func execOrExit(env []string) {
+	profiling.Stop()
+
 	log.Info("Starting the trace-agent...")
 	err := unix.Exec(os.Args[2], os.Args[2:], env)
 	log.Errorf("Failed to start the trace-agent: %v", err)
@@ -253,4 +261,49 @@ func fdFromListener(ln net.Listener) (uintptr, error) {
 	}
 
 	return fd, nil
+}
+
+func setupProfiling(cfg model.Reader) error {
+	if !cfg.GetBool("apm_config.internal_profiling.enabled") {
+		return nil
+	}
+
+	endpoint := cfg.GetString("internal_profiling.profile_dd_url")
+	if endpoint == "" {
+		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, cfg.GetString("site"))
+	}
+	tags := cfg.GetStringSlice("internal_profiling.extra_tags")
+	tags = append(tags, fmt.Sprintf("version:%s", buildVersion()))
+	settings := profiling.Settings{
+		ProfilingURL: endpoint,
+
+		// remaining configuration parameters use the top-level `internal_profiling` config
+		Period:               cfg.GetDuration("internal_profiling.period"),
+		Service:              "trace-loader",
+		CPUDuration:          cfg.GetDuration("internal_profiling.cpu_duration"),
+		MutexProfileFraction: cfg.GetInt("internal_profiling.mutex_profile_fraction"),
+		BlockProfileRate:     cfg.GetInt("internal_profiling.block_profile_rate"),
+		WithGoroutineProfile: cfg.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+		WithBlockProfile:     cfg.GetBool("internal_profiling.enable_block_profiling"),
+		WithMutexProfile:     cfg.GetBool("internal_profiling.enable_mutex_profiling"),
+		WithDeltaProfiles:    cfg.GetBool("internal_profiling.delta_profiles"),
+		Socket:               cfg.GetString("internal_profiling.unix_socket"),
+		Tags:                 tags,
+	}
+	return profiling.Start(settings)
+}
+
+func buildVersion() string {
+	var commit = func() string {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			for _, setting := range info.Settings {
+				if setting.Key == "vcs.revision" {
+					return setting.Value
+				}
+			}
+		}
+
+		return "unknown"
+	}()
+	return fmt.Sprintf("7.65.0-devel-%s", commit)
 }
