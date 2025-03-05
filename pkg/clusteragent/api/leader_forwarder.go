@@ -43,6 +43,7 @@ type LeaderForwarder struct {
 func NewLeaderForwarder(apiPort, maxConnections int) *LeaderForwarder {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := pkglogsetup.NewLogWriter(4, log.DebugLvl)
+	maxConnections = 10
 	return &LeaderForwarder{
 		apiPort: strconv.Itoa(apiPort),
 		transport: &http.Transport{
@@ -110,14 +111,21 @@ func (lf *LeaderForwarder) SetLeaderIP(leaderIP string) {
 		lf.proxy = nil
 		return
 	}
-
-	lf.proxy = &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
+	if lf.proxy == nil {
+		lf.proxy = &httputil.ReverseProxy{
+			Director: func(req *http.Request) {
+				req.URL.Scheme = "https"
+				req.URL.Host = leaderIP + ":" + lf.apiPort
+				req.Header.Add(forwardHeader, "true")
+			},
+			Transport: lf.transport,
+			ErrorLog:  lf.logger,
+		}
+	} else {
+		lf.proxy.Director = func(req *http.Request) {
 			req.URL.Scheme = "https"
 			req.URL.Host = leaderIP + ":" + lf.apiPort
 			req.Header.Add(forwardHeader, "true")
-		},
-		Transport: lf.transport,
-		ErrorLog:  lf.logger,
+		}
 	}
 }
