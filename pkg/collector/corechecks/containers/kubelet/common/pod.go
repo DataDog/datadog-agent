@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,7 +65,7 @@ func (p *PodUtils) Reset() {
 }
 
 // PopulateForPod generates the PodUtils entries for a given pod.
-func (p *PodUtils) PopulateForPod(pod *kubelettypes.Pod) {
+func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
 	if pod == nil {
 		return
 	}
@@ -86,7 +86,7 @@ func (p *PodUtils) PopulateForPod(pod *kubelettypes.Pod) {
 
 // computePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
 // volume name.
-func (p *PodUtils) computePodTagsByPVC(pod *kubelettypes.Pod) {
+func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
 	podUID := types.NewEntityID(types.KubernetesPodUID, pod.Metadata.UID)
 	tags, _ := p.tagger.Tag(podUID, types.OrchestratorCardinality)
 	if len(tags) == 0 {

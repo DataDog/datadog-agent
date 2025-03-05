@@ -14,21 +14,22 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func TestPodParser(t *testing.T) {
 
-	referencePod := []*types.Pod{
+	referencePod := []*kubelet.Pod{
 		{
-			Metadata: types.PodMetadata{
+			Metadata: kubelet.PodMetadata{
 				Name:      "TestPod",
 				UID:       "uniqueIdentifier",
 				Namespace: "namespace",
-				Owners: []types.PodOwner{
+				Owners: []kubelet.PodOwner{
 					{
 						Kind: "ReplicaSet",
 						Name: "deployment-hashrs",
@@ -42,22 +43,22 @@ func TestPodParser(t *testing.T) {
 					"labelKey": "labelValue",
 				},
 			},
-			Spec: types.Spec{
+			Spec: kubelet.Spec{
 				PriorityClassName: "priorityClass",
-				Volumes: []types.VolumeSpec{
+				Volumes: []kubelet.VolumeSpec{
 					{
 						Name: "pvcVol",
-						PersistentVolumeClaim: &types.PersistentVolumeClaimSpec{
+						PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
 							ClaimName: "pvcName",
 						},
 					},
 				},
-				Containers: []types.ContainerSpec{
+				Containers: []kubelet.ContainerSpec{
 					{
 						Name:  "nginx-container",
 						Image: "nginx:1.25.2",
-						Resources: &types.ContainerResourcesSpec{
-							Requests: types.ResourceList{
+						Resources: &kubelet.ContainerResourcesSpec{
+							Requests: kubelet.ResourceList{
 								"nvidia.com/gpu": resource.Quantity{
 									Format: "1",
 								},
@@ -67,9 +68,9 @@ func TestPodParser(t *testing.T) {
 					},
 				},
 			},
-			Status: types.Status{
+			Status: kubelet.Status{
 				Phase: string(corev1.PodRunning),
-				Conditions: []types.Conditions{
+				Conditions: []kubelet.Conditions{
 					{
 						Type:   string(corev1.PodReady),
 						Status: string(corev1.ConditionTrue),
@@ -77,7 +78,7 @@ func TestPodParser(t *testing.T) {
 				},
 				PodIP:    "127.0.0.1",
 				QOSClass: string(corev1.PodQOSGuaranteed),
-				Containers: []types.ContainerStatus{
+				Containers: []kubelet.ContainerStatus{
 					{
 						Name:    "nginx-container",
 						ImageID: "5dbe7e1b6b9c",

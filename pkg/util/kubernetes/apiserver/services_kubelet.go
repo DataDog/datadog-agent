@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,7 +37,7 @@ func (m serviceMapper) Set(namespace, podName string, svcs ...string) {
 }
 
 // MapOnIP matches pods to services via IP. It supports Kubernetes 1.4+
-func (m serviceMapper) MapOnIP(nodeName string, pods []*kubelettypes.Pod, endpointList v1.EndpointsList) error {
+func (m serviceMapper) MapOnIP(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
 	ipToEndpoints := make(map[string][]string)    // maps the IP address from an endpoint (pod) to associated services ex: "10.10.1.1" : ["service1","service2"]
 	podToIP := make(map[string]map[string]string) // maps pod names to its IP address keyed by the namespace a pod belongs to
 
@@ -82,7 +82,7 @@ func (m serviceMapper) MapOnIP(nodeName string, pods []*kubelettypes.Pod, endpoi
 }
 
 // MapOnRef matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.3+
-func (m serviceMapper) MapOnRef(_ string, pods []*kubelettypes.Pod, endpointList v1.EndpointsList) error {
+func (m serviceMapper) MapOnRef(_ string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
 	uidToPod := make(map[types.UID]v1.ObjectReference)
 	uidToServices := make(map[types.UID][]string)
 	kubeletPodUIDs := make(map[types.UID]struct{}) // set of pod UIDs for pods from the kubelet (or apiserver for the DCA)
@@ -129,7 +129,7 @@ func (m serviceMapper) MapOnRef(_ string, pods []*kubelettypes.Pod, endpointList
 
 // mapServices maps each pod (endpoint) to the metadata associated with it.
 // It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
-func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods []*kubelettypes.Pod, endpointList v1.EndpointsList) error {
+func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
 	var err error
 	serviceMapper := ConvertToServiceMapper(metaBundle.Services)
 	if metaBundle.mapOnIP {

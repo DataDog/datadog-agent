@@ -5,7 +5,7 @@
 
 //go:build kubelet
 
-package types
+package kubelet
 
 import (
 	"encoding/json"

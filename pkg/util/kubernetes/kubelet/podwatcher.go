@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,8 +56,8 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 // PullChanges pulls a new podList from the kubelet and returns Pod objects for
 // new / updated pods. Updated pods will be sent entirely, user must replace
 // previous info for these pods.
-func (w *PodWatcher) PullChanges(ctx context.Context) ([]*types.Pod, error) {
-	var podList []*types.Pod
+func (w *PodWatcher) PullChanges(ctx context.Context) ([]*Pod, error) {
+	var podList []*Pod
 	podList, err := w.kubeUtil.GetLocalPodList(ctx)
 	if err != nil {
 		return podList, err
@@ -67,9 +66,9 @@ func (w *PodWatcher) PullChanges(ctx context.Context) ([]*types.Pod, error) {
 }
 
 // computeChanges is used by PullChanges, split for testing
-func (w *PodWatcher) computeChanges(podList []*types.Pod) ([]*types.Pod, error) {
+func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	now := time.Now()
-	var updatedPods []*types.Pod
+	var updatedPods []*Pod
 
 	w.Lock()
 	defer w.Unlock()
@@ -185,7 +184,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 // digestPodMeta returns a unique hash of pod labels
 // and annotations.
 // it hashes labels then annotations and makes a single hash of both maps
-func digestPodMeta(meta types.PodMetadata) string {
+func digestPodMeta(meta PodMetadata) string {
 	h := fnv.New64()
 	h.Write([]byte(digestMapValues(meta.Labels)))      //nolint:errcheck
 	h.Write([]byte(digestMapValues(meta.Annotations))) //nolint:errcheck

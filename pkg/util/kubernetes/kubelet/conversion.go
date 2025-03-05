@@ -5,7 +5,7 @@
 
 //go:build kubelet && kubeapiserver
 
-package types
+package kubelet
 
 import (
 	corev1 "k8s.io/api/core/v1"

@@ -16,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 // KubeUtilInterface defines the interface for kubelet api
@@ -25,10 +23,10 @@ import (
 type KubeUtilInterface interface {
 	GetNodeInfo(ctx context.Context) (string, string, error)
 	GetNodename(ctx context.Context) (string, error)
-	GetLocalPodList(ctx context.Context) ([]*types.Pod, error)
-	GetLocalPodListWithMetadata(ctx context.Context) (*types.PodList, error)
-	ForceGetLocalPodList(ctx context.Context) (*types.PodList, error)
-	GetPodForContainerID(ctx context.Context, containerID string) (*types.Pod, error)
+	GetLocalPodList(ctx context.Context) ([]*Pod, error)
+	GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error)
+	ForceGetLocalPodList(ctx context.Context) (*PodList, error)
+	GetPodForContainerID(ctx context.Context, containerID string) (*Pod, error)
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)
@@ -38,16 +36,7 @@ type KubeUtilInterface interface {
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet
 func (ku *KubeUtil) GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error) {
-	var data []byte
-	var code int
-	var err error
-
-	if ku.useAPIServer {
-		data, err = ku.apiClient.QueryRawPodListFromNode(ctx, ku.nodeName)
-		code = http.StatusOK
-	} else {
-		data, code, err = ku.QueryKubelet(ctx, kubeletPodPath)
-	}
+	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
 
 	if err != nil {
 		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletPodPath, err)

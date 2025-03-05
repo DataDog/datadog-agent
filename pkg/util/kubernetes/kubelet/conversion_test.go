@@ -5,7 +5,7 @@
 
 //go:build kubelet && kubeapiserver
 
-package types
+package kubelet
 
 import (
 	"testing"

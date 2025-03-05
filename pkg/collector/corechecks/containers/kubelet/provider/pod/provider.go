@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,7 +79,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	for _, pod := range pods.Items {
 		p.podUtils.PopulateForPod(pod)
 		// Combine regular containers with init containers for easier iteration
-		allContainers := make([]kubelettypes.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers))
+		allContainers := make([]kubelet.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers))
 		allContainers = append(allContainers, pod.Spec.InitContainers...)
 		allContainers = append(allContainers, pod.Spec.Containers...)
 
@@ -95,7 +94,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 				continue
 			}
 
-			var container kubelettypes.ContainerSpec
+			var container kubelet.ContainerSpec
 			for _, c := range allContainers {
 				if cStatus.Name == c.Name {
 					container = c
@@ -119,7 +118,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelettypes.Pod, container *kubelettypes.ContainerSpec, cStatus *kubelettypes.ContainerStatus, containerID types.EntityID) {
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
@@ -143,7 +142,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelettypes.Pod, _ *kubelettypes.ContainerSpec, cStatus *kubelettypes.ContainerStatus, containerID types.EntityID) {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, _ *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}
@@ -157,7 +156,7 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 
 	sender.Gauge(common.KubeletMetricsPrefix+"containers.restarts", float64(cStatus.RestartCount), "", tagList)
 
-	for key, state := range map[string]kubelettypes.ContainerState{"state": cStatus.State, "last_state": cStatus.LastState} {
+	for key, state := range map[string]kubelet.ContainerState{"state": cStatus.State, "last_state": cStatus.LastState} {
 		if state.Terminated != nil && slices.Contains(includeContainerStateReason["terminated"], strings.ToLower(state.Terminated.Reason)) {
 			termTags := utils.ConcatenateStringTags(tagList, "reason:"+strings.ToLower(state.Terminated.Reason))
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".terminated", 1, "", termTags)
@@ -187,7 +186,7 @@ func newRunningAggregator() *runningAggregator {
 	}
 }
 
-func (r *runningAggregator) recordContainer(p *Provider, pod *kubelettypes.Pod, cStatus *kubelettypes.ContainerStatus, containerID types.EntityID) {
+func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerID types.EntityID) {
 	if cStatus.State.Running == nil || time.Time.IsZero(cStatus.State.Running.StartedAt) {
 		return
 	}
@@ -204,7 +203,7 @@ func (r *runningAggregator) recordContainer(p *Provider, pod *kubelettypes.Pod, 
 	}
 }
 
-func (r *runningAggregator) recordPod(p *Provider, pod *kubelettypes.Pod) {
+func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 	if !r.podHasRunningContainers[pod.Metadata.UID] {
 		return
 	}

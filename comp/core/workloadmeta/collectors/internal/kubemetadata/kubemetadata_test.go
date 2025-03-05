@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -135,7 +134,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 	type args struct {
 		getPodMetaDataFromAPIServerFunc func(string, string, string) ([]string, error)
 		metadataByNsPods                apiv1.NamespacesPodsStringsSet
-		po                              *kubelettypes.Pod
+		po                              *kubelet.Pod
 	}
 
 	tests := []struct {
@@ -151,7 +150,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
 					return []string{"foo=bar"}, nil
 				},
-				po: &kubelettypes.Pod{},
+				po: &kubelet.Pod{},
 			},
 			fields: fields{
 				clusterAgentEnabled: false,
@@ -167,7 +166,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
 					return nil, fmt.Errorf("fake error")
 				},
-				po: &kubelettypes.Pod{},
+				po: &kubelet.Pod{},
 			},
 			fields: fields{
 				clusterAgentEnabled: false,
@@ -183,7 +182,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
 					return []string{"foo=bar"}, nil
 				},
-				po: &kubelettypes.Pod{},
+				po: &kubelet.Pod{},
 			},
 			fields: fields{
 				clusterAgentEnabled: true,
@@ -202,7 +201,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
 					return []string{"foo=bar"}, nil
 				},
-				po: &kubelettypes.Pod{},
+				po: &kubelet.Pod{},
 			},
 			fields: fields{
 				clusterAgentEnabled: true,
@@ -218,7 +217,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
 					return []string{"foo=bar"}, nil
 				},
-				po: &kubelettypes.Pod{},
+				po: &kubelet.Pod{},
 			},
 			fields: fields{
 				clusterAgentEnabled: true,
@@ -237,7 +236,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
 					return []string{"foo=bar"}, nil
 				},
-				po: &kubelettypes.Pod{Metadata: kubelettypes.PodMetadata{
+				po: &kubelet.Pod{Metadata: kubelet.PodMetadata{
 					Namespace: "test",
 					Name:      "pod-bar",
 				}},
@@ -262,7 +261,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
 					return []string{"foo=bar"}, nil
 				},
-				po: &kubelettypes.Pod{Metadata: kubelettypes.PodMetadata{
+				po: &kubelet.Pod{Metadata: kubelet.PodMetadata{
 					Namespace: "test",
 					Name:      "pod-bar",
 				}},
@@ -397,18 +396,18 @@ func TestKubeMetadataCollector_getNamespaceMetadata(t *testing.T) {
 }
 
 func TestKubeMetadataCollector_parsePods(t *testing.T) {
-	pods := []*kubelettypes.Pod{{
-		Metadata: kubelettypes.PodMetadata{
+	pods := []*kubelet.Pod{{
+		Metadata: kubelet.PodMetadata{
 			Name:      "foo",
 			Namespace: "default",
 			UID:       "foouid",
 		},
-		Spec: kubelettypes.Spec{
+		Spec: kubelet.Spec{
 			NodeName: "nodename",
 		},
-		Status: kubelettypes.Status{
+		Status: kubelet.Status{
 			Phase: "Running",
-			Conditions: []kubelettypes.Conditions{
+			Conditions: []kubelet.Conditions{
 				{
 					Type:   "Ready",
 					Status: "True",
@@ -416,7 +415,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			},
 		},
 	}}
-	podsCache := kubelettypes.PodList{
+	podsCache := kubelet.PodList{
 		Items: pods,
 	}
 	cache.Cache.Set("KubeletPodListCacheKey", podsCache, 2*time.Second)
@@ -433,7 +432,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 		collectNamespaceAnnotations bool
 	}
 	type args struct {
-		pods []*kubelettypes.Pod
+		pods []*kubelet.Pod
 	}
 	tests := []struct {
 		name                       string

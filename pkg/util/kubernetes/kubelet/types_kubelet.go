@@ -5,8 +5,7 @@
 
 //go:build kubelet
 
-// Package types defines structured types for unmarshalling Kubernetes Pod and related resources.
-package types
+package kubelet
 
 import (
 	"time"

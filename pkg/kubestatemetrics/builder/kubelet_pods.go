@@ -20,7 +20,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,7 +30,7 @@ const (
 
 // podWatcher is an interface for a component that watches for changes in pods
 type podWatcher interface {
-	PullChanges(ctx context.Context) ([]*kubelettypes.Pod, error)
+	PullChanges(ctx context.Context) ([]*kubelet.Pod, error)
 	Expire() ([]string, error)
 }
 
@@ -113,7 +112,7 @@ func (kr *kubeletReflector) updateStores(ctx context.Context) error {
 			continue
 		}
 
-		kubePod := kubelettypes.ConvertKubeletPodToK8sPod(pod)
+		kubePod := kubelet.ConvertKubeletPodToK8sPod(pod)
 
 		for _, store := range kr.stores {
 			err := store.Add(kubePod)

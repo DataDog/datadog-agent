@@ -65,7 +65,3 @@ func GetNodeLabels(_ *APIClient, _ string) (map[string]string, error) {
 func GetKubeSecret(string, string) (map[string][]byte, error) {
 	return nil, ErrNotCompiled
 }
-
-func (c *APIClient) QueryRawPodListFromNode(ctx context.Context, nodeName string) ([]byte, error) {
-	return nil, ErrNotCompiled
-}

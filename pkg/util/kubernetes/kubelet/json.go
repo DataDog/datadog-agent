@@ -14,7 +14,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 )
 
 // jsoniterConfig mirrors jsoniter.ConfigFastest
@@ -40,10 +39,10 @@ func newPodUnmarshaller() *podUnmarshaller {
 	}
 
 	if pu.podExpirationDuration > 0 {
-		jsoniter.RegisterTypeDecoderFunc("types.PodList", pu.filteringDecoder)
+		jsoniter.RegisterTypeDecoderFunc("kubelet.PodList", pu.filteringDecoder)
 	} else {
 		// Force-unregister for unit tests to pick up the right state
-		jsoniter.RegisterTypeDecoder("types.PodList", nil)
+		jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 	}
 
 	// Build a new frozen config to invalidate type decoder cache
@@ -58,11 +57,11 @@ func (pu *podUnmarshaller) unmarshal(data []byte, v interface{}) error {
 }
 
 func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
-	p := (*types.PodList)(ptr)
+	p := (*PodList)(ptr)
 	cutoffTime := pu.timeNowFunction().Add(-1 * pu.podExpirationDuration)
 
 	podCallback := func(iter *jsoniter.Iterator) bool {
-		pod := &types.Pod{}
+		pod := &Pod{}
 		iter.ReadVal(pod)
 
 		// Quick exit for running/pending containers

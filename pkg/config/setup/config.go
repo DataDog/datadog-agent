@@ -1692,7 +1692,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
 	config.BindEnvAndSetDefault("eks_fargate", false)
-	config.BindEnvAndSetDefault("gke_autopilot", true)
+	config.BindEnvAndSetDefault("gke_autopilot", false)
 	config.BindEnvAndSetDefault("kubernetes_http_kubelet_port", 10255)
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 

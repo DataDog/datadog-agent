@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -186,7 +185,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 // parsePods returns collection events based on a given podlist.
 func (c *collector) parsePods(
 	ctx context.Context,
-	pods []*types.Pod,
+	pods []*kubelet.Pod,
 	seen map[workloadmeta.EntityID]struct{},
 ) ([]workloadmeta.CollectorEvent, error) {
 	events := []workloadmeta.CollectorEvent{}
@@ -314,7 +313,7 @@ func (c *collector) parsePods(
 }
 
 // getMetadata returns the cluster level metadata (kube service only currently).
-func (c *collector) getMetadata(getPodMetaDataFromAPIServerFunc func(string, string, string) ([]string, error), metadataByNsPods apiv1.NamespacesPodsStringsSet, po *types.Pod) ([]string, error) {
+func (c *collector) getMetadata(getPodMetaDataFromAPIServerFunc func(string, string, string) ([]string, error), metadataByNsPods apiv1.NamespacesPodsStringsSet, po *kubelet.Pod) ([]string, error) {
 	if !c.isDCAEnabled() {
 		metadataNames, err := getPodMetaDataFromAPIServerFunc(po.Spec.NodeName, po.Metadata.Namespace, po.Metadata.Name)
 		if err != nil {
@@ -373,13 +372,13 @@ func (c *collector) isDCAEnabled() bool {
 }
 
 // addToCacheMetadataMapping is acting like the DCA at the node level.
-func (c *collector) addToCacheMetadataMapping(kubeletPodList []*types.Pod) error {
+func (c *collector) addToCacheMetadataMapping(kubeletPodList []*kubelet.Pod) error {
 	if len(kubeletPodList) == 0 {
 		log.Debug("Empty kubelet pod list")
 		return nil
 	}
 
-	reachablePods := make([]*types.Pod, 0)
+	reachablePods := make([]*kubelet.Pod, 0)
 	nodeName := ""
 	for _, p := range kubeletPodList {
 		if p.Status.PodIP == "" {

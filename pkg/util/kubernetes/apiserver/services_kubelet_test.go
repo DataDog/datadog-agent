@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	kubelettypes "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 func TestMapServices(t *testing.T) {
@@ -62,14 +62,14 @@ func TestMapServices(t *testing.T) {
 	tests := []struct {
 		desc            string
 		nodeName        string
-		kubeletPods     []*kubelettypes.Pod
+		kubeletPods     []*kubelet.Pod
 		endpoints       []v1.Endpoints
 		expectedMapping apiv1.NamespacesPodsStringsSet
 	}{
 		{
 			"1 node, 1 pod, 1 service",
 			"myNode",
-			[]*kubelettypes.Pod{pod1},
+			[]*kubelet.Pod{pod1},
 			[]v1.Endpoints{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "svc1"},
@@ -89,7 +89,7 @@ func TestMapServices(t *testing.T) {
 		{
 			"1 node, 2 pods with same name, 2 services",
 			"myNode",
-			[]*kubelettypes.Pod{defaultPod, otherPod},
+			[]*kubelet.Pod{defaultPod, otherPod},
 			[]v1.Endpoints{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "svc1"},
@@ -120,7 +120,7 @@ func TestMapServices(t *testing.T) {
 		{
 			"endpoint for pod on different node",
 			"myNode",
-			[]*kubelettypes.Pod{pod1, pod3},
+			[]*kubelet.Pod{pod1, pod3},
 			[]v1.Endpoints{
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "svc1"},
@@ -240,15 +240,15 @@ func TestMapServices(t *testing.T) {
 	mu.RUnlock()
 }
 
-func runMapOnRefTest(t *testing.T, nodeName string, pods []*kubelettypes.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet) {
+func runMapOnRefTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet) {
 	runMapServicesTest(t, nodeName, pods, endpointsList, expectedMapping, false)
 }
 
-func runMapOnIPTest(t *testing.T, nodeName string, pods []*kubelettypes.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet) {
+func runMapOnIPTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet) {
 	runMapServicesTest(t, nodeName, pods, endpointsList, expectedMapping, true)
 }
 
-func runMapServicesTest(t *testing.T, nodeName string, pods []*kubelettypes.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet, mapOnIP bool) {
+func runMapServicesTest(t *testing.T, nodeName string, pods []*kubelet.Pod, endpointsList v1.EndpointsList, expectedMapping apiv1.NamespacesPodsStringsSet, mapOnIP bool) {
 	testName := "mapOnRef"
 	if mapOnIP {
 		testName = "mapOnIP"
@@ -262,18 +262,18 @@ func runMapServicesTest(t *testing.T, nodeName string, pods []*kubelettypes.Pod,
 	})
 }
 
-func newFakeKubeletPod(namespace, name, uid, ip string) *kubelettypes.Pod {
-	return &kubelettypes.Pod{
-		Metadata: kubelettypes.PodMetadata{
+func newFakeKubeletPod(namespace, name, uid, ip string) *kubelet.Pod {
+	return &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
 			Name:      name,
 			Namespace: namespace,
 			UID:       uid,
 		},
-		Status: kubelettypes.Status{PodIP: ip},
+		Status: kubelet.Status{PodIP: ip},
 	}
 }
 
-func newFakeKubeletPodEndpointAddress(nodeName string, pod *kubelettypes.Pod) v1.EndpointAddress {
+func newFakeKubeletPodEndpointAddress(nodeName string, pod *kubelet.Pod) v1.EndpointAddress {
 	return v1.EndpointAddress{
 		IP:       pod.Status.PodIP,
 		NodeName: &nodeName,
