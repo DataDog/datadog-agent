@@ -17,11 +17,11 @@ namespace Datadog.CustomActions
         {
             _session = session;
             string installDir = session.Property("INSTALLDIR");
+            _site = session.Property("SITE");
             session.Log($"installDir: {installDir}");
             // TODO remove me
             installDir = "C:\\Program Files\\Datadog\\Datadog Installer";
             _installerExecutable = System.IO.Path.Combine(installDir, "datadog-installer.exe");
-            string site = session.Property("SITE");
         }
 
 
@@ -71,7 +71,7 @@ namespace Datadog.CustomActions
                     return ActionResult.Failure;
                 }
                 string librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
-                var libraries = librariesRaw.Split(",");
+                var libraries = librariesRaw.Split(',');
                 foreach (var library in libraries)
                 {
                     var libWithVersion = ParseVersion(library);
@@ -81,7 +81,7 @@ namespace Datadog.CustomActions
                     }
                     else
                     {
-                        // TOOD rollback should uninstall the library
+                        // TODO rollback should uninstall the library
                     }
                     InstallPackage(libWithVersion.Name, libWithVersion.Version);
                 }
@@ -108,7 +108,19 @@ namespace Datadog.CustomActions
         private bool IsPackageInstalled(string library)
         {
             string packageName = PackageName(library);
-            _session.RunCommand(_installerExecutable, $"is-installed {packageName}");
+            using (var proc = _session.RunCommand(_installerExecutable, $"is-installed {packageName}"))
+            {
+                if (proc.ExitCode == 10)
+                {
+                    return false;
+                }
+
+                if (proc.ExitCode != 0)
+                {
+                    throw new Exception($"'datadog-installer is-installed {packageName}' failed with exit code: {proc.ExitCode}");
+                }
+                return true;
+            }
         }
 
         private void InstallPackage(string library, string version)
