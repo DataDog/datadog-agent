@@ -9,10 +9,7 @@
 package codegen
 
 import (
-	"fmt"
 	"reflect"
-
-	"github.com/kr/pretty"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
@@ -23,14 +20,13 @@ type captureDepthItem struct {
 }
 
 func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
-	fmt.Println("Entry:", pretty.Sprint(params))
 	queue := []*captureDepthItem{}
 	for i := range params {
 		if params[i] == nil {
 			continue
 		}
 		queue = append(queue, &captureDepthItem{
-			depth:     0,
+			depth:     1,
 			parameter: params[i],
 		})
 	}
@@ -38,20 +34,21 @@ func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
 		top := queue[0]
 		queue = queue[1:]
 
-		if top.depth >= targetDepth {
-			fmt.Println("not capturing: ", top.parameter.Name)
+		if top.parameter == nil {
+			continue
+		}
+
+		if top.depth > targetDepth {
 			top.parameter.DoNotCapture = true
 			top.parameter.NotCaptureReason = ditypes.CaptureDepthReached
 		}
 
-		if top.parameter.Kind == uint(reflect.Struct) {
+		if top.parameter.Kind == uint(reflect.Struct) || top.parameter.Kind == uint(reflect.Array) {
 			for _, child := range top.parameter.ParameterPieces {
 				queue = append(queue, &captureDepthItem{depth: top.depth, parameter: child})
 			}
-			continue
-		}
 
-		if top.parameter.Kind == uint(reflect.Slice) {
+		} else if top.parameter.Kind == uint(reflect.Slice) {
 			// If we do want to capture the slice, it means that we at least capture the first
 			// layer of the slice elements. Only this layer counts towards capture depth, but
 			// if it's set to DoNotCapture, then this slice layer header should be set to it as well
@@ -61,18 +58,36 @@ func applyCaptureDepth(params []*ditypes.Parameter, targetDepth int) {
 				continue
 			}
 			elementType := top.parameter.ParameterPieces[0].ParameterPieces[0]
-			queue = append(queue, &captureDepthItem{depth: top.depth, parameter: elementType})
+			queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: elementType})
+
+		} else if top.parameter.Kind == uint(reflect.Pointer) {
+			if top.parameter.ParameterPieces == nil || len(top.parameter.ParameterPieces) == 0 {
+				continue
+			}
+			valueType := top.parameter.ParameterPieces[0]
+			queue = append(queue, &captureDepthItem{depth: top.depth, parameter: valueType})
+
+		} else if top.parameter.Kind == uint(reflect.String) {
+			// Propogate DoNotCapture/NotCaptureReason value to string fields (char*, len) for clarity
+			if len(top.parameter.ParameterPieces) == 2 &&
+				top.parameter.ParameterPieces[0] != nil &&
+				len(top.parameter.ParameterPieces[0].ParameterPieces) == 1 &&
+				top.parameter.ParameterPieces[0].ParameterPieces[0] != nil {
+
+				top.parameter.ParameterPieces[0].DoNotCapture = top.parameter.DoNotCapture
+				top.parameter.ParameterPieces[0].NotCaptureReason = top.parameter.NotCaptureReason
+				top.parameter.ParameterPieces[0].ParameterPieces[0].DoNotCapture = top.parameter.DoNotCapture
+				top.parameter.ParameterPieces[0].ParameterPieces[0].NotCaptureReason = top.parameter.NotCaptureReason
+				top.parameter.ParameterPieces[1].DoNotCapture = top.parameter.DoNotCapture
+				top.parameter.ParameterPieces[1].NotCaptureReason = top.parameter.NotCaptureReason
+			}
+
 			continue
-		}
 
-		if top.parameter.Kind == uint(reflect.Pointer) {
-			//TODO
-		}
-
-		for _, child := range top.parameter.ParameterPieces {
-			queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: child})
+		} else {
+			for _, child := range top.parameter.ParameterPieces {
+				queue = append(queue, &captureDepthItem{depth: top.depth + 1, parameter: child})
+			}
 		}
 	}
-
-	fmt.Println("Exit:", pretty.Sprint(params))
 }
