@@ -67,8 +67,19 @@ func (d *defaultTagEnricher) Enrich(_ context.Context, extraTags []string, dimen
 
 type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer
 
-// NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion and embedded collector.
+// NewFactoryForAgent creates a new serializer exporter factory for Agent OTLP ingestion.
 func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
+	cfgType := component.MustNewType(TypeStr)
+	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType)
+}
+
+// NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
+func NewFactoryForOTelAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
+	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
+	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, wg, cfgType)
+}
+
+func newFactoryForAgentWithType(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, wg *sync.WaitGroup, typ component.Type) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithOTelPrefix())
@@ -85,10 +96,9 @@ func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hos
 		},
 		options: options,
 	}
-	cfgType := component.MustNewType(TypeStr)
 
 	return exp.NewFactory(
-		cfgType,
+		typ,
 		newDefaultConfigForAgent,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
