@@ -344,15 +344,6 @@ new-agent_dmg-x64-a7:
     - |
       echo "=== gem_make.out ==="
       cat omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5/gem_make.out
-    - |
-      echo "=== find1 ==="
-      find omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5
-    - |
-      echo "=== find2 ==="
-      find omnibus/vendor/bundle/ruby/2.7.0/gems/ffi-1.15.5/ext/ffi_c
-    - |
-      echo "=== extconf.rb ==="
-      cat extconf.rb
     - exit 1
     # TODO: Other things...
 

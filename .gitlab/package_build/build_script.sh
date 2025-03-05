@@ -56,8 +56,21 @@ if [ "$1" = SETUP_RUNNER ]; then
     done
 
     # TODO: Verify utility
-    sudo xcodebuild -license accept
     sudo xcodes select 15.2
+    sudo xcodebuild -license accept
+    sudo xcodebuild -runFirstLaunch
+    sudo xcodes runtimes install 15.2 || true
+    echo "=== Ls SDKs ==="
+    ls /Library/Developer/CommandLineTools/SDKs || true
+    echo "=== Ls SDKs 15.2 ==="
+    ls /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk || true
+    echo "=== SDK settings ==="
+    cat /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/SDKSettings.json || true
+    echo "=== Some other debug ==="
+    xcode-select -p || true
+    echo Trying install
+    xcode-select --install || true
+    echo END DEBUG
 
     echo Setup homebrew
     mkdir homebrew
