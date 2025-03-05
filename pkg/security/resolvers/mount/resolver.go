@@ -614,14 +614,22 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	return json.Marshal(dump)
 }
 
+const (
+	// mounts LRU limit: 100000 mounts
+	mountsLimit = 100000
+	// pidToMounts LRU limits: 1000 pids, and 1000 mounts per pid
+	pidLimit          = 1000
+	mountsPerPidLimit = 1000
+)
+
 // NewResolver instantiates a new mount resolver
 func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, opts ResolverOpts) (*Resolver, error) {
-	mounts, err := simplelru.NewLRU[uint32, *model.Mount](8096, nil)
+	mounts, err := simplelru.NewLRU[uint32, *model.Mount](mountsLimit, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	pidToMounts, err := cache.NewTwoLayersLRU[uint32, uint32, *model.Mount](1024 * 1024) // 1024 mounts for 1024 pids
+	pidToMounts, err := cache.NewTwoLayersLRU[uint32, uint32, *model.Mount](pidLimit * mountsPerPidLimit)
 	if err != nil {
 		return nil, err
 	}
