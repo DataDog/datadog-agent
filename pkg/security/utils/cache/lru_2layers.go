@@ -7,9 +7,11 @@
 package cache
 
 import (
+	"iter"
 	"sync"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
+
 	"go.uber.org/atomic"
 )
 
@@ -95,13 +97,21 @@ func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey2(k2 K2, keys ...K1) int {
 	tll.Lock()
 	defer tll.Unlock()
 
-	k1Keys := keys
-	if len(k1Keys) == 0 {
-		k1Keys = tll.cache.Keys()
+	var k1Iter iter.Seq[K1]
+	if len(keys) == 0 {
+		k1Iter = tll.cache.KeysIter()
+	} else {
+		k1Iter = func(yield func(K1) bool) {
+			for _, k := range keys {
+				if !yield(k) {
+					return
+				}
+			}
+		}
 	}
 
 	removed := 0
-	for _, k1 := range k1Keys {
+	for k1 := range k1Iter {
 		l2LRU, exists := tll.cache.Peek(k1)
 		if !exists {
 			continue
@@ -173,9 +183,9 @@ func (tll *TwoLayersLRU[K1, K2, V]) Walk(cb func(k1 K1, k2 K2, v V)) {
 	tll.RLock()
 	defer tll.RUnlock()
 
-	for _, k1 := range tll.cache.Keys() {
+	for k1 := range tll.cache.KeysIter() {
 		if l2LRU, exists := tll.cache.Peek(k1); exists {
-			for _, k2 := range l2LRU.Keys() {
+			for k2 := range l2LRU.KeysIter() {
 				if value, exists := l2LRU.Peek(k2); exists {
 					cb(k1, k2, value)
 				}
@@ -190,7 +200,7 @@ func (tll *TwoLayersLRU[K1, K2, V]) WalkInner(k1 K1, cb func(k2 K2, v V)) {
 	defer tll.RUnlock()
 
 	if l2LRU, exists := tll.cache.Peek(k1); exists {
-		for _, k2 := range l2LRU.Keys() {
+		for k2 := range l2LRU.KeysIter() {
 			if value, exists := l2LRU.Peek(k2); exists {
 				cb(k2, value)
 			}

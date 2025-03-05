@@ -16,7 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
+
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
 
@@ -127,7 +128,7 @@ func (mr *Resolver) SyncCache(pid uint32) error {
 
 	// store the minimal mount ID found to use it as a reference
 	if pid == 1 {
-		for _, mountID := range mr.mounts.Keys() {
+		for mountID := range mr.mounts.KeysIter() {
 			if mr.minMountID == 0 || mr.minMountID > mountID {
 				mr.minMountID = mountID
 			}
@@ -186,7 +187,7 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
 		openQueue = rest
 
-		for _, child := range mr.mounts.Values() {
+		for child := range mr.mounts.ValuesIter() {
 			if child.ParentPathKey.MountID == curr {
 				openQueue = append(openQueue, child.MountID)
 				mr.deleteOne(child, now)
@@ -603,7 +604,7 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	mr.lock.RLock()
 	defer mr.lock.RUnlock()
 
-	for _, mount := range mr.mounts.Values() {
+	for mount := range mr.mounts.ValuesIter() {
 		d, err := json.Marshal(mount)
 		if err == nil {
 			dump.Entries = append(dump.Entries, d)
