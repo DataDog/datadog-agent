@@ -47,6 +47,7 @@ const (
 	envHTTPSProxy          = "HTTPS_PROXY"
 	envDDNoProxy           = "DD_PROXY_NO_PROXY"
 	envNoProxy             = "NO_PROXY"
+	envIsFromDaemon        = "DD_INSTALLER_FROM_DAEMON"
 
 	// install script
 	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
@@ -132,6 +133,8 @@ type Env struct {
 	NoProxy    string
 
 	IsCentos6 bool
+
+	IsFromDaemon bool
 }
 
 // HTTPClient returns an HTTP client with the proxy settings from the environment.
@@ -204,7 +207,8 @@ func FromEnv() *Env {
 		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
 		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
 
-		IsCentos6: DetectCentos6(),
+		IsCentos6:    DetectCentos6(),
+		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
 	}
 }
 
@@ -264,6 +268,15 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.NoProxy != "" {
 		env = append(env, envNoProxy+"="+e.NoProxy)
+	}
+	if e.IsFromDaemon {
+		env = append(env, envIsFromDaemon+"=true")
+		// This is a bit of a hack; as we should properly redirect the log level
+		// to a file or a structured output. But today, we just want to avoid
+		// logging to avoid polluting the parsed output.
+		// The easiest way to do this without having to import setup/log & pkg/config
+		// is by env var.
+		env = append(env, "DD_LOG_LEVEL=off")
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
