@@ -233,8 +233,8 @@ func testLoadHACheck(t *testing.T) {
 		InitConfig: integration.Data("{}"),
 	}
 
-	rtloader = newMockRtLoaderPtr()
-	defer func() { rtloader = nil }()
+	mockRtloader(t)
+
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
