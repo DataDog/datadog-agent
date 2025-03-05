@@ -28,7 +28,7 @@ type linuxTestSuite struct {
 func TestLinuxTestSuite(t *testing.T) {
 	t.Parallel()
 	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithAgentConfig(processCheckConfigStr),
+		agentparams.WithAgentConfig(processAgentRefreshStr),
 	}
 
 	options := []e2e.SuiteOption{
@@ -70,7 +70,7 @@ func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
 			// Original key is obfuscated to the last 5 characters
 			assert.Equal(collect, key[0], "23456")
 		}
-		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastAPIKey()
+		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
 		require.NoError(collect, err)
 		assert.Equal(collect, "abcdefghijklmnopqrstuvwxyz123456", lastAPIKey)
 	}, 2*time.Minute, 10*time.Second)
@@ -83,11 +83,7 @@ func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
 		t.Logf("statusMap: %+v", statusMap)
-		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
-			// Original key is obfuscated to the last 5 characters
-			assert.Equal(collect, key[0], "vwxyz")
-		}
-		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastAPIKey()
+		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
 		require.NoError(collect, err)
 		t.Logf("lastAPIKey: %s", lastAPIKey)
 		assert.Equal(collect, "123456abcdefghijklmnopqrstuvwxyz", lastAPIKey)

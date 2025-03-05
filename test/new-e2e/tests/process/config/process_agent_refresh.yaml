@@ -2,7 +2,6 @@ secret_backend_command: /tmp/test-secret/secret-resolver.py
 secret_backend_arguments:
   - /tmp/test-secret
 api_key: ENC[api_key]
-log_level: debug
 
 process_config:
   process_collection:
@@ -11,6 +10,5 @@ process_config:
     enabled: false
   process_discovery:
     enabled: false
-
-run_in_core_agent:
-    enabled: false
+  run_in_core_agent:
+      enabled: false
