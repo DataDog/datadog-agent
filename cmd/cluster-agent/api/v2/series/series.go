@@ -36,12 +36,6 @@ var bufferPool = sync.Pool{
 	},
 }
 
-var metricPayloadPool = sync.Pool{
-	New: func() interface{} {
-		return &gogen.MetricPayload{}
-	},
-}
-
 type buffer struct {
 	buf *[]byte
 }
@@ -111,11 +105,7 @@ func (h *seriesHandler) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metricPayload := metricPayloadPool.Get().(*gogen.MetricPayload)
-	defer metricPayloadPool.Put(metricPayload)
-
-	// Reset the metricPayload before using it
-	*metricPayload = gogen.MetricPayload{}
+	metricPayload := &gogen.MetricPayload{}
 	if err := metricPayload.Unmarshal(payload); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
