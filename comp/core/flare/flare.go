@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/haagent"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -101,7 +104,7 @@ func newFlare(deps dependencies) provides {
 	return provides{
 		Comp:       f,
 		Endpoint:   api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
-		RCListener: rcclienttypes.NewTaskListener(f.onAgentTaskEvent),
+		RCListener: rcclienttypes.NewTaskListener(f.onAgentTaskEventForHaAgent),
 	}
 }
 
@@ -150,6 +153,43 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, err
+}
+
+func (f *flare) onAgentTaskEventForHaAgent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+	if taskType != rcclienttypes.TaskFlare {
+		return false, nil
+	}
+	userHandle, found := task.Config.TaskArgs["user_handle"]
+	if !found {
+		return true, fmt.Errorf("User handle was not provided in the flare agent task")
+	}
+
+	f.log.Infof("[onAgentTaskEvent] userHandle=%s", userHandle)
+
+	payload := haagent.Payload{}
+
+	err := json.Unmarshal([]byte(userHandle), &payload)
+	if err != nil {
+		f.log.Errorf("[onAgentTaskEvent] json decode failed: %v", err)
+		return true, nil
+	}
+	f.log.Infof("[onAgentTaskEvent] json decoded payload: %v", payload)
+
+	if payload.ExpirationTimestamp < time.Now().UnixMilli() {
+		f.log.Infof("[onAgentTaskEvent] skip, payload expired ExpirationTimestamp=%d", payload.ExpirationTimestamp)
+		return true, nil
+	}
+
+	agentHost, err := hostname.Get(context.TODO())
+	if err != nil {
+		f.log.Warnf("Error getting the hostname: %v", err)
+	} else {
+		isPrimary := payload.PrimaryAgent == agentHost
+		f.log.Infof("[onAgentTaskEvent] Set primary: %t", isPrimary)
+		haagent.SetPrimary(isPrimary)
+	}
+
+	return true, nil
 }
 
 func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
