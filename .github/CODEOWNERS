@@ -379,6 +379,9 @@
 /pkg/serverless/                        @DataDog/serverless @Datadog/serverless-aws
 /pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-configuration
+/pkg/status/health                      @DataDog/agent-runtimes
+/pkg/status/collector                   @DataDog/agent-runtimes
+/pkg/status/clusteragent                @DataDog/container-platform
 /pkg/telemetry/                         @DataDog/agent-runtimes
 /pkg/telemetry/stat_gauge_wrapper.go    @DataDog/ebpf-platform
 /pkg/telemetry/stat_counter_wrapper.go  @DataDog/ebpf-platform
