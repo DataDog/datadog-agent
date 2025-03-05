@@ -319,7 +319,7 @@ func (r *EBPFResolvers) snapshot() error {
 	return nil
 }
 
-// nolint: unused
+// nolint: deadcode, unused
 func (r *EBPFResolvers) snapshotBoundSockets() error {
 	processes, err := utils.GetProcesses()
 	if err != nil {
