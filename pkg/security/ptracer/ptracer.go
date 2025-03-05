@@ -541,17 +541,19 @@ func (ctx *CWSPtracerCtx) AttachTracer() error {
 	return nil
 }
 
+var forwardedSignals = []os.Signal{
+	// Signal, number, and possible cause of container runtime sending them
+	syscall.SIGHUP,  // 1 - Reload configuration (useful for reloading services inside a container)
+	syscall.SIGINT,  // 2 - Graceful shutdown (sent when stopping container interactively)
+	syscall.SIGQUIT, // 3 - Graceful shutdown + core dump (used for debugging containerized apps)
+	syscall.SIGUSR1, // 10 - Application-specific user-defined signal (can trigger app reloads)
+	syscall.SIGUSR2, // 12 - Another user-defined signal, often used for hot reloads inside a container
+	syscall.SIGTERM, // 15 - Default stop signal (`docker stop`, `kubectl delete pod`)
+}
+
 func startSignalForwarder(pid int) {
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan,
-		// Signal, number, and possible cause of container runtime sending them
-		syscall.SIGHUP,  // 1 - Reload configuration (useful for reloading services inside a container)
-		syscall.SIGINT,  // 2 - Graceful shutdown (sent when stopping container interactively)
-		syscall.SIGQUIT, // 3 - Graceful shutdown + core dump (used for debugging containerized apps)
-		syscall.SIGUSR1, // 10 - Application-specific user-defined signal (can trigger app reloads)
-		syscall.SIGUSR2, // 12 - Another user-defined signal, often used for hot reloads inside a container
-		syscall.SIGTERM, // 15 - Default stop signal (`docker stop`, `kubectl delete pod`)
-	)
+	signal.Notify(sigChan, forwardedSignals...)
 	go func() {
 		for sig := range sigChan {
 			unixSig, _ := sig.(syscall.Signal)

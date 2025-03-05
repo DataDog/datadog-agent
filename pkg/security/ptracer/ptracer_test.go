@@ -66,15 +66,6 @@ func child() {
 }
 
 func TestSignalForwarding(t *testing.T) {
-	forwardedSignals := []syscall.Signal{
-		syscall.SIGHUP,
-		syscall.SIGINT,
-		syscall.SIGQUIT,
-		syscall.SIGUSR1,
-		syscall.SIGUSR2,
-		syscall.SIGTERM,
-	}
-
 	// fork to have a child to receive signals
 	err := fork.Fork("child")
 	if err != nil {
@@ -100,7 +91,8 @@ func TestSignalForwarding(t *testing.T) {
 	for _, sig := range forwardedSignals {
 		t.Run(fmt.Sprintf("%v", sig), func(t *testing.T) {
 			// send signal to ourselves
-			syscall.Kill(os.Getpid(), sig)
+			unixSig, _ := sig.(syscall.Signal)
+			syscall.Kill(os.Getpid(), unixSig)
 
 			// wait for child response
 			n, err := fifo.Read(buffer)
