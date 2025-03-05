@@ -13,6 +13,7 @@ from tasks.kernel_matrix_testing.compiler import get_compiler
 from tasks.kernel_matrix_testing.download import download_rootfs
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, is_root
+from tasks.libs.common.utils import is_installed
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
@@ -33,6 +34,12 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
         resp = ask("Python 3.12+ is not tested yet with KMT, some packages might not be available. Continue? (y/N)? ")
         if resp.lower().strip() != "y":
             raise Exit("Aborted by user")
+
+    if is_installed("dda"):
+        ctx.run("dda self dep sync -f legacy-kernel-matrix-testing")
+    else:
+        reqs_file = Path(__file__).parent / "requirements.txt"
+        ctx.run(f"pip3 install -r {reqs_file.absolute()}")
 
     if shutil.which("pulumi") is None:
         if Path("~/.pulumi/bin/pulumi").expanduser().exists():
