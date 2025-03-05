@@ -13,7 +13,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -30,32 +29,22 @@ var defaultSkipDirs = []string{
 }
 
 // FSWalker is the filesystem walker used for SBOM generation
-type FSWalker struct {
-	walker *walker.FS
-}
+type FSWalker struct{}
 
 // NewFSWalker returns a new filesystem walker
 func NewFSWalker() *FSWalker {
-	return &FSWalker{
-		walker: walker.NewFS(),
-	}
+	return &FSWalker{}
 }
 
 // Walk walks the filesystem rooted at root, calling fn for each unfiltered file.
 func (w *FSWalker) Walk(root string, opt walker.Option, fn walker.WalkFunc) error {
-	buildPaths := func(paths []string) []string {
-		buildPaths := make([]string, len(paths))
-		for i, path := range paths {
-			buildPaths[i] = root + path
-		}
-		return buildPaths
-	}
-	opt.SkipFiles = w.walker.BuildSkipPaths(root, buildPaths(opt.SkipFiles))
-	opt.SkipDirs = w.walker.BuildSkipPaths(root, buildPaths(opt.SkipDirs))
 	opt.SkipDirs = append(opt.SkipDirs, defaultSkipDirs...)
-	opt.OnlyDirs = w.walker.BuildSkipPaths(root, buildPaths(opt.OnlyDirs))
 
-	walkDirFunc := w.WalkDirFunc(root, fn, opt)
+	opt.SkipDirs = utils.CleanSkipPaths(opt.SkipDirs)
+	opt.SkipFiles = utils.CleanSkipPaths(opt.SkipFiles)
+	opt.OnlyDirs = utils.CleanSkipPaths(opt.OnlyDirs)
+
+	walkDirFunc := w.WalkDirFunc(fn, opt)
 	walkDirFunc = w.onError(walkDirFunc, opt)
 
 	// Walk the filesystem
@@ -68,7 +57,7 @@ func (w *FSWalker) Walk(root string, opt walker.Option, fn walker.WalkFunc) erro
 
 // WalkDirFunc is the type of the function called by [WalkDir] to visit
 // each file or directory.
-func (w *FSWalker) WalkDirFunc(root string, fn walker.WalkFunc, opt walker.Option) fs.WalkDirFunc {
+func (w *FSWalker) WalkDirFunc(fn walker.WalkFunc, opt walker.Option) fs.WalkDirFunc {
 	return func(filePath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
@@ -77,35 +66,23 @@ func (w *FSWalker) WalkDirFunc(root string, fn walker.WalkFunc, opt walker.Optio
 			return err
 		}
 
-		if !strings.HasPrefix(filePath, "/") {
-			if strings.HasSuffix(root, "/") {
-				filePath = root + filePath
-			} else {
-				filePath = root + "/" + filePath
-			}
-		}
-
-		relPath, err := filepath.Rel(root, filePath)
-		if err != nil {
-			return xerrors.Errorf("filepath rel (%s): %w", relPath, err)
-		}
-		relPath = filepath.ToSlash(relPath)
+		filePath = filepath.ToSlash(filePath)
 
 		// Skip unnecessary files
 		switch {
 		case d.IsDir():
-			if utils.SkipPath(relPath, opt.SkipDirs) {
+			if utils.SkipPath(filePath, opt.SkipDirs) {
 				return filepath.SkipDir
 			}
-			if utils.OnlyPath(relPath, opt.OnlyDirs) {
+			if utils.OnlyPath(filePath, opt.OnlyDirs) {
 				return filepath.SkipDir
 			}
 			return nil
 		case !opt.AllFiles && !d.Type().IsRegular():
 			return nil
-		case utils.SkipPath(relPath, opt.SkipFiles):
+		case utils.SkipPath(filePath, opt.SkipFiles):
 			return nil
-		case utils.OnlyPath(relPath, opt.OnlyDirs):
+		case utils.OnlyPath(filePath, opt.OnlyDirs):
 			return nil
 		}
 
@@ -114,7 +91,7 @@ func (w *FSWalker) WalkDirFunc(root string, fn walker.WalkFunc, opt walker.Optio
 			return xerrors.Errorf("file info error: %w", err)
 		}
 
-		if err = fn(relPath, info, fileOpener(filePath)); err != nil {
+		if err = fn(filePath, info, fileOpener(filePath)); err != nil {
 			return xerrors.Errorf("failed to analyze file: %w", err)
 		}
 
