@@ -144,8 +144,6 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 
 func (v *gpuSuite) TestLimitMetricsAreReported() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		// We are not including "gpu.memory", as that represents the "current
-		// memory usage" and that might be zero at the time it's checked
 		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
 		for _, metricName := range metricNames {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
