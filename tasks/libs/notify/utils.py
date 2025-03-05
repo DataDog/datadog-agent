@@ -64,7 +64,7 @@ def get_pipeline_type():
     """
     if os.environ.get('DEPLOY_AGENT', '') == 'true':
         return 'deploy'
-    elif os.environ.get('TRIGGERED_PIPELINE', 'false') == 'true':
+    elif os.environ.get('TRIGGERED_PIPELINE', 'false') == 'true' or 'DDR_WORKFLOW_ID' in os.environ:
         return 'trigger'
     else:
         return 'merge'
