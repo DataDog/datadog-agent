@@ -33,7 +33,6 @@ func TestLinuxTestSuite(t *testing.T) {
 
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
-		e2e.WithDevMode(),
 	}
 
 	e2e.Run(t, &linuxTestSuite{}, options...)
