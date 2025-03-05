@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+// Package securityagent contains flare logic for the security agent
+package securityagent
 
 import (
 	"os"
@@ -12,6 +13,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,12 +45,12 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 		}
 	}
 
-	GetLogFiles(fb, logFilePath)
-	GetConfigFiles(fb, searchPaths{})
-	getComplianceFiles(fb)                        //nolint:errcheck
-	getRuntimeFiles(fb)                           //nolint:errcheck
-	GetExpVar(fb)                                 //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", GetEnvVars) //nolint:errcheck
+	common.GetLogFiles(fb, logFilePath)
+	common.GetConfigFiles(fb, map[string]string{})
+	getComplianceFiles(fb)                               //nolint:errcheck
+	getRuntimeFiles(fb)                                  //nolint:errcheck
+	common.GetExpVar(fb)                                 //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", common.GetEnvVars) //nolint:errcheck
 
 	addSecurityAgentPlatformSpecificEntries(fb)
 }
