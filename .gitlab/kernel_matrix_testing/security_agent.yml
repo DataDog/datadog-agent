@@ -482,16 +482,21 @@ kmt_secagent_cleanup_arm64:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
 
-kmt_secagent_tests_join_x64:
+kmt_secagent_tests_join1_x64:
   extends:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_x64
-    - kmt_run_secagent_tests_x64_peds
-    - kmt_run_secagent_tests_x64_required
     - kmt_run_secagent_tests_x64_ad
     - kmt_run_secagent_tests_x64_ebpfless
     - kmt_run_secagent_tests_x64_docker
+
+kmt_secagent_tests_join2_x64:
+  extends:
+    - .kmt_secagent_tests_join
+  needs:
+    - kmt_run_secagent_tests_x64_peds
+    - kmt_run_secagent_tests_x64_required
 
 kmt_secagent_cleanup_x64:
   when: always
@@ -499,7 +504,8 @@ kmt_secagent_cleanup_x64:
     - .kmt_secagent_cleanup
   needs:
     - kmt_setup_env_secagent_x64
-    - kmt_secagent_tests_join_x64
+    - kmt_secagent_tests_join1_x64
+    - kmt_secagent_tests_join2_x64
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
   variables:
