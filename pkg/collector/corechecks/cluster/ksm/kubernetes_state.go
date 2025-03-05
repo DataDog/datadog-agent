@@ -301,29 +301,18 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	k.mergeLabelJoins(defaultLabelJoins())
 
-	if k.instance.PodCollectionMode == defaultPodCollection || k.instance.PodCollectionMode == clusterUnassignedPodCollection {
-		// We need to setup the global resource type only if the check is running in the cluster agent or in the cluster check runner
-		apiServerClient, err := apiserver.GetAPIClient()
-		if err != nil {
-			return err
-		}
+	setupLabelsAndAnnotationsAsTagsFunc := func() {
+		metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
 
-		err = apiserver.InitializeGlobalResourceTypeCache(apiServerClient.Cl.Discovery())
-		if err != nil {
-			return err
-		}
+		k.processLabelJoins()
+		k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
+		k.processLabelsAsTags()
+
+		// We need to merge the user-defined annotations as tags with the default annotations first
+		mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
+		k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
+		k.processAnnotationsAsTags()
 	}
-
-	metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
-
-	k.processLabelJoins()
-	k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
-	k.processLabelsAsTags()
-
-	// We need to merge the user-defined annotations as tags with the default annotations first
-	mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
-	k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
-	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
@@ -347,12 +336,25 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				// In this case we don't need to set up anything related to the API
 				// server.
 				collectors = []string{"pods"}
+				setupLabelsAndAnnotationsAsTagsFunc()
 			case defaultPodCollection, clusterUnassignedPodCollection:
 				// We can try to get the API Client directly because this code will be retried if it fails
 				apiServerClient, err = apiserver.GetAPIClient()
 				if err != nil {
 					return err
 				}
+
+				apiServerClient, err := apiserver.GetAPIClient()
+				if err != nil {
+					return err
+				}
+
+				err = apiserver.InitializeGlobalResourceTypeCache(apiServerClient.Cl.Discovery())
+				if err != nil {
+					return err
+				}
+
+				setupLabelsAndAnnotationsAsTagsFunc()
 
 				// Discover resources that are currently available
 				resources, err = discoverResources(apiServerClient.Cl.Discovery())
