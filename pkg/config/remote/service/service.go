@@ -440,7 +440,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
-	return &CoreAgentService{
+	cas := &CoreAgentService{
 		Service: Service{
 			rcType: rcType,
 			db:     db,
@@ -475,7 +475,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		stopOrgPoller:         make(chan struct{}),
 		stopConfigPoller:      make(chan struct{}),
 		disableConfigPollLoop: options.disableConfigPollLoop,
-	}, nil
+	}
+
+	cfg.OnUpdate(cas.apiKeyUpdateCallback())
+
+	return cas, nil
 }
 
 func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
@@ -905,6 +909,22 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	}
 
 	return filteredList, nil
+}
+
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
+	return func(setting string, _, newvalue any) {
+		s.Lock()
+		defer s.Unlock()
+
+		if setting != "api_key" {
+			return
+		}
+
+		newKey, ok := newvalue.(string)
+		if ok {
+			s.api.UpdateApiKey(newKey)
+		}
+	}
 }
 
 // ConfigGetState returns the state of the configuration and the director repos in the local store
