@@ -342,10 +342,6 @@ func (p *PathKey) IsNull() bool {
 	return p.Inode == 0 && p.MountID == 0
 }
 
-func (p *PathKey) String() string {
-	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
-}
-
 // PathKeySize defines the path key size
 const PathKeySize = 16
 
