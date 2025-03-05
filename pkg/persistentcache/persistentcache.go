@@ -9,14 +9,14 @@ package persistentcache
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 // Invalid characters to clean up
-var invalidChars = regexp.MustCompile("[^a-zA-Z0-9_-]")
+var invalidChars = lazyregexp.New("[^a-zA-Z0-9_-]")
 
 // Return a file where to store the data. We split the key by ":", using the
 // first prefix as directory, if present. This is useful for integrations, which

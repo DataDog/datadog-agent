@@ -13,7 +13,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 )
 
 const maxCudaKernelNameLength = 256
@@ -302,7 +303,7 @@ func (cp *cubinParser) parseSharedMemSection(sect *elfSection, kernelName []byte
 	return nil
 }
 
-var constantSectNameRegex = regexp.MustCompile(`\.nv\.constant\d\.(.*)`)
+var constantSectNameRegex = lazyregexp.New(`\.nv\.constant\d\.(.*)`)
 
 func (cp *cubinParser) parseConstantMemSection(sect *elfSection, _ []byte) error {
 	// Constant memory sections are named .nv.constantX.Y where X is the constant memory index and Y is the name

@@ -11,7 +11,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -34,7 +34,7 @@ const (
 	sampledPadding = len(sampledPrefix)
 )
 
-var rootRegex = regexp.MustCompile("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
+var rootRegex = lazyregexp.New("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
 
 var (
 	errorAWSTraceHeaderMismatch     = errors.New("AWSTraceHeader does not match expected regex")

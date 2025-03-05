@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -80,7 +81,7 @@ var collectorNameReplacement = map[string]string{
 	"verticalpodautoscalers": "autoscaling.k8s.io/v1beta2, Resource=verticalpodautoscalers",
 }
 
-var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
+var matchAllCap = lazyregexp.New("([a-z0-9])([A-Z])")
 
 type podCollectionMode string
 

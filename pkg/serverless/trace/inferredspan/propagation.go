@@ -7,13 +7,13 @@ package inferredspan
 
 import (
 	"encoding/base64"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	json "github.com/json-iterator/go"
 
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,7 +27,7 @@ const (
 	parentPadding = len(parentPrefix)
 )
 
-var rootRegex = regexp.MustCompile("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
+var rootRegex = lazyregexp.New("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
 
 type rawTraceContext struct {
 	TraceID  string `json:"x-datadog-trace-id"`

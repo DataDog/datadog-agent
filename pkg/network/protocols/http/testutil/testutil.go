@@ -14,13 +14,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/lazyregexp"
 	sysctl "github.com/lorenzosaino/go-sysctl"
 	"golang.org/x/net/netutil"
 )
@@ -154,8 +154,8 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 	}
 }
 
-var pathParser1 = regexp.MustCompile(`/(\d{3})/.+`)
-var pathParser2 = regexp.MustCompile(`/status/(\d{3})$`)
+var pathParser1 = lazyregexp.New(`/(\d{3})/.+`)
+var pathParser2 = lazyregexp.New(`/status/(\d{3})$`)
 
 // StatusFromPath returns the status code present in the first segment of the request path
 func StatusFromPath(path string) uint16 {
