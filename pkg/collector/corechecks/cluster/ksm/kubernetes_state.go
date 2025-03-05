@@ -301,6 +301,19 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	k.mergeLabelJoins(defaultLabelJoins())
 
+	setupLabelsAndAnnotationsAsTagsFunc := func() {
+		metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
+
+		k.processLabelJoins()
+		k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
+		k.processLabelsAsTags()
+
+		// We need to merge the user-defined annotations as tags with the default annotations first
+		mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
+		k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
+		k.processAnnotationsAsTags()
+	}
+
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
@@ -323,9 +336,15 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				// In this case we don't need to set up anything related to the API
 				// server.
 				collectors = []string{"pods"}
+				setupLabelsAndAnnotationsAsTagsFunc()
 			case defaultPodCollection, clusterUnassignedPodCollection:
 				// We can try to get the API Client directly because this code will be retried if it fails
 				apiServerClient, err = apiserver.GetAPIClient()
+				if err != nil {
+					return err
+				}
+
+				apiServerClient, err := apiserver.GetAPIClient()
 				if err != nil {
 					return err
 				}
@@ -335,16 +354,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 					return err
 				}
 
-				metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
-
-				k.processLabelJoins()
-				k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
-				k.processLabelsAsTags()
-
-				// We need to merge the user-defined annotations as tags with the default annotations first
-				mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
-				k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
-				k.processAnnotationsAsTags()
+				setupLabelsAndAnnotationsAsTagsFunc()
 
 				// Discover resources that are currently available
 				resources, err = discoverResources(apiServerClient.Cl.Discovery())

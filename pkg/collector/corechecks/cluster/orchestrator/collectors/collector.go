@@ -48,6 +48,7 @@ type CollectorMetadata struct {
 	SupportsManifestBuffering            bool
 	Name                                 string
 	NodeType                             pkgorchestratormodel.NodeType
+	Kind                                 string
 	Version                              string
 	IsSkipped                            bool
 	SkippedReason                        string

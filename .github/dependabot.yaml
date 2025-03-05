@@ -218,3 +218,7 @@ updates:
       - changelog/no-changelog
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: org.bouncycaslte:*
+        # Ignore preview versions
+        versions: [ "[2.1,)" ]
