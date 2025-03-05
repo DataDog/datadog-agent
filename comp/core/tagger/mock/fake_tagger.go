@@ -7,7 +7,7 @@ package mock
 
 import (
 	"context"
-	"strconv"
+	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Mock implements mock-specific methods for the tagger component.
@@ -27,12 +28,14 @@ type Mock interface {
 
 	// SetGlobalTags allows to set tags in store for the global entity
 	SetGlobalTags(low, orch, high, std []string)
+
+	// LoadState loads the state for the tagger from the supplied map.
+	LoadState(state []types.Entity)
 }
 
 // FakeTagger is a fake implementation of the tagger interface
 type FakeTagger struct {
-	errors map[string]error
-	store  *tagstore.TagStore
+	store *tagstore.TagStore
 }
 
 // Provides is a struct containing the mock and the endpoint
@@ -44,8 +47,7 @@ type Provides struct {
 func New() Provides {
 	return Provides{
 		Comp: &FakeTagger{
-			errors: make(map[string]error),
-			store:  tagstore.NewTagStore(nil),
+			store: tagstore.NewTagStore(nil),
 		},
 	}
 }
@@ -69,6 +71,27 @@ func (f *FakeTagger) SetGlobalTags(low, orch, high, std []string) {
 	f.SetTags(types.GetGlobalEntityID(), "static", low, orch, high, std)
 }
 
+// LoadState loads the state for the tagger from the supplied map.
+func (f *FakeTagger) LoadState(state []types.Entity) {
+	if state == nil {
+		return
+	}
+
+	for _, entity := range state {
+		f.store.ProcessTagInfo([]*types.TagInfo{{
+			Source:               "replay",
+			EntityID:             entity.ID,
+			HighCardTags:         entity.HighCardinalityTags,
+			OrchestratorCardTags: entity.OrchestratorCardinalityTags,
+			LowCardTags:          entity.LowCardinalityTags,
+			StandardTags:         entity.StandardTags,
+			ExpiryDate:           time.Time{},
+		}})
+	}
+
+	log.Debugf("Loaded %v elements into tag store", len(state))
+}
+
 // Tagger interface
 
 // Start not implemented in fake tagger
@@ -81,12 +104,6 @@ func (f *FakeTagger) Stop() error {
 	return nil
 }
 
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the fake tagger
-func (f *FakeTagger) ReplayTagger() tagger.ReplayTagger {
-	return nil
-}
-
 // GetTaggerTelemetryStore returns tagger telemetry store
 // The fake tagger returns nil as it doesn't use telemetry
 func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
@@ -96,12 +113,6 @@ func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
 // Tag fake implementation
 func (f *FakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
 	tags := f.store.Lookup(entityID, cardinality)
-
-	key := f.getKey(entityID, cardinality)
-	if err := f.errors[key]; err != nil {
-		return nil, err
-	}
-
 	return tags, nil
 }
 
@@ -160,11 +171,6 @@ func (f *FakeTagger) Subscribe(subscriptionID string, filter *types.Filter) (typ
 	return f.store.Subscribe(subscriptionID, filter)
 }
 
-// Fake internals
-func (f *FakeTagger) getKey(entity types.EntityID, cardinality types.TagCardinality) string {
-	return entity.String() + strconv.FormatInt(int64(cardinality), 10)
-}
-
 // GetEntityHash noop
 func (f *FakeTagger) GetEntityHash(types.EntityID, types.TagCardinality) string {
 	return ""
@@ -175,21 +181,10 @@ func (f *FakeTagger) AgentTags(types.TagCardinality) ([]string, error) {
 	return []string{}, nil
 }
 
-// SetNewCaptureTagger noop
-func (f *FakeTagger) SetNewCaptureTagger(tagger.Component) {}
-
-// ResetCaptureTagger noop
-func (f *FakeTagger) ResetCaptureTagger() {}
-
 // EnrichTags noop
 func (f *FakeTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
 
 // ChecksCardinality noop
 func (f *FakeTagger) ChecksCardinality() types.TagCardinality {
-	return types.LowCardinality
-}
-
-// DogstatsdCardinality noop
-func (f *FakeTagger) DogstatsdCardinality() types.TagCardinality {
 	return types.LowCardinality
 }

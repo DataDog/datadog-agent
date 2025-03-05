@@ -128,10 +128,10 @@ func NormalizeTagValue(v string) string {
 	return normalize(v, false)
 }
 
-func normalize(v string, allowDigitStartChar bool) string {
+func normalize(v string, removeDigitStartChar bool) string {
 	// Fast path: Check if the tag is valid and only contains ASCII characters,
 	// if yes return it as-is right away. For most use-cases this reduces CPU usage.
-	if isNormalizedASCIITag(v, allowDigitStartChar) {
+	if isNormalizedASCIITag(v, removeDigitStartChar) {
 		return v
 	}
 	// the algorithm works by creating a set of cuts marking start and end offsets in v
@@ -185,7 +185,7 @@ func normalize(v string, allowDigitStartChar bool) string {
 			chars++
 		// If it's not a unicode letter, and it's the first char, and digits are allowed for the start char,
 		// we should goto end because the remaining cases are not valid for a start char.
-		case allowDigitStartChar && chars == 0:
+		case removeDigitStartChar && chars == 0:
 			trim = i + jump
 			goto end
 		case unicode.IsDigit(r) || r == '.' || r == '/' || r == '-':

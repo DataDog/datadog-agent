@@ -16,8 +16,7 @@ import (
 	"sync"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilserror "k8s.io/apimachinery/pkg/util/errors"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 
@@ -32,33 +31,37 @@ const (
 	maxCharactersPerChunk = 7000
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
 	extraQueryCharacters = 16
+	// maxParallelQueries returns the maximum number of parallel queries to Datadog.
+	// This value corresponds to a very high usage (max seen internally) and is just there to avoid mistakes in the configuration.
+	maxParallelQueries = 300
 )
 
 // ProcessorInterface is used to easily mock the interface for testing
 type ProcessorInterface interface {
 	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
-	QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]Point, error)
+	QueryExternalMetric(queries []string, timeWindow time.Duration) map[string]Point
 	ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
 }
 
 // Processor embeds the configuration to refresh metrics from Datadog and process Ref structs to ExternalMetrics.
 type Processor struct {
-	externalMaxAge time.Duration
-	datadogClient  datadogclientcomp.Component
-}
-
-// queryResponse ensures that we capture all the signals from the call to Datadog's backend.
-type queryResponse struct {
-	metrics map[string]Point
-	err     error
+	externalMaxAge  time.Duration
+	datadogClient   datadogclientcomp.Component
+	parallelQueries int
 }
 
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	externalMaxAge := math.Max(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.max_age"), 3*pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.rollup"))
+	parallelQueries := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.max_parallel_queries")
+	if parallelQueries > maxParallelQueries || parallelQueries <= 0 {
+		parallelQueries = maxParallelQueries
+	}
+
 	return &Processor{
-		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
-		datadogClient:  datadogCl,
+		externalMaxAge:  time.Duration(externalMaxAge) * time.Second,
+		datadogClient:   datadogCl,
+		parallelQueries: parallelQueries,
 	}
 }
 
@@ -127,8 +130,11 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 	aggregator := pkgconfigsetup.Datadog().GetString("external_metrics.aggregator")
 	rollup := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.rollup")
 	maxAge := int64(p.externalMaxAge.Seconds())
-	var err error
+
 	updated = make(map[string]custommetrics.ExternalMetricValue)
+	if len(emList) == 0 {
+		return updated
+	}
 
 	uniqueQueries := make(map[string]struct{}, len(emList))
 	batch := make([]string, 0, len(emList))
@@ -141,19 +147,17 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 	}
 
 	// In non-DatadogMetric path, we don't have any custom maxAge possible, always use default time window
-	metrics, err := p.QueryExternalMetric(batch, GetDefaultTimeWindow())
-	if len(metrics) == 0 && err != nil {
-		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
-		// If no metrics can be retrieved from Datadog in a given list, we need to invalidate them
-		// To avoid undesirable autoscaling behaviors
-		return invalidate(emList)
+	metrics := p.QueryExternalMetric(batch, GetDefaultTimeWindow())
+	if len(metrics) == 0 {
+		log.Errorf("Unexpected return from QueryExternalMetric, no data and no error")
 	}
 
 	for id, em := range emList {
 		metricIdentifier := getKey(em.MetricName, em.Labels, aggregator, rollup)
 		metric := metrics[metricIdentifier]
 
-		if time.Now().Unix()-metric.Timestamp > maxAge || !metric.Valid {
+		if metric.Error != nil || time.Now().Unix()-metric.Timestamp > maxAge || !metric.Valid {
+			// invalidating if error found it to avoid autoscaling
 			// invalidating sparse metrics that are outdated
 			em.Valid = false
 			em.Value = metric.Value
@@ -173,44 +177,53 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 
 // QueryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
 // Also updates the rate limits statistics as a result of the query.
-func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Duration) (processed map[string]Point, err error) {
-	processed = make(map[string]Point)
+func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Duration) map[string]Point {
 	if len(queries) == 0 {
-		return processed, nil
+		return nil
 	}
+	// Set query time
+	currentTime := time.Now()
 
+	// Preparing storage for results
+	responses := make(map[string]Point, len(queries))
+	responsesGlobalErrors := 0
+	// Protect both responses and responsesGlobalError
+	responsesLock := sync.Mutex{}
+
+	// Chunk the queries
 	chunks := makeChunks(queries)
-	log.Tracef("List of batches %v", chunks)
 
-	// we have a number of chunks with `chunkSize` metrics.
-	responses := make(chan queryResponse, len(queries))
+	var group errgroup.Group
+	group.SetLimit(p.parallelQueries)
 
-	var waitResp sync.WaitGroup
-	waitResp.Add(len(chunks))
-	for _, c := range chunks {
-		go func(chunk []string) {
-			defer waitResp.Done()
-			resp, err := p.queryDatadogExternal(chunk, timeWindow)
-			responses <- queryResponse{resp, err}
-		}(c)
-	}
-	waitResp.Wait()
-	close(responses)
-	var errors []error
-	for elem := range responses {
-		for k, v := range elem.metrics {
-			processed[k] = v
-		}
-		if elem.err != nil {
-			errors = append(errors, elem.err)
-		}
-	}
-	log.Debugf("Processed %d chunks", len(chunks))
+	for _, chunk := range chunks {
+		group.Go(func() error {
+			// Either resp or err is nil
+			resp, err := p.queryDatadogExternal(currentTime, chunk, timeWindow)
 
-	if err := p.updateRateLimitingMetrics(); err != nil {
-		errors = append(errors, err)
+			// Not holding lock during network calls
+			responsesLock.Lock()
+			defer responsesLock.Unlock()
+
+			// Process the response
+			if err != nil {
+				responsesGlobalErrors++
+				for _, q := range chunk {
+					responses[q] = Point{Error: err}
+				}
+			} else {
+				for k, v := range resp {
+					responses[k] = v
+				}
+			}
+			return nil
+		})
 	}
-	return processed, utilserror.NewAggregate(errors)
+	// Errors are handled in `responses`, so we don't need to check the group error
+	_ = group.Wait()
+
+	log.Debugf("Processed %d chunks with %d chunks in global error", len(chunks), responsesGlobalErrors)
+	return responses
 }
 
 func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
@@ -250,16 +263,6 @@ func makeChunks(batch []string) (chunks [][]string) {
 	}
 	chunks = append(chunks, tempBucket)
 	return chunks
-}
-
-func invalidate(emList map[string]custommetrics.ExternalMetricValue) (invList map[string]custommetrics.ExternalMetricValue) {
-	invList = make(map[string]custommetrics.ExternalMetricValue)
-	for id, e := range emList {
-		e.Valid = false
-		e.Timestamp = metav1.Now().Unix()
-		invList[id] = e
-	}
-	return invList
 }
 
 func getKey(name string, labels map[string]string, aggregator string, rollup int) string {

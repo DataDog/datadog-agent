@@ -44,13 +44,25 @@ func TestParseLocalData(t *testing.T) {
 			expectError:  false,
 		},
 		{
+			name:         "Multiple values in reverse order",
+			rawLocalData: "in-12345,ci-abc123",
+			expected:     LocalData{ContainerID: "abc123", Inode: 12345},
+			expectError:  false,
+		},
+		{
 			name:         "Invalid inode",
 			rawLocalData: "in-invalid",
 			expected:     LocalData{},
 			expectError:  true,
 		},
 		{
-			name:         "Old container format",
+			name:         "Old APM container format",
+			rawLocalData: "cid-abc123",
+			expected:     LocalData{ContainerID: "abc123"},
+			expectError:  false,
+		},
+		{
+			name:         "Old DogStatsD container format",
 			rawLocalData: "abc123",
 			expected:     LocalData{ContainerID: "abc123"},
 			expectError:  false,

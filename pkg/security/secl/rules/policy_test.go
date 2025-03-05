@@ -97,8 +97,8 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
-		t.Error("expected macro ID conflict")
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -173,15 +173,15 @@ func TestRuleMerge(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
-			t.Error("expected rule ID conflict")
+		if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+			t.Fatal(err)
 		}
 	})
 
 	t.Run("enabled-disabled", func(t *testing.T) {
 		rule := rs.GetRules()["test_rule_foo"]
-		if rule != nil {
-			t.Fatal("expected test_rule_foo to not be loaded")
+		if rule == nil {
+			t.Fatal("expected test_rule_foo to be loaded now")
 		}
 	})
 
@@ -335,16 +335,50 @@ func TestActionSetVariableTTL(t *testing.T) {
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []*ActionDefinition{{
-				Set: &SetDefinition{
-					Name:   "var1",
-					Append: true,
-					Value:  []string{"foo"},
-					TTL: &HumanReadableDuration{
-						Duration: 1 * time.Second,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Append: true,
+						Value:  "foo",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
 					},
 				},
-			}},
+				{
+					Set: &SetDefinition{
+						Name:   "var2",
+						Append: true,
+						Value:  123,
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar1",
+						Append: true,
+						Value:  []string{"bar"},
+						Scope:  "process",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar2",
+						Append: true,
+						Value:  []int{123},
+						Scope:  "process",
+						TTL: &HumanReadableDuration{
+							Duration: 1 * time.Second,
+						},
+					},
+				},
+			},
 		}},
 	}
 
@@ -371,7 +405,6 @@ func TestActionSetVariableTTL(t *testing.T) {
 	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
-	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
 	if !rs.Evaluate(event) {
 		t.Errorf("Expected event to match rule")
@@ -381,14 +414,203 @@ func TestActionSetVariableTTL(t *testing.T) {
 
 	existingVariable := opts.VariableStore.Get("var1")
 	assert.NotNil(t, existingVariable)
-
-	stringArrayVar, ok := existingVariable.(*eval.MutableStringArrayVariable)
+	stringArrayVar, ok := existingVariable.(eval.Variable)
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
+	strValue, _ := stringArrayVar.GetValue()
+	assert.NotNil(t, strValue)
+	assert.Contains(t, strValue, "foo")
+	assert.IsType(t, strValue, []string{})
 
-	assert.True(t, stringArrayVar.LRU.Has("foo"))
+	existingVariable = opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
+	intArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	value, _ := intArrayVar.GetValue()
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+
+	ctx := eval.NewContext(event)
+	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+	assert.NotNil(t, existingScopedVariable)
+	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringArrayScopedVar)
+	assert.True(t, ok)
+	value, _ = stringArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, "bar")
+	assert.IsType(t, value, []string{})
+
+	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
+	assert.NotNil(t, existingScopedVariable)
+	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, intArrayScopedVar)
+	assert.True(t, ok)
+	value, _ = intArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+
 	time.Sleep(time.Second + 100*time.Millisecond)
-	assert.False(t, stringArrayVar.LRU.Has("foo"))
+
+	value, _ = stringArrayVar.GetValue()
+	assert.NotContains(t, value, "foo")
+	assert.Len(t, value, 0)
+
+	value, _ = intArrayVar.GetValue()
+	assert.NotContains(t, value, 123)
+	assert.Len(t, value, 0)
+
+	value, _ = stringArrayScopedVar.GetValue(ctx)
+	assert.NotContains(t, value, "foo")
+	assert.Len(t, value, 0)
+
+	value, _ = intArrayScopedVar.GetValue(ctx)
+	assert.NotContains(t, value, 123)
+	assert.Len(t, value, 0)
+}
+
+func TestActionSetVariableSize(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Append: true,
+						Value:  "foo",
+						Size:   1,
+					},
+				}, {
+					Set: &SetDefinition{
+						Name:   "var2",
+						Append: true,
+						Value:  1,
+						Size:   2,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "scopedvar1",
+						Append: true,
+						Value:  "bar",
+						Size:   1,
+						Scope:  "process",
+					},
+				}, {
+					Set: &SetDefinition{
+						Name:   "scopedvar2",
+						Append: true,
+						Value:  123,
+						Size:   2,
+						Scope:  "process",
+					},
+				},
+			},
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	opts := rs.evalOpts
+
+	existingVariable := opts.VariableStore.Get("var1")
+	assert.NotNil(t, existingVariable)
+
+	stringArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, stringArrayVar)
+	assert.True(t, ok)
+	value, set := stringArrayVar.GetValue()
+	assert.NotNil(t, value)
+	assert.False(t, set)
+
+	existingVariable = opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
+
+	intArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	_, set = intArrayVar.GetValue()
+	assert.False(t, set)
+
+	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+	assert.NotNil(t, existingScopedVariable)
+	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringArrayScopedVar)
+	assert.True(t, ok)
+
+	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
+	assert.NotNil(t, existingScopedVariable)
+	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, intArrayScopedVar)
+	assert.True(t, ok)
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test")
+
+	ctx := eval.NewContext(event)
+
+	_, set = stringArrayScopedVar.GetValue(ctx)
+	assert.False(t, set)
+
+	_, set = intArrayScopedVar.GetValue(ctx)
+	assert.False(t, set)
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	value, set = stringArrayVar.GetValue()
+	assert.Contains(t, value, "foo")
+	assert.Len(t, value, 1)
+	assert.IsType(t, value, []string{})
+	assert.True(t, set)
+
+	value, set = intArrayVar.GetValue()
+	assert.IsType(t, value, []int{})
+	assert.Contains(t, value, 1)
+	assert.Len(t, value, 1)
+	assert.True(t, set)
+
+	value, set = stringArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, "bar")
+	assert.IsType(t, value, []string{})
+	assert.Len(t, value, 1)
+	assert.True(t, set)
+
+	value, set = intArrayScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Contains(t, value, 123)
+	assert.IsType(t, value, []int{})
+	assert.Len(t, value, 1)
+	assert.True(t, set)
 }
 
 func TestActionSetVariableConflict(t *testing.T) {
@@ -471,9 +693,8 @@ func TestRuleErrorLoading(t *testing.T) {
 
 	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
-	assert.Len(t, err.Errors, 2)
-	assert.ErrorContains(t, err.Errors[0], "rule `testA` error: multiple definition with the same ID")
-	assert.ErrorContains(t, err.Errors[1], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
+	assert.Len(t, err.Errors, 1)
+	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
 
 	assert.Contains(t, rs.rules, "testA")
 	assert.NotContains(t, rs.rules, "testB")
@@ -817,6 +1038,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
 		name         string
+		policyType   PolicyType
 		source       string
 		fileContent  string
 		macroFilters []MacroFilter
@@ -833,6 +1055,7 @@ func TestLoadPolicy(t *testing.T) {
 			args: args{
 				name:         "myLocal.policy",
 				source:       PolicyProviderTypeRC,
+				policyType:   DefaultPolicyType,
 				fileContent:  ``,
 				macroFilters: nil,
 				ruleFilters:  nil,
@@ -845,8 +1068,9 @@ func TestLoadPolicy(t *testing.T) {
 		{
 			name: "empty yaml file with new line char",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `
 `,
 				macroFilters: nil,
@@ -860,8 +1084,9 @@ func TestLoadPolicy(t *testing.T) {
 		{
 			name: "no rules in yaml file",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `
 rules:
 `,
@@ -871,6 +1096,7 @@ rules:
 			want: &Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
+				Type:   CustomPolicyType,
 				rules:  map[string][]*PolicyRule{},
 				macros: map[string][]*PolicyMacro{},
 			},
@@ -879,8 +1105,9 @@ rules:
 		{
 			name: "broken yaml file",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `
 broken
 `,
@@ -895,8 +1122,9 @@ broken
 		{
 			name: "disabled tag",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `rules:
  - id: rule_test
    disabled: true
@@ -907,6 +1135,7 @@ broken
 			want: fixupRulesPolicy(&Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
+				Type:   CustomPolicyType,
 				rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
@@ -926,8 +1155,9 @@ broken
 		{
 			name: "combine:override tag",
 			args: args{
-				name:   "myLocal.policy",
-				source: PolicyProviderTypeRC,
+				name:       "myLocal.policy",
+				source:     PolicyProviderTypeRC,
+				policyType: CustomPolicyType,
 				fileContent: `rules:
  - id: rule_test
    expression: open.file.path == "/etc/gshadow"
@@ -939,6 +1169,7 @@ broken
 			want: fixupRulesPolicy(&Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
+				Type:   CustomPolicyType,
 				rules: map[string][]*PolicyRule{
 					"rule_test": {
 						{
@@ -960,7 +1191,7 @@ broken
 		t.Run(tt.name, func(t *testing.T) {
 			r := strings.NewReader(tt.args.fileContent)
 
-			got, err := LoadPolicy(tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+			got, err := LoadPolicy(tt.args.name, tt.args.source, tt.args.policyType, r, tt.args.macroFilters, tt.args.ruleFilters)
 
 			if !tt.wantErr(t, err, fmt.Sprintf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)) {
 				return

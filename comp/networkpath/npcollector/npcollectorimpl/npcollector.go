@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -24,12 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 )
 
 const (
@@ -37,6 +36,7 @@ const (
 	reverseDNSLookupMetricPrefix        = networkPathCollectorMetricPrefix + "reverse_dns_lookup."
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
+	netpathConnsSkippedMetricName       = networkPathCollectorMetricPrefix + "schedule.conns_skipped"
 )
 
 type npCollectorImpl struct {
@@ -45,7 +45,6 @@ type npCollectorImpl struct {
 	// Deps
 	epForwarder  eventplatform.Forwarder
 	logger       log.Component
-	metricSender metricsender.MetricSender
 	statsdClient ddgostatsd.ClientInterface
 	rdnsquerier  rdnsquerier.Component
 
@@ -84,16 +83,17 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component) *npCollectorImpl {
-	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s reverse_dns_enabled=%t reverse_dns_timeout=%d)",
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
+	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s max_per_minute=%d flush_interval=%s reverse_dns_enabled=%t reverse_dns_timeout=%d)",
 		collectorConfigs.workers,
 		collectorConfigs.timeout,
 		collectorConfigs.maxTTL,
 		collectorConfigs.pathtestInputChanSize,
 		collectorConfigs.pathtestProcessingChanSize,
-		collectorConfigs.pathtestContextsLimit,
-		collectorConfigs.pathtestTTL,
-		collectorConfigs.pathtestInterval,
+		collectorConfigs.storeConfig.ContextsLimit,
+		collectorConfigs.storeConfig.TTL,
+		collectorConfigs.storeConfig.Interval,
+		collectorConfigs.storeConfig.MaxPerMinute,
 		collectorConfigs.flushInterval,
 		collectorConfigs.reverseDNSEnabled,
 		collectorConfigs.reverseDNSTimeout,
@@ -105,7 +105,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		rdnsquerier:      rdnsquerier,
 		logger:           logger,
 
-		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, collectorConfigs.pathtestContextsLimit, logger),
+		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.storeConfig, logger, statsd, time.Now),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
@@ -124,6 +124,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushLoopDone: make(chan struct{}),
 
 		runTraceroute: runTraceroute,
+		statsdClient:  statsd,
 	}
 }
 
@@ -156,13 +157,78 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	}
 }
 
+func doSubnetsContainIP(subnets []*net.IPNet, ip net.IP) bool {
+	for _, subnet := range subnets {
+		if subnet.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+	if conn == nil {
+		return false
+	}
+	if conn.IntraHost {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1) //nolint:errcheck
+		return false
+	}
+	if conn.Direction != model.ConnectionDirection_outgoing {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_incoming"}, 1) //nolint:errcheck
+		return false
+	}
+	// only ipv4 is supported currently
+	if conn.Family != model.ConnectionFamily_v4 {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
+		return false
+	}
+	translatedDest := conn.Raddr.Ip
+	// prefer IP translation if it's available
+	if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
+		translatedDest = conn.IpTranslation.ReplDstIP
+	}
+	remoteIP := net.ParseIP(translatedDest)
+	if remoteIP.IsLoopback() {
+		// is this case possible, given that we already filter out IntraHost?
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_loopback"}, 1) //nolint:errcheck
+		return false
+	}
+	if doSubnetsContainIP(vpcSubnets, remoteIP) {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
+		return false
+	}
+	return true
+}
+
+func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
+	if !s.collectorConfigs.disableIntraVPCCollection {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	vpcSubnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
+	}
+
+	return vpcSubnets, nil
+}
+
 func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[string]*model.DNSEntry) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
+	vpcSubnets, err := s.getVPCSubnets()
+	if err != nil {
+		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
+		return
+	}
 	startTime := s.TimeNowFn()
+	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns)), []string{}, 1)
 	for _, conn := range conns {
-		if !shouldScheduleNetworkPathForConn(conn) {
+		if !s.shouldScheduleNetworkPathForConn(conn, vpcSubnets) {
 			protocol := convertProtocol(conn.GetType())
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Raddr, protocol)
 			continue
@@ -176,7 +242,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection, dns map[strin
 	}
 
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	s.statsdClient.Gauge("datadog.network_path.collector.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"schedule.duration", scheduleDuration.Seconds(), nil, 1)
 }
 
 // scheduleOne schedules pathtests.
@@ -187,13 +253,17 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", pathtest.Hostname, pathtest.Port)
 
+	_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_count", []string{}, 1)
 	select {
 	case s.pathtestInputChan <- pathtest:
+		_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_processed", []string{}, 1)
 		return nil
 	default:
+		_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_dropped", []string{"reason:input_chan_full"}, 1)
 		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
+
 func (s *npCollectorImpl) start() error {
 	if s.running {
 		return errors.New("server already started")
@@ -201,11 +271,6 @@ func (s *npCollectorImpl) start() error {
 	s.running = true
 
 	s.logger.Info("Start NpCollector")
-
-	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
-	// due to statsd.Client not being configured yet.
-	s.metricSender = metricsender.NewMetricSenderStatsd(statsd.Client)
-	s.statsdClient = statsd.Client
 
 	go s.listenPathtests()
 	go s.flushLoop()
@@ -244,7 +309,6 @@ func (s *npCollectorImpl) listenPathtests() {
 func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
-	startTime := s.TimeNowFn()
 	cfg := config.Config{
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
@@ -264,8 +328,6 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
-
-	s.sendTelemetry(path, startTime, ptest)
 
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
@@ -318,29 +380,39 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 	s.logger.Debugf("Flush loop at %s", flushTime)
 	if !lastFlushTime.IsZero() {
 		flushInterval := flushTime.Sub(lastFlushTime)
-		s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+		_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush.interval", flushInterval.Seconds(), []string{}, 1)
 	}
 
 	s.flush()
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"flush.duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1)
 }
 
 func (s *npCollectorImpl) flush() {
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"workers", float64(s.workers), []string{}, 1) //nolint:errcheck
-
-	flowsContexts := s.pathtestStore.GetContextsCount()
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"workers", float64(s.workers), []string{}, 1)
 
 	flushTime := s.TimeNowFn()
-	flowsToFlush := s.pathtestStore.Flush()
-	s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+	pathtestsToFlush := s.pathtestStore.Flush()
 
-	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
+	flowsContexts := s.pathtestStore.GetContextsCount()
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"pathtest_store_size", float64(flowsContexts), []string{}, 1)
+	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(pathtestsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
-	for _, ptConf := range flowsToFlush {
+	_ = s.statsdClient.Count(networkPathCollectorMetricPrefix+"flush.pathtest_count", int64(len(pathtestsToFlush)), []string{}, 1)
+	for _, ptConf := range pathtestsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
-		s.pathtestProcessingChan <- ptConf
+		select {
+		case s.pathtestProcessingChan <- ptConf:
+			_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest_processed", []string{}, 1)
+		default:
+			_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"flush.pathtest_dropped", []string{"reason:processing_chan_full"}, 1)
+			s.logger.Tracef("collector processing channel is full (channel capacity is %d)", cap(s.pathtestProcessingChan))
+		}
 	}
+
+	// keep this metric after the flows are flushed
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"processing_chan_size", float64(len(s.pathtestProcessingChan)), []string{}, 1)
+
+	_ = s.statsdClient.Gauge(networkPathCollectorMetricPrefix+"input_chan_size", float64(len(s.pathtestInputChan)), []string{}, 1)
 }
 
 // enrichPathWithRDNS populates a NetworkPath with reverse-DNS queried hostnames.
@@ -373,7 +445,7 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 	// perform reverse DNS lookup on destination and hops
 	results := s.rdnsquerier.GetHostnames(ctx, ipAddrs)
 	if len(results) != len(ipAddrs) {
-		s.statsdClient.Incr(reverseDNSLookupMetricPrefix+"results_length_mismatch", []string{}, 1) //nolint:errcheck
+		_ = s.statsdClient.Incr(reverseDNSLookupMetricPrefix+"results_length_mismatch", []string{}, 1)
 		s.logger.Debugf("Reverse lookup failed for all hops in path from %s to %s", path.Source.Hostname, path.Destination.Hostname)
 	}
 
@@ -405,33 +477,21 @@ func (s *npCollectorImpl) enrichPathWithRDNS(path *payload.NetworkPath, knownDes
 func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]rdnsquerier.ReverseDNSResult) string {
 	result, ok := results[ipAddr]
 	if !ok {
-		s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:absent"}, 1) //nolint:errcheck
+		_ = s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:absent"}, 1)
 		s.logger.Tracef("Reverse DNS lookup failed for IP %s", ipAddr)
 		return ""
 	}
 	if result.Err != nil {
-		s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:error"}, 1) //nolint:errcheck
+		_ = s.statsdClient.Incr(reverseDNSLookupFailuresMetricName, []string{"reason:error"}, 1)
 		s.logger.Tracef("Reverse lookup failed for hop IP %s: %s", ipAddr, result.Err)
 		return ""
 	}
 	if result.Hostname == "" {
-		s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:empty"}, 1) //nolint:errcheck
+		_ = s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:empty"}, 1)
 	} else {
-		s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:found"}, 1) //nolint:errcheck
+		_ = s.statsdClient.Incr(reverseDNSLookupSuccessesMetricName, []string{"status:found"}, 1)
 	}
 	return result.Hostname
-}
-
-func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
-	checkInterval := ptest.LastFlushInterval()
-	checkDuration := s.TimeNowFn().Sub(startTime)
-	telemetry.SubmitNetworkPathTelemetry(
-		s.metricSender,
-		path,
-		checkDuration,
-		checkInterval,
-		[]string{},
-	)
 }
 
 func (s *npCollectorImpl) startWorkers() {
@@ -450,8 +510,16 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			return
 		case pathtestCtx := <-s.pathtestProcessingChan:
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
+			startTime := s.TimeNowFn()
+
 			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()
+
+			checkInterval := pathtestCtx.LastFlushInterval()
+			checkDuration := s.TimeNowFn().Sub(startTime)
+			_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.task_duration", checkDuration.Seconds(), nil, 1)
+			_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"worker.pathtest_processed", []string{}, 1)
+			_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1)
 		}
 	}
 }

@@ -44,16 +44,17 @@ func NewPersistentVolumeClaimCollector(metadataAsTags utils.MetadataAsTags) *Per
 
 	return &PersistentVolumeClaimCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      persistentVolumeClaimName,
-			NodeType:                  orchestrator.K8sPersistentVolumeClaim,
-			Version:                   persistentVolumeClaimVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 persistentVolumeClaimName,
+			NodeType:                             orchestrator.K8sPersistentVolumeClaim,
+			Version:                              persistentVolumeClaimVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeClaimHandlers)),
 	}

@@ -88,7 +88,7 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 
 	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 
-	trivyReport, err := c.scan(ctx, containerArtifact, applier.NewApplier(cache), imgMeta, cache, false)
+	trivyReport, err := c.scan(ctx, containerArtifact, applier.NewApplier(cache))
 	if err != nil {
 		if imgMeta != nil {
 			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
@@ -96,16 +96,5 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
-	pkgCount := 0
-	for _, results := range trivyReport.Results {
-		pkgCount += len(results.Packages)
-	}
-	log.Debugf("Found %d packages", pkgCount)
-
-	return &Report{
-		Report:    trivyReport,
-		id:        imgMeta.ID,
-		marshaler: c.marshaler,
-	}, nil
+	return c.buildReport(trivyReport, imgMeta.ID), nil
 }

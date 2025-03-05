@@ -22,22 +22,26 @@ type eventsToRetry struct {
 
 type batch map[string]*podInfo
 
-func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podInfo {
-	if podInfo, ok := b[podName]; ok {
+func (b batch) getOrAddPodInfo(pod *workloadmeta.KubernetesPod) *podInfo {
+	if podInfo, ok := b[pod.Name]; ok {
 		return podInfo
 	}
-	b[podName] = &podInfo{
-		namespace:     podnamespace,
+	containers := getContainersFromPod(pod)
+	b[pod.Name] = &podInfo{
+		namespace:     pod.Namespace,
 		containerInfo: make(languagemodels.ContainersLanguages),
-		ownerRef:      ownerRef,
+		ownerRef:      &pod.Owners[0],
+		containers:    containers,
 	}
-	return b[podName]
+	return b[pod.Name]
 }
 
 type podInfo struct {
 	namespace     string
 	containerInfo languagemodels.ContainersLanguages
 	ownerRef      *workloadmeta.KubernetesPodOwner
+	// Record all of the containers in the pod
+	containers map[languagemodels.Container]struct{}
 }
 
 func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
@@ -70,10 +74,38 @@ func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bo
 	return cInfo[container]
 }
 
+// hasCompleteLanguageInfo returns true if the pod has language information for all containers.
+//
+// A pod has language information if it meets the following conditions: (1) One process event for
+// each container in the pod has been received, and (2) the process check successfully detected at
+// least one supported language in at least one container in the pod.
+//
+// We don't consider init containers here because they are short-lived.
+func (p *podInfo) hasCompleteLanguageInfo() bool {
+	// Preserve not sending podInfo if all containers have no language detected
+	atLeastOneContainerLanguageDetected := false
+	for container := range p.containers {
+		// Haven't received a process event from this container
+		if cInfo, ok := p.containerInfo[container]; !ok {
+			return false
+		} else if len(cInfo) > 0 {
+			atLeastOneContainerLanguageDetected = true
+		}
+	}
+	return atLeastOneContainerLanguageDetected
+}
+
 func (b batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
 	res := &pbgo.ParentLanguageAnnotationRequest{}
 	for podName, podInfo := range b {
-		res.PodDetails = append(res.PodDetails, podInfo.toProto(podName))
+		if podInfo.hasCompleteLanguageInfo() {
+			res.PodDetails = append(res.PodDetails, podInfo.toProto(podName))
+		}
+	}
+
+	// No pods with complete language information
+	if len(res.PodDetails) == 0 {
+		return nil
 	}
 	return res
 }
@@ -95,4 +127,14 @@ func getContainerInfoFromPod(cid string, pod *workloadmeta.KubernetesPod) (strin
 
 func podHasOwner(pod *workloadmeta.KubernetesPod) bool {
 	return len(pod.Owners) > 0
+}
+
+// getContainersFromPod returns the containers from a pod
+func getContainersFromPod(pod *workloadmeta.KubernetesPod) (containers map[languagemodels.Container]struct{}) {
+	containers = make(map[languagemodels.Container]struct{})
+	for _, container := range pod.Containers {
+		c := *languagemodels.NewContainer(container.Name)
+		containers[c] = struct{}{}
+	}
+	return
 }

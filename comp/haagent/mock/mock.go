@@ -48,7 +48,7 @@ func (m *mockHaAgent) SetState(state haagent.State) {
 	m.state = state
 }
 
-func (m *mockHaAgent) ShouldRunIntegration(_ string) bool {
+func (m *mockHaAgent) IsActive() bool {
 	return true
 }
 

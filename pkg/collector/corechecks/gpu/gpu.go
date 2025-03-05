@@ -22,21 +22,24 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
-	gpuMetricsNs     = "gpu."
-	metricNameMemory = gpuMetricsNs + "memory"
-	metricNameUtil   = gpuMetricsNs + "utilization"
-	metricNameMaxMem = gpuMetricsNs + "memory.max"
+	gpuMetricsNs          = "gpu."
+	metricNameUtil        = gpuMetricsNs + "utilization"
+	metricNameMemory      = gpuMetricsNs + "memory.used"
+	metricNameMemoryPerc  = gpuMetricsNs + "memory.utilization"
+	metricNameDeviceTotal = gpuMetricsNs + "device.total"
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
@@ -49,6 +52,7 @@ type Check struct {
 	nvmlLib        nvml.Interface          // NVML library interface
 	tagger         tagger.Component        // Tagger instance to add tags to outgoing metrics
 	telemetry      *checkTelemetry         // Telemetry component to emit internal telemetry
+	wmeta          workloadmeta.Component  // Workloadmeta store to get the list of containers
 }
 
 type checkTelemetry struct {
@@ -59,19 +63,20 @@ type checkTelemetry struct {
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component, telemetry telemetry.Component) option.Option[func() check.Check] {
+func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(tagger, telemetry)
+		return newCheck(tagger, telemetry, wmeta)
 	})
 }
 
-func newCheck(tagger tagger.Component, telemetry telemetry.Component) check.Check {
+func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
 		CheckBase:     core.NewCheckBase(CheckName),
 		config:        &CheckConfig{},
 		activeMetrics: make(map[model.StatsKey]bool),
 		tagger:        tagger,
 		telemetry:     newCheckTelemetry(telemetry),
+		wmeta:         wmeta,
 	}
 }
 
@@ -94,22 +99,45 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	// Initialize NVML collectors. if the config parameter doesn't exist or is
+	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	return nil
+}
+
+func (c *Check) ensureInitNVML() error {
+	if c.nvmlLib != nil {
+		return nil
+	}
+
+	// Initialize NVML library. if the config parameter doesn't exist or is
 	// empty string, the default value is used as defined in go-nvml library
 	// https://github.com/NVIDIA/go-nvml/blob/main/pkg/nvml/lib.go#L30
-	c.nvmlLib = nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
-	ret := c.nvmlLib.Init()
+	nvmlLib := nvml.New(nvml.WithLibraryPath(c.config.NVMLLibraryPath))
+	ret := nvmlLib.Init()
 	if ret != nvml.SUCCESS {
 		return fmt.Errorf("failed to initialize NVML library: %s", nvml.ErrorString(ret))
 	}
 
-	var err error
-	c.collectors, err = nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
+	c.nvmlLib = nvmlLib
+	return nil
+}
+
+// ensureInitCollectors initializes the NVML library and the collectors if they are not already initialized.
+// It returns an error if the initialization fails.
+func (c *Check) ensureInitCollectors() error {
+	if c.collectors != nil {
+		return nil
+	}
+
+	if err := c.ensureInitNVML(); err != nil {
+		return err
+	}
+
+	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
-	c.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	c.collectors = collectors
 	return nil
 }
 
@@ -160,7 +188,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		tags := c.getTagsForKey(key)
 		snd.Gauge(metricNameUtil, metrics.UtilizationPercentage, "", tags)
 		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", tags)
-		snd.Gauge(metricNameMaxMem, float64(metrics.Memory.MaxBytes), "", tags)
+		snd.Gauge(metricNameMemoryPerc, metrics.Memory.CurrentBytesPercentage, "", tags)
 
 		c.activeMetrics[key] = true
 	}
@@ -172,7 +200,6 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		if !active {
 			tags := c.getTagsForKey(key)
 			snd.Gauge(metricNameMemory, 0, "", tags)
-			snd.Gauge(metricNameMaxMem, 0, "", tags)
 			snd.Gauge(metricNameUtil, 0, "", tags)
 
 			delete(c.activeMetrics, key)
@@ -211,24 +238,79 @@ func (c *Check) getTagsForKey(key model.StatsKey) []string {
 	return tags
 }
 
-func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
-	var err error
+func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
+	containers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
+		return len(cont.AllocatedResources) > 0
+	})
 
+	gpuToContainers := make(map[string][]*workloadmeta.Container)
+
+	for _, container := range containers {
+		for _, resource := range container.AllocatedResources {
+			if resource.Name == "nvidia.com/gpu" {
+				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
+			}
+		}
+	}
+
+	return gpuToContainers
+}
+
+func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
+	err := c.ensureInitCollectors()
+	if err != nil {
+		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
+	}
+
+	gpuToContainersMap := c.getGPUToContainersMap()
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		metrics, collectErr := collector.Collect()
 		if collectErr != nil {
-			c.telemetry.collectorErrors.Add(1, collector.Name())
+			c.telemetry.collectorErrors.Add(1, string(collector.Name()))
 			err = multierror.Append(err, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
+		}
+
+		var extraTags []string
+		for _, container := range gpuToContainersMap[collector.DeviceUUID()] {
+			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
+			tags, err := c.tagger.Tag(entityID, c.tagger.ChecksCardinality())
+			if err != nil {
+				log.Warnf("Error collecting container tags for GPU %s: %s", collector.DeviceUUID(), err)
+				continue
+			}
+
+			extraTags = append(extraTags, tags...)
 		}
 
 		for _, metric := range metrics {
 			metricName := gpuMetricsNs + metric.Name
-			snd.Gauge(metricName, metric.Value, "", metric.Tags)
+			switch metric.Type {
+			case ddmetrics.CountType:
+				snd.Count(metricName, metric.Value, "", append(metric.Tags, extraTags...))
+			case ddmetrics.GaugeType:
+				snd.Gauge(metricName, metric.Value, "", append(metric.Tags, extraTags...))
+			default:
+				return fmt.Errorf("Unsupported metric type %s for metric %s", metric.Type, metricName)
+			}
 		}
 
-		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), collector.Name())
+		c.telemetry.nvmlMetricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
-	return err
+	return c.emitGlobalNvmlMetrics(snd)
+}
+
+func (c *Check) emitGlobalNvmlMetrics(snd sender.Sender) error {
+	// Collect global metrics such as device count
+	devCount, ret := c.nvmlLib.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
+	}
+
+	snd.Gauge(metricNameDeviceTotal, float64(devCount), "", nil)
+
+	c.telemetry.nvmlMetricsSent.Add(1, "global")
+
+	return nil
 }

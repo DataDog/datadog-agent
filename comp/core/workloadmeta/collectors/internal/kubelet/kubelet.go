@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -431,11 +430,11 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
-		resources.CPURequest = pointer.Ptr(cpuReq.AsApproximateFloat64() * 100) // For 100Mi, AsApproximate returns 0.1, we return 10%
+		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
 	}
 
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
-		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
+		resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
 	}
 
 	// extract GPU resource info from the possible GPU sources

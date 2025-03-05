@@ -124,6 +124,14 @@ func WithValidAPIKey() InstallAgentOption {
 	}
 }
 
+// WithZeroAPIKey sets APIKEY=00000000000000000000000000000000
+//
+// Useful for cases that require api_key to be configured but do
+// not need it to be a real/valid api key.
+func WithZeroAPIKey() InstallAgentOption {
+	return WithAPIKey("00000000000000000000000000000000")
+}
+
 // WithInstallLogFile specifies the file on the local test runner to save the MSI install logs.
 func WithInstallLogFile(logFileName string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {

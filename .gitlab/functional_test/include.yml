@@ -4,6 +4,7 @@
 
 include:
   - .gitlab/functional_test/serverless.yml
+  - .gitlab/functional_test/static_quality_gate.yml
   - .gitlab/functional_test/regression_detector.yml  
   - .gitlab/functional_test/regression_detector_otel_vs_oss.yml
   - .gitlab/functional_test/regression_detector_oss_vs_otel.yml

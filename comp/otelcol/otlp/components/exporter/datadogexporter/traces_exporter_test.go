@@ -39,11 +39,18 @@ func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 }
 
 func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
 }
 
 func (c testComponent) SendStatsPayload(p *pb.StatsPayload) {
 	c.Agent.StatsWriter.SendPayload(p)
+}
+
+func (c testComponent) GetHTTPHandler(endpoint string) http.Handler {
+	if v, ok := c.Agent.Receiver.Handlers[endpoint]; ok {
+		return v
+	}
+	return nil
 }
 
 var _ traceagent.Component = (*testComponent)(nil)
@@ -84,7 +91,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		},
 	}
 
-	params := exportertest.NewNopSettings()
+	params := exportertest.NewNopSettings(Type)
 	tcfg := config.New()
 	tcfg.ReceiverEnabled = false
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
@@ -127,7 +134,7 @@ func TestNewTracesExporter(t *testing.T) {
 func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := &datadogconfig.Config{}
 	cfg.API.Key = "ddog_32_characters_long_api_key1"
-	params := exportertest.NewNopSettings()
+	params := exportertest.NewNopSettings(Type)
 	tcfg := config.New()
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()

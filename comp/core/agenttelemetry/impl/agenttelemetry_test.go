@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/zstd"
 )
 
@@ -61,6 +62,8 @@ func (s *senderMock) flushSession(_ *senderSession) error {
 }
 func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentmetric) {
 	s.sentMetrics = append(s.sentMetrics, metrics...)
+}
+func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
 }
 
 // Runner mock (TODO: use use mock.Mock)
@@ -319,7 +322,7 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 }
 
 func getPayload(a *atel) (*Payload, error) {
-	payloadJSON, err := a.GetAsJSON()
+	payloadJSON, err := a.getAsJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -501,7 +504,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -541,7 +544,7 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -581,7 +584,7 @@ func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
   `
 
@@ -620,7 +623,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags: []
   `
@@ -662,7 +665,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_tags:
                   - tag1
@@ -711,7 +714,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
       profiles:
         - name: foo
           metric:
-            metrics:  
+            metrics:
               - name: bar.zoo
                 aggregate_total: true
                 aggregate_tags:
@@ -832,7 +835,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	a := getTestAtel(t, tel, o, s, nil, r)
 	require.True(t, a.enabled)
 
-	payloadJSON, err := a.GetAsJSON()
+	payloadJSON, err := a.getAsJSON()
 	require.NoError(t, err)
 	var payload map[string]interface{}
 	err = json.Unmarshal(payloadJSON, &payload)
@@ -2075,4 +2078,194 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	m2, ok2 := metrics["bar.foo"]
 	require.True(t, ok2)
 	assert.Equal(t, 20.0, m2.Value)
+}
+
+func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
+	c := defaultProfiles
+	o := convertYamlStrToMap(t, c)
+	cfg := makeCfgMock(t, o)
+	atCfg, err := parseConfig(cfg)
+
+	require.NoError(t, err)
+
+	assert.True(t, len(atCfg.events) > 0)
+	assert.True(t, len(atCfg.schedule) > 0)
+	assert.True(t, len(atCfg.Profiles) > len(atCfg.events))
+}
+
+func TestAgentTelemetryEventConfiguration(t *testing.T) {
+	// Use nearly full
+	c := `
+    agent_telemetry:
+      enabled: true
+      profiles:
+      - name: checks
+        metric:
+          metrics:
+            - name: checks.execution_time
+              aggregate_tags:
+                - check_name
+            - name: pymem.inuse
+        schedule:
+          start_after: 123
+          iterations: 0
+          period: 456
+      - name: logs-and-metrics
+        metric:
+          exclude:
+            zero_metric: true
+          metrics:
+            - name: dogstatsd.udp_packets_bytes
+            - name: dogstatsd.uds_packets_bytes
+        schedule:
+          start_after: 30
+          iterations: 0
+          period: 900
+      - name: ondemand
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agent_bsod
+            message: 'Agent BSOD'
+          - name: foobar
+            request_type: agent-foobar
+            payload_key: agent_foobar
+            message: 'Agent foobar'
+      - name: ondemand2
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agent_bsod
+            message: 'Agent BSOD'
+          - name: barfoo
+            request_type: agent-barfoo
+            payload_key: agent_barfoo
+            message: 'Agent barfoo'
+    `
+
+	o := convertYamlStrToMap(t, c)
+	cfg := makeCfgMock(t, o)
+	atCfg, err := parseConfig(cfg)
+
+	require.NoError(t, err)
+
+	// single event map keeps unique event names
+	assert.Len(t, atCfg.events, 3)
+	assert.Len(t, atCfg.schedule, 2)
+	assert.Len(t, atCfg.Profiles, 4)
+}
+
+func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
+	// Use nearly full
+	var cfg = `
+    agent_telemetry:
+      enabled: true
+      use_compression: false
+      profiles:
+      - name: xxx
+        metric:
+          metrics:
+            - name: foo.bar
+      - name: ondemand
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agent_bsod
+            message: 'Agent BSOD'
+          - name: foobar
+            request_type: agent-foobar
+            payload_key: agent_foobar
+            message: 'Agent foobar'
+    `
+
+	payloadObj := struct {
+		Date     string `json:"date"`
+		Offender string `json:"offender"`
+		BugCheck string `json:"bugcheck"`
+	}{
+		Date:     "2024-30-02 17:31:12",
+		Offender: "ddnpm+0x1a3",
+		BugCheck: "0x7A",
+	}
+	// conert to json
+	payload, err := json.Marshal(payloadObj)
+	require.NoError(t, err)
+
+	// setup and initiate atel
+	o := convertYamlStrToMap(t, cfg)
+	cl := newClientMock()
+	s := makeSenderImpl(t, cl, cfg)
+	r := newRunnerMock()
+	a := getTestAtel(t, nil, o, s, cl, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	err = a.SendEvent("agentbsod", payload)
+	require.NoError(t, err)
+	assert.True(t, len(cl.(*clientMock).body) > 0)
+
+	//deserialize the payload of cl.(*clientMock).body
+	var topPayload map[string]interface{}
+	err = json.Unmarshal(cl.(*clientMock).body, &topPayload)
+	require.NoError(t, err)
+	fmt.Print(string(cl.(*clientMock).body))
+
+	v, ok, err2 := jsonquery.RunSingleOutput(".payload.message", topPayload)
+	require.NoError(t, err2)
+	require.True(t, ok)
+	assert.Equal(t, "Agent BSOD", v)
+
+	v, ok, err2 = jsonquery.RunSingleOutput(".payload.agent_bsod.offender", topPayload)
+	require.NoError(t, err2)
+	require.True(t, ok)
+	assert.Equal(t, "ddnpm+0x1a3", v)
+}
+
+func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {
+	// Use nearly full
+	var cfg = `
+    agent_telemetry:
+      enabled: true
+      use_compression: false
+      profiles:
+      - name: xxx
+        metric:
+          metrics:
+            - name: foo.bar
+      - name: ondemand
+        events:
+          - name: agentbsod
+            request_type: agent-bsod
+            payload_key: agentbsod
+            message: 'Agent BSOD'
+          - name: foobar
+            request_type: agent-foobar
+            payload_key: agentfoobar
+            message: 'Agent foobar'
+    `
+
+	payloadObj := struct {
+		Date     string `json:"date"`
+		Offender string `json:"offender"`
+		BugCheck string `json:"bugcheck"`
+	}{
+		Date:     "2024-30-02 17:31:12",
+		Offender: "ddnpm+0x1a3",
+		BugCheck: "0x7A",
+	}
+	// conert to json
+	payload, err := json.Marshal(payloadObj)
+	require.NoError(t, err)
+
+	// setup and initiate atel
+	o := convertYamlStrToMap(t, cfg)
+	cl := newClientMock()
+	s := makeSenderImpl(t, cl, cfg)
+	r := newRunnerMock()
+	a := getTestAtel(t, nil, o, s, cl, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	err = a.SendEvent("agentbsod2", payload)
+	require.Error(t, err)
 }

@@ -10,20 +10,20 @@ github_team = "agent-metrics-logs"
 github_labels = ["team/agent-metrics-logs"]
 exclude_members = ["olivielpeau"]
 
-[teams."Agent Logs"]
+[teams."Agent Log Pipelines"]
 jira_project = "AGNTLOG"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-logs"
-github_labels = ["team/agent-logs"]
+github_team = "agent-log-pipelines"
+github_labels = ["team/agent-log-pipelines"]
 exclude_members = [""]
 
-[teams."Agent Metrics"]
+[teams."Agent Metric Pipelines"]
 jira_project = "AGTMETRICS"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-metrics"
-github_labels = ["team/agent-metrics"]
+github_team = "agent-metric-pipelines"
+github_labels = ["team/agent-metric-pipelines"]
 exclude_members = [""]
 
 [teams."Agent Processing and Routing"]
@@ -34,31 +34,21 @@ github_team = "agent-processing-and-routing"
 github_labels = ["team/agent-processing-and-routing"]
 exclude_members = []
 
-[teams."Agent Shared Components"]
-jira_project = "ASCII"
+[teams."Agent Runtimes"]
+jira_project = "AGENTRUN"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-shared-components"
-github_labels = ["team/agent-shared-components"]
-exclude_members = ["sgnn7", "truthbk", "cmourot"]
+github_team = "agent-runtimes"
+github_labels = ["team/agent-runtimes"]
+exclude_members = ["sgnn7", "cmourot"]
 
-# Those will be uncommented once the proper issue types are created in JIRA.
-#
-# [teams."Agent Runtimes"]
-# jira_project = "ARUN"
-# jira_issue_type = "QA"
-# jira_statuses = ["To Do", "In Progress", "Done"]
-# github_team = "agent-runtimes"
-# github_labels = ["team/agent-runtimes"]
-# exclude_members = ["sgnn7", "cmourot"]
-# 
-# [teams."Agent Configuration"]
-# jira_project = "ACFG"
-# jira_issue_type = "QA"
-# jira_statuses = ["To Do", "In Progress", "Done"]
-# github_team = "agent-configuration"
-# github_labels = ["team/agent-configuration"]
-# exclude_members = ["sgnn7"]
+[teams."Agent Configuration"]
+jira_project = "AGENTCFG"
+jira_issue_type = "QA"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-configuration"
+github_labels = ["team/agent-configuration"]
+exclude_members = ["sgnn7"]
 
 [teams."Agent Developer Tools"]
 jira_project = "ADXT"
