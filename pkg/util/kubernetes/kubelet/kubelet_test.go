@@ -876,12 +876,6 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	}
 
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
-	if pods != nil {
-		podsList := *pods
-		for _, pod := range podsList.Items {
-			fmt.Printf("Pod list contains pod: %v\n", pod)
-		}
-	}
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
 	require.Len(suite.T(), pods.Items, 3)
