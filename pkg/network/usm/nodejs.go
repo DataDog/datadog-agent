@@ -196,6 +196,7 @@ type nodeJSMonitor struct {
 	processMonitor *monitor.ProcessMonitor
 }
 
+// Ensuring nodeJSMonitor implements the protocols.Protocol interface.
 var _ protocols.Protocol = (*nodeJSMonitor)(nil)
 
 func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
