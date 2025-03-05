@@ -541,6 +541,30 @@ func (ctx *CWSPtracerCtx) AttachTracer() error {
 	return nil
 }
 
+var forwardedSignals = []os.Signal{
+	// Signal, number, and possible cause of container runtime sending them
+	syscall.SIGHUP,  // 1 - Reload configuration (useful for reloading services inside a container)
+	syscall.SIGINT,  // 2 - Graceful shutdown (sent when stopping container interactively)
+	syscall.SIGQUIT, // 3 - Graceful shutdown + core dump (used for debugging containerized apps)
+	syscall.SIGUSR1, // 10 - Application-specific user-defined signal (can trigger app reloads)
+	syscall.SIGUSR2, // 12 - Another user-defined signal, often used for hot reloads inside a container
+	syscall.SIGTERM, // 15 - Default stop signal (`docker stop`, `kubectl delete pod`)
+}
+
+func startSignalForwarder(pid int) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, forwardedSignals...)
+	go func() {
+		for sig := range sigChan {
+			unixSig, _ := sig.(syscall.Signal)
+			// forward signal to the tracee
+			if err := syscall.Kill(pid, unixSig); err != nil {
+				logger.Errorf("Kill to forward sig %v to process %d failed: %v\n", sig, pid, err)
+			}
+		}
+	}()
+}
+
 // NewTracer returns a tracer
 func (ctx *CWSPtracerCtx) NewTracer() error {
 	info, err := arch.GetInfo("")
@@ -577,17 +601,7 @@ func (ctx *CWSPtracerCtx) NewTracer() error {
 		return fmt.Errorf("unable to ptrace `%s`, please verify the capabilities: %w", ctx.entry, err)
 	}
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan) // will catch all signals
-	go func() {
-		sig := <-sigChan
-		unixSig, _ := sig.(syscall.Signal)
-		// All signals will be forwarded to the tracee. This way, if a tracee have
-		// handlers for some of them it will continue to work as execpected.
-		if err := syscall.Kill(pid, unixSig); err != nil {
-			logger.Errorf("Kill to forward sig %v to process %d failed: %v\n", sig, pid, err)
-		}
-	}()
+	startSignalForwarder(pid)
 
 	// first process
 	process := NewProcess(pid)
