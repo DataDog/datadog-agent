@@ -16,8 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
-
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
 
@@ -31,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
