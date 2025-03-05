@@ -3,23 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installer contains the installer subcommands
-package installer
+// Package commands contains the installer subcommands
+package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
 	"strings"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/cmd/installer/command"
-	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -27,73 +26,15 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const (
-	envUpgrade                          = "DD_UPGRADE"
-	envAPMInstrumentationNoConfigChange = "DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE"
-	envSystemProbeEnsureConfig          = "DD_SYSTEM_PROBE_ENSURE_CONFIG"
-	envRuntimeSecurityConfigEnabled     = "DD_RUNTIME_SECURITY_CONFIG_ENABLED"
-	envComplianceConfigEnabled          = "DD_COMPLIANCE_CONFIG_ENABLED"
-	envInstallOnly                      = "DD_INSTALL_ONLY"
-	envNoAgentInstall                   = "DD_NO_AGENT_INSTALL"
-	envAPMInstrumentationLibraries      = "DD_APM_INSTRUMENTATION_LIBRARIES"
-	// this env var is deprecated but still read by the install script
-	envAPMInstrumentationLanguages = "DD_APM_INSTRUMENTATION_LANGUAGES"
-	envAppSecEnabled               = "DD_APPSEC_ENABLED"
-	envIASTEnabled                 = "DD_IAST_ENABLED"
-	envAPMInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
-	envRepoURL                     = "DD_REPO_URL"
-	envRepoURLDeprecated           = "REPO_URL"
-	envRPMRepoGPGCheck             = "DD_RPM_REPO_GPGCHECK"
-	envAgentMajorVersion           = "DD_AGENT_MAJOR_VERSION"
-	envAgentMinorVersion           = "DD_AGENT_MINOR_VERSION"
-	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
-	envRemoteUpdates               = "DD_REMOTE_UPDATES"
-	envHTTPProxy                   = "HTTP_PROXY"
-	envhttpProxy                   = "http_proxy"
-	envHTTPSProxy                  = "HTTPS_PROXY"
-	envhttpsProxy                  = "https_proxy"
-	envNoProxy                     = "NO_PROXY"
-	envnoProxy                     = "no_proxy"
-)
-
-// BootstrapCommand returns the bootstrap command.
-func BootstrapCommand() *cobra.Command {
-	return bootstrapCommand()
-}
-
-// Commands returns the installer subcommands.
-func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{
-		bootstrapCommand(),
-		installCommand(),
-		setupCommand(),
-		removeCommand(),
-		installExperimentCommand(),
-		removeExperimentCommand(),
-		promoteExperimentCommand(),
-		installConfigExperimentCommand(),
-		removeConfigExperimentCommand(),
-		promoteConfigExperimentCommand(),
-		garbageCollectCommand(),
-		purgeCommand(),
-		isInstalledCommand(),
-		apmCommands(),
-	}
-}
-
-// UnprivilegedCommands returns the unprivileged installer subcommands.
-func UnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{versionCommand(), defaultPackagesCommand()}
-}
-
 type cmd struct {
 	t    *telemetry.Telemetry
-	ctx  context.Context
 	span *telemetry.Span
+	ctx  context.Context
 	env  *env.Env
 	stop context.CancelFunc
 }
 
+// newCmd creates a new command
 func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
@@ -109,7 +50,8 @@ func newCmd(operation string) *cmd {
 	}
 }
 
-func (c *cmd) Stop(err error) {
+// Stop stops the command
+func (c *cmd) stop(err error) {
 	c.span.Finish(err)
 	if c.t != nil {
 		c.t.Stop()
@@ -126,10 +68,15 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 	cmd := newCmd(operation)
 	defer func() {
 		if err != nil {
-			cmd.Stop(err)
+			cmd.stop(err)
 		}
 	}()
-	i, err := installer.NewInstaller(cmd.env)
+	var i installer.Installer
+	if MockInstaller != nil {
+		i = MockInstaller
+	} else {
+		i, err = installer.NewInstaller(cmd.env)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -140,58 +87,11 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 }
 
 func (i *installerCmd) stop(err error) {
-	i.cmd.Stop(err)
+	i.cmd.stop(err)
 	err = i.Installer.Close()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
 	}
-}
-
-type bootstrapperCmd struct {
-	*cmd
-}
-
-func newBootstrapperCmd(operation string) *bootstrapperCmd {
-	cmd := newCmd(operation)
-	cmd.span.SetTag("env.DD_UPGRADE", os.Getenv(envUpgrade))
-	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
-	cmd.span.SetTag("env.DD_SYSTEM_PROBE_ENSURE_CONFIG", os.Getenv(envSystemProbeEnsureConfig))
-	cmd.span.SetTag("env.DD_RUNTIME_SECURITY_CONFIG_ENABLED", os.Getenv(envRuntimeSecurityConfigEnabled))
-	cmd.span.SetTag("env.DD_COMPLIANCE_CONFIG_ENABLED", os.Getenv(envComplianceConfigEnabled))
-	cmd.span.SetTag("env.DD_INSTALL_ONLY", os.Getenv(envInstallOnly))
-	cmd.span.SetTag("env.DD_NO_AGENT_INSTALL", os.Getenv(envNoAgentInstall))
-	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_LIBRARIES", os.Getenv(envAPMInstrumentationLibraries))
-	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_LANGUAGES", os.Getenv(envAPMInstrumentationLanguages))
-	cmd.span.SetTag("env.DD_APPSEC_ENABLED", os.Getenv(envAppSecEnabled))
-	cmd.span.SetTag("env.DD_IAST_ENABLED", os.Getenv(envIASTEnabled))
-	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_ENABLED", os.Getenv(envAPMInstrumentationEnabled))
-	cmd.span.SetTag("env.DD_REPO_URL", os.Getenv(envRepoURL))
-	cmd.span.SetTag("env.REPO_URL", os.Getenv(envRepoURLDeprecated))
-	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
-	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
-	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
-	cmd.span.SetTag("env.DD_AGENT_DIST_CHANNEL", os.Getenv(envAgentDistChannel))
-	cmd.span.SetTag("env.DD_REMOTE_UPDATES", os.Getenv(envRemoteUpdates))
-	cmd.span.SetTag("env.HTTP_PROXY", redactURL(os.Getenv(envHTTPProxy)))
-	cmd.span.SetTag("env.http_proxy", redactURL(os.Getenv(envhttpProxy)))
-	cmd.span.SetTag("env.HTTPS_PROXY", redactURL(os.Getenv(envHTTPSProxy)))
-	cmd.span.SetTag("env.https_proxy", redactURL(os.Getenv(envhttpsProxy)))
-	cmd.span.SetTag("env.NO_PROXY", os.Getenv(envNoProxy))
-	cmd.span.SetTag("env.no_proxy", os.Getenv(envnoProxy))
-	return &bootstrapperCmd{
-		cmd: cmd,
-	}
-}
-
-func redactURL(u string) string {
-	if u == "" {
-		return ""
-	}
-	url, err := url.Parse(u)
-	if err != nil {
-		return "invalid"
-	}
-	return url.Redacted()
 }
 
 type telemetryConfigFields struct {
@@ -231,6 +131,35 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	return t
 }
 
+// RootCommands returns the root commands
+func RootCommands() []*cobra.Command {
+	return []*cobra.Command{
+		installCommand(),
+		setupCommand(),
+		bootstrapCommand(),
+		removeCommand(),
+		installExperimentCommand(),
+		removeExperimentCommand(),
+		promoteExperimentCommand(),
+		installConfigExperimentCommand(),
+		removeConfigExperimentCommand(),
+		promoteConfigExperimentCommand(),
+		garbageCollectCommand(),
+		purgeCommand(),
+		isInstalledCommand(),
+		apmCommands(),
+		getStateCommand(),
+	}
+}
+
+// UnprivilegedCommands returns the unprivileged commands
+func UnprivilegedCommands() []*cobra.Command {
+	return []*cobra.Command{
+		versionCommand(),
+		defaultPackagesCommand(),
+	}
+}
+
 func versionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
@@ -255,20 +184,6 @@ func defaultPackagesCommand() *cobra.Command {
 	}
 }
 
-func bootstrapCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "bootstrap",
-		Short:   "Bootstraps the package with the first version.",
-		GroupID: "bootstrap",
-		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			b := newBootstrapperCmd("bootstrap")
-			defer func() { b.Stop(err) }()
-			return bootstrapper.Bootstrap(b.ctx, b.env)
-		},
-	}
-	return cmd
-}
-
 func setupCommand() *cobra.Command {
 	flavor := ""
 	cmd := &cobra.Command{
@@ -277,7 +192,7 @@ func setupCommand() *cobra.Command {
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
-			defer func() { cmd.Stop(err) }()
+			defer func() { cmd.stop(err) }()
 			if flavor == "" {
 				return setup.Agent7InstallScript(cmd.ctx, cmd.env)
 			}
@@ -511,6 +426,44 @@ func isInstalledCommand() *cobra.Command {
 				// `return err` will lead to a return code of -1
 				os.Exit(ReturnCodeIsInstalledFalse)
 			}
+			return nil
+		},
+	}
+	return cmd
+}
+
+func getStateCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Hidden:  true,
+		Use:     "get-states",
+		Short:   "Get the package & config states",
+		GroupID: "installer",
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			i, err := newInstallerCmd("get_states")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			states, err := i.States(i.ctx)
+			if err != nil {
+				return err
+			}
+			configStates, err := i.ConfigStates(i.ctx)
+			if err != nil {
+				return err
+			}
+
+			pStates := repository.PackageStates{
+				States:       states,
+				ConfigStates: configStates,
+			}
+
+			pStatesRaw, err := json.Marshal(pStates)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(os.Stdout, "%s\n", pStatesRaw)
 			return nil
 		},
 	}

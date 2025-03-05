@@ -505,9 +505,9 @@ func (z *ClientGetConfigsRequest) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *ClientGetConfigsResponse) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 5
 	// string "Roots"
-	o = append(o, 0x84, 0xa5, 0x52, 0x6f, 0x6f, 0x74, 0x73)
+	o = append(o, 0x85, 0xa5, 0x52, 0x6f, 0x6f, 0x74, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Roots)))
 	for za0001 := range z.Roots {
 		o = msgp.AppendBytes(o, z.Roots[za0001])
@@ -537,6 +537,9 @@ func (z *ClientGetConfigsResponse) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0003 := range z.ClientConfigs {
 		o = msgp.AppendString(o, z.ClientConfigs[za0003])
 	}
+	// string "ConfigStatus"
+	o = append(o, 0xac, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73)
+	o = msgp.AppendInt32(o, int32(z.ConfigStatus))
 	return
 }
 
@@ -661,6 +664,16 @@ func (z *ClientGetConfigsResponse) UnmarshalMsg(bts []byte) (o []byte, err error
 					return
 				}
 			}
+		case "ConfigStatus":
+			{
+				var zb0006 int32
+				zb0006, bts, err = msgp.ReadInt32Bytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ConfigStatus")
+					return
+				}
+				z.ConfigStatus = ConfigStatus(zb0006)
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -691,6 +704,7 @@ func (z *ClientGetConfigsResponse) Msgsize() (s int) {
 	for za0003 := range z.ClientConfigs {
 		s += msgp.StringPrefixSize + len(z.ClientConfigs[za0003])
 	}
+	s += 13 + msgp.Int32Size
 	return
 }
 
@@ -1618,6 +1632,34 @@ func (z *ConfigState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ConfigState) Msgsize() (s int) {
 	s = 1 + 3 + msgp.StringPrefixSize + len(z.Id) + 8 + msgp.Uint64Size + 8 + msgp.StringPrefixSize + len(z.Product) + 11 + msgp.Uint64Size + 11 + msgp.StringPrefixSize + len(z.ApplyError)
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z ConfigStatus) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	o = msgp.AppendInt32(o, int32(z))
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ConfigStatus) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	{
+		var zb0001 int32
+		zb0001, bts, err = msgp.ReadInt32Bytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = ConfigStatus(zb0001)
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z ConfigStatus) Msgsize() (s int) {
+	s = msgp.Int32Size
 	return
 }
 

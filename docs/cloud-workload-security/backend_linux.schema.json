@@ -1611,6 +1611,10 @@
     },
     "SysCtlEvent": {
       "properties": {
+        "proc": {
+          "type": "object",
+          "description": "Proc contains the /proc system control parameters and their values"
+        },
         "action": {
           "type": "string",
           "description": "action performed on the system control parameter"
