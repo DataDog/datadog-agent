@@ -56,5 +56,5 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 		workloadList(w, true, deps.WorkloadMeta)
 	}).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
-	r.HandleFunc("/agent/refresh", injectDeps(deps, secretRefreshHandler)).Methods("GET")
+	r.HandleFunc("/secret/refresh", injectDeps(deps, secretRefreshHandler)).Methods("GET")
 }

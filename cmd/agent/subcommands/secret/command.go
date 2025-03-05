@@ -144,7 +144,7 @@ func securityAgentSecretRefresh(conf config.Component) ([]byte, error) {
 }
 
 func processAgentSecretRefresh(conf config.Component) ([]byte, error) {
-	return commonSubAgentSecretRefresh(conf, "process-agent", "process_agent.cmd_port")
+	return commonSubAgentSecretRefresh(conf, "process-agent", "process_config.cmd_port")
 }
 
 func callIPCEndpoint(config config.Component, endpointURL string) ([]byte, error) {
