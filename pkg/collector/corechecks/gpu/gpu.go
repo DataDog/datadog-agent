@@ -161,18 +161,20 @@ func (c *Check) Run() error {
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
-	if err := c.emitSysprobeMetrics(snd); err != nil {
+	gpuToContainersMap := c.getGPUToContainersMap()
+
+	if err := c.emitSysprobeMetrics(snd, gpuToContainersMap); err != nil {
 		log.Warnf("error while sending sysprobe metrics: %s", err)
 	}
 
-	if err := c.emitNvmlMetrics(snd); err != nil {
+	if err := c.emitNvmlMetrics(snd, gpuToContainersMap); err != nil {
 		log.Warnf("error while sending NVML metrics: %s", err)
 	}
 
 	return nil
 }
 
-func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
+func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container) error {
 	sentMetrics := 0
 
 	// Always send telemetry metrics
@@ -248,9 +250,18 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 
 		// Retrieve the tags for all the active processes on this device. This will include pid, container
 		// tags and will enable matching between the usage of an entity and the corresponding limit.
-		activeProcessTags := activeEntitiesPerDevice[uuid].GetAll()
+		activeEntitiesTags := activeEntitiesPerDevice[uuid]
 
-		allTags := append(deviceTags, activeProcessTags...)
+		// Also, add the tags for all containers that have this GPU allocated. Add to the set to avoid repetitions.
+		// Adding this ensures we correctly report utilization even if some of the GPUs allocated to the container
+		// are not being used.
+		for _, container := range gpuToContainersMap[uuid] {
+			for _, tag := range c.getContainerTags(container.EntityID.ID) {
+				activeEntitiesTags.Add(tag)
+			}
+		}
+
+		allTags := append(deviceTags, activeEntitiesTags.GetAll()...)
 
 		snd.Gauge(metricNameCoreLimit, float64(dev.TotalCores), "", allTags)
 		snd.Gauge(metricNameMemoryLimit, float64(dev.TotalMemory), "", allTags)
@@ -267,16 +278,20 @@ func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 		fmt.Sprintf("pid:%d", key.PID),
 	}
 
-	// Container ID tag will be added or not depending on the tagger configuration
-	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, key.ContainerID)
-	containerTags, err := c.tagger.Tag(containerEntityID, c.tagger.ChecksCardinality())
-	if err != nil {
-		log.Errorf("Error collecting container tags for process %d: %s", key.PID, err)
-	} else {
-		tags = append(tags, containerTags...)
-	}
+	tags = append(tags, c.getContainerTags(key.ContainerID)...)
 
 	return tags
+}
+
+func (c *Check) getContainerTags(containerID string) []string {
+	// Container ID tag will be added or not depending on the tagger configuration
+	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+	containerTags, err := c.tagger.Tag(containerEntityID, c.tagger.ChecksCardinality())
+	if err != nil {
+		log.Errorf("Error collecting container tags for container %s: %s", containerID, err)
+	}
+
+	return containerTags
 }
 
 // getDeviceTags returns the device-related tags (GPU UUID) for a given key.
@@ -309,13 +324,12 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	return gpuToContainers
 }
 
-func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
+func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
-	gpuToContainersMap := c.getGPUToContainersMap()
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		metrics, collectErr := collector.Collect()
