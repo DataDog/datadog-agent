@@ -150,11 +150,13 @@ func (g *statsGenerator) getOrCreateAggregator(sKey streamKey) (*aggregator, err
 }
 
 // getNormalizationFactors returns the factor to use for utilization
-// normalization per GPU device. Because we compute the utilization based on the number of
-// threads launched by the kernel, we need to normalize the utilization if we
-// get above 100%, as the GPU can enqueue threads. We need to use factors instead of
-// clamping, as we might have multiple processes on the same GPU adding up to more than 100%, so
-// we need to scale all of them back.
+// normalization per GPU device. Because we compute the utilization based on the
+// number of threads launched by the kernel, we need to normalize the
+// utilization if we get above 100%, as the GPU can enqueue threads. We need to
+// use factors instead of clamping, as we might have multiple processes on the
+// same GPU adding up to more than 100%, so we need to scale all of them back.
+// It is guaranteed that the normalization factors are always equal to or
+// greater than 1
 func (g *statsGenerator) getNormalizationFactors() map[string]float64 {
 	usages := make(map[string]float64)
 

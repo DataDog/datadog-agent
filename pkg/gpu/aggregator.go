@@ -61,18 +61,25 @@ func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 
 	durationSec := float64(tsEnd-tsStart) / float64(time.Second.Nanoseconds())
 
-	// We can't use more threads than the GPU has. Even if we don't report utilization
-	// directly, we should not count more threads than the GPU can run in parallel, as the "thread count" we
-	// report is just the number of threads that were enqueued.
-	// An example of a situation where this distinction is important: say we the average thread count
-	// for a kernel span is 1000, but the GPU can only run 500 threads, and assume this kernel span
-	// runs for 1 second and that we want to report utilization for the last 2 seconds.
-	// If we were looking at the actual GPU utilization in real-time, we'd see 100% utilization for the second
-	// the span lasts, and then 0%, which would give us an average of 50% utilization over the 2 seconds.
-	// However, if we didn't take into account the number of threads the GPU can run in parallel, we'd report
-	// 200% utilization for the first second instead, which would give us an average of 100% utilization over the 2 seconds.
-	// which is not correct.
-	agg.totalThreadSecondsUsed += durationSec * float64(min(span.avgThreadCount, agg.deviceMaxThreads))
+	// We can't use more threads than the GPU has. Even if we don't report
+	// utilization directly, we should not count more threads than the GPU can
+	// run in parallel, as the "thread count" we report is just the number of
+	// threads that were enqueued.
+	//
+	// An example of a situation where this distinction is important: say we
+	// have a kernel launch with 100 threads, but the GPU can only run 500
+	// threads, and assume this kernel runs for 1 second and that we want to
+	// report utilization for the last 2 seconds. If we were looking at the
+	// actual GPU utilization in real-time, we'd see 100% utilization for the
+	// second the span lasts, and then 0%, which would give us an average of 50%
+	// utilization over the 2 seconds. However, if we didn't take into account
+	// the number of threads the GPU can run in parallel, we'd report 200%
+	// utilization for the first second instead, which would give us an average
+	// of 100% utilization over the 2 seconds. which is not correct.
+	activeThreads := min(span.avgThreadCount, agg.deviceMaxThreads)
+
+	// weight the active threads by the time they were active
+	agg.totalThreadSecondsUsed += durationSec * float64(activeThreads)
 }
 
 // processPastData takes spans/allocations that have already been closed
@@ -111,9 +118,7 @@ func (agg *aggregator) getAverageCoreUsage() float64 {
 func (agg *aggregator) getStats(utilizationNormFactor float64) model.UtilizationMetrics {
 	var stats model.UtilizationMetrics
 
-	if agg.measuredIntervalNs > 0 {
-		stats.UsedCores = agg.getAverageCoreUsage() / utilizationNormFactor
-	}
+	stats.UsedCores = agg.getAverageCoreUsage() / utilizationNormFactor
 
 	memTsBuilders := make(map[memAllocType]*tseriesBuilder)
 	for i := memAllocType(0); i < memAllocTypeCount; i++ {

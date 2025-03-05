@@ -37,9 +37,9 @@ import (
 
 const (
 	gpuMetricsNs          = "gpu."
-	metricNameCores       = gpuMetricsNs + "core.usage"
+	metricNameCoreUsage   = gpuMetricsNs + "core.usage"
 	metricNameCoreLimit   = gpuMetricsNs + "core.limit"
-	metricNameMemory      = gpuMetricsNs + "memory.usage"
+	metricNameMemoryUsage = gpuMetricsNs + "memory.usage"
 	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
 	metricNameDeviceTotal = gpuMetricsNs + "device.total"
 )
@@ -192,6 +192,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		c.activeMetrics[key] = false
 	}
 
+	// map each device UUID to the set of tags corresponding to entities (processes) using it
 	activeEntitiesPerDevice := make(map[string]common.StringSet)
 
 	// Emit the usage metrics
@@ -204,7 +205,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 		// be able to tag the limit metrics (GPU memory capacity, GPU core count) with the
 		// tags of the processes using them.
 		processTags := c.getProcessTagsForKey(key)
-		deviceTags := c.getDeviceTagsForKey(key)
+		deviceTags := c.getDeviceTags(key.DeviceUUID)
 
 		// Add the process tags to the active entities for the device, using a set to avoid duplicates
 		if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
@@ -217,19 +218,20 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 
 		allTags := append(processTags, deviceTags...)
 
-		snd.Gauge(metricNameCores, metrics.UsedCores, "", allTags)
-		snd.Gauge(metricNameMemory, float64(metrics.Memory.CurrentBytes), "", allTags)
+		snd.Gauge(metricNameCoreUsage, metrics.UsedCores, "", allTags)
+		snd.Gauge(metricNameMemoryUsage, float64(metrics.Memory.CurrentBytes), "", allTags)
 		sentMetrics += 2
 
 		c.activeMetrics[key] = true
 	}
 
-	// Remove the PIDs that we didn't see in this check
+	// Remove the PIDs that we didn't see in this check, and send a metric with a value
+	// of zero to ensure it's reset and the previous value doesn't linger on for longer than necessary.
 	for key, active := range c.activeMetrics {
 		if !active {
-			tags := append(c.getProcessTagsForKey(key), c.getDeviceTagsForKey(key)...)
-			snd.Gauge(metricNameMemory, 0, "", tags)
-			snd.Gauge(metricNameCores, 0, "", tags)
+			tags := append(c.getProcessTagsForKey(key), c.getDeviceTags(key.DeviceUUID)...)
+			snd.Gauge(metricNameMemoryUsage, 0, "", tags)
+			snd.Gauge(metricNameCoreUsage, 0, "", tags)
 			sentMetrics += 2
 
 			delete(c.activeMetrics, key)
@@ -242,7 +244,7 @@ func (c *Check) emitSysprobeMetrics(snd sender.Sender) error {
 	// to match the usage metrics reported above
 	for _, dev := range c.wmeta.ListGPUs() {
 		uuid := dev.EntityID.ID
-		deviceTags := c.getDeviceTagsForKey(model.StatsKey{DeviceUUID: uuid})
+		deviceTags := c.getDeviceTags(uuid)
 
 		// Retrieve the tags for all the active processes on this device. This will include pid, container
 		// tags and will enable matching between the usage of an entity and the corresponding limit.
@@ -277,12 +279,12 @@ func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 	return tags
 }
 
-// getDeviceTagsForKey returns the device-related tags (GPU UUID) for a given key.
-func (c *Check) getDeviceTagsForKey(key model.StatsKey) []string {
-	gpuEntityID := taggertypes.NewEntityID(taggertypes.GPU, key.DeviceUUID)
+// getDeviceTags returns the device-related tags (GPU UUID) for a given key.
+func (c *Check) getDeviceTags(uuid string) []string {
+	gpuEntityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 	gpuTags, err := c.tagger.Tag(gpuEntityID, c.tagger.ChecksCardinality())
 	if err != nil {
-		log.Errorf("Error collecting GPU tags for process %d: %s", key.PID, err)
+		log.Errorf("Error collecting GPU tags for uuid %s: %s", uuid, err)
 		return nil
 	}
 
