@@ -466,6 +466,7 @@ namespace WixSetup.Datadog_Agent
                     Impersonate = false
                 }
                 .SetProperties("INSTALLDIR=[INSTALLDIR]," +
+                               "SITE=[SITE],"+
                                "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                                "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
 
