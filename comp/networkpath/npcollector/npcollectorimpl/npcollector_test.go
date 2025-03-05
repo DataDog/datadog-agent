@@ -41,7 +41,7 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
-	app, npCollector := newTestNpCollector(t, agentConfigs)
+	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -86,16 +86,12 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		"network_path.collector.flush_interval":       "1s",
 		"network_devices.namespace":                   "my-ns1",
 	}
-	app, npCollector := newTestNpCollector(t, agentConfigs)
-
-	stats := &teststatsd.Client{}
+	app, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
 	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
 	npCollector.epForwarder = mockEpForwarder
 
 	app.RequireStart()
-
-	npCollector.initStatsdClient(stats)
 
 	assert.True(t, npCollector.running)
 
@@ -240,10 +236,8 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
-
 	stats := &teststatsd.Client{}
-	npCollector.initStatsdClient(stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 	conns := []*model.Connection{
 		{
@@ -285,7 +279,7 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 	}
 
-	_, npCollector := newTestNpCollector(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
 	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 4, npCollector.workers)
@@ -305,7 +299,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 		"network_devices.namespace":                      "ns1",
 	}
 
-	_, npCollector := newTestNpCollector(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
 	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 2, npCollector.workers)
@@ -489,7 +483,8 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, npCollector := newTestNpCollector(t, tt.agentConfigs)
+			stats := &teststatsd.Client{}
+			_, npCollector := newTestNpCollector(t, tt.agentConfigs, stats)
 			if tt.noInputChan {
 				npCollector.pathtestInputChan = nil
 			}
@@ -499,9 +494,6 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
-
-			stats := &teststatsd.Client{}
-			npCollector.initStatsdClient(stats)
 
 			npCollector.ScheduleConns(tt.conns, tt.dns)
 
@@ -546,7 +538,7 @@ func Test_npCollectorImpl_stopWorker(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 	}
 
-	_, npCollector := newTestNpCollector(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs, &teststatsd.Client{})
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -607,10 +599,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled": true,
 			}
-			_, npCollector := newTestNpCollector(t, agentConfigs)
-
 			stats := &teststatsd.Client{}
-			npCollector.initStatsdClient(stats)
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 			npCollector.TimeNowFn = func() time.Time {
 				return tt.flushEndTime
@@ -646,11 +636,10 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              6,
 	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
+	stats := &teststatsd.Client{}
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 	npCollector.TimeNowFn = mockTimeNow
 
-	stats := &teststatsd.Client{}
-	npCollector.initStatsdClient(stats)
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
 
@@ -676,11 +665,10 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 		"network_path.collector.workers":              6,
 		"network_path.collector.flush_interval":       "100ms",
 	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
+	stats := &teststatsd.Client{}
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 	defer npCollector.stop()
 
-	stats := &teststatsd.Client{}
-	npCollector.initStatsdClient(stats)
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
 
@@ -715,7 +703,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	utillog.SetupLogger(l, "debug")
 	defer w.Flush()
 
-	app, npCollector := newTestNpCollector(b, agentConfigs)
+	app, npCollector := newTestNpCollector(b, agentConfigs, &teststatsd.Client{})
 
 	// TEST START
 	app.RequireStart()
@@ -744,10 +732,8 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
-
 	stats := &teststatsd.Client{}
-	npCollector.initStatsdClient(stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -796,9 +782,7 @@ func Test_npCollectorImpl_enrichPathWithRDNS(t *testing.T) {
 		"network_path.connections_monitoring.enabled":           true,
 		"network_path.collector.reverse_dns_enrichment.enabled": false,
 	}
-	_, npCollector = newTestNpCollector(t, agentConfigs)
-
-	npCollector.initStatsdClient(stats)
+	_, npCollector = newTestNpCollector(t, agentConfigs, stats)
 
 	// WHEN
 	// Destination, hop 1, hop 3, hop 4 are private IPs, hop 2 is a public IP
@@ -827,10 +811,8 @@ func Test_npCollectorImpl_enrichPathWithRDNSKnownHostName(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
-
 	stats := &teststatsd.Client{}
-	npCollector.initStatsdClient(stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 	// WHEN
 	path := payload.NetworkPath{
@@ -850,10 +832,8 @@ func Test_npCollectorImpl_getReverseDNSResult(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
-	_, npCollector := newTestNpCollector(t, agentConfigs)
-
 	stats := &teststatsd.Client{}
-	npCollector.initStatsdClient(stats)
+	_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 	tts := []struct {
 		description string
@@ -1053,10 +1033,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
 			}
-			_, npCollector := newTestNpCollector(t, agentConfigs)
-
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 			require.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, tt.vpcSubnets))
 
@@ -1113,10 +1091,8 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn_subnets(t *testing.T)
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
 			}
-			_, npCollector := newTestNpCollector(t, agentConfigs)
-
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
 
 			assert.Equal(t, tt.shouldSchedule, npCollector.shouldScheduleNetworkPathForConn(tt.conn, nil))
 

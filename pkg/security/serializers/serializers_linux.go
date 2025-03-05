@@ -673,6 +673,7 @@ type EventSerializer struct {
 	*SyscallContextSerializer     `json:"syscall,omitempty"`
 	*RawPacketSerializer          `json:"packet,omitempty"`
 	*NetworkFlowMonitorSerializer `json:"network_flow_monitor,omitempty"`
+	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1095,6 +1096,19 @@ func newNetworkFlowMonitorSerializer(nm *model.NetworkFlowMonitorEvent, e *model
 	return s
 }
 
+func newSysCtlEventSerializer(sce *model.SysCtlEvent, _ *model.Event) *SysCtlEventSerializer {
+	return &SysCtlEventSerializer{
+		Action:            model.SysCtlAction(sce.Action).String(),
+		FilePosition:      sce.FilePosition,
+		Name:              sce.Name,
+		NameTruncated:     sce.NameTruncated,
+		Value:             sce.Value,
+		ValueTruncated:    sce.ValueTruncated,
+		OldValue:          sce.OldValue,
+		OldValueTruncated: sce.OldValueTruncated,
+	}
+}
+
 func serializeOutcome(retval int64) string {
 	switch {
 	case retval < 0:
@@ -1273,8 +1287,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.CGroupContext); cgroupID != "" {
-		manager := event.FieldHandlers.ResolveCGroupManager(event, &event.CGroupContext)
+	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+		manager := event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:      string(event.CGroupContext.CGroupID),
 			Manager: manager,
@@ -1523,6 +1537,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.RawPacketSerializer = newRawPacketEventSerializer(&event.RawPacket, event)
 	case model.NetworkFlowMonitorEventType:
 		s.NetworkFlowMonitorSerializer = newNetworkFlowMonitorSerializer(&event.NetworkFlowMonitor, event)
+	case model.SysCtlEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
+		s.SysCtlEventSerializer = newSysCtlEventSerializer(&event.SysCtl, event)
 	}
 
 	return s

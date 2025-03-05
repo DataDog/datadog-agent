@@ -277,8 +277,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, err
 	}
 
-	limiter, err := lru.NewWithEvict(1024, func(_ cgroupModel.WorkloadSelector, _ *atomic.Uint64) {
-	})
+	limiter, err := lru.New[cgroupModel.WorkloadSelector, *atomic.Uint64](1024)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)
 	}
@@ -860,7 +859,7 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 			continue
 		}
 
-		cgroupContext, err := adm.resolvers.ResolveCGroupContext(cgroupFile, event.Config.CGroupFlags)
+		cgroupContext, _, err := adm.resolvers.ResolveCGroupContext(cgroupFile, event.Config.CGroupFlags)
 		if err != nil {
 			seclog.Warnf("couldn't resolve cgroup context for (%v): %v", cgroupFile, err)
 			continue

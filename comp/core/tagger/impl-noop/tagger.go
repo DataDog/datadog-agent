@@ -34,10 +34,6 @@ func (n *noopTagger) Stop() error {
 	return nil
 }
 
-func (n *noopTagger) ReplayTagger() tagger.ReplayTagger {
-	return nil
-}
-
 func (n *noopTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return nil
 }
@@ -87,10 +83,6 @@ func (n *noopTagger) AgentTags(types.TagCardinality) ([]string, error) {
 func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
-
-func (n *noopTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (n *noopTagger) ResetCaptureTagger() {}
 
 func (n *noopTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
 
