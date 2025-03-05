@@ -9,6 +9,14 @@ package kubernetesapiserver
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 	"reflect"
 	"testing"
 
@@ -18,7 +26,7 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
-	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -57,7 +65,20 @@ func TestGetDDAlertType(t *testing.T) {
 }
 
 func Test_getInvolvedObjectTags(t *testing.T) {
-	taggerInstance := mockTagger.New().Comp
+	c := configmock.New(t)
+	logComponent := logmock.New(t)
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() log.Component { return logComponent }),
+		fx.Provide(func() config.Component { return c }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	req := taggerimpl.MockRequires{
+		Config:       c,
+		WorkloadMeta: wmeta,
+		Log:          logComponent,
+		Telemetry:    noopTelemetry.GetCompatComponent(),
+	}
+	taggerInstance := taggerimpl.New(req).Comp
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesPodUID, "nginx"), "workloadmeta-kubernetes_pod", nil, []string{"additional_pod_tag:nginx"}, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "workload-redis/my-deployment-1"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-1"}, nil, nil)
 	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "default/my-deployment-2"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)

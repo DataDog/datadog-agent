@@ -139,7 +139,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		orchestratorimpl.MockModule(),
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
 		}),
-		taggerfx.Module(tagger.Params{}),
+		taggerfx.Module(),
 		noopsimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())

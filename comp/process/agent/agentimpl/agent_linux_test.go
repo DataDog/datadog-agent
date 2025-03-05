@@ -20,7 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -130,7 +130,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerMock.Module(),
+				taggerfxmock.MockModule(),
 				statsd.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				configComp.MockModule(),
@@ -196,7 +196,7 @@ func TestStatusProvider(t *testing.T) {
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				taggerMock.Module(),
+				taggerfxmock.MockModule(),
 				statsd.MockModule(),
 				Module(),
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -243,7 +243,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		runnerimpl.Module(),
 		hostinfoimpl.MockModule(),
 		submitterimpl.MockModule(),
-		taggerMock.Module(),
+		taggerfxmock.MockModule(),
 		statsd.MockModule(),
 		Module(),
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{

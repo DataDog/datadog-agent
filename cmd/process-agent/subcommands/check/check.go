@@ -154,7 +154,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 					UseRemote: func(c config.Component) bool {
 						return c.GetBool("process_config.remote_tagger")
 					},
-				}, tagger.Params{}, tagger.RemoteParams{
+				}, tagger.RemoteParams{
 					RemoteTarget: func(c config.Component) (string, error) {
 						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 					},

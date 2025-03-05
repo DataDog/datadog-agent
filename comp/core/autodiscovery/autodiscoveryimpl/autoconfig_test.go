@@ -9,6 +9,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -29,7 +33,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -600,5 +604,17 @@ type Deps struct {
 }
 
 func createDeps(t *testing.T) Deps {
-	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), taggerfx.Module(tagger.Params{UseFakeTagger: true}))
+	taggerMock := fxutil.Test[taggermock.Mock](t,
+		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		noopTelemetry.Module(),
+		taggerfxmock.MockModule(),
+	)
+
+	return fxutil.Test[Deps](t,
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Provide(func() tagger.Component { return taggerMock }),
+	)
 }

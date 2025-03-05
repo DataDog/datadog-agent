@@ -21,7 +21,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -91,7 +91,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// Finally, container provider
 	filter, err := containers.GetPauseContainerFilter()

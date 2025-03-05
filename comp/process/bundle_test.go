@@ -20,8 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -50,9 +49,7 @@ func TestBundleDependencies(t *testing.T) {
 		coreStatusImpl.Module(),
 		settingsimpl.MockModule(),
 		statusimpl.Module(),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		taggerfxmock.MockModule(),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: python.GetPythonVersion,
@@ -101,9 +98,7 @@ func TestBundleOneShot(t *testing.T) {
 		}}),
 		core.MockBundle(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		taggerfx.Module(tagger.Params{
-			UseFakeTagger: true,
-		}),
+		taggerfxmock.MockModule(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		rdnsquerier.MockModule(),

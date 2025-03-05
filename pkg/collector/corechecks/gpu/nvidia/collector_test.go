@@ -11,7 +11,7 @@ import (
 	"errors"
 	"testing"
 
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
@@ -56,7 +56,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	}
 
 	nvmlMock := getBasicNvmlMock()
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	deps := &CollectorDependencies{NVML: nvmlMock, Tagger: fakeTagger}
 	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)

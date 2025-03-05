@@ -22,7 +22,6 @@ import (
 // Requires contains the dependencies for the dual tagger component
 type Requires struct {
 	Lc           compdef.Lifecycle
-	LocalParams  tagger.Params
 	RemoteParams tagger.RemoteParams
 	DualParams   tagger.DualParams
 	Config       config.Component
@@ -66,7 +65,6 @@ func NewComponent(req Requires) (Provides, error) {
 		Wmeta:     req.Wmeta,
 		Lc:        req.Lc,
 		Log:       req.Log,
-		Params:    req.LocalParams,
 	}
 	provide, err := local.NewComponent(localRequires)
 

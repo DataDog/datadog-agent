@@ -7,7 +7,7 @@
 // source of truth for client-side entity tagging. It subscribes to workloadmeta
 // to get updates for all the entity kinds (containers, kubernetes pods,
 // kubernetes nodes, etc.) and extracts the tags for each of them. Tags are then
-// stored in memory (by the TagStore) and can be queried by the tagger.Tag()
+// stored in memory (by the tagStore) and can be queried by the tagger.Tag()
 // method.
 
 // Package noopimpl provides a noop implementation for the tagger component

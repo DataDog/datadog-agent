@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -74,7 +75,7 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		fx.Provide(func() option.Option[collector.Component] {
 			return option.None[collector.Component]()
 		}),
-		taggermock.Module(),
+		taggerfxmock.MockModule(),
 		fx.Options(
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
