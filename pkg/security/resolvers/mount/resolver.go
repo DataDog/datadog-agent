@@ -318,14 +318,16 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
 	var result *model.Mount
 
-	mr.pidToMounts.WalkInner(pid, func(_ uint32, mount *model.Mount) {
+	mr.pidToMounts.WalkInner(pid, func(_ uint32, mount *model.Mount) bool {
 		if mount.Device == device {
 			// should be consistent across all the mounts
 			if result != nil && result.MountPointStr != mount.MountPointStr {
-				return
+				result = nil
+				return false
 			}
 			result = mount
 		}
+		return true
 	})
 
 	return result

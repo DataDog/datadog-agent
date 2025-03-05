@@ -195,14 +195,16 @@ func (tll *TwoLayersLRU[K1, K2, V]) Walk(cb func(k1 K1, k2 K2, v V)) {
 }
 
 // WalkInner through all the keys of the inner LRU
-func (tll *TwoLayersLRU[K1, K2, V]) WalkInner(k1 K1, cb func(k2 K2, v V)) {
+func (tll *TwoLayersLRU[K1, K2, V]) WalkInner(k1 K1, cb func(k2 K2, v V) bool) {
 	tll.RLock()
 	defer tll.RUnlock()
 
 	if l2LRU, exists := tll.cache.Peek(k1); exists {
 		for k2 := range l2LRU.KeysIter() {
 			if value, exists := l2LRU.Peek(k2); exists {
-				cb(k2, value)
+				if continu := cb(k2, value); !continu {
+					return
+				}
 			}
 		}
 	}
