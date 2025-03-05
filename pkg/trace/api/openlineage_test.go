@@ -28,7 +28,7 @@ func TestOpenLineageProxy(t *testing.T) {
 		if body := string(slurp); body != "body" {
 			t.Fatalf("invalid request body: %q", body)
 		}
-		if v := req.Header.Get("Authorization"); v != "123" {
+		if v := req.Header.Get("Authorization"); v != "Bearer 123" {
 			t.Fatalf("got invalid API key: %q", v)
 		}
 		if v := req.Header.Get("X-Datadog-Additional-Tags"); v != "key:val" {
@@ -49,7 +49,7 @@ func TestOpenLineageProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
-	newPipelineStatsProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
+	newOpenLineageProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
