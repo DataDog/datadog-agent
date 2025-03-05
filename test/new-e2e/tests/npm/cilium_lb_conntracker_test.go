@@ -39,12 +39,11 @@ type ciliumLBConntrackerTestSuite struct {
 }
 
 func TestCiliumLBConntracker(t *testing.T) {
-	versionsToTest := []string{ /* "1.15.14", "1.16.7",  */ "1.17.1"}
-	for _, v := range versionsToTest {
-		t.Run(fmt.Sprintf("version %s", v), func(t *testing.T) {
-			testCiliumLBConntracker(t, v)
-		})
-	}
+	const versionToTest = "1.17.1"
+	t.Run(fmt.Sprintf("version %s", versionToTest), func(t *testing.T) {
+		testCiliumLBConntracker(t, versionToTest)
+	})
+
 }
 
 func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
@@ -76,7 +75,6 @@ func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 	}
 
 	e2e.Run(t, suite,
-		e2e.WithStackName(fmt.Sprintf("cilium-%s", t.Name())),
 		e2e.WithProvisioner(
 			awskubernetes.KindProvisioner(
 				awskubernetes.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
