@@ -95,7 +95,7 @@ new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  parallel: 2
+  # parallel: 2
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
@@ -325,8 +325,8 @@ new-agent_dmg-x64-a7:
     # - eval $("$HOME/homebrew/bin/brew" shellenv)
     # - brew install libffi
 
-    - sudo xcodebuild -license accept
-    - sudo xcodes select 15.2
+    # - sudo xcodebuild -license accept
+    # - sudo xcodes select 15.2
     - 'echo "Path before env: $PATH"'
     # - ls ~/rust/rustup/bin || true
     # - python3 --version
@@ -336,7 +336,24 @@ new-agent_dmg-x64-a7:
     # +=========================+
     # +--------- BUILD ---------+
     # +=========================+
-    - bash .gitlab/package_build/build_script.sh
+    - bash .gitlab/package_build/build_script.sh || true
+    - set +e
+    - |
+      echo "=== mkmf.log ==="
+      cat omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5/mkmf.log
+    - |
+      echo "=== gem_make.out ==="
+      cat omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5/gem_make.out
+    - |
+      echo "=== find1 ==="
+      find omnibus/vendor/bundle/ruby/2.7.0/extensions/x86_64-darwin-22/2.7.0/ffi-1.15.5
+    - |
+      echo "=== find2 ==="
+      find omnibus/vendor/bundle/ruby/2.7.0/gems/ffi-1.15.5/ext/ffi_c
+    - |
+      echo "=== extconf.rb ==="
+      cat extconf.rb
+    - exit 1
     # TODO: Other things...
 
 
