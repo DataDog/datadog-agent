@@ -44,7 +44,7 @@ func (w *FSWalker) Walk(root string, opt walker.Option, fn walker.WalkFunc) erro
 	opt.SkipFiles = utils.CleanSkipPaths(opt.SkipFiles)
 	opt.OnlyDirs = utils.CleanSkipPaths(opt.OnlyDirs)
 
-	walkDirFunc := w.WalkDirFunc(fn, opt)
+	walkDirFunc := w.WalkDirFunc(root, fn, opt)
 	walkDirFunc = w.onError(walkDirFunc, opt)
 
 	// Walk the filesystem
@@ -57,7 +57,7 @@ func (w *FSWalker) Walk(root string, opt walker.Option, fn walker.WalkFunc) erro
 
 // WalkDirFunc is the type of the function called by [WalkDir] to visit
 // each file or directory.
-func (w *FSWalker) WalkDirFunc(fn walker.WalkFunc, opt walker.Option) fs.WalkDirFunc {
+func (w *FSWalker) WalkDirFunc(root string, fn walker.WalkFunc, opt walker.Option) fs.WalkDirFunc {
 	return func(filePath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
@@ -91,7 +91,8 @@ func (w *FSWalker) WalkDirFunc(fn walker.WalkFunc, opt walker.Option) fs.WalkDir
 			return xerrors.Errorf("file info error: %w", err)
 		}
 
-		if err = fn(filePath, info, fileOpener(filePath)); err != nil {
+		rootedPath := filepath.Join(root, filePath)
+		if err = fn(filePath, info, fileOpener(rootedPath)); err != nil {
 			return xerrors.Errorf("failed to analyze file: %w", err)
 		}
 
