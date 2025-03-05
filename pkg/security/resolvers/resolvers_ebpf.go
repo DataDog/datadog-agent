@@ -256,11 +256,6 @@ func (r *EBPFResolvers) Snapshot() error {
 		return err
 	}
 
-	// snapshot sockets
-	if err := r.snapshotBoundSockets(); err != nil {
-		return fmt.Errorf("unable to snapshot bound sockets: %w", err)
-	}
-
 	return nil
 }
 
@@ -324,6 +319,7 @@ func (r *EBPFResolvers) snapshot() error {
 	return nil
 }
 
+// nolint: deadcode, unused
 func (r *EBPFResolvers) snapshotBoundSockets() error {
 	processes, err := utils.GetProcesses()
 	if err != nil {
