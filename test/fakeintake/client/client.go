@@ -684,6 +684,8 @@ func (c *Client) GetProcesses() ([]*aggregator.ProcessPayload, error) {
 	return procs, nil
 }
 
+// GetProcesses fetches fakeintake on `/api/v1/collector` endpoint and returns
+// the API key of the last received process payload
 func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
 	payloads, err := c.getFakePayloads(processesEndpoint)
 	if err != nil {

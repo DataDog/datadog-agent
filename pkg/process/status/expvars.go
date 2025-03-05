@@ -48,7 +48,6 @@ var (
 	infoPodQueueBytes         atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
-	infoEndpoints             = expvar.Map{}
 
 	// WorkloadMetaExtractor stats
 	infoWlmExtractorCacheSize    atomic.Int64
@@ -211,7 +210,6 @@ func publishContainerID() interface{} {
 	return containerID
 }
 
-/*
 func publishEndpoints(eps []apicfg.Endpoint) func() interface{} {
 	return func() interface{} {
 		return getEndpointsInfo(eps)
@@ -232,27 +230,6 @@ func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
 	}
 	return endpointsInfo
 }
-
-
-func initEndpointsMap(eps []apicfg.Endpoint) {
-	infoEndpoints = make(map[string][]string)
-
-	for _, endpoint := range eps {
-		apiKey := endpoint.APIKey
-		if len(apiKey) > 5 {
-			apiKey = apiKey[len(apiKey)-5:]
-		}
-
-		infoEndpoints.(map[string][]string)[endpoint.Endpoint.String()] = append(infoEndpoints.(map[string][]string)[endpoint.Endpoint.String()], apiKey)
-	}
-}
-
-func publishEndpointsMap() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoEndpoints
-}
-*/
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func UpdateDropCheckPayloads(drops []string) {
@@ -280,11 +257,6 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("host", hostString)
 		pid := expvar.NewInt("pid")
 		pid.Set(int64(os.Getpid()))
-
-		infoEndpoints.Init()
-		for _, ep := range eps {
-			infoEndpoints.Set(ep.Endpoint.String(), expvar.NewString(ep.APIKey))
-		}
 		config.OnUpdate(func(setting string, oldValue, newValue any) {
 			if setting != "api_key" {
 				return
@@ -298,7 +270,6 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 				for _, ep := range eps {
 					if ep.APIKey == oldAPIKey {
 						ep.APIKey = newAPIKey
-						infoEndpoints.Set(ep.Endpoint.String(), expvar.NewString(newAPIKey))
 					}
 				}
 			}
@@ -324,7 +295,7 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("pod_queue_bytes", publishInt(&infoPodQueueBytes))
 		processExpvars.Set("container_id", expvar.Func(publishContainerID))
 		processExpvars.Set("enabled_checks", expvar.Func(publishEnabledChecks))
-		processExpvars.Set("endpoints", &infoEndpoints)
+		processExpvars.Set("endpoints", expvar.Func(publishEndpoints(eps)))
 		processExpvars.Set("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		processExpvars.Set("system_probe_process_module_enabled", publishBool(processModuleEnabled))
 		processExpvars.Set("language_detection_enabled", publishBool(languageDetectionEnabled))

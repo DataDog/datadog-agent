@@ -9,7 +9,7 @@ import (
 	"net/http"
 )
 
-func secretRefreshHandler(deps APIServerDeps, w http.ResponseWriter, req *http.Request) {
+func secretRefreshHandler(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
 	response, err := deps.Secrets.Refresh()
 	if err != nil {
 		deps.Log.Errorf("error while refresing secrets: %s", err)
