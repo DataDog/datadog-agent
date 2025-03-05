@@ -9,5 +9,5 @@
 enhancements:
   - |
     The Python runtime is now loaded when the first check is loaded, rather than when the agent starts.
-    This will eventually allow not loading Python when no Python check is enabled.
+    This will eventually avoid having to load Python when no Python check is enabled.
     This change can be reverted by setting ``python_lazy_loading: false`` in your configuration.
