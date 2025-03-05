@@ -43,7 +43,6 @@ type LeaderForwarder struct {
 func NewLeaderForwarder(apiPort, maxConnections int) *LeaderForwarder {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := pkglogsetup.NewLogWriter(4, log.DebugLvl)
-	maxConnections = 10
 	return &LeaderForwarder{
 		apiPort: strconv.Itoa(apiPort),
 		transport: &http.Transport{
