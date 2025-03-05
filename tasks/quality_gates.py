@@ -151,6 +151,7 @@ def parse_and_trigger_gates(ctx, config_path="test/static/static_quality_gates.y
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler):
+    # The new limit is decreased when the difference between current and max value is greater than the `BUFFER_SIZE`
     curr_size = metric_handler.metrics[current_gate][current_key]
     max_curr_size = metric_handler.metrics[current_gate][max_key]
     remaining_allowed_size = max_curr_size - curr_size
