@@ -8,6 +8,7 @@ package npm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -38,6 +39,17 @@ type ciliumLBConntrackerTestSuite struct {
 }
 
 func TestCiliumLBConntracker(t *testing.T) {
+	versionsToTest := []string{ /* "1.15.14", "1.16.7",  */ "1.17.1"}
+	for _, v := range versionsToTest {
+		t.Run(fmt.Sprintf("version %s", v), func(t *testing.T) {
+			testCiliumLBConntracker(t, v)
+		})
+	}
+}
+
+func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
+	t.Helper()
+
 	suite := &ciliumLBConntrackerTestSuite{}
 	httpBinServiceInstall := func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 		var err error
@@ -58,22 +70,22 @@ func TestCiliumLBConntracker(t *testing.T) {
 		"socketLB": pulumi.Map{
 			"hostNamespaceOnly": pulumi.BoolPtr(true),
 		},
+		"image": pulumi.Map{
+			"tag": pulumi.StringPtr(ciliumVersion),
+		},
 	}
 
-	e2e.Run(t, suite, e2e.WithProvisioner(
-		awskubernetes.KindProvisioner(
-			awskubernetes.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues)),
-			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigWithCiliumLB)),
-			awskubernetes.WithWorkloadApp(httpBinServiceInstall),
-			awskubernetes.WithWorkloadApp(npmToolsWorkload),
+	e2e.Run(t, suite,
+		e2e.WithStackName(fmt.Sprintf("cilium-%s", t.Name())),
+		e2e.WithProvisioner(
+			awskubernetes.KindProvisioner(
+				awskubernetes.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
+				awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigWithCiliumLB)),
+				awskubernetes.WithWorkloadApp(httpBinServiceInstall),
+				awskubernetes.WithWorkloadApp(npmToolsWorkload),
+			),
 		),
-	))
-}
-
-func (suite *ciliumLBConntrackerTestSuite) SetupSuite() {
-	suite.BaseSuite.SetupSuite()
-
-	suite.Require().NotNil(suite.httpBinService)
+	)
 }
 
 // BeforeTest will be called before each test
@@ -149,24 +161,28 @@ type ciliumBackend struct {
 }
 
 func (suite *ciliumLBConntrackerTestSuite) httpBinCiliumService() (backends []ciliumBackend, frontendIP string) {
-	suite.T().Helper()
+	t := suite.T()
+	t.Helper()
 
-	ciliumPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("kube-system").List(context.Background(), v1.ListOptions{
-		LabelSelector: "k8s-app=cilium",
-	})
-	suite.Require().NoError(err, "could no get cilium pods")
-	suite.Require().NotNil(ciliumPods, "cilium pods object is nil")
-	suite.Require().NotEmpty(ciliumPods.Items, "no cilium pods found")
+	var stdout string
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		ciliumPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("kube-system").List(context.Background(), v1.ListOptions{
+			LabelSelector: "k8s-app=cilium",
+		})
+		require.NoError(collect, err, "could no get cilium pods")
+		require.NotNil(collect, ciliumPods, "cilium pods object is nil")
+		require.NotEmpty(collect, ciliumPods.Items, "no cilium pods found")
 
-	pod := ciliumPods.Items[0]
-	stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("kube-system", pod.Name, "cilium-agent", []string{"cilium-dbg", "service", "list", "-o", "json"})
-	suite.Require().NoError(err, "error getting cilium service list")
-	if stderr != "" {
-		suite.FailNowf("got output on stderr from cilium service list command", stderr)
-	}
-	suite.Require().NotEmpty(stdout, "empty output from cilium-dbg service list command")
+		pod := ciliumPods.Items[0]
+		var stderr string
+		stdout, stderr, err = suite.Env().KubernetesCluster.KubernetesClient.PodExec("kube-system", pod.Name, "cilium-agent", []string{"cilium-dbg", "service", "list", "-o", "json"})
+		require.NoError(collect, err, "error getting cilium service list")
+		require.Empty(collect, stderr, "got output on stderr from cilium service list command", stderr)
+		require.NotEmpty(collect, stdout, "empty output from cilium-dbg service list command")
+	}, 20*time.Second, time.Second, "could not get cilium-agent pod")
+
 	var services []interface{}
-	err = json.Unmarshal([]byte(stdout), &services)
+	err := json.Unmarshal([]byte(stdout), &services)
 	suite.Require().NoError(err, "error deserializing output of cilium-dbg service list command")
 	for _, svc := range services {
 		spec := svc.(map[string]interface{})["spec"].(map[string]interface{})
@@ -174,7 +190,7 @@ func (suite *ciliumLBConntrackerTestSuite) httpBinCiliumService() (backends []ci
 		if frontendAddrPort := frontendAddr["port"].(float64); frontendAddrPort != 8000 {
 			continue
 		}
-		if frontendAddrProto := frontendAddr["protocol"].(string); frontendAddrProto != "TCP" {
+		if frontendAddrProto, ok := frontendAddr["protocol"]; ok && frontendAddrProto.(string) != "TCP" {
 			continue
 		}
 

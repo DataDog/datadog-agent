@@ -93,7 +93,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var kindCluster *kubeComp.Cluster
 	if len(params.ciliumOptions) > 0 {
-		kindCluster, err = kubeComp.NewKindCiliumCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	} else {
 		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	}
@@ -129,11 +129,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		}
 
 		ctx.Log.Debug(fmt.Sprintf("cilium params %+v"), nil)
-		if ciliumParams.HasKubeProxyReplacement() {
-			ciliumParams.HelmValues["k8sServiceHost"] = kindCluster.KubeInternalServerAddress
-			ciliumParams.HelmValues["k8sServicePort"] = kindCluster.KubeInternalServerPort
-		}
-		_, err = cilium.NewHelmInstallation(&awsEnv, ciliumParams, pulumi.Provider(kubeProvider))
+		_, err = cilium.NewHelmInstallation(&awsEnv, kindCluster, ciliumParams, pulumi.Provider(kubeProvider))
 		if err != nil {
 			return err
 		}
