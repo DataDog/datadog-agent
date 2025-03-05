@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -210,14 +211,16 @@ func publishContainerID() interface{} {
 	return containerID
 }
 
-func publishEndpoints(eps []apicfg.Endpoint) func() interface{} {
+func publishEndpoints(config config.Component) func() interface{} {
 	return func() interface{} {
-		return getEndpointsInfo(eps)
+		return getEndpointsInfo(config)
 	}
 }
 
-func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
+func getEndpointsInfo(config config.Component) interface{} {
 	endpointsInfo := make(map[string][]string)
+
+	eps, _ := endpoint.GetAPIEndpoints(config)
 
 	// obfuscate the api keys
 	for _, endpoint := range eps {
@@ -295,7 +298,7 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("pod_queue_bytes", publishInt(&infoPodQueueBytes))
 		processExpvars.Set("container_id", expvar.Func(publishContainerID))
 		processExpvars.Set("enabled_checks", expvar.Func(publishEnabledChecks))
-		processExpvars.Set("endpoints", expvar.Func(publishEndpoints(eps)))
+		processExpvars.Set("endpoints", expvar.Func(publishEndpoints(config)))
 		processExpvars.Set("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
 		processExpvars.Set("system_probe_process_module_enabled", publishBool(processModuleEnabled))
 		processExpvars.Set("language_detection_enabled", publishBool(languageDetectionEnabled))

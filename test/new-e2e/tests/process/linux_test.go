@@ -84,7 +84,7 @@ func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
 		t.Logf("statusMap: %+v", statusMap)
 		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
 			// Original key is obfuscated to the last 5 characters
-			assert.Equal(collect, key[0], "23456")
+			assert.Equal(collect, key[0], "vwxyz")
 		}
 		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
 		require.NoError(collect, err)
