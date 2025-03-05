@@ -95,6 +95,7 @@ new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
+  parallel: 2
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
@@ -280,7 +281,6 @@ new-agent_dmg-x64-a7:
     # # TODO
     # - bash .gitlab/package_build/builder_setup.sh
     # Setup
-    - echo "goroot $GOROOT"
     - |
       # TODO A: Omnibus cache
       unset INTEGRATION_WHEELS_CACHE_BUCKET || true
@@ -296,9 +296,7 @@ new-agent_dmg-x64-a7:
       export PYTHON_RUNTIMES=3
       export INSTALL_DIR=/tmp/celian/bin
       export CONFIG_DIR=/tmp/celian/config
-      export GOPATH="$GOROOT"
       export OMNIBUS_DIR=omnibus_build
-    - rm -f ~/.build_setup; touch ~/.build_setup
     - rm -rf "$INSTALL_DIR" "$CONFIG_DIR"
     - mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"
     # Omnibus TODO: Useless?
@@ -309,14 +307,7 @@ new-agent_dmg-x64-a7:
       # rm -rf _omnibus_cache_key_files && mkdir -p _omnibus_cache_key_files
       # cp ./{release.json,omnibus/Gemfile} _omnibus_cache_key_files
     # TODO: Cache go?
-    - |
-      mkdir -p $HOME/go
-      echo 'export GOPATH=$HOME/go' >> ~/.build_setup
-      echo 'export PATH="$GOPATH/bin:$PATH"' >> ~/.build_setup
-      export GO_VERSION="$(cat .go-version)"
-      # TODO
-      # eval "$(gimme $GO_VERSION)"
-    - . ~/.build_setup
+    - mkdir -p ~/go
     # TODO: xcode 14.2?
     # - xcode-select -s /Applications/Xcode_14.3.1.app
     # TODO: Cache brew deps
@@ -334,32 +325,13 @@ new-agent_dmg-x64-a7:
     # - eval $("$HOME/homebrew/bin/brew" shellenv)
     # - brew install libffi
 
-    - |
-      echo "PATH: $PATH"
-      eval "$(gimme $GO_VERSION)"
-      echo "PATH: $PATH"
-      which go
-
-    - echo Setting up custom homebrew env
-    - export PATH="$HOME/bin:$HOME/homebrew/bin:$HOME/rust/rustup/bin:$HOME/rust/cargo/bin"
-    - export PATH="/Library/Developer/CommandLineTools/usr/bin:$PATH"
     - sudo xcodebuild -license accept
     - sudo xcodes select 15.2
-    - ls ~/rust/rustup/bin || true
-    - python3 --version
-    - rustup --version || true
-    - cargo --version || true
-    - |
-      echo Setting up venv
-      python3 -m venv .venv
-      . .venv/bin/activate
-      python3 -m pip install -r requirements.txt -r tasks/requirements.txt
-
-    # TODO: Done multiple times
-    - |
-      export PATH="$GOPATH/bin:$PATH"
-      eval "$(gimme $GO_VERSION)"
-      go version || true
+    - 'echo "Path before env: $PATH"'
+    # - ls ~/rust/rustup/bin || true
+    # - python3 --version
+    # - rustup --version || true
+    # - cargo --version || true
 
     # +=========================+
     # +--------- BUILD ---------+

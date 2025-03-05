@@ -215,16 +215,45 @@ export RELEASE_VERSION=${RELEASE_VERSION:-$VERSION}
 export KEYCHAIN_NAME=${KEYCHAIN_NAME:-"login.keychain"}
 
 # Load build setup vars
-source ~/.build_setup
 source ~/.zshrc
 
-# Install python deps (invoke, etc.)
+set -x
+echo Reset path for custom homebrew
 
-if [ -d .venv ]; then
-    python3 -m venv .venv
-fi
+# Homebrew
+paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin")
+export PATH=
+for path in "${paths[@]}"; do
+    export PATH="$PATH:$path"
+done
+echo "Initial PATH: $PATH"
+
+# Python
+echo Setting up venv
+python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt -r tasks/requirements.txt
+echo Python version
+python3 --version
+
+# Go
+export GO_VERSION="$(cat .go-version)"
+eval "$(gimme $GO_VERSION)"
+echo "GOROOT: $GOROOT"
+echo "GOPATH: $GOPATH"
+export GOPATH="$GOROOT" # TODO
+export PATH="$PATH:$GOPATH/bin"
+echo Go version should be $GO_VERSION
+go version
+
+# Debug rust
+echo Rust version
+rustup --version || true
+cargo --version || true
+
+echo "Full PATH: $PATH"
+set +x
+
 
 # Clean up previous builds
 # TODO: rm?
