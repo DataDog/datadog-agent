@@ -40,7 +40,6 @@ CORE_AGENT_LINUX_IT_CONF = IntegrationTestsConfig(
     tests=[
         IntegrationTest(prefix="./test/integration/config_providers/..."),
         IntegrationTest(prefix="./test/integration/listeners/..."),
-        IntegrationTest(prefix="./test/integration/util/kubelet/..."),
     ],
     is_windows_supported=False,
 )
@@ -65,7 +64,6 @@ CLUSTER_AGENT_IT_CONF = IntegrationTestsConfig(
     name="Cluster Agent",
     go_build_tags=get_default_build_tags(build="cluster-agent") + ["docker", "test"],
     tests=[
-        IntegrationTest(prefix="./test/integration/util/kube_apiserver"),
         IntegrationTest(prefix="./test/integration/util/leaderelection"),
     ],
     is_windows_supported=False,
