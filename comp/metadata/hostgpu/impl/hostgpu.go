@@ -152,7 +152,7 @@ func (gh *gpuHost) fillData() {
 func (gh *gpuHost) getPayload() marshaler.JSONMarshaler {
 	gh.fillData()
 
-	if gh.data == nil || len(gh.data.Devices) == 0 {
+	if len(gh.data.Devices) == 0 {
 		return nil
 	}
 
