@@ -247,7 +247,7 @@ docker_build_agent7_full_arm64:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-full
-    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-amd64.tar.xz
+    BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent-7*-arm64.tar.xz
 
 # build the cluster-agent image
 docker_build_cluster_agent_amd64:
