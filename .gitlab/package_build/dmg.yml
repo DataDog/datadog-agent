@@ -95,7 +95,7 @@ new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  parallel: 2
+  # parallel: 2
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
@@ -109,13 +109,19 @@ new-agent_dmg-x64-a7:
   #   - brew link --overwrite gettext || true
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
-    - pkgutil --pkg-info=com.apple.pkg.CLTools_Executables || true
-    - xcode-select -p || true
-    - xcode-select --install || true
-    - ls /Library/Developer/CommandLineTools/usr/bin || true
-    - ls /Library/Developer/CommandLineTools/SDKs || true
-    - ls /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.0/usr/bin || true
+    - ls /Applications/Xcode-15.2.0.app/Contents/Developer || true
+    - ls /Applications/Xcode-15.2.0.app/Contents/Developer/CommandLineTools || true
     - exit 1
+
+    # - xcode-select -s || true
+    # # Is /Applications/Xcode-15.2.0.app/Contents/Developer by default
+    # - xcode-select -p || true
+    # - xcode-select --install || true
+    # - ls /Library/Developer/CommandLineTools/usr/bin || true
+    # - ls /Library/Developer/CommandLineTools/SDKs || true
+    # - ls /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.0/usr/bin || true
+    # - exit 1
+
     - |
       if ! [ -f ~/homebrew/bin/brew ] || ! [ -d ~/bin ] || ! [ -f ~/rust/rustup/bin/rustup ] || ! [ -f ~/rust/cargo/bin/cargo ]; then
         echo "WARNING: Homebrew not found, doing setup again"
