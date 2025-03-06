@@ -56,6 +56,24 @@ const (
 	webhookName = "agent_config"
 )
 
+// volumeType represents the type of the volume injected by this webhook
+// It can be either hostpath or csi volume
+type volumeType string
+
+const (
+	hostpathVolume volumeType = "hostpathvolume"
+	csiVolume                 = "csivolume"
+)
+
+// csiInjectionMode defines the mode of the injected csi volume
+// mode can be either 'socket' or 'local'
+type csiInjectionMode string
+
+const (
+	csiModeSocket csiInjectionMode = "socket"
+	csiModeLocal                   = "local"
+)
+
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
 type Webhook struct {
 	name            string
