@@ -19,8 +19,10 @@ import (
 )
 
 const (
-	// DefaultWorkerCount By default most pipelines will only require a single sender worker, as the single worker itself can
-	// concurrently transmit multiple http requests simultaneously. See the min/max worker concurrency settings.
+	// DefaultWorkerCount - By default most pipelines will only require a single sender worker, as the single worker itself can
+	// concurrently transmit multiple http requests simultaneously. This value is not intended to be configurable, but legacy
+	// usages of the sender will set this to their own defaults where necessary. See the BatchMaxConcurrentSends setting for
+	// adjusting the sender concurrency values via config.
 	DefaultWorkerCount = 1
 )
 

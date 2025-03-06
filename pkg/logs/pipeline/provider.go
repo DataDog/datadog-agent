@@ -30,6 +30,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
+const (
+	// maxConcurrencyPerPipeline is used to determine the maxSenderConcurrency value for the default provider creation logic.
+	// We don't want to require users to know enough about our underlying architecture to understand what this value is meant
+	// to do, so it's currently housed in a constant rather than a config entry. Users who wish to influence min/max
+	// SenderConcurrency via config options should utilize the endpoint's BatchMaxConcurrentSends override instead.
+	maxConcurrencyPerPipeline = 10
+)
+
 // Provider provides message channels
 type Provider interface {
 	Start()
@@ -85,10 +93,10 @@ func NewProvider(
 	serverless := false
 	workerCount := sender.DefaultWorkerCount
 	minSenderConcurrency := numberOfPipelines
-	maxSenderConcurrency := minSenderConcurrency * 10
+	maxSenderConcurrency := numberOfPipelines * maxConcurrencyPerPipeline
 	if endpoints.BatchMaxConcurrentSend != pkgconfigsetup.DefaultBatchMaxConcurrentSend {
 		log.Infof("TEST: logs sender detected non-default value of BatchMaxConcurrentSends: %d", endpoints.BatchMaxConcurrentSend)
-		minSenderConcurrency = endpoints.BatchMaxConcurrentSend
+		minSenderConcurrency = numberOfPipelines * endpoints.BatchMaxConcurrentSend
 		maxSenderConcurrency = minSenderConcurrency
 	}
 

@@ -83,21 +83,7 @@ func newSenderWorker(
 		maxSenderConcurrency,
 	)
 
-	return &worker{
-		auditor:        auditor,
-		config:         config,
-		inputChan:      inputChan,
-		destinations:   destinations,
-		bufferSize:     bufferSize,
-		senderDoneChan: senderDoneChan,
-		flushWg:        flushWg,
-		done:           make(chan struct{}),
-		finished:       make(chan struct{}),
-
-		// Telemetry
-		pipelineMonitor: pipelineMonitor,
-		utilization:     pipelineMonitor.MakeUtilizationMonitor("sender"),
-	}
+	return newWorkerWithDestinations(config, inputChan, auditor, destinations, bufferSize, senderDoneChan, flushWg, pipelineMonitor)
 }
 
 func newWorkerWithDestinations(
