@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    [BETA] Add support for mounting Datadog CSI Volumes instead of hostpath 
+    volumes in the admission controller config webhook. This applies
+    to mounting Dogstatsd and Tracing UDS sockets onto user applications.
+    This requires datadog CSI driver to be installed and running on the cluster. 
