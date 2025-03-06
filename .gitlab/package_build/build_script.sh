@@ -1,30 +1,41 @@
 #!/bin/bash -e
 
+export XCODE_VERSION=15.2
+export XCODE_FULL_VERSION=15.2.0
 
 setup_xcode()
 {
-    echo "=== Setup XCode ==="
-    # TODO: 15.2 not 14.2
-    # TODO: Verify utility
-    sudo xcodes select 14.2
-    sudo xcodebuild -license accept
-    sudo xcodebuild -runFirstLaunch
-    # sudo xcodes runtimes install 14.2 || true
-    echo "=== Ls SDKs ==="
-    ls /Library/Developer/CommandLineTools/SDKs || true
-    echo "=== Ls SDKs 14.2 ==="
-    ls /Library/Developer/CommandLineTools/SDKs/MacOSX14.2.sdk || true
-    echo "=== SDK settings ==="
-    cat /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/SDKSettings.json || true
-    echo "=== Path ==="
-    # TODO: Is /Applications/Xcode-15.2.0.app/Contents/Developer
-    find "$(xcode-select -p)" || true
-    xcode-select -p || true
-    ls "$(xcode-select -p)" || true
-    echo "=== Some other debug ==="
-    echo Trying install
-    xcode-select --install || true
-    echo END DEBUG
+    (
+        cd ~
+        echo "=== Setup XCode ==="
+
+        aws s3 cp "s3://binaries.ddbuild.io/macos/xcode/Xcode_${XCODE_VERSION}.xip" "Xcode_${XCODE_VERSION}.xip"
+        xcodes install "${XCODE_VERSION}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${XCODE_VERSION}.xip"
+
+        # TODO: Verify utility
+        sudo xcodes select $XCODE_VERSION
+        sudo xcodebuild -license accept
+        sudo xcodebuild -runFirstLaunch
+
+        # sudo xcodes runtimes install $XCODE_VERSION || true
+        echo "=== Ls SDKs ==="
+        ls /Library/Developer/CommandLineTools/SDKs || true
+        echo "=== Ls SDKs $XCODE_VERSION ==="
+        ls /Library/Developer/CommandLineTools/SDKs/MacOSX$XCODE_VERSION.sdk || true
+        echo "=== SDK settings ==="
+        cat /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/SDKSettings.json || true
+        echo "=== Path ==="
+        # TODO: Is /Applications/Xcode-15.2.0.app/Contents/Developer
+        # TODO A: Add this to path
+        find "$(xcode-select -p)" || true
+        xcode-select -p || true
+        ls "$(xcode-select -p)" || true
+        # echo "=== Some other debug ==="
+        # echo Trying install
+        # xcode-select --install || true
+        echo END DEBUG
+
+    )
 }
 
 # TODO A: Remove, this is from the runner
@@ -246,7 +257,7 @@ set -x
 echo Reset path for custom homebrew
 
 # Homebrew
-paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin")
+paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/CommandLineTools/usr/bin")
 export PATH=
 for path in "${paths[@]}"; do
     export PATH="$PATH:$path"
@@ -282,6 +293,10 @@ cargo --version || true
 # sudo xcodes select 14.2
 
 setup_xcode
+
+ls "/Applications/Xcode-15.2.0.app/Contents/Developer"
+ls "/Applications/Xcode-15.2.0.app/Contents/Developer/CommandLineTools"
+ls "/Applications/Xcode-15.2.0.app/Contents/Developer/CommandLineTools/usr/bin"
 
 echo "Full PATH: $PATH"
 set +x
