@@ -418,7 +418,7 @@ func assertAPIKey(collect *assert.CollectT, apiKey string, agentClient agentclie
 		assert.Equal(collect, key[0], apiKey[len(apiKey)-5:])
 	}
 
-	// Assert that the last recieved payload has the correct API key
+	// Assert that the last received payload has the correct API key
 	lastAPIKey, err := fakeIntakeClient.GetLastProcessPayloadAPIKey()
 	require.NoError(collect, err)
 	assert.Equal(collect, apiKey, lastAPIKey)
