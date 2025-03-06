@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -333,8 +334,6 @@ func run(
 
 	result := apiTypes.CheckResponse{}
 
-	fmt.Println(string(r))
-
 	marshalErr := json.Unmarshal(r, &result)
 
 	if marshalErr != nil {
@@ -454,11 +453,11 @@ func run(
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			// workaround for this one use case of the status component
-			// we want to render the collector text format with custom data
-			checkInformation := checkTemplate(c)
-
-			p(checkInformation)
+			if c.LongRunning {
+				p(longRunningCheckTemplate(c))
+			} else {
+				p(checkTemplate(c))
+			}
 
 			p("  Metadata\n  ========")
 
@@ -516,12 +515,15 @@ Configuration Source: %s
 Total Runs: %s
 Metric Samples: Last Run: %s, Total: %s
 Events: Last Run: %s, Total: %s
+%s
 Service Checks: Last Run: %s, Total: %s
 Histogram Buckets: Last Run: %s, Total: %s
 Average Execution Time :%s
 Last Execution Date : %s
 Last Successful Execution Date : %s
-Cancelling: %b
+Cancelling: %t
+%s
+%s
 `
 
 func checkTemplate(c *stats.Stats) string {
@@ -531,13 +533,37 @@ func checkTemplate(c *stats.Stats) string {
 		name = fmt.Sprintf("%s (%s)", name, c.CheckVersion)
 	}
 
-	averageExcution, _ := time.ParseDuration(fmt.Sprintf("%fms", c.AverageExecutionTime))
-	// TODO
-	// {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+	averageExcution, _ := time.ParseDuration(fmt.Sprintf("%dms", c.AverageExecutionTime))
+
 	lastSuccesfulExecution := "Never"
-	// TODO
-	// {{formatUnixTime .UpdateTimestamp}}
-	lastExcutionDate := ""
+	if c.LastSuccessDate > 0 {
+		lastSuccesfulExecution = formatUnixTime(c.LastSuccessDate)
+	}
+
+	lastExcutionDate := formatUnixTime(c.UpdateTimestamp)
+	var eventPlatformEvents string
+	for instance, value := range c.TotalEventPlatformEvents {
+		eventPlatformEvents += fmt.Sprintf("%s: Last Run: %s, Total: %s\n", instance, humanize.Commaf(float64(c.EventPlatformEvents[instance])), humanize.Commaf(float64(value)))
+	}
+
+	var errorString string
+
+	if c.LastError != "" {
+		var lastErrorArray []map[string]string
+		err := json.Unmarshal([]byte(c.LastError), &lastErrorArray)
+		if err != nil {
+			errorString = fmt.Sprintf("Error: %s\n", lastErrorArray[0]["message"])
+			errorString += lastErrorArray[0]["traceback"]
+		}
+	}
+
+	var warningString string
+
+	if len(c.LastWarnings) > 0 {
+		for _, warning := range c.LastWarnings {
+			warningString += fmt.Sprintf("Warning: %s\n", warning)
+		}
+	}
 
 	return fmt.Sprintf(
 		checksTemplate,
@@ -551,6 +577,7 @@ func checkTemplate(c *stats.Stats) string {
 		humanize.Commaf(float64(c.TotalMetricSamples)),
 		humanize.Commaf(float64(c.Events)),
 		humanize.Commaf(float64(c.TotalEvents)),
+		eventPlatformEvents,
 		humanize.Commaf(float64(c.ServiceChecks)),
 		humanize.Commaf(float64(c.TotalServiceChecks)),
 		humanize.Commaf(float64(c.HistogramBuckets)),
@@ -559,6 +586,72 @@ func checkTemplate(c *stats.Stats) string {
 		lastExcutionDate,
 		lastSuccesfulExecution,
 		c.Cancelling,
+		errorString,
+		warningString,
+	)
+}
+
+var longRunningChecksTemplate = `
+%s
+%s
+
+Instance ID: %s %s
+Long Running Check: true
+Configuration Source: %s
+Total Metric Samples: %s
+Total Events: %s
+%s
+Total Service Checks: %s
+Total Histogram Buckets: %s
+%s
+%s
+`
+
+func longRunningCheckTemplate(c *stats.Stats) string {
+	name := c.CheckName
+
+	if c.CheckVersion != "" {
+		name = fmt.Sprintf("%s (%s)", name, c.CheckVersion)
+	}
+
+	var eventPlatformEvents string
+	for instance, value := range c.TotalEventPlatformEvents {
+		eventPlatformEvents += fmt.Sprintf("Total %s: %s\n", instance, humanize.Commaf(float64(value)))
+	}
+
+	var errorString string
+
+	if c.LastError != "" {
+		var lastErrorArray []map[string]string
+		err := json.Unmarshal([]byte(c.LastError), &lastErrorArray)
+		if err != nil {
+			errorString = fmt.Sprintf("Error: %s\n", lastErrorArray[0]["message"])
+			errorString += lastErrorArray[0]["traceback"]
+		}
+	}
+
+	var warningString string
+
+	if len(c.LastWarnings) > 0 {
+		for _, warning := range c.LastWarnings {
+			warningString += fmt.Sprintf("Warning: %s\n", warning)
+		}
+	}
+
+	return fmt.Sprintf(
+		longRunningChecksTemplate,
+		name,
+		strings.Repeat("-", len(name)),
+		c.CheckID,
+		status(c),
+		c.CheckConfigSource,
+		humanize.Commaf(float64(c.TotalMetricSamples)),
+		humanize.Commaf(float64(c.TotalEvents)),
+		eventPlatformEvents,
+		humanize.Commaf(float64(c.TotalServiceChecks)),
+		humanize.Commaf(float64(c.TotalHistogramBuckets)),
+		errorString,
+		warningString,
 	)
 }
 
@@ -570,6 +663,27 @@ func status(c *stats.Stats) string {
 		return fmt.Sprintf("[%s]", color.YellowString("WARNING"))
 	}
 	return fmt.Sprintf("[%s]", color.GreenString("OK"))
+}
+
+const timeFormat = "2006-01-02 15:04:05.999 MST"
+
+// formatUnixTime formats the unix time to make it more readable
+func formatUnixTime(rawUnixTime int64) string {
+	t := time.Unix(0, rawUnixTime)
+	// If year returned 1970, assume unixTime actually in seconds
+	if t.Year() == time.Unix(0, 0).Year() {
+		t = time.Unix(rawUnixTime, 0)
+	}
+
+	_, tzoffset := t.Zone()
+	result := t.Format(timeFormat)
+	if tzoffset != 0 {
+		result += " / " + t.UTC().Format(timeFormat)
+	}
+	msec := t.UnixNano() / int64(time.Millisecond)
+	result += " (" + strconv.Itoa(int(msec)) + ")"
+
+	return result
 }
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
@@ -590,10 +704,6 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	} else {
 		fmt.Println("check written to:", flarePath)
 	}
-}
-
-func checkInventory() map[string]interface{} {
-	return nil
 }
 
 func singleCheckRun(cliParams *cliParams) bool {
