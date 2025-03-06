@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -40,14 +41,16 @@ type CRDCollector struct {
 func NewCRDCollector() *CRDCollector {
 	return &CRDCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsManifestProducer:        true,
-			IsMetadataProducer:        false,
-			SupportsManifestBuffering: false,
-			Name:                      crdName,
-			NodeType:                  orchestrator.K8sCRD,
-			Version:                   crdVersion,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsManifestProducer:                   true,
+			IsMetadataProducer:                   false,
+			SupportsManifestBuffering:            false,
+			Name:                                 crdName,
+			Kind:                                 kubernetes.CustomResourceDefinitionKind,
+			NodeType:                             orchestrator.K8sCRD,
+			Version:                              crdVersion,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CRDHandlers)),
 	}

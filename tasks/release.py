@@ -116,7 +116,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
         verify: Checks for correctness on the Agent Version (on by default).
 
     Examples:
-        $ inv -e release.update-modules 7.27.x
+        $ dda inv -e release.update-modules 7.27.x
     """
 
     assert release_branch or version
@@ -187,9 +187,9 @@ def tag_modules(
         devel: Will create -devel tags (used after creation of the release branch).
 
     Examples:
-        $ inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
-        $ inv -e release.tag-modules 7.27.x --no-push       # Create tags locally; don't push them
-        $ inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ dda inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
+        $ dda inv -e release.tag-modules 7.27.x --no-push       # Create tags locally; don't push them
+        $ dda inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
@@ -238,9 +238,9 @@ def tag_version(
         start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag
 
     Examples:
-        $ inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
-        $ inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
-        $ inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ dda inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
+        $ dda inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
+        $ dda inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
@@ -391,11 +391,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
     If the previous version of the Agent was an RC, updates the release entries for RC + 1.
 
     Examples:
-        If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+        If the latest tag on the branch is 7.31.0, and dda inv release.create-rc --patch-version
         is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
         will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
 
-        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
+        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and dda inv release.create-rc
         is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
         will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
@@ -435,7 +435,10 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         check_clean_branch_state(ctx, github, update_branch)
         active_releases = [branch.name for branch in github.latest_unreleased_release_branches()]
-        if not any(check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases):
+        # Bypass if we want to cut a patch release, in that case the branch is not considered "active"
+        if not patch_version and not any(
+            check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases
+        ):
             raise Exit(
                 color_message(
                     f"The branch you are on is neither {get_default_branch()} or amongst the active release branches ({active_releases}). Aborting.",
@@ -989,7 +992,7 @@ def update_build_links(_, new_version, patch_version=False):
     if username is None or password is None:
         raise Exit(
             color_message(
-                "No Atlassian credentials provided. Run inv --help update-build-links for more details.",
+                "No Atlassian credentials provided. Run dda inv --help update-build-links for more details.",
                 "red",
             ),
             code=1,
@@ -1424,7 +1427,12 @@ def bump_integrations_core(ctx, slack_webhook=None):
     current.devel = False
     current.patch = 0
     pr_url = create_datadog_agent_pr(
-        commit_message, main_branch, bump_integrations_core_branch, str(current), body=github_workflow_url
+        commit_message,
+        main_branch,
+        bump_integrations_core_branch,
+        str(current),
+        body=github_workflow_url,
+        other_labels=["team/integrations"],
     )
 
     if slack_webhook:

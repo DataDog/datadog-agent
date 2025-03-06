@@ -534,7 +534,7 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
 	// from the given lang.
-	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string)
+	ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string)
 }
 
 // handleStats handles incoming stats payloads.
@@ -562,11 +562,12 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
-	// Resolve ContainerID baased on HTTP headers
+	// Resolve ContainerID based on HTTP headers
 	lang := req.Header.Get(header.Lang)
 	tracerVersion := req.Header.Get(header.TracerVersion)
+	obfuscationVersion := req.Header.Get(header.TracerObfuscationVersion)
 	containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
-	r.statsProcessor.ProcessStats(in, lang, tracerVersion, containerID)
+	r.statsProcessor.ProcessStats(in, lang, tracerVersion, containerID, obfuscationVersion)
 }
 
 // handleTraces knows how to handle a bunch of traces
@@ -580,12 +581,19 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	select {
 	// Wait for the semaphore to become available, allowing the handler to
 	// decode its payload.
-	// Afer the configured timeout, respond without ingesting the payload,
+	// After the configured timeout, respond without ingesting the payload,
 	// and sending the configured status.
 	case r.recvsem <- struct{}{}:
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
+		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
 		// this payload can not be accepted
 		io.Copy(io.Discard, req.Body) //nolint:errcheck
+		switch v {
+		case v01, v02, v03:
+			// do nothing
+		default:
+			w.Header().Set("Content-Type", "application/json")
+		}
 		if isHeaderTrue(header.SendRealHTTPStatus, req.Header.Get(header.SendRealHTTPStatus)) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		} else {

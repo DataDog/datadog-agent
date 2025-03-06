@@ -8,5 +8,6 @@ invoke_unit_tests:
   rules:
     - !reference [.on_invoke_tasks_changes]
   script:
-    - python3 -m pip install -r tasks/libs/requirements-github.txt --break-system-packages
-    - inv -e invoke-unit-tests.run
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    - python3 -m dda self dep sync -f legacy-tasks
+    - dda inv -e invoke-unit-tests.run

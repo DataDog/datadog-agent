@@ -29,7 +29,6 @@ func (lp *LifecycleProcessor) initFromAPIGatewayEvent(event events.APIGatewayPro
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayRESTEvent(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, apiGateway)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAPIGatewayEventARN(event, region))
 	lp.addTags(trigger.GetTagsFromAPIGatewayEvent(event))
@@ -40,7 +39,6 @@ func (lp *LifecycleProcessor) initFromAPIGatewayV2Event(event events.APIGatewayV
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayHTTPEvent(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, apiGateway)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAPIGatewayV2EventARN(event, region))
 	lp.addTags(trigger.GetTagsFromAPIGatewayV2HTTPRequest(event))
@@ -51,34 +49,29 @@ func (lp *LifecycleProcessor) initFromAPIGatewayWebsocketEvent(event events.APIG
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayWebsocketEvent(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, apiGateway)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAPIGatewayWebSocketEventARN(event, region))
 }
 
 func (lp *LifecycleProcessor) initFromAPIGatewayLambdaAuthorizerTokenEvent(event events.APIGatewayCustomAuthorizerRequest) {
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, apiGateway)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAPIGatewayCustomAuthorizerEventARN(event))
 	lp.addTags(trigger.GetTagsFromAPIGatewayCustomAuthorizerEvent(event))
 }
 
 func (lp *LifecycleProcessor) initFromAPIGatewayLambdaAuthorizerRequestParametersEvent(event events.APIGatewayCustomAuthorizerRequestTypeRequest) {
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, apiGateway)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event))
 	lp.addTags(trigger.GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event))
 }
 
 func (lp *LifecycleProcessor) initFromALBEvent(event events.ALBTargetGroupRequest) {
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, applicationLoadBalancer)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAlbEventARN(event))
 	lp.addTags(trigger.GetTagsFromALBTargetGroupRequest(event))
 }
 
 func (lp *LifecycleProcessor) initFromCloudWatchEvent(event events.CloudWatchEvent) {
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, cloudwatchEvents)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractCloudwatchEventARN(event))
 }
@@ -90,7 +83,6 @@ func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event events.Cloudwatc
 		return
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, cloudwatchLogs)
 	lp.addTag(tagFunctionTriggerEventSourceArn, arn)
 }
@@ -100,7 +92,6 @@ func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBE
 		lp.GetInferredSpan().EnrichInferredSpanWithDynamoDBEvent(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, dynamoDB)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractDynamoDBStreamEventARN(event))
 }
@@ -110,7 +101,6 @@ func (lp *LifecycleProcessor) initFromEventBridgeEvent(event events.EventBridgeE
 		lp.GetInferredSpan().EnrichInferredSpanWithEventBridgeEvent(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, eventBridge)
 	lp.addTag(tagFunctionTriggerEventSourceArn, event.Source)
 }
@@ -120,7 +110,6 @@ func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEve
 		lp.GetInferredSpan().EnrichInferredSpanWithKinesisEvent(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, kinesis)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractKinesisStreamEventARN(event))
 }
@@ -130,7 +119,6 @@ func (lp *LifecycleProcessor) initFromS3Event(event events.S3Event) {
 		lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, s3)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractS3EventArn(event))
 }
@@ -140,7 +128,6 @@ func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
 		lp.GetInferredSpan().EnrichInferredSpanWithSNSEvent(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, sns)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractSNSEventArn(event))
 
@@ -158,7 +145,6 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 		lp.GetInferredSpan().EnrichInferredSpanWithSQSEvent(event)
 	}
 
-	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, sqs)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractSQSEventARN(event))
 
@@ -212,15 +198,10 @@ func (lp *LifecycleProcessor) createWrappedEventBridgeSpan(eventBridgeEvent even
 }
 
 func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest, region string, accountID string, functionName string) {
-	lp.requestHandler.event = event
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithLambdaFunctionURLEvent(event)
 	}
 	lp.addTag(tagFunctionTriggerEventSource, functionURL)
 	lp.addTag(tagFunctionTriggerEventSourceArn, fmt.Sprintf("arn:aws:lambda:%v:%v:url:%v", region, accountID, functionName))
 	lp.addTags(trigger.GetTagsFromLambdaFunctionURLRequest(event))
-}
-
-func (lp *LifecycleProcessor) initFromStepFunctionPayload(event events.StepFunctionPayload) {
-	lp.requestHandler.event = event
 }

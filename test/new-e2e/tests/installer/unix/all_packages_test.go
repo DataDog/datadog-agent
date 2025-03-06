@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -35,7 +36,7 @@ type packageTestsWithSkippedFlavors struct {
 
 var (
 	amd64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2204,
+		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
@@ -44,7 +45,7 @@ var (
 		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		e2eos.Ubuntu2204,
+		e2eos.Ubuntu2404,
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
@@ -75,6 +76,8 @@ func shouldSkipInstallMethod(methods []InstallMethodOption, method InstallMethod
 }
 
 func TestPackages(t *testing.T) {
+	// INCIDENT(35594): This will match rate limits. Please remove me once this is fixed
+	flake.MarkOnLog(t, "error: read \"\\.pulumi/meta.yaml\":.*429")
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 		t.FailNow()

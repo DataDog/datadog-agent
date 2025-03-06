@@ -336,7 +336,22 @@ enum SYSCALL_STATE __attribute__((always_inline)) bpf_approvers(struct syscall_c
     return DISCARDED;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
+enum SYSCALL_STATE __attribute__((always_inline)) sysctl_approvers(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    struct u32_flags_filter_t *filter = bpf_map_lookup_elem(&sysctl_action_approvers, &key);
+    if (filter == NULL || !filter->is_set) {
+        return DISCARDED;
+    }
+
+    if ((syscall->sysctl.action & filter->flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+        return APPROVED;
+    }
+
+    return DISCARDED;
+}
+
+enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
     if (syscall->policy.mode == NO_FILTER) {
         return syscall->state = ACCEPTED;
     }
@@ -349,7 +364,6 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall
         syscall->state = check_approvers(syscall);
     }
 
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
     u64 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
     if (cookie != NULL) {
         u64 now = bpf_ktime_get_ns();
@@ -368,6 +382,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall
     }
 
     return syscall->state;
+}
+
+enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall(struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {
+    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    return approve_syscall_with_tgid(tgid, syscall, check_approvers);
 }
 
 #endif

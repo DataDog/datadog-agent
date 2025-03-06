@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -48,7 +49,6 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
-	localRecommender := local.NewRecommender(podWatcher, store)
 
 	_, err := workload.NewConfigRetriever(store, isLeaderFunc, rcClient)
 	if err != nil {
@@ -76,7 +76,12 @@ func StartWorkloadAutoscaling(
 	// TODO: Wait POD Watcher sync before running the controller
 	go podWatcher.Run(ctx)
 	go controller.Run(ctx)
-	go localRecommender.Run(ctx)
+
+	// Only start the local recommender if failover metrics collection is enabled
+	if pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {
+		localRecommender := local.NewRecommender(podWatcher, store)
+		go localRecommender.Run(ctx)
+	}
 
 	return podPatcher, nil
 }
