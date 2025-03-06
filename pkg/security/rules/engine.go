@@ -380,7 +380,12 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
 	var seclVariables = make(map[string]*api.SECLVariableState)
 	for name, value := range rs.GetVariables() {
-		if strings.HasPrefix(name, "process.") {
+		var scope string
+		parts := strings.Split(name, ".")
+		if len(parts) > 0 {
+			scope = parts[0]
+		}
+		if scope == "process" {
 			scopedVariable := value.(eval.ScopedVariable)
 			if !scopedVariable.IsMutable() {
 				continue
@@ -405,7 +410,7 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 					Value: scopedValue,
 				}
 			})
-		} else if strings.HasPrefix(name, "container.") || strings.HasPrefix(name, "cgroup.") {
+		} else if scope == "container" || scope == "cgroup" {
 			continue
 		} else { // global variables
 			value, found := value.(eval.Variable).GetValue()
