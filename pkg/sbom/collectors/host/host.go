@@ -9,13 +9,10 @@ package host
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
@@ -48,13 +45,10 @@ func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.
 
 // Scan performs a scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	hostScanRequest, ok := request.(scanRequest)
-	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.HostCollector)}
-	}
-	log.Infof("host scan request [%v]", hostScanRequest.ID())
+	path := request.ID() // for host request, ID == path
+	log.Infof("host scan request [%v]", path)
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, c.opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, path, c.opts)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,

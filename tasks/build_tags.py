@@ -17,6 +17,7 @@ from tasks.flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
+    "bundle_installer",
     "clusterchecks",
     "consul",
     "containerd",
@@ -32,6 +33,7 @@ ALL_TAGS = {
     "etcd",
     "fargateprocess",
     "goexperiment.systemcrypto",  # used for FIPS mode
+    "grpcnotrace",  # used to disable gRPC tracing
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -63,6 +65,7 @@ ALL_TAGS = {
 
 # AGENT_TAGS lists the tags needed when building the agent.
 AGENT_TAGS = {
+    "bundle_installer",
     "consul",
     "containerd",
     "no_dynamic_plugins",
@@ -92,6 +95,7 @@ AGENT_TAGS = {
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     {
+        "bundle_installer",
         "containerd",
         "no_dynamic_plugins",
         "cri",
@@ -163,13 +167,21 @@ SECURITY_AGENT_TAGS = {
     "ec2",
 }
 
+# SBOMGEN_TAGS lists the tags necessary to build sbomgen
+SBOMGEN_TAGS = {
+    "trivy",
+    "grpcnotrace",
+    "containerd",
+    "docker",
+    "crio",
+}
+
 # SERVERLESS_TAGS lists the tags necessary to build serverless
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
-    "no_dynamic_plugins",
     "ec2",
     "linux_bpf",
     "netcgo",
@@ -244,6 +256,7 @@ build_tags = {
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
+        "sbomgen": SBOMGEN_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),

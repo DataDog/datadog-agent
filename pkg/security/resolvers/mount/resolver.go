@@ -176,31 +176,35 @@ func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 func (mr *Resolver) delete(mount *model.Mount) {
 	now := time.Now()
 
-	openQueue := make([]*model.Mount, 0, len(mr.mounts))
-	openQueue = append(openQueue, mount)
+	mr.deleteOne(mount, now)
+
+	openQueue := make([]uint32, 0, len(mr.mounts))
+	openQueue = append(openQueue, mount.MountID)
 
 	for len(openQueue) != 0 {
 		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
 		openQueue = rest
 
-		delete(mr.mounts, curr.MountID)
-
-		entry := redemptionEntry{
-			mount:      curr,
-			insertedAt: now,
-		}
-		mr.redemption.Add(curr.MountID, &entry)
-
 		for _, child := range mr.mounts {
-			if child.ParentPathKey.MountID == curr.MountID {
-				openQueue = append(openQueue, child)
+			if child.ParentPathKey.MountID == curr {
+				openQueue = append(openQueue, child.MountID)
+				mr.deleteOne(child, now)
 			}
 		}
-
-		for _, mounts := range mr.pidToMounts {
-			delete(mounts, mount.MountID)
-		}
 	}
+}
+
+func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
+	delete(mr.mounts, curr.MountID)
+	for _, mounts := range mr.pidToMounts {
+		delete(mounts, curr.MountID)
+	}
+
+	entry := redemptionEntry{
+		mount:      curr,
+		insertedAt: now,
+	}
+	mr.redemption.Add(curr.MountID, &entry)
 }
 
 func (mr *Resolver) finalize(mount *model.Mount) {

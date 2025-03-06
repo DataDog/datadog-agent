@@ -311,7 +311,7 @@ func (a *etwtracerimpl) start(_ context.Context) error {
 			if err != nil {
 				// net.ErrClosed is returned when pipeListener is Close()'d
 				if err != net.ErrClosed {
-					a.log.Warnf("Could not accept new client:", err)
+					a.log.Warn("Could not accept new client:", err)
 				}
 				return
 			}

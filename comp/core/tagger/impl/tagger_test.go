@@ -484,7 +484,6 @@ func TestGlobalTags(t *testing.T) {
 }
 
 func TestTaggerCardinality(t *testing.T) {
-	fakeTagger := TaggerWrapper{}
 	tests := []struct {
 		name        string
 		cardinality string
@@ -513,46 +512,40 @@ func TestTaggerCardinality(t *testing.T) {
 		{
 			name:        "empty",
 			cardinality: "",
-			want:        fakeTagger.DogstatsdCardinality(),
+			want:        types.LowCardinality,
 		},
 		{
 			name:        "unknown",
 			cardinality: "foo",
-			want:        fakeTagger.DogstatsdCardinality(),
+			want:        types.LowCardinality,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := logmock.New(t)
-			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, fakeTagger.DogstatsdCardinality(), l))
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, types.LowCardinality, l))
 		})
 	}
 }
 
 func TestDefaultCardinality(t *testing.T) {
-
 	for _, tt := range []struct {
-		name                     string
-		wantChecksCardinality    types.TagCardinality
-		wantDogstatsdCardinality types.TagCardinality
-		setup                    func(cfg config.Component)
+		name                  string
+		wantChecksCardinality types.TagCardinality
+		setup                 func(cfg config.Component)
 	}{
 		{
-			name:                     "successful parse config values, use config",
-			wantChecksCardinality:    types.HighCardinality,
-			wantDogstatsdCardinality: types.OrchestratorCardinality,
+			name:                  "successful parse config values, use config",
+			wantChecksCardinality: types.HighCardinality,
 			setup: func(cfg config.Component) {
 				cfg.SetWithoutSource("checks_tag_cardinality", types.HighCardinalityString)
-				cfg.SetWithoutSource("dogstatsd_tag_cardinality", types.OrchestratorCardinalityString)
 			},
 		},
 		{
-			name:                     "fail parse config values, use default",
-			wantChecksCardinality:    types.LowCardinality,
-			wantDogstatsdCardinality: types.LowCardinality,
+			name:                  "fail parse config values, use default",
+			wantChecksCardinality: types.LowCardinality,
 			setup: func(cfg config.Component) {
 				cfg.SetWithoutSource("checks_tag_cardinality", "foo")
-				cfg.SetWithoutSource("dogstatsd_tag_cardinality", "foo")
 			},
 		},
 	} {
@@ -573,7 +566,6 @@ func TestDefaultCardinality(t *testing.T) {
 			tagger, err := NewTaggerClient(params, cfg, wmeta, logComponent, noopTelemetry.GetCompatComponent())
 			assert.NoError(t, err)
 
-			assert.Equal(t, tt.wantDogstatsdCardinality, tagger.DogstatsdCardinality())
 			assert.Equal(t, tt.wantChecksCardinality, tagger.ChecksCardinality())
 		})
 	}

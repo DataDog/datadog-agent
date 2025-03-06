@@ -142,3 +142,8 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	}
 	return c.inner.GetDiagnoses()
 }
+
+// IsHASupported implements Check#IsHASupported
+func (c *CheckWrapper) IsHASupported() bool {
+	return c.inner.IsHASupported()
+}

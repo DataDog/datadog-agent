@@ -24,12 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -70,7 +70,7 @@ type Daemon interface {
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
 	GetPackage(pkg string, version string) (Package, error)
-	GetState() (map[string]PackageState, error)
+	GetState(ctx context.Context) (map[string]PackageState, error)
 	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
@@ -114,7 +114,6 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
-		RemotePolicies:       config.GetBool("remote_policies"),
 		Mirror:               config.GetString("installer.mirror"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
@@ -126,6 +125,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		HTTPSProxy:           config.GetString("proxy.https"),
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 		IsCentos6:            env.DetectCentos6(),
+		IsFromDaemon:         true,
 	}
 	installer := newInstaller(installerBin)
 	return newDaemon(rc, installer, env), nil
@@ -148,21 +148,19 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 }
 
 // GetState returns the state.
-func (d *daemonImpl) GetState() (map[string]PackageState, error) {
+func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	states, err := d.installer(d.env).States()
+	states, err := d.installer(d.env).States(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var configStates map[string]repository.State
-	if d.env.RemotePolicies {
-		configStates, err = d.installer(d.env).ConfigStates()
-		if err != nil {
-			return nil, err
-		}
+	configStates, err = d.installer(d.env).ConfigStates(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	res := make(map[string]PackageState)
@@ -228,6 +226,10 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
+	return d.getPackage(pkg, version)
+}
+
+func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 	catalog := d.catalog
 	if len(d.catalogOverride.Packages) > 0 {
 		catalog = d.catalogOverride
@@ -556,7 +558,7 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			newEnv.InstallScript.APMInstrumentationEnabled = params.ApmInstrumentation
 		}
 
-		pkg, err := d.GetPackage(request.Package, params.Version)
+		pkg, err := d.getPackage(request.Package, params.Version)
 		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrPackageNotFound,
@@ -630,12 +632,12 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 		return nil
 	}
 
-	s, err := d.installer(d.env).State(request.Package)
+	s, err := d.installer(d.env).State(ctx, request.Package)
 	if err != nil {
 		return fmt.Errorf("could not get installer state: %w", err)
 	}
 
-	c, err := d.installer(d.env).ConfigState(request.Package)
+	c, err := d.installer(d.env).ConfigState(ctx, request.Package)
 	if err != nil {
 		return fmt.Errorf("could not get installer config state: %w", err)
 	}
@@ -699,13 +701,13 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	if ok {
 		d.requestsState[request.Package] = *request
 	}
-	state, err := d.installer(d.env).States()
+	state, err := d.installer(d.env).States(ctx)
 	if err != nil {
 		// TODO: we should report this error through RC in some way
 		log.Errorf("could not get installer state: %v", err)
 		return
 	}
-	configState, err := d.installer(d.env).ConfigStates()
+	configState, err := d.installer(d.env).ConfigStates(ctx)
 	if err != nil {
 		log.Errorf("could not get installer config state: %v", err)
 		return
