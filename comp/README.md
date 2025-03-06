@@ -297,8 +297,6 @@ Package agent contains logs agent component.
 
 ### [comp/logs/auditor](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/auditor)
 
-*Datadog Team*: agent-metrics-logs
-
 Package auditor records the log files the agent is tracking. It tracks
 filename, time last updated, offset (how far into the file the agent has
 read), and tailing mode for each log file.
@@ -307,6 +305,10 @@ read), and tailing mode for each log file.
 
 Package integrations adds a go interface for integrations to register and
 send logs.
+
+### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
+
+Package streamlogs is metadata provider for streamlogs
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
@@ -324,6 +326,12 @@ Package haagent implements a component to generate the 'ha_agent_metadata' metad
 ### [comp/metadata/host](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/host)
 
 Package host implements a component to generate the 'host' metadata payload (also known as "v5").
+
+### [comp/metadata/hostgpu](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/hostgpu)
+
+*Datadog Team*: ebpf-platform
+
+Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 
 ### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryagent)
 
@@ -405,7 +413,7 @@ Package npcollector used to manage network paths
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
-*Datadog Team*: opentelemetry opentelemetry-agent
+*Datadog Team*: opentelemetry-agent
 
 Package otelcol contains the OTLP ingest bundle pipeline to be included
 into the agent components.

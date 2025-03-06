@@ -68,6 +68,10 @@ type syncInformerResult struct {
 
 // SyncInformersReturnErrors does the same thing as SyncInformers except it returns a map of InformerName and error
 func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) map[InformerName]error {
+	if len(informers) == 0 {
+		return nil
+	}
+
 	resultChan := make(chan syncInformerResult)
 	errors := make(map[InformerName]error, len(informers))
 	timeoutConfig := pkgconfigsetup.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second

@@ -133,10 +133,6 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
-	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
-	flake.Mark(s.T())
-
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
@@ -144,19 +140,15 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
-	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
-	flake.Mark(s.T())
-
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
 	assertManualProcessDiscoveryCheck(s.T(), check, "MsMpEng.exe")
 }
 
 func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
-	s.T().Skip("skipping due to flakiness")
 	// MsMpEng.exe process missing IO stats, agent process does not always have CPU stats populated as it is restarted multiple times during the test suite run
 	// Investigation & fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3757
+	flake.Mark(s.T())
 
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),

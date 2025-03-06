@@ -18,9 +18,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -44,7 +46,10 @@ func TestOptionalModule(t *testing.T) {
 		"agent_ipc.config_refresh_interval": 1,
 	}
 	comp := fxutil.Test[configsync.Component](t, fx.Options(
-		core.MockBundle(),
+		config.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		telemetryimpl.MockModule(),
 		fetchonlyimpl.Module(),
 		Module(Params{}),
 		fx.Populate(&cfg),
