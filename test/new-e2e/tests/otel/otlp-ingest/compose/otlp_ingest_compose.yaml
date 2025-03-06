@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  agent:
+    container_name: datadog-agent
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+  calendar:
+    container_name: calendar
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: curl --fail http://localhost:9090/calendar || exit 1
+      interval: 10s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      agent:
+        condition: service_healthy
+    image: ghcr.io/datadog/apps-calendar-go:main
+    environment:
+      OTEL_SERVICE_NAME: calendar-rest-go
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://datadog-agent:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=e2e,service.version=1.0,custom.attribute=true
