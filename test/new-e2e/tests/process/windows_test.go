@@ -122,6 +122,9 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
 	))
 
+	// Flush fake intake to remove payloads that won't have IO stats
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
 	}, 1*time.Minute, 5*time.Second)
