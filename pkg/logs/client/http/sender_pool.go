@@ -96,7 +96,6 @@ func (l *senderPool) Run(doWork func() destinationResult) {
 			l.shouldBackoff = l.shouldBackoff || ok
 			return
 		}
-		log.Infof("TEST: Recording latency %d", result.latency)
 
 		l.windowSum += float64(result.latency)
 		l.samples++
@@ -112,9 +111,9 @@ func (l *senderPool) resize() {
 	if l.maxWorkers == l.minWorkers {
 		return
 	}
+
 	if time.Since(l.virtualLatencyLastSample) >= l.ewmaSampleInterval {
 		l.Lock()
-		log.Infof("TEST: Checking for resize: %d", l.samples)
 		windowSum := l.windowSum
 		samples := l.samples
 		l.windowSum = 0
@@ -127,14 +126,12 @@ func (l *senderPool) resize() {
 			avgLatency := windowSum / float64(samples)
 			l.virtualLatency = time.Duration(float64(l.virtualLatency)*(1.0-ewmaAlpha) + (avgLatency * ewmaAlpha))
 			l.virtualLatencyLastSample = time.Now()
-			log.Infof("TEST: adjusted latency by %v", avgLatency)
-			log.Infof("TEST: virtual latency = %v", l.virtualLatency)
 		}
 
 		targetWorkers := int(math.Ceil(float64(l.virtualLatency) / float64(l.targetVirtualLatency)))
-		log.Infof("TEST: target workers = %d", targetWorkers)
 
 		if shouldBackoff {
+			log.Debugf("Backing off sender pool workers in response to transient connection issues with destination.")
 			// Backoff quickly on sender error
 			workersToDrop := l.inUseWorkers - l.minWorkers
 			for i := 0; i < workersToDrop; i++ {
@@ -153,6 +150,6 @@ func (l *senderPool) resize() {
 
 		metrics.TlmNumWorkers.Set(float64(l.inUseWorkers), l.destMeta.TelemetryName())
 		metrics.TlmVirtualLatency.Set(float64(l.virtualLatency/time.Millisecond), l.destMeta.TelemetryName())
-		log.Infof("TEST: worker count at {%d} after resize", l.inUseWorkers)
+		log.Debugf("Pool worker count at {%d} after resize", l.inUseWorkers)
 	}
 }
