@@ -6,14 +6,36 @@
 // Package types provides types for the API package
 package types
 
-import "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+import (
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+)
+
+// EventPlatformEvent represents an event from the event platform
+type EventPlatformEvent struct {
+	RawEvent          string `json:",omitempty"`
+	EventType         string
+	UnmarshalledEvent map[string]interface{} `json:",omitempty"`
+}
+
+// AggregatorData represents the data from the aggregator
+type AggregatorData struct {
+	Series              metrics.Series                  `json:"series"`
+	SketchSeries        []*metrics.SketchSeries         `json:"sketch_series"`
+	ServiceCheck        servicecheck.ServiceChecks      `json:"service_check"`
+	Events              event.Events                    `json:"events"`
+	EventPlatformEvents map[string][]EventPlatformEvent `json:"event_platform_events"`
+}
 
 // CheckResponse represents the response of a check
 type CheckResponse struct {
-	Results  []*stats.Stats                    `json:"results"`
-	Errors   []string                          `json:"errors"`
-	Warnings []string                          `json:"warnings"`
-	Metadata map[string]map[string]interface{} `json:"metadata"`
+	Results        []*stats.Stats                    `json:"results"`
+	Errors         []string                          `json:"errors"`
+	Warnings       []string                          `json:"warnings"`
+	Metadata       map[string]map[string]interface{} `json:"metadata"`
+	AggregatorData AggregatorData                    `json:"aggregator_data"`
 }
 
 // MemoryProfileConfig represents the configuration for memory profiling

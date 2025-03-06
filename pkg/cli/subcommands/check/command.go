@@ -21,34 +21,24 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	apiTypes "github.com/DataDog/datadog-agent/comp/api/api/types"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -123,9 +113,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			cliParams.cmd = cmd
 			cliParams.args = args
 
-			eventplatforParams := eventplatformimpl.NewDefaultParams()
-			eventplatforParams.UseNoopEventPlatformForwarder = true
-
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
@@ -137,17 +124,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				core.Bundle(),
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
-				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
-				logscompression.Module(),
-				metricscompression.Module(),
-				fx.Provide(func() serializer.MetricSerializer { return nil }),
-				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
-				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformimpl.Module(eventplatforParams),
-				eventplatformreceiverimpl.Module(),
-				haagentfx.Module(),
-
 				getPlatformModules(),
 			)
 		},
@@ -190,7 +166,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 func run(
 	config config.Component,
 	cliParams *cliParams,
-	demultiplexer demultiplexer.Component,
+	_ authtoken.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -307,7 +283,6 @@ func run(
 
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
-	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
 
 	for _, c := range result.Results {
 		inventoryData := map[string]interface{}{}
@@ -319,11 +294,9 @@ func run(
 		}
 
 		if cliParams.formatJSON {
-			aggregatorData := printer.GetMetricsDataForPrint()
-
 			// There is only one checkID per run so we'll just access that
 			instanceData := map[string]interface{}{
-				"aggregator": aggregatorData,
+				"aggregator": result.AggregatorData,
 				"runner":     c,
 				"inventory":  inventoryData,
 			}
@@ -382,7 +355,7 @@ func run(
 				return fmt.Errorf("no diff data found in %s", profileDataDir)
 			}
 		} else {
-			printer.PrintMetrics(&checkFileOutput, cliParams.formatTable)
+			printMetrics(result.AggregatorData, &checkFileOutput, cliParams.formatTable)
 
 			p := func(data string) {
 				fmt.Println(data)
@@ -654,6 +627,99 @@ func createHiddenStringFlag(cmd *cobra.Command, p *string, name string, value st
 func createHiddenBooleanFlag(cmd *cobra.Command, p *bool, name string, value bool, usage string) {
 	cmd.Flags().BoolVar(p, name, value, usage)
 	cmd.Flags().MarkHidden(name) //nolint:errcheck
+}
+
+func printMetrics(aggregatorData apiTypes.AggregatorData, checkFileOutput *bytes.Buffer, formatTable bool) {
+	if len(aggregatorData.Series) != 0 {
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Series"))
+
+		if formatTable {
+			headers, data := aggregatorData.Series.MarshalStrings()
+			var buffer bytes.Buffer
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(&buffer)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+			fmt.Println(buffer.String())
+			checkFileOutput.WriteString(buffer.String() + "\n")
+		} else {
+			j, _ := json.MarshalIndent(aggregatorData.Series, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
+	}
+	if len(aggregatorData.SketchSeries) != 0 {
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Sketches"))
+		j, _ := json.MarshalIndent(aggregatorData.SketchSeries, "", "  ")
+		fmt.Println(string(j))
+		checkFileOutput.WriteString(string(j) + "\n")
+	}
+
+	if len(aggregatorData.ServiceCheck) != 0 {
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Service Checks"))
+
+		if formatTable {
+			headers, data := aggregatorData.ServiceCheck.MarshalStrings()
+			var buffer bytes.Buffer
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(&buffer)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+			fmt.Println(buffer.String())
+			checkFileOutput.WriteString(buffer.String() + "\n")
+		} else {
+			j, _ := json.MarshalIndent(aggregatorData.ServiceCheck, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
+	}
+
+	if len(aggregatorData.Events) != 0 {
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Events"))
+		checkFileOutput.WriteString("=== Events ===\n")
+		j, _ := json.MarshalIndent(aggregatorData.Events, "", "  ")
+		fmt.Println(string(j))
+		checkFileOutput.WriteString(string(j) + "\n")
+	}
+
+	for k, v := range aggregatorData.EventPlatformEvents {
+		if len(v) > 0 {
+			if translated, ok := stats.EventPlatformNameTranslations[k]; ok {
+				k = translated
+			}
+			fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString(k))
+			checkFileOutput.WriteString(fmt.Sprintf("=== %s ===\n", k))
+			j, _ := json.MarshalIndent(v, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
+	}
 }
 
 // disableCmdPort overrrides the `cmd_port` configuration so that when the

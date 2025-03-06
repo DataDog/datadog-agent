@@ -20,19 +20,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/types"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // SetupHandlers adds the specific handlers for /check endpoints
 func SetupHandlers(
 	r *mux.Router,
-	collector option.Option[collector.Component],
 	autodiscovery autodiscovery.Component,
 	demultiplexer demultiplexer.Component,
 ) *mux.Router {
@@ -40,7 +39,7 @@ func SetupHandlers(
 	r.HandleFunc("/{name}", listCheck).Methods("GET", "DELETE")
 	r.HandleFunc("/{name}/reload", reloadCheck).Methods("POST")
 	r.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
-		runChecks(collector, autodiscovery, demultiplexer, w, r)
+		runChecks(autodiscovery, demultiplexer, w, r)
 	}).Methods("POST")
 
 	return r
@@ -61,21 +60,8 @@ func listCheck(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("Not yet implemented."))
 }
 
-type memoryProfileConfig struct {
-	dir     string
-	frames  string
-	gc      string
-	combine string
-	sort    string
-	limit   string
-	diff    string
-	filters string
-	unit    string
-	verbose string
-}
-
 // TODO (component): Use collector once it implement GetLoaderErrors
-func runChecks(_ option.Option[collector.Component], autodiscovery autodiscovery.Component, _ demultiplexer.Component, w http.ResponseWriter, r *http.Request) {
+func runChecks(autodiscovery autodiscovery.Component, demultiplexer demultiplexer.Component, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var checkRequest types.CheckRequest
 
@@ -179,7 +165,7 @@ func runChecks(_ option.Option[collector.Component], autodiscovery autodiscovery
 	var instancesData []*stats.Stats
 	result := types.CheckResponse{}
 	metadata := make(map[string]map[string]interface{})
-	// instanceMetadata := make(map[string]interface{})
+
 	for _, c := range cs {
 		s := runCheck(c, times, pause)
 
@@ -187,15 +173,46 @@ func runChecks(_ option.Option[collector.Component], autodiscovery autodiscovery
 
 		instancesData = append(instancesData, s)
 		metadata[string(c.ID())] = check.GetMetadata(c, false)
-		// instanceMetadata[c.String()] = c.GetInstanceMetadata()
 	}
+
+	agg := demultiplexer.Aggregator()
+	series, sketches := agg.GetSeriesAndSketches(time.Now())
+	serviceChecks := agg.GetServiceChecks()
+	events := agg.GetEvents()
+	eventsPlatformEvents := agg.GetEventPlatformEvents()
+	aggregatorData := types.AggregatorData{}
+
+	if len(series) != 0 {
+		aggregatorData.Series = series
+	}
+
+	if len(sketches) != 0 {
+		s := make([]*metrics.SketchSeries, 0, len(sketches))
+		for _, sketch := range sketches {
+			s = append(s, sketch)
+		}
+		aggregatorData.SketchSeries = s
+	}
+
+	if len(serviceChecks) != 0 {
+		aggregatorData.ServiceCheck = serviceChecks
+	}
+
+	if len(events) != 0 {
+		aggregatorData.Events = events
+	}
+
+	if len(eventsPlatformEvents) != 0 {
+		aggregatorData.EventPlatformEvents = toEpEvents(eventsPlatformEvents)
+	}
+
 	result.Results = instancesData
 	result.Metadata = metadata
-	// result.InstanceMetadata = instanceMetadata
+	result.AggregatorData = aggregatorData
 
-	instancesJSON, _ := json.Marshal(result)
+	checkResult, _ := json.Marshal(result)
 
-	w.Write(instancesJSON)
+	w.Write(checkResult)
 }
 
 func fetchCheckNameError(w http.ResponseWriter, checkName string) {
@@ -319,4 +336,22 @@ func runCheck(c check.Check, times int, pause int) *stats.Stats {
 	}
 
 	return s
+}
+
+// toEpEvents transforms the raw event platform messages to EventPlatformEvent which are better for json formatting
+func toEpEvents(events map[string][]*message.Message) map[string][]types.EventPlatformEvent {
+	result := make(map[string][]types.EventPlatformEvent)
+	for eventType, messages := range events {
+		var events []types.EventPlatformEvent
+		for _, m := range messages {
+			e := types.EventPlatformEvent{EventType: eventType, RawEvent: string(m.GetContent())}
+			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
+			if err == nil {
+				e.RawEvent = ""
+			}
+			events = append(events, e)
+		}
+		result[eventType] = events
+	}
+	return result
 }
