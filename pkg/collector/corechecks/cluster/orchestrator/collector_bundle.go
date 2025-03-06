@@ -11,6 +11,7 @@ package orchestrator
 import (
 	"expvar"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -50,6 +51,7 @@ type CollectorBundle struct {
 	manifestBuffer      *ManifestBuffer
 	collectorDiscovery  *discovery.DiscoveryCollector
 	activatedCollectors map[string]struct{}
+	initializeOnce      sync.Once
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -266,7 +268,11 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 // Initialize is used to initialize collectors part of the bundle.
 // During initialization informers are created, started and their cache is
 // synced.
-func (cb *CollectorBundle) Initialize() error {
+func (cb *CollectorBundle) Initialize() {
+	cb.initializeOnce.Do(cb.initialize)
+}
+
+func (cb *CollectorBundle) initialize() {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
@@ -300,8 +306,6 @@ func (cb *CollectorBundle) Initialize() error {
 			cb.skipCollector(informerName, err)
 		}
 	}
-
-	return nil
 }
 
 func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, err error) {
