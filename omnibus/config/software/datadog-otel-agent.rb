@@ -38,7 +38,7 @@ build do
 
     conf_dir = "/etc/datadog-agent"
     embedded_bin_dir = "#{install_dir}/embedded/bin"
-    
+
     mkdir conf_dir
     mkdir embedded_bin_dir
 
