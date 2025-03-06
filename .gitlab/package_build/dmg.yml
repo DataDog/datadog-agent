@@ -110,8 +110,8 @@ new-agent_dmg-x64-a7:
   #   - python3 --version || ( brew remove --force --ignore-dependencies python@3.12.6 && brew install python@3.12.6 --force ) || true
   script:
     - |
-      if ! [ -f ~/homebrew/bin/brew ] || ! [ -d ~/bin ] || ! [ -f ~/rust/rustup/bin/rustup ] || ! [ -f ~/rust/cargo/bin/cargo ]; then
-        echo "WARNING: Homebrew not found, doing setup again"
+      if ! [ -d ~/homebrew ] || ! [ -d ~/bin ] || ! [ -d ~/rust/rustup ] || ! [ -f ~/rust/cargo ]; then
+        echo "WARNING: Doing setup again"
         rm -rf ~/bin ~/homebrew ~/rust
         export BUILD_SCRIPT="$PWD/.gitlab/package_build/build_script.sh"
         ( cd ~ && bash "$BUILD_SCRIPT" SETUP_RUNNER )
