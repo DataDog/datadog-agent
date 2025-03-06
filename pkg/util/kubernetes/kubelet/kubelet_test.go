@@ -362,7 +362,7 @@ func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
 	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
 	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
-	mockConfig.SetWithoutSource("gke_autopilot", true)
+	mockConfig.SetWithoutSource("kubelet_use_api_server", true)
 
 	os.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
 	os.Setenv("KUBERNETES_SERVICE_PORT", "443")
