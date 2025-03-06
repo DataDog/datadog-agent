@@ -9,8 +9,11 @@ setup_xcode()
         cd ~
         echo "=== Setup XCode ==="
 
-        aws s3 cp "s3://binaries.ddbuild.io/macos/xcode/Xcode_${XCODE_VERSION}.xip" "Xcode_${XCODE_VERSION}.xip"
-        xcodes install "${XCODE_VERSION}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${XCODE_VERSION}.xip"
+        if ! [ -f /Applications/Xcode-${XCODE_FULL_VERSION}.app ]; then
+            rm -f "Xcode_${XCODE_VERSION}.xip"
+            aws s3 cp "s3://binaries.ddbuild.io/macos/xcode/Xcode_${XCODE_VERSION}.xip" "Xcode_${XCODE_VERSION}.xip"
+            xcodes install "${XCODE_VERSION}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${XCODE_VERSION}.xip"
+        fi
 
         # TODO: Verify utility
         sudo xcodes select $XCODE_VERSION
@@ -18,6 +21,8 @@ setup_xcode()
         sudo xcodebuild -runFirstLaunch
 
         # sudo xcodes runtimes install $XCODE_VERSION || true
+        echo "=== Ls CLT ==="
+        ls /Library/Developer/CommandLineTools/usr/bin || true
         echo "=== Ls SDKs ==="
         ls /Library/Developer/CommandLineTools/SDKs || true
         echo "=== Ls SDKs $XCODE_VERSION ==="
