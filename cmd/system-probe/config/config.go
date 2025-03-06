@@ -155,6 +155,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
+	// TODO: add test
 	if cfg.GetBool(tracerouteNS("enabled")) || cfg.GetBool("network_path.connections_monitoring.enabled") {
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
