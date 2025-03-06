@@ -72,6 +72,7 @@ Invoke-BuildScript `
     if ($BuildUpgrade) {
         $inv_args += "--build-upgrade"
     }
+    $inv_args += "$env:USE_S3_CACHING"
 
     Write-Host "dda inv -e winbuild.agent-package $inv_args"
     dda inv -e winbuild.agent-package @inv_args
