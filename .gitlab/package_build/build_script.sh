@@ -21,7 +21,7 @@ setup_xcode()
         sudo xcodebuild -runFirstLaunch
 
         # sudo xcodes runtimes install $XCODE_VERSION || true
-        echo "=== Ls CLT ==="
+        echo "=== Ls Xcode Bin ==="
         ls /Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/usr/bin || true
         echo "=== Ls CLT ==="
         ls /Library/Developer/CommandLineTools/usr/bin || true
