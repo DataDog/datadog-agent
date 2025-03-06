@@ -22,6 +22,7 @@ def agent_package(
     release_version="nightly-a7",
     skip_deps=False,
     build_upgrade=False,
+    omnibus_s3_cache=False,
 ):
     # Build agent
     omnibus_build(
@@ -29,6 +30,7 @@ def agent_package(
         flavor=flavor,
         release_version=release_version,
         skip_deps=skip_deps,
+        omnibus_s3_cache=omnibus_s3_cache,
     )
 
     # Package Agent into MSI
