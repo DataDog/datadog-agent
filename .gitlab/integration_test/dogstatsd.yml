@@ -11,4 +11,4 @@ dogstatsd_x64_size_test:
     - mkdir -p $STATIC_BINARIES_DIR
     - $S3_CP_CMD $S3_ARTIFACTS_URI/static/dogstatsd.amd64 $STATIC_BINARIES_DIR/dogstatsd
   script:
-    - inv -e dogstatsd.size-test --skip-build
+    - dda inv -e dogstatsd.size-test --skip-build

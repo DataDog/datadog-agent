@@ -21,12 +21,10 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
-  ddprofiling:
-    api: 
 
 
 service:
-  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined, ddprofiling]
+  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
   pipelines:
     traces:
       receivers: [otlp]
