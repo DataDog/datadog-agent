@@ -20,6 +20,7 @@
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e GOMODCACHE="c:\modcache"
+      -e RUST_LOG="uv=trace"
       ${WINBUILDIMAGE}
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-Linters.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
