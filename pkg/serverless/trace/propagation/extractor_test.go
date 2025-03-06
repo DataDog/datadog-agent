@@ -9,10 +9,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"net/http"
 	"os"
 	"testing"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -596,28 +597,101 @@ func TestExtractorExtract(t *testing.T) {
 			expNoErr: false,
 		},
 
-		// Step Functions event
+		// Step Functions events
 		{
-			name: "step-function-event with no input",
+			name: "step function event",
 			events: []interface{}{
 				events.StepFunctionPayload{
 					Execution: struct {
-						ID string
+						ID           string
+						RedriveCount uint16
 					}{
-						ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+						ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+						RedriveCount: 0,
 					},
 					State: struct {
 						Name        string
 						EnteredTime string
+						RetryCount  uint16
 					}{
 						Name:        "agocsTest1",
 						EnteredTime: "2024-07-30T20:46:20.824Z",
+						RetryCount:  0,
 					},
 				},
 			},
 			expCtx: &TraceContext{
 				TraceID:           5377636026938777059,
 				TraceIDUpper64Hex: "6fb5c3a05c73dbfe",
+				ParentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+			expNoErr: true,
+		},
+		{
+			name: "nested step function event",
+			events: []interface{}{
+				events.NestedStepFunctionPayload{
+					Payload: events.StepFunctionPayload{
+						Execution: struct {
+							ID           string
+							RedriveCount uint16
+						}{
+							ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+							RedriveCount: 0,
+						},
+						State: struct {
+							Name        string
+							EnteredTime string
+							RetryCount  uint16
+						}{
+							Name:        "agocsTest1",
+							EnteredTime: "2024-07-30T20:46:20.824Z",
+							RetryCount:  0,
+						},
+					},
+					RootExecutionID:   "arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:4875aba4-ae31-4a4c-bf8a-63e9eee31dad",
+					ServerlessVersion: "v1",
+				},
+			},
+			expCtx: &TraceContext{
+				TraceID:           1322229001489018110,
+				TraceIDUpper64Hex: "579d19b3ee216ee9",
+				ParentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+			expNoErr: true,
+		},
+		{
+			name: "lambda root step function event",
+			events: []interface{}{
+				events.LambdaRootStepFunctionPayload{
+					Payload: events.StepFunctionPayload{
+						Execution: struct {
+							ID           string
+							RedriveCount uint16
+						}{
+							ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+							RedriveCount: 0,
+						},
+						State: struct {
+							Name        string
+							EnteredTime string
+							RetryCount  uint16
+						}{
+							Name:        "agocsTest1",
+							EnteredTime: "2024-07-30T20:46:20.824Z",
+							RetryCount:  0,
+						},
+					},
+					TraceID:           "5821803790426892636",
+					TraceTags:         "_dd.p.dm=-0,_dd.p.tid=672a7cb100000000",
+					ServerlessVersion: "v1",
+				},
+			},
+			expCtx: &TraceContext{
+				TraceID:           5821803790426892636,
+				TraceIDUpper64Hex: "672a7cb100000000",
 				ParentID:          8947638978974359093,
 				SamplingPriority:  1,
 			},

@@ -420,6 +420,11 @@ func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
 }
 
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (p *Probe) IsSysctlEventEnabled() bool {
+	return p.Config.RuntimeSecurity.SysCtlEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
