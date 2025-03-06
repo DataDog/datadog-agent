@@ -85,7 +85,7 @@ echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datad
 } >>"$WORK_DIR/builder-config.yaml"
 
 # Install and configure OCB
-OCB_VERSION="0.120.0"
+OCB_VERSION="0.121.0"
 CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" \
 	go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
 mv -v "$(go env GOPATH)/bin/builder" "$WORK_DIR/ocb"

@@ -59,7 +59,7 @@ def run(ctx, branch: str, command: str, skip_checkout: bool = False):
     """Runs a command in the target worktree environment.
 
     Usage:
-        $ inv worktree.run 6.53.x "head CHANGELOG.rst"  # Displays the changelog of the target branch
+        $ dda inv worktree.run 6.53.x "head CHANGELOG.rst"  # Displays the changelog of the target branch
     """
 
     with agent_context(ctx, branch, skip_checkout=skip_checkout):
@@ -74,7 +74,7 @@ def invoke(ctx, branch: str, skip_checkout: bool = False, yes: bool = False):
         This task should be avoided when a --branch or --release-branch argument is available in the task.
 
     Usage:
-        > inv worktree.invoke 6.53.x --yes modules.show-all  # Will show agent 6 modules
+        > dda inv worktree.invoke 6.53.x --yes modules.show-all  # Will show agent 6 modules
     """
 
     if yes or yes_no_question(

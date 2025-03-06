@@ -9,6 +9,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"slices"
 	"strings"
@@ -121,7 +122,7 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMa
 	var err error
 
 	if rs.evalOpts.MacroStore.Contains(pMacro.Def.ID) {
-		return nil, &ErrMacroLoad{Macro: pMacro, Err: ErrDefinitionIDConflict}
+		return nil, nil
 	}
 
 	var macro *eval.Macro
@@ -216,7 +217,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 					variableValue = actionDef.Set.Value
 				} else if actionDef.Set.Field != "" {
-					_, kind, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+					_, kind, goType, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
 						continue
@@ -229,6 +230,12 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						variableValue = []int{}
 					case reflect.Bool:
 						variableValue = false
+					case reflect.Struct:
+						if goType == "net.IP" {
+							variableValue = []net.IP{}
+							break
+						}
+						fallthrough
 					default:
 						errs = multierror.Append(errs, fmt.Errorf("unsupported field type '%s' for variable '%s'", kind, actionDef.Set.Name))
 						continue
@@ -239,13 +246,13 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 				var variableProvider VariableProvider
 
 				if actionDef.Set.Scope != "" {
-					stateScopeBuilder := rs.opts.StateScopes[actionDef.Set.Scope]
-					if stateScopeBuilder == nil {
-						errs = multierror.Append(errs, fmt.Errorf("invalid scope '%s'", actionDef.Set.Scope))
-						continue
-					}
-
 					if _, found := rs.scopedVariables[actionDef.Set.Scope]; !found {
+						stateScopeBuilder := rs.opts.StateScopes[actionDef.Set.Scope]
+						if stateScopeBuilder == nil {
+							errs = multierror.Append(errs, fmt.Errorf("invalid scope '%s'", actionDef.Set.Scope))
+							continue
+						}
+
 						rs.scopedVariables[actionDef.Set.Scope] = stateScopeBuilder()
 					}
 
@@ -317,8 +324,9 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	}
 
 	if _, exists := rs.rules[pRule.Def.ID]; exists {
-		return "", &ErrRuleLoad{Rule: pRule, Err: ErrDefinitionIDConflict}
+		return "", nil
 	}
+	pRule.UsedBy = append(pRule.UsedBy, pRule.Policy)
 
 	var tags []string
 	for k, v := range pRule.Def.Tags {
@@ -531,7 +539,7 @@ func IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, erro
 
 // IsDiscarder partially evaluates an Event against a field
 func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error) {
-	eventType, _, err := event.GetFieldMetadata(field)
+	eventType, _, _, err := event.GetFieldMetadata(field)
 	if err != nil {
 		return false, err
 	}
@@ -798,6 +806,8 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 
 		for _, rule := range policy.GetAcceptedRules() {
 			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
+				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
+
 				if err := existingRule.MergeWith(rule); err != nil {
 					errs = multierror.Append(errs, err)
 				}

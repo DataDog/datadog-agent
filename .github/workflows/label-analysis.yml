@@ -31,13 +31,15 @@ jobs:
         with:
           python-version-file: .python-version
           cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+          cache-dependency-path: '.dda/version'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Auto assign team label
         env:
           PR_ID: ${{ github.event.pull_request.number }}
-        run: inv -e github.assign-team-label --pr-id="$PR_ID"
+        run: dda inv -e github.assign-team-label --pr-id="$PR_ID"
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
@@ -52,14 +54,16 @@ jobs:
         with:
           python-version-file: .python-version
           cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+          cache-dependency-path: '.dda/version'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Check release note
         env:
           BRANCH_NAME: ${{ github.head_ref }}
           PR_ID: ${{ github.event.pull_request.number }}
-        run: inv -e linter.releasenote
+        run: dda inv -e linter.releasenote
   fetch-labels:
     needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -111,14 +115,16 @@ jobs:
         with:
           python-version-file: .python-version
           cache: "pip"
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install python dependencies
-        run: pip3 install -r requirements.txt
+          cache-dependency-path: '.dda/version'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Check qa/[done|no-code-change] labels are not set together
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
         run: |
-          inv -e github.check-qa-labels --labels "${LABELS[@]}"
+          dda inv -e github.check-qa-labels --labels "${LABELS[@]}"
 
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
@@ -133,11 +139,13 @@ jobs:
         with:
           python-version-file: .python-version
           cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+          cache-dependency-path: '.dda/version'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Check agent telemetry metric list
-        run: inv -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
+        run: dda inv -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
 
   ask-reviews:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action == 'labeled' && github.event.label.name == 'ask-review'
@@ -152,10 +160,12 @@ jobs:
         with:
           python-version-file: .python-version
           cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt --break-system-packages
+          cache-dependency-path: '.dda/version'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
       - name: Ask for code reviews
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-        run: inv -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
+        run: dda inv -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
