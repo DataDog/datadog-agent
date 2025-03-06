@@ -62,9 +62,8 @@ func TestOpenLineageProxy(t *testing.T) {
 }
 
 func TestOpenLineageEndpoint(t *testing.T) {
-	var cfg config.AgentConfig
-
 	t.Run("multiple-endpoints", func(t *testing.T) {
+		var cfg config.AgentConfig
 		cfg.OpenLineageProxy.DDURL = "us3.datadoghq.com"
 		cfg.OpenLineageProxy.APIKey = "test_api_key"
 		cfg.OpenLineageProxy.AdditionalEndpoints = map[string][]string{
@@ -74,17 +73,66 @@ func TestOpenLineageEndpoint(t *testing.T) {
 			"ddstaging.datadoghq.com": {"test_api_key_5"},
 		}
 
+		expectedURLs := map[string]bool{
+			"https://data-obs-intake.us3.datadoghq.com/api/v1/lineage":       false,
+			"https://data-obs-intake.us5.datadoghq.com/api/v1/lineage":       false,
+			"https://data-obs-intake.datadoghq.eu/api/v1/lineage":            false,
+			"https://data-obs-intake.datad0g.com/api/v1/lineage":             false,
+			"https://data-obs-intake.ddstaging.datadoghq.com/api/v1/lineage": false,
+		}
+
+		expectedKeys := map[string]bool{
+			"test_api_key":   false,
+			"test_api_key_2": false,
+			"test_api_key_3": false,
+			"test_api_key_4": false,
+			"test_api_key_5": false,
+		}
+
 		urls, keys, err := openLineageEndpoints(&cfg)
 		assert.NoError(t, err)
-		assert.Equal(t, urls[0].String(), "https://data-obs-intake.us3.datadoghq.com/api/v1/lineage")
-		assert.Equal(t, urls[1].String(), "https://data-obs-intake.us5.datadoghq.com/api/v1/lineage")
-		assert.Equal(t, urls[2].String(), "https://data-obs-intake.datadoghq.eu/api/v1/lineage")
-		assert.Equal(t, urls[3].String(), "https://data-obs-intake.datad0g.com/api/v1/lineage")
-		assert.Equal(t, urls[4].String(), "https://data-obs-intake.ddstaging.datadoghq.com/api/v1/lineage")
-		assert.Equal(t, keys, []string{"test_api_key", "test_api_key_2", "test_api_key_3", "test_api_key_4", "test_api_key_5"})
+		assert.Equal(t, len(urls), 5)
+		assert.Equal(t, len(keys), 5)
+
+		for _, url := range urls {
+			urlStr := url.String()
+			if _, exists := expectedURLs[urlStr]; exists {
+				expectedURLs[urlStr] = true
+			} else {
+				t.Errorf("Unexpected URL found: %s", urlStr)
+			}
+		}
+
+		for _, key := range keys {
+			if _, exists := expectedKeys[key]; exists {
+				expectedKeys[key] = true
+			} else {
+				t.Errorf("Unexpected key found: %s", key)
+			}
+		}
+
+		for url, found := range expectedURLs {
+			assert.True(t, found, "Expected URL not found: %s", url)
+		}
+
+		for key, found := range expectedKeys {
+			assert.True(t, found, "Expected key not found: %s", key)
+		}
+	})
+
+	t.Run("dd-site-fallback", func(t *testing.T) {
+		var cfg config.AgentConfig
+		cfg.Site = "datadoghq.eu"
+		cfg.OpenLineageProxy.APIKey = "test_api_key"
+
+		urls, keys, err := openLineageEndpoints(&cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, urls[0].String(), "https://data-obs-intake.datadoghq.eu/api/v1/lineage")
+		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
 	t.Run("datadoghq.com", func(t *testing.T) {
+		var cfg config.AgentConfig
 		cfg.OpenLineageProxy.DDURL = "datadoghq.com"
 		cfg.OpenLineageProxy.APIKey = "test_api_key"
 		cfg.OpenLineageProxy.AdditionalEndpoints = map[string][]string{}
@@ -97,6 +145,7 @@ func TestOpenLineageEndpoint(t *testing.T) {
 	})
 
 	t.Run("empty-ddurl", func(t *testing.T) {
+		var cfg config.AgentConfig
 		cfg.OpenLineageProxy.DDURL = ""
 		cfg.Site = "datadoghq.com"
 		cfg.OpenLineageProxy.APIKey = "test_api_key"
@@ -106,6 +155,7 @@ func TestOpenLineageEndpoint(t *testing.T) {
 	})
 
 	t.Run("different-api", func(t *testing.T) {
+		var cfg config.AgentConfig
 		cfg.OpenLineageProxy.DDURL = "https://intake.testing.com/different-api"
 		cfg.Site = "datadoghq.com"
 		cfg.OpenLineageProxy.APIKey = "test_api_key"

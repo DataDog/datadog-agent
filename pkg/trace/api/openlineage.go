@@ -41,7 +41,11 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []s
 		} else {
 			host = fmt.Sprintf(openlineageURLTemplate, site)
 		}
+	} else if cfg.Site != "" {
+		// Fallback to the main agent site
+		host = fmt.Sprintf(openlineageURLTemplate, cfg.Site)
 	}
+	log.Debug("[openlineage] OpenLineage Host: %s", host)
 	u, err := url.Parse(host)
 	if err != nil {
 		// if the main intake URL is invalid we don't use additional endpoints
