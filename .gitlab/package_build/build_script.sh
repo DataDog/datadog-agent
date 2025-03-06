@@ -22,17 +22,19 @@ setup_xcode()
 
         # sudo xcodes runtimes install $XCODE_VERSION || true
         echo "=== Ls CLT ==="
+        ls /Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/usr/bin || true
+        echo "=== Ls CLT ==="
         ls /Library/Developer/CommandLineTools/usr/bin || true
         echo "=== Ls SDKs ==="
         ls /Library/Developer/CommandLineTools/SDKs || true
         echo "=== Ls SDKs $XCODE_VERSION ==="
-        ls /Library/Developer/CommandLineTools/SDKs/MacOSX$XCODE_VERSION.sdk || true
+        ls /Library/Developer/CommandLineTools/SDKs/MacOSX$XCODE_FULL_VERSION.sdk || true
         echo "=== SDK settings ==="
         cat /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/SDKSettings.json || true
         echo "=== Path ==="
         # TODO: Is /Applications/Xcode-15.2.0.app/Contents/Developer
         # TODO A: Add this to path
-        find "$(xcode-select -p)" || true
+        # find "$(xcode-select -p)" || true
         xcode-select -p || true
         ls "$(xcode-select -p)" || true
         # echo "=== Some other debug ==="
@@ -262,7 +264,7 @@ set -x
 echo Reset path for custom homebrew
 
 # Homebrew
-paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/CommandLineTools/usr/bin")
+paths=("$HOME/bin" "$HOME/homebrew/bin" "$HOME/rust/rustup/bin" "$HOME/rust/cargo/bin" "/Library/Developer/CommandLineTools/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/usr/bin" "/Applications/Xcode-$XCODE_FULL_VERSION.app/Contents/Developer/CommandLineTools/usr/bin")
 export PATH=
 for path in "${paths[@]}"; do
     export PATH="$PATH:$path"
