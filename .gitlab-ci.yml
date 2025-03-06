@@ -108,10 +108,7 @@ test_job:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   script:
-    - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
-    - python3 -m pip install -r tasks/requirements.txt -r tasks/libs/requirements-notifications.txt
-    - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_API_TOKEN
-    - inv pipeline.changelog f1c4f597 || exit $?
+    - echo toto is $TOTO
 
 variables:
   # Directory in which we execute the omnibus build.
