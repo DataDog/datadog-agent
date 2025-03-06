@@ -15,6 +15,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/aws/smithy-go/ptr"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -269,7 +271,7 @@ func buildCSIVolume(volumeName, path string, injectionMode csiInjectionMode, rea
 		VolumeSource: corev1.VolumeSource{
 			CSI: &corev1.CSIVolumeSource{
 				Driver:   csiDriver,
-				ReadOnly: &readOnly,
+				ReadOnly: ptr.Bool(readOnly),
 				VolumeAttributes: map[string]string{
 					"mode": string(injectionMode),
 					"path": path,
