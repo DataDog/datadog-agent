@@ -128,7 +128,6 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 			return err
 		}
 
-		ctx.Log.Debug(fmt.Sprintf("cilium params %+v"), nil)
 		_, err = cilium.NewHelmInstallation(&awsEnv, kindCluster, ciliumParams, pulumi.Provider(kubeProvider))
 		if err != nil {
 			return err

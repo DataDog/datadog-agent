@@ -214,6 +214,7 @@ func WithoutDDA() ProvisionerOption {
 	}
 }
 
+// WithCiliumOptions adds a cilium installation option
 func WithCiliumOptions(opts ...cilium.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.ciliumOptions = opts

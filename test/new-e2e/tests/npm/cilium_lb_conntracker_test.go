@@ -34,7 +34,6 @@ import (
 type ciliumLBConntrackerTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 
-	component      *cilium.HelmComponent
 	httpBinService *corev1.Service
 }
 
