@@ -822,13 +822,15 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	expires, err := s.uptane.TimestampExpires()
-	if err != nil {
-		return nil, err
-	}
-	if expires.Before(time.Now()) {
-		log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
-		return s.flushCacheResponse()
+	if !s.firstUpdate {
+		expires, err := s.uptane.TimestampExpires()
+		if err != nil {
+			return nil, err
+		}
+		if expires.Before(time.Now()) {
+			log.Warnf("Timestamp expired at %s, flushing cache", expires.Format(time.RFC3339))
+			return s.flushCacheResponse()
+		}
 	}
 
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {

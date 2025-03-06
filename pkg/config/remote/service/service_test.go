@@ -438,7 +438,13 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
 
 	service.clients.seen(client)
+	// We don't flush the cache until we've seen at least one update from the backend
 	newConfig, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	assert.NoError(t, err)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, newConfig.ConfigStatus)
+
+	service.firstUpdate = false
+	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
 }
