@@ -24,48 +24,22 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiTypes "github.com/DataDog/datadog-agent/comp/api/api/types"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -77,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -162,47 +135,20 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
-
-				// workloadmeta setup
-				wmcatalog.GetCatalog(),
-				workloadmetafx.Module(defaults.DefaultParams()),
-				apiimpl.Module(),
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
-				dualTaggerfx.Module(common.DualTaggerParams()),
-				autodiscoveryimpl.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
-				inventorychecksimpl.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
-				// inventorychecksimpl depends on a collector and serializer when created to send payload.
-				// Here we just want to collect metadata to be displayed, so we don't need a collector.
-				collector.NoneModule(),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
 				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
-				// The check command do not have settings that change are runtime
-				// still, we need to pass it to ensure the API server is proprely initialized
-				settingsimpl.Module(),
-				fx.Supply(settings.Params{}),
-				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
-				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
-				// in others commands such as run.
-				fx.Supply(option.None[rcservice.Component]()),
-				fx.Supply(option.None[rcservicemrf.Component]()),
-				fx.Supply(option.None[logagent.Component]()),
-				fx.Supply(option.None[integrations.Component]()),
-				fx.Provide(func() server.Component { return nil }),
-				fx.Provide(func() replay.Component { return nil }),
-				fx.Provide(func() pidmap.Component { return nil }),
-				fx.Provide(func() remoteagentregistry.Component { return nil }),
+				haagentfx.Module(),
 
 				getPlatformModules(),
-				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
-				haagentfx.Module(),
 			)
 		},
 	}
@@ -245,16 +191,6 @@ func run(
 	config config.Component,
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
-	wmeta workloadmeta.Component,
-	tagger tagger.Component,
-	ac autodiscovery.Component,
-	secretResolver secrets.Component,
-	agentAPI internalAPI.Component,
-	invChecks inventorychecks.Component,
-	collector option.Option[collector.Component],
-	jmxLogger jmxlogger.Component,
-	telemetry telemetry.Component,
-	logReceiver option.Option[integrations.Component],
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
