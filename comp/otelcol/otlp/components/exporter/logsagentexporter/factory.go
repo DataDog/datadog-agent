@@ -44,13 +44,12 @@ type factory struct {
 	gatewayUsage     gatewayusage.Component
 }
 
-// NewFactory creates a new logsagentexporter factory.
-func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage gatewayusage.Component) exp.Factory {
+// NewFactoryWithType creates a new logsagentexporter factory with the given type.
+func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage gatewayusage.Component) exp.Factory {
 	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage}
-	cfgType, _ := component.NewType(TypeStr)
 
 	return exp.NewFactory(
-		cfgType,
+		typ,
 		func() component.Config {
 			return &Config{
 				OtelSource:    otelSource,
@@ -60,6 +59,11 @@ func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage gatewayusag
 		},
 		exp.WithLogs(f.createLogsExporter, stability),
 	)
+}
+
+// NewFactory creates a new logsagentexporter factory. Should only be used in Agent OTLP ingestion pipelines.
+func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
+	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr))
 }
 
 func (f *factory) createLogsExporter(

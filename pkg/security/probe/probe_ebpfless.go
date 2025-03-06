@@ -47,11 +47,10 @@ const (
 )
 
 type client struct {
-	conn          net.Conn
-	probe         *EBPFLessProbe
-	nsID          uint64
-	containerID   containerutils.ContainerID
-	containerName string
+	conn        net.Conn
+	probe       *EBPFLessProbe
+	nsID        uint64
+	containerID containerutils.ContainerID
 }
 
 type clientMsg struct {
@@ -561,7 +560,7 @@ func (p *EBPFLessProbe) Start() error {
 				if msg.Type == ebpfless.MessageTypeGoodbye {
 					if msg.client.containerID != "" {
 						delete(p.containerContexts, msg.client.containerID)
-						seclog.Infof("tracing stopped for container ID [%s] (Name: [%s])", msg.client.containerID, msg.client.containerName)
+						seclog.Infof("tracing stopped for container ID [%s]", msg.client.containerID)
 					}
 					continue
 				}

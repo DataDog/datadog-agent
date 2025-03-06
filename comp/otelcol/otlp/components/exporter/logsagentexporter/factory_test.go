@@ -15,6 +15,7 @@ import (
 
 	gatewayusagemock "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/mock"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 )
 
@@ -24,7 +25,7 @@ func TestNewLogsExporter(t *testing.T) {
 	factory := NewFactory(channel, gatewayusagemock.NewMock())
 	cfg := factory.CreateDefaultConfig()
 
-	set := exportertest.NewNopSettings()
+	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
 	_, err := factory.CreateLogs(context.Background(), set, cfg)
 	assert.NoError(t, err)
 }

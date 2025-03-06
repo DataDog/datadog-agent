@@ -217,12 +217,6 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "dd-core-cfg/apikey/no-api-key-section/acfg.yaml",
 		},
 		{
-			name:           "dd-core-cfg/apikey/no-api-no-add",
-			provided:       "dd-core-cfg/apikey/no-api-no-add/config.yaml",
-			expectedResult: "dd-core-cfg/apikey/no-api-no-add/config-result.yaml",
-			agentConfig:    "dd-core-cfg/apikey/no-api-no-add/acfg.yaml",
-		},
-		{
 			name:           "dd-core-cfg/apikey/multiple-dd-exporter",
 			provided:       "dd-core-cfg/apikey/multiple-dd-exporter/config.yaml",
 			expectedResult: "dd-core-cfg/apikey/multiple-dd-exporter/config-result.yaml",

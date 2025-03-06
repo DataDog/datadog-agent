@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -171,6 +172,9 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				// we can include the tagger as part of the workloadmeta component.
 				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				}),
+				fx.Provide(func() statsd.ClientInterface {
+					return &statsd.NoOpClient{}
 				}),
 			)
 		},

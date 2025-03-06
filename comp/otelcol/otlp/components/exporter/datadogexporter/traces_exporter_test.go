@@ -93,7 +93,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		},
 	}
 
-	params := exportertest.NewNopSettings()
+	params := exportertest.NewNopSettings(Type)
 	tcfg := config.New()
 	tcfg.ReceiverEnabled = false
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
@@ -136,7 +136,7 @@ func TestNewTracesExporter(t *testing.T) {
 func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := &datadogconfig.Config{}
 	cfg.API.Key = "ddog_32_characters_long_api_key1"
-	params := exportertest.NewNopSettings()
+	params := exportertest.NewNopSettings(Type)
 	tcfg := config.New()
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()

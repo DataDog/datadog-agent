@@ -15,6 +15,7 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -159,6 +160,8 @@ func (c *Check) Run() error {
 			NodeType:         orchestrator.K8sPod,
 			ClusterID:        c.clusterID,
 			ManifestProducer: true,
+			Kind:             kubernetes.PodKind,
+			APIVersion:       "v1",
 		},
 		HostName:           c.hostName,
 		ApiGroupVersionTag: "kube_api_version:v1",

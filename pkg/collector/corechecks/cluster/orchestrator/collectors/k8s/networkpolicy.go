@@ -9,6 +9,8 @@ package k8s
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+
 	"k8s.io/apimachinery/pkg/labels"
 	networkingv1Informers "k8s.io/client-go/informers/networking/v1"
 	networkingv1Listers "k8s.io/client-go/listers/networking/v1"
@@ -50,6 +52,7 @@ func NewNetworkPolicyCollector(metadataAsTags utils.MetadataAsTags) *NetworkPoli
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 networkPolicyName,
+			Kind:                                 kubernetes.NetworkPolicyKind,
 			NodeType:                             orchestrator.K8sNetworkPolicy,
 			Version:                              networkPolicyVersion,
 			LabelsAsTags:                         labelsAsTags,

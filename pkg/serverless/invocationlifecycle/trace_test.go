@@ -117,17 +117,68 @@ func TestStartExecutionSpan(t *testing.T) {
 
 	stepFunctionEvent := events.StepFunctionPayload{
 		Execution: struct {
-			ID string
+			ID           string
+			RedriveCount uint16
 		}{
-			ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			RedriveCount: 0,
 		},
 		State: struct {
 			Name        string
 			EnteredTime string
+			RetryCount  uint16
 		}{
 			Name:        "agocsTest1",
 			EnteredTime: "2024-07-30T20:46:20.824Z",
+			RetryCount:  0,
 		},
+	}
+
+	nestedStepFunctionEvent := events.NestedStepFunctionPayload{
+		Payload: events.StepFunctionPayload{
+			Execution: struct {
+				ID           string
+				RedriveCount uint16
+			}{
+				ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+				RedriveCount: 0,
+			},
+			State: struct {
+				Name        string
+				EnteredTime string
+				RetryCount  uint16
+			}{
+				Name:        "agocsTest1",
+				EnteredTime: "2024-07-30T20:46:20.824Z",
+				RetryCount:  0,
+			},
+		},
+		RootExecutionID:   "arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:4875aba4-ae31-4a4c-bf8a-63e9eee31dad",
+		ServerlessVersion: "v1",
+	}
+
+	lambdaRootStepFunctionEvent := events.LambdaRootStepFunctionPayload{
+		Payload: events.StepFunctionPayload{
+			Execution: struct {
+				ID           string
+				RedriveCount uint16
+			}{
+				ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+				RedriveCount: 0,
+			},
+			State: struct {
+				Name        string
+				EnteredTime string
+				RetryCount  uint16
+			}{
+				Name:        "agocsTest1",
+				EnteredTime: "2024-07-30T20:46:20.824Z",
+				RetryCount:  0,
+			},
+		},
+		TraceID:           "5821803790426892636",
+		TraceTags:         "_dd.p.dm=-0,_dd.p.tid=672a7cb100000000",
+		ServerlessVersion: "v1",
 	}
 
 	testcases := []struct {
@@ -354,6 +405,34 @@ func TestStartExecutionSpan(t *testing.T) {
 			expectCtx: &ExecutionStartInfo{
 				TraceID:           5377636026938777059,
 				TraceIDUpper64Hex: "6fb5c3a05c73dbfe",
+				parentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+		},
+		{
+			name:           "nested step function event",
+			event:          nestedStepFunctionEvent,
+			payload:        payloadWithoutCtx,
+			reqHeaders:     reqHeadersWithoutCtx,
+			infSpanEnabled: false,
+			propStyle:      "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:           1322229001489018110,
+				TraceIDUpper64Hex: "579d19b3ee216ee9",
+				parentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+		},
+		{
+			name:           "lambda root step function event",
+			event:          lambdaRootStepFunctionEvent,
+			payload:        payloadWithoutCtx,
+			reqHeaders:     reqHeadersWithoutCtx,
+			infSpanEnabled: false,
+			propStyle:      "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:           5821803790426892636,
+				TraceIDUpper64Hex: "672a7cb100000000",
 				parentID:          8947638978974359093,
 				SamplingPriority:  1,
 			},
@@ -763,17 +842,21 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 	}
 
 	stepFunctionEvent := events.StepFunctionPayload{
-		Execution: struct{ ID string }(struct {
-			ID string `json:"id"`
+		Execution: struct {
+			ID           string
+			RedriveCount uint16
 		}{
-			ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
-		}),
+			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			RedriveCount: 0,
+		},
 		State: struct {
 			Name        string
 			EnteredTime string
+			RetryCount  uint16
 		}{
 			Name:        "agocsTest1",
 			EnteredTime: "2024-07-30T20:46:20.824Z",
+			RetryCount:  0,
 		},
 	}
 
@@ -806,6 +889,153 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 	assert.Equal(t, "6fb5c3a05c73dbfe", executionSpan.Meta["_dd.p.tid"])
+
+}
+
+func TestEndExecutionSpanWithNestedStepFunctions(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+	}
+
+	lp.requestHandler.triggerTags["_dd.p.tid"] = "579d19b3ee216ee9"
+
+	startTime := time.Now()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: http.Header{},
+	}
+
+	nestedStepFunctionEvent := events.NestedStepFunctionPayload{
+		Payload: events.StepFunctionPayload{
+			Execution: struct {
+				ID           string
+				RedriveCount uint16
+			}{
+				ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+				RedriveCount: 0,
+			},
+			State: struct {
+				Name        string
+				EnteredTime string
+				RetryCount  uint16
+			}{
+				Name:        "agocsTest1",
+				EnteredTime: "2024-07-30T20:46:20.824Z",
+				RetryCount:  0,
+			},
+		},
+		RootExecutionID:   "arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:4875aba4-ae31-4a4c-bf8a-63e9eee31dad",
+		ServerlessVersion: "v1",
+	}
+
+	lp.startExecutionSpan(nestedStepFunctionEvent, []byte("[]"), startDetails)
+
+	assert.Equal(t, uint64(1322229001489018110), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(8947638978974359093), currentExecutionInfo.parentID)
+	assert.Equal(t, "579d19b3ee216ee9", lp.requestHandler.triggerTags["_dd.p.tid"])
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+	executionSpan := lp.endExecutionSpan(endDetails)
+
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+	assert.Equal(t, "579d19b3ee216ee9", executionSpan.Meta["_dd.p.tid"])
+
+}
+
+func TestEndExecutionSpanWithLambdaRootStepFunctions(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+	}
+
+	lp.requestHandler.triggerTags["_dd.p.tid"] = "672a7cb100000000"
+
+	startTime := time.Now()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: http.Header{},
+	}
+
+	lambdaRootStepFunctionEvent := events.LambdaRootStepFunctionPayload{
+		Payload: events.StepFunctionPayload{
+			Execution: struct {
+				ID           string
+				RedriveCount uint16
+			}{
+				ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+				RedriveCount: 0,
+			},
+			State: struct {
+				Name        string
+				EnteredTime string
+				RetryCount  uint16
+			}{
+				Name:        "agocsTest1",
+				EnteredTime: "2024-07-30T20:46:20.824Z",
+				RetryCount:  0,
+			},
+		},
+		TraceID:           "5821803790426892636",
+		TraceTags:         "_dd.p.dm=-0,_dd.p.tid=672a7cb100000000",
+		ServerlessVersion: "v1",
+	}
+
+	lp.startExecutionSpan(lambdaRootStepFunctionEvent, []byte("[]"), startDetails)
+
+	assert.Equal(t, uint64(5821803790426892636), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(8947638978974359093), currentExecutionInfo.parentID)
+	assert.Equal(t, "672a7cb100000000", lp.requestHandler.triggerTags["_dd.p.tid"])
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+	executionSpan := lp.endExecutionSpan(endDetails)
+
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+	assert.Equal(t, "672a7cb100000000", executionSpan.Meta["_dd.p.tid"])
 
 }
 
