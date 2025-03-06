@@ -9,23 +9,36 @@
 #include "protocols/postgres/decoding.h"
 #include "protocols/redis/decoding.h"
 
-// flush all batched events to userspace for all protocols.
-// because perf events can't be sent from socket filter programs.
-static __always_inline void flush(void *ctx) {
-    http_batch_flush_with_telemetry(ctx);
-    http2_batch_flush(ctx);
-    terminated_http2_batch_flush(ctx);
-    kafka_batch_flush(ctx);
-    postgres_batch_flush(ctx);
-    redis_batch_flush(ctx);
-}
 
 SEC("tracepoint/net/netif_receive_skb")
-int tracepoint__net__netif_receive_skb(void *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
-    log_debug("tracepoint/net/netif_receive_skb");
-    flush(ctx);
+int tracepoint__net__netif_receive_skb_http(void *ctx) {
+    http_batch_flush_with_telemetry(ctx);
     return 0;
 }
 
-#endif
+SEC("tracepoint/net/netif_receive_skb")
+int tracepoint__net__netif_receive_skb_http2(void *ctx) {
+    http2_batch_flush_with_telemetry(ctx);
+    terminated_http2_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
+SEC("tracepoint/net/netif_receive_skb")
+int tracepoint__net__netif_receive_skb_kafka(void *ctx) {
+    kafka_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
+SEC("tracepoint/net/netif_receive_skb")
+int tracepoint__net__netif_receive_skb_postgres(void *ctx) {
+    postgres_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
+SEC("tracepoint/net/netif_receive_skb")
+int tracepoint__net__netif_receive_skb_redis(void *ctx) {
+    redis_batch_flush_with_telemetry(ctx);
+    return 0;
+}
+
+#endif // __USM_FLUSH_H

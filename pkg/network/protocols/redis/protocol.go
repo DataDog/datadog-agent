@@ -48,6 +48,13 @@ var Spec = &protocols.ProtocolSpec{
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
 	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint__net__netif_receive_skb_redis",
+			},
+		},
+	},
 	TailCalls: []manager.TailCallRoute{
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
@@ -98,6 +105,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tracepoint__net__netif_receive_skb_redis"}})
 	utils.EnableOption(opts, "redis_monitoring_enabled")
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }

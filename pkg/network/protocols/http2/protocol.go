@@ -123,6 +123,13 @@ var Spec = &protocols.ProtocolSpec{
 			Name: "terminated_http2_batches",
 		},
 	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint__net__netif_receive_skb_http2",
+			},
+		},
+	},
 	TailCalls: []manager.TailCallRoute{
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
@@ -266,6 +273,7 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tracepoint__net__netif_receive_skb_http2"}})
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
