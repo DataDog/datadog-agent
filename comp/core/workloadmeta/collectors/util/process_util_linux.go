@@ -16,7 +16,7 @@ import (
 // based on agent flavor and config values. This prevents any conflict between the process collectors
 // and unnecessary data collection. Always returns false outside of linux.
 func LocalProcessCollectorIsEnabled() bool {
-	if flavor.GetFlavor() != flavor.DefaultAgent {
+	if flavor.GetFlavor() != flavor.DefaultAgent || flavor.GetFlavor() != flavor.FipsAgent {
 		return false
 	}
 

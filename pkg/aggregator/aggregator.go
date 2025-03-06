@@ -22,6 +22,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -292,6 +293,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	agentName := flavor.GetFlavor()
 	if agentName == flavor.IotAgent && !pkgconfigsetup.Datadog().GetBool("iot_host") {
 		agentName = flavor.DefaultAgent
+		if fipsEnabled, err := fips.Enabled(); fipsEnabled && err == nil {
+			agentName = flavor.FipsAgent
+		}
 	} else if pkgconfigsetup.Datadog().GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent

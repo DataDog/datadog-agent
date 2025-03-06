@@ -100,7 +100,7 @@ func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkg
 	detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "static config"})
 
 	// Automatic handling of AD providers/listeners should only run in the core or process agent.
-	if flavor.GetFlavor() != flavor.DefaultAgent && flavor.GetFlavor() != flavor.ProcessAgent {
+	if flavor.GetFlavor() != flavor.DefaultAgent && flavor.GetFlavor() != flavor.FipsAgent && flavor.GetFlavor() != flavor.ProcessAgent {
 		return detectedProviders, detectedListeners
 	}
 

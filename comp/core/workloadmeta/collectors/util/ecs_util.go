@@ -28,7 +28,7 @@ type TaskParser func(ctx context.Context) ([]workloadmeta.CollectorEvent, error)
 // If agent launch type is EC2, collector will query the latest ECS metadata endpoint for each task returned by v1/tasks
 // If agent launch type is Fargate, collector will query the latest ECS metadata endpoint
 func IsTaskCollectionEnabled(cfg config.Component) bool {
-	return cfg.GetBool("ecs_task_collection_enabled") && (flavor.GetFlavor() == flavor.DefaultAgent)
+	return cfg.GetBool("ecs_task_collection_enabled") && (flavor.GetFlavor() == flavor.DefaultAgent || flavor.GetFlavor() == flavor.FipsAgent)
 }
 
 // ParseV4Task parses a metadata v4 task into a workloadmeta.ECSTask
