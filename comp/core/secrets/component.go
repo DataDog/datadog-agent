@@ -14,16 +14,15 @@ import (
 
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
-	Command                string
-	Arguments              []string
-	Timeout                int
-	MaxSize                int
-	RefreshInterval        int
-	RefreshIntervalScatter int
-	GroupExecPerm          bool
-	RemoveLinebreak        bool
-	RunPath                string
-	AuditFileMaxSize       int
+	Command          string
+	Arguments        []string
+	Timeout          int
+	MaxSize          int
+	RefreshInterval  int
+	GroupExecPerm    bool
+	RemoveLinebreak  bool
+	RunPath          string
+	AuditFileMaxSize int
 }
 
 // Component is the component type.

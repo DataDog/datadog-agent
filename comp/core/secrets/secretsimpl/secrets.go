@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -89,9 +88,8 @@ type secretResolver struct {
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
 	// refresh secrets at a regular interval
-	refreshInterval        time.Duration
-	refreshIntervalScatter time.Duration
-	ticker                 *time.Ticker
+	refreshInterval time.Duration
+	ticker          *time.Ticker
 	// filename to write audit records to
 	auditFilename    string
 	auditFileMaxSize int
@@ -218,7 +216,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
-	r.refreshIntervalScatter = time.Duration(params.RefreshIntervalScatter) * time.Second
 	r.commandAllowGroupExec = params.GroupExecPerm
 	r.removeTrailingLinebreak = params.RemoveLinebreak
 	if r.commandAllowGroupExec {
@@ -244,9 +241,7 @@ func (r *secretResolver) startRefreshRoutine() {
 	if r.ticker != nil || r.refreshInterval == 0 {
 		return
 	}
-	// Generate a random value within the range [-r.refreshIntervalScatter, r.refreshIntervalScatter]
-	randDuration := time.Duration(rand.Int63n(2*int64(r.refreshIntervalScatter))) - r.refreshIntervalScatter
-	r.ticker = time.NewTicker(r.refreshInterval + randDuration)
+	r.ticker = time.NewTicker(r.refreshInterval)
 	go func() {
 		for {
 			<-r.ticker.C
