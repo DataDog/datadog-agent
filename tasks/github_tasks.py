@@ -698,7 +698,7 @@ query {
 
 
 @task
-def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = "agent-devx-help"):
+def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = "agent-devx-ops"):
     """
     Check the permissions on a given repository or team.
       - list contributing teams on the repository or subteams
