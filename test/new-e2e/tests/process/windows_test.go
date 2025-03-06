@@ -57,7 +57,7 @@ func (s *windowsTestSuite) TestAPIKeyRefresh() {
 		agentparams.WithSkipAPIKeyInConfig(),
 		agentparams.WithAgentConfig(processAgentWinRefreshStr),
 	}
-	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", false)...)
+	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", true)...)
 
 	s.UpdateEnv(
 		awshost.Provisioner(
