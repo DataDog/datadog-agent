@@ -2,8 +2,10 @@
 
 # export XCODE_VERSION=15.2
 # export XCODE_FULL_VERSION=15.2.0
-export XCODE_VERSION=14.3.1
-export XCODE_FULL_VERSION=14.3.1
+# export XCODE_VERSION=14.3.1
+# export XCODE_FULL_VERSION=14.3.1
+export XCODE_VERSION=14.2
+export XCODE_FULL_VERSION=14.2
 
 setup_xcode()
 {
