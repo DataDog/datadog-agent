@@ -10,4 +10,4 @@ fixes:
   - |
     Fix the NVIDIA Jetson check to support parsing the ``tegrastats`` output 
     when there are multiple Graphics Processing Clusters (GPCs). In that case, the metric 
-    ``nvidia.jetson.gpu.freq`` is emitted for each GPC and tagged with ``gpc:0``, ``gpc:1``, etc.
+    ``nvidia.jetson.gpu.freq`` is emitted for each GPC and tagged with ``gpc:0``, ``gpc:1``, and so on.
