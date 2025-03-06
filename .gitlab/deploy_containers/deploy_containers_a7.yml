@@ -235,7 +235,7 @@ deploy_containers-a7-fips_internal:
     JMX: "-jmx"
 
 deploy_containers-a7-fips_internal-rc:
-  extends: .deploy_containers-a7-base-ot
+  extends: .deploy_containers-a7-base-fips
   rules:
     !reference [.on_internal_rc]
   variables:
@@ -308,7 +308,14 @@ deploy_containers_latest-a7_internal:
       - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
         IMG_SOURCES: "%BASE%-full-amd64,%BASE%-full-arm64,%BASE%-jmx-win1809-amd64,%BASE%-jmx-winltsc2022-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-full
-
+      # ot-beta image: linux only for now
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx"
+        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-ot-beta-jmx
+      # fips image: linux only for now
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-fips-jmx"
+        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-fips-jmx
 
 deploy_containers_latest-dogstatsd:
   extends: .docker_publish_job_definition
