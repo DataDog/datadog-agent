@@ -484,6 +484,7 @@ func initConstants() {
 	initAUIDConstants()
 	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
+	initSysCtlActionConstants()
 }
 
 // RetValError represents a syscall return error value

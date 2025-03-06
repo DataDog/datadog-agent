@@ -216,12 +216,6 @@ func (t *localTagger) Subscribe(subscriptionID string, filter *types.Filter) (ty
 	return t.tagStore.Subscribe(subscriptionID, filter)
 }
 
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the local tagger
-func (t *localTagger) ReplayTagger() tagger.ReplayTagger {
-	return nil
-}
-
 // GetTaggerTelemetryStore returns tagger telemetry store
 func (t *localTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return t.telemetryStore
@@ -238,10 +232,6 @@ func (t *localTagger) AgentTags(types.TagCardinality) ([]string, error) {
 func (t *localTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 	return []string{}, nil
 }
-
-func (t *localTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (t *localTagger) ResetCaptureTagger() {}
 
 func (t *localTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
 

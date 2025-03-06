@@ -5,7 +5,6 @@ exporters:
       fail_on_invalid_key: false
       key: "[REDACTED]"
       site: datadoghq.com
-    auth: null
     compression: ""
     cookies: null
     disable_keep_alives: false
@@ -16,8 +15,6 @@ exporters:
       hostname_source: config_or_system
       tags: []
     hostname: ""
-    http2_ping_timeout: 0s
-    http2_read_idle_timeout: 0s
     idle_conn_timeout: null
     logs:
       batch_wait: 5
@@ -47,8 +44,6 @@ exporters:
       tag_cardinality: ""
       tags: ""
     only_metadata: false
-    proxy_url: ""
-    read_buffer_size: 0
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -62,7 +57,6 @@ exporters:
       queue_size: 1000
       storage: null
     timeout: 15s
-    tls: {}
     traces:
       compute_top_level_by_span_kind: true
       endpoint: https://trace.agent.datadoghq.com
@@ -70,37 +64,26 @@ exporters:
       span_name_as_resource_name: true
       span_name_remappings: {}
       trace_buffer: 0
-    write_buffer_size: 0
 extensions:
   ddflare/dd-autoconfigured:
-    auth: null
-    compression_algorithms: []
     configstore: {}
     cors: null
     endpoint: localhost:7777
     idle_timeout: 0s
-    include_metadata: false
-    max_request_body_size: 0
     read_header_timeout: 0s
-    read_timeout: 0s
     response_headers: {}
     tls: null
     write_timeout: 0s
   health_check/dd-autoconfigured:
-    auth: null
     check_collector_pipeline:
       enabled: false
       exporter_failure_threshold: 5
       interval: 5m
-    compression_algorithms: []
     cors: null
     endpoint: localhost:13133
     idle_timeout: 0s
-    include_metadata: false
-    max_request_body_size: 0
     path: /
     read_header_timeout: 0s
-    read_timeout: 0s
     response_body: null
     response_headers: {}
     tls: null
@@ -111,15 +94,10 @@ extensions:
     mutex_profile_fraction: 0
     save_to_file: ""
   zpages/dd-autoconfigured:
-    auth: null
-    compression_algorithms: []
     cors: null
     endpoint: localhost:55679
     idle_timeout: 0s
-    include_metadata: false
-    max_request_body_size: 0
     read_header_timeout: 0s
-    read_timeout: 0s
     response_headers: {}
     tls: null
     write_timeout: 0s
@@ -205,13 +183,9 @@ service:
         - otlp
   telemetry:
     logs:
-      development: false
-      disable_caller: false
-      disable_stacktrace: false
       encoding: console
       error_output_paths:
         - stderr
-      initial_fields: {}
       level: info
       output_paths:
         - stderr

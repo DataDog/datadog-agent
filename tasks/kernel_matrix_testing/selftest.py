@@ -46,9 +46,9 @@ def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
     if len(image_vers) != 1:
         return False, f"Multiple image versions found: {image_vers}"
 
-    res = ctx.run("inv -e kmt.ls", hide=True, warn=True)
+    res = ctx.run("dda inv -e kmt.ls", hide=True, warn=True)
     if res is None or not res.ok:
-        return False, "Cannot run inv -e kmt.ls, platforms.json file might be incorrect"
+        return False, "Cannot run dda inv -e kmt.ls, platforms.json file might be incorrect"
     return True, "platforms.json file exists, is readable and is correct"
 
 
@@ -68,14 +68,16 @@ def selftest_prepare(ctx: Context, _: bool, component: Component, cross_compile:
 
     vms = f"{target.name}-debian11-distro"
 
-    ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True)
-    res = ctx.run(f"inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
+    ctx.run(f"dda inv kmt.destroy-stack --stack={stack}", warn=True)
+    res = ctx.run(f"dda inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
     if res is None or not res.ok:
-        return None, "Cannot generate config with inv kmt.gen-config"
+        return None, "Cannot generate config with dda inv kmt.gen-config"
 
-    res = ctx.run(f"inv -e kmt.prepare --stack={stack} --component={component} --compile-only {arch_arg}", warn=True)
+    res = ctx.run(
+        f"dda inv -e kmt.prepare --stack={stack} --component={component} --compile-only {arch_arg}", warn=True
+    )
     if res is None or not res.ok:
-        return False, "Cannot run inv -e kmt.prepare"
+        return False, "Cannot run dda inv -e kmt.prepare"
 
     paths = KMTPaths(f"{stack}-ddvm", target)
     testpath = paths.secagent_tests if component == "security-agent" else paths.sysprobe_tests
@@ -108,7 +110,7 @@ def selftest_prepare(ctx: Context, _: bool, component: Component, cross_compile:
     if binary_arch != target:
         return False, f"Binary {test_binary} has unexpected arch {binary_arch} instead of {target}"
 
-    return True, f"inv -e kmt.prepare ran successfully for {component}"
+    return True, f"dda inv -e kmt.prepare ran successfully for {component}"
 
 
 def selftest_multiarch_test(ctx: Context, allow_infra_changes: bool) -> SelftestResult:
@@ -118,22 +120,24 @@ def selftest_multiarch_test(ctx: Context, allow_infra_changes: bool) -> Selftest
     if not allow_infra_changes:
         return None, "Skipping multiarch test, infra changes not allowed"
 
-    ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True, hide=True)
-    res = ctx.run(f"inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
+    ctx.run(f"dda inv kmt.destroy-stack --stack={stack}", warn=True, hide=True)
+    res = ctx.run(f"dda inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
     if res is None or not res.ok:
-        return None, "Cannot generate config with inv kmt.gen-config"
+        return None, "Cannot generate config with dda inv kmt.gen-config"
 
-    res = ctx.run(f"inv kmt.launch-stack --stack={stack}", warn=True)
+    res = ctx.run(f"dda inv kmt.launch-stack --stack={stack}", warn=True)
     if res is None or not res.ok:
-        return None, "Cannot create stack with inv kmt.create-stack"
+        return None, "Cannot create stack with dda inv kmt.create-stack"
 
     # We just test the printk patcher as it's simple, owned by eBPF platform,
     # loads eBPF files and does not depend on other components
-    res = ctx.run(f"inv -e kmt.test --stack={stack} --packages=pkg/ebpf --run='.*TestPatchPrintkNewline.*'", warn=True)
+    res = ctx.run(
+        f"dda inv -e kmt.test --stack={stack} --packages=pkg/ebpf --run='.*TestPatchPrintkNewline.*'", warn=True
+    )
     if res is None or not res.ok:
-        return False, "Cannot run inv -e kmt.test"
+        return False, "Cannot run dda inv -e kmt.test"
 
-    return True, "inv -e kmt.test ran successfully for multiarch"
+    return True, "dda inv -e kmt.test ran successfully for multiarch"
 
 
 def selftest(ctx: Context, allow_infra_changes: bool = False, filter: str | None = None):

@@ -558,7 +558,7 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 	}
 
 	if fileFields.Inode == 0 {
-		return nil, fmt.Errorf("inode `%d` not found: %w", inode, err)
+		return nil, fmt.Errorf("inode `%d` not found", inode)
 	}
 
 	return &fileFields, nil
