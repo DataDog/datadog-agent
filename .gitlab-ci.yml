@@ -623,13 +623,6 @@ workflow:
   - !reference [.except_main_release_or_mq]
   - <<: *if_tagged_commit
     when: never
-  - when: on_success
-
-.on_dev_branches_always:
-  - !reference [.except_main_release_or_mq]
-  - <<: *if_tagged_commit
-    when: never
-  - when: always
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

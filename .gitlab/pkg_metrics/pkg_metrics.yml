@@ -86,6 +86,7 @@ check_pkg_size:
       when: on_success
       allow_failure: true
     - !reference [.on_dev_branches]
+    - when: on_success
   needs:
     - agent_deb-x64-a7
     - iot_agent_deb-x64

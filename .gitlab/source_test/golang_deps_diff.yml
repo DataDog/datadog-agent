@@ -7,6 +7,7 @@ golang_deps_diff:
   tags: ["arch:amd64"]
   rules:
     - !reference [.on_dev_branches]
+    - when: on_success
   needs: ["go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
@@ -27,6 +28,7 @@ golang_deps_commenter:
   tags: ["arch:amd64"]
   rules:
     - !reference [.on_dev_branches]
+    - when: on_success
   needs: ["golang_deps_diff"]
   variables:
     # Not using the entrypoint script for the pr-commenter image
