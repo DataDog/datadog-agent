@@ -36,7 +36,7 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
 end
 
 unless linux_target?
-    raise UnknownPlatform
+    raise 'OTEL agent is only supported on linux'
 end
 
 INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
