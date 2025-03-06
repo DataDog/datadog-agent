@@ -301,7 +301,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, cache.blobID), nil
+	return c.buildReport(trivyReport, cache.lastBlobID), nil
 }
 
 func (c *Collector) fixupCacheKeyForImgMeta(ctx context.Context, artifact artifact.Artifact, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner) error {
