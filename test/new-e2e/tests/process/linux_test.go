@@ -64,16 +64,7 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 	)
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		// Assert that the status has the correct API key
-		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
-		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
-			// Original key is obfuscated to the last 5 characters
-			assert.Equal(collect, key[0], "23456")
-		}
-		// Assert that the last recieved payload has the correct API key
-		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
-		require.NoError(collect, err)
-		assert.Equal(collect, "abcdefghijklmnopqrstuvwxyz123456", lastAPIKey)
+		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
 	}, 2*time.Minute, 10*time.Second)
 
 	// API key refresh
@@ -82,16 +73,7 @@ func (s *linuxTestSuite) TestAPIKeyRefresh() {
 	require.Contains(t, secretRefreshOutput, "api_key")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		// Assert that the status has the correct API key
-		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
-		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
-			// Original key is obfuscated to the last 5 characters
-			assert.Equal(collect, key[0], "vwxyz")
-		}
-		// Assert that the last recieved payload has the correct API key
-		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
-		require.NoError(collect, err)
-		assert.Equal(collect, "123456abcdefghijklmnopqrstuvwxyz", lastAPIKey)
+		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), false)
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -112,16 +94,7 @@ func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 	)
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		// Assert that the status has the correct API key
-		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
-		for _, key := range statusMap.ProcessComponentStatus.Expvars.Map.Endpoints {
-			// Original key is obfuscated to the last 5 characters
-			assert.Equal(collect, key[0], "23456")
-		}
-		// Assert that the last recieved payload has the correct API key
-		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
-		require.NoError(collect, err)
-		assert.Equal(collect, "abcdefghijklmnopqrstuvwxyz123456", lastAPIKey)
+		assertAPIKey(collect, "abcdefghijklmnopqrstuvwxyz123456", s.Env().Agent.Client, s.Env().FakeIntake.Client(), true)
 	}, 2*time.Minute, 10*time.Second)
 
 	// API key refresh
@@ -130,16 +103,7 @@ func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
 	require.Contains(t, secretRefreshOutput, "api_key")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		// Assert that the status has the correct API key
-		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
-		for _, key := range statusMap.ProcessComponentStatus.Expvars.Map.Endpoints {
-			// Original key is obfuscated to the last 5 characters
-			assert.Equal(collect, key[0], "vwxyz")
-		}
-		// Assert that the last recieved payload has the correct API key
-		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
-		require.NoError(collect, err)
-		assert.Equal(collect, "123456abcdefghijklmnopqrstuvwxyz", lastAPIKey)
+		assertAPIKey(collect, "123456abcdefghijklmnopqrstuvwxyz", s.Env().Agent.Client, s.Env().FakeIntake.Client(), true)
 	}, 2*time.Minute, 10*time.Second)
 }
 

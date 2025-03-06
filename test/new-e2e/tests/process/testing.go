@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -403,4 +404,22 @@ func assertManualProcessDiscoveryCheck(t *testing.T, check string, process strin
 
 	require.True(t, found, "%s process not found", process)
 	assert.True(t, populated, "no %s process had all data populated", process)
+}
+
+func assertAPIKey(collect *assert.CollectT, apiKey string, agentClient agentclient.Agent, fakeIntakeClient *fakeintakeclient.Client, coreAgent bool) {
+	// Assert that the status has the correct API key
+	statusMap := getAgentStatus(collect, agentClient)
+	endpoints := statusMap.ProcessAgentStatus.Expvars.Map.Endpoints
+	if coreAgent {
+		endpoints = statusMap.ProcessComponentStatus.Expvars.Map.Endpoints
+	}
+	for _, key := range endpoints {
+		// Original key is obfuscated to the last 5 characters
+		assert.Equal(collect, key[0], apiKey[len(apiKey)-5:])
+	}
+
+	// Assert that the last recieved payload has the correct API key
+	lastAPIKey, err := fakeIntakeClient.GetLastProcessPayloadAPIKey()
+	require.NoError(collect, err)
+	assert.Equal(collect, apiKey, lastAPIKey)
 }
