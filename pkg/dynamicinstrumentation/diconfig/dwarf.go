@@ -15,12 +15,12 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
@@ -46,13 +46,15 @@ func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]b
 		name       string
 		isReturn   bool
 		typeFields *ditypes.Parameter
+		entry      *dwarf.Entry
+		err        error
 	)
+	seenTypes := make(map[string]*seenTypeCounter)
 
 entryLoop:
 	for {
-		seenTypes := make(map[string]*seenTypeCounter)
 
-		entry, err := entryReader.Next()
+		entry, err = entryReader.Next()
 		if err == io.EOF || entry == nil {
 			break
 		}
@@ -63,37 +65,78 @@ entryLoop:
 		}
 
 		if entry.Tag == dwarf.TagCompileUnit {
-
-			name, ok := entry.Val(dwarf.AttrName).(string)
+			_, ok := entry.Val(dwarf.AttrName).(string)
 			if !ok {
 				continue entryLoop
 			}
+			name = strings.Clone(entry.Val(dwarf.AttrName).(string))
 			ranges, err := dwarfData.Ranges(entry)
 			if err != nil {
 				log.Infof("couldnt retrieve ranges for compile unit %s: %s", name, err)
 				continue entryLoop
 			}
 
+			cuLineReader, err := dwarfData.LineReader(entry)
+			if err != nil {
+				log.Errorf("could not get file line reader for compile unit: %v", err)
+				continue entryLoop
+			}
+			var files []*dwarf.LineFile
+			if cuLineReader != nil {
+				for _, file := range cuLineReader.Files() {
+					if file == nil {
+						continue
+					}
+
+					files = append(files, &dwarf.LineFile{
+						Name:   strings.Clone(file.Name),
+						Mtime:  file.Mtime,
+						Length: file.Length,
+					})
+				}
+			}
+
 			for i := range ranges {
-				result.DeclaredFiles = append(result.DeclaredFiles, &ditypes.LowPCEntry{
+				result.DeclaredFiles = append(result.DeclaredFiles, &ditypes.DwarfFilesEntry{
 					LowPC: ranges[i][0],
-					Entry: entry,
+					Files: files,
 				})
 			}
 		}
 
 		if entry.Tag == dwarf.TagSubprogram {
+			var (
+				fn         string
+				fileNumber int64
+				line       int64
+			)
+			for _, field := range entry.Field {
+				if field.Attr == dwarf.AttrName {
+					fn = strings.Clone(field.Val.(string))
+				}
+				if field.Attr == dwarf.AttrDeclFile {
+					fileNumber = field.Val.(int64)
+				}
+				if field.Attr == dwarf.AttrDeclLine {
+					line = field.Val.(int64)
+				}
+			}
 
 			for _, field := range entry.Field {
 				if field.Attr == dwarf.AttrLowpc {
 					lowpc := field.Val.(uint64)
-					result.FunctionsByPC = append(result.FunctionsByPC, &ditypes.LowPCEntry{LowPC: lowpc, Entry: entry})
+					result.FunctionsByPC = append(result.FunctionsByPC, &ditypes.FuncByPCEntry{
+						LowPC:      lowpc,
+						Fn:         fn,
+						FileNumber: fileNumber,
+						Line:       line,
+					})
 				}
 			}
 
 			for _, field := range entry.Field {
 				if field.Attr == dwarf.AttrName {
-					funcName = field.Val.(string)
+					funcName = strings.Clone(field.Val.(string))
 					if !targetFunctions[funcName] {
 						continue entryLoop
 					}
@@ -122,7 +165,7 @@ entryLoop:
 
 			// ditypes.Parameter name
 			if entry.Field[i].Attr == dwarf.AttrName {
-				name = entry.Field[i].Val.(string)
+				name = strings.Clone(entry.Field[i].Val.(string))
 			}
 
 			if entry.Field[i].Attr == dwarf.AttrVarParam {
@@ -142,7 +185,7 @@ entryLoop:
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
 				}
-
+				clear(seenTypes)
 			}
 		}
 
@@ -150,31 +193,19 @@ entryLoop:
 			// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
 			typeFields.Name = name
 			result.Functions[funcName] = append(result.Functions[funcName], typeFields)
+			typeFields = nil
 		}
 	}
 
 	// Sort program counter slice for lookup when resolving pcs->functions
-	slices.SortFunc(result.FunctionsByPC, func(a, b *ditypes.LowPCEntry) int {
+	slices.SortFunc(result.FunctionsByPC, func(a, b *ditypes.FuncByPCEntry) int {
 		return cmp.Compare(b.LowPC, a.LowPC)
 	})
-	slices.SortFunc(result.DeclaredFiles, func(a, b *ditypes.LowPCEntry) int {
+	slices.SortFunc(result.DeclaredFiles, func(a, b *ditypes.DwarfFilesEntry) int {
 		return cmp.Compare(b.LowPC, a.LowPC)
 	})
 
 	return &result, nil
-}
-
-func loadDWARF(binaryPath string) (*dwarf.Data, error) {
-	elfFile, err := safeelf.Open(binaryPath)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't open elf binary: %w", err)
-	}
-	defer elfFile.Close()
-	dwarfData, err := elfFile.DWARF()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't retrieve debug info from elf: %w", err)
-	}
-	return dwarfData, nil
 }
 
 func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) (*ditypes.Parameter, error) {
@@ -233,11 +264,15 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[st
 		}
 		typeHeader.ParameterPieces = arrayElements
 	} else if typeEntry.Tag == dwarf.TagPointerType {
+		// Get underlying type that the pointer points to
 		pointerElements, err := getPointerLayers(typeEntry.Offset, dwarfData, seenTypes)
 		if err != nil {
 			return nil, fmt.Errorf("could not find pointer type: %w", err)
 		}
 		typeHeader.ParameterPieces = pointerElements
+		// pointers have a unique ID so we only capture the address once when generating
+		// location expressions
+		typeHeader.ID = randomLabel()
 	}
 
 	return &typeHeader, nil
@@ -346,7 +381,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[s
 
 			// Struct Field Name
 			if fieldEntry.Field[i].Attr == dwarf.AttrName {
-				newStructField.Name = fieldEntry.Field[i].Val.(string)
+				newStructField.Name = strings.Clone(fieldEntry.Field[i].Val.(string))
 			}
 
 			// Struct Field Type
@@ -387,6 +422,8 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[s
 	return structFields, nil
 }
 
+// getPointerLayers is used to populate the underlying type of pointers. The returned slice of parameters
+// would contain a single element which represents the entire type tree that the pointer points to.
 func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[string]*seenTypeCounter) ([]*ditypes.Parameter, error) {
 	typeReader := dwarfData.Reader()
 	typeReader.Seek(offset)
@@ -430,7 +467,7 @@ func getTypeEntryBasicInfo(typeEntry *dwarf.Entry) (typeName string, typeSize in
 	}
 	for i := range typeEntry.Field {
 		if typeEntry.Field[i].Attr == dwarf.AttrName {
-			typeName = typeEntry.Field[i].Val.(string)
+			typeName = strings.Clone(typeEntry.Field[i].Val.(string))
 		}
 		if typeEntry.Field[i].Attr == dwarf.AttrByteSize {
 			typeSize = typeEntry.Field[i].Val.(int64)
@@ -567,7 +604,7 @@ func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
 			kind = uint(e.Field[f].Val.(int64))
 		}
 		if e.Field[f].Attr == dwarf.AttrName {
-			name = e.Field[f].Val.(string)
+			name = strings.Clone(e.Field[f].Val.(string))
 		}
 	}
 	if name == "unsafe.Pointer" {

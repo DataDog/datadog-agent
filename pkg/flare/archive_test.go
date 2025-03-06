@@ -42,42 +42,6 @@ func TestGoRoutines(t *testing.T) {
 	assert.Equal(t, expected, string(content))
 }
 
-func TestIncludeSystemProbeConfig(t *testing.T) {
-	configmock.NewFromFile(t, "./test/datadog-agent.yaml")
-	// create system-probe.yaml file because it's in .gitignore
-	_, err := os.Create("./test/system-probe.yaml")
-	require.NoError(t, err, "couldn't create system-probe.yaml")
-	defer os.Remove("./test/system-probe.yaml")
-
-	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	GetConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
-
-	mock.AssertFileExists("etc", "datadog.yaml")
-	mock.AssertFileExists("etc", "system-probe.yaml")
-}
-
-func TestIncludeConfigFiles(t *testing.T) {
-	configmock.New(t)
-
-	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	GetConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
-
-	mock.AssertFileExists("etc/confd/test.yaml")
-	mock.AssertFileExists("etc/confd/test.Yml")
-	mock.AssertNoFileExists("etc/confd/not_included.conf")
-}
-
-func TestIncludeConfigFilesWithPrefix(t *testing.T) {
-	configmock.New(t)
-
-	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	GetConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})
-
-	mock.AssertFileExists("etc/confd/prefix/test.yaml")
-	mock.AssertFileExists("etc/confd/prefix/test.Yml")
-	mock.AssertNoFileExists("etc/confd/prefix/not_included.conf")
-}
-
 func createTestFile(t *testing.T, filename string) string {
 	path := filepath.Join(t.TempDir(), filename)
 	require.NoError(t, os.WriteFile(path, []byte("mockfilecontent"), os.ModePerm))
@@ -91,7 +55,7 @@ func TestRegistryJSON(t *testing.T) {
 	confMock.SetWithoutSource("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getRegistryJSON(mock.Fb)
+	getRegistryJSON(mock)
 
 	mock.AssertFileContent("mockfilecontent", "registry.json")
 }
@@ -172,7 +136,7 @@ func TestVersionHistory(t *testing.T) {
 	confMock.SetWithoutSource("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getVersionHistory(mock.Fb)
+	getVersionHistory(mock)
 
 	mock.AssertFileContent("mockfilecontent", "version-history.json")
 }
@@ -269,7 +233,7 @@ func TestProcessAgentChecks(t *testing.T) {
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock.Fb, func() (string, error) { return "fake:1337", nil })
+		getChecksFromProcessAgent(mock, func() (string, error) { return "fake:1337", nil })
 
 		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data for 'process_discovery_check_output.json': .*", "process_check_output.json")
 	})
@@ -300,7 +264,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		setupIPCAddress(t, configmock.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock.Fb, getProcessAPIAddressPort)
+		getChecksFromProcessAgent(mock, getProcessAPIAddressPort)
 
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")

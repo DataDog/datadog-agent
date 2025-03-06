@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -32,6 +33,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 
 	// checks implemented as components
 
@@ -65,6 +67,7 @@ import (
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -345,6 +348,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.StreamlogsLogFile,
 		)),
 		core.Bundle(),
+		flareprofiler.Module(),
 		lsof.Module(),
 		// Enable core agent specific features like persistence-to-disk
 		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
@@ -443,6 +447,9 @@ func getSharedFxOption() fx.Option {
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
+		fx.Provide(func(demux demultiplexer.Component) (ddgostatsd.ClientInterface, error) {
+			return aggregator.NewStatsdDirect(demux)
+		}),
 		process.Bundle(),
 		guiimpl.Module(),
 		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
@@ -587,7 +594,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry)
+	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rcclient)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

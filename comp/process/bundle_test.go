@@ -9,6 +9,7 @@ import (
 	"context"
 	"testing"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -62,6 +63,9 @@ func TestBundleDependencies(t *testing.T) {
 		npcollectorimpl.MockModule(),
 		statsd.MockModule(),
 		fetchonlyimpl.MockModule(),
+		fx.Provide(func() ddgostatsd.ClientInterface {
+			return &ddgostatsd.NoOpClient{}
+		}),
 	)
 }
 
@@ -97,11 +101,17 @@ func TestBundleOneShot(t *testing.T) {
 		}}),
 		core.MockBundle(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
+		taggerfx.Module(tagger.Params{
+			UseFakeTagger: true,
+		}),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		rdnsquerier.MockModule(),
 		npcollectorimpl.Module(),
 		statsd.MockModule(),
+		fx.Provide(func() ddgostatsd.ClientInterface {
+			return &ddgostatsd.NoOpClient{}
+		}),
 		Bundle(),
 	)
 	require.NoError(t, err)

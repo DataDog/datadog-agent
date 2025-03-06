@@ -356,7 +356,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
     gpu_headers_dir = Path("pkg/gpu/ebpf/c")
     gpu_c_dir = gpu_headers_dir / "runtime"
-    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir}"
+    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir} -Ipkg/network/ebpf/c"
     gpu_programs = ["gpu"]
 
     for prog in gpu_programs:
@@ -382,6 +382,19 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
         )
 
 
+def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+    dir = Path("pkg/collector/corechecks/servicediscovery/c/ebpf/runtime")
+    flags = f"-I{dir} -Ipkg/network/ebpf/c"
+    programs = ["discovery-net"]
+
+    for prog in programs:
+        infile = os.path.join(dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+
+
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     bc_dir = os.path.join("pkg", "ebpf", "bytecode")
     build_dir = os.path.join(bc_dir, "build")
@@ -405,6 +418,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
+        "pkg/collector/corechecks/servicediscovery/module/network_ebpf.go": "discovery-net",
         "pkg/network/usm/compile.go": "usm",
         "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
@@ -510,6 +524,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
             ],
+            "pkg/collector/corechecks/servicediscovery/module/kern_types.go": [
+                "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
+            ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
@@ -535,7 +552,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             pool="cgo_pool",
             command="cd $in_dir && "
             + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
-            + "go run $script_path > $out_file",
+            + "go run $script_path $tests_file $package_name > $out_file",
         )
 
     script_path = os.path.join(os.getcwd(), "pkg", "ebpf", "cgo", "genpost.go")
@@ -544,9 +561,16 @@ def ninja_cgo_type_files(nw: NinjaWriter):
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
         rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
+        tests_file = ""
+        package_name = ""
+        outputs = [os.path.join(in_dir, out_file)]
+        if go_platform == "linux":
+            tests_file = f"{in_base}_{go_platform}_test"
+            package_name = os.path.basename(in_dir)
+            outputs.append(os.path.join(in_dir, f"{tests_file}.go"))
         nw.build(
             inputs=[f],
-            outputs=[os.path.join(in_dir, out_file)],
+            outputs=outputs,
             rule="godefs",
             implicit=headers + [script_path],
             variables={
@@ -555,6 +579,8 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "out_file": out_file,
                 "script_path": script_path,
                 "rel_import": rel_import,
+                "tests_file": tests_file,
+                "package_name": package_name,
             },
         )
 
@@ -610,6 +636,7 @@ def ninja_generate(
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
+            ninja_discovery_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -1500,9 +1527,6 @@ def build_object_files(
         ebpf_compiler=ebpf_compiler,
     )
 
-    if bundle_ebpf:
-        copy_bundled_ebpf_files(ctx, arch=arch)
-
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
     if not is_windows:
@@ -1539,22 +1563,6 @@ def build_object_files(
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
-def copy_bundled_ebpf_files(
-    ctx,
-    arch: str | Arch = CURRENT_ARCH,
-):
-    # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
-    # as we cannot use the go:embed directive with variables that depend on the build architecture
-    arch = Arch.from_str(arch)
-    ebpf_build_dir = get_ebpf_build_dir(arch)
-
-    # Parse the files to copy from the go:embed directive, to avoid having duplicate places
-    # where the files are listed
-    ctx.run(
-        f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
-    )
-
-
 def build_cws_object_files(
     ctx,
     major_version='7',
@@ -1576,9 +1584,6 @@ def build_cws_object_files(
         with_unit_test=with_unit_test,
         ebpf_compiler=ebpf_compiler,
     )
-
-    if bundle_ebpf:
-        copy_bundled_ebpf_files(ctx, arch=arch)
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
@@ -2058,3 +2063,21 @@ def build_usm_debugger(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+
+@task
+def build_gpu_event_viewer(ctx):
+    build_dir = Path("pkg/gpu/testutil/event-viewer")
+
+    tags = get_default_build_tags("system-probe")
+    if "test" not in tags:
+        tags.append("test")
+
+    binary = build_dir / "event-viewer"
+    main_file = build_dir / "main.go"
+
+    cmd = f"go build -tags \"{','.join(tags)}\" -o {binary} {main_file}"
+
+    ctx.run(cmd)
+
+    print(f"Built {binary}")

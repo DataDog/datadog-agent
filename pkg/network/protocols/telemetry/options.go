@@ -14,7 +14,4 @@ const (
 
 	// OptPrometheus designates a metric that should be emitted using prometheus
 	OptPrometheus = "_prometheus"
-
-	// OptPayloadTelemetry designates a metric that should be emitted as agent payload telemetry
-	OptPayloadTelemetry = "_payload_telemetry"
 )

@@ -105,7 +105,7 @@ func TestFlareProvider(t *testing.T) {
 
 	hostProvider := ret.Comp.(*host)
 	fbMock := flarehelpers.NewFlareBuilderMock(t, false)
-	hostProvider.fillFlare(fbMock.Fb)
+	hostProvider.fillFlare(fbMock)
 
 	fbMock.AssertFileExists(filepath.Join("metadata", "host.json"))
 }

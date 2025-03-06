@@ -72,6 +72,10 @@ var (
 		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
+		RxBytes:                    100,
+		TxBytes:                    200,
+		RxBps:                      10,
+		TxBps:                      20,
 	}
 	portTCP8080UpdatedRSS = model.Service{
 		PID:                        procTestService1.pid,
@@ -90,6 +94,10 @@ var (
 		CommandLine:                []string{"test-service-1"},
 		StartTimeMilli:             procLaunchedMilli,
 		ContainerID:                dummyContainerID,
+		RxBytes:                    1000,
+		TxBytes:                    2000,
+		RxBps:                      900,
+		TxBps:                      800,
 	}
 	portTCP5000 = model.Service{
 		PID:                        procPythonService.pid,
@@ -205,6 +213,10 @@ func Test_linuxImpl(t *testing.T) {
 						RSSMemory:                  100 * 1024 * 1024,
 						CPUCores:                   1.5,
 						ContainerID:                dummyContainerID,
+						RxBytes:                    100,
+						TxBytes:                    200,
+						RxBps:                      10,
+						TxBps:                      20,
 					},
 				},
 				{
@@ -232,6 +244,10 @@ func Test_linuxImpl(t *testing.T) {
 						RSSMemory:                  200 * 1024 * 1024,
 						CPUCores:                   1.5,
 						ContainerID:                dummyContainerID,
+						RxBytes:                    1000,
+						TxBytes:                    2000,
+						RxBps:                      900,
+						TxBps:                      800,
 					},
 				},
 				{
@@ -259,6 +275,10 @@ func Test_linuxImpl(t *testing.T) {
 						RSSMemory:                  200 * 1024 * 1024,
 						CPUCores:                   1.5,
 						ContainerID:                dummyContainerID,
+						RxBytes:                    1000,
+						TxBytes:                    2000,
+						RxBps:                      900,
+						TxBps:                      800,
 					},
 				},
 				{
