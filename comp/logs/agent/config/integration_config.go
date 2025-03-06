@@ -118,7 +118,7 @@ func (t *StringSliceField) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		}
 		return nil
 	}
-	return fmt.Errorf("invalid tags format")
+	return fmt.Errorf("could not parse YAML config, please double check the yaml files")
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
