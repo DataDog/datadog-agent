@@ -5,6 +5,7 @@
 #include "helpers/container.h"
 #include "helpers/network/context.h"
 #include "helpers/process.h"
+#include "helpers/utils.h"
 #include "maps.h"
 
 
@@ -21,7 +22,7 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
     }
 
     // reset event flags
-    evt->event.flags = 0;
+    simple_memset_zero(evt, sizeof(*evt));
 
     // process context
     fill_network_process_context_from_pkt(&evt->process, pkt);
@@ -30,9 +31,7 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
     fill_network_context(&evt->network, skb, pkt);
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
-    if (entry == NULL) {
-        evt->container.container_id[0] = 0;
-    } else {
+    if (entry) {
         copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
     }
 
