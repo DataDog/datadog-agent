@@ -9,8 +9,6 @@ require (
 	go.opentelemetry.io/collector/pdata v1.27.0
 )
 
-require go.opentelemetry.io/collector/component/componenttest v0.121.0 // indirect
-
 require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
