@@ -7,6 +7,7 @@
 package env
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/http"
@@ -23,7 +24,6 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
-	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -47,6 +47,7 @@ const (
 	envHTTPSProxy          = "HTTPS_PROXY"
 	envDDNoProxy           = "DD_PROXY_NO_PROXY"
 	envNoProxy             = "NO_PROXY"
+	envIsFromDaemon        = "DD_INSTALLER_FROM_DAEMON"
 
 	// install script
 	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
@@ -99,10 +100,9 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey         string
-	Site           string
-	RemoteUpdates  bool
-	RemotePolicies bool
+	APIKey        string
+	Site          string
+	RemoteUpdates bool
 
 	Mirror                      string
 	RegistryOverride            string
@@ -131,6 +131,10 @@ type Env struct {
 	HTTPProxy  string
 	HTTPSProxy string
 	NoProxy    string
+
+	IsCentos6 bool
+
+	IsFromDaemon bool
 }
 
 // HTTPClient returns an HTTP client with the proxy settings from the environment.
@@ -166,10 +170,9 @@ func FromEnv() *Env {
 	}
 
 	return &Env{
-		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
-		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
+		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates: strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -203,6 +206,9 @@ func FromEnv() *Env {
 		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
 		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
 		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
+
+		IsCentos6:    DetectCentos6(),
+		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
 	}
 }
 
@@ -217,9 +223,6 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
-	}
-	if e.RemotePolicies {
-		env = append(env, envRemotePolicies+"=true")
 	}
 	if e.Mirror != "" {
 		env = append(env, envMirror+"="+e.Mirror)
@@ -266,6 +269,15 @@ func (e *Env) ToEnv() []string {
 	if e.NoProxy != "" {
 		env = append(env, envNoProxy+"="+e.NoProxy)
 	}
+	if e.IsFromDaemon {
+		env = append(env, envIsFromDaemon+"=true")
+		// This is a bit of a hack; as we should properly redirect the log level
+		// to a file or a structured output. But today, we just want to avoid
+		// logging to avoid polluting the parsed output.
+		// The easiest way to do this without having to import setup/log & pkg/config
+		// is by env var.
+		env = append(env, "DD_LOG_LEVEL=off")
+	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryUsername, e.RegistryUsernameByImage)...)
@@ -291,6 +303,23 @@ func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
 	}
 	return apmLibrariesVersion
+}
+
+// DetectCentos6 checks if the machine the installer is currently on is running centos 6
+func DetectCentos6() bool {
+	sources := []string{
+		"/etc/system-release",
+		"/etc/centos-release",
+		"/etc/redhat-release",
+	}
+	for _, s := range sources {
+		b, _ := os.ReadFile(s)
+		if (bytes.Contains(b, []byte("CentOS")) || bytes.Contains(b, []byte("Red Hat"))) &&
+			bytes.Contains(b, []byte("release 6")) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseAPMLanguagesEnv() map[ApmLibLanguage]ApmLibVersion {

@@ -250,12 +250,6 @@ func (t *remoteTagger) Stop() error {
 	return nil
 }
 
-// ReplayTagger returns the replay tagger instance
-// This is a no-op for the remote tagger
-func (t *remoteTagger) ReplayTagger() tagger.ReplayTagger {
-	return nil
-}
-
 // GetTaggerTelemetryStore returns tagger telemetry store
 func (t *remoteTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return t.telemetryStore
@@ -437,10 +431,6 @@ func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, e
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
-func (t *remoteTagger) SetNewCaptureTagger(tagger.Component) {}
-
-func (t *remoteTagger) ResetCaptureTagger() {}
-
 // EnrichTags enriches the tags with the global tags.
 // Agents running the remote tagger don't have the ability to enrich tags based
 // on the origin info. Only the core agent or dogstatsd can have origin info,
@@ -454,10 +444,6 @@ func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.Origi
 
 func (t *remoteTagger) ChecksCardinality() types.TagCardinality {
 	return t.checksCardinality
-}
-
-func (t *remoteTagger) DogstatsdCardinality() types.TagCardinality {
-	return t.dogstatsdCardinality
 }
 
 // Subscribe currently returns a non-nil error indicating that the method is not supported

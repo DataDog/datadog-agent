@@ -56,12 +56,12 @@ func (s *ServiceDiscoveryPayload) GetCollectedTime() time.Time {
 // ParseServiceDiscoveryPayload parses an api.Payload into a list of
 // ServiceDiscoveryPayload.
 func ParseServiceDiscoveryPayload(payload api.Payload) ([]*ServiceDiscoveryPayload, error) {
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
-		return nil, fmt.Errorf("could not enflate payload: %w", err)
+		return nil, fmt.Errorf("could not inflate payload: %w", err)
 	}
 	var payloads []*ServiceDiscoveryPayload
-	err = json.Unmarshal(enflated, &payloads)
+	err = json.Unmarshal(inflated, &payloads)
 	if err != nil {
 		return nil, err
 	}

@@ -33,7 +33,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 		var statusOutputJSON map[string]any
 		var err error
 		result := false
-		for try := 0; try < 5 && !result; try++ {
+		for try := 0; try < 15 && !result; try++ {
 			err = json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
 			if err != nil {
 				time.Sleep(1 * time.Second)
@@ -212,7 +212,7 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.12.8"
+	ExpectedPythonVersion3 = "3.12.9"
 )
 
 // SetAgentPythonMajorVersion set the python major version in the agent config and restarts the agent

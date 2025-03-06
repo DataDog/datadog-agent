@@ -5,9 +5,17 @@
 
 package integration
 
+// ConfigResponse holds information about the config
+// the instance IDs are precompouted to avoid discrepancies between the server and the client
+// The InstanceIDs must have the same order as the instances in the Config struct
+type ConfigResponse struct {
+	InstanceIDs []string `json:"instance_ids"`
+	Config      Config   `json:"config"`
+}
+
 // ConfigCheckResponse holds the config check response
 type ConfigCheckResponse struct {
-	Configs         []Config            `json:"configs"`
+	Configs         []ConfigResponse    `json:"configs"`
 	ResolveWarnings map[string][]string `json:"resolve_warnings"`
 	ConfigErrors    map[string]string   `json:"config_errors"`
 	Unresolved      map[string][]Config `json:"unresolved"`

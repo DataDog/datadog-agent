@@ -41,6 +41,7 @@ type StatSpan struct {
 	statusCode       uint32
 	isTopLevel       bool
 	matchingPeerTags []string
+	grpcStatusCode   string
 }
 
 func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
@@ -153,6 +154,8 @@ func (sc *SpanConcentrator) NewStatSpan(
 		statusCode:       getStatusCode(meta, metrics),
 		isTopLevel:       isTopLevel,
 		matchingPeerTags: matchingPeerTags(meta, peerTags),
+
+		grpcStatusCode: getGRPCStatusCode(meta, metrics),
 	}, true
 }
 

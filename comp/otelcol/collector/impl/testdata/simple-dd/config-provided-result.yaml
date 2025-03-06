@@ -5,7 +5,6 @@ exporters:
       fail_on_invalid_key: false
       key: "[REDACTED]"
       site: datadoghq.com
-    auth: null
     compression: ""
     cookies: null
     disable_keep_alives: false
@@ -16,14 +15,10 @@ exporters:
       hostname_source: config_or_system
       tags: []
     hostname: ""
-    http2_ping_timeout: 0s
-    http2_read_idle_timeout: 0s
     idle_conn_timeout: null
     logs:
       batch_wait: 5
       compression_level: 6
-      dialer:
-        timeout: 0s
       dump_payloads: false
       endpoint: https://agent-http-intake.logs.datadoghq.com
       use_compression: true
@@ -33,8 +28,6 @@ exporters:
     metrics:
       apm_stats_receiver_addr: ""
       delta_ttl: 3600
-      dialer:
-        timeout: 0s
       enabled: false
       endpoint: https://api.datadoghq.com
       histograms:
@@ -51,8 +44,6 @@ exporters:
       tag_cardinality: ""
       tags: ""
     only_metadata: false
-    proxy_url: ""
-    read_buffer_size: 0
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -66,31 +57,13 @@ exporters:
       queue_size: 1000
       storage: null
     timeout: 15s
-    tls:
-      ca_file: ""
-      ca_pem: "[REDACTED]"
-      cert_file: ""
-      cert_pem: "[REDACTED]"
-      cipher_suites: []
-      include_system_ca_certs_pool: false
-      insecure: false
-      insecure_skip_verify: false
-      key_file: ""
-      key_pem: "[REDACTED]"
-      max_version: ""
-      min_version: ""
-      reload_interval: 0s
-      server_name_override: ""
     traces:
       compute_top_level_by_span_kind: true
-      dialer:
-        timeout: 0s
       endpoint: https://trace.agent.datadoghq.com
       ignore_resources: []
       span_name_as_resource_name: true
       span_name_remappings: {}
       trace_buffer: 0
-    write_buffer_size: 0
 extensions: {}
 processors: {}
 receivers:
@@ -106,6 +79,7 @@ receivers:
         scrape_protocols:
           - OpenMetricsText1.0.0
           - OpenMetricsText0.0.1
+          - PrometheusText1.0.0
           - PrometheusText0.0.4
         scrape_timeout: 10s
       runtime:
@@ -122,6 +96,7 @@ receivers:
           scrape_protocols:
             - OpenMetricsText1.0.0
             - OpenMetricsText0.0.1
+            - PrometheusText1.0.0
             - PrometheusText0.0.4
           scrape_timeout: 5s
           static_configs:
@@ -134,7 +109,6 @@ receivers:
     trim_metric_suffixes: false
     use_start_time_metric: false
 service:
-  extensions: []
   pipelines:
     logs:
       exporters:
@@ -157,13 +131,9 @@ service:
         - otlp
   telemetry:
     logs:
-      development: false
-      disable_caller: false
-      disable_stacktrace: false
       encoding: console
       error_output_paths:
         - stderr
-      initial_fields: {}
       level: info
       output_paths:
         - stderr

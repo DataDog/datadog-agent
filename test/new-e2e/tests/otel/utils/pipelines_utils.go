@@ -442,7 +442,7 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 			assert.Equal(c, originServicePrometheusReceiver, int(origin.OriginService))
 		}
 
-		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_datadog_trace_agent_trace_writer_spans")
+		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("datadog.trace_agent.trace_writer.bytes")
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traceAgentMetrics)
 		for _, m := range otelcolMetrics {
@@ -551,7 +551,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 	require.NoError(s.T(), err, "Could not properly start job")
 }
 
-// TestCalendarApp tests that OTLP metrics are received through OTel pipelines as expected
+// TestCalendarApp starts the calendar app to send telemetry for e2e tests
 func TestCalendarApp(s OTelTestSuite, ust bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
