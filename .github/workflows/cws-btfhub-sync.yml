@@ -65,7 +65,10 @@ jobs:
         with:
           python-version-file: .python-version
           cache: 'pip'
-      - run: pip install -r requirements.txt
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
 
       - name: Install go
         uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
@@ -81,7 +84,7 @@ jobs:
         env:
           ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
         run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
+          dda inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
 
       - name: Upload artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
@@ -106,7 +109,10 @@ jobs:
         with:
           python-version-file: .python-version
           cache: 'pip'
-      - run: pip install -r requirements.txt
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
 
       - name: Install go
         uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
@@ -122,8 +128,8 @@ jobs:
 
       - name: Combine constants
         run: |
-          inv -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
-          inv -e security-agent.split-btfhub-constants
+          dda inv -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
+          dda inv -e security-agent.split-btfhub-constants
 
       - name: Compute branch name
         id: branch-name
