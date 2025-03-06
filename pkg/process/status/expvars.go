@@ -251,8 +251,7 @@ func publishDropCheckPayloads() interface{} {
 }
 
 // InitExpvars initializes expvars
-func InitExpvars(config config.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint, Log log.Component) {
-
+func InitExpvars(config config.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		processExpvars := expvar.NewMap("process_agent")
 		hostString := expvar.NewString("host")
@@ -260,24 +259,6 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("host", hostString)
 		pid := expvar.NewInt("pid")
 		pid.Set(int64(os.Getpid()))
-		config.OnUpdate(func(setting string, oldValue, newValue any) {
-			if setting != "api_key" {
-				return
-			}
-			infoMutex.Lock()
-			defer infoMutex.Unlock()
-			Log.Info("Updating API key in expvars")
-			oldAPIKey, ok1 := oldValue.(string)
-			newAPIKey, ok2 := newValue.(string)
-			if ok1 && ok2 {
-				for _, ep := range eps {
-					if ep.APIKey == oldAPIKey {
-						ep.APIKey = newAPIKey
-					}
-				}
-			}
-		})
-
 		processExpvars.Set("pid", pid)
 		processExpvars.Set("uptime", expvar.Func(publishUptime))
 		processExpvars.Set("uptime_nano", expvar.Func(publishUptimeNano))
