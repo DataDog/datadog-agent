@@ -39,8 +39,14 @@ var systemProbeNPMConfigStr string
 //go:embed compose/fake-process-compose.yaml
 var fakeProcessCompose string
 
-//go:embed config/process_agent_refresh.yaml
+//go:embed config/process_agent_refresh_nix.yaml
 var processAgentRefreshStr string
+
+//go:embed config/core_agent_refresh_nix.yaml
+var coreAgentRefreshStr string
+
+//go:embed config/process_agent_refresh_win.yaml
+var processAgentWinRefreshStr string
 
 // AgentStatus is a subset of the agent's status response for asserting the process-agent runtime
 type AgentStatus struct {

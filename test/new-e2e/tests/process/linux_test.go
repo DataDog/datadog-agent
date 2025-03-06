@@ -29,7 +29,7 @@ type linuxTestSuite struct {
 func TestLinuxTestSuite(t *testing.T) {
 	t.Parallel()
 	agentParams := []func(*agentparams.Params) error{
-		agentparams.WithAgentConfig(processAgentRefreshStr),
+		agentparams.WithAgentConfig(processCheckConfigStr),
 	}
 
 	options := []e2e.SuiteOption{
@@ -47,7 +47,7 @@ func (s *linuxTestSuite) SetupSuite() {
 	s.Env().RemoteHost.MustExecute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
 }
 
-func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
+func (s *linuxTestSuite) TestAPIKeyRefresh() {
 	t := s.T()
 
 	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
@@ -64,11 +64,13 @@ func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
 	)
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Assert that the status has the correct API key
 		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
 		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
 			// Original key is obfuscated to the last 5 characters
 			assert.Equal(collect, key[0], "23456")
 		}
+		// Assert that the last recieved payload has the correct API key
 		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
 		require.NoError(collect, err)
 		assert.Equal(collect, "abcdefghijklmnopqrstuvwxyz123456", lastAPIKey)
@@ -80,21 +82,70 @@ func (s *linuxTestSuite) TestProcessAgentAPIKeyRefresh() {
 	require.Contains(t, secretRefreshOutput, "api_key")
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Assert that the status has the correct API key
 		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
-		t.Logf("statusMap: %+v", statusMap)
 		for _, key := range statusMap.ProcessAgentStatus.Expvars.Map.Endpoints {
 			// Original key is obfuscated to the last 5 characters
 			assert.Equal(collect, key[0], "vwxyz")
 		}
+		// Assert that the last recieved payload has the correct API key
 		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
 		require.NoError(collect, err)
-		t.Logf("lastAPIKey: %s", lastAPIKey)
+		assert.Equal(collect, "123456abcdefghijklmnopqrstuvwxyz", lastAPIKey)
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestAPIKeyRefreshCoreAgent() {
+	t := s.T()
+
+	secretClient := secretsutils.NewClient(t, s.Env().RemoteHost, "/tmp/test-secret")
+	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+
+	s.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithAgentOptions(
+				agentparams.WithAgentConfig(coreAgentRefreshStr),
+				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+				agentparams.WithSkipAPIKeyInConfig(),
+			),
+		),
+	)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Assert that the status has the correct API key
+		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
+		for _, key := range statusMap.ProcessComponentStatus.Expvars.Map.Endpoints {
+			// Original key is obfuscated to the last 5 characters
+			assert.Equal(collect, key[0], "23456")
+		}
+		// Assert that the last recieved payload has the correct API key
+		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
+		require.NoError(collect, err)
+		assert.Equal(collect, "abcdefghijklmnopqrstuvwxyz123456", lastAPIKey)
+	}, 2*time.Minute, 10*time.Second)
+
+	// API key refresh
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(t, secretRefreshOutput, "api_key")
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Assert that the status has the correct API key
+		statusMap := getAgentStatus(collect, s.Env().Agent.Client)
+		for _, key := range statusMap.ProcessComponentStatus.Expvars.Map.Endpoints {
+			// Original key is obfuscated to the last 5 characters
+			assert.Equal(collect, key[0], "vwxyz")
+		}
+		// Assert that the last recieved payload has the correct API key
+		lastAPIKey, err := s.Env().FakeIntake.Client().GetLastProcessPayloadAPIKey()
+		require.NoError(collect, err)
 		assert.Equal(collect, "123456abcdefghijklmnopqrstuvwxyz", lastAPIKey)
 	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestProcessCheck() {
 	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
