@@ -386,14 +386,6 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 	repository := i.packages.Get(pkg.Name)
-	err = i.preparePackage(ctx, pkg.Name, nil)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not prepare package: %w", err),
-		)
-	}
-
 	err = repository.SetExperiment(pkg.Version, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
