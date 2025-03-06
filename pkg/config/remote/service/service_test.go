@@ -73,6 +73,10 @@ func (m *mockAPI) UpdatePARJWT(jwt string) {
 	m.Called(jwt)
 }
 
+func (m *mockAPI) UpdateAPIKey(apiKey string) {
+	m.Called(apiKey)
+}
+
 type mockUptane struct {
 	mock.Mock
 }
@@ -766,6 +770,37 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	uptaneClient.AssertExpectations(t)
 	assert.Equal(t, service.defaultRefreshInterval, time.Second*42)
 	assert.True(t, service.refreshIntervalOverrideAllowed)
+}
+
+func TestWithApiKeyUpdate(t *testing.T) {
+	api := &mockAPI{}
+	updatedKey := "notUpdated"
+	api.On("UpdateAPIKey", mock.Anything).Run(func(args mock.Arguments) {
+		updatedKey = args.Get(0).(string)
+	})
+	cfg := configmock.New(t)
+	dir := t.TempDir()
+	cfg.SetWithoutSource("run_path", dir)
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithAPIKey("initialKey"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.NotNil(t, service)
+	service.api = api
+
+	originalApiKey, err := getMetadataFromDB(service.db)
+	assert.NoError(t, err)
+
+	cfg.SetWithoutSource("api_key", "updated")
+
+	assert.Equal(t, "updated", updatedKey)
+	newApiKey, err := getMetadataFromDB(service.db)
+	assert.NoError(t, err)
+	assert.NotEqual(t, originalApiKey, newApiKey)
 }
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
