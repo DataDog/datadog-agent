@@ -1,4 +1,4 @@
 #!/bin/bash
 docker login
-docker build -t oliviergacadatadoghq/test .
+docker build --platform linux/amd64 -t oliviergacadatadoghq/test .
 docker push oliviergacadatadoghq/test
