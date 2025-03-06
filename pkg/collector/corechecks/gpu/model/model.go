@@ -20,8 +20,11 @@ type MemoryMetrics struct {
 
 // UtilizationMetrics contains the GPU stats for a given device and process
 type UtilizationMetrics struct {
-	UsedCores float64       `json:"used_cores"`
-	Memory    MemoryMetrics `json:"memory"`
+	// UsedCores stores the average number of GPU cores used by this process in the interval
+	UsedCores float64 `json:"used_cores"`
+
+	// Memory stores the memory stats for the process during the interval
+	Memory MemoryMetrics `json:"memory"`
 }
 
 // StatsKey is the key used to identify a GPUStats object

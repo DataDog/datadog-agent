@@ -67,7 +67,7 @@ func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 	// threads that were enqueued.
 	//
 	// An example of a situation where this distinction is important: say we
-	// have a kernel launch with 100 threads, but the GPU can only run 500
+	// have a kernel launch with 100 threads, but the GPU can only run 50
 	// threads, and assume this kernel runs for 1 second and that we want to
 	// report utilization for the last 2 seconds. If we were looking at the
 	// actual GPU utilization in real-time, we'd see 100% utilization for the

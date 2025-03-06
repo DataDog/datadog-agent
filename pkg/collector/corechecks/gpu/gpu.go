@@ -161,6 +161,8 @@ func (c *Check) Run() error {
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
+	// build the mapping of GPU devices -> containers to allow tagging device
+	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
 
 	if err := c.emitSysprobeMetrics(snd, gpuToContainersMap); err != nil {
