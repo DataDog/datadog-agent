@@ -33,5 +33,7 @@ jobs:
                 features: legacy-tasks legacy-github legacy-release
 
             - name: Bump Integrations Core
+              env:
+                SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
               run: |
-                dda inv release.bump-integrations-core --slack-webhook ${{ secrets.BUMP_INTEGRATIONS_CORE_SLACK_WEBHOOK }}
+                dda inv release.bump-integrations-core
