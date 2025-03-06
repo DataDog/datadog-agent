@@ -19,7 +19,7 @@ type ConfigParams struct {
 	Timeout                int
 	MaxSize                int
 	RefreshInterval        int
-	RefreshIntervalScatter int
+	RefreshIntervalScatter bool
 	GroupExecPerm          bool
 	RemoveLinebreak        bool
 	RunPath                string

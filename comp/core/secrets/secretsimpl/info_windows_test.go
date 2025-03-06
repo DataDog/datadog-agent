@@ -24,7 +24,7 @@ import (
 
 func TestGetExecutablePermissionsError(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 
 	res, err := resolver.getExecutablePermissions()
@@ -54,7 +54,7 @@ func setupSecretCommmand(t *testing.T, resolver *secretResolver) {
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	setupSecretCommmand(t, resolver)
 
 	res, err := resolver.getExecutablePermissions()

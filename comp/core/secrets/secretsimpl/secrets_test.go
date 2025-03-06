@@ -7,12 +7,15 @@ package secretsimpl
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"slices"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -276,7 +279,7 @@ func TestIsEnc(t *testing.T) {
 
 func TestResolveNoCommand(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
@@ -289,7 +292,7 @@ func TestResolveNoCommand(t *testing.T) {
 
 func TestResolveSecretError(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 
 	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
@@ -302,7 +305,7 @@ func TestResolveSecretError(t *testing.T) {
 
 func TestResolveDoestSendDuplicates(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 
 	// test configuration has handle "pass1" appear twice, but fetch should only get one handle
@@ -496,7 +499,7 @@ func TestResolve(t *testing.T) {
 
 			tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 
-			resolver := newEnabledSecretResolver(tel)
+			resolver := newEnabledSecretResolver(tel, nil)
 			resolver.backendCommand = "some_command"
 			if tc.secretCache != nil {
 				resolver.cache = tc.secretCache
@@ -517,7 +520,7 @@ func TestResolve(t *testing.T) {
 
 func TestResolveNestedWithSubscribe(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"pass3": "password3"}
 
@@ -558,7 +561,7 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 
 func TestResolveCached(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"pass1": "password1"}
 
@@ -588,7 +591,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	defer func() { allowlistEnabled = true }()
 
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{}
 
@@ -664,7 +667,7 @@ func TestResolveThenRefresh(t *testing.T) {
 // test that the allowlist only lets setting paths that match it get Refreshed
 func TestRefreshAllowlist(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
 	resolver.origin = handleToContext{
@@ -710,7 +713,7 @@ func TestRefreshAllowlist(t *testing.T) {
 // about changed secret values from a Refresh
 func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 
 	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
@@ -758,7 +761,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel)
+	resolver := newEnabledSecretResolver(tel, nil)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
 	resolver.origin = handleToContext{
@@ -798,6 +801,146 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 		return map[string]string{
 			"handle": "fourth_value",
 		}, nil
+	}
+}
+
+func TestStartRefreshRoutineWithScatter(t *testing.T) {
+	mockClock := clock.NewMock()
+
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+
+	testCases := []struct {
+		name                   string
+		scatter                bool
+		expectedSubsequentTick time.Duration
+	}{
+		{
+			name:                   "Without scatter",
+			scatter:                false,
+			expectedSubsequentTick: 10 * time.Second,
+		},
+		{
+			name:                   "With scatter",
+			scatter:                true,
+			expectedSubsequentTick: 10 * time.Second,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolver := newEnabledSecretResolver(tel, mockClock)
+			originalAllowListEnabled := allowlistEnabled
+			allowlistEnabled = false
+			defer func() {
+				allowlistEnabled = originalAllowListEnabled
+			}()
+
+			resolver.refreshInterval = 10 * time.Second
+			resolver.refreshIntervalScatter = tc.scatter
+
+			if tc.scatter {
+				rand.Seed(12345)
+			}
+
+			resolver.cache = map[string]string{
+				"test-handle": "initial-value",
+			}
+			resolver.origin = map[string][]secretContext{
+				"test-handle": {
+					{
+						origin: "test-origin",
+						path:   []string{"test-path"},
+					},
+				},
+			}
+
+			refreshCalls := 0
+			refreshCalledChan := make(chan struct{}, 3)
+
+			resolver.fetchHookFunc = func(_ []string) (map[string]string, error) {
+				refreshCalls++
+				refreshCalledChan <- struct{}{}
+
+				return map[string]string{
+					"test-handle": fmt.Sprintf("updated-value-%d", refreshCalls),
+				}, nil
+			}
+
+			changeDetected := make(chan struct{}, 3)
+			resolver.SubscribeToChanges(func(_, _ string, _ []string, _, _ any) {
+				changeDetected <- struct{}{}
+			})
+
+			if resolver.ticker == nil {
+				t.Fatal("Ticker was not created")
+			}
+
+			if tc.scatter {
+				// In scattered case, first we advance 1/4 of the refresh interval
+				mockClock.Add(resolver.refreshInterval / 4)
+
+				refreshHappened := false
+				select {
+				case <-refreshCalledChan:
+					refreshHappened = true
+				case <-time.After(100 * time.Millisecond):
+					// No refresh yet
+				}
+
+				if !refreshHappened {
+					// If no refresh yet, advance to 3/4 of the refresh interval
+					mockClock.Add(resolver.refreshInterval / 2)
+
+					select {
+					case <-refreshCalledChan:
+						refreshHappened = true
+					case <-time.After(100 * time.Millisecond):
+						// Still no refresh
+					}
+				}
+
+				if !refreshHappened {
+					// If still no refresh, advance to the full refresh interval
+					mockClock.Add(resolver.refreshInterval / 4)
+
+					select {
+					case <-refreshCalledChan:
+					case <-time.After(1 * time.Second):
+						t.Fatal("First refresh didn't occur even after full interval")
+					}
+				}
+			} else {
+				// Without scatter, the first tick should be at the full refresh interval
+				mockClock.Add(resolver.refreshInterval)
+
+				select {
+				case <-refreshCalledChan:
+				case <-time.After(1 * time.Second):
+					t.Fatal("First refresh didn't occur at expected time")
+				}
+			}
+
+			// Now test that subsequent ticks use the full refresh interval regardless of scatter setting
+			mockClock.Add(tc.expectedSubsequentTick)
+
+			select {
+			case <-refreshCalledChan:
+			case <-time.After(1 * time.Second):
+				t.Fatal("Second refresh didn't occur at expected time")
+			}
+
+			mockClock.Add(tc.expectedSubsequentTick)
+
+			select {
+			case <-refreshCalledChan:
+			case <-time.After(1 * time.Second):
+				t.Fatal("Third refresh didn't occur at expected time")
+			}
+
+			if refreshCalls != 3 {
+				t.Errorf("Expected 3 refresh calls, got %d", refreshCalls)
+			}
+		})
 	}
 }
 

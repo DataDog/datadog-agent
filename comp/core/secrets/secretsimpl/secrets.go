@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/benbjohnson/clock"
 )
 
 const auditFileBasename = "secret-audit-file.json"
@@ -77,6 +78,7 @@ type secretResolver struct {
 	enabled bool
 	lock    sync.Mutex
 	cache   map[string]string
+	clk     clock.Clock
 
 	// list of handles and where they were found
 	origin handleToContext
@@ -90,8 +92,8 @@ type secretResolver struct {
 	responseMaxSize int
 	// refresh secrets at a regular interval
 	refreshInterval        time.Duration
-	refreshIntervalScatter time.Duration
-	ticker                 *time.Ticker
+	refreshIntervalScatter bool
+	ticker                 *clock.Ticker
 	// filename to write audit records to
 	auditFilename    string
 	auditFileMaxSize int
@@ -112,7 +114,7 @@ type secretResolver struct {
 
 var _ secrets.Component = (*secretResolver)(nil)
 
-func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
+func newEnabledSecretResolver(telemetry telemetry.Component, clk clock.Clock) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
@@ -120,11 +122,12 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
+		clk:                     clk,
 	}
 }
 
 func newSecretResolverProvider(deps dependencies) provides {
-	resolver := newEnabledSecretResolver(deps.Telemetry)
+	resolver := newEnabledSecretResolver(deps.Telemetry, nil)
 	resolver.enabled = deps.Params.Enabled
 	return provides{
 		Comp:            resolver,
@@ -218,7 +221,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
-	r.refreshIntervalScatter = time.Duration(params.RefreshIntervalScatter) * time.Second
+	r.refreshIntervalScatter = params.RefreshIntervalScatter
 	r.commandAllowGroupExec = params.GroupExecPerm
 	r.removeTrailingLinebreak = params.RemoveLinebreak
 	if r.commandAllowGroupExec {
@@ -244,14 +247,29 @@ func (r *secretResolver) startRefreshRoutine() {
 	if r.ticker != nil || r.refreshInterval == 0 {
 		return
 	}
-	// Generate a random value within the range [-r.refreshIntervalScatter, r.refreshIntervalScatter]
-	randDuration := time.Duration(rand.Int63n(2*int64(r.refreshIntervalScatter))) - r.refreshIntervalScatter
-	r.ticker = time.NewTicker(r.refreshInterval + randDuration)
+
+	if r.clk == nil {
+		r.clk = clock.New()
+	}
+
+	if r.refreshIntervalScatter {
+		scatterDuration := time.Duration(rand.Int63n(int64(r.refreshInterval)))
+		r.ticker = r.clk.Ticker(scatterDuration)
+	} else {
+		r.ticker = r.clk.Ticker(r.refreshInterval)
+	}
+
 	go func() {
+		<-r.ticker.C
+		if _, err := r.Refresh(); err != nil {
+			log.Debug("First refresh error", "error", err)
+		}
+		r.ticker.Reset(r.refreshInterval)
+
 		for {
 			<-r.ticker.C
 			if _, err := r.Refresh(); err != nil {
-				log.Info(err)
+				log.Debug("Periodic refresh error", "error", err)
 			}
 		}
 	}()
@@ -666,4 +684,9 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 	if err != nil {
 		fmt.Fprintf(w, "error rendering secret info: %s", err)
 	}
+
+	if r.refreshIntervalScatter {
+		fmt.Fprintf(w, "The first secret refresh will happen at a random time between the starting of the agent and the set refresh interval")
+	}
+
 }

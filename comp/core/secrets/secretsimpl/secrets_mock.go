@@ -48,7 +48,7 @@ func (m *MockSecretResolver) SetFetchHookFunc(f func([]string) (map[string]strin
 // newMock returns a MockSecretResolver
 func newMock(testDeps testDeps) MockProvides {
 	r := &MockSecretResolver{
-		secretResolver: newEnabledSecretResolver(testDeps.Telemetry),
+		secretResolver: newEnabledSecretResolver(testDeps.Telemetry, nil),
 	}
 	return MockProvides{
 		Comp: r,
