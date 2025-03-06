@@ -166,10 +166,12 @@ HOOK_SYSCALL_EXIT(linkat) {
     return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_link_exit")
 int tracepoint_handle_sys_link_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_link_ret(args, args->ret, DR_TRACEPOINT);
 }
+#endif
 
 int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);

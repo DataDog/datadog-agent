@@ -101,10 +101,12 @@ HOOK_SYSCALL_EXIT(fchdir) {
     return sys_chdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_chdir_exit")
 int tracepoint_handle_sys_chdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_chdir_ret(args, args->ret, DR_TRACEPOINT);
 }
+#endif
 
 int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHDIR);

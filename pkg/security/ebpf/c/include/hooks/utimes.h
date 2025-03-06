@@ -100,9 +100,11 @@ HOOK_SYSCALL_COMPAT_TIME_EXIT(futimesat) {
     return sys_utimes_ret(ctx, retval);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_utimes_exit")
 int tracepoint_handle_sys_utimes_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_utimes_ret(args, args->ret);
 }
+#endif
 
 #endif

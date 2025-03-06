@@ -169,10 +169,12 @@ HOOK_SYSCALL_EXIT(lsetxattr) {
     return sys_xattr_ret(ctx, retval, EVENT_SETXATTR);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_setxattr_exit")
 int tracepoint_handle_sys_setxattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
 }
+#endif
 
 HOOK_SYSCALL_EXIT(removexattr) {
     int retval = SYSCALL_PARMRET(ctx);
@@ -189,9 +191,11 @@ HOOK_SYSCALL_EXIT(fremovexattr) {
     return sys_xattr_ret(ctx, retval, EVENT_REMOVEXATTR);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_removexattr_exit")
 int tracepoint_handle_sys_removexattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
 }
+#endif
 
 #endif

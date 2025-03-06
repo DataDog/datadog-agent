@@ -97,9 +97,11 @@ HOOK_SYSCALL_EXIT(ptrace) {
     return sys_ptrace_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_ptrace_exit")
 int tracepoint_handle_sys_ptrace_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_ptrace_ret(args, args->ret);
 }
+#endif
 
 #endif

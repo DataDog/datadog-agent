@@ -57,10 +57,12 @@ HOOK_SYSCALL_EXIT(newfstatat) {
     return handle_ret_stat();
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_newfstatat_exit")
 int tracepoint_handle_sys_newfstatat_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return handle_ret_stat();
 }
+#endif
 
 // used by both snapshot and process resolver fallback
 HOOK_ENTRY("security_inode_getattr")

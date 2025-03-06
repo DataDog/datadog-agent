@@ -311,6 +311,7 @@ HOOK_SYSCALL_EXIT(openat2) {
     return sys_open_ret(ctx);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_open_exit")
 int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
@@ -320,6 +321,7 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
     syscall->retval = args->ret;
     return _sys_open_ret(args, syscall);
 }
+#endif
 
 HOOK_EXIT("io_openat2")
 int rethook_io_openat2(ctx_t *ctx) {

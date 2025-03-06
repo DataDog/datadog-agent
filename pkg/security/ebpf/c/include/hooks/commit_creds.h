@@ -224,10 +224,12 @@ HOOK_SYSCALL_EXIT(capset) {
     return credentials_update_ret(ctx, retval);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_commit_creds_exit")
 int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return credentials_update_ret(args, args->ret);
 }
+#endif
 
 struct __attribute__((__packed__)) cred_ids {
     kuid_t uid;

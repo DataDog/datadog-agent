@@ -407,9 +407,11 @@ HOOK_SYSCALL_COMPAT_EXIT(mount) {
     return sys_mount_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_mount_exit")
 int tracepoint_handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_mount_ret(args, args->ret, DR_TRACEPOINT);
 }
+#endif
 
 #endif

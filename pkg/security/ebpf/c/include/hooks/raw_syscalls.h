@@ -65,6 +65,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     return 0;
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 // used as a fallback, because tracepoints are not enable when using a ia32 userspace application with a x64 kernel
 // cf. https://elixir.bootlin.com/linux/latest/source/arch/x86/include/asm/ftrace.h#L106
 int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
@@ -82,5 +83,6 @@ int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     handle_sys_exit(args);
     return 0;
 }
+#endif
 
 #endif

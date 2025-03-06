@@ -117,9 +117,11 @@ int hook_security_mmap_file(ctx_t *ctx) {
     return 0;
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_mmap_exit")
 int tracepoint_handle_sys_mmap_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
 }
+#endif
 
 #endif

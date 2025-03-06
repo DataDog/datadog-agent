@@ -171,9 +171,11 @@ HOOK_SYSCALL_EXIT(rmdir) {
     return sys_rmdir_ret(ctx, retval);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_rmdir_exit")
 int tracepoint_handle_sys_rmdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_rmdir_ret(args, args->ret);
 }
+#endif
 
 #endif

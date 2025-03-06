@@ -95,9 +95,11 @@ int hook_security_socket_bind(ctx_t *ctx) {
     return 0;
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_bind_exit")
 int tracepoint_handle_sys_bind_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_bind_ret(args, args->ret);
 }
+#endif
 
 #endif /* _BIND_H_ */

@@ -180,10 +180,12 @@ HOOK_SYSCALL_EXIT(renameat2) {
     return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_rename_exit")
 int tracepoint_handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
 }
+#endif
 
 int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);

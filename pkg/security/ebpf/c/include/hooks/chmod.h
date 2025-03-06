@@ -91,9 +91,11 @@ HOOK_SYSCALL_EXIT(fchmodat2) {
     return sys_chmod_ret(ctx, retval);
 }
 
+#if USE_SYSCALL_WRAPPER == 0
 SEC("tracepoint/handle_sys_chmod_exit")
 int tracepoint_handle_sys_chmod_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_chmod_ret(args, args->ret);
 }
+#endif
 
 #endif
