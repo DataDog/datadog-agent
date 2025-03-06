@@ -42,7 +42,7 @@ func TestIPCSecurityWindowsSuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 			awshost.WithName("authArtifactWindows"),
 			awshost.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsDefault)),
-			awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
+			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
 			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
 		)))
 }

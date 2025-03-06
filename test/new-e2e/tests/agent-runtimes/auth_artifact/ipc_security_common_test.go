@@ -6,6 +6,7 @@
 package auth
 
 import (
+	_ "embed"
 	"fmt"
 	"regexp"
 	"sync"
@@ -31,6 +32,9 @@ const lockSuffix = ".lock"
 
 var requiredPattern = regexp.MustCompile(`successfully loaded the IPC auth primitives \(fingerprint: ([\d\w]{16})\)`)
 var extraPatterns = []*regexp.Regexp{regexp.MustCompile("successfully created artifact")}
+
+//go:embed fixtures/config.yaml
+var agentConfig string
 
 type authArtifactBase struct {
 	e2e.BaseSuite[environments.Host]

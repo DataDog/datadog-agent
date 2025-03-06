@@ -42,7 +42,7 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 		},
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig("log_level: debug"),
+				agentparams.WithAgentConfig(agentConfig),
 				agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			),
 			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),

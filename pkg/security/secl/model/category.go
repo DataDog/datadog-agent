@@ -59,7 +59,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		UnloadModuleEventType.String(),
 		AcceptEventType.String(),
 		BindEventType.String(),
-		ConnectEventType.String():
+		ConnectEventType.String(),
+		SysCtlEventType.String():
 		return KernelCategory
 
 	// Network

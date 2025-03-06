@@ -89,8 +89,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
 	bundle := newCollectorBundle(t, orchCheck)
-	err := bundle.Initialize()
-	assert.NoError(t, err)
+	bundle.Initialize()
 
 	wg.Add(2)
 
@@ -99,10 +98,10 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 
 	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
 	bundle.stopCh = make(chan struct{})
-	err = bundle.Initialize()
-	assert.NoError(t, err)
+	bundle.initializeOnce = sync.Once{}
+	bundle.Initialize()
 
-	_, err = bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	_, err := bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(_ interface{}) {
 			wg.Done()
 		},
