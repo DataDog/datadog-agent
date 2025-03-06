@@ -405,6 +405,8 @@ func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.S
 					Value: scopedValue,
 				}
 			})
+		} else if strings.HasPrefix(name, "container.") || strings.HasPrefix(name, "cgroup.") {
+			continue
 		} else { // global variables
 			value, found := value.(eval.Variable).GetValue()
 			if !found {
