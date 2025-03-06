@@ -54,6 +54,8 @@ const (
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
 	orgStatusPollInterval   = 1 * time.Minute
+	// Number of refreshes until the log level is increased to ERROR
+	maxRefreshUntilLogLevelErrors = 5
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -166,6 +168,8 @@ type CoreAgentService struct {
 	// Used to rate limit the 4XX error logs
 	fetchErrorCount    uint64
 	lastFetchErrorType error
+	// Number of remote configuration refreshes
+	refreshErrorCount uint64
 
 	// Previous /status response
 	previousOrgStatus *pbgo.OrgStatusResponse
@@ -522,6 +526,7 @@ func (s *CoreAgentService) UpdatePARJWT(jwt string) {
 func startWithAgentPollLoop(s *CoreAgentService) {
 	err := s.refresh()
 	if err != nil {
+		s.refreshErrorCount++
 		logRefreshError(s, err)
 	}
 
@@ -545,6 +550,7 @@ func startWithAgentPollLoop(s *CoreAgentService) {
 		}
 
 		if err != nil {
+			s.refreshErrorCount++
 			logRefreshError(s, err)
 		}
 	}
@@ -563,6 +569,7 @@ func startWithoutAgentPollLoop(s *CoreAgentService) {
 		}
 		close(response)
 		if err != nil {
+			s.refreshErrorCount++
 			logRefreshError(s, err)
 		}
 	}
@@ -571,6 +578,10 @@ func startWithoutAgentPollLoop(s *CoreAgentService) {
 func logRefreshError(s *CoreAgentService, err error) {
 	if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
 		exportedLastUpdateErr.Set(err.Error())
+		if s.refreshErrorCount < maxRefreshUntilLogLevelErrors {
+			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+			return
+		}
 		log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 	} else {
 		log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
@@ -592,6 +603,11 @@ func (s *CoreAgentService) pollOrgStatus() {
 		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
 		// and it limits the error log.
 		if !errors.Is(err, api.ErrUnauthorized) && !errors.Is(err, api.ErrProxy) {
+			s.refreshErrorCount++
+			if s.refreshErrorCount < maxRefreshUntilLogLevelErrors {
+				log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
+				return
+			}
 			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		}
 		return
