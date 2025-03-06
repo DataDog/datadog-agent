@@ -67,6 +67,11 @@ func tracerouteNS(k ...string) string {
 	return NSkey("traceroute", k...)
 }
 
+// npNS adds `network_path` namespace to config key
+func npNS(k ...string) string {
+	return NSkey("network_path", k...)
+}
+
 // discoveryNS adds `discovery` namespace to config key
 func discoveryNS(k ...string) string {
 	return NSkey("discovery", k...)

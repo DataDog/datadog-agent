@@ -30,6 +30,7 @@ const (
 	wcdNS                        = "windows_crash_detection"
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
+	npNS                         = "network_path"
 	discoveryNS                  = "discovery"
 	gpuNS                        = "gpu_monitoring"
 	defaultConnsMessageBatchSize = 600
@@ -412,8 +413,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Ping
 	cfg.BindEnvAndSetDefault(join(pngNS, "enabled"), false)
 
-	// Traceroute
+	// Traceroute / Network Path
 	cfg.BindEnvAndSetDefault(join(tracerouteNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(npNS, "connections_monitoring.enabled"), false)
 
 	// CCM config
 	cfg.BindEnvAndSetDefault(join(ccmNS, "enabled"), false)
