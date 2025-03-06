@@ -151,7 +151,6 @@ variables:
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   S3_OMNIBUS_GIT_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-git-cache-build-stable
-  USE_S3_CACHING: --omnibus-s3-cache
   # This value is not used on windows, a specific value is provided to
   # our build containers in the windows build jobs
   OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
@@ -378,7 +377,7 @@ variables:
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
-# Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification 
+# Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
 .if_scheduled_main: &if_scheduled_main
   if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
 
