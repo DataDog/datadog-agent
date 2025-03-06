@@ -1,19 +1,21 @@
 #!/bin/bash -e
 
-export XCODE_VERSION=15.2
-export XCODE_FULL_VERSION=15.2.0
+# export XCODE_VERSION=15.2
+# export XCODE_FULL_VERSION=15.2.0
+export XCODE_VERSION=14.3.1
+export XCODE_FULL_VERSION=14.3.1
 
 setup_xcode()
 {
     (
         cd ~
-        echo "=== Setup XCode ==="
+        echo "=== Setup XCode $XCODE_FULL_VERSION ==="
 
-        # if ! [ -d /Applications/Xcode-${XCODE_FULL_VERSION}.app ]; then
-        #     rm -f "Xcode_${XCODE_VERSION}.xip"
-        #     aws s3 cp "s3://binaries.ddbuild.io/macos/xcode/Xcode_${XCODE_VERSION}.xip" "Xcode_${XCODE_VERSION}.xip"
-        #     xcodes install "${XCODE_VERSION}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${XCODE_VERSION}.xip"
-        # fi
+        if ! [ -d /Applications/Xcode-${XCODE_FULL_VERSION}.app ]; then
+            rm -f "Xcode_${XCODE_VERSION}.xip"
+            aws s3 cp "s3://binaries.ddbuild.io/macos/xcode/Xcode_${XCODE_VERSION}.xip" "Xcode_${XCODE_VERSION}.xip" || true
+            xcodes install "${XCODE_VERSION}" --experimental-unxip --no-superuser --path "$PWD/Xcode_${XCODE_VERSION}.xip" || true
+        fi
 
         # TODO: Verify utility
         sudo xcodes select $XCODE_VERSION
@@ -37,9 +39,9 @@ setup_xcode()
         # find "$(xcode-select -p)" || true
         xcode-select -p || true
         ls "$(xcode-select -p)" || true
-        # echo "=== Some other debug ==="
-        # echo Trying install
-        # xcode-select --install || true
+        echo "=== Some other debug ==="
+        echo Trying install
+        xcode-select --install || true
         echo END DEBUG
 
     )
