@@ -9,7 +9,6 @@ package sbom
 
 import (
 	"errors"
-	"fmt"
 	"runtime"
 	"time"
 
@@ -204,6 +203,11 @@ func (c *Check) Run() error {
 	containerPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second)
 	defer containerPeriodicRefreshTicker.Stop()
 
+	procfsSbomChan := make(chan sbom.ScanResult) // default value to listen to nothing
+	if collectors.GetProcfsScanner() != nil && collectors.GetProcfsScanner().Channel() != nil {
+		procfsSbomChan = collectors.GetProcfsScanner().Channel()
+	}
+
 	hostPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.HostPeriodicRefreshSeconds) * time.Second)
 	defer hostPeriodicRefreshTicker.Stop()
 
@@ -223,6 +227,11 @@ func (c *Check) Run() error {
 				return nil
 			}
 			c.processor.processHostScanResult(scanResult)
+		case scanResult, ok := <-procfsSbomChan:
+			if !ok {
+				return nil
+			}
+			c.processor.processProcfsScanResult(scanResult)
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
