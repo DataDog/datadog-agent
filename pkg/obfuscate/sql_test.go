@@ -728,8 +728,9 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				assert := assert.New(t)
 				oq, err := NewObfuscator(Config{
 					SQL: SQLConfig{
-						TableNames:    true,
-						ReplaceDigits: true,
+						ObfuscationMode: Legacy,
+						TableNames:      true,
+						ReplaceDigits:   true,
 					},
 				}).ObfuscateSQLString(tt.query)
 				require.NoError(t, err)
