@@ -87,24 +87,37 @@ namespace Datadog.CustomActions
                     }
                     InstallPackage(libWithVersion.Name, libWithVersion.Version);
                 }
-                // session.Log($"libraries: {libraries}");
-                // if (libraries != "dotnet" || instrumentationEnabled != "iis")
-                // {
-                //     session.Log("Skipping dotnet library installation");
-                //     return ActionResult.Success;
-                // }
-                // session.Log("Installing dotnet library");
-                // session.Log($"installer executable path: {exePath}");
-                // // TODO: Replace the version and read from disk
-                // session.RunCommand(exePath, "install oci://install.datad0g.com/apm-library-dotnet-package:3.12");
-                // // TODO: Should we use RollbackDataStore to store the rollback instructions
                 return ActionResult.Success;
             }
             catch (Exception ex)
             {
-                _session.Log("Error while installing dotnet library: " + ex.Message);
+                _session.Log("Error while installing oci package: " + ex.Message);
                 return ActionResult.Failure;
             }
+        }
+
+        private ActionResult UninstallPackages()
+        {
+            string librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
+            _session.Log($"Uninstalling Oci Packages {librariesRaw}");
+            var libraries = librariesRaw.Split(',');
+            foreach (var library in libraries)
+            {
+                var libWithVersion = ParseVersion(library);
+                try
+                {
+                    if (IsPackageInstalled(libWithVersion.Name))
+                    {
+                        UninstallPackage(libWithVersion.Name);
+                    }
+                }
+                catch (Exception ex)
+                {
+
+                    _session.Log($"Error while uninstalling {libWithVersion.Name} library: " + ex.Message);
+                }
+            }
+            return ActionResult.Success;
         }
 
         private bool IsPackageInstalled(string library)
@@ -137,26 +150,26 @@ namespace Datadog.CustomActions
             }
         }
 
-        // private void UpdatePackage(string library, string version)
-        // {
-        //     string ociImageName = OciImageName(library);
-        //     string packageName = PackageName(library);
-        //     try
-        //     {
-        //         _session.RunCommand(_installerExecutable, $"promote-experiment {packageName}");
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         // If there is no experiment this will fail
-        //         session.Log($"Promoting experiment for {library} failed with: " + ex.Message);
-        //         session.Log($"Continuing with {library} installation");
-        //     }
-        //     _session.RunCommand(_installerExecutable, $"install-experiment {_ociRepository}/{ociImageName}:{version}");
-        // }
+        private void UninstallPackage(string library)
+        {
+            string packageName = PackageName(library);
+            using (var proc = _session.RunCommand(_installerExecutable, $"remove {packageName}"))
+            {
+                if (proc.ExitCode != 0)
+                {
+                    throw new Exception($"'datadog-installer remove {packageName}' failed with exit code: {proc.ExitCode}");
+                }
+            }
+        }
 
         public static ActionResult InstallPackages(Session session)
         {
             return new InstallOciPackages(new SessionWrapper(session)).InstallPackages();
+        }
+
+        public static ActionResult UninstallPackages(Session session)
+        {
+            return new InstallOciPackages(new SessionWrapper(session)).UninstallPackages();
         }
     }
 }

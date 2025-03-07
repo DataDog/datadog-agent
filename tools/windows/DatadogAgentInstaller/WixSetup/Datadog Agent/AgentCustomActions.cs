@@ -60,6 +60,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction InstallOciPackages { get; }
 
+        public ManagedAction UninstallOciPackages { get; }
+
         public ManagedAction WriteInstallInfo { get; }
 
         public ManagedAction ReportInstallFailure { get; }
@@ -467,6 +469,22 @@ namespace WixSetup.Datadog_Agent
                 }
                 .SetProperties("INSTALLDIR=[INSTALLDIR]," +
                                "SITE=[SITE],"+
+                               "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
+                               "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
+
+            UninstallOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(UninstallOciPackages)),
+                    CustomActions.UninstallOciPackages,
+                    Return.asyncWait,
+                    When.Before,
+                    Step.StopServices,
+                    Conditions.Uninstalling
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("INSTALLDIR=[INSTALLDIR]," +
                                "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                                "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
 
