@@ -9,16 +9,38 @@
 package check
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
+	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/api/api/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // SetupHandlers adds the specific handlers for /check endpoints
-func SetupHandlers(r *mux.Router) *mux.Router {
+func SetupHandlers(
+	r *mux.Router,
+	autodiscovery autodiscovery.Component,
+	demultiplexer demultiplexer.Component,
+) *mux.Router {
 	r.HandleFunc("/", listChecks).Methods("GET")
 	r.HandleFunc("/{name}", listCheck).Methods("GET", "DELETE")
 	r.HandleFunc("/{name}/reload", reloadCheck).Methods("POST")
+	r.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
+		runChecks(autodiscovery, demultiplexer, w, r)
+	}).Methods("POST")
 
 	return r
 }
@@ -36,4 +58,298 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 func listCheck(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("Not yet implemented."))
+}
+
+// TODO (component): Use collector once it implement GetLoaderErrors
+func runChecks(autodiscovery autodiscovery.Component, demultiplexer demultiplexer.Component, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var checkRequest types.CheckRequest
+
+	// Try to decode the request body into the struct. If there is an error,
+	// respond to the client with the error message and a 400 status code.
+	err := json.NewDecoder(r.Body).Decode(&checkRequest)
+	if err != nil {
+		setErrorsAndWarnings(w, []string{err.Error()}, []string{})
+		return
+	}
+
+	checkName := checkRequest.Name
+	times := checkRequest.Times
+	pause := checkRequest.Pause
+	delay := checkRequest.Delay
+
+	allConfigs := autodiscovery.GetAllConfigs()
+
+	for _, c := range allConfigs {
+		if c.Name != checkName {
+			continue
+		}
+
+		if check.IsJMXConfig(c) {
+			setErrorsAndWarnings(w, []string{}, []string{"Please consider using the 'jmx' command instead of 'check jmx'"})
+			return
+		}
+	}
+	if checkRequest.ProfileConfig.Dir != "" {
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
+			if conf.Name != checkName {
+				continue
+			}
+
+			var data map[string]interface{}
+
+			err = yaml.Unmarshal(conf.InitConfig, &data)
+			if err != nil {
+				setErrorsAndWarnings(w, []string{err.Error()}, []string{})
+				return
+			}
+
+			if data == nil {
+				data = make(map[string]interface{})
+			}
+
+			data["profile_memory"] = checkRequest.ProfileConfig.Dir
+			err = populateMemoryProfileConfig(checkRequest.ProfileConfig, data)
+			if err != nil {
+				setErrorsAndWarnings(w, []string{err.Error()}, []string{})
+				return
+			}
+
+			y, _ := yaml.Marshal(data)
+			conf.InitConfig = y
+
+			break
+		}
+	} else if checkRequest.Breakpoint != "" {
+		breakPointLine, err := strconv.Atoi(checkRequest.Breakpoint)
+		if err != nil {
+			setErrorsAndWarnings(w, []string{err.Error()}, []string{})
+			return
+		}
+
+		for idx := range allConfigs {
+			conf := &allConfigs[idx]
+			if conf.Name != checkName {
+				continue
+			}
+
+			var data map[string]interface{}
+
+			err = yaml.Unmarshal(conf.InitConfig, &data)
+			if err != nil {
+				setErrorsAndWarnings(w, []string{err.Error()}, []string{})
+				return
+			}
+
+			if data == nil {
+				data = make(map[string]interface{})
+			}
+
+			data["set_breakpoint"] = breakPointLine
+
+			y, _ := yaml.Marshal(data)
+			conf.InitConfig = y
+
+			break
+		}
+	}
+
+	cs := pkgcollector.GetChecksByNameForConfigs(checkName, allConfigs)
+	// something happened while getting the check(s), display some info.
+	if len(cs) == 0 {
+		fetchCheckNameError(w, checkName)
+		return
+	}
+
+	var instancesData []*stats.Stats
+	result := types.CheckResponse{}
+	metadata := make(map[string]map[string]interface{})
+
+	for _, c := range cs {
+		s := runCheck(c, times, pause)
+
+		time.Sleep(time.Duration(delay) * time.Millisecond)
+
+		instancesData = append(instancesData, s)
+		metadata[string(c.ID())] = check.GetMetadata(c, false)
+	}
+
+	agg := demultiplexer.Aggregator()
+	series, sketches := agg.GetSeriesAndSketches(time.Now())
+	serviceChecks := agg.GetServiceChecks()
+	events := agg.GetEvents()
+	eventsPlatformEvents := agg.GetEventPlatformEvents()
+	aggregatorData := types.AggregatorData{}
+
+	if len(series) != 0 {
+		aggregatorData.Series = series
+	}
+
+	if len(sketches) != 0 {
+		s := make([]*metrics.SketchSeries, 0, len(sketches))
+		for _, sketch := range sketches {
+			s = append(s, sketch)
+		}
+		aggregatorData.SketchSeries = s
+	}
+
+	if len(serviceChecks) != 0 {
+		aggregatorData.ServiceCheck = serviceChecks
+	}
+
+	if len(events) != 0 {
+		aggregatorData.Events = events
+	}
+
+	if len(eventsPlatformEvents) != 0 {
+		aggregatorData.EventPlatformEvents = toEpEvents(eventsPlatformEvents)
+	}
+
+	result.Results = instancesData
+	result.Metadata = metadata
+	result.AggregatorData = aggregatorData
+
+	checkResult, _ := json.Marshal(result)
+
+	w.Write(checkResult)
+}
+
+func fetchCheckNameError(w http.ResponseWriter, checkName string) {
+	// TODO (components): move GetConfigErrors to autodicsovery component and collector
+	errors := []string{}
+	warnings := []string{}
+	for check, error := range autodiscoveryimpl.GetConfigErrors() {
+		if checkName == check {
+			errors = append(errors, error)
+		}
+	}
+	for check, CollectorErrors := range pkgcollector.GetLoaderErrors() {
+		if checkName == check {
+			for _, error := range CollectorErrors {
+				errors = append(errors, error)
+			}
+		}
+	}
+	for check, autoDiscoveryWarnings := range autodiscoveryimpl.GetResolveWarnings() {
+		if checkName == check {
+			warnings = append(warnings, autoDiscoveryWarnings...)
+		}
+	}
+	setErrorsAndWarnings(w, errors, warnings)
+}
+
+func setErrorsAndWarnings(w http.ResponseWriter, errors []string, warnings []string) {
+	result := types.CheckResponse{
+		Errors:   errors,
+		Warnings: warnings,
+	}
+	body, _ := json.Marshal(result)
+	http.Error(w, string(body), 500)
+}
+
+func populateMemoryProfileConfig(profileConfig types.MemoryProfileConfig, initConfig map[string]interface{}) error {
+	if profileConfig.Frames != "" {
+		profileMemoryFrames, err := strconv.Atoi(profileConfig.Frames)
+		if err != nil {
+			return fmt.Errorf("--m-frames must be an integer")
+		}
+		initConfig["profile_memory_frames"] = profileMemoryFrames
+	}
+
+	if profileConfig.GC != "" {
+		profileMemoryGC, err := strconv.Atoi(profileConfig.GC)
+		if err != nil {
+			return fmt.Errorf("--m-gc must be an integer")
+		}
+
+		initConfig["profile_memory_gc"] = profileMemoryGC
+	}
+
+	if profileConfig.Combine != "" {
+		profileMemoryCombine, err := strconv.Atoi(profileConfig.Combine)
+		if err != nil {
+			return fmt.Errorf("--m-combine must be an integer")
+		}
+
+		if profileMemoryCombine != 0 && profileConfig.Sort == "traceback" {
+			return fmt.Errorf("--m-combine cannot be sorted (--m-sort) by traceback")
+		}
+
+		initConfig["profile_memory_combine"] = profileMemoryCombine
+	}
+
+	if profileConfig.Sort != "" {
+		if profileConfig.Sort != "lineno" && profileConfig.Sort != "filename" && profileConfig.Sort != "traceback" {
+			return fmt.Errorf("--m-sort must one of: lineno | filename | traceback")
+		}
+		initConfig["profile_memory_sort"] = profileConfig.Sort
+	}
+
+	if profileConfig.Limit != "" {
+		profileMemoryLimit, err := strconv.Atoi(profileConfig.Limit)
+		if err != nil {
+			return fmt.Errorf("--m-limit must be an integer")
+		}
+		initConfig["profile_memory_limit"] = profileMemoryLimit
+	}
+
+	if profileConfig.Diff != "" {
+		if profileConfig.Diff != "absolute" && profileConfig.Diff != "positive" {
+			return fmt.Errorf("--m-diff must one of: absolute | positive")
+		}
+		initConfig["profile_memory_diff"] = profileConfig.Diff
+	}
+
+	if profileConfig.Filters != "" {
+		initConfig["profile_memory_filters"] = profileConfig.Filters
+	}
+
+	if profileConfig.Unit != "" {
+		initConfig["profile_memory_unit"] = profileConfig.Unit
+	}
+
+	if profileConfig.Verbose != "" {
+		profileMemoryVerbose, err := strconv.Atoi(profileConfig.Verbose)
+		if err != nil {
+			return fmt.Errorf("--m-verbose must be an integer")
+		}
+		initConfig["profile_memory_verbose"] = profileMemoryVerbose
+	}
+
+	return nil
+}
+
+func runCheck(c check.Check, times int, pause int) *stats.Stats {
+	s := stats.NewStats(c)
+	for i := 0; i < times; i++ {
+		t0 := time.Now()
+		err := c.Run()
+		warnings := c.GetWarnings()
+		sStats, _ := c.GetSenderStats()
+		s.Add(time.Since(t0), err, warnings, sStats, nil)
+		if pause > 0 && i < times-1 {
+			time.Sleep(time.Duration(pause) * time.Millisecond)
+		}
+	}
+
+	return s
+}
+
+// toEpEvents transforms the raw event platform messages to EventPlatformEvent which are better for json formatting
+func toEpEvents(events map[string][]*message.Message) map[string][]types.EventPlatformEvent {
+	result := make(map[string][]types.EventPlatformEvent)
+	for eventType, messages := range events {
+		var events []types.EventPlatformEvent
+		for _, m := range messages {
+			e := types.EventPlatformEvent{EventType: eventType, RawEvent: string(m.GetContent())}
+			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
+			if err == nil {
+				e.RawEvent = ""
+			}
+			events = append(events, e)
+		}
+		result[eventType] = events
+	}
+	return result
 }

@@ -33,6 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -56,13 +57,13 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, demultiplexer demultiplexer.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, demultiplexer)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)

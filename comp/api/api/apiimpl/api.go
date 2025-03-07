@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -53,6 +54,7 @@ type apiServer struct {
 	logsAgentComp       option.Option[logsAgent.Component]
 	wmeta               workloadmeta.Component
 	collector           option.Option[collector.Component]
+	demultiplexer       demultiplexer.Component
 	senderManager       diagnosesendermanager.Component
 	remoteAgentRegistry remoteagentregistry.Component
 	cmdListener         net.Listener
@@ -78,6 +80,7 @@ type dependencies struct {
 	LogsAgentComp         option.Option[logsAgent.Component]
 	WorkloadMeta          workloadmeta.Component
 	Collector             option.Option[collector.Component]
+	Demultiplexer         demultiplexer.Component
 	DiagnoseSenderManager diagnosesendermanager.Component
 	Telemetry             telemetry.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
@@ -102,6 +105,7 @@ func newAPIServer(deps dependencies) api.Component {
 		logsAgentComp:       deps.LogsAgentComp,
 		wmeta:               deps.WorkloadMeta,
 		collector:           deps.Collector,
+		demultiplexer:       deps.Demultiplexer,
 		senderManager:       deps.DiagnoseSenderManager,
 		telemetry:           deps.Telemetry,
 		endpointProviders:   fxutil.GetAndFilterGroup(deps.EndpointProviders),

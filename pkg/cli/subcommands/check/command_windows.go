@@ -8,11 +8,12 @@
 package check
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
-	"go.uber.org/fx"
 )
 
 func getPlatformModules() fx.Option {
