@@ -56,6 +56,11 @@ var (
 //nolint:revive // TODO(AML) Fix revive linter
 var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
 
+type destinationResult struct {
+	latency time.Duration
+	err     error
+}
+
 // Destination sends a payload over HTTP.
 type Destination struct {
 	// Config
@@ -70,8 +75,8 @@ type Destination struct {
 	isMRF               bool
 
 	// Concurrency
-	climit chan struct{} // semaphore for limiting concurrent background sends
-	wg     sync.WaitGroup
+	senderPool SenderPool
+	wg         sync.WaitGroup
 
 	// Retry
 	backoff        backoff.Policy
@@ -94,20 +99,22 @@ type Destination struct {
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
-	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
+	minConcurrency int,
+	maxConcurrency int,
 	pipelineMonitor metrics.PipelineMonitor) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
 		destinationsContext,
 		time.Second*10,
-		maxConcurrentBackgroundSends,
 		shouldRetry,
 		destMeta,
 		cfg,
+		minConcurrency,
+		maxConcurrency,
 		pipelineMonitor)
 }
 
@@ -115,15 +122,13 @@ func newDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
 	timeout time.Duration,
-	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
+	minConcurrency int,
+	maxConcurrency int,
 	pipelineMonitor metrics.PipelineMonitor) *Destination {
 
-	if maxConcurrentBackgroundSends <= 0 {
-		maxConcurrentBackgroundSends = 1
-	}
 	policy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
 		endpoint.BackoffBase,
@@ -140,6 +145,8 @@ func newDestination(endpoint config.Endpoint,
 		metrics.DestinationExpVars.Set(destMeta.TelemetryName(), expVars)
 	}
 
+	senderPool := NewSenderPool(minConcurrency, maxConcurrency, destMeta)
+
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
@@ -147,7 +154,7 @@ func newDestination(endpoint config.Endpoint,
 		contentType:         contentType,
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
 		destinationsContext: destinationsContext,
-		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
+		senderPool:          senderPool,
 		wg:                  sync.WaitGroup{},
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
@@ -222,20 +229,16 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 
 func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	d.wg.Add(1)
-	d.climit <- struct{}{}
-	go func() {
-		defer func() {
-			<-d.climit
-			d.wg.Done()
-		}()
-		d.sendAndRetry(payload, output, isRetrying)
-	}()
+	d.senderPool.Run(func() destinationResult {
+		result := d.sendAndRetry(payload, output, isRetrying)
+		d.wg.Done()
+		return result
+	})
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
+func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) destinationResult {
 	for {
-
 		d.retryLock.Lock()
 		nbErrors := d.nbErrors
 		d.retryLock.Unlock()
@@ -249,7 +252,13 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.TlmRetryCount.Add(1)
 		}
 
+		start := time.Now()
 		err := d.unconditionalSend(payload)
+		latency := time.Since(start)
+		result := destinationResult{
+			latency: latency,
+			err:     err,
+		}
 
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
@@ -265,7 +274,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		if err == context.Canceled {
 			d.updateRetryState(nil, isRetrying)
-			return
+			return result
 		}
 
 		if d.shouldRetry {
@@ -277,7 +286,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
 		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
 		output <- payload
-		return
+		return result
 	}
 }
 
@@ -322,7 +331,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 
 	req = req.WithContext(ctx)
 	resp, err := d.client.Do(req)
-
 	latency := time.Since(then).Milliseconds()
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
@@ -460,7 +468,8 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, client.NewNoopDestinationMetadata(), cfg, metrics.NewNoopPipelineMonitor(""))
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""))
+
 	return ctx, destination
 }
 
