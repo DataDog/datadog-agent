@@ -19,6 +19,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
+	gatewayusagefx "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -81,6 +83,7 @@ func main() {
 		runAgent,
 		taggernoop.Module(),
 		logscompressionfx.Module(),
+		gatewayusagefx.Module(),
 	)
 
 	if err != nil {
@@ -89,7 +92,7 @@ func main() {
 	}
 }
 
-func runAgent(tagger tagger.Component, compression logscompression.Component) {
+func runAgent(tagger tagger.Component, compression logscompression.Component, gatewayUsage gatewayusage.Component) {
 
 	startTime := time.Now()
 
@@ -128,7 +131,7 @@ func runAgent(tagger tagger.Component, compression logscompression.Component) {
 	wg.Add(3)
 
 	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon, tagger, rcService)
-	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger)
+	go startOtlpAgent(&wg, metricAgent, serverlessDaemon, tagger, gatewayUsage)
 	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger, compression)
 
 	// start appsec
@@ -334,13 +337,13 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	}
 }
 
-func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
+func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAgent, serverlessDaemon *daemon.Daemon, tagger tagger.Component, gatewayUsage gatewayusage.Component) {
 	defer wg.Done()
 	if !otlp.IsEnabled() {
 		log.Debug("otlp endpoint disabled")
 		return
 	}
-	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger)
+	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), tagger, gatewayUsage)
 	otlpAgent.Start()
 	serverlessDaemon.SetOTLPAgent(otlpAgent)
 

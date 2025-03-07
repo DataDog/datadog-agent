@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	gatewayusage "github.com/DataDog/datadog-agent/comp/otelcol/gatewayusage/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -28,6 +29,7 @@ type Exporter struct {
 	logsAgentChannel chan *message.Message
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
+	gatewaysUsage    gatewayusage.Component
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -37,6 +39,7 @@ func NewExporter(
 	logSource *sources.LogSource,
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
+	gatewaysUsage gatewayusage.Component,
 ) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
@@ -48,6 +51,7 @@ func NewExporter(
 		logsAgentChannel: logsAgentChannel,
 		logSource:        logSource,
 		translator:       translator,
+		gatewaysUsage:    gatewaysUsage,
 	}, nil
 }
 
@@ -64,7 +68,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		}
 	}()
 
-	payloads := e.translator.MapLogs(ctx, ld, nil)
+	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage)
 	for _, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead
