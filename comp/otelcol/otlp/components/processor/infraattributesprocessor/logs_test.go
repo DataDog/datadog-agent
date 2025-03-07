@@ -132,7 +132,7 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 			factory := NewFactoryForAgent(tc)
 			flp, err := factory.CreateLogs(
 				context.Background(),
-				processortest.NewNopSettings(),
+				processortest.NewNopSettings(Type),
 				cfg,
 				next,
 			)

@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	uwalker "github.com/DataDog/datadog-agent/pkg/util/trivy/walker"
 )
 
 const (
@@ -290,7 +291,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
-	fsArtifact, err := local2.NewArtifact(path, cache, NewFSWalker(), getDefaultArtifactOption(scanOptions))
+	fsArtifact, err := local2.NewArtifact(path, cache, uwalker.NewFSWalker(), getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
@@ -300,7 +301,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, cache.blobID), nil
+	return c.buildReport(trivyReport, cache.lastBlobID), nil
 }
 
 func (c *Collector) fixupCacheKeyForImgMeta(ctx context.Context, artifact artifact.Artifact, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner) error {

@@ -19,6 +19,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	corev1Informers "k8s.io/client-go/informers/core/v1"
 	corev1Listers "k8s.io/client-go/listers/core/v1"
@@ -56,6 +57,7 @@ func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Componen
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 "terminated-pods",
+			Kind:                                 kubernetes.PodKind,
 			NodeType:                             orchestrator.K8sPod,
 			Version:                              "v1",
 			LabelsAsTags:                         labelsAsTags,

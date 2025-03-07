@@ -6,8 +6,9 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+features:
   - |
-    Fixed issue in KSM check causing resources with irregular plural name
-    (such as `ingresses` and `storageclasses`) to miss tags configured in 
-    `kubernetesResourcesLabelsAsTags` and `kubernetesResourcesAnnotationsAsTags`.
+    [PREVIEW] Add support for mounting Datadog CSI volumes instead of hostpath 
+    volumes in the admission controller config webhook for sharing DogStatsD 
+    and APM UDS sockets with user applications. This requires the Datadog 
+    CSI driver to be installed and running on the cluster. 
