@@ -143,16 +143,10 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 }
 
 func (v *gpuSuite) TestLimitMetricsAreReported() {
-	metricTagRegexes := mandatoryMetricTagRegexes()
-
-	// These metrics should also have container tags. Exactly which depend on
-	// the configured granularity of the metrics, but kube_container_name is present consistently
-	metricTagRegexes = append(metricTagRegexes, regexp.MustCompile("kube_container_name:.*"))
-
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
 		for _, metricName := range metricNames {
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](metricTagRegexes))
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 		}
