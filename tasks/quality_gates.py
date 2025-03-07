@@ -167,9 +167,13 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler):
     config_content = yaml.safe_load(file_descriptor)
     total_saved_amount = 0
     for gate in config_content.keys():
-        on_wire_new_limit, wire_saved_amount = get_gate_new_limit_threshold(gate, "current_on_wire_size", "max_on_wire_size", metric_handler)
+        on_wire_new_limit, wire_saved_amount = get_gate_new_limit_threshold(
+            gate, "current_on_wire_size", "max_on_wire_size", metric_handler
+        )
         config_content[gate]["max_on_wire_size"] = byte_to_string(on_wire_new_limit)
-        on_disk_new_limit, disk_saved_amount = get_gate_new_limit_threshold(gate, "current_on_disk_size", "max_on_disk_size", metric_handler)
+        on_disk_new_limit, disk_saved_amount = get_gate_new_limit_threshold(
+            gate, "current_on_disk_size", "max_on_disk_size", metric_handler
+        )
         config_content[gate]["max_on_disk_size"] = byte_to_string(on_disk_new_limit)
         total_saved_amount += wire_saved_amount + disk_saved_amount
     return config_content, total_saved_amount
