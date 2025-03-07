@@ -580,9 +580,9 @@ func logRefreshError(s *CoreAgentService, err error) {
 		exportedLastUpdateErr.Set(err.Error())
 		if s.refreshErrorCount < maxRefreshUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-			return
+		} else {
+			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		}
-		log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 	} else {
 		log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
 	}
@@ -606,9 +606,9 @@ func (s *CoreAgentService) pollOrgStatus() {
 			s.refreshErrorCount++
 			if s.refreshErrorCount < maxRefreshUntilLogLevelErrors {
 				log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
-				return
+			} else {
+				log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 			}
-			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		}
 		return
 	}
