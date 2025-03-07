@@ -1,7 +1,6 @@
-Datadog Installer v{{ htmlSafe .Version }}
-{{ range $name, $packageState := .Packages }}
-{{ $version := $packageState.Version }}
-{{ $config := $packageState.Config }}
+Datadog Agent installer v{{ htmlSafe .Version }}
+{{ range $name, $version := .Packages.States -}}
+{{ $config := index $.Packages.ConfigStates $name }}
 {{ boldText $name }}
   State: {{ if $version.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $version.Stable -}}{{ greenText "OK" }}{{- else -}}config only{{- end }}
   Installed versions:

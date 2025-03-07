@@ -143,6 +143,7 @@ func RootCommands() []*cobra.Command {
 		isInstalledCommand(),
 		apmCommands(),
 		getStateCommand(),
+		statusCommand(),
 	}
 }
 
@@ -426,6 +427,26 @@ func isInstalledCommand() *cobra.Command {
 	return cmd
 }
 
+func getState() (*repository.PackageStates, error) {
+	i, err := newInstallerCmd("get_states")
+	if err != nil {
+		return nil, err
+	}
+	defer i.stop(err)
+	states, err := i.States(i.ctx)
+	if err != nil {
+		return nil, err
+	}
+	configStates, err := i.ConfigStates(i.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &repository.PackageStates{
+		States:       states,
+		ConfigStates: configStates,
+	}, nil
+}
+
 func getStateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden:  true,
@@ -433,23 +454,9 @@ func getStateCommand() *cobra.Command {
 		Short:   "Get the package & config states",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			i, err := newInstallerCmd("get_states")
+			pStates, err := getState()
 			if err != nil {
-				return err
-			}
-			defer func() { i.stop(err) }()
-			states, err := i.States(i.ctx)
-			if err != nil {
-				return err
-			}
-			configStates, err := i.ConfigStates(i.ctx)
-			if err != nil {
-				return err
-			}
-
-			pStates := repository.PackageStates{
-				States:       states,
-				ConfigStates: configStates,
+				return
 			}
 
 			pStatesRaw, err := json.Marshal(pStates)
