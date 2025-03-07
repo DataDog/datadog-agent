@@ -29,7 +29,7 @@ import (
 const agentNamespace = "datadog"
 const podSelectorField = "app"
 const jobQueryInterval = 250 * time.Millisecond
-const jobQueryMaxRetries = 10
+const jobQueryTimeout = 15 * time.Second // Might take some time to pull the image
 
 // suiteCapabilities is an interface that exposes the capabilities of the test suite,
 // generalizing between different environments
@@ -174,7 +174,8 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 	}
 
 	// Now let's find the container ID
-	for retries := 0; retries < jobQueryMaxRetries; retries++ {
+	maxTime := time.Now().Add(jobQueryTimeout)
+	for time.Now().Before(maxTime) {
 		pods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("job-name", jobName).String(), // job-name is the label automatically assigned by k8s to the pod running this job
 			Limit:         1,
