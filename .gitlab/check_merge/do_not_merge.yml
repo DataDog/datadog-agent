@@ -4,7 +4,7 @@ do-not-merge:
   tags: ["arch:amd64"]
   rules:
   - !reference [.on_dev_branches]
-  - when: on_success
+  - when: always
   needs: []
   script:
       - |
