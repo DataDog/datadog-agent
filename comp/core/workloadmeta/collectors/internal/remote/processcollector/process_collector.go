@@ -146,7 +146,7 @@ func (s *streamHandler) Port() int {
 }
 
 func (s *streamHandler) IsEnabled() bool {
-	if flavor.GetFlavor() != flavor.DefaultAgent && flavor.GetFlavor() != flavor.FipsAgent {
+	if !flavor.IsCoreAgent() {
 		return false
 	}
 

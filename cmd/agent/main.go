@@ -27,6 +27,8 @@ var agents = map[string]func() *cobra.Command{}
 func registerAgent(names []string, getCommand func() *cobra.Command) {
 	if fipsEnabled, err := fips.Enabled(); fipsEnabled && err == nil {
 		flavor.SetFlavor(flavor.FipsAgent)
+	} else if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to determine FIPS mode: %s\n", err)
 	}
 	for _, name := range names {
 		agents[name] = getCommand

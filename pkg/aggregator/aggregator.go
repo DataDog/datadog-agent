@@ -295,6 +295,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName = flavor.DefaultAgent
 		if fipsEnabled, err := fips.Enabled(); fipsEnabled && err == nil {
 			agentName = flavor.FipsAgent
+		} else if err != nil {
+			log.Warnf("Failed to determine FIPS mode: %s", err)
 		}
 	} else if pkgconfigsetup.Datadog().GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent

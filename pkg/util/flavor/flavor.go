@@ -75,3 +75,8 @@ func GetHumanReadableFlavor() string {
 
 	return unknownAgent
 }
+
+// IsCoreAgent checks the flavor of the agent and returns true if it has a default flavor or a fips flavor
+func IsCoreAgent() bool {
+	return GetFlavor() == DefaultAgent || GetFlavor() == FipsAgent
+}
