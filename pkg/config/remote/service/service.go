@@ -635,8 +635,8 @@ func (s *CoreAgentService) refresh() error {
 	s.Lock()
 
 	// We can't let the backend process an update twice in the same second due to the fact that we
-	// use the epoch as the version for the TUF Director Targets. If this happens, the update will
-	// appear to TUF as being identical to the previous update and it will be dropped.
+	// use the epoch with seconds resolution as the version for the TUF Director Targets. If this happens,
+	// the update will appear to TUF as being identical to the previous update and it will be dropped.
 	timeSinceUpdate := time.Since(s.lastUpdateTimestamp)
 	if timeSinceUpdate < time.Second {
 		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
