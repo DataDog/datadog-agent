@@ -143,7 +143,10 @@ func obfuscationMode(conf *AgentConfig) obfuscate.ObfuscationMode {
 		return obfuscate.ObfuscateAndNormalize
 	case string(obfuscate.Legacy):
 		return obfuscate.Legacy
+	case "":
+		return obfuscate.ObfuscateAndNormalize
 	}
+	log.Warnf("Invalid SQL obfuscator mode %s, falling back to default %s", conf.SQLObfuscationMode, obfuscate.ObfuscateAndNormalize)
 	return obfuscate.ObfuscateAndNormalize
 }
 

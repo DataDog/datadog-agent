@@ -452,13 +452,13 @@ func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (stri
 // ObfuscateWithSQLLexer obfuscates the given SQL query using the go-sqllexer package.
 // If ObfuscationMode is set to ObfuscateOnly, the query will be obfuscated without normalizing it.
 func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
-	if opts.ObfuscationMode != NormalizeOnly && opts.ObfuscationMode != ObfuscateOnly && opts.ObfuscationMode != ObfuscateAndNormalize && opts.ObfuscationMode != Legacy {
+	if opts.ObfuscationMode != NormalizeOnly && opts.ObfuscationMode != ObfuscateOnly && opts.ObfuscationMode != ObfuscateAndNormalize && opts.ObfuscationMode != Legacy && opts.ObfuscationMode != "" {
 		return nil, fmt.Errorf("invalid obfuscation mode: %s", opts.ObfuscationMode)
 	}
 
 	var obfuscator *sqllexer.Obfuscator
 
-	if opts.ObfuscationMode == ObfuscateOnly || opts.ObfuscationMode == ObfuscateAndNormalize {
+	if opts.ObfuscationMode == ObfuscateOnly || opts.ObfuscationMode == ObfuscateAndNormalize || opts.ObfuscationMode == "" {
 		obfuscator = sqllexer.NewObfuscator(
 			sqllexer.WithReplaceDigits(opts.ReplaceDigits),
 			sqllexer.WithDollarQuotedFunc(opts.DollarQuotedFunc),
