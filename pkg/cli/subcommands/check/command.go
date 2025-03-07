@@ -62,7 +62,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
@@ -206,7 +205,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				// in others commands such as run.
 				fx.Supply(option.None[rcservice.Component]()),
 				fx.Supply(option.None[rcservicemrf.Component]()),
-				fx.Supply(option.None[logagent.Component]()),
 				fx.Supply(option.None[integrations.Component]()),
 				fx.Provide(func() server.Component { return nil }),
 				fx.Provide(func() replay.Component { return nil }),
