@@ -639,7 +639,7 @@ func (s *CoreAgentService) refresh() error {
 	// appear to TUF as being identical to the previous update and it will be dropped.
 	timeSinceUpdate := time.Since(s.lastUpdateTimestamp)
 	if timeSinceUpdate < time.Second {
-		log.Debugf("Requests too frequent, delaying %v", time.Second-timeSinceUpdate)
+		log.Debugf("Requests too frequent, delaying by %v", time.Second-timeSinceUpdate)
 		time.Sleep(time.Second - timeSinceUpdate)
 	}
 
