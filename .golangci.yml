@@ -13,6 +13,7 @@ issues:
 
   exclude-dirs:
     - pkg/proto/patches
+    - pkg/security/utils/lru
     - tasks/unit_tests/testdata/components_src
 
   exclude:

@@ -152,6 +152,12 @@ type Config struct {
 
 	// SyscallsMonitorEnabled defines if syscalls monitoring metrics should be collected
 	SyscallsMonitorEnabled bool
+
+	// DNSResolverCacheSize is the numer of entries in the DNS resolver LRU cache
+	DNSResolverCacheSize int
+
+	// DNSResolutionEnabled resolving DNS names from IP addresses
+	DNSResolutionEnabled bool
 }
 
 // NewConfig returns a new Config object
@@ -194,6 +200,8 @@ func NewConfig() (*Config, error) {
 		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
 		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
+		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
+		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
 
 		// event server
 		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),

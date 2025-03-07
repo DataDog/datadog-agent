@@ -248,7 +248,7 @@ func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*mo
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
-			tb.Fatal(err)
+			tb.Fatalf("error while waiting for signal: %s", err)
 		}
 	}
 }

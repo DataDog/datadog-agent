@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	v2Informers "k8s.io/client-go/informers/autoscaling/v2"
 	v2Listers "k8s.io/client-go/listers/autoscaling/v2"
@@ -51,6 +52,7 @@ func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *H
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 hpaName,
+			Kind:                                 kubernetes.HorizontalPodAutoscalerKind,
 			NodeType:                             orchestrator.K8sHorizontalPodAutoscaler,
 			Version:                              hpaVersion,
 			LabelsAsTags:                         labelsAsTags,
