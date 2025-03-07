@@ -65,7 +65,7 @@ require (
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
 	github.com/beevik/ntp v1.4.3
 	github.com/benbjohnson/clock v1.3.5
-	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
+	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -710,6 +710,7 @@ require (
 	github.com/aquasecurity/trivy-java-db v0.0.0-20240109071736-184bd7481d48 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
+	github.com/bhmj/xpression v0.9.1 // indirect
 	github.com/bitnami/go-version v0.0.0-20231130084017-bb00604d650c // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.8.1 // indirect
