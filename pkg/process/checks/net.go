@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -516,7 +516,7 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
 func getNetworkID(sysProbeClient *http.Client) (string, error) {
-	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	networkID, err := network.GetNetworkID(context.TODO())
 	if err != nil && sysProbeClient != nil {
 		log.Debugf("no network ID detected. retrying via system-probe: %s", err)
 		networkID, err = net.GetNetworkID(sysProbeClient)
