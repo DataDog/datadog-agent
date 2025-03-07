@@ -543,7 +543,7 @@ func TestLoadBalancing(s OTelTestSuite) {
 	for service, spans := range spanMap {
 		backend := ""
 		for _, span := range spans {
-			s.T().Log("Span service:", service, ", Backend:", span.Meta["backend"])
+			s.T().Log("Span service:", service+",", "Backend:", span.Meta["backend"])
 			if backend == "" {
 				backend = span.Meta["backend"]
 				continue
@@ -554,7 +554,7 @@ func TestLoadBalancing(s OTelTestSuite) {
 	for service, metricTags := range metricTagsMap {
 		backend := ""
 		for _, tags := range metricTags {
-			s.T().Log("Metric service:", service, ", Backend:", tags["backend"])
+			s.T().Log("Metric service:", service+",", "Backend:", tags["backend"])
 			if backend == "" {
 				backend = tags["backend"]
 				continue
@@ -641,7 +641,7 @@ func TestCalendarApp(s OTelTestSuite, ust bool, service string) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
-	s.T().Log("Starting calendar app", service)
+	s.T().Log("Starting calendar app:", service)
 	createCalendarApp(ctx, s, ust, service)
 
 	// Wait for calendar app to start
