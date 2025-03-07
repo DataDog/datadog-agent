@@ -192,7 +192,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             {
                 nightly_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -207,7 +206,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 },
                 nightly_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -222,7 +220,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 },
                 release_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -237,7 +234,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 },
                 release_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -255,7 +251,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         integrations_version = Version(major=7, minor=30, patch=1, rc=2)
         omnibus_ruby_version = Version(major=7, minor=30, patch=1, rc=1)
-        omnibus_software_version = Version(major=7, minor=30, patch=0)
         macos_build_version = Version(major=7, minor=30, patch=0)
         jmxfetch_version = Version(major=0, minor=45, patch=0)
         jmxfetch_shasum = "jmxfetchhashsum"
@@ -272,7 +267,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             release_entry=release_entry_for(7),
             integrations_version=integrations_version,
             omnibus_ruby_version=omnibus_ruby_version,
-            omnibus_software_version=omnibus_software_version,
             macos_build_version=macos_build_version,
             jmxfetch_version=jmxfetch_version,
             jmxfetch_shasum=jmxfetch_shasum,
@@ -289,7 +283,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
             {
                 nightly_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -304,7 +297,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 },
                 nightly_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -319,7 +311,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 },
                 release_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
                     "JMXFETCH_VERSION": "0.44.1",
                     "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
@@ -334,7 +325,6 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                 },
                 release_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
-                    "OMNIBUS_SOFTWARE_VERSION": str(omnibus_software_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
                     "JMXFETCH_VERSION": str(jmxfetch_version),
                     "JMXFETCH_HASH": str(jmxfetch_shasum),
