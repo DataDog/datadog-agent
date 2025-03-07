@@ -49,7 +49,7 @@ func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
 
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	require.Nil(suite.T(), err)
