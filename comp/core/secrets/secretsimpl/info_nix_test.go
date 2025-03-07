@@ -32,7 +32,7 @@ instances:
 
 func TestGetExecutablePermissionsError(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel, nil)
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	_, err := resolver.getExecutablePermissions()
@@ -60,7 +60,7 @@ func setupSecretCommand(t *testing.T, resolver *secretResolver) (string, string)
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel, nil)
+	resolver := newEnabledSecretResolver(tel)
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
 	res, err := resolver.getExecutablePermissions()
@@ -74,7 +74,7 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 
 func TestDebugInfo(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel, nil)
+	resolver := newEnabledSecretResolver(tel)
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
@@ -119,7 +119,7 @@ Secrets handle resolved:
 
 func TestDebugInfoError(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
-	resolver := newEnabledSecretResolver(tel, nil)
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {

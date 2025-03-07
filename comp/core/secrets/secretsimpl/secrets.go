@@ -41,6 +41,8 @@ import (
 
 const auditFileBasename = "secret-audit-file.json"
 
+var newClock = clock.New
+
 type provides struct {
 	fx.Out
 
@@ -93,6 +95,7 @@ type secretResolver struct {
 	// refresh secrets at a regular interval
 	refreshInterval        time.Duration
 	refreshIntervalScatter bool
+	scatterDuration        time.Duration
 	ticker                 *clock.Ticker
 	// filename to write audit records to
 	auditFilename    string
@@ -114,7 +117,7 @@ type secretResolver struct {
 
 var _ secrets.Component = (*secretResolver)(nil)
 
-func newEnabledSecretResolver(telemetry telemetry.Component, clk clock.Clock) *secretResolver {
+func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
@@ -122,12 +125,12 @@ func newEnabledSecretResolver(telemetry telemetry.Component, clk clock.Clock) *s
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
-		clk:                     clk,
+		clk:                     newClock(),
 	}
 }
 
 func newSecretResolverProvider(deps dependencies) provides {
-	resolver := newEnabledSecretResolver(deps.Telemetry, nil)
+	resolver := newEnabledSecretResolver(deps.Telemetry)
 	resolver.enabled = deps.Params.Enabled
 	return provides{
 		Comp:            resolver,
@@ -248,13 +251,10 @@ func (r *secretResolver) startRefreshRoutine() {
 		return
 	}
 
-	if r.clk == nil {
-		r.clk = clock.New()
-	}
-
 	if r.refreshIntervalScatter {
-		scatterDuration := time.Duration(rand.Int63n(int64(r.refreshInterval)))
-		r.ticker = r.clk.Ticker(scatterDuration)
+		r.scatterDuration = time.Duration(rand.Int63n(int64(r.refreshInterval)))
+		log.Infof("scatterDuration is %s", r.scatterDuration)
+		r.ticker = r.clk.Ticker(r.scatterDuration)
 	} else {
 		r.ticker = r.clk.Ticker(r.refreshInterval)
 	}
@@ -262,14 +262,15 @@ func (r *secretResolver) startRefreshRoutine() {
 	go func() {
 		<-r.ticker.C
 		if _, err := r.Refresh(); err != nil {
-			log.Debug("First refresh error", "error", err)
+			log.Infof("Error with refreshing secrets: %s", err)
 		}
+		// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
 		r.ticker.Reset(r.refreshInterval)
 
 		for {
 			<-r.ticker.C
 			if _, err := r.Refresh(); err != nil {
-				log.Debug("Periodic refresh error", "error", err)
+				log.Infof("Error with refreshing secrets: %s", err)
 			}
 		}
 	}()
@@ -686,7 +687,7 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 	}
 
 	if r.refreshIntervalScatter {
-		fmt.Fprintf(w, "The first secret refresh will happen at a random time between the starting of the agent and the set refresh interval")
+		fmt.Fprintf(w, "'secret_refresh interval' enabled: the first refresh will happen at %s seconds and then every %s seconds", r.scatterDuration, r.refreshInterval)
 	}
 
 }
