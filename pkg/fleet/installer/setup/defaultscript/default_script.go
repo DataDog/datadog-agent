@@ -69,6 +69,9 @@ var (
 
 // SetupDefaultScript sets up the default installation
 func SetupDefaultScript(s *common.Setup) error {
+	// HACK: Enforce the use of the agent daemon
+	os.Setenv("DD_USE_AGENT_DAEMON", "true")
+
 	// Telemetry
 	telemetrySupportedEnvVars(s, supportedEnvVars...)
 	if err := exitOnUnsupportedEnvVars(unsupportedEnvVars...); err != nil {

@@ -2,6 +2,8 @@
 Description=Datadog Installer Experiment
 After=network.target
 BindsTo=datadog-agent-exp.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer-exp.service
 
 [Service]
 Type=simple
