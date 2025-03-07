@@ -53,6 +53,7 @@ type Check struct {
 	tagger         tagger.Component        // Tagger instance to add tags to outgoing metrics
 	telemetry      *checkTelemetry         // Telemetry component to emit internal telemetry
 	wmeta          workloadmeta.Component  // Workloadmeta store to get the list of containers
+	deviceTags     map[string][]string     // deviceTags is a map of device UUID to tags
 }
 
 type checkTelemetry struct {
@@ -77,6 +78,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		tagger:        tagger,
 		telemetry:     newCheckTelemetry(telemetry),
 		wmeta:         wmeta,
+		deviceTags:    make(map[string][]string),
 	}
 }
 
@@ -132,12 +134,13 @@ func (c *Check) ensureInitCollectors() error {
 		return err
 	}
 
-	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib, Tagger: c.tagger})
+	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{NVML: c.nvmlLib})
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
 
 	c.collectors = collectors
+	c.deviceTags = nvidia.GetDeviceTagsMapping(c.nvmlLib, c.tagger)
 	return nil
 }
 
@@ -287,11 +290,11 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender) error {
 			metricName := gpuMetricsNs + metric.Name
 			switch metric.Type {
 			case ddmetrics.CountType:
-				snd.Count(metricName, metric.Value, "", append(metric.Tags, extraTags...))
+				snd.Count(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
 			case ddmetrics.GaugeType:
-				snd.Gauge(metricName, metric.Value, "", append(metric.Tags, extraTags...))
+				snd.Gauge(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
 			default:
-				return fmt.Errorf("Unsupported metric type %s for metric %s", metric.Type, metricName)
+				return fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName)
 			}
 		}
 
