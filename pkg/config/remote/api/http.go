@@ -239,7 +239,7 @@ func (c *HTTPClient) UpdatePARJWT(jwt string) {
 	c.headerLock.Unlock()
 }
 
-// UpdateApiKey allows for dynamic setting of a Private Action Runners JWT
+// UpdateAPIKey allows for dynamic setting of a Private Action Runners JWT
 // Token for authentication to the RC backend.
 func (c *HTTPClient) UpdateAPIKey(apiKey string) {
 	c.headerLock.Lock()

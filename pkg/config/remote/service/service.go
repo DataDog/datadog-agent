@@ -927,7 +927,7 @@ func (s *CoreAgentService) apiKeyUpdateCallback(dbPath string) func(string, any,
 		apiKeyHash := hashAPIKey(newKey)
 		db, err := recreate(dbPath, s.agentVersion, apiKeyHash)
 		if err != nil {
-			log.Errorf("Could not flush db", err)
+			log.Errorf("Could not flush db: %s", err)
 		} else {
 			s.db = db
 		}

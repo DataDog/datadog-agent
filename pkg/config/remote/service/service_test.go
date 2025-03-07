@@ -792,15 +792,15 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	assert.NotNil(t, service)
 	service.api = api
 
-	originalApiKey, err := getMetadataFromDB(service.db)
+	originalAPIKey, err := getMetadataFromDB(service.db)
 	assert.NoError(t, err)
 
 	cfg.SetWithoutSource("api_key", "updated")
 
 	assert.Equal(t, "updated", updatedKey)
-	newApiKey, err := getMetadataFromDB(service.db)
+	newAPIKey, err := getMetadataFromDB(service.db)
 	assert.NoError(t, err)
-	assert.NotEqual(t, originalApiKey, newApiKey)
+	assert.NotEqual(t, originalAPIKey, newAPIKey)
 }
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
