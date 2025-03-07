@@ -142,15 +142,9 @@ func (v *gpuSuite) TestGPUSysprobeEndpointIsResponding() {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-func (v *gpuSuite) TestVectorAddProgramDetected() {
-	flake.Mark(v.T())
-
-	_ = v.runCudaDockerWorkload()
-
+func (v *gpuSuite) TestLimitMetricsAreReported() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		// We are not including "gpu.memory", as that represents the "current
-		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.utilization", "gpu.memory.max", "gpu.sm_active"}
+		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
 		for _, metricName := range metricNames {
 			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
 			assert.NoError(c, err)
@@ -159,18 +153,60 @@ func (v *gpuSuite) TestVectorAddProgramDetected() {
 	}, 5*time.Minute, 10*time.Second)
 }
 
+func (v *gpuSuite) TestVectorAddProgramDetected() {
+	_ = v.runCudaDockerWorkload()
+
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		// We are not including "gpu.memory", as that represents the "current
+		// memory usage" and that might be zero at the time it's checked
+		metricNames := []string{"gpu.core.usage"}
+
+		var usageMetricTags []string
+		for _, metricName := range metricNames {
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			assert.NoError(c, err)
+			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+
+			if metricName == "gpu.core.usage" && len(metrics) > 0 {
+				usageMetricTags = metrics[0].Tags
+			}
+		}
+
+		if len(usageMetricTags) > 0 {
+			// Ensure we get the limit metric with the same tags as the usage one
+			limitMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](usageMetricTags))
+			assert.NoError(c, err)
+			assert.Greater(c, len(limitMetrics), 0, "no 'gpu.core.limit' with tags %v", usageMetricTags)
+		}
+	}, 5*time.Minute, 10*time.Second)
+}
+
 func (v *gpuSuite) TestNvmlMetricsPresent() {
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
-		metricNames := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage"}
-		for _, metricName := range metricNames {
+		metrics := []struct {
+			name           string
+			deviceSpecific bool
+		}{
+			{"gpu.temperature", true},
+			{"gpu.pci.throughput.tx", true},
+			{"gpu.power.usage", true},
+			{"gpu.device.total", false},
+		}
+		for _, metric := range metrics {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
-			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metricName, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			var options []client.MatchOpt[*aggregator.MetricSeries]
+			if metric.deviceSpecific {
+				// device-specific metrics should be tagged with device tags
+				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			}
+
+			metrics, err := v.Env().FakeIntake.Client().FilterMetrics(metric.name, options...)
 			assert.NoError(c, err)
 
-			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metricName)
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric.name)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }

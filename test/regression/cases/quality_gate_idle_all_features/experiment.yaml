@@ -20,21 +20,26 @@ target:
     DD_INTERNAL_PROFILING_ENABLED: true
     DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED: true
     DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED: true
+    DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED: true
     # run all the time
-    DD_SYSTEM_PROBE_INTERNAL_PROFILING_PERIOD: 1m
     DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_SYSTEM_PROBE_INTERNAL_PROFILING_PERIOD: 1m
     DD_SECURITY_AGENT_INTERNAL_PROFILING_PERIOD: 1m
-    DD_SYSTEM_PROBE_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_PROCESS_CONFIG_INTERNAL_PROFILING_PERIOD: 1m
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_SYSTEM_PROBE_INTERNAL_PROFILING_CPU_DURATION: 1m
     DD_SECURITY_AGENT_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_PROCESS_CONFIG_INTERNAL_PROFILING_CPU_DURATION: 1m
     # destination
     DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     DD_SECURITY_AGENT_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_PROCESS_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
     # tags
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_all_features
     DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_all_features
     DD_SECURITY_AGENT_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_all_features
+    DD_PROCESS_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_all_features
 
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
     DD_INTERNAL_PROFILING_DELTA_PROFILES: true
@@ -51,7 +56,7 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_rss_bytes
-      upper_bound: "724.0 MiB"
+      upper_bound: "675.0 MiB"
 
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."

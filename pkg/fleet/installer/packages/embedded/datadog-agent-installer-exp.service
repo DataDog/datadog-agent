@@ -1,0 +1,21 @@
+[Unit]
+Description=Datadog Installer Experiment
+After=network.target
+BindsTo=datadog-agent-exp.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer-exp.service
+
+[Service]
+Type=simple
+PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/installer.pid
+Restart=on-failure
+EnvironmentFile=-/etc/datadog-agent/environment
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
+ExecStart=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/installer run -p /opt/datadog-packages/datadog-agent/experiment/run/installer.pid
+# Since systemd 229, should be in [Unit] but in order to support systemd <229,
+# it is also supported to have it here.
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

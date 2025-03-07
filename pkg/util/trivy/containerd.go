@@ -312,7 +312,12 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	return c.scanFilesystem(ctx, imagePath, imgMeta, scanOptions)
+	report, err := c.ScanFilesystem(ctx, imagePath, scanOptions)
+	if err != nil {
+		return nil, fmt.Errorf("unable to scan image %s, err: %w", imgMeta.ID, err)
+	}
+
+	return report, err
 }
 
 func extractLayersFromOverlayFSMounts(mounts []mount.Mount) []string {

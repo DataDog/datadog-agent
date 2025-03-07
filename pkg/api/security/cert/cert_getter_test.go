@@ -6,6 +6,7 @@
 package cert
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"os"
@@ -37,7 +38,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 
 func TestCreateOrFetchAuthTokenValidGen(t *testing.T) {
 	config, _ := initMockConf(t)
-	ipccert, ipckey, err := CreateOrFetchAgentIPCCert(config)
+	ipccert, ipckey, err := FetchOrCreateIPCCert(context.Background(), config)
 	require.NoError(t, err)
 
 	certPool := x509.NewCertPool()
@@ -51,12 +52,8 @@ func TestCreateOrFetchAuthTokenValidGen(t *testing.T) {
 func TestFetchAuthToken(t *testing.T) {
 	config, _ := initMockConf(t)
 
-	// Trying to fetch before create cert: must fail
-	_, _, err := FetchAgentIPCCert(config)
-	require.Error(t, err)
-
 	// Creating a cert
-	ipcCert, ipcKey, err := CreateOrFetchAgentIPCCert(config)
+	ipcCert, ipcKey, err := FetchOrCreateIPCCert(context.Background(), config)
 	require.NoError(t, err)
 
 	certPool := x509.NewCertPool()
@@ -67,7 +64,7 @@ func TestFetchAuthToken(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Trying to fetch after creating cert: must succeed
-	fetchedCert, fetchedKey, err := FetchAgentIPCCert(config)
+	fetchedCert, fetchedKey, err := FetchOrCreateIPCCert(context.Background(), config)
 	require.NoError(t, err)
 	require.Equal(t, string(ipcCert), string(fetchedCert))
 	require.Equal(t, string(ipcKey), string(fetchedKey))
@@ -82,7 +79,7 @@ func TestFetchAuthTokenWithAuthTokenFilePath(t *testing.T) {
 	config.SetWithoutSource("auth_token_file_path", filepath.Join(dname, "auth_token"))
 
 	// Creating a cert
-	ipcCert, ipcKey, err := CreateOrFetchAgentIPCCert(config)
+	ipcCert, ipcKey, err := FetchOrCreateIPCCert(context.Background(), config)
 	require.NoError(t, err)
 
 	certPool := x509.NewCertPool()
@@ -97,7 +94,7 @@ func TestFetchAuthTokenWithAuthTokenFilePath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Trying to fetch after creating cert: must succeed
-	fetchedCert, fetchedKey, err := FetchAgentIPCCert(config)
+	fetchedCert, fetchedKey, err := FetchOrCreateIPCCert(context.Background(), config)
 	require.NoError(t, err)
 	require.Equal(t, string(ipcCert), string(fetchedCert))
 	require.Equal(t, string(ipcKey), string(fetchedKey))
@@ -117,7 +114,7 @@ func TestFetchAuthTokenWithIPCCertFilePath(t *testing.T) {
 	config.SetWithoutSource("ipc_cert_file_path", filepath.Join(ipcDirName, "custom_ipc_cert"))
 
 	// Creating a cert
-	ipcCert, ipcKey, err := CreateOrFetchAgentIPCCert(config)
+	ipcCert, ipcKey, err := FetchOrCreateIPCCert(context.Background(), config)
 	require.NoError(t, err)
 
 	certPool := x509.NewCertPool()
@@ -132,7 +129,7 @@ func TestFetchAuthTokenWithIPCCertFilePath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Trying to fetch after creating cert: must succeed
-	fetchedCert, fetchedKey, err := FetchAgentIPCCert(config)
+	fetchedCert, fetchedKey, err := FetchOrCreateIPCCert(context.Background(), config)
 	require.NoError(t, err)
 	require.Equal(t, string(ipcCert), string(fetchedCert))
 	require.Equal(t, string(ipcKey), string(fetchedKey))

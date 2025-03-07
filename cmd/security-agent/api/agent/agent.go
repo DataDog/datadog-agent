@@ -14,15 +14,15 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/api/version"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,7 +48,7 @@ func NewAgent(statusComponent status.Component, settings settings.Component, wme
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func (a *Agent) SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", common.GetVersion).Methods("GET")
+	r.HandleFunc("/version", version.Get).Methods("GET")
 	r.HandleFunc("/flare", a.makeFlare).Methods("POST")
 	r.HandleFunc("/hostname", a.getHostname).Methods("GET")
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
@@ -147,7 +147,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	logFile := pkgconfigsetup.Datadog().GetString("security_agent.log_file")
 
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
+	filePath, err := securityagent.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

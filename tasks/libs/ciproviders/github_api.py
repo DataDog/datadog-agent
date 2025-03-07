@@ -736,11 +736,16 @@ Make sure that milestone is open before trying again.""",
 
 
 def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
-    milestone_name = milestone or str(version)
+    if milestone:
+        milestone_name = milestone
+    else:
+        # The milestone name is always using the .0 patch version (at least for now)
+        # Unless we pass explicitly the name, we use the version and force the patch version
+        milestone_name = str(version)
+        milestone_name = re.sub('.[0-9]+$', '.0', milestone_name)
 
     labels = [
         "team/agent-delivery",
-        "team/agent-release-management",
     ]
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")

@@ -7,10 +7,11 @@
 package djm
 
 import (
-	"cloud.google.com/go/compute/metadata"
 	"context"
 	"fmt"
 	"os"
+
+	"cloud.google.com/go/compute/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,10 +48,12 @@ var (
 func SetupDataproc(s *common.Setup) error {
 
 	metadataClient := metadata.NewClient(nil)
+	s.Packages.InstallInstaller()
 	s.Packages.Install(common.DatadogAgentPackage, dataprocAgentVersion)
 	s.Packages.Install(common.DatadogAPMInjectPackage, dataprocInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, dataprocJavaTracerVersion)
 
+	s.Out.WriteString("Applying specific Data Jobs Monitoring config\n")
 	os.Setenv("DD_APM_INSTRUMENTATION_ENABLED", "host")
 
 	hostname, err := os.Hostname()
@@ -68,6 +71,7 @@ func SetupDataproc(s *common.Setup) error {
 		return fmt.Errorf("failed to set tags: %w", err)
 	}
 	if isMaster == "true" {
+		s.Out.WriteString("Setting up Spark integration config on the Resource Manager\n")
 		setupResourceManager(s, clusterName)
 	}
 	return nil

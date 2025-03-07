@@ -381,3 +381,78 @@ func TestCGroupSnapshot(t *testing.T) {
 		cmd.Process.Kill()
 	}
 }
+
+func TestCGroupVariables(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_set_variable",
+			Expression: `cgroup.id != "" && open.file.path == "{{.Root}}/test-open"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Scope: "cgroup",
+						Value: 1,
+						Name:  "foo",
+					},
+				},
+			},
+		},
+		{
+			ID:         "test_cgroup_check_variable",
+			Expression: `cgroup.id != "" && open.file.path == "{{.Root}}/test-open2" && ${cgroup.foo} == 1`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("test-open")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile2, _, err := test.Path("test-open2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	if err != nil {
+		t.Skipf("Skipping created time in containers tests: Docker not available: %s", err)
+		return
+	}
+	defer dockerWrapper.stop()
+
+	dockerWrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("touch", []string{testFile}, nil)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("error while executing %s: %s (%s)", cmd.String(), err, string(output))
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_cgroup_set_variable")
+			assertFieldEqual(t, event, "open.file.path", testFile)
+			assertFieldNotEmpty(t, event, "cgroup.id", "cgroup id shouldn't be empty")
+
+			test.validateOpenSchema(t, event)
+		})
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("touch", []string{testFile2}, nil)
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_cgroup_check_variable")
+			assertFieldEqual(t, event, "open.file.path", testFile2)
+			assertFieldNotEmpty(t, event, "cgroup.id", "cgroup id shouldn't be empty")
+
+			test.validateOpenSchema(t, event)
+		})
+	})
+
+}

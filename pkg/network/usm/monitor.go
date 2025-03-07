@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
@@ -29,7 +30,6 @@ import (
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,10 +54,12 @@ type Monitor struct {
 	lastUpdateTime *atomic.Int64
 
 	telemetryStopChannel chan struct{}
+
+	statsd statsd.ClientInterface
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, err error) {
+func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map, statsd statsd.ClientInterface) (m *Monitor, err error) {
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
@@ -103,6 +105,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 		closeFilterFn:        closeFilterFn,
 		processMonitor:       processMonitor,
 		telemetryStopChannel: make(chan struct{}),
+		statsd:               statsd,
 	}
 
 	usmMonitor.lastUpdateTime = atomic.NewInt64(time.Now().Unix())
@@ -188,10 +191,10 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	return response
 }
 
-// GetProtocolStats returns the current stats for all protocols
-func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
+// GetProtocolStats returns the current stats for all protocols and a cleanup function to free resources.
+func (m *Monitor) GetProtocolStats() (map[protocols.ProtocolType]interface{}, func()) {
 	if m == nil {
-		return nil
+		return nil, func() {}
 	}
 
 	defer func() {
@@ -233,7 +236,7 @@ func (m *Monitor) DumpMaps(w io.Writer, maps ...string) error {
 }
 
 func (m *Monitor) startTelemetryReporter() {
-	telemetry.SetStatsdClient(statsd.Client)
+	telemetry.SetStatsdClient(m.statsd)
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		defer ticker.Stop()
