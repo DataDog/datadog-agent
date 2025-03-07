@@ -18,6 +18,7 @@ include:
   - .gitlab/deps_fetch/deps_fetch.yml
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e_pre_test/e2e_pre_test.yml
   - .gitlab/functional_test/include.yml
   - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
   - .gitlab/install_script_testing/install_script_testing.yml
@@ -69,6 +70,7 @@ stages:
   - package_build
   - packaging
   - kitchen_deploy
+  - e2e_pre_test
   - kitchen_testing
   - pkg_metrics
   - container_build
@@ -746,6 +748,20 @@ workflow:
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
+      compare_to: 6.53.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_e2e_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/go.mod
       compare_to: 6.53.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
