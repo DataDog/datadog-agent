@@ -10,6 +10,7 @@ from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.package.utils import find_package
 
 DEBIAN_OS = "debian"
+HEROKU_OS = "heroku"
 CENTOS_OS = "centos"
 SUSE_OS = "suse"
 WINDOWS_OS = "windows"
@@ -72,7 +73,7 @@ def extract_zip_archive(ctx, package_path, extract_dir):
 
 
 def extract_package(ctx, package_os, package_path, extract_dir):
-    if package_os == DEBIAN_OS:
+    if package_os in (DEBIAN_OS, HEROKU_OS):
         return extract_deb_package(ctx, package_path, extract_dir)
     elif package_os in (CENTOS_OS, SUSE_OS):
         return extract_rpm_package(ctx, package_path, extract_dir)
