@@ -2,7 +2,7 @@ single-machine-performance-regression_detector:
   stage: functional_test
   timeout: 1h10m
   rules:
-    - !reference [.except_main_or_release_branch]
+    - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -253,7 +253,7 @@ single-machine-performance-regression_detector:
 single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
   rules:
-    - !reference [.except_main_or_release_branch]
+    - !reference [.on_dev_branches]
     - when: always
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
