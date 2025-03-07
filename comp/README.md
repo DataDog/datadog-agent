@@ -12,19 +12,19 @@ Package aggregator implements the "aggregator" bundle,
 
 ### [comp/aggregator/demultiplexer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-runtimes
 
 Package demultiplexer defines the aggregator demultiplexer
 
 ### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-configuration
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
 ## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-runtimes
 
 Package api implements the "api" bundle,
 
@@ -68,7 +68,7 @@ Package collector defines the collector component.
 
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-runtimes
 
 Package core implements the "core" bundle, providing services common to all
 agent flavors and binaries.
@@ -81,14 +81,20 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
+*Datadog Team*: agent-configuration
+
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
 
 ### [comp/core/configsync](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configsync)
 
+*Datadog Team*: agent-configuration
+
 Package configsync implements synchronizing the configuration using the core agent config API
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
+
+*Datadog Team*: agent-configuration
 
 Package flare implements a component to generate flares from the agent.
 
@@ -106,9 +112,13 @@ Package log implements a component to handle logging internal to the agent.
 
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
+*Datadog Team*: agent-configuration
+
 Package secrets decodes secret values by invoking the configured executable command
 
 ### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
+
+*Datadog Team*: agent-configuration
 
 Package status displays information about the agent.
 
@@ -209,7 +219,7 @@ Package agent contains logs agent component.
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-configuration
 
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
