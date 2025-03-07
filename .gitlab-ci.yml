@@ -922,7 +922,8 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for orchestrator
+        - pkg/collector/corechecks/cluster/orchestrator/**/*
+        - pkg/collector/corechecks/orchestrator/**/*
         - test/new-e2e/tests/orchestrator/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
