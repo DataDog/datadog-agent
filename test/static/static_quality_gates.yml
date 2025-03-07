@@ -48,8 +48,8 @@ static_quality_gate_agent_suse_arm64_fips:
   max_on_disk_size: "793.14 MiB"
 
 static_quality_gate_agent_msi:
-  max_on_wire_size: "205.03 MiB"
-  max_on_disk_size: "801.81 MiB"
+  max_on_wire_size: "160 MiB"
+  max_on_disk_size: "1005 MiB"
 
 static_quality_gate_agent_heroku_amd64:
   max_on_wire_size: "205.03 MiB"
@@ -117,36 +117,36 @@ static_quality_gate_docker_agent_jmx_arm64:
   max_on_disk_size: "1087.6 MiB"
 
 static_quality_gate_docker_agent_windows1809:
-  max_on_wire_size: "379.33 MiB"
-  max_on_disk_size: "1084.34 MiB"
+  max_on_wire_size: "559.7 MiB"
+  max_on_disk_size: "1628.3 MiB"
 
 static_quality_gate_docker_agent_windows1809_core:
-  max_on_wire_size: "379.33 MiB"
-  max_on_disk_size: "1084.34 MiB"
+  max_on_wire_size: "2058 MiB"
+  max_on_disk_size: "6260 MiB"
 
 static_quality_gate_docker_agent_windows1809_core_jmx:
-  max_on_wire_size: "379.33 MiB"
-  max_on_disk_size: "1084.34 MiB"
+  max_on_wire_size: "2058 MiB"
+  max_on_disk_size: "6382 MiB"
 
 static_quality_gate_docker_agent_windows1809_jmx:
-  max_on_wire_size: "379.33 MiB"
-  max_on_disk_size: "1084.34 MiB"
+  max_on_wire_size: "602 MiB"
+  max_on_disk_size: "1750 MiB"
 
 static_quality_gate_docker_agent_windows2022:
-  max_on_wire_size: "379.33 MiB"
-  max_on_disk_size: "1084.34 MiB"
+  max_on_wire_size: "2058 MiB"
+  max_on_disk_size: "6234 MiB"
 
 static_quality_gate_docker_agent_windows2022_core:
-  max_on_wire_size: "379.33 MiB"
-  max_on_disk_size: "1084.34 MiB"
+  max_on_wire_size: "2058 MiB"
+  max_on_disk_size: "6234 MiB"
 
 static_quality_gate_docker_agent_windows2022_core_jmx:
-  max_on_wire_size: "379.33 MiB"
-  max_on_disk_size: "1084.34 MiB"
+  max_on_wire_size: "2058 MiB"
+  max_on_disk_size: "6355 MiB"
 
 static_quality_gate_docker_agent_windows2022_jmx:
-  max_on_wire_size: "379.33 MiB"
-  max_on_disk_size: "1084.34 MiB"
+  max_on_wire_size: "567 MiB"
+  max_on_disk_size: "1673.1 MiB"
 
 static_quality_gate_docker_dogstatsd_amd64:
   max_on_wire_size: "27.28 MiB"

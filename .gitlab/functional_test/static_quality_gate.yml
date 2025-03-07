@@ -19,6 +19,7 @@ static_quality_gates:
     - agent_suse-x64-a7-fips
     - agent_suse-arm64-a7
     - agent_suse-arm64-a7-fips
+    - agent_heroku_deb-x64-a7
     - docker_build_agent7
     - docker_build_agent7_arm64
     - docker_build_agent7_jmx
