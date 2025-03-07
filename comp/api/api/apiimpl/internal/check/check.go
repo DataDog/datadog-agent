@@ -233,9 +233,7 @@ func fetchCheckNameError(w http.ResponseWriter, checkName string) {
 	}
 	for check, autoDiscoveryWarnings := range autodiscoveryimpl.GetResolveWarnings() {
 		if checkName == check {
-			for _, warning := range autoDiscoveryWarnings {
-				warnings = append(warnings, warning)
-			}
+			warnings = append(warnings, autoDiscoveryWarnings...)
 		}
 	}
 	setErrorsAndWarnings(w, errors, warnings)
