@@ -12,10 +12,7 @@ from tasks.release import _get_release_json_value
 
 
 def _get_omnibus_commits(field):
-    if 'RELEASE_VERSION' in os.environ:
-        release_version = os.environ['RELEASE_VERSION']
-    else:
-        release_version = os.environ['RELEASE_VERSION_7']
+    release_version = os.environ['RELEASE_VERSION']
     return _get_release_json_value(f'{release_version}::{field}')
 
 
