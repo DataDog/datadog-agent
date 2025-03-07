@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -67,6 +68,10 @@ func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the host using Docker
 func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
+	// Yes, it's deprecated, but apparently without this we get the same random string every time
+	// so seed it just in case, it's a test so we don't care too much about RNG safety
+	rand.Seed(time.Now().UnixNano())
+
 	containerName := strings.ToLower("workload-" + common.RandString(5))
 
 	args := strings.Join(arguments, " ")
@@ -135,6 +140,10 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the Kubernetes cluster
 // using a Kubernetes Job.
 func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
+	// Yes, it's deprecated, but apparently without this we get the same random string every time
+	// so seed it just in case, it's a test so we don't care too much about RNG safety
+	rand.Seed(time.Now().UnixNano())
+
 	jobName := strings.ToLower("workload-" + common.RandString(5))
 	jobNamespace := "default"
 
@@ -166,11 +175,8 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 
 	// Now let's find the container ID
 	for retries := 0; retries < jobQueryMaxRetries; retries++ {
-		allNsPods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{})
-		fmt.Printf("Pods in namespace %s: %d. %+v\n", jobNamespace, len(allNsPods.Items), allNsPods.Items)
-
 		pods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{
-			FieldSelector: fields.OneTermEqualSelector("metadata.name", jobName).String(),
+			LabelSelector: fields.OneTermEqualSelector("job-name", jobName).String(), // job-name is the label automatically assigned by k8s to the pod running this job
 			Limit:         1,
 		})
 		if err != nil {
@@ -179,7 +185,6 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 
 		if len(pods.Items) > 0 {
 			pod := pods.Items[0]
-			fmt.Printf("Found pod %s in namespace %s: %+v\n", pod.Name, jobNamespace, pod)
 			if pod.Status.Phase != corev1.PodPending {
 				return pod.Status.ContainerStatuses[0].ContainerID, nil
 			}
