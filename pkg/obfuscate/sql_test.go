@@ -2756,6 +2756,7 @@ func TestSQLLexerObfuscationModeNotSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
+					ObfuscationMode:  Legacy,
 					ReplaceDigits:    tt.replaceDigits,
 					DollarQuotedFunc: tt.dollarQuotedFunc,
 					KeepSQLAlias:     tt.keepSQLAlias,
