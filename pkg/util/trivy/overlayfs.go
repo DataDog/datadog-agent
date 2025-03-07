@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy && (docker || containerd || crio)
 
 // Package trivy implement a simple overlayfs like filesystem to be able to
 // scan through layered filesystems.
