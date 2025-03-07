@@ -17,7 +17,6 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
             }
     }
 
-
     // route IMDS requests
     if (is_event_enabled(EVENT_IMDS)) {
         if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_TCP && ((pkt->ns_flow.flow.saddr[0] & 0xFFFFFFFF) == get_imds_ip() || (pkt->ns_flow.flow.daddr[0] & 0xFFFFFFFF) == get_imds_ip())) {
