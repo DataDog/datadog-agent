@@ -53,7 +53,6 @@ static_quality_gates:
       artifacts: true
     - job: iot_agent_suse-x64
       artifacts: true
-  # Static Quality Gates aren't enforced until Q1
   allow_failure: false
   script:
     # DockerHub login for build to limit rate limit when pulling base images
