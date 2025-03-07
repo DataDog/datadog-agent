@@ -54,6 +54,8 @@ setup_xcode()
 if [ "$1" = SETUP_RUNNER ]; then
     set -euo pipefail
 
+    cd ~
+
     CMAKE_VERSION=3.22.6
     GIMME_VERSION=1.5.4
     PKG_CONFIG_VERSION=0.29.2

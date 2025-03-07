@@ -95,7 +95,7 @@ new-agent_dmg-x64-a7:
   stage: package_build
   # extends: .macos_gitlab
   tags: ["macos:ventura-amd64-test", "specific:true"]
-  # parallel: 2
+  parallel: 2
   # tags: ["macos:ventura-arm64-test", "specific:true"] # TODO
   needs: []
   timeout: 6h
