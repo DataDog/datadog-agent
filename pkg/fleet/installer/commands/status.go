@@ -8,11 +8,12 @@ package commands
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"os"
-	osexec "os/exec"
+	"os/exec"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -21,14 +22,18 @@ import (
 )
 
 func statusCommand() *cobra.Command {
+	var debug bool
+
 	statusCmd := &cobra.Command{
 		Use:     "status",
 		Short:   "Print the installer status",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return status()
+			return status(debug)
 		},
 	}
+
+	statusCmd.Flags().BoolVar(&debug, "debug", false, "Enable debug mode")
 	return statusCmd
 }
 
@@ -47,10 +52,10 @@ var functions = template.FuncMap{
 }
 
 type statusResponse struct {
-	Version            string                    `json:"version"`
-	Packages           *repository.PackageStates `json:"packages"`
-	ApmInjectionStatus apmInjectionStatus        `json:"apm_injection_status"`
-	RemoteConfigState  interface{}               `json:"remote_config_state"`
+	Version            string                      `json:"version"`
+	Packages           *repository.PackageStates   `json:"packages"`
+	ApmInjectionStatus apmInjectionStatus          `json:"apm_injection_status"`
+	RemoteConfigState  []*remoteConfigPackageState `json:"remote_config_state"`
 }
 
 // apmInjectionStatus contains the instrumentation status of the APM injection.
@@ -60,7 +65,7 @@ type apmInjectionStatus struct {
 	DockerInstrumented bool `json:"docker_instrumented"`
 }
 
-func status() error {
+func status(debug bool) error {
 	tmpl, err := template.New("status").Funcs(functions).Parse(string(statusTmpl))
 	if err != nil {
 		return fmt.Errorf("error parsing status template: %w", err)
@@ -82,6 +87,16 @@ func status() error {
 		Packages:           packageStates,
 		ApmInjectionStatus: apmSSIStatus,
 	}
+
+	if debug {
+		// Remote Config status may be confusing for customers, so we only print it in debug mode
+		remoteConfigStatus, err := getRCStatus()
+		if err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+		}
+		status.RemoteConfigState = remoteConfigStatus.PackageStates
+	}
+
 	err = tmpl.Execute(os.Stdout, status)
 	if err != nil {
 		return fmt.Errorf("error executing status template: %w", err)
@@ -100,8 +115,8 @@ func getAPMInjectionStatus() (status apmInjectionStatus, err error) {
 	}
 
 	// Docker is installed if the docker binary is in the PATH
-	_, err = osexec.LookPath("docker")
-	if err != nil && errors.Is(err, osexec.ErrNotFound) {
+	_, err = exec.LookPath("docker")
+	if err != nil && errors.Is(err, exec.ErrNotFound) {
 		return status, nil
 	} else if err != nil {
 		return status, fmt.Errorf("could not check if docker is installed: %w", err)
@@ -122,4 +137,56 @@ func getAPMInjectionStatus() (status apmInjectionStatus, err error) {
 	}
 
 	return status, nil
+}
+
+// remoteConfigState is the response to the daemon status route.
+// It is technically a json-encoded protobuf message but importing
+// the protos in the installer binary is too heavy.
+type remoteConfigState struct {
+	PackageStates []*remoteConfigPackageState `json:"remote_config_state"`
+}
+
+type remoteConfigPackageState struct {
+	Package                 string                   `json:"package"`
+	StableVersion           string                   `json:"stable_version,omitempty"`
+	ExperimentVersion       string                   `json:"experiment_version,omitempty"`
+	Task                    *remoteConfigPackageTask `json:"remote_config_state"`
+	StableConfigVersion     string                   `json:"stable_config_version,omitempty"`
+	ExperimentConfigVersion string                   `json:"experiment_config_version,omitempty"`
+}
+
+type remoteConfigPackageTask struct {
+	Id    string         `json:"id,omitempty"`
+	State int32          `json:"state,omitempty"`
+	Error *errorWithCode `json:"error,omitempty"`
+}
+
+type errorWithCode struct {
+	Code    uint64 `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+func getRCStatus() (remoteConfigState, error) {
+	var response remoteConfigState
+
+	// The simplest thing here is to call ourselves with the daemon command
+	installerBinary, err := os.Executable()
+	if err != nil {
+		return response, fmt.Errorf("could not get installer binary path: %w", err)
+	}
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+	cmd := exec.Command(installerBinary, "daemon", "rc-status")
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	err = cmd.Run()
+	if err != nil {
+		return response, fmt.Errorf("error running \"daemon rc-status\" (is the daemon running?): %s", stderr.String())
+	}
+
+	err = json.Unmarshal(stdout.Bytes(), &response)
+	if err != nil {
+		return response, fmt.Errorf("error unmarshalling response: %w", err)
+	}
+	return response, nil
 }
