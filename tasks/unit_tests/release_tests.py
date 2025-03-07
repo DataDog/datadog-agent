@@ -299,17 +299,17 @@ class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
         "release": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
     }
 
-    def test_release_version_7(self):
+    def test_release_version(self):
         version = _get_release_version_from_release_json(self.test_release_json, release.VERSION_RE)
         self.assertEqual(version, "release")
 
-    def test_release_jmxfetch_version_7(self):
+    def test_release_jmxfetch_version(self):
         version = _get_release_version_from_release_json(
             self.test_release_json, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
         )
         self.assertEqual(version, Version(major=0, minor=44, patch=1))
 
-    def test_release_security_version_7(self):
+    def test_release_security_version(self):
         version = _get_release_version_from_release_json(
             self.test_release_json, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
         )

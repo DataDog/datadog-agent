@@ -56,8 +56,6 @@ datadog-agent-oci-x64-a7:
     DD_CC: 'x86_64-unknown-linux-gnu-gcc'
     DD_CXX: 'x86_64-unknown-linux-gnu-g++'
     DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 datadog-agent-oci-arm64-a7:
   extends: .common_build_oci
@@ -80,8 +78,6 @@ datadog-agent-oci-arm64-a7:
     DD_CC: 'aarch64-unknown-linux-gnu-gcc'
     DD_CXX: 'aarch64-unknown-linux-gnu-g++'
     DD_CMAKE_TOOLCHAIN: '/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake'
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 #
 # The installer install scripts (install-djm.sh, ...)
@@ -98,7 +94,6 @@ installer-install-scripts:
     KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
-    RELEASE_VERSION: "$RELEASE_VERSION_7"
   script:
     - !reference [.retrieve_linux_go_deps]
     - VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
@@ -179,7 +174,6 @@ installer-amd64:
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
-    RELEASE_VERSION: "$RELEASE_VERSION_7"
     DD_CC: 'x86_64-unknown-linux-gnu-gcc'
     DD_CXX: 'x86_64-unknown-linux-gnu-g++'
 
@@ -195,7 +189,6 @@ installer-arm64:
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
-    RELEASE_VERSION: "$RELEASE_VERSION_7"
     DD_CC: 'aarch64-unknown-linux-gnu-gcc'
     DD_CXX: 'aarch64-unknown-linux-gnu-g++'
 
@@ -257,4 +250,3 @@ windows-installer-amd64:
       - omnibus/pkg
   variables:
     ARCH: "x64"
-    RELEASE_VERSION: "$RELEASE_VERSION_7"

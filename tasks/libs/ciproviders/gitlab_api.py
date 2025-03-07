@@ -1079,7 +1079,7 @@ def get_preset_contexts(required_tests):
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
     integrations_core_contexts = [
-        ("RELEASE_VERSION_7", ["nightly"]),
+        ("RELEASE_VERSION", ["nightly"]),
         ("BUCKET_BRANCH", ["dev"]),
         ("DEPLOY_AGENT", ["false"]),
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
