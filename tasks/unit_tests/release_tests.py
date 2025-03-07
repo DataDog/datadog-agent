@@ -190,7 +190,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
         self.maxDiff = None
         initial_release_json = OrderedDict(
             {
-                "nightly-a7": {
+                "nightly": {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -205,7 +205,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
-                "release-a7": {
+                "release": {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -239,7 +239,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         release_json = _update_release_json_entry(
             release_json=initial_release_json,
-            release_entry="release-a7",
+            release_entry="release",
             integrations_version=integrations_version,
             omnibus_ruby_version=omnibus_ruby_version,
             omnibus_software_version=omnibus_software_version,
@@ -257,7 +257,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         expected_release_json = OrderedDict(
             {
-                "nightly-a7": {
+                "nightly": {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -272,7 +272,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
                     "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                 },
-                "release-a7": {
+                "release": {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
                     "OMNIBUS_SOFTWARE_VERSION": str(omnibus_software_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
@@ -295,30 +295,30 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
 class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
-        "nightly-a7": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
-        "release-a7": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
+        "nightly": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
+        "release": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
     }
 
     def test_release_version_7(self):
-        version = _get_release_version_from_release_json(self.test_release_json, 7, release.VERSION_RE)
-        self.assertEqual(version, "release-a7")
+        version = _get_release_version_from_release_json(self.test_release_json, release.VERSION_RE)
+        self.assertEqual(version, "release")
 
     def test_release_jmxfetch_version_7(self):
         version = _get_release_version_from_release_json(
-            self.test_release_json, 7, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
+            self.test_release_json, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
         )
         self.assertEqual(version, Version(major=0, minor=44, patch=1))
 
     def test_release_security_version_7(self):
         version = _get_release_version_from_release_json(
-            self.test_release_json, 7, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
+            self.test_release_json, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
         )
         self.assertEqual(version, Version(prefix="v", major=0, minor=10))
 
 
 class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
     test_release_json = {
-        "nightly-a7": {
+        "nightly": {
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
@@ -326,7 +326,7 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             "WINDOWS_DDPROCMON_VERSION": "nightly-ddprocmon-version",
             "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
         },
-        "release-a7": {
+        "release": {
             "WINDOWS_DDNPM_DRIVER": "release-signed",
             "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
@@ -344,7 +344,7 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             ddprocmon_driver,
             ddprocmon_version,
             ddprocmon_shasum,
-        ) = _get_windows_release_json_info(self.test_release_json, 7, True)
+        ) = _get_windows_release_json_info(self.test_release_json, True)
 
         self.assertEqual(ddnpm_driver, 'attestation-signed')
         self.assertEqual(ddnpm_version, 'nightly-ddnpm-version')
@@ -361,7 +361,7 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             ddprocmon_driver,
             ddprocmon_version,
             ddprocmon_shasum,
-        ) = _get_windows_release_json_info(self.test_release_json, 7, False)
+        ) = _get_windows_release_json_info(self.test_release_json, False)
 
         self.assertEqual(ddnpm_driver, 'release-signed')
         self.assertEqual(ddnpm_version, 'rc3-ddnpm-version')
@@ -373,18 +373,18 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
 
 class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
     test_release_json = {
-        "nightly-a7": {
+        "nightly": {
             "VERSION": "ver7_nightly",
             "HASH": "hash7_nightly",
         },
-        "release-a7": {
+        "release": {
             "VERSION": "ver7_release",
             "HASH": "hash7_release",
         },
     }
 
     def test_get_release_json_info_for_next_rc_on_first_rc(self):
-        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, 7, True)
+        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, True)
 
         self.assertEqual(
             previous_release_json,
@@ -395,7 +395,7 @@ class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
         )
 
     def test_get_release_json_info_for_next_rc_on_second_rc(self):
-        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, 7, False)
+        previous_release_json = _get_release_json_info_for_next_rc(self.test_release_json, False)
 
         self.assertEqual(
             previous_release_json,
@@ -408,18 +408,18 @@ class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
 
 class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
     test_release_json = {
-        "nightly-a7": {
+        "nightly": {
             "JMXFETCH_VERSION": "ver7_nightly",
             "JMXFETCH_HASH": "hash7_nightly",
         },
-        "release-a7": {
+        "release": {
             "JMXFETCH_VERSION": "ver7_release",
             "JMXFETCH_HASH": "hash7_release",
         },
     }
 
     def test_get_release_json_info_for_next_rc_on_first_rc(self):
-        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json, 7, True)
+        jmxfetch_version, jmxfetch_hash = _get_jmxfetch_release_json_info(self.test_release_json, True)
 
         self.assertEqual(jmxfetch_version, "ver7_nightly")
         self.assertEqual(jmxfetch_hash, "hash7_nightly")
